@@ -1,0 +1,32 @@
+{
+  "name": "@mort/agents",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/runner.js",
+  "bin": {
+    "mort": "dist/cli/mort.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:harness-verify": "vitest run src/testing/__tests__/harness-self-test.ts",
+    "test:harness": "vitest run src/testing/__tests__/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@anthropic-ai/sdk": "^0.52.0",
+    "glob": "^13.0.0",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsup": "^8.3.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7",
+    "vitest": "^4.0.16"
+  }
+}

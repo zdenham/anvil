@@ -1,0 +1,284 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Search, Trash2 } from "lucide-react";
+import type { LogFilter, LogLevel } from "@/entities/logs";
+import { cn } from "@/lib/utils";
+
+const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
+
+const levelColors: Record<LogLevel, { active: string; inactive: string }> = {
+  trace: {
+    active: "bg-secondary-600 text-secondary-100",
+    inactive: "bg-surface-800 text-surface-400 hover:bg-surface-700",
+  },
+  debug: {
+    active: "bg-surface-600 text-surface-100",
+    inactive: "bg-surface-800 text-surface-400 hover:bg-surface-700",
+  },
+  info: {
+    active: "bg-accent-600 text-accent-900",
+    inactive: "bg-surface-800 text-surface-400 hover:bg-surface-700",
+  },
+  warn: {
+    active: "bg-amber-600 text-amber-100",
+    inactive: "bg-surface-800 text-surface-400 hover:bg-surface-700",
+  },
+  error: {
+    active: "bg-red-600 text-red-100",
+    inactive: "bg-surface-800 text-surface-400 hover:bg-surface-700",
+  },
+};
+
+interface LogsToolbarProps {
+  filter: LogFilter;
+  onFilterChange: (filter: LogFilter) => void;
+  onClear: () => void;
+  filteredCount: number;
+  totalCount: number;
+}
+
+export function LogsToolbar({
+  filter,
+  onFilterChange,
+  onClear,
+  filteredCount,
+  totalCount,
+}: LogsToolbarProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const toggleLevel = (level: LogLevel) => {
+    const newLevels = filter.levels.includes(level)
+      ? filter.levels.filter((l) => l !== level)
+      : [...filter.levels, level];
+    onFilterChange({ ...filter, levels: newLevels });
+  };
+
+  const selectAll = () => {
+    onFilterChange({ ...filter, levels: [] });
+  };
+
+  const isAllSelected = filter.levels.length === 0;
+
+  // Close on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  // Reset focused index when opening
+  useEffect(() => {
+    if (isOpen) {
+      setFocusedIndex(0);
+    }
+  }, [isOpen]);
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (isOpen && listRef.current) {
+      const focusedItem = listRef.current.children[focusedIndex] as HTMLElement;
+      focusedItem?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focusedIndex, isOpen]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!isOpen) {
+        if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+          e.preventDefault();
+          setIsOpen(true);
+        }
+        return;
+      }
+
+      const totalItems = levels.length + 1; // +1 for "All" option
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setFocusedIndex((prev) => Math.min(prev + 1, totalItems - 1));
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setFocusedIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case "Enter":
+        case " ":
+          e.preventDefault();
+          if (focusedIndex === 0) {
+            selectAll();
+          } else {
+            toggleLevel(levels[focusedIndex - 1]);
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          setIsOpen(false);
+          buttonRef.current?.focus();
+          break;
+        case "Home":
+          e.preventDefault();
+          setFocusedIndex(0);
+          break;
+        case "End":
+          e.preventDefault();
+          setFocusedIndex(totalItems - 1);
+          break;
+      }
+    },
+    [isOpen, focusedIndex, filter.levels]
+  );
+
+  // Get display text for button
+  const getButtonText = () => {
+    if (isAllSelected) return "All levels";
+    if (filter.levels.length === 1) return filter.levels[0];
+    return `${filter.levels.length} levels`;
+  };
+
+  // Get color for button based on selected levels
+  const getButtonColor = () => {
+    if (isAllSelected) return "bg-surface-700 text-surface-200";
+    if (filter.levels.length === 1) {
+      return levelColors[filter.levels[0]].active;
+    }
+    return "bg-surface-700 text-surface-200";
+  };
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2 border-b border-surface-800 bg-surface-900/50">
+      {/* Search */}
+      <div className="relative flex-1 max-w-sm">
+        <Search
+          className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-500"
+          size={14}
+        />
+        <input
+          type="text"
+          placeholder="Search logs..."
+          value={filter.search}
+          onChange={(e) => onFilterChange({ ...filter, search: e.target.value })}
+          className="w-full pl-7 pr-3 py-1.5 text-sm bg-surface-800 border border-surface-700 rounded-md text-surface-200 placeholder:text-surface-500 focus:outline-none focus:ring-1 focus:ring-accent-500 focus:border-accent-500"
+        />
+      </div>
+
+      {/* Level filter dropdown */}
+      <div ref={dropdownRef} className="relative" onKeyDown={handleKeyDown}>
+        <button
+          ref={buttonRef}
+          onClick={() => setIsOpen(!isOpen)}
+          className={cn(
+            "flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium uppercase",
+            "transition-colors focus:outline-none focus:ring-2 focus:ring-surface-500",
+            getButtonColor()
+          )}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+        >
+          <span>{getButtonText()}</span>
+          <ChevronDown
+            className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")}
+            size={12}
+          />
+        </button>
+
+        {isOpen && (
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-multiselectable="true"
+            aria-activedescendant={`level-option-${focusedIndex}`}
+            className={cn(
+              "absolute top-full left-0 mt-1 z-50",
+              "w-[140px] overflow-auto",
+              "bg-surface-800 border border-surface-700 rounded-lg shadow-lg",
+              "py-1"
+            )}
+          >
+            {/* All option */}
+            <div
+              id="level-option-0"
+              role="option"
+              aria-selected={isAllSelected}
+              onClick={selectAll}
+              onMouseEnter={() => setFocusedIndex(0)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 cursor-pointer",
+                "text-xs uppercase text-surface-200",
+                focusedIndex === 0 && "bg-surface-700"
+              )}
+            >
+              <div className={cn(
+                "w-4 h-4 rounded border flex items-center justify-center",
+                isAllSelected ? "bg-accent-600 border-accent-600" : "border-surface-500"
+              )}>
+                {isAllSelected && <Check size={12} />}
+              </div>
+              <span>All</span>
+            </div>
+
+            {/* Individual levels */}
+            {levels.map((level, index) => {
+              const isSelected = filter.levels.includes(level);
+              const optionIndex = index + 1;
+              const colors = levelColors[level];
+              return (
+                <div
+                  key={level}
+                  id={`level-option-${optionIndex}`}
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => toggleLevel(level)}
+                  onMouseEnter={() => setFocusedIndex(optionIndex)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 cursor-pointer",
+                    "text-xs uppercase",
+                    focusedIndex === optionIndex && "bg-surface-700"
+                  )}
+                >
+                  <div className={cn(
+                    "w-4 h-4 rounded border flex items-center justify-center",
+                    isSelected ? colors.active : "border-surface-500"
+                  )}>
+                    {isSelected && <Check size={12} />}
+                  </div>
+                  <span className={isSelected ? colors.active.split(" ")[1] : "text-surface-200"}>
+                    {level}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Count */}
+      <span className="text-xs text-surface-500">
+        {filteredCount === totalCount
+          ? `${totalCount} logs`
+          : `${filteredCount} of ${totalCount}`}
+      </span>
+
+      {/* Clear button */}
+      <div className="ml-auto">
+        <button
+          onClick={onClear}
+          className="p-1.5 text-surface-400 hover:text-red-400 hover:bg-surface-800 rounded transition-colors"
+          title="Clear all logs"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}

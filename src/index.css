@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ensure full viewport height for flex layouts */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #141514; /* surface-900 */
+}
+
+/* Transparent background for panels that need it (spotlight, etc.) */
+html:has(.spotlight-container),
+html:has(.spotlight-container) body,
+html:has(.spotlight-container) #root {
+  background: transparent !important;
+}
+
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+
+  /* Thread UI color palette - Green-tinted */
+  --bg-chat: #052e16;           /* surface-950 */
+  --bg-user-bubble: #16a34a;    /* accent-600 */
+  --bg-assistant-bubble: #14532d; /* surface-900 */
+  --bg-tool-card: #166534;      /* surface-800 */
+  --border-tool: #15803d;       /* surface-700 */
+  --text-primary: #f0fdf4;      /* surface-50 */
+  --text-secondary: #86efac;    /* surface-300 */
+  --accent-tool: #f59e0b;       /* keep amber for tools */
+  --destructive: #ef4444;       /* keep red */
+
+  /* Spotlight default colors (production) - Gray colors (same as dev) */
+  --spotlight-bg: rgba(30, 32, 30, 0.95);
+  --spotlight-border: rgba(80, 82, 80, 0.5);
+  --accent-color: #505250;
+}
+
+/* Dev build - subtle gray border with dashed style */
+:root[data-app-suffix="dev"] {
+  --spotlight-bg: rgba(30, 32, 30, 0.95);
+  --spotlight-border: rgba(80, 82, 80, 0.5);
+  --accent-color: #505250;
+}
+
+/* Dev-specific dashed border styling */
+:root[data-app-suffix="dev"] .spotlight-container {
+  border-style: dashed;
+}
+
+/* Canary build - orange tint */
+:root[data-app-suffix="canary"] {
+  --spotlight-bg: rgba(60, 35, 20, 0.95);
+  --spotlight-border: rgba(249, 115, 22, 0.3);
+  --accent-color: #f97316;
+}
+
+/* Semantic color utilities for thread components */
+@layer utilities {
+  .text-muted-foreground {
+    color: var(--text-secondary);
+  }
+  .text-destructive {
+    color: var(--destructive);
+  }
+}
+
+/* Custom scrollbar styling - subtle, unobtrusive */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(110, 113, 110, 0.3) transparent;
+}
+
+/* WebKit scrollbar styling (for Tauri/WebKit) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(110, 113, 110, 0.25);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(110, 113, 110, 0.4);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Hide scrollbar corner */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Spotlight container styles */
+.spotlight-container {
+  background: var(--spotlight-bg);
+  border: 1px solid var(--spotlight-border);
+  border-radius: 12px;
+}
+
+/* Production instance - gray colors (applied via CSS class as fallback) */
+.spotlight-production {
+  background: rgba(30, 32, 30, 0.95);
+  border-color: rgba(80, 82, 80, 0.5);
+}
+
+/* Dev instance - gray border with dashed style (applied via CSS class as fallback) */
+.spotlight-dev {
+  background: rgba(30, 32, 30, 0.95);
+  border-color: rgba(80, 82, 80, 0.5);
+  border-style: dashed;
+}
+
+/* Canary instance - orange tint */
+.spotlight-canary {
+  background: rgba(60, 35, 20, 0.95);
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+/* Fix for math symbol rendering issues */
+textarea {
+  text-rendering: optimizeSpeed;
+  /* Force consistent baseline for math symbols */
+  font-variant-position: normal;
+}
+
+/* Target specific textarea inputs that might contain math */
+.search-input textarea {
+  /* Ensure consistent line spacing regardless of Unicode characters */
+  line-height: 1.4;
+  /* Prevent font fallback issues with math symbols */
+  font-feature-settings: "kern" 0;
+}
+

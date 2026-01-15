@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node "/Users/zac/Documents/juice/mort/mortician/agents/src/cli/mort.js" "$@"

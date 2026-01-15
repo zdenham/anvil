@@ -1,0 +1,25 @@
+# Dev Build Icons
+
+This directory contains icons for the development build of Mort.
+
+## Required files:
+- 32x32.png
+- 128x128.png
+- 128x128@2x.png
+- icon.icns (macOS)
+- icon.ico (Windows)
+- icon.png
+
+## Generation
+
+To generate dev icons with a purple tint from production icons:
+
+```bash
+# Using ImageMagick
+for f in ../icons/*.png; do
+  convert "$f" -modulate 100,100,150 "$(basename $f)"
+done
+
+# Recreate .icns for macOS
+iconutil -c icns icon.iconset -o icon.icns
+```

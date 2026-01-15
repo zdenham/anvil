@@ -1,0 +1,17 @@
+{
+  "name": "mortician-api",
+  "version": "1.0.0",
+  "description": "Fastify API server for Mortician",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.26.2"
+  },
+  "keywords": ["fastify", "api", "mortician"],
+  "author": "",
+  "license": "ISC"
+}

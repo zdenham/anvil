@@ -1,0 +1,11 @@
+export { TaskWorkspace } from "./task-workspace";
+export { TaskHeader } from "./task-header";
+export { LeftMenu, type WorkspaceTab } from "./left-menu";
+export { MainContentPane } from "./main-content-pane";
+export { ActionPanel } from "./action-panel";
+export { ChatPane } from "./chat-pane";
+export { GitCommitsList } from "./git-commits-list";
+export { TaskOverview } from "./task-overview";
+export { ThreadsList } from "./threads-list";
+export { TabButton } from "./tab-button";
+export { DragHandle } from "./drag-handle";

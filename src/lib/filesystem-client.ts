@@ -1,0 +1,164 @@
+import { invoke } from "@tauri-apps/api/core";
+import { z } from "zod";
+import { PathsInfoSchema, type PathsInfo } from "./types/paths";
+
+/**
+ * Schema for directory entry metadata returned by listDir
+ */
+export const DirEntrySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  isDirectory: z.boolean(),
+  isFile: z.boolean(),
+});
+export type DirEntry = z.infer<typeof DirEntrySchema>;
+
+// Re-export PathsInfo for backwards compatibility
+export type { PathsInfo };
+
+/**
+ * Low-level filesystem client that wraps Rust Tauri commands.
+ * Provides generic file and directory operations.
+ * Business logic should live in higher-level clients that use this.
+ */
+export class FilesystemClient {
+  /**
+   * Returns paths info from the Tauri backend, including the data directory.
+   * The data directory is the centralized location for all mort data.
+   */
+  async getPathsInfo(): Promise<PathsInfo> {
+    const raw = await invoke<unknown>("get_paths_info");
+    return PathsInfoSchema.parse(raw);
+  }
+
+  /**
+   * Returns the data directory path (e.g., ~/.mort or ~/.mort-dev).
+   * This is the centralized location for all mort data.
+   */
+  async getDataDir(): Promise<string> {
+    const info = await this.getPathsInfo();
+    return info.data_dir;
+  }
+
+  /**
+   * Writes text content to a file, creating parent directories if needed
+   */
+  async writeFile(path: string, contents: string): Promise<void> {
+    await invoke("fs_write_file", { path, contents });
+  }
+
+  /**
+   * Reads text content from a file
+   */
+  async readFile(path: string): Promise<string> {
+    return invoke<string>("fs_read_file", { path });
+  }
+
+  /**
+   * Reads and parses a JSON file
+   */
+  async readJsonFile<T>(path: string): Promise<T> {
+    const contents = await this.readFile(path);
+    return JSON.parse(contents) as T;
+  }
+
+  /**
+   * Writes an object as JSON to a file
+   */
+  async writeJsonFile<T>(path: string, data: T): Promise<void> {
+    const contents = JSON.stringify(data, null, 2);
+    await this.writeFile(path, contents);
+  }
+
+  /**
+   * Creates a directory and all parent directories
+   */
+  async mkdir(path: string): Promise<void> {
+    await invoke("fs_mkdir", { path });
+  }
+
+  /**
+   * Checks if a path exists
+   */
+  async exists(path: string): Promise<boolean> {
+    return invoke<boolean>("fs_exists", { path });
+  }
+
+  /**
+   * Removes a file or empty directory
+   */
+  async remove(path: string): Promise<void> {
+    await invoke("fs_remove", { path });
+  }
+
+  /**
+   * Removes a directory and all its contents recursively
+   */
+  async removeAll(path: string): Promise<void> {
+    await invoke("fs_remove_dir_all", { path });
+  }
+
+  /**
+   * Lists directory contents with metadata
+   */
+  async listDir(path: string): Promise<DirEntry[]> {
+    const raw = await invoke<unknown>("fs_list_dir", { path });
+    return z.array(DirEntrySchema).parse(raw);
+  }
+
+  /**
+   * Moves or renames a file or directory
+   */
+  async move(from: string, to: string): Promise<void> {
+    await invoke("fs_move", { from, to });
+  }
+
+  /**
+   * Copies a single file
+   */
+  async copyFile(from: string, to: string): Promise<void> {
+    await invoke("fs_copy_file", { from, to });
+  }
+
+  /**
+   * Recursively copies an entire directory tree
+   */
+  async copyDirectory(from: string, to: string): Promise<void> {
+    await invoke("fs_copy_directory", { from, to });
+  }
+
+  /**
+   * Checks if a directory is a git repository
+   */
+  async isGitRepo(path: string): Promise<boolean> {
+    return invoke<boolean>("fs_is_git_repo", { path });
+  }
+
+  /**
+   * Creates a git worktree at the specified path.
+   * Much faster than copying for git repositories - shares the .git directory.
+   */
+  async gitWorktreeAdd(repoPath: string, worktreePath: string): Promise<void> {
+    await invoke("fs_git_worktree_add", { repoPath, worktreePath });
+  }
+
+  /**
+   * Removes a git worktree
+   */
+  async gitWorktreeRemove(
+    repoPath: string,
+    worktreePath: string
+  ): Promise<void> {
+    await invoke("fs_git_worktree_remove", { repoPath, worktreePath });
+  }
+
+  /**
+   * Joins path segments using forward slashes
+   */
+  joinPath(...segments: string[]): string {
+    return segments
+      .map((s) => s.replace(/\/+$/, ""))
+      .filter((s) => s.length > 0)
+      .join("/");
+  }
+}

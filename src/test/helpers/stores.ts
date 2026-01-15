@@ -1,0 +1,185 @@
+/**
+ * Store seeding helpers for UI isolation tests.
+ *
+ * Provides utilities to seed Zustand stores with test data,
+ * ensuring test isolation and predictable initial state.
+ */
+
+import { useTaskStore } from "@/entities/tasks/store";
+import { useThreadStore } from "@/entities/threads/store";
+import { useRepoStore } from "@/entities/repositories/store";
+import { useSettingsStore } from "@/entities/settings/store";
+import { useLogStore } from "@/entities/logs/store";
+import { DEFAULT_WORKSPACE_SETTINGS } from "@/entities/settings/types";
+import type { TaskMetadata } from "@/entities/tasks/types";
+import type { ThreadMetadata } from "@/entities/threads/types";
+import type { Repository } from "@/entities/repositories/types";
+import type { ThreadState } from "@/lib/types/agent-messages";
+
+// ============================================================================
+// Store State Types (for seeding)
+// ============================================================================
+
+interface ThreadStoreState {
+  threads?: Record<string, ThreadMetadata>;
+  activeThreadId?: string | null;
+  threadStates?: Record<string, ThreadState>;
+  activeThreadLoading?: boolean;
+  threadErrors?: Record<string, string>;
+}
+
+interface RepoStoreState {
+  repositories?: Record<string, Repository>;
+}
+
+// ============================================================================
+// TestStores Class
+// ============================================================================
+
+export class TestStores {
+  /**
+   * Clear all stores to empty state.
+   * Call this in beforeEach to ensure test isolation.
+   * Sets _hydrated: false on all stores.
+   */
+  static clear(): void {
+    useTaskStore.setState({
+      tasks: {},
+      taskContent: {},
+      _hydrated: false,
+    });
+
+    useThreadStore.setState({
+      threads: {},
+      activeThreadId: null,
+      threadStates: {},
+      activeThreadLoading: false,
+      threadErrors: {},
+      _hydrated: false,
+    });
+
+    useRepoStore.setState({
+      repositories: {},
+      _hydrated: false,
+    });
+
+    useSettingsStore.setState({
+      workspace: DEFAULT_WORKSPACE_SETTINGS,
+      _hydrated: false,
+    });
+
+    useLogStore.setState({
+      logs: [],
+      _hydrated: false,
+    });
+  }
+
+  // ==========================================================================
+  // Task Store Methods
+  // ==========================================================================
+
+  static seedTasks(tasks: TaskMetadata[]): void {
+    const taskMap = Object.fromEntries(tasks.map((t) => [t.id, t]));
+    useTaskStore.setState({ tasks: taskMap, _hydrated: true });
+  }
+
+  static seedTask(task: TaskMetadata): void {
+    useTaskStore.setState((state) => ({
+      tasks: { ...state.tasks, [task.id]: task },
+      _hydrated: true,
+    }));
+  }
+
+  static seedTaskContent(taskId: string, content: string): void {
+    useTaskStore.setState((state) => ({
+      taskContent: { ...state.taskContent, [taskId]: content },
+    }));
+  }
+
+  // ==========================================================================
+  // Thread Store Methods
+  // ==========================================================================
+
+  static seedThreads(state: ThreadStoreState): void {
+    useThreadStore.setState({
+      threads: state.threads ?? {},
+      activeThreadId: state.activeThreadId ?? null,
+      threadStates: state.threadStates ?? {},
+      activeThreadLoading: state.activeThreadLoading ?? false,
+      threadErrors: state.threadErrors ?? {},
+      _hydrated: true,
+    });
+  }
+
+  static seedThread(thread: ThreadMetadata): void {
+    useThreadStore.setState((state) => ({
+      threads: { ...state.threads, [thread.id]: thread },
+      _hydrated: true,
+    }));
+  }
+
+  static seedThreadState(threadId: string, state: ThreadState): void {
+    useThreadStore.setState((prev) => ({
+      threadStates: { ...prev.threadStates, [threadId]: state },
+    }));
+  }
+
+  static setActiveThread(threadId: string | null): void {
+    useThreadStore.setState({ activeThreadId: threadId });
+  }
+
+  // ==========================================================================
+  // Repository Store Methods
+  // ==========================================================================
+
+  static seedRepositories(state: RepoStoreState): void {
+    useRepoStore.setState({
+      repositories: state.repositories ?? {},
+      _hydrated: true,
+    });
+  }
+
+  static seedRepository(repo: Repository): void {
+    useRepoStore.setState((state) => ({
+      repositories: { ...state.repositories, [repo.name]: repo },
+      _hydrated: true,
+    }));
+  }
+
+  // ==========================================================================
+  // Settings Store Methods
+  // ==========================================================================
+
+  static seedSettings(
+    settings: Partial<typeof DEFAULT_WORKSPACE_SETTINGS>
+  ): void {
+    useSettingsStore.setState({
+      workspace: { ...DEFAULT_WORKSPACE_SETTINGS, ...settings },
+      _hydrated: true,
+    });
+  }
+
+  // ==========================================================================
+  // Getter Methods (for assertions)
+  // ==========================================================================
+
+  static getTaskState() {
+    return useTaskStore.getState();
+  }
+
+  static getThreadState() {
+    return useThreadStore.getState();
+  }
+
+  static getRepoState() {
+    return useRepoStore.getState();
+  }
+
+  static getSettingsState() {
+    return useSettingsStore.getState();
+  }
+
+  static getLogsState() {
+    return useLogStore.getState();
+  }
+}
