@@ -21,6 +21,7 @@ mod logging;
 mod mort_commands;
 mod panels;
 mod paths;
+mod task_navigation;
 mod process_commands;
 mod shell;
 mod thread_commands;
@@ -144,12 +145,12 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
     app.global_shortcut()
         .on_shortcut(task_panel_shortcut, move |_app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                if panels::is_navigation_mode_active() {
-                    // Panel already open - navigate to next task
-                    panels::navigate_next_task(&task_panel_app_handle);
+                if panels::is_panel_visible(&task_panel_app_handle, panels::TASKS_LIST_LABEL) {
+                    // Panel already open - navigate down
+                    task_navigation::handle_navigation_key(&task_panel_app_handle, task_navigation::NavigationDirection::Down);
                 } else {
-                    // Panel closed - open it and start navigation mode
-                    let _ = panels::show_tasks_list(&task_panel_app_handle);
+                    // Panel closed - start navigation mode
+                    task_navigation::start_navigation_mode(&task_panel_app_handle, &task_panel_hotkey);
                 }
             }
         })
@@ -164,9 +165,9 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
     app.global_shortcut()
         .on_shortcut(reverse_shortcut, move |_app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                if panels::is_navigation_mode_active() {
-                    // Panel already open - navigate to previous task
-                    panels::navigate_previous_task(&reverse_app_handle);
+                if task_navigation::is_navigation_mode_active() {
+                    // Panel already open - navigate up
+                    task_navigation::handle_navigation_key(&reverse_app_handle, task_navigation::NavigationDirection::Up);
                 }
                 // Don't open panel on Shift+Up - only navigate if already open
             }
@@ -343,6 +344,18 @@ fn hide_simple_task(app: AppHandle) -> Result<(), String> {
     panels::hide_simple_task(&app)
 }
 
+/// Forces focus on the simple task panel if it's visible
+#[tauri::command]
+fn focus_simple_task_panel(app: AppHandle) -> Result<(), String> {
+    panels::focus_simple_task_panel(&app)
+}
+
+/// Checks if a specific panel is visible
+#[tauri::command]
+fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
+    panels::is_panel_visible(&app, &panel_label)
+}
+
 /// Gets the pending task (Pull Model for HMR resilience)
 #[tauri::command]
 fn get_pending_task() -> Option<panels::PendingTask> {
@@ -403,11 +416,6 @@ fn is_any_panel_visible(app: AppHandle) -> bool {
     panels::is_any_panel_visible(&app)
 }
 
-/// Checks if a specific panel is currently visible
-#[tauri::command]
-fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
-    panels::is_panel_visible(&app, &panel_label)
-}
 
 /// Restarts the application (dev mode only - for manual refresh)
 #[tauri::command]
@@ -633,6 +641,8 @@ pub fn run() {
             open_simple_task,
             hide_task,
             hide_simple_task,
+            focus_simple_task_panel,
+            is_panel_visible,
             get_pending_task,
             clear_pending_task,
             peek_pending_task,
@@ -646,7 +656,6 @@ pub fn run() {
             show_tasks_panel,
             hide_tasks_panel,
             is_any_panel_visible,
-            is_panel_visible,
             restart_app,
             app_search::search_applications,
             app_search::open_application,
@@ -801,6 +810,9 @@ pub fn run() {
 
             // Initialize clipboard monitoring
             clipboard::initialize(app.handle());
+
+            // Start modifier key monitoring for task navigation
+            task_navigation::start_modifier_monitoring(app.handle().clone());
 
             // Handle main window visibility and hotkey registration based on onboarding state
             let onboarded = config::is_onboarded();

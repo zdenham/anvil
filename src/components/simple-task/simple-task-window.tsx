@@ -24,6 +24,7 @@ import { archiveTask } from "@/entities/tasks/archive-service";
 import { useNavigateToNextTask } from "@/hooks/use-navigate-to-next-task";
 import { invoke } from "@tauri-apps/api/core";
 import { NavigationBanner } from "./navigation-banner";
+import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 
 interface QueuedMessage {
   id: string;
@@ -89,6 +90,21 @@ function SimpleTaskWindowContent({
 
   // Navigation hook for suggested actions
   const { navigateToNextTaskOrFallback } = useNavigateToNextTask(taskId);
+
+  // Quick actions store for keyboard navigation
+  const {
+    selectedIndex,
+    showFollowUpInput,
+    followUpValue,
+    isProcessing,
+    setSelectedIndex,
+    setShowFollowUpInput,
+    setFollowUpValue,
+    setProcessing,
+    resetState,
+    navigateUp,
+    navigateDown,
+  } = useQuickActionsStore();
 
   // Queued messages state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
@@ -241,19 +257,10 @@ function SimpleTaskWindowContent({
     }
   }, [messages.length > 0 && activeState?.messages ? activeState.messages.length : 0]);
 
-  const handleToolResponse = useCallback(async (toolId: string, response: string) => {
-    if (!workingDirectory) {
-      logger.error("[SimpleTaskWindow] Cannot respond: no working directory");
-      return;
-    }
-
-    try {
-      await submitToolResult(taskId, threadId, toolId, response, workingDirectory);
-    } catch (error) {
-      logger.error("[SimpleTaskWindow] Failed to submit tool response", { error, toolId });
-      throw error;
-    }
-  }, [taskId, threadId, workingDirectory]);
+  // Reset quick actions state when taskId changes
+  useEffect(() => {
+    resetState();
+  }, [taskId, resetState]);
 
   const handleSuggestedAction = useCallback(
     async (action: "markUnread" | "archive") => {
@@ -288,6 +295,144 @@ function SimpleTaskWindowContent({
     [taskId, navigateToNextTaskOrFallback]
   );
 
+  const handleQuickAction = useCallback(async (action: ActionType) => {
+    if (isProcessing) return;
+
+    setProcessing(action);
+    try {
+      if (action === "nextTask") {
+        const success = await navigateToNextTaskOrFallback({ actionType: 'quickAction' });
+        if (!success) {
+          logger.info("[SimpleTaskWindow] Navigated to tasks panel as fallback");
+        }
+      } else if (action === "followUp") {
+        setShowFollowUpInput(true);
+      } else if (action === "respond") {
+        inputRef.current?.focus();
+      } else if (action === "markUnread" || action === "archive") {
+        // Handle these through the existing handler
+        await handleSuggestedAction(action);
+      }
+    } catch (error) {
+      logger.error(`[SimpleTaskWindow] Failed to handle quick action ${action}:`, error);
+    } finally {
+      setProcessing(null);
+    }
+  }, [isProcessing, setProcessing, setShowFollowUpInput, navigateToNextTaskOrFallback, handleSuggestedAction]);
+
+  // Global keyboard navigation for quick actions
+  useEffect(() => {
+    const actions = isStreaming ? streamingActions : defaultActions;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle keyboard if there's a modal or follow-up input is active
+      if (showFollowUpInput) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setShowFollowUpInput(false);
+          setFollowUpValue("");
+        }
+        return;
+      }
+
+      // Handle number keys (1, 2, 3)
+      if (e.key >= "1" && e.key <= "3") {
+        const actionIndex = parseInt(e.key) - 1;
+        const selectedAction = actions[actionIndex];
+        if (selectedAction) {
+          e.preventDefault();
+          setSelectedIndex(actionIndex);
+          handleQuickAction(selectedAction.key);
+        }
+        return;
+      }
+
+      // Handle arrow keys
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        navigateUp(actions.length);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        navigateDown(actions.length);
+      } else if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const selectedAction = actions[selectedIndex];
+        if (selectedAction) {
+          if (selectedAction.key === "respond") {
+            // Focus the input instead of processing an action
+            inputRef.current?.focus();
+          } else {
+            handleQuickAction(selectedAction.key);
+          }
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        // Focus the input when pressing Escape
+        inputRef.current?.focus();
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Any regular character typed - focus input and select respond option
+        const respondIndex = actions.findIndex(a => a.key === "respond");
+        if (respondIndex !== -1) {
+          setSelectedIndex(respondIndex);
+        }
+        inputRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIndex, isStreaming, showFollowUpInput, navigateUp, navigateDown, setSelectedIndex, setShowFollowUpInput, setFollowUpValue, handleQuickAction]);
+
+  // Focus restoration hack: periodically check if panel is visible but doesn't have focus
+  useEffect(() => {
+    const checkAndRestoreFocus = async () => {
+      try {
+        // Check if this panel is visible and should have focus
+        const isVisible = await invoke<boolean>("is_panel_visible", { panelLabel: "simple-task" });
+
+        if (isVisible && document.hasFocus && !document.hasFocus()) {
+          // Panel is visible but document doesn't have focus - try to restore it
+          await invoke("focus_simple_task_panel");
+
+          // Focus the input element to ensure keyboard events work
+          // Small delay to ensure the panel focus completes first
+          setTimeout(() => {
+            inputRef.current?.focus();
+          }, 50);
+        }
+      } catch (error) {
+        // Silently ignore errors - this is a hack and shouldn't break normal operation
+      }
+    };
+
+    // Check focus every 500ms when the component is mounted
+    const interval = setInterval(checkAndRestoreFocus, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToolResponse = useCallback(async (toolId: string, response: string) => {
+    if (!workingDirectory) {
+      logger.error("[SimpleTaskWindow] Cannot respond: no working directory");
+      return;
+    }
+
+    try {
+      await submitToolResult(taskId, threadId, toolId, response, workingDirectory);
+    } catch (error) {
+      logger.error("[SimpleTaskWindow] Failed to submit tool response", { error, toolId });
+      throw error;
+    }
+  }, [taskId, threadId, workingDirectory]);
+
+  const handleFollowUpSubmit = useCallback((message: string) => {
+    if (message.trim()) {
+      handleSubmit(message.trim());
+      setFollowUpValue("");
+      setShowFollowUpInput(false);
+    }
+  }, [handleSubmit, setFollowUpValue, setShowFollowUpInput]);
+
   const handleAutoSelectInput = useCallback(() => {
     inputRef.current?.focus();
   }, []);
@@ -313,6 +458,7 @@ function SimpleTaskWindowContent({
         onAutoSelectInput={handleAutoSelectInput}
         isStreaming={isStreaming}
         onSubmitFollowUp={handleSubmit}
+        onQuickAction={handleQuickAction}
       />
       <ThreadInput
         ref={inputRef}

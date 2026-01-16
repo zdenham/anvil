@@ -93,7 +93,6 @@ pub enum NavigationDirection {
     Down,
 }
 ```
-### Rust Implementation
 
 #### Simple Navigation Mode Tracker
 
@@ -344,6 +343,7 @@ export function TasksPanel() {
   );
 }
 ```
+
 ## Implementation Plan
 
 ### Phase 1: Rust Navigation Mode (1 day)

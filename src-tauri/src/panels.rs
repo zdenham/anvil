@@ -14,63 +14,8 @@ use tauri::{
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::task_navigation;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Navigation Mode State (for hotkey navigation)
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Track if we're in navigation mode (panel is open for navigation).
-// Note on timing: There's a theoretical race condition between the hotkey handler
-// checking is_navigation_mode_active() and the panel's window_did_resign_key handler
-// calling end_navigation_mode(). In practice, this is a non-issue because:
-// 1. Ordering::SeqCst provides strong consistency guarantees
-// 2. Human reaction time is much slower than atomic operations
-// 3. Worst case degradation: panel opens normally instead of navigating (acceptable)
-static NAVIGATION_MODE_ACTIVE: AtomicBool = AtomicBool::new(false);
-
-/// Called when task panel is about to be shown for navigation
-pub fn start_navigation_mode() {
-    NAVIGATION_MODE_ACTIVE.store(true, Ordering::SeqCst);
-}
-
-/// Called when navigation ends (panel hidden, task selected, etc.)
-pub fn end_navigation_mode() {
-    NAVIGATION_MODE_ACTIVE.store(false, Ordering::SeqCst);
-}
-
-/// Check if we're currently in navigation mode
-pub fn is_navigation_mode_active() -> bool {
-    NAVIGATION_MODE_ACTIVE.load(Ordering::SeqCst)
-}
-
-/// Navigation direction enum for bidirectional navigation
-#[derive(Clone, Copy, Debug, serde::Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum NavigationDirection {
-    Forward,
-    Backward,
-}
-
-/// Handle a navigation hotkey press when panel is already visible
-/// Emits an event to frontend to navigate to next task
-pub fn navigate_next_task(app: &AppHandle) {
-    navigate_task(app, NavigationDirection::Forward);
-}
-
-/// Handle a navigation hotkey press for previous task
-pub fn navigate_previous_task(app: &AppHandle) {
-    navigate_task(app, NavigationDirection::Backward);
-}
-
-/// Navigate in the specified direction
-pub fn navigate_task(app: &AppHandle, direction: NavigationDirection) {
-    if is_navigation_mode_active() {
-        // Emit event to frontend with direction information
-        let event_data = serde_json::json!({ "direction": direction });
-        let _ = app.emit_to(TASKS_LIST_LABEL, "navigate", event_data);
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Pending Task State (Pull Model for HMR resilience)
@@ -1057,10 +1002,15 @@ pub fn show_simple_task(
             let _ = app.emit("open-simple-task", &payload);
             tracing::info!("[SimpleTaskPanel] Event emitted");
 
-            // Show the panel
+            // Show the panel and ensure it's focused
             tracing::info!("[SimpleTaskPanel] Calling show_and_make_key...");
             panel.show_and_make_key();
-            tracing::info!("[SimpleTaskPanel] Panel shown successfully");
+
+            // Force focus even if panel was already visible
+            // This is crucial for navigation between tasks where the same panel instance is reused
+            tracing::info!("[SimpleTaskPanel] Ensuring panel is key window...");
+            panel.as_panel().makeKeyAndOrderFront(None);
+            tracing::info!("[SimpleTaskPanel] Panel focused successfully");
 
             Ok(())
         }
@@ -1079,6 +1029,17 @@ pub fn hide_simple_task(app: &AppHandle) -> Result<(), String> {
         clear_pending_simple_task();
         // Emit event so frontend can reset state
         let _ = app.emit_to(SIMPLE_TASK_LABEL, "panel-hidden", ());
+    }
+    Ok(())
+}
+
+/// Forces focus on the simple task panel if it's visible (hack for focus restoration)
+pub fn focus_simple_task_panel(app: &AppHandle) -> Result<(), String> {
+    if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
+        if panel.is_visible() {
+            tracing::debug!("[SimpleTaskPanel] Force focusing panel via makeKeyAndOrderFront");
+            panel.as_panel().makeKeyAndOrderFront(None);
+        }
     }
     Ok(())
 }
@@ -1141,10 +1102,14 @@ pub fn create_tasks_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
             if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
                 panel.hide();
             }
+            // If navigation mode is active, emit task selection before ending navigation
+            if task_navigation::is_navigation_mode_active() {
+                let _ = app.emit("task-selection", &());
+            }
             // Reset navigation mode when panel loses focus
-            end_navigation_mode();
+            task_navigation::end_navigation_mode(app);
             // Emit event so frontend can reset state
-            let _ = app.emit_to(TASKS_LIST_LABEL, "panel-hidden", ());
+            let _ = app.emit("panel-hidden", ());
         }
     });
     panel.set_event_handler(Some(event_handler.as_ref()));
@@ -1168,7 +1133,6 @@ pub fn show_tasks_list(app: &AppHandle) -> Result<(), String> {
                 .as_panel()
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
             panel.show_and_make_key();
-            start_navigation_mode();
             tracing::info!("[TasksListPanel] Panel shown");
 
             // Emit panel-shown event so frontend can refresh data
@@ -1200,8 +1164,12 @@ pub fn toggle_tasks_list(app: &AppHandle) -> (bool, bool) {
     if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
         let was_visible = panel.is_visible();
         if was_visible {
+            // If navigation mode is active, emit task selection before ending navigation
+            if task_navigation::is_navigation_mode_active() {
+                let _ = app.emit("task-selection", &());
+            }
             panel.hide();
-            end_navigation_mode();
+            task_navigation::end_navigation_mode(app);
             (true, false)
         } else {
             // Reposition panel to the screen where the cursor is
@@ -1210,7 +1178,6 @@ pub fn toggle_tasks_list(app: &AppHandle) -> (bool, bool) {
                 .as_panel()
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
             panel.show_and_make_key();
-            start_navigation_mode();
 
             // Emit panel-shown event so frontend can refresh data
             let _ = app.emit_to(TASKS_LIST_LABEL, "panel-shown", ());

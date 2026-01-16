@@ -47,7 +47,8 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Enter submits (unless Shift is held for newline, or trigger dropdown is active)
-      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive) {
+      // Only consume Enter if there's content to submit - otherwise let it propagate to quick actions
+      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && value.trim()) {
         e.preventDefault();
         e.stopPropagation();
         handleSubmit();

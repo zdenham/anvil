@@ -1,40 +1,59 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useTaskStore, taskService, threadService, eventBus, type TaskMetadata } from "../../entities";
+import { useThreadStore } from "../../entities/threads/store";
 import { logger } from "../../lib/logger-client";
-import { UnifiedTaskList } from "../shared/unified-task-list";
+import { useTaskNavigation } from "../../hooks/use-task-navigation";
 import { useDeleteTask } from "../../hooks/use-delete-task";
 import { DeleteTaskDialog } from "../tasks/delete-task-dialog";
-
-interface NavigationTrigger {
-  count: number;
-  direction: 'forward' | 'backward';
-}
+import { getTaskDotColor } from "@/utils/task-colors";
+import { DeleteButton } from "@/components/tasks/delete-button";
+import type { ThreadMetadata } from "@/entities/threads/types";
 
 /**
  * TasksPanel - A lightweight NSPanel that displays a list of all tasks.
  *
- * This panel is a read-only view that:
- * - Displays tasks from the store
- * - Opens SimpleTaskPanel when a task is clicked
- * - Does NOT spawn agents or emit state-changing events
- *
- * It uses only setupIncomingBridge() to receive events, preventing echo loops.
+ * This panel uses the new task navigation system that:
+ * - Receives targeted events from Rust backend
+ * - Uses simplified navigation state management
+ * - Opens SimpleTaskPanel when a task is selected via navigation or click
  */
 export function TasksPanel() {
   const allTasks = useTaskStore((s) => s.tasks);
+  const allThreads = useThreadStore((s) => s.getAllThreads());
   const tasks = useMemo(
-    () => Object.values(allTasks).filter((t) => !t.parentId),
+    () => Object.values(allTasks)
+      .filter((t) => !t.parentId)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
     [allTasks]
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [navigateTrigger, setNavigateTrigger] = useState<NavigationTrigger>({
-    count: 0,
-    direction: 'forward'
-  });
-  const [currentHotkey, setCurrentHotkey] = useState<string>("");
   const { taskToDelete, isDeleting, requestDelete, confirmDelete, cancelDelete } = useDeleteTask();
+
+  // Handle task selection (from navigation or click)
+  const handleTaskSelect = useCallback(async (task: TaskMetadata) => {
+    logger.log("[tasks-panel] Task selected:", task.id, task.title);
+
+    // Hide this panel
+    await invoke("hide_tasks_panel");
+
+    // Get threads for this task from the store
+    const threads = threadService.getByTask(task.id);
+    // Use the first thread if available, otherwise fall back to task ID
+    const threadId = threads[0]?.id ?? task.id;
+
+    logger.log("[tasks-panel] Opening task with threadId:", threadId);
+
+    // Show simple task panel with this task
+    await invoke("open_simple_task", {
+      threadId,
+      taskId: task.id,
+      prompt: task.title,
+    });
+  }, []);
+
+  // Use the new task navigation hook
+  const { selectedIndex, isNavigating } = useTaskNavigation(tasks, handleTaskSelect);
 
   // Listen for panel visibility events via eventBus (no async cleanup races)
   useEffect(() => {
@@ -61,51 +80,6 @@ export function TasksPanel() {
     };
   }, []);
 
-  // Fetch the current hotkey configuration
-  useEffect(() => {
-    const fetchHotkey = async () => {
-      try {
-        const hotkey = await invoke("get_saved_task_panel_hotkey") as string;
-        setCurrentHotkey(hotkey);
-      } catch (error) {
-        logger.error("[tasks-panel] Failed to fetch hotkey:", error);
-      }
-    };
-    fetchHotkey();
-  }, []);
-
-  // Listen for navigation events from backend
-  useEffect(() => {
-    let unlistenNavigate: (() => void) | undefined;
-    let unlistenHidden: (() => void) | undefined;
-
-    const setupListeners = async () => {
-      // Listen for new navigate events with direction support
-      unlistenNavigate = await listen("navigate", (event) => {
-        const payload = event.payload as { direction: 'Forward' | 'Backward' };
-        const direction = payload.direction === 'Forward' ? 'forward' : 'backward';
-        setNavigateTrigger(prev => ({ count: prev.count + 1, direction }));
-      });
-
-      // Reset navigation state when panel is hidden to ensure clean state for next open
-      unlistenHidden = await listen("panel-hidden", () => {
-        setNavigateTrigger({ count: 0, direction: 'forward' });
-        logger.log("[tasks-panel] Panel hidden, navigation state reset");
-      });
-    };
-
-    setupListeners();
-
-    return () => {
-      if (unlistenNavigate) {
-        unlistenNavigate();
-      }
-      if (unlistenHidden) {
-        unlistenHidden();
-      }
-    };
-  }, []);
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -114,48 +88,6 @@ export function TasksPanel() {
     } finally {
       setIsRefreshing(false);
     }
-  };
-
-  const handleTaskClick = async (task: TaskMetadata) => {
-    logger.log("[tasks-panel] Task clicked:", task.id, task.title);
-
-    // Hide this panel
-    await invoke("hide_tasks_panel");
-
-    // Get threads for this task from the store
-    const threads = threadService.getByTask(task.id);
-    // Use the first thread if available, otherwise fall back to task ID
-    const threadId = threads[0]?.id ?? task.id;
-
-    logger.log("[tasks-panel] Opening task with threadId:", threadId);
-
-    // Show simple task panel with this task
-    await invoke("open_simple_task", {
-      threadId,
-      taskId: task.id,
-      prompt: task.title,
-    });
-  };
-
-  const handleMetaKeyRelease = async (task: TaskMetadata) => {
-    logger.log("[tasks-panel] Meta key released, opening task:", task.id, task.title);
-
-    // Hide this panel
-    await invoke("hide_tasks_panel");
-
-    // Get threads for this task from the store
-    const threads = threadService.getByTask(task.id);
-    // Use the first thread if available, otherwise fall back to task ID
-    const threadId = threads[0]?.id ?? task.id;
-
-    logger.log("[tasks-panel] Opening task with threadId:", threadId);
-
-    // Show simple task panel with this task
-    await invoke("open_simple_task", {
-      threadId,
-      taskId: task.id,
-      prompt: task.title,
-    });
   };
 
   const handleTaskDelete = useCallback((task: TaskMetadata) => {
@@ -178,13 +110,12 @@ export function TasksPanel() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <UnifiedTaskList
+        <TaskListWithNavigation
           tasks={tasks}
-          onTaskSelect={handleTaskClick}
+          threads={allThreads}
+          selectedIndex={selectedIndex}
+          onTaskSelect={handleTaskSelect}
           onTaskDelete={handleTaskDelete}
-          onMetaKeyRelease={handleMetaKeyRelease}
-          externalNavigateTrigger={navigateTrigger}
-          currentHotkey={currentHotkey}
         />
       </div>
 
@@ -196,6 +127,136 @@ export function TasksPanel() {
         onCancel={cancelDelete}
       />
     </div>
+  );
+}
+
+interface TaskListWithNavigationProps {
+  tasks: TaskMetadata[];
+  threads: ThreadMetadata[];
+  selectedIndex: number;
+  onTaskSelect: (task: TaskMetadata) => void;
+  onTaskDelete: (task: TaskMetadata) => void;
+}
+
+function TaskListWithNavigation({
+  tasks,
+  threads,
+  selectedIndex,
+  onTaskSelect,
+  onTaskDelete
+}: TaskListWithNavigationProps) {
+  if (tasks.length === 0) {
+    return (
+      <div className="p-4 px-6 text-center text-surface-500 text-sm">
+        No tasks yet
+      </div>
+    );
+  }
+
+  // Handle Enter key for task selection
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && tasks[selectedIndex]) {
+      e.preventDefault();
+      onTaskSelect(tasks[selectedIndex]);
+    }
+  };
+
+  return (
+    <div
+      className="outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
+      <ul className="space-y-1 px-3 pt-3">
+        {tasks.map((task, index) => (
+          <TaskItem
+            key={task.id}
+            task={task}
+            threads={threads}
+            onClick={() => onTaskSelect(task)}
+            isSelected={index === selectedIndex}
+            onDelete={onTaskDelete}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+interface TaskItemProps {
+  task: TaskMetadata;
+  threads: ThreadMetadata[];
+  onClick: () => void;
+  isSelected: boolean;
+  onDelete?: (task: TaskMetadata) => void;
+}
+
+function TaskItem({ task, threads, onClick, isSelected, onDelete }: TaskItemProps) {
+  return (
+    <li
+      onClick={onClick}
+      className={`group flex items-center gap-3 px-3 py-2 bg-surface-800 rounded-lg border border-surface-700 hover:border-surface-600 cursor-pointer transition-colors ${
+        isSelected ? "ring-1 ring-surface-600" : ""
+      }`}
+    >
+      <StatusDot task={task} threads={threads} />
+      <span className="flex-1 text-sm text-surface-100 truncate font-mono">
+        {task.title}
+      </span>
+
+      {/* Tags */}
+      {task.tags.length > 0 && (
+        <div className="flex gap-1">
+          {task.tags.slice(0, 2).map((tag) => (
+            <span
+              key={tag}
+              className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-surface-700 text-surface-400 rounded"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Subtask progress */}
+      {task.subtasks.length > 0 && (
+        <span className="text-xs text-surface-500">
+          {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
+        </span>
+      )}
+
+      {/* Delete button */}
+      {onDelete && (
+        <DeleteButton onDelete={() => onDelete(task)} />
+      )}
+    </li>
+  );
+}
+
+function StatusDot({ task, threads }: { task: TaskMetadata; threads: ThreadMetadata[] }) {
+  const { color, animation } = getTaskDotColor(task, threads);
+
+  // Create tooltip that shows thread status
+  const taskThreads = threads.filter(t => t.taskId === task.id);
+  const runningCount = taskThreads.filter(t => t.status === 'running').length;
+  const unreadCount = taskThreads.filter(t => !t.isRead).length;
+
+  const tooltipParts = [];
+  if (runningCount > 0) {
+    tooltipParts.push(`${runningCount} running`);
+  }
+  if (unreadCount > 0) {
+    tooltipParts.push(`${unreadCount} unread`);
+  }
+  tooltipParts.push(`Status: ${task.status}`);
+
+  const title = tooltipParts.join(' • ');
+
+  return (
+    <span
+      className={`w-2 h-2 rounded-full flex-shrink-0 ${color} ${animation || ""}`}
+      title={title}
+    />
   );
 }
 
@@ -216,3 +277,4 @@ function RefreshIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
