@@ -6,7 +6,6 @@ import { threadService } from "@/entities/threads/service";
 import { useTaskStore } from "@/entities/tasks/store";
 import { UnifiedTaskList } from "@/components/shared/unified-task-list";
 import { useDeleteTask } from "@/hooks/use-delete-task";
-import { DeleteTaskDialog } from "@/components/tasks/delete-task-dialog";
 import { taskService } from "@/entities/tasks/service";
 
 interface TasksPageProps {
@@ -16,7 +15,7 @@ interface TasksPageProps {
 export function TasksPage({ onCloseSidebar }: TasksPageProps) {
   const allTasks = useTaskStore((s) => s.tasks);
   const allTasks_raw = Object.values(allTasks).filter((t) => !t.parentId);
-  const { taskToDelete, isDeleting, requestDelete, confirmDelete, cancelDelete } = useDeleteTask();
+  const { deleteTask } = useDeleteTask();
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -44,9 +43,9 @@ export function TasksPage({ onCloseSidebar }: TasksPageProps) {
     }
   }, []);
 
-  const handleTaskDelete = useCallback((task: TaskMetadata) => {
-    requestDelete(task);
-  }, [requestDelete]);
+  const handleTaskDelete = useCallback(async (task: TaskMetadata) => {
+    await deleteTask(task);
+  }, [deleteTask]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -106,13 +105,6 @@ export function TasksPage({ onCloseSidebar }: TasksPageProps) {
         />
       </div>
 
-      {/* Delete confirmation dialog */}
-      <DeleteTaskDialog
-        task={taskToDelete}
-        isDeleting={isDeleting}
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
-      />
     </div>
   );
 }

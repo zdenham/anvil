@@ -1,9 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "@/lib/utils";
-import { taskService } from "@/entities/tasks/service";
 import { useTaskStore } from "@/entities/tasks/store";
 import { useThreadStore } from "@/entities/threads/store";
-import { DeleteButton } from "@/components/tasks/delete-button";
 import { cancelAgent } from "@/lib/agent-service";
 import { StopCircle, ChevronRight } from "lucide-react";
 
@@ -40,35 +38,6 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
   const task = useTaskStore((s) => s.tasks[taskId]);
   const thread = useThreadStore((s) => s.threads[threadId]);
 
-  const handleDelete = async () => {
-    console.log(`[SimpleTaskHeader] handleDelete called for taskId: ${taskId}`);
-
-    try {
-      // Check if task exists in store before deletion
-      const task = useTaskStore.getState().tasks[taskId];
-      console.log(`[SimpleTaskHeader] Task found in store:`, task ? { id: taskId, title: task.title } : 'NOT FOUND');
-
-      if (!task) {
-        console.error(`[SimpleTaskHeader] Task ${taskId} not found in store, cannot delete`);
-        return;
-      }
-
-      console.log(`[SimpleTaskHeader] Starting task deletion for: ${taskId}`);
-      await taskService.delete(taskId);
-      console.log(`[SimpleTaskHeader] Task deletion completed successfully for: ${taskId}`);
-
-      console.log(`[SimpleTaskHeader] Attempting to hide simple task panel...`);
-      await invoke("hide_simple_task");
-      console.log(`[SimpleTaskHeader] Simple task panel hidden successfully`);
-
-    } catch (error) {
-      console.error(`[SimpleTaskHeader] Error during delete operation:`, error);
-      console.error(`[SimpleTaskHeader] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
-
-      // Don't close the window if deletion failed
-      throw error;
-    }
-  };
 
   const handleCancel = async () => {
     console.log(`[simple-task-header] Cancel button clicked for threadId=${threadId}`);
@@ -120,7 +89,6 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
           onClick={handleToggle}
           disabled={isStreaming}
         /> */}
-        <DeleteButton onDelete={handleDelete} />
       </div>
     </div>
   );

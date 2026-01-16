@@ -3,10 +3,9 @@ import { Trash2, Loader2 } from "lucide-react";
 
 interface DeleteButtonProps {
   onDelete: () => void | Promise<void>;
-  onConfirm?: () => void | Promise<void>;
 }
 
-export function DeleteButton({ onDelete, onConfirm }: DeleteButtonProps) {
+export function DeleteButton({ onDelete }: DeleteButtonProps) {
   const [confirming, setConfirming] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -41,12 +40,6 @@ export function DeleteButton({ onDelete, onConfirm }: DeleteButtonProps) {
         console.log(`[DeleteButton] Calling onDelete callback`);
         await onDelete();
         console.log(`[DeleteButton] onDelete completed successfully`);
-
-        if (onConfirm) {
-          console.log(`[DeleteButton] Calling onConfirm callback`);
-          await onConfirm();
-          console.log(`[DeleteButton] onConfirm completed successfully`);
-        }
       } catch (error) {
         console.error(`[DeleteButton] Error during deletion:`, error);
         throw error;

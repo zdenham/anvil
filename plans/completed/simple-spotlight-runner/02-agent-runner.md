@@ -19,7 +19,7 @@ import type { AgentConfig } from "./index.js";
 export const simple: AgentConfig = {
   name: "simple",
   description: "Simple Claude Code agent - runs directly in repository",
-  model: "claude-sonnet-4-20250514",
+  model: "claude-opus-4-5-20251101",
   tools: { type: "preset", preset: "claude_code" },
   appendedPrompt: `## Context
 
@@ -91,8 +91,16 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
     }
   }
 
-  if (!args.taskId || !args.threadId || !args.prompt || !args.cwd || !args.mortDir) {
-    logger.error("Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --mort-dir");
+  if (
+    !args.taskId ||
+    !args.threadId ||
+    !args.prompt ||
+    !args.cwd ||
+    !args.mortDir
+  ) {
+    logger.error(
+      "Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --mort-dir"
+    );
     throw new Error("Missing required arguments");
   }
 
@@ -105,6 +113,7 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
 **File:** `agents/src/simple-runner.ts` (~150 lines)
 
 Key points:
+
 - Parse args via `parseSimpleArgs()`
 - Create task metadata in `~/.mort/simple-tasks/{taskId}/metadata.json`
 - Create thread directory: `~/.mort/simple-tasks/{taskId}/threads/simple-{threadId}/`
@@ -123,6 +132,7 @@ Reference the full implementation from the parent plan's Step 3.
 Ensure `simple-runner.ts` is included in the build output.
 
 Add npm script if needed:
+
 ```json
 {
   "scripts": {

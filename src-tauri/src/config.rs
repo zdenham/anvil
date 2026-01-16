@@ -42,6 +42,8 @@ fn default_task_panel_hotkey() -> String {
     build_info::DEFAULT_TASK_PANEL_HOTKEY.to_string()
 }
 
+
+
 /// Initializes the config module (paths must be initialized first)
 pub fn initialize() {
     // Ensure settings directory exists (NEW consolidated location)
@@ -149,3 +151,5 @@ pub fn set_task_panel_hotkey(hotkey: &str) -> Result<(), String> {
     config.task_panel_hotkey = hotkey.to_string();
     save_config(&config)
 }
+
+

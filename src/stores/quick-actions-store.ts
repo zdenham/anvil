@@ -6,14 +6,13 @@ export interface ActionConfig {
   key: ActionType;
   label: string;
   description?: string;
-  number: number;
   icon?: React.ReactNode;
 }
 
 export const defaultActions: Array<ActionConfig> = [
-  { key: "archive", label: "Archive", description: "complete and file away", number: 1 },
-  { key: "markUnread", label: "Mark unread", description: "return to inbox for later", number: 2 },
-  { key: "respond", label: "Type something to respond", number: 3 },
+  { key: "archive", label: "Archive", description: "complete and file away" },
+  { key: "markUnread", label: "Mark unread", description: "return to inbox for later" },
+  { key: "respond", label: "Type something to respond" },
 ];
 
 export const streamingActions: Array<ActionConfig> = [
@@ -21,12 +20,10 @@ export const streamingActions: Array<ActionConfig> = [
     key: "nextTask",
     label: "Go to next task",
     description: "proceed to next unread task",
-    number: 1,
   },
   {
     key: "followUp",
     label: "Type something to queue a follow up",
-    number: 2,
   },
 ];
 
@@ -66,7 +63,7 @@ export const useQuickActionsStore = create<QuickActionsState>((set) => ({
     isProcessing: null,
   }),
 
-  navigateUp: (actionsLength) => set((state) => ({
+  navigateUp: (_actionsLength) => set((state) => ({
     selectedIndex: Math.max(0, state.selectedIndex - 1)
   })),
 

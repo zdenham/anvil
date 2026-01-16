@@ -146,6 +146,28 @@ export const threadService = {
   },
 
   /**
+   * Refreshes all threads for a specific task from disk.
+   * Uses glob-based discovery to find all threads belonging to the task.
+   */
+  async refreshByTask(taskId: string): Promise<void> {
+    const taskSlug = getTaskSlug(taskId);
+    const pattern = `${TASKS_DIR}/${taskSlug}/threads/*/metadata.json`;
+    const metadataFiles = await persistence.glob(pattern);
+
+    await Promise.all(
+      metadataFiles.map(async (filePath) => {
+        const raw = await persistence.readJson(filePath);
+        const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
+        if (result?.success) {
+          const metadata = result.data;
+          useThreadStore.getState()._applyUpdate(metadata.id, metadata);
+          threadTaskIndex.set(metadata.id, metadata.taskId);
+        }
+      })
+    );
+  },
+
+  /**
    * Creates a new thread.
    * Thread is created directly inside its parent task's threads folder.
    * Uses optimistic updates - UI updates immediately, rolls back on failure.

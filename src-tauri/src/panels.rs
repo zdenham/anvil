@@ -14,7 +14,6 @@ use tauri::{
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
 };
-use crate::task_navigation;
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -299,6 +298,8 @@ pub fn create_spotlight_panel(app: &AppHandle) -> Result<(), Box<dyn std::error:
             if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
                 panel.hide();
             }
+
+
             // Emit event so frontend can reset state
             let _ = app.emit_to(SPOTLIGHT_LABEL, "panel-hidden", ());
         }
@@ -363,6 +364,8 @@ pub fn create_clipboard_panel(app: &AppHandle) -> Result<(), Box<dyn std::error:
             if let Ok(panel) = app.get_webview_panel(CLIPBOARD_LABEL) {
                 panel.hide();
             }
+
+
             // Emit event so frontend can reset state
             let _ = app.emit_to(CLIPBOARD_LABEL, "panel-hidden", ());
         }
@@ -530,6 +533,8 @@ pub fn create_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
             if let Ok(panel) = app.get_webview_panel(TASK_LABEL) {
                 panel.hide();
             }
+
+
             // Emit event so frontend can reset state
             let _ = app.emit_to(TASK_LABEL, "panel-hidden", ());
         }
@@ -778,6 +783,8 @@ pub fn create_error_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
             if let Ok(panel) = app.get_webview_panel(ERROR_LABEL) {
                 panel.hide();
             }
+
+
             // Clear pending error when panel is hidden
             clear_pending_error();
             // Emit event so frontend can reset state
@@ -947,6 +954,8 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
             if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
                 panel.hide();
             }
+
+
             // Clear pending simple task when panel is hidden
             clear_pending_simple_task();
             // Emit event so frontend can reset state
@@ -1102,12 +1111,10 @@ pub fn create_tasks_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
             if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
                 panel.hide();
             }
-            // If navigation mode is active, emit task selection before ending navigation
-            if task_navigation::is_navigation_mode_active() {
-                let _ = app.emit("task-selection", &());
-            }
+            // Note: task-selection emission is handled by modifier release detection
+            // in handle_modifier_release(). Panel blur should not trigger task selection
+            // to avoid selecting tasks when window unfocus is NOT from modifier release.
             // Reset navigation mode when panel loses focus
-            task_navigation::end_navigation_mode(app);
             // Emit event so frontend can reset state
             let _ = app.emit("panel-hidden", ());
         }
@@ -1155,39 +1162,6 @@ pub fn hide_tasks_list(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Toggles the tasks list panel visibility
-/// Returns: (was_visible, is_now_visible)
-/// NOTE: This function may become dead code after the navigation mode change.
-/// The hotkey handler will call show_tasks_list() directly instead of toggling.
-/// Consider deprecating if no other callers exist.
-pub fn toggle_tasks_list(app: &AppHandle) -> (bool, bool) {
-    if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
-        let was_visible = panel.is_visible();
-        if was_visible {
-            // If navigation mode is active, emit task selection before ending navigation
-            if task_navigation::is_navigation_mode_active() {
-                let _ = app.emit("task-selection", &());
-            }
-            panel.hide();
-            task_navigation::end_navigation_mode(app);
-            (true, false)
-        } else {
-            // Reposition panel to the screen where the cursor is
-            let (x, y) = calculate_panel_position_cocoa(app, TASKS_LIST_WIDTH);
-            panel
-                .as_panel()
-                .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
-            panel.show_and_make_key();
-
-            // Emit panel-shown event so frontend can refresh data
-            let _ = app.emit_to(TASKS_LIST_LABEL, "panel-shown", ());
-
-            (false, true)
-        }
-    } else {
-        (false, false)
-    }
-}
 
 /// Checks if any nspanel is currently visible
 /// Returns true if at least one of the panels (spotlight, clipboard, task, error, simple-task, tasks-list) is visible

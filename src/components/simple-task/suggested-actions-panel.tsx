@@ -3,7 +3,6 @@ import { Send } from "lucide-react";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 
 interface SuggestedActionsPanelProps {
-  taskId: string;
   threadId: string;
   onAction: (action: "markUnread" | "archive") => Promise<void>;
   disabled?: boolean; // Disable during agent execution
@@ -14,7 +13,6 @@ interface SuggestedActionsPanelProps {
 }
 
 export function SuggestedActionsPanel({
-  taskId,
   onAction,
   disabled = false,
   onAutoSelectInput,
@@ -110,7 +108,6 @@ export function SuggestedActionsPanel({
       <div className="space-y-1">
         {actions.map((action, index) => {
           const isSelected = selectedIndex === index;
-          const isProcessingThis = isProcessing === action.key;
           const isClickable = !disabled && !isProcessing;
 
           return (
@@ -133,7 +130,6 @@ export function SuggestedActionsPanel({
               <span className="text-surface-500 w-2">
                 {isSelected ? "›" : " "}
               </span>
-              <span className="font-mono text-xs">{action.number}.</span>
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {action.icon && (
                   <div className="flex-shrink-0">

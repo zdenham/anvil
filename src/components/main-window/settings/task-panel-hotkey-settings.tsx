@@ -2,7 +2,11 @@ import { List } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SettingsSection } from "../settings-section";
 import { HotkeyRecorder } from "@/components/onboarding/HotkeyRecorder";
-import { getSavedTaskPanelHotkey, saveTaskPanelHotkey } from "@/lib/hotkey-service";
+import {
+  getSavedTaskPanelHotkey,
+  saveTaskPanelHotkey,
+} from "@/lib/hotkey-service";
+import { formatHotkeyDisplay } from "@/utils/hotkey-formatting";
 
 export function TaskPanelHotkeySettings() {
   const [currentHotkey, setCurrentHotkey] = useState<string>("Shift+Down");
@@ -30,7 +34,7 @@ export function TaskPanelHotkeySettings() {
   return (
     <SettingsSection
       title="Task Panel Hotkey"
-      description="Keyboard shortcut to open the task panel"
+      description="Keyboard shortcut to toggle the task panel open/closed"
     >
       {isEditing ? (
         <div className="space-y-4">
@@ -59,7 +63,7 @@ export function TaskPanelHotkeySettings() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-surface-300">
             <List size={16} />
-            <kbd className="px-2 py-1 bg-surface-700 rounded text-sm">{currentHotkey}</kbd>
+            <kbd className="px-2 py-1 bg-surface-700 rounded text-sm">{formatHotkeyDisplay(currentHotkey)}</kbd>
           </div>
           <button
             onClick={() => setIsEditing(true)}

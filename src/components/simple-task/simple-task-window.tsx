@@ -95,7 +95,6 @@ function SimpleTaskWindowContent({
   const {
     selectedIndex,
     showFollowUpInput,
-    followUpValue,
     isProcessing,
     setSelectedIndex,
     setShowFollowUpInput,
@@ -335,17 +334,6 @@ function SimpleTaskWindowContent({
         return;
       }
 
-      // Handle number keys (1, 2, 3)
-      if (e.key >= "1" && e.key <= "3") {
-        const actionIndex = parseInt(e.key) - 1;
-        const selectedAction = actions[actionIndex];
-        if (selectedAction) {
-          e.preventDefault();
-          setSelectedIndex(actionIndex);
-          handleQuickAction(selectedAction.key);
-        }
-        return;
-      }
 
       // Handle arrow keys
       if (e.key === "ArrowUp") {
@@ -425,13 +413,6 @@ function SimpleTaskWindowContent({
     }
   }, [taskId, threadId, workingDirectory]);
 
-  const handleFollowUpSubmit = useCallback((message: string) => {
-    if (message.trim()) {
-      handleSubmit(message.trim());
-      setFollowUpValue("");
-      setShowFollowUpInput(false);
-    }
-  }, [handleSubmit, setFollowUpValue, setShowFollowUpInput]);
 
   const handleAutoSelectInput = useCallback(() => {
     inputRef.current?.focus();
@@ -452,7 +433,6 @@ function SimpleTaskWindowContent({
       </div>
       <QueuedMessagesBanner messages={queuedMessages} />
       <SuggestedActionsPanel
-        taskId={taskId}
         threadId={threadId}
         onAction={handleSuggestedAction}
         onAutoSelectInput={handleAutoSelectInput}

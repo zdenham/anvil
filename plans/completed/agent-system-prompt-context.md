@@ -7,11 +7,13 @@ The agent is not aware of its working directory, so it attempts operations in fo
 ## Analysis
 
 **Current state in `agents/src/runner.ts`:**
+
 - `cwd` is passed to the Claude Agent SDK as an option (line 246)
 - `systemPrompt` comes directly from static agent config (line 248)
 - No dynamic context is injected into the system prompt
 
 **What Claude Code includes (for reference):**
+
 ```
 <env>
 Working directory: /path/to/project
@@ -29,15 +31,15 @@ Recent commits: ...
 
 ## Missing Context
 
-| Context | Why It Matters |
-|---------|----------------|
-| Working directory | Agent needs to know where it's operating |
-| Git repo status | Whether git commands are available |
-| Current branch | Avoid confusion about which branch to work on |
-| Platform/OS | Commands differ between macOS/Linux/Windows |
-| Today's date | For time-sensitive operations and documentation |
-| Recent commits | Context about recent work |
-| Task info | What task the agent is working on |
+| Context           | Why It Matters                                  |
+| ----------------- | ----------------------------------------------- |
+| Working directory | Agent needs to know where it's operating        |
+| Git repo status   | Whether git commands are available              |
+| Current branch    | Avoid confusion about which branch to work on   |
+| Platform/OS       | Commands differ between macOS/Linux/Windows     |
+| Today's date      | For time-sensitive operations and documentation |
+| Recent commits    | Context about recent work                       |
+| Task info         | What task the agent is working on               |
 
 ## Implementation
 
@@ -93,11 +95,10 @@ export function buildGitContext(cwd: string): GitContext | null {
       encoding: "utf-8",
     }).trim();
 
-    const commits = execFileSync(
-      "git",
-      ["log", "--oneline", "-5"],
-      { cwd, encoding: "utf-8" }
-    ).trim();
+    const commits = execFileSync("git", ["log", "--oneline", "-5"], {
+      cwd,
+      encoding: "utf-8",
+    }).trim();
 
     return {
       currentBranch: branch,
@@ -173,7 +174,11 @@ import {
 const envContext = buildEnvironmentContext(args.cwd);
 const gitContext = buildGitContext(args.cwd);
 const taskContext = { taskId: args.taskId, parentTaskId: args.parentTaskId };
-const contextBlock = formatSystemPromptContext(envContext, gitContext, taskContext);
+const contextBlock = formatSystemPromptContext(
+  envContext,
+  gitContext,
+  taskContext
+);
 
 // Combine static system prompt with dynamic context
 const fullSystemPrompt = `${agentConfig.systemPrompt}
@@ -185,8 +190,8 @@ const result = query({
   prompt: args.prompt,
   options: {
     cwd: args.cwd,
-    model: agentConfig.model ?? "claude-sonnet-4-20250514",
-    systemPrompt: fullSystemPrompt,  // <-- Use combined prompt
+    model: agentConfig.model ?? "claude-opus-4-5-20251101",
+    systemPrompt: fullSystemPrompt, // <-- Use combined prompt
     // ... rest unchanged
   },
 });
@@ -202,10 +207,10 @@ No changes needed - `systemPrompt` remains static in config, context is appended
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `agents/src/context.ts` | **NEW** - Context building utilities |
-| `agents/src/runner.ts` | Import context builder, inject into system prompt |
+| File                    | Changes                                           |
+| ----------------------- | ------------------------------------------------- |
+| `agents/src/context.ts` | **NEW** - Context building utilities              |
+| `agents/src/runner.ts`  | Import context builder, inject into system prompt |
 
 ---
 

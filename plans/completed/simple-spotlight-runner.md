@@ -48,6 +48,7 @@ Spotlight → createDraft() → openSimpleTask() → spawnSimpleAgent()
 **File:** `src/lib/simple-agent-service.ts`
 
 Create a simplified agent spawn function that:
+
 - Skips worktree allocation entirely
 - Uses the repository's source path directly as `cwd`
 - Uses a generic agent type with Claude Code defaults
@@ -68,19 +69,26 @@ export interface SpawnSimpleAgentOptions {
   sourcePath: string;
 }
 
-export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promise<void> {
+export async function spawnSimpleAgent(
+  options: SpawnSimpleAgentOptions
+): Promise<void> {
   // Get mortDir via FilesystemClient (uses Tauri invoke internally)
   const mortDir = await fs.getDataDir();
 
   // Build command args for simple runner
   // Note: uses simple-runner.js, NOT runner.js
   const commandArgs = [
-    simpleRunnerPath,  // agents/dist/simple-runner.js
-    "--task-id", options.taskId,
-    "--thread-id", options.threadId,
-    "--cwd", options.sourcePath,  // Direct path, no worktree allocation
-    "--prompt", options.prompt,
-    "--mort-dir", mortDir,
+    simpleRunnerPath, // agents/dist/simple-runner.js
+    "--task-id",
+    options.taskId,
+    "--thread-id",
+    options.threadId,
+    "--cwd",
+    options.sourcePath, // Direct path, no worktree allocation
+    "--prompt",
+    options.prompt,
+    "--mort-dir",
+    mortDir,
   ];
   // ... spawn command via Tauri Command.create() - see agent-service.ts pattern
 }
@@ -88,21 +96,33 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 export async function resumeSimpleAgent(
   taskId: string,
   threadId: string,
-  prompt: string,
+  prompt: string
 ): Promise<void> {
   // Get paths via FilesystemClient
   const mortDir = await fs.getDataDir();
   const threadFolderName = `simple-${threadId}`;
-  const stateFilePath = fs.joinPath(mortDir, "simple-tasks", taskId, "threads", threadFolderName, "state.json");
+  const stateFilePath = fs.joinPath(
+    mortDir,
+    "simple-tasks",
+    taskId,
+    "threads",
+    threadFolderName,
+    "state.json"
+  );
 
   // Resume with new prompt - passes --history-file for prior messages
   const commandArgs = [
     simpleRunnerPath,
-    "--task-id", taskId,
-    "--thread-id", threadId,
-    "--prompt", prompt,
-    "--mort-dir", mortDir,
-    "--history-file", stateFilePath,
+    "--task-id",
+    taskId,
+    "--thread-id",
+    threadId,
+    "--prompt",
+    prompt,
+    "--mort-dir",
+    mortDir,
+    "--history-file",
+    stateFilePath,
   ];
   // ... spawn command via Tauri
 }
@@ -122,7 +142,7 @@ import type { AgentConfig } from "./index.js";
 export const simple: AgentConfig = {
   name: "simple",
   description: "Simple Claude Code agent - runs directly in repository",
-  model: "claude-sonnet-4-20250514",  // Faster model for quick tasks
+  model: "claude-opus-4-5-20251101", // Faster model for quick tasks
   tools: { type: "preset", preset: "claude_code" },
   appendedPrompt: `## Context
 
@@ -141,7 +161,13 @@ Request human review when you need input or approval.`,
 Update AgentType to include "simple":
 
 ```typescript
-export type AgentType = "entrypoint" | "execution" | "review" | "merge" | "research" | "simple";
+export type AgentType =
+  | "entrypoint"
+  | "execution"
+  | "review"
+  | "merge"
+  | "research"
+  | "simple";
 ```
 
 ### Step 3: Create Simple Runner Entry Point
@@ -149,12 +175,14 @@ export type AgentType = "entrypoint" | "execution" | "review" | "merge" | "resea
 **File:** `agents/src/simple-runner.ts`
 
 A simplified runner that:
+
 - Accepts `--cwd` directly (no orchestration)
 - Creates thread metadata and state on disk (using existing patterns)
 - Runs the agent with Claude Code preset
 - Emits state updates via existing `output.ts` functions
 
 Key differences from `runner.ts`:
+
 - No `orchestrate()` call
 - No worktree allocation/release
 - No branch tracking or merge base
@@ -162,6 +190,7 @@ Key differences from `runner.ts`:
 - Uses same metadata.json + state.json structure as full runner
 
 **File structure:** Split into modules to stay under 250 lines per AGENTS.md:
+
 - `agents/src/simple-runner.ts` - Entry point and main loop (~150 lines)
 - `agents/src/simple-runner-args.ts` - Argument parsing (~50 lines)
 
@@ -180,7 +209,7 @@ import {
   complete,
   error,
   markToolRunning,
-} from "./output.js";  // Reuse existing output.ts for state emission
+} from "./output.js"; // Reuse existing output.ts for state emission
 import { logger, stdout } from "./lib/logger.js";
 import { parseSimpleArgs } from "./simple-runner-args.js";
 
@@ -244,17 +273,27 @@ async function main() {
       status: "running",
       createdAt: startTime,
       updatedAt: startTime,
-      turns: [{
-        index: 0,
-        prompt: args.prompt,
-        startedAt: startTime,
-        completedAt: null,
-      }],
+      turns: [
+        {
+          index: 0,
+          prompt: args.prompt,
+          startedAt: startTime,
+          completedAt: null,
+        },
+      ],
     };
     writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
     // Emit thread:created event via stdout protocol
-    stdout({ type: "event", name: "thread:created", payload: { threadId: args.threadId, taskId: args.taskId, thread: metadata } });
+    stdout({
+      type: "event",
+      name: "thread:created",
+      payload: {
+        threadId: args.threadId,
+        taskId: args.taskId,
+        thread: metadata,
+      },
+    });
   }
 
   // Initialize state using existing output.ts (creates state.json, emits via stdout)
@@ -274,20 +313,31 @@ async function main() {
       prompt: args.prompt,
       options: {
         cwd: args.cwd,
-        model: agentConfig.model ?? "claude-sonnet-4-20250514",
-        systemPrompt: { type: "preset", preset: "claude_code", append: appendedPrompt },
+        model: agentConfig.model ?? "claude-opus-4-5-20251101",
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          append: appendedPrompt,
+        },
         tools: agentConfig.tools,
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         ...(priorMessages.length > 0 && { messages: priorMessages }),
         hooks: {
-          PostToolUse: [{ hooks: [async (input, toolUseId) => {
-            const toolResponse = typeof input.tool_response === "string"
-              ? input.tool_response
-              : JSON.stringify(input.tool_response);
-            appendToolResult(toolUseId ?? "unknown", toolResponse);
-            return { continue: true };
-          }] }],
+          PostToolUse: [
+            {
+              hooks: [
+                async (input, toolUseId) => {
+                  const toolResponse =
+                    typeof input.tool_response === "string"
+                      ? input.tool_response
+                      : JSON.stringify(input.tool_response);
+                  appendToolResult(toolUseId ?? "unknown", toolResponse);
+                  return { continue: true };
+                },
+              ],
+            },
+          ],
         },
       },
     });
@@ -299,7 +349,10 @@ async function main() {
             markToolRunning(block.id);
           }
         }
-        appendAssistantMessage({ role: "assistant", content: message.message.content });
+        appendAssistantMessage({
+          role: "assistant",
+          content: message.message.content,
+        });
       } else if (message.type === "result" && message.subtype === "success") {
         // Update metadata on completion
         const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
@@ -371,8 +424,16 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
     }
   }
 
-  if (!args.taskId || !args.threadId || !args.prompt || !args.cwd || !args.mortDir) {
-    logger.error("Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --mort-dir");
+  if (
+    !args.taskId ||
+    !args.threadId ||
+    !args.prompt ||
+    !args.cwd ||
+    !args.mortDir
+  ) {
+    logger.error(
+      "Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --mort-dir"
+    );
     throw new Error("Missing required arguments");
   }
 
@@ -426,6 +487,7 @@ export function useSimpleTaskParams(): SimpleTaskParams | null {
 **File:** `src/components/simple-task/simple-task-window.tsx`
 
 A minimal UI component that shows:
+
 - Task title/prompt at top
 - Scrollable conversation thread (messages)
 - Input area at bottom for user responses
@@ -447,8 +509,8 @@ export const SimpleTaskWindow = () => {
   }
 
   const { taskId, threadId } = params;
-  const activeState = useThreadStore(s => s.threadStates[threadId]);
-  const activeMetadata = useThreadStore(s => s.threads[threadId]);
+  const activeState = useThreadStore((s) => s.threadStates[threadId]);
+  const activeMetadata = useThreadStore((s) => s.threads[threadId]);
 
   const messages = activeState?.messages ?? [];
   const status = activeMetadata?.status ?? "idle";
@@ -462,7 +524,10 @@ export const SimpleTaskWindow = () => {
     <div className="simple-task-window">
       <SimpleTaskHeader taskId={taskId} status={status} />
       <MessageList messages={messages} />
-      <SimpleTaskInput onSubmit={handleSubmit} disabled={status === "running"} />
+      <SimpleTaskInput
+        onSubmit={handleSubmit}
+        disabled={status === "running"}
+      />
     </div>
   );
 };
@@ -603,7 +668,7 @@ pub async fn open_simple_task(
 export async function openSimpleTask(
   threadId: string,
   taskId: string,
-  prompt?: string,
+  prompt?: string
 ): Promise<void> {
   await invoke("open_simple_task", { threadId, taskId, prompt });
 }
@@ -628,6 +693,7 @@ Update TaskMetadata to include the new type.
 ### SimpleTaskHeader
 
 Minimal header showing:
+
 - Task title (truncated prompt or generated title)
 - Status badge (running/completed/error)
 - Close button
@@ -635,6 +701,7 @@ Minimal header showing:
 ### MessageList
 
 Reuse existing `src/components/thread/message-list.tsx` for rendering:
+
 - User messages
 - Assistant messages
 - Tool calls and results
@@ -642,6 +709,7 @@ Reuse existing `src/components/thread/message-list.tsx` for rendering:
 ### SimpleTaskInput
 
 Simple input component:
+
 - Textarea for multi-line input
 - Submit button (disabled when running)
 - Keyboard shortcut (Cmd+Enter)
@@ -700,38 +768,38 @@ This ensures the frontend can use the same parsing logic for both full and simpl
 
 ### Keyboard Shortcut Summary
 
-| Shortcut | Flow | Where it runs | Storage |
-|----------|------|---------------|---------|
-| **Enter** | Simple | Source repo | `~/.mort/simple-tasks/` |
-| **Cmd+Enter** | Full | Allocated worktree | `~/.mort/tasks/` |
+| Shortcut      | Flow   | Where it runs      | Storage                 |
+| ------------- | ------ | ------------------ | ----------------------- |
+| **Enter**     | Simple | Source repo        | `~/.mort/simple-tasks/` |
+| **Cmd+Enter** | Full   | Allocated worktree | `~/.mort/tasks/`        |
 
 ## Files to Create
 
-| File | Purpose |
-|------|---------|
-| `src/lib/simple-agent-service.ts` | Spawn/resume simple agents |
-| `agents/src/agent-types/simple.ts` | Simple agent config |
-| `agents/src/simple-runner.ts` | Simplified runner entry point (~150 lines) |
-| `agents/src/simple-runner-args.ts` | Argument parsing for simple runner (~50 lines) |
-| `src/components/simple-task/simple-task-window.tsx` | Main window component |
-| `src/components/simple-task/simple-task-header.tsx` | Header with status |
-| `src/components/simple-task/simple-task-input.tsx` | Response input |
-| `src/components/simple-task/use-simple-task-params.ts` | Hook to extract taskId/threadId from URL |
-| `src/simple-task-main.tsx` | Window entry point |
-| `simple-task.html` | HTML entry point for simple-task window |
+| File                                                   | Purpose                                        |
+| ------------------------------------------------------ | ---------------------------------------------- |
+| `src/lib/simple-agent-service.ts`                      | Spawn/resume simple agents                     |
+| `agents/src/agent-types/simple.ts`                     | Simple agent config                            |
+| `agents/src/simple-runner.ts`                          | Simplified runner entry point (~150 lines)     |
+| `agents/src/simple-runner-args.ts`                     | Argument parsing for simple runner (~50 lines) |
+| `src/components/simple-task/simple-task-window.tsx`    | Main window component                          |
+| `src/components/simple-task/simple-task-header.tsx`    | Header with status                             |
+| `src/components/simple-task/simple-task-input.tsx`     | Response input                                 |
+| `src/components/simple-task/use-simple-task-params.ts` | Hook to extract taskId/threadId from URL       |
+| `src/simple-task-main.tsx`                             | Window entry point                             |
+| `simple-task.html`                                     | HTML entry point for simple-task window        |
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
+| File                                     | Changes                                                         |
+| ---------------------------------------- | --------------------------------------------------------------- |
 | `src/components/spotlight/spotlight.tsx` | Add `createSimpleTask()` method, handle `metaKey` for full flow |
-| `src/lib/hotkey-service.ts` | Add `openSimpleTask()` function |
-| `src-tauri/src/commands/window.rs` | Add `open_simple_task` command |
-| `src-tauri/src/lib.rs` | Register new command |
-| `agents/src/agent-types/index.ts` | Register simple agent config |
-| `src/entities/threads/types.ts` | Add "simple" to AgentType union |
-| `vite.config.ts` | Add simple-task entry point (see below) |
-| `src-tauri/tauri.conf.json` | Add simple-task window config (see below) |
+| `src/lib/hotkey-service.ts`              | Add `openSimpleTask()` function                                 |
+| `src-tauri/src/commands/window.rs`       | Add `open_simple_task` command                                  |
+| `src-tauri/src/lib.rs`                   | Register new command                                            |
+| `agents/src/agent-types/index.ts`        | Register simple agent config                                    |
+| `src/entities/threads/types.ts`          | Add "simple" to AgentType union                                 |
+| `vite.config.ts`                         | Add simple-task entry point (see below)                         |
+| `src-tauri/tauri.conf.json`              | Add simple-task window config (see below)                       |
 
 ### vite.config.ts Changes
 
@@ -749,6 +817,7 @@ input: {
 ```
 
 Create `simple-task.html`:
+
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -790,17 +859,17 @@ Add window configuration for simple-task panels:
 
 ## Simplifications vs Full Flow
 
-| Feature | Full Flow | Simple Flow |
-|---------|-----------|-------------|
-| Worktree allocation | Yes | No |
-| Branch creation | Yes | No |
-| Merge base tracking | Yes | No |
-| File change diffs | Yes (from merge base) | No |
-| Agent orchestration | Yes | No |
-| Agent types | research/execution/merge | single (simple) |
-| Multi-stage workflow | Yes | No |
+| Feature                 | Full Flow                  | Simple Flow       |
+| ----------------------- | -------------------------- | ----------------- |
+| Worktree allocation     | Yes                        | No                |
+| Branch creation         | Yes                        | No                |
+| Merge base tracking     | Yes                        | No                |
+| File change diffs       | Yes (from merge base)      | No                |
+| Agent orchestration     | Yes                        | No                |
+| Agent types             | research/execution/merge   | single (simple)   |
+| Multi-stage workflow    | Yes                        | No                |
 | Task status progression | draft→todo→in-progress→etc | running→completed |
-| UI complexity | Full workspace | Thread only |
+| UI complexity           | Full workspace             | Thread only       |
 
 ## Process Lifecycle Management
 
@@ -811,6 +880,7 @@ Simple tasks need to handle the agent process lifecycle properly:
 When the user closes a simple-task window while the agent is running:
 
 1. **Option A (Recommended):** Let the agent continue running in the background
+
    - Agent completes its work and writes final state to disk
    - User can re-open the task from task list to see results
    - Matches "disk is truth" principle
@@ -820,15 +890,20 @@ When the user closes a simple-task window while the agent is running:
    - More complex, interrupts work in progress
 
 Implementation in `simple-task-window.tsx`:
+
 ```typescript
 useEffect(() => {
   const unlisten = getCurrentWindow().onCloseRequested(async (event) => {
     // Option A: Just close the window, let agent continue
     // The agent will write final state to disk
-    logger.info("[SimpleTaskWindow] Window closing, agent continues in background");
+    logger.info(
+      "[SimpleTaskWindow] Window closing, agent continues in background"
+    );
   });
 
-  return () => { unlisten.then(fn => fn()); };
+  return () => {
+    unlisten.then((fn) => fn());
+  };
 }, []);
 ```
 
@@ -870,10 +945,12 @@ export async function cancelSimpleAgent(threadId: string): Promise<void> {
 ### Keyboard Shortcuts (RESOLVED)
 
 **Simple path is the DEFAULT:**
+
 - **Enter** → Creates a simple task (runs in source repo, no worktree)
 - **Command+Enter** → Creates a full task (worktree allocation, branch management)
 
 This means:
+
 - Most tasks run directly in the source repository
 - Only explicitly "heavy" tasks get worktree isolation
 - Reduces friction for quick queries/changes
@@ -901,6 +978,7 @@ Simple tasks are stored in a **separate directory** from full tasks, but use the
 ```
 
 Key differences:
+
 - Full tasks use `tasks/{slug}/` with task slug as folder name
 - Simple tasks use `simple-tasks/{taskId}/` with UUID as folder name
 - Both use identical thread structure: `threads/{agentType}-{threadId}/` with metadata.json + state.json
@@ -909,7 +987,8 @@ Key differences:
 
 ### Model Selection
 
-Simple tasks use **claude-sonnet-4-20250514** by default:
+Simple tasks use **claude-opus-4-5-20251101** by default:
+
 - Faster responses for quick interactions
 - Lower cost for exploratory queries
 - Users can override in settings if needed
@@ -917,6 +996,7 @@ Simple tasks use **claude-sonnet-4-20250514** by default:
 ### Task Persistence
 
 Simple tasks **do** appear in the task list:
+
 - Consistent with "disk is truth" principle
 - UI filters/groups by task type (`simple` vs `work`/`investigate`)
 - Simple tasks may have shorter retention (e.g., auto-cleanup after 7 days)
@@ -924,6 +1004,7 @@ Simple tasks **do** appear in the task list:
 ### Window Behavior
 
 Simple tasks use **panels** (floating windows):
+
 - Quick access, stays above other apps
 - Matches the "quick task" mental model
 - Can be dismissed easily

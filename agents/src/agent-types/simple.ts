@@ -3,7 +3,7 @@ import type { AgentConfig } from "./index.js";
 export const simple: AgentConfig = {
   name: "simple",
   description: "Simple Claude Code agent - runs directly in repository",
-  model: "claude-sonnet-4-20250514",
+  model: "claude-opus-4-5-20251101",
   tools: { type: "preset", preset: "claude_code" },
   appendedPrompt: `## Context
 

@@ -84,6 +84,16 @@ pub mod keycodes {
     pub const KEY_RIGHT: CGKeyCode = 124;
     pub const KEY_DOWN: CGKeyCode = 125;
     pub const KEY_UP: CGKeyCode = 126;
+
+    // Modifier keys
+    pub const KEY_LEFT_SHIFT: CGKeyCode = 56;
+    pub const KEY_RIGHT_SHIFT: CGKeyCode = 60;
+    pub const KEY_LEFT_CONTROL: CGKeyCode = 59;
+    pub const KEY_RIGHT_CONTROL: CGKeyCode = 62;
+    pub const KEY_LEFT_OPTION: CGKeyCode = 58;
+    pub const KEY_RIGHT_OPTION: CGKeyCode = 61;
+    pub const KEY_LEFT_COMMAND: CGKeyCode = 55;
+    pub const KEY_RIGHT_COMMAND: CGKeyCode = 54;
 }
 
 /// Parse modifier string like "Command+Option" into CGEventFlags

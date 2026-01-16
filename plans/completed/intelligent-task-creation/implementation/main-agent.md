@@ -8,7 +8,7 @@
 export const main: AgentConfig = {
   name: "Main",
   description: "Primary agent that routes and handles all requests",
-  model: "claude-sonnet-4-20250514",
+  model: "claude-opus-4-5-20251101",
   systemPrompt: `You are the primary agent for this workspace.
 
 ## CRITICAL: Task Routing

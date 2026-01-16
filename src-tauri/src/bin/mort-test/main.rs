@@ -85,6 +85,7 @@ enum Commands {
 
     /// Request accessibility permission (opens System Settings)
     RequestAccessibility,
+
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -220,6 +221,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("Opened Accessibility settings");
             eprintln!("Grant permission to mort-test, then try again");
         }
+
     }
 
     Ok(())

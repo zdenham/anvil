@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { SettingsSection } from "../settings-section";
 import { HotkeyRecorder } from "@/components/onboarding/HotkeyRecorder";
 import { getSavedClipboardHotkey, saveClipboardHotkey } from "@/lib/hotkey-service";
+import { formatHotkeyDisplay } from "@/utils/hotkey-formatting";
 
 export function ClipboardHotkeySettings() {
   const [currentHotkey, setCurrentHotkey] = useState<string>("Command+Option+C");
@@ -59,7 +60,7 @@ export function ClipboardHotkeySettings() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-surface-300">
             <Clipboard size={16} />
-            <kbd className="px-2 py-1 bg-surface-700 rounded text-sm">{currentHotkey}</kbd>
+            <kbd className="px-2 py-1 bg-surface-700 rounded text-sm">{formatHotkeyDisplay(currentHotkey)}</kbd>
           </div>
           <button
             onClick={() => setIsEditing(true)}

@@ -46,6 +46,7 @@ export function LogsPage() {
         onClear={handleClear}
         filteredCount={filteredLogs.length}
         totalCount={totalCount}
+        filteredLogs={filteredLogs}
       />
 
       <div

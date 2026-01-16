@@ -3,9 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTaskStore, taskService, threadService, eventBus, type TaskMetadata } from "../../entities";
 import { useThreadStore } from "../../entities/threads/store";
 import { logger } from "../../lib/logger-client";
-import { useTaskNavigation } from "../../hooks/use-task-navigation";
 import { useDeleteTask } from "../../hooks/use-delete-task";
-import { DeleteTaskDialog } from "../tasks/delete-task-dialog";
 import { getTaskDotColor } from "@/utils/task-colors";
 import { DeleteButton } from "@/components/tasks/delete-button";
 import type { ThreadMetadata } from "@/entities/threads/types";
@@ -28,7 +26,7 @@ export function TasksPanel() {
     [allTasks]
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const { taskToDelete, isDeleting, requestDelete, confirmDelete, cancelDelete } = useDeleteTask();
+  const { deleteTask } = useDeleteTask();
 
   // Handle task selection (from navigation or click)
   const handleTaskSelect = useCallback(async (task: TaskMetadata) => {
@@ -37,10 +35,22 @@ export function TasksPanel() {
     // Hide this panel
     await invoke("hide_tasks_panel");
 
-    // Get threads for this task from the store
+    // Refresh threads for this task from disk to ensure we have the latest data
+    await threadService.refreshByTask(task.id);
+
+    // Get threads for this task from the store (now should be up-to-date)
     const threads = threadService.getByTask(task.id);
-    // Use the first thread if available, otherwise fall back to task ID
-    const threadId = threads[0]?.id ?? task.id;
+    logger.log("[tasks-panel] Found threads for task:", threads.length);
+
+    if (threads.length === 0) {
+      logger.log("[tasks-panel] No threads found for task, not opening anything");
+      // Show tasks panel again since we didn't open anything
+      await invoke("show_tasks_panel");
+      return;
+    }
+
+    // Use the first thread (most recent)
+    const threadId = threads[0].id;
 
     logger.log("[tasks-panel] Opening task with threadId:", threadId);
 
@@ -48,12 +58,9 @@ export function TasksPanel() {
     await invoke("open_simple_task", {
       threadId,
       taskId: task.id,
-      prompt: task.title,
     });
   }, []);
 
-  // Use the new task navigation hook
-  const { selectedIndex, isNavigating } = useTaskNavigation(tasks, handleTaskSelect);
 
   // Listen for panel visibility events via eventBus (no async cleanup races)
   useEffect(() => {
@@ -90,9 +97,9 @@ export function TasksPanel() {
     }
   };
 
-  const handleTaskDelete = useCallback((task: TaskMetadata) => {
-    requestDelete(task);
-  }, [requestDelete]);
+  const handleTaskDelete = useCallback(async (task: TaskMetadata) => {
+    await deleteTask(task);
+  }, [deleteTask]);
 
 
   return (
@@ -110,41 +117,31 @@ export function TasksPanel() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <TaskListWithNavigation
+        <TaskList
           tasks={tasks}
           threads={allThreads}
-          selectedIndex={selectedIndex}
           onTaskSelect={handleTaskSelect}
           onTaskDelete={handleTaskDelete}
         />
       </div>
 
-      {/* Delete confirmation dialog */}
-      <DeleteTaskDialog
-        task={taskToDelete}
-        isDeleting={isDeleting}
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
-      />
     </div>
   );
 }
 
-interface TaskListWithNavigationProps {
+interface TaskListProps {
   tasks: TaskMetadata[];
   threads: ThreadMetadata[];
-  selectedIndex: number;
   onTaskSelect: (task: TaskMetadata) => void;
   onTaskDelete: (task: TaskMetadata) => void;
 }
 
-function TaskListWithNavigation({
+function TaskList({
   tasks,
   threads,
-  selectedIndex,
   onTaskSelect,
   onTaskDelete
-}: TaskListWithNavigationProps) {
+}: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <div className="p-4 px-6 text-center text-surface-500 text-sm">
@@ -153,33 +150,18 @@ function TaskListWithNavigation({
     );
   }
 
-  // Handle Enter key for task selection
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && tasks[selectedIndex]) {
-      e.preventDefault();
-      onTaskSelect(tasks[selectedIndex]);
-    }
-  };
-
   return (
-    <div
-      className="outline-none"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-    >
-      <ul className="space-y-1 px-3 pt-3">
-        {tasks.map((task, index) => (
-          <TaskItem
-            key={task.id}
-            task={task}
-            threads={threads}
-            onClick={() => onTaskSelect(task)}
-            isSelected={index === selectedIndex}
-            onDelete={onTaskDelete}
-          />
-        ))}
-      </ul>
-    </div>
+    <ul className="space-y-2 px-3 pt-3">
+      {tasks.map((task) => (
+        <TaskItem
+          key={task.id}
+          task={task}
+          threads={threads}
+          onClick={() => onTaskSelect(task)}
+          onDelete={onTaskDelete}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -187,17 +169,14 @@ interface TaskItemProps {
   task: TaskMetadata;
   threads: ThreadMetadata[];
   onClick: () => void;
-  isSelected: boolean;
   onDelete?: (task: TaskMetadata) => void;
 }
 
-function TaskItem({ task, threads, onClick, isSelected, onDelete }: TaskItemProps) {
+function TaskItem({ task, threads, onClick, onDelete }: TaskItemProps) {
   return (
     <li
       onClick={onClick}
-      className={`group flex items-center gap-3 px-3 py-2 bg-surface-800 rounded-lg border border-surface-700 hover:border-surface-600 cursor-pointer transition-colors ${
-        isSelected ? "ring-1 ring-surface-600" : ""
-      }`}
+      className="group flex items-center gap-3 px-3 py-2 bg-surface-800 rounded-lg border border-surface-700 hover:border-surface-600 cursor-pointer transition-colors"
     >
       <StatusDot task={task} threads={threads} />
       <span className="flex-1 text-sm text-surface-100 truncate font-mono">

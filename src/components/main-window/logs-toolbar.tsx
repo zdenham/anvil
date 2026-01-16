@@ -1,9 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Search, Trash2 } from "lucide-react";
-import type { LogFilter, LogLevel } from "@/entities/logs";
+import { Check, ChevronDown, Copy, Search, Trash2 } from "lucide-react";
+import type { LogEntry, LogFilter, LogLevel } from "@/entities/logs";
 import { cn } from "@/lib/utils";
 
 const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
+const COPY_FEEDBACK_MS = 2000;
+
+// Format log entries for copying to clipboard
+function formatLogsForClipboard(logs: LogEntry[]): string {
+  return logs
+    .map((log) => {
+      // Use ISO string and format manually to get milliseconds
+      const date = new Date(log.timestamp);
+      const time = date.toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      const ms = date.getMilliseconds().toString().padStart(3, "0");
+      const level = log.level.toUpperCase().padEnd(5);
+      return `[${time}.${ms}] [${level}] [${log.target}] ${log.message}`;
+    })
+    .join("\n");
+}
 
 const levelColors: Record<LogLevel, { active: string; inactive: string }> = {
   trace: {
@@ -34,6 +54,7 @@ interface LogsToolbarProps {
   onClear: () => void;
   filteredCount: number;
   totalCount: number;
+  filteredLogs: LogEntry[];
 }
 
 export function LogsToolbar({
@@ -42,9 +63,11 @@ export function LogsToolbar({
   onClear,
   filteredCount,
   totalCount,
+  filteredLogs,
 }: LogsToolbarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
+  const [isCopied, setIsCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -61,6 +84,22 @@ export function LogsToolbar({
   };
 
   const isAllSelected = filter.levels.length === 0;
+
+  // Copy functionality
+  const handleCopy = useCallback(async () => {
+    if (filteredLogs.length === 0) return;
+
+    const formattedLogs = formatLogsForClipboard(filteredLogs);
+    await navigator.clipboard.writeText(formattedLogs);
+    setIsCopied(true);
+  }, [filteredLogs]);
+
+  // Reset copy feedback after timeout
+  useEffect(() => {
+    if (!isCopied) return;
+    const timer = setTimeout(() => setIsCopied(false), COPY_FEEDBACK_MS);
+    return () => clearTimeout(timer);
+  }, [isCopied]);
 
   // Close on outside click
   useEffect(() => {
@@ -269,8 +308,28 @@ export function LogsToolbar({
           : `${filteredCount} of ${totalCount}`}
       </span>
 
-      {/* Clear button */}
-      <div className="ml-auto">
+      {/* Copy and Clear buttons */}
+      <div className="ml-auto flex items-center gap-1">
+        <button
+          onClick={handleCopy}
+          disabled={filteredLogs.length === 0}
+          className={cn(
+            "p-1.5 rounded transition-colors",
+            isCopied
+              ? "text-green-400"
+              : "text-surface-400 hover:text-surface-200 hover:bg-surface-800",
+            filteredLogs.length === 0 && "opacity-50 cursor-not-allowed"
+          )}
+          title={
+            filteredLogs.length === 0
+              ? "No logs to copy"
+              : isCopied
+              ? "Copied to clipboard"
+              : "Copy logs to clipboard"
+          }
+        >
+          {isCopied ? <Check size={14} /> : <Copy size={14} />}
+        </button>
         <button
           onClick={onClear}
           className="p-1.5 text-surface-400 hover:text-red-400 hover:bg-surface-800 rounded transition-colors"

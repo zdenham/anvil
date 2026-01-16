@@ -145,34 +145,11 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
     app.global_shortcut()
         .on_shortcut(task_panel_shortcut, move |_app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                if panels::is_panel_visible(&task_panel_app_handle, panels::TASKS_LIST_LABEL) {
-                    // Panel already open - navigate down
-                    task_navigation::handle_navigation_key(&task_panel_app_handle, task_navigation::NavigationDirection::Down);
-                } else {
-                    // Panel closed - start navigation mode
-                    task_navigation::start_navigation_mode(&task_panel_app_handle, &task_panel_hotkey);
-                }
+                // Simple toggle - no complex navigation
+                task_navigation::toggle_task_panel(&task_panel_app_handle);
             }
         })
         .map_err(|e| format!("Failed to re-register task panel hotkey: {:?}", e))?;
-
-    // Register the reverse navigation hotkey (Shift+Up)
-    let reverse_hotkey = "Shift+Up";
-    let reverse_shortcut: Shortcut = reverse_hotkey
-        .parse()
-        .map_err(|e| format!("Failed to parse reverse navigation hotkey: {:?}", e))?;
-    let reverse_app_handle = app.clone();
-    app.global_shortcut()
-        .on_shortcut(reverse_shortcut, move |_app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                if task_navigation::is_navigation_mode_active() {
-                    // Panel already open - navigate up
-                    task_navigation::handle_navigation_key(&reverse_app_handle, task_navigation::NavigationDirection::Up);
-                }
-                // Don't open panel on Shift+Up - only navigate if already open
-            }
-        })
-        .map_err(|e| format!("Failed to register reverse navigation hotkey: {:?}", e))?;
 
     Ok(())
 }
@@ -217,6 +194,8 @@ fn save_task_panel_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> 
 fn get_saved_task_panel_hotkey() -> String {
     config::get_task_panel_hotkey()
 }
+
+
 
 /// Checks if the user has completed onboarding
 #[tauri::command]
@@ -415,6 +394,7 @@ fn hide_tasks_panel(app: AppHandle) -> Result<(), String> {
 fn is_any_panel_visible(app: AppHandle) -> bool {
     panels::is_any_panel_visible(&app)
 }
+
 
 
 /// Restarts the application (dev mode only - for manual refresh)
@@ -782,6 +762,9 @@ pub fn run() {
             // Initialize panels module with app handle for event callbacks
             panels::initialize(app.handle());
 
+
+            // Cleanup any navigation modes from previous runs
+
             // Create panels
             if let Err(e) = panels::create_spotlight_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create spotlight panel");
@@ -811,8 +794,6 @@ pub fn run() {
             // Initialize clipboard monitoring
             clipboard::initialize(app.handle());
 
-            // Start modifier key monitoring for task navigation
-            task_navigation::start_modifier_monitoring(app.handle().clone());
 
             // Handle main window visibility and hotkey registration based on onboarding state
             let onboarded = config::is_onboarded();

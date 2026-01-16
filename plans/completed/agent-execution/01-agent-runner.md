@@ -3,6 +3,7 @@
 Creates the Node.js agent runner that uses `@anthropic-ai/claude-agent-sdk` to execute agents.
 
 **Documentation:**
+
 - [Agent SDK Overview](https://platform.claude.com/docs/en/agent-sdk/overview)
 - [TypeScript SDK Reference](https://platform.claude.com/docs/en/api/agent-sdk/typescript)
 - [Hooks Guide](https://platform.claude.com/docs/en/agent-sdk/hooks)
@@ -11,12 +12,14 @@ Creates the Node.js agent runner that uses `@anthropic-ai/claude-agent-sdk` to e
 ## Responsibility Boundary
 
 The agent runner is a **stateless executor**. It:
+
 - Receives a pre-created conversation ID and path from the frontend
 - Writes raw message streams (`messages.jsonl`, `changes.jsonl`) to the conversation path
 - Emits JSONL to stdout for real-time streaming
 - Does NOT manage entity state (that's the frontend's job via `conversationService`)
 
 **Entity state is managed by the frontend:**
+
 - `conversationService.create()` creates the conversation before spawning runner
 - `conversationService.update()` updates status/turns after runner completes
 - Entity types are defined in `src/entities/conversations/types.ts`
@@ -24,17 +27,20 @@ The agent runner is a **stateless executor**. It:
 ## Type Strategy
 
 **SDK types from `@anthropic-ai/sdk`:**
+
 - `ContentBlock`, `TextBlock`, `ToolUseBlock` (message content)
 - `Message`, `MessageParam` (API messages)
 - Tool input/output types
 
 **Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`):**
+
 - `SDKMessage` - union type for all message types (assistant, user, system, result, stream_event)
 - `SDKAssistantMessage`, `SDKSystemMessage`, `SDKResultMessage` - specific message types
 - `HookCallback`, `PreToolUseHookInput`, `PostToolUseHookInput` - hook types
 - `Options` - full configuration type
 
 **App-specific types (defined in runner):**
+
 - `FileChangeMessage` - tracks file modifications (computed via git diff after tool use)
 - `CompleteMessage` - run completion with metrics
 
@@ -77,7 +83,7 @@ agents/
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
-    "@anthropic-ai/sdk": "^0.52.0"  // Explicit dependency - we use its types directly
+    "@anthropic-ai/sdk": "^0.52.0" // Explicit dependency - we use its types directly
   },
   "devDependencies": {
     "@types/node": "^22",
@@ -139,7 +145,7 @@ interface Args {
   cwd: string;
   prompt: string;
   conversationId: string;
-  conversationPath: string;  // Path provided by frontend (already created by conversationService)
+  conversationPath: string; // Path provided by frontend (already created by conversationService)
 }
 
 function parseArgs(argv: string[]): Args {
@@ -165,7 +171,13 @@ function parseArgs(argv: string[]): Args {
     }
   }
 
-  if (!args.agentType || !args.cwd || !args.prompt || !args.conversationId || !args.conversationPath) {
+  if (
+    !args.agentType ||
+    !args.cwd ||
+    !args.prompt ||
+    !args.conversationId ||
+    !args.conversationPath
+  ) {
     throw new Error("Missing required arguments");
   }
 
@@ -204,7 +216,11 @@ async function main() {
    * - HookCallback signature: (input, toolUseID, { signal }) => Promise<HookJSONOutput>
    * - PostToolUseHookInput includes: tool_name, tool_input, tool_response, cwd, session_id
    */
-  const postToolUseHook: HookCallback = async (input, toolUseID, { signal }) => {
+  const postToolUseHook: HookCallback = async (
+    input,
+    toolUseID,
+    { signal }
+  ) => {
     const hookInput = input as PostToolUseHookInput;
 
     // Emit the tool result
@@ -261,7 +277,7 @@ async function main() {
       prompt: args.prompt,
       options: {
         cwd: args.cwd,
-        model: agentConfig.model ?? "claude-sonnet-4-20250514",
+        model: agentConfig.model ?? "claude-opus-4-5-20251101",
         systemPrompt: agentConfig.systemPrompt,
         allowedTools: agentConfig.tools ?? [
           "Read",
@@ -386,7 +402,11 @@ export interface ChangedFile {
 export function createTaskBranch(cwd: string, branchName: string): void {
   try {
     // Check if branch exists
-    execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], { cwd });
+    execFileSync(
+      "git",
+      ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`],
+      { cwd }
+    );
     // Branch exists, checkout
     execFileSync("git", ["checkout", branchName], { cwd, stdio: "pipe" });
   } catch {
@@ -398,7 +418,10 @@ export function createTaskBranch(cwd: string, branchName: string): void {
 /**
  * Generate a git diff of all changes made on the task branch.
  */
-export function generateTaskDiff(cwd: string, taskBranch: string): string | undefined {
+export function generateTaskDiff(
+  cwd: string,
+  taskBranch: string
+): string | undefined {
   try {
     // Try to find merge base with main, master, or just use HEAD~1
     let mergeBase: string;
@@ -507,10 +530,14 @@ export function getFileDiff(cwd: string, filePath: string): string | undefined {
 export function isBinaryFile(cwd: string, filePath: string): boolean {
   try {
     // git diff --numstat shows binary files as "-\t-\tfilename"
-    const output = execFileSync("git", ["diff", "--numstat", "HEAD", "--", filePath], {
-      cwd,
-      encoding: "utf-8",
-    });
+    const output = execFileSync(
+      "git",
+      ["diff", "--numstat", "HEAD", "--", filePath],
+      {
+        cwd,
+        encoding: "utf-8",
+      }
+    );
 
     // Binary files show as: -\t-\tfilename
     return output.startsWith("-\t-\t");
@@ -668,8 +695,8 @@ const systemPromptWithCache = [
   {
     type: "text",
     text: agentConfig.systemPrompt,
-    cache_control: { type: "ephemeral" }  // 5-minute TTL, refreshed on use
-  }
+    cache_control: { type: "ephemeral" }, // 5-minute TTL, refreshed on use
+  },
 ];
 
 // For multi-turn: mark the last message in history for caching
@@ -685,12 +712,9 @@ function addCacheControlToHistory(messages: MessageParam[]): MessageParam[] {
     const lastBlockIdx = content.length - 1;
     content[lastBlockIdx] = {
       ...content[lastBlockIdx],
-      cache_control: { type: "ephemeral" }
+      cache_control: { type: "ephemeral" },
     };
-    return [
-      ...messages.slice(0, lastIdx),
-      { ...lastMessage, content }
-    ];
+    return [...messages.slice(0, lastIdx), { ...lastMessage, content }];
   }
 
   return messages;
@@ -706,8 +730,8 @@ const result = query({
   prompt: newUserPrompt,
   options: {
     // ... other options
-    systemPrompt: systemPromptWithCache,  // Cached system prompt
-    messages: addCacheControlToHistory(previousMessages),  // Cached history
+    systemPrompt: systemPromptWithCache, // Cached system prompt
+    messages: addCacheControlToHistory(previousMessages), // Cached history
   },
 });
 ```
@@ -715,6 +739,7 @@ const result = query({
 ### Cache Metrics
 
 The SDK's result message includes usage data. Track cache performance:
+
 - `cache_read_input_tokens` - Tokens read from cache (10% cost)
 - `cache_creation_input_tokens` - Tokens written to cache (125% cost)
 - `input_tokens` - New tokens not in cache (100% cost)
@@ -731,12 +756,14 @@ System prompts and accumulated conversation history typically exceed these thres
 ### Cache Invalidation
 
 Cache is invalidated when:
+
 - Tool definitions change
 - System prompt changes
 - Images are added/removed
 - Extended thinking settings change
 
 Cache persists through:
+
 - New user messages (only new content is processed)
 - Tool results being added
 - Regular conversation continuation
@@ -745,6 +772,7 @@ Cache persists through:
 
 1. Build: `cd agents && pnpm install && pnpm build`
 2. Run manually:
+
    ```bash
    # First create the conversation directory (simulates what conversationService.create() does)
    mkdir -p /path/to/repo/.mort/conversations/test-conv-123
@@ -756,6 +784,7 @@ Cache persists through:
      --conversation-id test-conv-123 \
      --conversation-path /path/to/repo/.mort/conversations/test-conv-123
    ```
+
 3. Verify stdout outputs JSONL messages
 4. Verify `/path/to/repo/.mort/conversations/test-conv-123/messages.jsonl` is created and matches stdout
 5. Verify git branch `mort/test-conv-123` is created and checked out

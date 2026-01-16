@@ -189,7 +189,7 @@ describe("Thread History - Live Multi-Turn Test", () => {
     // Use haiku for speed and cost efficiency
     const agentConfig: AgentConfig = {
       agentType: "simple",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-5-20251101",
       appendedPrompt: "You are a helpful assistant. Follow instructions exactly.",
       tools: { type: "preset", preset: "claude_code" },
     };
@@ -302,7 +302,7 @@ describe("Thread History - Live Multi-Turn Test", () => {
 
     const agentConfig: AgentConfig = {
       agentType: "simple",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-5-20251101",
       appendedPrompt: "You are a helpful assistant.",
       tools: { type: "preset", preset: "claude_code" },
     };

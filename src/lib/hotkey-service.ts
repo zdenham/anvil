@@ -135,3 +135,6 @@ export const completeOnboarding = async (): Promise<void> => {
 export const showTasksPanel = async (): Promise<void> => {
   await invoke("show_tasks_panel");
 };
+
+
+

@@ -1,6 +1,6 @@
 [package]
 name = "mort"
-version = "0.0.6"
+version = "0.0.9"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -43,6 +43,7 @@ shellexpand = "3.1"
 clap = { version = "4", features = ["derive"] }
 urlencoding = "2.1"
 raw-window-handle = "0.6"
+ctrlc = "3.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

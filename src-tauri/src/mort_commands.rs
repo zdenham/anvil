@@ -437,6 +437,7 @@ pub fn get_paths_info() -> paths::PathsInfo {
 pub struct HotkeyDefaults {
     pub spotlight: String,
     pub clipboard: String,
+    pub task_panel: String,
     pub app_suffix: String,
     pub is_alternate_build: bool,
 }
@@ -447,6 +448,7 @@ pub fn get_default_hotkeys() -> HotkeyDefaults {
     HotkeyDefaults {
         spotlight: build_info::DEFAULT_SPOTLIGHT_HOTKEY.to_string(),
         clipboard: build_info::DEFAULT_CLIPBOARD_HOTKEY.to_string(),
+        task_panel: build_info::DEFAULT_TASK_PANEL_HOTKEY.to_string(),
         app_suffix: build_info::APP_SUFFIX.to_string(),
         is_alternate_build: build_info::is_alternate_build(),
     }
@@ -462,3 +464,4 @@ pub fn get_default_hotkeys() -> HotkeyDefaults {
 pub fn get_agent_types() -> Vec<&'static str> {
     vec!["research", "execution", "review", "merge"]
 }
+

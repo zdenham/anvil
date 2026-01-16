@@ -23,7 +23,7 @@ const agents: Record<string, AgentConfig> = {
   entrypoint,
   execution,
   review,
-  merge,  // New
+  merge, // New
 };
 ```
 
@@ -39,7 +39,7 @@ import type { AgentConfig } from "./index.js";
 export const merge: AgentConfig = {
   name: "Merge Agent",
   description: "Integrates completed work into the target branch",
-  model: "claude-sonnet-4-20250514",
+  model: "claude-opus-4-5-20251101",
   tools: { type: "preset", preset: "claude_code" },
   // systemPrompt is built dynamically with merge strategy context
 };
@@ -62,7 +62,9 @@ export function buildMergeAgentPrompt(
 
 - **Task Branch:** ${taskBranch}
 - **Base Branch:** ${baseBranch}
-- **Merge Destination:** ${mergeDestination === "local" ? "Local merge" : "Pull Request"}
+- **Merge Destination:** ${
+    mergeDestination === "local" ? "Local merge" : "Pull Request"
+  }
 - **Merge Method:** ${mergeMethod === "merge" ? "Merge commit" : "Rebase"}
 
 ## Your Job
@@ -72,28 +74,40 @@ export function buildMergeAgentPrompt(
    - Run \`git log ${baseBranch}..${taskBranch}\` to see commits to be merged
 
 2. **Execute the merge strategy**:
-${mergeDestination === "local" ? `
+${
+  mergeDestination === "local"
+    ? `
    **Local Merge Strategy:**
-   ${mergeMethod === "rebase" ? `
+   ${
+     mergeMethod === "rebase"
+       ? `
    - Checkout the task branch: \`git checkout ${taskBranch}\`
    - Rebase onto base: \`git rebase ${baseBranch}\`
    - If conflicts occur, report them and ask user for guidance
    - After successful rebase, checkout base: \`git checkout ${baseBranch}\`
    - Fast-forward merge: \`git merge ${taskBranch}\`
-   ` : `
+   `
+       : `
    - Checkout the base branch: \`git checkout ${baseBranch}\`
    - Merge the task branch: \`git merge ${taskBranch}\`
    - If conflicts occur, report them and ask user for guidance
-   `}
-` : `
+   `
+   }
+`
+    : `
    **Pull Request Strategy:**
    - Push the task branch to remote: \`git push -u origin ${taskBranch}\`
    - Create PR using GitHub CLI: \`gh pr create --base ${baseBranch} --head ${taskBranch}\`
    - Include a clear title and description based on the work done
-   ${mergeMethod === "rebase" ? `
+   ${
+     mergeMethod === "rebase"
+       ? `
    - Before pushing, rebase onto latest base: \`git rebase ${baseBranch}\`
-   ` : ""}
-`}
+   `
+       : ""
+   }
+`
+}
 
 3. **Report the result**:
    - On success: Report what was done (merge commit hash, or PR URL)

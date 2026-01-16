@@ -38,6 +38,11 @@ const parseHotkey = (str: string): Hotkey => {
     else if (part === "Alt") modifiers.add("Alt");
     else if (part === "Shift") modifiers.add("Shift");
     else if (part === "Space") key = " ";
+    // Handle compact arrow key format
+    else if (part === "Up") key = "ArrowUp";
+    else if (part === "Down") key = "ArrowDown";
+    else if (part === "Left") key = "ArrowLeft";
+    else if (part === "Right") key = "ArrowRight";
     else key = part.toLowerCase();
   }
 
@@ -51,7 +56,16 @@ const formatHotkey = (hotkey: Hotkey): string => {
   if (hotkey.modifiers.has("Alt")) parts.push("Alt");
   if (hotkey.modifiers.has("Meta")) parts.push("Command");
   if (hotkey.key) {
-    parts.push(hotkey.key === " " ? "Space" : hotkey.key.toUpperCase());
+    // Convert arrow keys to compact format for storage
+    let keyPart = hotkey.key;
+    if (keyPart === "ArrowUp") keyPart = "Up";
+    else if (keyPart === "ArrowDown") keyPart = "Down";
+    else if (keyPart === "ArrowLeft") keyPart = "Left";
+    else if (keyPart === "ArrowRight") keyPart = "Right";
+    else if (keyPart === " ") keyPart = "Space";
+    else if (keyPart.length === 1) keyPart = keyPart.toUpperCase();
+
+    parts.push(keyPart);
   }
   return parts.join("+");
 };
