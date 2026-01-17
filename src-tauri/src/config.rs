@@ -15,6 +15,10 @@ pub struct AppConfig {
     pub clipboard_hotkey: String,
     #[serde(default = "default_task_panel_hotkey")]
     pub task_panel_hotkey: String,
+    #[serde(default = "default_navigation_down_hotkey")]
+    pub navigation_down_hotkey: String,
+    #[serde(default = "default_navigation_up_hotkey")]
+    pub navigation_up_hotkey: String,
     #[serde(default)]
     pub onboarded: bool,
 }
@@ -25,6 +29,8 @@ impl Default for AppConfig {
             spotlight_hotkey: default_spotlight_hotkey(),
             clipboard_hotkey: default_clipboard_hotkey(),
             task_panel_hotkey: default_task_panel_hotkey(),
+            navigation_down_hotkey: default_navigation_down_hotkey(),
+            navigation_up_hotkey: default_navigation_up_hotkey(),
             onboarded: false,
         }
     }
@@ -40,6 +46,14 @@ fn default_clipboard_hotkey() -> String {
 
 fn default_task_panel_hotkey() -> String {
     build_info::DEFAULT_TASK_PANEL_HOTKEY.to_string()
+}
+
+fn default_navigation_down_hotkey() -> String {
+    "Shift+Down".to_string()
+}
+
+fn default_navigation_up_hotkey() -> String {
+    "Shift+Up".to_string()
 }
 
 
@@ -152,4 +166,37 @@ pub fn set_task_panel_hotkey(hotkey: &str) -> Result<(), String> {
     save_config(&config)
 }
 
+/// Gets the saved navigation down hotkey, or the default if none is saved
+pub fn get_navigation_down_hotkey() -> String {
+    let hotkey = load_config().navigation_down_hotkey;
+    if hotkey.is_empty() {
+        default_navigation_down_hotkey()
+    } else {
+        hotkey
+    }
+}
+
+/// Saves the navigation down hotkey to config
+pub fn set_navigation_down_hotkey(hotkey: &str) -> Result<(), String> {
+    let mut config = load_config();
+    config.navigation_down_hotkey = hotkey.to_string();
+    save_config(&config)
+}
+
+/// Gets the saved navigation up hotkey, or the default if none is saved
+pub fn get_navigation_up_hotkey() -> String {
+    let hotkey = load_config().navigation_up_hotkey;
+    if hotkey.is_empty() {
+        default_navigation_up_hotkey()
+    } else {
+        hotkey
+    }
+}
+
+/// Saves the navigation up hotkey to config
+pub fn set_navigation_up_hotkey(hotkey: &str) -> Result<(), String> {
+    let mut config = load_config();
+    config.navigation_up_hotkey = hotkey.to_string();
+    save_config(&config)
+}
 

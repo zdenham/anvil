@@ -1,6 +1,6 @@
 import { HotkeySettings } from "./settings/hotkey-settings";
 import { ClipboardHotkeySettings } from "./settings/clipboard-hotkey-settings";
-import { TaskPanelHotkeySettings } from "./settings/task-panel-hotkey-settings";
+import { NavigationHotkeySettings } from "./settings/navigation-hotkey-settings";
 import { ApiKeySettings } from "./settings/api-key-settings";
 import { RepositorySettings } from "./settings/repository-settings";
 import { MergeSettings } from "./settings/merge-settings";
@@ -15,7 +15,7 @@ export function SettingsPage() {
       <div className="p-6 space-y-6 max-w-2xl">
         <HotkeySettings />
         <ClipboardHotkeySettings />
-        <TaskPanelHotkeySettings />
+        <NavigationHotkeySettings />
         <ApiKeySettings />
         <RepositorySettings />
         <MergeSettings />

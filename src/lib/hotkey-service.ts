@@ -136,5 +136,34 @@ export const showTasksPanel = async (): Promise<void> => {
   await invoke("show_tasks_panel");
 };
 
+/**
+ * Saves the navigation down hotkey to backend config and registers it
+ * @param hotkey - The hotkey string to save and register (e.g., "Shift+Down", "Command+J")
+ */
+export const saveNavigationDownHotkey = async (hotkey: string): Promise<void> => {
+  await invoke("save_navigation_down_hotkey", { hotkey });
+};
+
+/**
+ * Gets the saved navigation down hotkey from backend config
+ */
+export const getSavedNavigationDownHotkey = async (): Promise<string> => {
+  return invoke<string>("get_saved_navigation_down_hotkey");
+};
+
+/**
+ * Saves the navigation up hotkey to backend config and registers it
+ * @param hotkey - The hotkey string to save and register (e.g., "Shift+Up", "Command+K")
+ */
+export const saveNavigationUpHotkey = async (hotkey: string): Promise<void> => {
+  await invoke("save_navigation_up_hotkey", { hotkey });
+};
+
+/**
+ * Gets the saved navigation up hotkey from backend config
+ */
+export const getSavedNavigationUpHotkey = async (): Promise<string> => {
+  return invoke<string>("get_saved_navigation_up_hotkey");
+};
 
 

@@ -157,36 +157,38 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
         })
         .map_err(|e| format!("Failed to re-register task panel hotkey: {:?}", e))?;
 
-    // Register navigation mode hotkeys (Shift+Down and Shift+Up) - macOS only
+    // Register navigation mode hotkeys - macOS only
     #[cfg(target_os = "macos")]
     {
-        // Shift+Down for downward navigation
-        let nav_down_shortcut: Shortcut = "Shift+Down"
+        let nav_down_hotkey = config::get_navigation_down_hotkey();
+        let nav_down_shortcut: Shortcut = nav_down_hotkey
             .parse()
-            .map_err(|e| format!("Failed to parse Shift+Down hotkey: {:?}", e))?;
+            .map_err(|e| format!("Failed to parse navigation down hotkey '{}': {:?}", nav_down_hotkey, e))?;
+        let nav_down_hotkey_clone = nav_down_hotkey.clone();
         app.global_shortcut()
             .on_shortcut(nav_down_shortcut, move |_app, _shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     navigation_mode::get_navigation_mode()
-                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Down);
+                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Down, &nav_down_hotkey_clone);
                 }
             })
-            .map_err(|e| format!("Failed to register Shift+Down hotkey: {:?}", e))?;
+            .map_err(|e| format!("Failed to register navigation down hotkey: {:?}", e))?;
 
-        // Shift+Up for upward navigation
-        let nav_up_shortcut: Shortcut = "Shift+Up"
+        let nav_up_hotkey = config::get_navigation_up_hotkey();
+        let nav_up_shortcut: Shortcut = nav_up_hotkey
             .parse()
-            .map_err(|e| format!("Failed to parse Shift+Up hotkey: {:?}", e))?;
+            .map_err(|e| format!("Failed to parse navigation up hotkey '{}': {:?}", nav_up_hotkey, e))?;
+        let nav_up_hotkey_clone = nav_up_hotkey.clone();
         app.global_shortcut()
             .on_shortcut(nav_up_shortcut, move |_app, _shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     navigation_mode::get_navigation_mode()
-                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Up);
+                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Up, &nav_up_hotkey_clone);
                 }
             })
-            .map_err(|e| format!("Failed to register Shift+Up hotkey: {:?}", e))?;
+            .map_err(|e| format!("Failed to register navigation up hotkey: {:?}", e))?;
 
-        tracing::info!("Registered navigation mode hotkeys (Shift+Down, Shift+Up)");
+        tracing::info!(down = %nav_down_hotkey, up = %nav_up_hotkey, "Registered navigation mode hotkeys");
     }
 
     Ok(())
@@ -231,6 +233,34 @@ fn save_task_panel_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> 
 #[tauri::command]
 fn get_saved_task_panel_hotkey() -> String {
     config::get_task_panel_hotkey()
+}
+
+/// Saves the navigation down hotkey to config and re-registers hotkeys
+#[tauri::command]
+fn save_navigation_down_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
+    config::set_navigation_down_hotkey(&hotkey)?;
+    let spotlight_hotkey = config::get_spotlight_hotkey();
+    register_hotkey_internal(&app, &spotlight_hotkey)
+}
+
+/// Gets the saved navigation down hotkey from config
+#[tauri::command]
+fn get_saved_navigation_down_hotkey() -> String {
+    config::get_navigation_down_hotkey()
+}
+
+/// Saves the navigation up hotkey to config and re-registers hotkeys
+#[tauri::command]
+fn save_navigation_up_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
+    config::set_navigation_up_hotkey(&hotkey)?;
+    let spotlight_hotkey = config::get_spotlight_hotkey();
+    register_hotkey_internal(&app, &spotlight_hotkey)
+}
+
+/// Gets the saved navigation up hotkey from config
+#[tauri::command]
+fn get_saved_navigation_up_hotkey() -> String {
+    config::get_navigation_up_hotkey()
 }
 
 
@@ -651,6 +681,10 @@ pub fn run() {
             get_saved_clipboard_hotkey,
             save_task_panel_hotkey,
             get_saved_task_panel_hotkey,
+            save_navigation_down_hotkey,
+            get_saved_navigation_down_hotkey,
+            save_navigation_up_hotkey,
+            get_saved_navigation_up_hotkey,
             is_onboarded,
             complete_onboarding,
             show_main_window,

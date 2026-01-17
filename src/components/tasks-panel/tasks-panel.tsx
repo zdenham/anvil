@@ -262,7 +262,7 @@ const TaskItem = forwardRef<HTMLLIElement, TaskItemProps>(
         onClick={onClick}
         className={`group flex items-center gap-3 px-3 py-2 bg-surface-800 rounded-lg border cursor-pointer transition-colors ${
           isSelected
-            ? "border-blue-500 ring-2 ring-blue-500/50 bg-blue-500/10"
+            ? "border-secondary-500 ring-2 ring-secondary-500/50 bg-secondary-500/10"
             : "border-surface-700 hover:border-surface-600"
         }`}
       >

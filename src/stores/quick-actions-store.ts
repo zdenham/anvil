@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ActionType = "markUnread" | "archive" | "respond" | "nextTask" | "followUp";
+export type ActionType = "markUnread" | "archive" | "respond" | "nextTask" | "closeTask" | "followUp";
 
 export interface ActionConfig {
   key: ActionType;
@@ -20,6 +20,11 @@ export const streamingActions: Array<ActionConfig> = [
     key: "nextTask",
     label: "Go to next task",
     description: "proceed to next unread task",
+  },
+  {
+    key: "closeTask",
+    label: "Close task",
+    description: "close this panel",
   },
   {
     key: "followUp",

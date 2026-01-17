@@ -64,7 +64,7 @@ export function useNavigationMode({
 
         case "nav-down":
           setSelectedIndex((prev) => {
-            const next = Math.min(prev + 1, Math.max(0, taskCount - 1));
+            const next = prev >= taskCount - 1 ? 0 : prev + 1;
             logger.debug("[use-navigation-mode] nav-down:", prev, "->", next);
             return next;
           });
@@ -72,7 +72,7 @@ export function useNavigationMode({
 
         case "nav-up":
           setSelectedIndex((prev) => {
-            const next = Math.max(prev - 1, 0);
+            const next = prev <= 0 ? Math.max(0, taskCount - 1) : prev - 1;
             logger.debug("[use-navigation-mode] nav-up:", prev, "->", next);
             return next;
           });

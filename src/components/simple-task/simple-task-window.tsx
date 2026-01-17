@@ -296,6 +296,8 @@ function SimpleTaskWindowContent({
         if (!success) {
           logger.info("[SimpleTaskWindow] Navigated to tasks panel as fallback");
         }
+      } else if (action === "closeTask") {
+        await invoke("hide_simple_task");
       } else if (action === "followUp") {
         setShowFollowUpInput(true);
       } else if (action === "respond") {
@@ -333,7 +335,12 @@ function SimpleTaskWindowContent({
         navigateUp(actions.length);
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        navigateDown(actions.length);
+        // If already at the bottom action, focus the input
+        if (selectedIndex === actions.length - 1) {
+          inputRef.current?.focus();
+        } else {
+          navigateDown(actions.length);
+        }
       } else if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         const selectedAction = actions[selectedIndex];

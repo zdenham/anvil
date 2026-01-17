@@ -44,6 +44,20 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
     }
   }, [value, disabled, onSubmit]);
 
+  // Helper to check if cursor is on the first line of the textarea
+  const isCursorOnFirstLine = useCallback((textarea: HTMLTextAreaElement): boolean => {
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+    return !textBeforeCursor.includes('\n');
+  }, []);
+
+  // Helper to check if cursor is on the last line of the textarea
+  const isCursorOnLastLine = useCallback((textarea: HTMLTextAreaElement): boolean => {
+    const cursorPos = textarea.selectionStart;
+    const textAfterCursor = textarea.value.substring(cursorPos);
+    return !textAfterCursor.includes('\n');
+  }, []);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Enter submits (unless Shift is held for newline, or trigger dropdown is active)
@@ -55,10 +69,39 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
         return;
       }
 
-      // Allow arrow keys to propagate to quick actions panel when input is empty
-      // This will be handled by the quick actions panel's global listener
-      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && value.trim() === "" && !triggerState?.isActive) {
-        // Don't prevent default - let the quick actions panel handle it
+      // Handle arrow keys for quick action navigation
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !triggerState?.isActive) {
+        const isEmpty = value.trim() === "";
+        const textarea = e.target as HTMLTextAreaElement;
+
+        // Allow propagation to quick actions only when:
+        // - Input is empty, OR
+        // - ArrowUp on first line (navigate to quick actions above)
+        // - ArrowDown on last line (navigate to quick actions below)
+        // Otherwise, stop propagation so arrow keys work normally in textarea
+        if (isEmpty) {
+          // Blur the input so quick actions can take over keyboard navigation
+          textarea.blur();
+          return;
+        }
+
+        const onFirstLine = isCursorOnFirstLine(textarea);
+        const onLastLine = isCursorOnLastLine(textarea);
+
+        if (e.key === "ArrowUp" && onFirstLine) {
+          // Blur the input so quick actions can take over keyboard navigation
+          textarea.blur();
+          return;
+        }
+
+        if (e.key === "ArrowDown" && onLastLine) {
+          // Let the quick actions panel handle it (it will re-focus us if needed)
+          return;
+        }
+
+        // Input has content and cursor is in the middle of the text
+        // Stop propagation so SimpleTaskWindow doesn't intercept
+        e.stopPropagation();
         return;
       }
 
@@ -74,7 +117,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
       // Note: Arrow keys, Tab, plain Enter are handled by TriggerSearchInput
       // when trigger is active and dropdown is enabled
     },
-    [handleSubmit, triggerState?.isActive, handleModeKeyDown, value]
+    [handleSubmit, triggerState?.isActive, handleModeKeyDown, value, isCursorOnFirstLine, isCursorOnLastLine]
   );
 
   const handleTriggerStateChange = useCallback((state: TriggerStateInfo) => {

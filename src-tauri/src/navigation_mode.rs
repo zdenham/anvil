@@ -29,7 +29,7 @@ use core_graphics::event::{
     CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
 };
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -72,7 +72,42 @@ pub enum NavigationEvent {
 }
 
 /// Modifier flag bits from CGEventFlags
-const SHIFT_MASK: u64 = 0x00020000; // CGEventFlags::CGEventFlagShift
+const SHIFT_MASK: u64 = 0x00020000;   // CGEventFlags::CGEventFlagShift
+const CONTROL_MASK: u64 = 0x00040000; // CGEventFlags::CGEventFlagControl
+const OPTION_MASK: u64 = 0x00080000;  // CGEventFlags::CGEventFlagAlternate
+const COMMAND_MASK: u64 = 0x00100000; // CGEventFlags::CGEventFlagCommand
+
+/// Tracks which modifiers are being monitored for release
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ActiveModifiers {
+    pub shift: bool,
+    pub control: bool,
+    pub option: bool,
+    pub command: bool,
+}
+
+impl ActiveModifiers {
+    /// Parse modifiers from a hotkey string like "Command+Shift+Down"
+    pub fn from_hotkey(hotkey: &str) -> Self {
+        let lower = hotkey.to_lowercase();
+        Self {
+            shift: lower.contains("shift"),
+            control: lower.contains("control") || lower.contains("ctrl"),
+            option: lower.contains("option") || lower.contains("alt"),
+            command: lower.contains("command") || lower.contains("cmd") || lower.contains("meta"),
+        }
+    }
+
+    /// Get the combined modifier mask for all tracked modifiers
+    pub fn to_mask(&self) -> u64 {
+        let mut mask = 0u64;
+        if self.shift { mask |= SHIFT_MASK; }
+        if self.control { mask |= CONTROL_MASK; }
+        if self.option { mask |= OPTION_MASK; }
+        if self.command { mask |= COMMAND_MASK; }
+        mask
+    }
+}
 
 /// Navigation mode manager
 pub struct NavigationMode {
@@ -80,6 +115,8 @@ pub struct NavigationMode {
     state: Mutex<NavigationState>,
     /// Currently selected index during navigation
     current_index: Mutex<usize>,
+    /// Modifiers that were used to start navigation (need ALL to be released)
+    active_modifiers: Mutex<ActiveModifiers>,
     /// Flag to signal the CGEventTap thread to stop
     stop_flag: Arc<AtomicBool>,
     /// Flag indicating the tap thread has fully exited
@@ -95,6 +132,7 @@ impl NavigationMode {
         Self {
             state: Mutex::new(NavigationState::Idle),
             current_index: Mutex::new(0),
+            active_modifiers: Mutex::new(ActiveModifiers::default()),
             stop_flag: Arc::new(AtomicBool::new(false)),
             tap_thread_exited: Arc::new(AtomicBool::new(true)), // Starts as exited (no thread running)
             tap_thread_handle: Mutex::new(None),
@@ -107,20 +145,27 @@ impl NavigationMode {
         *self.app_handle.lock().unwrap() = Some(app);
     }
 
-    /// Called when a navigation hotkey is pressed (Shift+Up or Shift+Down)
-    pub fn on_hotkey_pressed(&self, direction: NavigationDirection) {
+    /// Called when a navigation hotkey is pressed (e.g., Shift+Down, Command+J)
+    /// The hotkey parameter is used to determine which modifiers to monitor for release
+    pub fn on_hotkey_pressed(&self, direction: NavigationDirection, hotkey: &str) {
         let mut state = self.state.lock().unwrap();
 
         match *state {
             NavigationState::Idle => {
+                // Parse which modifiers are in the hotkey and store them
+                let modifiers = ActiveModifiers::from_hotkey(hotkey);
+                *self.active_modifiers.lock().unwrap() = modifiers;
+
                 tracing::info!(
                     direction = ?direction,
+                    hotkey = %hotkey,
+                    modifiers = ?modifiers,
                     "NavigationMode: Idle -> Navigating (starting navigation mode)"
                 );
                 *state = NavigationState::Navigating;
                 *self.current_index.lock().unwrap() = 0;
 
-                // Start modifier tap to detect Shift release
+                // Start modifier tap to detect when ALL modifiers are released
                 self.start_modifier_tap();
 
                 // Show the tasks panel
@@ -215,6 +260,9 @@ impl NavigationMode {
             return;
         }
 
+        // Get the modifier mask to monitor (must be done before spawning thread)
+        let modifier_mask = self.active_modifiers.lock().unwrap().to_mask();
+
         // Reset flags
         self.stop_flag.store(false, Ordering::SeqCst);
         self.tap_thread_exited.store(false, Ordering::SeqCst);
@@ -225,12 +273,8 @@ impl NavigationMode {
         // We need to call on_modifier_released from the thread, so we use
         // a global singleton pattern
         let handle = thread::spawn(move || {
-            tracing::info!("NavigationMode: CGEventTap thread started");
+            tracing::info!(modifier_mask = format!("0x{:08x}", modifier_mask), "NavigationMode: CGEventTap thread started");
 
-            // CRITICAL: Initialize prev_flags with Shift already set
-            // Since this tap is started by a Shift+Down/Up hotkey, Shift is currently held
-            let prev_flags = Arc::new(AtomicU64::new(SHIFT_MASK));
-            let prev_flags_clone = prev_flags.clone();
             let stop_flag_clone = stop_flag.clone();
 
             // Create the event tap for FlagsChanged events only
@@ -242,14 +286,18 @@ impl NavigationMode {
                 move |_proxy, _event_type, event| {
                     let flags = event.get_flags();
                     let flags_bits = flags.bits();
-                    let old_flags = prev_flags_clone.swap(flags_bits, Ordering::SeqCst);
 
-                    // Detect Shift release (was set, now clear)
-                    let shift_was_down = (old_flags & SHIFT_MASK) != 0;
-                    let shift_is_down = (flags_bits & SHIFT_MASK) != 0;
+                    // Check if ALL tracked modifiers are now released
+                    // This works regardless of release order (Command first, then Shift, etc.)
+                    let all_modifiers_up = (flags_bits & modifier_mask) == 0;
 
-                    if shift_was_down && !shift_is_down {
-                        tracing::info!("NavigationMode: Shift released detected");
+                    // Only log and trigger if we haven't already stopped
+                    if all_modifiers_up && !stop_flag_clone.load(Ordering::SeqCst) {
+                        tracing::info!(
+                            current_flags = format!("0x{:08x}", flags_bits),
+                            modifier_mask = format!("0x{:08x}", modifier_mask),
+                            "NavigationMode: All modifiers released"
+                        );
                         // Signal thread to stop
                         stop_flag_clone.store(true, Ordering::SeqCst);
                         // Call the modifier released handler
@@ -288,7 +336,7 @@ impl NavigationMode {
             // Enable the tap
             event_tap.enable();
 
-            tracing::info!("NavigationMode: CGEventTap enabled, listening for Shift release");
+            tracing::info!(modifier_mask = format!("0x{:08x}", modifier_mask), "NavigationMode: CGEventTap enabled, listening for modifier release");
 
             // Run the event loop until stopped
             while !stop_flag.load(Ordering::SeqCst) {
@@ -366,16 +414,18 @@ pub fn initialize(app: &AppHandle) {
 // Tauri Commands
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Called when navigation hotkey is triggered (Shift+Down)
+/// Called when navigation hotkey is triggered (navigate down)
 #[tauri::command]
 pub fn navigation_hotkey_down() {
-    get_navigation_mode().on_hotkey_pressed(NavigationDirection::Down);
+    let hotkey = crate::config::get_navigation_down_hotkey();
+    get_navigation_mode().on_hotkey_pressed(NavigationDirection::Down, &hotkey);
 }
 
-/// Called when navigation hotkey is triggered (Shift+Up)
+/// Called when navigation hotkey is triggered (navigate up)
 #[tauri::command]
 pub fn navigation_hotkey_up() {
-    get_navigation_mode().on_hotkey_pressed(NavigationDirection::Up);
+    let hotkey = crate::config::get_navigation_up_hotkey();
+    get_navigation_mode().on_hotkey_pressed(NavigationDirection::Up, &hotkey);
 }
 
 /// Called when task panel loses focus (from frontend)
