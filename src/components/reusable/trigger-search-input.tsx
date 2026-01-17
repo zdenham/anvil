@@ -93,13 +93,6 @@ export const TriggerSearchInput = forwardRef<
         const selectionResult = selectResult(result);
         if (selectionResult) {
           onChange?.(selectionResult.value);
-          // Set cursor position after React re-renders the textarea
-          requestAnimationFrame(() => {
-            textareaRef.current?.setSelectionRange(
-              selectionResult.cursorPosition,
-              selectionResult.cursorPosition
-            );
-          });
         }
       },
       [selectResult, onChange]

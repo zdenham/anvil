@@ -993,13 +993,13 @@ export const Spotlight = () => {
       if (!displayQuery.trim()) {
         // Clear results and resize for empty query
         setState((prev) => ({ ...prev, results: [] }));
-        await controller.resizeWindow(0, inputExpanded);
+        await controller.resizeWindow(0, inputExpandedRef.current);
         return;
       }
 
       // Perform async operations after input state is updated
       const newResults = await controller.search(displayQuery);
-      await controller.resizeWindow(newResults.length, inputExpanded);
+      await controller.resizeWindow(newResults.length, inputExpandedRef.current);
 
       // Update results separately
       setState((prev) => ({
@@ -1008,7 +1008,7 @@ export const Spotlight = () => {
         selectedIndex: 0,
       }));
     },
-    [inputExpanded]
+    []
   );
 
   // Resize window when trigger results change

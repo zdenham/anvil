@@ -1,6 +1,12 @@
 #[cfg(target_os = "macos")]
 pub mod accessibility;
 
+#[cfg(target_os = "macos")]
+mod cgevent_test;
+
+#[cfg(target_os = "macos")]
+mod navigation_mode;
+
 // Make public for mort-test CLI access
 #[cfg(target_os = "macos")]
 pub use accessibility::{is_accessibility_trusted, check_accessibility_with_prompt};
@@ -150,6 +156,38 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
             }
         })
         .map_err(|e| format!("Failed to re-register task panel hotkey: {:?}", e))?;
+
+    // Register navigation mode hotkeys (Shift+Down and Shift+Up) - macOS only
+    #[cfg(target_os = "macos")]
+    {
+        // Shift+Down for downward navigation
+        let nav_down_shortcut: Shortcut = "Shift+Down"
+            .parse()
+            .map_err(|e| format!("Failed to parse Shift+Down hotkey: {:?}", e))?;
+        app.global_shortcut()
+            .on_shortcut(nav_down_shortcut, move |_app, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    navigation_mode::get_navigation_mode()
+                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Down);
+                }
+            })
+            .map_err(|e| format!("Failed to register Shift+Down hotkey: {:?}", e))?;
+
+        // Shift+Up for upward navigation
+        let nav_up_shortcut: Shortcut = "Shift+Up"
+            .parse()
+            .map_err(|e| format!("Failed to parse Shift+Up hotkey: {:?}", e))?;
+        app.global_shortcut()
+            .on_shortcut(nav_up_shortcut, move |_app, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    navigation_mode::get_navigation_mode()
+                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Up);
+                }
+            })
+            .map_err(|e| format!("Failed to register Shift+Up hotkey: {:?}", e))?;
+
+        tracing::info!("Registered navigation mode hotkeys (Shift+Down, Shift+Up)");
+    }
 
     Ok(())
 }
@@ -727,10 +765,28 @@ pub fn run() {
             get_accessibility_status,
             #[cfg(target_os = "macos")]
             kill_system_settings,
+            // CGEvent tap test commands (macOS only)
+            #[cfg(target_os = "macos")]
+            cgevent_test::start_cgevent_test,
+            #[cfg(target_os = "macos")]
+            cgevent_test::stop_cgevent_test,
+            #[cfg(target_os = "macos")]
+            cgevent_test::is_cgevent_test_running,
             // Shell environment commands
             initialize_shell_environment,
             is_shell_initialized,
             check_documents_access,
+            // Navigation mode commands (macOS only)
+            #[cfg(target_os = "macos")]
+            navigation_mode::navigation_hotkey_down,
+            #[cfg(target_os = "macos")]
+            navigation_mode::navigation_hotkey_up,
+            #[cfg(target_os = "macos")]
+            navigation_mode::navigation_panel_blur,
+            #[cfg(target_os = "macos")]
+            navigation_mode::is_navigation_mode_active,
+            #[cfg(target_os = "macos")]
+            navigation_mode::get_navigation_state,
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
@@ -762,8 +818,9 @@ pub fn run() {
             // Initialize panels module with app handle for event callbacks
             panels::initialize(app.handle());
 
-
-            // Cleanup any navigation modes from previous runs
+            // Initialize navigation mode (macOS only)
+            #[cfg(target_os = "macos")]
+            navigation_mode::initialize(app.handle());
 
             // Create panels
             if let Err(e) = panels::create_spotlight_panel(app.handle()) {

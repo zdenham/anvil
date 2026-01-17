@@ -672,7 +672,7 @@ export function TaskWorkspace({ taskId, initialThreadId }: TaskWorkspaceProps) {
   });
 
   return (
-    <div className="h-full flex flex-col bg-surface-900 relative">
+    <div className="task-panel-container h-full flex flex-col bg-surface-900 relative rounded-xl overflow-hidden border border-surface-700/50">
       {/* Task header - spans full width */}
       <TaskHeader taskId={taskId} onOpenTask={handleOpenTask} />
 

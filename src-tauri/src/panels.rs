@@ -509,22 +509,26 @@ pub fn create_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
                 .move_to_active_space()
                 .full_screen_auxiliary(),
         )
-        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
-        .has_shadow(true)
+        // Note: borderless() resets the mask, so resizable() must come after it
+        .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
+        .has_shadow(false)
         .hides_on_deactivate(false)
-        .transparent(false)
+        .transparent(true)
         .no_activate(true)
         .with_window(|w| {
             w.decorations(false)
                 .resizable(true)
                 .visible(false)
-                .transparent(false)
+                .transparent(true)
                 .title("task")
         })
         .build()?;
 
     // Disable macOS Tahoe window animations for snappy appearance
     panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
+
+    // Enable native dragging by clicking anywhere on the window background
+    panel.as_panel().setMovableByWindowBackground(true);
 
     // Set up event handler to hide panel when it loses focus (blur)
     let event_handler = TaskEventHandler::new();
@@ -930,16 +934,17 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
                 .move_to_active_space()
                 .full_screen_auxiliary(),
         )
-        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
-        .has_shadow(true)
+        // Note: borderless() resets the mask, so resizable() must come after it
+        .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
+        .has_shadow(false)
         .hides_on_deactivate(false)
-        .transparent(false)
+        .transparent(true)
         .no_activate(true)
         .with_window(|w| {
             w.decorations(false)
                 .resizable(true)
                 .visible(false)
-                .transparent(false)
+                .transparent(true)
                 .title("simple-task")
         })
         .build()?;
@@ -947,22 +952,12 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
     // Disable macOS Tahoe window animations for snappy appearance
     panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
 
-    // Set up event handler to hide panel when it loses focus (blur)
-    let event_handler = SimpleTaskEventHandler::new();
-    event_handler.window_did_resign_key(|_notification| {
-        if let Some(app) = APP_HANDLE.get() {
-            if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
-                panel.hide();
-            }
+    // Enable native dragging by clicking anywhere on the window background
+    panel.as_panel().setMovableByWindowBackground(true);
 
-
-            // Clear pending simple task when panel is hidden
-            clear_pending_simple_task();
-            // Emit event so frontend can reset state
-            let _ = app.emit_to(SIMPLE_TASK_LABEL, "panel-hidden", ());
-        }
-    });
-    panel.set_event_handler(Some(event_handler.as_ref()));
+    // Note: Unlike other panels, simple-task does NOT auto-hide on blur.
+    // Users explicitly close it via Escape key or X button.
+    // This allows clicking outside the panel without losing the task view.
 
     // Ensure panel starts hidden
     panel.hide();
@@ -1087,7 +1082,8 @@ pub fn create_tasks_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
                 .move_to_active_space()
                 .full_screen_auxiliary(),
         )
-        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+        // Note: borderless() resets the mask, so resizable() must come after it
+        .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
         .has_shadow(true)
         .hides_on_deactivate(false)
         .transparent(true)
@@ -1104,22 +1100,12 @@ pub fn create_tasks_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
     // Disable macOS Tahoe window animations for snappy appearance
     panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
 
-    // Set up event handler to hide panel when it loses focus (blur)
-    let event_handler = TasksListEventHandler::new();
-    event_handler.window_did_resign_key(|_notification| {
-        if let Some(app) = APP_HANDLE.get() {
-            if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
-                panel.hide();
-            }
-            // Note: task-selection emission is handled by modifier release detection
-            // in handle_modifier_release(). Panel blur should not trigger task selection
-            // to avoid selecting tasks when window unfocus is NOT from modifier release.
-            // Reset navigation mode when panel loses focus
-            // Emit event so frontend can reset state
-            let _ = app.emit("panel-hidden", ());
-        }
-    });
-    panel.set_event_handler(Some(event_handler.as_ref()));
+    // Enable native dragging by clicking anywhere on the window background
+    panel.as_panel().setMovableByWindowBackground(true);
+
+    // Note: Unlike other panels, tasks-list does NOT auto-hide on blur.
+    // Users explicitly close it via Escape key or X button.
+    // This allows clicking outside the panel without losing the task list.
 
     // Ensure panel starts hidden
     panel.hide();

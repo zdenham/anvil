@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Copy, Search, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Search, Trash2, Radio } from "lucide-react";
 import type { LogEntry, LogFilter, LogLevel } from "@/entities/logs";
 import { cn } from "@/lib/utils";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
 const COPY_FEEDBACK_MS = 2000;
@@ -68,9 +70,43 @@ export function LogsToolbar({
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isCopied, setIsCopied] = useState(false);
+  const [isEventTapRunning, setIsEventTapRunning] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Check initial state and listen for CGEvent test events
+  useEffect(() => {
+    // Check if already running on mount
+    invoke<boolean>("is_cgevent_test_running").then(setIsEventTapRunning).catch(() => {});
+
+    // Listen for events from the CGEvent tap
+    const unlisten = listen<{ type: string }>("cgevent-test", (event) => {
+      if (event.payload.type === "started") {
+        setIsEventTapRunning(true);
+      } else if (event.payload.type === "stopped") {
+        setIsEventTapRunning(false);
+      }
+      // Other events (key_down, key_up, flags_changed, modifier_released)
+      // will be logged via the normal logging system
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  const toggleEventTap = useCallback(async () => {
+    try {
+      if (isEventTapRunning) {
+        await invoke("stop_cgevent_test");
+      } else {
+        await invoke("start_cgevent_test");
+      }
+    } catch (e) {
+      console.error("Failed to toggle CGEvent tap:", e);
+    }
+  }, [isEventTapRunning]);
 
   const toggleLevel = (level: LogLevel) => {
     const newLevels = filter.levels.includes(level)
@@ -308,8 +344,21 @@ export function LogsToolbar({
           : `${filteredCount} of ${totalCount}`}
       </span>
 
-      {/* Copy and Clear buttons */}
+      {/* CGEvent Tap Test, Copy and Clear buttons */}
       <div className="ml-auto flex items-center gap-1">
+        <button
+          onClick={toggleEventTap}
+          className={cn(
+            "flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors",
+            isEventTapRunning
+              ? "bg-red-600/20 text-red-400 hover:bg-red-600/30"
+              : "bg-surface-800 text-surface-400 hover:text-surface-200 hover:bg-surface-700"
+          )}
+          title={isEventTapRunning ? "Stop CGEvent tap test" : "Start CGEvent tap test (logs modifier key events)"}
+        >
+          <Radio size={12} className={isEventTapRunning ? "animate-pulse" : ""} />
+          <span>{isEventTapRunning ? "Stop Tap" : "Event Tap"}</span>
+        </button>
         <button
           onClick={handleCopy}
           disabled={filteredLogs.length === 0}

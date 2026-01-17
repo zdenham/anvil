@@ -4,6 +4,7 @@ import type { ThreadMetadata } from "@/entities/threads/types";
 import { useThreadStore } from "@/entities/threads/store";
 import { getTaskDotColor } from "@/utils/task-colors";
 import { DeleteButton } from "@/components/tasks/delete-button";
+import { EmptyTaskState } from "@/components/tasks/empty-task-state";
 
 export interface UnifiedTaskListProps {
   /** Array of tasks to display */
@@ -36,11 +37,7 @@ export function UnifiedTaskList({
   );
 
   if (sortedTasks.length === 0) {
-    return (
-      <div className={`p-4 px-6 text-center text-surface-500 text-sm ${className}`}>
-        No tasks yet
-      </div>
-    );
+    return <EmptyTaskState />;
   }
 
   return (

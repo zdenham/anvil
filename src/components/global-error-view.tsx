@@ -17,7 +17,7 @@ export function GlobalErrorView({ message, stack, onDismiss }: GlobalErrorViewPr
   };
 
   return (
-    <div className="fixed inset-0 bg-surface-900 p-4 overflow-auto">
+    <div className="error-container fixed inset-0 bg-surface-900 p-4 overflow-auto rounded-xl border border-surface-700/50">
       <pre className="text-xs text-surface-300 whitespace-pre-wrap font-mono">
         {message}
         {stack && `\n\n${stack}`}

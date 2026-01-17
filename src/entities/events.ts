@@ -69,6 +69,56 @@ export interface WindowFocusChangedPayload {
   focused: boolean;
 }
 
+// ============================================================================
+// Navigation Mode Events (from Rust CGEventTap)
+// ============================================================================
+
+/**
+ * Navigation mode start event - panel should show and highlight first item
+ */
+export interface NavigationStartEvent {
+  type: "nav-start";
+}
+
+/**
+ * Navigate down event
+ */
+export interface NavigationDownEvent {
+  type: "nav-down";
+}
+
+/**
+ * Navigate up event
+ */
+export interface NavigationUpEvent {
+  type: "nav-up";
+}
+
+/**
+ * Navigation open event - modifier released, open selected task
+ */
+export interface NavigationOpenEvent {
+  type: "nav-open";
+  selectedIndex: number;
+}
+
+/**
+ * Navigation cancel event - panel blur, escape pressed, etc.
+ */
+export interface NavigationCancelEvent {
+  type: "nav-cancel";
+}
+
+/**
+ * Union of all navigation mode events
+ */
+export type NavigationModeEvent =
+  | NavigationStartEvent
+  | NavigationDownEvent
+  | NavigationUpEvent
+  | NavigationOpenEvent
+  | NavigationCancelEvent;
+
 /**
  * Local window events (frontend-only).
  * These are NOT in @core/types/events.ts - they're specific to the Tauri frontend.
@@ -81,6 +131,9 @@ type LocalEvents = {
   "clipboard-entry-added": void;
   "show-error": ShowErrorPayload;
   "open-task": OpenTaskPayload;
+
+  // Navigation mode events (from Rust CGEventTap)
+  "navigation-mode": NavigationModeEvent;
 
   // Window coordination events
   "task-panel-ready": TaskPanelReadyPayload;

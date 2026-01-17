@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, forwardRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTaskStore, taskService, threadService, eventBus, type TaskMetadata } from "../../entities";
 import { useThreadStore } from "../../entities/threads/store";
 import { logger } from "../../lib/logger-client";
 import { useDeleteTask } from "../../hooks/use-delete-task";
+import { useNavigationMode } from "../../hooks/use-navigation-mode";
 import { getTaskDotColor } from "@/utils/task-colors";
 import { DeleteButton } from "@/components/tasks/delete-button";
+import { TaskLegend } from "@/components/shared/task-legend";
+import { EmptyTaskState } from "@/components/tasks/empty-task-state";
 import type { ThreadMetadata } from "@/entities/threads/types";
 
 /**
@@ -28,8 +31,29 @@ export function TasksPanel() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { deleteTask } = useDeleteTask();
 
-  // Handle task selection (from navigation or click)
-  const handleTaskSelect = useCallback(async (task: TaskMetadata) => {
+  // Store tasks ref for navigation callback
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+
+  // Handle task selection by index (from navigation)
+  const handleTaskSelectByIndex = useCallback(async (index: number) => {
+    const currentTasks = tasksRef.current;
+    if (index < 0 || index >= currentTasks.length) {
+      logger.warn("[tasks-panel] Invalid task index:", index);
+      return;
+    }
+    const task = currentTasks[index];
+    await handleTaskSelectInternal(task);
+  }, []);
+
+  // Navigation mode hook
+  const { isNavigating, selectedIndex } = useNavigationMode({
+    taskCount: tasks.length,
+    onTaskSelect: handleTaskSelectByIndex,
+  });
+
+  // Internal task selection logic
+  const handleTaskSelectInternal = useCallback(async (task: TaskMetadata) => {
     logger.log("[tasks-panel] Task selected:", task.id, task.title);
 
     // Hide this panel
@@ -61,6 +85,30 @@ export function TasksPanel() {
     });
   }, []);
 
+  // Handle task selection (from click)
+  const handleTaskSelect = useCallback(async (task: TaskMetadata) => {
+    await handleTaskSelectInternal(task);
+  }, [handleTaskSelectInternal]);
+
+
+  // Handle closing the panel
+  const handleClose = useCallback(async () => {
+    logger.log("[tasks-panel] Closing panel");
+    await invoke("hide_tasks_panel");
+  }, []);
+
+  // Listen for Escape key to close panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleClose]);
 
   // Listen for panel visibility events via eventBus (no async cleanup races)
   useEffect(() => {
@@ -103,17 +151,26 @@ export function TasksPanel() {
 
 
   return (
-    <div className="h-screen w-full bg-surface-900/95 backdrop-blur-xl border border-surface-700/50 overflow-hidden flex flex-col">
+    <div className="tasks-list-container h-screen w-full bg-surface-900/95 backdrop-blur-xl border border-surface-700/50 overflow-hidden flex flex-col rounded-xl">
       <header className="px-4 py-3 border-b border-surface-700/50 flex-shrink-0 flex items-center justify-between gap-4">
         <h1 className="text-sm font-medium text-surface-100">Tasks</h1>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="p-1.5 rounded hover:bg-surface-700/50 text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-50"
-          title="Refresh tasks"
-        >
-          <RefreshIcon className={isRefreshing ? "animate-spin" : ""} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-1.5 rounded hover:bg-surface-700/50 text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-50"
+            title="Refresh tasks"
+          >
+            <RefreshIcon className={isRefreshing ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={handleClose}
+            className="p-1.5 rounded hover:bg-surface-700/50 text-surface-400 hover:text-surface-200 transition-colors"
+            title="Close (Escape)"
+          >
+            <CloseIcon />
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -122,9 +179,14 @@ export function TasksPanel() {
           threads={allThreads}
           onTaskSelect={handleTaskSelect}
           onTaskDelete={handleTaskDelete}
+          isNavigating={isNavigating}
+          selectedIndex={selectedIndex}
         />
       </div>
 
+      <footer className="px-4 py-2 border-t border-surface-700/50 flex-shrink-0">
+        <TaskLegend />
+      </footer>
     </div>
   );
 }
@@ -134,31 +196,49 @@ interface TaskListProps {
   threads: ThreadMetadata[];
   onTaskSelect: (task: TaskMetadata) => void;
   onTaskDelete: (task: TaskMetadata) => void;
+  /** Whether navigation mode is active */
+  isNavigating?: boolean;
+  /** Currently selected index during navigation */
+  selectedIndex?: number;
 }
 
 function TaskList({
   tasks,
   threads,
   onTaskSelect,
-  onTaskDelete
+  onTaskDelete,
+  isNavigating = false,
+  selectedIndex = 0,
 }: TaskListProps) {
+  // Ref for scrolling selected item into view
+  const listRef = useRef<HTMLUListElement>(null);
+  const selectedItemRef = useRef<HTMLLIElement>(null);
+
+  // Scroll selected item into view when navigation index changes
+  useEffect(() => {
+    if (isNavigating && selectedItemRef.current) {
+      selectedItemRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [isNavigating, selectedIndex]);
+
   if (tasks.length === 0) {
-    return (
-      <div className="p-4 px-6 text-center text-surface-500 text-sm">
-        No tasks yet
-      </div>
-    );
+    return <EmptyTaskState />;
   }
 
   return (
-    <ul className="space-y-2 px-3 pt-3">
-      {tasks.map((task) => (
+    <ul ref={listRef} className="space-y-2 px-3 pt-3">
+      {tasks.map((task, index) => (
         <TaskItem
           key={task.id}
+          ref={isNavigating && index === selectedIndex ? selectedItemRef : null}
           task={task}
           threads={threads}
           onClick={() => onTaskSelect(task)}
           onDelete={onTaskDelete}
+          isSelected={isNavigating && index === selectedIndex}
         />
       ))}
     </ul>
@@ -170,47 +250,56 @@ interface TaskItemProps {
   threads: ThreadMetadata[];
   onClick: () => void;
   onDelete?: (task: TaskMetadata) => void;
+  /** Whether this item is selected during navigation mode */
+  isSelected?: boolean;
 }
 
-function TaskItem({ task, threads, onClick, onDelete }: TaskItemProps) {
-  return (
-    <li
-      onClick={onClick}
-      className="group flex items-center gap-3 px-3 py-2 bg-surface-800 rounded-lg border border-surface-700 hover:border-surface-600 cursor-pointer transition-colors"
-    >
-      <StatusDot task={task} threads={threads} />
-      <span className="flex-1 text-sm text-surface-100 truncate font-mono">
-        {task.title}
-      </span>
-
-      {/* Tags */}
-      {task.tags.length > 0 && (
-        <div className="flex gap-1">
-          {task.tags.slice(0, 2).map((tag) => (
-            <span
-              key={tag}
-              className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-surface-700 text-surface-400 rounded"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Subtask progress */}
-      {task.subtasks.length > 0 && (
-        <span className="text-xs text-surface-500">
-          {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
+const TaskItem = forwardRef<HTMLLIElement, TaskItemProps>(
+  function TaskItem({ task, threads, onClick, onDelete, isSelected = false }, ref) {
+    return (
+      <li
+        ref={ref}
+        onClick={onClick}
+        className={`group flex items-center gap-3 px-3 py-2 bg-surface-800 rounded-lg border cursor-pointer transition-colors ${
+          isSelected
+            ? "border-blue-500 ring-2 ring-blue-500/50 bg-blue-500/10"
+            : "border-surface-700 hover:border-surface-600"
+        }`}
+      >
+        <StatusDot task={task} threads={threads} />
+        <span className="flex-1 text-sm text-surface-100 truncate font-mono">
+          {task.title}
         </span>
-      )}
 
-      {/* Delete button */}
-      {onDelete && (
-        <DeleteButton onDelete={() => onDelete(task)} />
-      )}
-    </li>
-  );
-}
+        {/* Tags */}
+        {task.tags.length > 0 && (
+          <div className="flex gap-1">
+            {task.tags.slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-surface-700 text-surface-400 rounded"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Subtask progress */}
+        {task.subtasks.length > 0 && (
+          <span className="text-xs text-surface-500">
+            {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
+          </span>
+        )}
+
+        {/* Delete button */}
+        {onDelete && (
+          <DeleteButton onDelete={() => onDelete(task)} />
+        )}
+      </li>
+    );
+  }
+);
 
 function StatusDot({ task, threads }: { task: TaskMetadata; threads: ThreadMetadata[] }) {
   const { color, animation } = getTaskDotColor(task, threads);
@@ -252,6 +341,24 @@ function RefreshIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M6 18L18 6M6 6l12 12"
       />
     </svg>
   );

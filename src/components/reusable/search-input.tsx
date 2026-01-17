@@ -68,12 +68,10 @@ export const SearchInput = forwardRef<HTMLTextAreaElement, SearchInputProps>(
     const measureRef = useRef<HTMLSpanElement>(null);
     const [isExpanded, setIsExpanded] = useState(false);
 
-    useImperativeHandle(ref, () => internalRef.current!);
-
-    const checkExpansion = useCallback(() => {
+    const checkExpansion = useCallback((): boolean => {
       const textarea = internalRef.current;
       const measure = measureRef.current;
-      if (!textarea || !measure) return;
+      if (!textarea || !measure) return false;
 
       const lines = textarea.value.split("\n");
       const lastLine = lines[lines.length - 1] || "";
@@ -85,13 +83,38 @@ export const SearchInput = forwardRef<HTMLTextAreaElement, SearchInputProps>(
       const shouldExpand =
         lines.length > 1 || textWidth / containerWidth > expandThreshold;
 
+      // Immediately update DOM classes for font size change.
+      // This is critical for programmatic value changes (history cycling, auto-complete).
+      // When typing, checkExpansion runs synchronously in handleChange before React renders.
+      // But for programmatic changes, React renders first, then useEffect calls checkExpansion.
+      // Without direct DOM manipulation, font size changes after resize, causing cursor glitch.
+      // By updating classList directly, font size changes synchronously before any resize.
+      if (shouldExpand) {
+        textarea.classList.remove(styles.fontSize);
+        textarea.classList.add(styles.expandedFontSize);
+      } else {
+        textarea.classList.remove(styles.expandedFontSize);
+        textarea.classList.add(styles.fontSize);
+      }
+
       setIsExpanded((prev) => {
         if (prev !== shouldExpand) {
           onExpandedChange?.(shouldExpand);
         }
         return shouldExpand;
       });
-    }, [expandThreshold, onExpandedChange]);
+
+      return shouldExpand;
+    }, [expandThreshold, onExpandedChange, styles.fontSize, styles.expandedFontSize]);
+
+    useImperativeHandle(
+      ref,
+      () =>
+        Object.assign(internalRef.current!, {
+          checkExpansion,
+        }),
+      [checkExpansion]
+    );
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       checkExpansion();

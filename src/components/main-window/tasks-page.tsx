@@ -5,6 +5,7 @@ import type { TaskMetadata } from "@/entities/tasks/types";
 import { threadService } from "@/entities/threads/service";
 import { useTaskStore } from "@/entities/tasks/store";
 import { UnifiedTaskList } from "@/components/shared/unified-task-list";
+import { TaskLegend } from "@/components/shared/task-legend";
 import { useDeleteTask } from "@/hooks/use-delete-task";
 import { taskService } from "@/entities/tasks/service";
 
@@ -105,6 +106,9 @@ export function TasksPage({ onCloseSidebar }: TasksPageProps) {
         />
       </div>
 
+      <footer className="px-4 py-2 border-t border-surface-700/50">
+        <TaskLegend />
+      </footer>
     </div>
   );
 }

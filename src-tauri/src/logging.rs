@@ -89,7 +89,7 @@ macro_rules! throttle_warn {
 }
 
 /// Maximum number of logs to keep in memory
-const MAX_BUFFERED_LOGS: usize = 10000;
+const MAX_BUFFERED_LOGS: usize = 1000;
 
 /// Log entry format for frontend display
 #[derive(Clone, serde::Serialize)]

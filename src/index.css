@@ -21,6 +21,34 @@ html:has(.spotlight-container) #root {
   background: transparent !important;
 }
 
+/* Task panel transparency */
+html:has(.task-panel-container),
+html:has(.task-panel-container) body,
+html:has(.task-panel-container) #root {
+  background: transparent !important;
+}
+
+/* Tasks list panel transparency */
+html:has(.tasks-list-container),
+html:has(.tasks-list-container) body,
+html:has(.tasks-list-container) #root {
+  background: transparent !important;
+}
+
+/* Error panel transparency */
+html:has(.error-container),
+html:has(.error-container) body,
+html:has(.error-container) #root {
+  background: transparent !important;
+}
+
+/* Simple task panel transparency */
+html:has(.simple-task-container),
+html:has(.simple-task-container) body,
+html:has(.simple-task-container) #root {
+  background: transparent !important;
+}
+
 :root {
   font-family: 'Inter', system-ui, sans-serif;
 
@@ -143,5 +171,13 @@ textarea {
   line-height: 1.4;
   /* Prevent font fallback issues with math symbols */
   font-feature-settings: "kern" 0;
+}
+
+/* Panel container shadows (for transparent window backgrounds) */
+.task-panel-container,
+.tasks-list-container,
+.error-container,
+.simple-task-container {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 

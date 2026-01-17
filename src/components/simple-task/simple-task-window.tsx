@@ -64,19 +64,6 @@ function SimpleTaskWindowContent({
   threadId,
   prompt,
 }: SimpleTaskWindowContentProps) {
-  // Immediate render-time logging to diagnose hydration issues
-  const allThreads = useThreadStore((s) => s.threads);
-  const allThreadStates = useThreadStore((s) => s.threadStates);
-  logger.info(`[SimpleTaskWindowContent] RENDER`, {
-    threadId,
-    taskId,
-    prompt: prompt ?? null,
-    threadInStore: !!allThreads[threadId],
-    stateInStore: !!allThreadStates[threadId],
-    totalThreadsInStore: Object.keys(allThreads).length,
-    totalStatesInStore: Object.keys(allThreadStates).length,
-  });
-
   const activeState = useThreadStore((s) => s.threadStates[threadId]);
   const activeMetadata = useThreadStore((s) => s.threads[threadId]);
   const agentMode = useAgentModeStore((s) => s.getMode(threadId));
@@ -261,6 +248,11 @@ function SimpleTaskWindowContent({
     resetState();
   }, [taskId, resetState]);
 
+  // Reset selectedIndex when streaming state changes (actions array changes)
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [isStreaming, setSelectedIndex]);
+
   const handleSuggestedAction = useCallback(
     async (action: "markUnread" | "archive") => {
       try {
@@ -355,8 +347,8 @@ function SimpleTaskWindowContent({
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
-        // Focus the input when pressing Escape
-        inputRef.current?.focus();
+        // Close the panel when pressing Escape
+        invoke("hide_simple_task");
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Any regular character typed - focus input and select respond option
         const respondIndex = actions.findIndex(a => a.key === "respond");
@@ -370,34 +362,6 @@ function SimpleTaskWindowContent({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [selectedIndex, isStreaming, showFollowUpInput, navigateUp, navigateDown, setSelectedIndex, setShowFollowUpInput, setFollowUpValue, handleQuickAction]);
-
-  // Focus restoration hack: periodically check if panel is visible but doesn't have focus
-  useEffect(() => {
-    const checkAndRestoreFocus = async () => {
-      try {
-        // Check if this panel is visible and should have focus
-        const isVisible = await invoke<boolean>("is_panel_visible", { panelLabel: "simple-task" });
-
-        if (isVisible && document.hasFocus && !document.hasFocus()) {
-          // Panel is visible but document doesn't have focus - try to restore it
-          await invoke("focus_simple_task_panel");
-
-          // Focus the input element to ensure keyboard events work
-          // Small delay to ensure the panel focus completes first
-          setTimeout(() => {
-            inputRef.current?.focus();
-          }, 50);
-        }
-      } catch (error) {
-        // Silently ignore errors - this is a hack and shouldn't break normal operation
-      }
-    };
-
-    // Check focus every 500ms when the component is mounted
-    const interval = setInterval(checkAndRestoreFocus, 500);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const handleToolResponse = useCallback(async (toolId: string, response: string) => {
     if (!workingDirectory) {
@@ -419,7 +383,7 @@ function SimpleTaskWindowContent({
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-surface-900 text-surface-50 relative">
+    <div className="simple-task-container flex flex-col h-screen bg-surface-900 text-surface-50 relative rounded-xl overflow-hidden border border-surface-700/50">
       <SimpleTaskHeader taskId={taskId} threadId={threadId} status={viewStatus} />
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         <ThreadView
@@ -452,6 +416,16 @@ function SimpleTaskWindowContent({
 
       {/* Navigation banner overlays at bottom */}
       <NavigationBanner />
+
+      {/* Visual resize indicator - native resize handle is in this corner */}
+      <div
+        className="absolute bottom-1 right-1 w-3 h-3 text-surface-600 opacity-50 hover:opacity-100 transition-opacity pointer-events-none"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 12 12" fill="currentColor">
+          <path d="M10 2L2 10M10 6L6 10M10 10L10 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+        </svg>
+      </div>
     </div>
   );
 }

@@ -25,6 +25,10 @@ export { useMarkThreadAsRead } from "./use-mark-thread-as-read";
 // Panel utilities
 export { usePanelVisibility } from "./use-panel-visibility";
 
+// Navigation mode
+export { useNavigationMode } from "./use-navigation-mode";
+export type { UseNavigationModeResult } from "./use-navigation-mode";
+
 // Git utilities
 export { useGitCommits } from "./use-git-commits";
 export type { GitCommit } from "./use-git-commits";

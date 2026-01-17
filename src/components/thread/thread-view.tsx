@@ -7,7 +7,6 @@ import { LoadingState } from "./loading-state";
 import { EmptyState } from "./empty-state";
 import { ErrorState } from "./error-state";
 import { StatusAnnouncement } from "./status-announcement";
-import { logger } from "@/lib/logger-client";
 
 type ThreadStatus = "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
 
@@ -46,35 +45,20 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
   // Group messages into turns
   const turns = useMemo(() => groupMessagesIntoTurns(messages), [messages]);
 
-  // Debug logging
-  logger.log("[ThreadView] RENDER", {
-    status,
-    messagesLength: messages.length,
-    isStreaming,
-    turnsLength: turns.length,
-    firstMessageRole: messages[0]?.role,
-    lastMessageRole: messages[messages.length - 1]?.role,
-  });
-
   // Loading state
   if (status === "loading") {
-    logger.log("[ThreadView] → Returning LoadingState");
     return <LoadingState />;
   }
 
   // Error state with no messages
   if (status === "error" && messages.length === 0) {
-    logger.log("[ThreadView] → Returning ErrorState");
     return <ErrorState error={error} onRetry={onRetry} />;
   }
 
   // Empty/idle state
   if (status === "idle" || messages.length === 0) {
-    logger.log("[ThreadView] → Returning EmptyState", { statusIsIdle: status === "idle", messagesEmpty: messages.length === 0 });
     return <EmptyState isRunning={isStreaming} />;
   }
-
-  logger.log("[ThreadView] → Returning MessageList with", { turnsLength: turns.length });
 
   return (
     <div

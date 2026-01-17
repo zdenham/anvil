@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { cn } from "@/lib/utils";
 import { useTaskStore } from "@/entities/tasks/store";
 import { useThreadStore } from "@/entities/threads/store";
 import { cancelAgent } from "@/lib/agent-service";
-import { StopCircle, ChevronRight } from "lucide-react";
+import { StopCircle, ChevronRight, X } from "lucide-react";
 
 interface SimpleTaskHeaderProps {
   taskId: string;
@@ -51,6 +52,21 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
     await invoke("hide_simple_task");
   };
 
+  const handleClose = async () => {
+    await invoke("hide_simple_task");
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only drag on primary (left) mouse button and when clicking directly on the header background
+    // Ignore if clicking on interactive elements (they have [-webkit-app-region:no-drag])
+    if (e.button !== 0) return;
+
+    // Start window drag via Tauri API
+    getCurrentWindow().startDragging().catch((err) => {
+      console.error("[simple-task-header] startDragging failed:", err);
+    });
+  };
+
   const isStreaming = status === "running";
 
   // Display task title (truncated) or fall back to task ID
@@ -59,11 +75,14 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
     : taskId.slice(0, 8) + "...";
 
   return (
-    <div className="group flex items-center gap-3 px-4 py-3 bg-surface-800 border-b border-surface-700 [-webkit-app-region:drag]">
+    <div
+      onMouseDown={handleMouseDown}
+      className="group flex items-center gap-3 px-4 py-3 bg-surface-800 border-b border-surface-700 cursor-grab active:cursor-grabbing"
+    >
       {/* Status dot */}
       <div className={cn("w-2 h-2 rounded-full", getStatusDotColor(status, thread?.isRead))} />
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-1.5 text-xs [-webkit-app-region:no-drag]">
+      <div className="flex items-center gap-1.5 text-xs" onMouseDown={(e) => e.stopPropagation()}>
         <button
           onClick={handleNavigateToTasks}
           className="text-surface-400 hover:text-surface-200 transition-colors"
@@ -73,7 +92,7 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
         <ChevronRight size={12} className="text-surface-500" />
         <span className="text-surface-300 font-mono">{taskLabel}</span>
       </div>
-      <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
+      <div className="ml-auto flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()}>
         {isStreaming && (
           <button
             onClick={handleCancel}
@@ -84,11 +103,13 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
             Cancel
           </button>
         )}
-        {/* <ModeIndicator
-          mode={currentMode}
-          onClick={handleToggle}
-          disabled={isStreaming}
-        /> */}
+        <button
+          onClick={handleClose}
+          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+          aria-label="Close panel (Escape)"
+        >
+          <X size={16} />
+        </button>
       </div>
     </div>
   );

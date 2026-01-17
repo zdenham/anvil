@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use std::time::Duration;
 
 mod accessibility;
+mod cgevent_listener;
 mod keyboard;
 
 // Import spotlight/accessibility functions from the main mort crate
@@ -86,6 +87,16 @@ enum Commands {
     /// Request accessibility permission (opens System Settings)
     RequestAccessibility,
 
+    /// Test CGEvent listening capability for detecting modifier key releases
+    CgeventTest {
+        /// Duration in seconds to listen (default: 5)
+        #[arg(short, long, default_value = "5")]
+        duration: u64,
+
+        /// Only listen for modifier keys (Shift, Command, Option, Control)
+        #[arg(long)]
+        modifiers_only: bool,
+    },
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -222,6 +233,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("Grant permission to mort-test, then try again");
         }
 
+        Commands::CgeventTest {
+            duration,
+            modifiers_only,
+        } => {
+            let result = cgevent_listener::test_cgevent_tap(
+                Duration::from_secs(duration),
+                modifiers_only,
+            );
+
+            // Print JSON result for programmatic consumption
+            println!(
+                "{}",
+                serde_json::json!({
+                    "success": result.success,
+                    "tap_created": result.tap_created,
+                    "run_loop_attached": result.run_loop_attached,
+                    "events_received": result.events_received,
+                    "stats": {
+                        "total_events": result.stats.total_events,
+                        "key_down_events": result.stats.key_down_events,
+                        "key_up_events": result.stats.key_up_events,
+                        "flags_changed_events": result.stats.flags_changed_events,
+                        "shift_releases": result.stats.shift_releases,
+                        "command_releases": result.stats.command_releases,
+                        "option_releases": result.stats.option_releases,
+                        "control_releases": result.stats.control_releases,
+                    },
+                    "error": result.error,
+                })
+            );
+
+            std::process::exit(if result.success { 0 } else { 1 });
+        }
     }
 
     Ok(())
