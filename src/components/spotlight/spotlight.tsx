@@ -358,18 +358,24 @@ export class SpotlightController {
   }
 
   /**
-   * Creates a simple task that runs directly in the source repository.
+   * Creates a simple task that runs directly in the source repository or worktree.
    * No worktree allocation, no branch management - just direct execution.
    *
    * Note: Task metadata is created by the simple-runner process, not here.
    * This follows the "Agent Process Architecture" principle from agents.md.
+   *
+   * @param content - The task prompt/description
+   * @param repo - The repository to work in
+   * @param worktreePath - Optional worktree path. If provided, agent runs there instead of source repo.
    */
-  async createSimpleTask(content: string, repo: Repository): Promise<void> {
-    // Simple tasks require a sourcePath since they run directly in the source repo
-    if (!repo.sourcePath) {
+  async createSimpleTask(content: string, repo: Repository, worktreePath?: string): Promise<void> {
+    // Determine working directory: worktree path if provided, otherwise source repo
+    const workingDir = worktreePath ?? repo.sourcePath;
+
+    if (!workingDir) {
       const error: TaskCreationError = { type: "no_repositories" };
       logger.error(
-        `[spotlight:createSimpleTask] Repository ${repo.name} has no sourcePath`
+        `[spotlight:createSimpleTask] Repository ${repo.name} has no sourcePath and no worktree provided`
       );
       throw error;
     }
@@ -377,7 +383,7 @@ export class SpotlightController {
     const taskId = crypto.randomUUID();
     const threadId = crypto.randomUUID();
 
-    logger.info(`[spotlight:createSimpleTask] Creating simple task: ${taskId}`);
+    logger.info(`[spotlight:createSimpleTask] Creating simple task: ${taskId}, workingDir: ${workingDir}`);
 
     // Open simple task window immediately (optimistic UI)
     // Window shows prompt while agent starts up
@@ -392,7 +398,7 @@ export class SpotlightController {
       taskId,
       threadId,
       prompt: content,
-      sourcePath: repo.sourcePath,
+      sourcePath: workingDir,
     });
     logger.info(`[spotlight:createSimpleTask] spawnSimpleAgent returned successfully`);
   }
@@ -639,9 +645,10 @@ export const Spotlight = () => {
             .createTask(result.data.query, selectedRepo, selectedWorktree?.path)
             .catch(handleTaskError);
         } else {
-          // Enter: Simple flow (new default) - runs directly in source repo
+          // Enter: Simple flow - runs in selected worktree (if any) or source repo
+          const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
           controller
-            .createSimpleTask(result.data.query, selectedRepo)
+            .createSimpleTask(result.data.query, selectedRepo, selectedWorktree?.path)
             .catch(handleTaskError);
         }
 
@@ -837,31 +844,41 @@ export const Spotlight = () => {
       });
   }, []);
 
-  // Load available worktrees when spotlight opens or repository changes
+  // Load worktrees from cache, optionally syncing from git first
+  const loadWorktrees = useCallback(async (syncFirst = false) => {
+    const controller = controllerRef.current;
+    const repo = controller.getDefaultRepository();
+    if (!repo) {
+      logger.info("[Spotlight] No default repository, skipping worktree load");
+      return;
+    }
+
+    try {
+      logger.info(`[Spotlight] Loading worktrees for ${repo.name} (sync=${syncFirst})`);
+      // If syncing, refresh worktrees from git before loading
+      const worktrees = syncFirst
+        ? await worktreeService.sync(repo.name)
+        : await worktreeService.list(repo.name);
+      logger.info(`[Spotlight] Loaded ${worktrees.length} worktrees:`, worktrees.map(w => w.name));
+      setState((prev) => ({
+        ...prev,
+        availableWorktrees: worktrees,
+        selectedWorktreeIndex: 0, // Reset to first (most recent)
+      }));
+    } catch (err) {
+      logger.error("[Spotlight] Failed to load worktrees:", err);
+      setState((prev) => ({
+        ...prev,
+        availableWorktrees: [],
+        selectedWorktreeIndex: 0,
+      }));
+    }
+  }, []);
+
+  // Load available worktrees when spotlight mounts
   useEffect(() => {
-    const loadWorktrees = async () => {
-      const controller = controllerRef.current;
-      const repo = controller.getDefaultRepository();
-      if (repo) {
-        try {
-          const worktrees = await worktreeService.list(repo.name);
-          setState((prev) => ({
-            ...prev,
-            availableWorktrees: worktrees,
-            selectedWorktreeIndex: 0, // Reset to first (most recent)
-          }));
-        } catch (err) {
-          logger.error("[Spotlight] Failed to load worktrees:", err);
-          setState((prev) => ({
-            ...prev,
-            availableWorktrees: [],
-            selectedWorktreeIndex: 0,
-          }));
-        }
-      }
-    };
-    loadWorktrees();
-  }, []); // Run once on mount (when spotlight opens)
+    loadWorktrees(false);
+  }, [loadWorktrees]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -954,20 +971,6 @@ export const Spotlight = () => {
           }
           break;
         }
-        case "ArrowLeft": {
-          // Cycle backward through worktrees when on a task result
-          const currentResult = displayResults[selectedIndex];
-          if (currentResult?.type === "task" && availableWorktrees.length > 0) {
-            e.preventDefault();
-            setState((prev) => ({
-              ...prev,
-              selectedWorktreeIndex:
-                (prev.selectedWorktreeIndex - 1 + prev.availableWorktrees.length) %
-                prev.availableWorktrees.length,
-            }));
-          }
-          break;
-        }
         case "Enter":
           // Only intercept if not holding Shift (Shift+Enter = newline in textarea)
           if (!e.shiftKey) {
@@ -1026,6 +1029,9 @@ export const Spotlight = () => {
     const handleFocusChanged = ({ focused }: { focused: boolean }) => {
       if (focused) {
         inputRef.current?.focus();
+        // Asynchronously refresh worktrees from git when spotlight opens
+        // This runs in the background so it doesn't block the UI
+        loadWorktrees(true);
       }
     };
 
@@ -1036,7 +1042,7 @@ export const Spotlight = () => {
       eventBus.off("window:focus-changed", handleFocusChanged);
       eventBus.off("panel-hidden", handlePanelHidden);
     };
-  }, [handlePanelHidden]);
+  }, [handlePanelHidden, loadWorktrees]);
 
   const handleQueryChange = useCallback(
     async (newQuery: string) => {

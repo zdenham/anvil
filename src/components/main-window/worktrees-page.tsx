@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Plus, Trash2, GitBranch, RefreshCw, Loader2, FolderGit2 } from "lucide-react";
+import { Command } from "@tauri-apps/plugin-shell";
 import { worktreeService } from "@/entities/worktrees";
 import { useRepoStore } from "@/entities/repositories";
 import type { WorktreeState } from "@core/types/repositories";
@@ -221,6 +222,16 @@ function WorktreeRow({
   const [isDeleting, setIsDeleting] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  const openInCursor = async () => {
+    try {
+      const cmd = Command.create("cursor", [worktree.path]);
+      await cmd.execute();
+      logger.log(`[WorktreeRow] Opened worktree "${worktree.name}" in Cursor`);
+    } catch (err) {
+      logger.error(`[WorktreeRow] Failed to open worktree in Cursor:`, err);
+    }
+  };
+
   const lastAccessed = worktree.lastAccessedAt
     ? new Date(worktree.lastAccessedAt).toLocaleDateString()
     : "Never";
@@ -281,6 +292,14 @@ function WorktreeRow({
           <span>Last used: {lastAccessed}</span>
         </div>
       </div>
+
+      <button
+        onClick={openInCursor}
+        className="px-2 py-1 rounded text-xs text-surface-400 hover:text-surface-200 hover:bg-surface-700 transition-colors"
+        title="Open in Cursor"
+      >
+        open
+      </button>
 
       {isDeleting ? (
         <span className="p-1.5 text-surface-500">

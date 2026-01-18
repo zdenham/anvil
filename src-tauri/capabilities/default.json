@@ -63,6 +63,11 @@
           "name": "lsof",
           "cmd": "lsof",
           "args": true
+        },
+        {
+          "name": "cursor",
+          "cmd": "cursor",
+          "args": true
         }
       ]
     },
