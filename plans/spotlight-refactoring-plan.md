@@ -53,6 +53,68 @@ The current system uses a **textarea-based** approach with the following charact
 - **Visual Constraints**: Limited styling flexibility for complex UI features
 - **Extension Difficulties**: Hard to add features like inline tags, mentions with visual styling, or interactive elements
 
+### CRITICAL: Synchronous CSS Class Updates for Cursor Stability
+
+**This pattern MUST be preserved in any refactor.**
+
+The current implementation in `SearchInput` (`src/components/reusable/search-input.tsx`) uses **direct DOM manipulation** to update CSS classes for font size changes, bypassing React's state/render cycle. This is critical for preventing cursor jumping.
+
+#### The Problem
+When the input expands/collapses, the font size changes (e.g., `text-3xl` → `text-xl`). If this change goes through React's state → render cycle:
+1. React schedules a re-render (async, timing unpredictable)
+2. Font size changes on next render
+3. Browser reflows the textarea
+4. Cursor position calculation becomes invalid during the transition
+5. **Result: Cursor jumps to wrong position or disappears momentarily**
+
+#### The Solution (Current Implementation)
+```typescript
+// From src/components/reusable/search-input.tsx lines 86-98
+// Immediately update DOM classes for font size change.
+// This is critical for programmatic value changes (history cycling, auto-complete).
+// When typing, checkExpansion runs synchronously in handleChange before React renders.
+// But for programmatic changes, React renders first, then useEffect calls checkExpansion.
+// Without direct DOM manipulation, font size changes after resize, causing cursor glitch.
+// By updating classList directly, font size changes synchronously before any resize.
+if (shouldExpand) {
+  textarea.classList.remove(styles.fontSize);
+  textarea.classList.add(styles.expandedFontSize);
+} else {
+  textarea.classList.remove(styles.expandedFontSize);
+  textarea.classList.add(styles.fontSize);
+}
+```
+
+#### Why This Works
+1. **Synchronous Execution**: `checkExpansion()` is called in `handleChange` BEFORE React's state update
+2. **Direct DOM Access**: Uses `textarea.classList.add/remove()` instead of setting state
+3. **Immediate Effect**: Font size changes instantly, before any async operations
+4. **Consistent Timing**: Works for both typing (synchronous) and programmatic changes (via useEffect)
+
+#### Refactoring Requirements
+Any new input system implementation MUST:
+1. **Maintain synchronous CSS class updates** - Do NOT rely solely on React state for visual changes that affect layout during typing
+2. **Use ref-based DOM access** - Keep a ref to the textarea/input element for direct manipulation
+3. **Call expansion check in onChange handler** - Before the state update propagates
+4. **Test with rapid typing** - Verify no cursor jumping during expansion/collapse transitions
+5. **Test with programmatic value changes** - History cycling, autocomplete insertions must not cause cursor issues
+
+#### Testing This Behavior
+```typescript
+// Behavioral test: Cursor stability during expansion
+it('maintains cursor position during expansion transition', async () => {
+  // Type enough text to trigger expansion
+  // Verify cursor remains at correct position
+  // Verify no visual flickering during font size transition
+});
+
+it('maintains cursor position during programmatic value change', async () => {
+  // Simulate history navigation (up arrow)
+  // Verify cursor moves to end of new value
+  // Verify font size updates without cursor jumping
+});
+```
+
 ## ContentEditable Feasibility Analysis
 
 ### Research Findings
@@ -276,6 +338,10 @@ Before any refactoring begins, we need 100% behavioral test coverage to ensure t
   - Document auto-expansion logic and timing
   - Record cursor positioning behaviors
   - Document focus/blur behavior and window interactions
+  - **CRITICAL**: Document synchronous CSS class update pattern for cursor stability
+    - How `checkExpansion()` directly manipulates `textarea.classList` before React render
+    - Why this bypasses React state for font size changes
+    - Reference implementation: `src/components/reusable/search-input.tsx:86-98`
 
 - [ ] **Search Behavior Documentation**
   - Document search debouncing timing and behavior
@@ -450,9 +516,12 @@ src/components/
 #### 1.4 Input System Foundation
 - [ ] Create `SpotlightInput/` component structure
 - [ ] Implement cursor management utilities
-- [ ] Create expansion detection logic
-- [ ] Set up input behavioral tests
+- [ ] Create expansion detection logic with **synchronous CSS class updates** (CRITICAL - see "Synchronous CSS Class Updates for Cursor Stability" section)
+- [ ] Implement direct DOM classList manipulation for font size transitions (bypassing React state)
+- [ ] Set up input behavioral tests including cursor stability during expansion/collapse
 - [ ] Validate input behavior against existing implementation
+- [ ] **Verify cursor does not jump during rapid typing that triggers expansion**
+- [ ] **Verify cursor stability during programmatic value changes (history, autocomplete)**
 
 ### Phase 2: Search System Development
 #### 2.1 Search Provider Architecture
@@ -598,6 +667,11 @@ interface BehaviorComparison {
 - **Keyboard Interaction Testing**: Every key combination, modifier states, and sequences
 - **Cursor Management Testing**: Position tracking, restoration, and edge cases
 - **Auto-expansion Testing**: Timing, triggers, and visual feedback
+- **CRITICAL - Synchronous CSS Class Update Testing**:
+  - Cursor stability during expansion/collapse transitions (font size changes)
+  - No cursor jumping during rapid typing that triggers expansion threshold
+  - Cursor stability during programmatic value changes (history cycling, autocomplete)
+  - Verify direct DOM classList manipulation timing vs React state timing
 - **Focus/Blur Behavior**: Window interactions and state management
 - **Trigger Detection Testing**: @-mentions, calculator expressions, command prefixes
 

@@ -31,6 +31,7 @@ mod task_navigation;
 mod process_commands;
 mod shell;
 mod thread_commands;
+mod worktree_commands;
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
@@ -106,27 +107,59 @@ fn register_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
 
 /// Internal function to register the spotlight hotkey
 fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String> {
+    tracing::info!(
+        hotkey = %hotkey,
+        hotkey_len = hotkey.len(),
+        hotkey_bytes = ?hotkey.as_bytes(),
+        "register_hotkey_internal: received hotkey input"
+    );
+
     // Unregister all existing shortcuts first
+    tracing::info!("register_hotkey_internal: unregistering all existing shortcuts");
     let _ = app.global_shortcut().unregister_all();
 
     // Parse the spotlight hotkey string into a Shortcut
+    tracing::info!(
+        hotkey = %hotkey,
+        "register_hotkey_internal: parsing hotkey string into Shortcut"
+    );
     let shortcut: Shortcut = hotkey
         .parse()
-        .map_err(|e| format!("Failed to parse hotkey '{}': {:?}", hotkey, e))?;
+        .map_err(|e| {
+            tracing::error!(
+                hotkey = %hotkey,
+                error = ?e,
+                "register_hotkey_internal: failed to parse hotkey"
+            );
+            format!("Failed to parse hotkey '{}': {:?}", hotkey, e)
+        })?;
+
+    tracing::info!(
+        shortcut = ?shortcut,
+        "register_hotkey_internal: parsed shortcut successfully"
+    );
 
     // Clone app handle for the spotlight closure
     let app_handle = app.clone();
 
     // Register the spotlight shortcut
+    tracing::info!("register_hotkey_internal: registering spotlight shortcut with global_shortcut");
     app.global_shortcut()
         .on_shortcut(shortcut, move |_app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
                 toggle_spotlight(&app_handle);
             }
         })
-        .map_err(|e| format!("Failed to register hotkey: {:?}", e))?;
+        .map_err(|e| {
+            tracing::error!(
+                hotkey = %hotkey,
+                error = ?e,
+                "register_hotkey_internal: failed to register spotlight shortcut"
+            );
+            format!("Failed to register hotkey: {:?}", e)
+        })?;
 
-    tracing::info!(hotkey = %hotkey, "Registered global hotkey");
+    tracing::info!(hotkey = %hotkey, "register_hotkey_internal: spotlight hotkey registered successfully");
 
     // Re-register the clipboard hotkey since unregister_all removed it
     let clipboard_hotkey = config::get_clipboard_hotkey();
@@ -142,53 +175,92 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
         })
         .map_err(|e| format!("Failed to re-register clipboard hotkey: {:?}", e))?;
 
-    // Re-register the task panel hotkey since unregister_all removed it
-    let task_panel_hotkey = config::get_task_panel_hotkey();
-    let task_panel_shortcut: Shortcut = task_panel_hotkey
-        .parse()
-        .map_err(|e| format!("Failed to parse task panel hotkey: {:?}", e))?;
-    let task_panel_app_handle = app.clone();
-    app.global_shortcut()
-        .on_shortcut(task_panel_shortcut, move |_app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                // Simple toggle - no complex navigation
-                task_navigation::toggle_task_panel(&task_panel_app_handle);
-            }
-        })
-        .map_err(|e| format!("Failed to re-register task panel hotkey: {:?}", e))?;
-
-    // Register navigation mode hotkeys - macOS only
+    // Register task navigation mode hotkeys - macOS only
     #[cfg(target_os = "macos")]
     {
-        let nav_down_hotkey = config::get_navigation_down_hotkey();
-        let nav_down_shortcut: Shortcut = nav_down_hotkey
+        let task_nav_down_hotkey = config::get_task_navigation_down_hotkey();
+        tracing::info!(
+            hotkey = %task_nav_down_hotkey,
+            hotkey_len = task_nav_down_hotkey.len(),
+            hotkey_bytes = ?task_nav_down_hotkey.as_bytes(),
+            "Attempting to register task navigation down hotkey"
+        );
+
+        let task_nav_down_shortcut: Shortcut = task_nav_down_hotkey
             .parse()
-            .map_err(|e| format!("Failed to parse navigation down hotkey '{}': {:?}", nav_down_hotkey, e))?;
-        let nav_down_hotkey_clone = nav_down_hotkey.clone();
+            .map_err(|e| {
+                tracing::error!(
+                    hotkey = %task_nav_down_hotkey,
+                    error = ?e,
+                    "Failed to parse task navigation down hotkey"
+                );
+                format!("Failed to parse task navigation down hotkey '{}': {:?}", task_nav_down_hotkey, e)
+            })?;
+
+        tracing::debug!(
+            shortcut = ?task_nav_down_shortcut,
+            "Parsed task navigation down shortcut successfully"
+        );
+
+        let task_nav_down_hotkey_clone = task_nav_down_hotkey.clone();
         app.global_shortcut()
-            .on_shortcut(nav_down_shortcut, move |_app, _shortcut, event| {
+            .on_shortcut(task_nav_down_shortcut, move |_app, _shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     navigation_mode::get_navigation_mode()
-                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Down, &nav_down_hotkey_clone);
+                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Down, &task_nav_down_hotkey_clone);
                 }
             })
-            .map_err(|e| format!("Failed to register navigation down hotkey: {:?}", e))?;
+            .map_err(|e| {
+                tracing::error!(
+                    hotkey = %task_nav_down_hotkey,
+                    error = ?e,
+                    "Failed to register task navigation down hotkey with global_shortcut"
+                );
+                format!("Failed to register task navigation down hotkey: {:?}", e)
+            })?;
 
-        let nav_up_hotkey = config::get_navigation_up_hotkey();
-        let nav_up_shortcut: Shortcut = nav_up_hotkey
+        let task_nav_up_hotkey = config::get_task_navigation_up_hotkey();
+        tracing::info!(
+            hotkey = %task_nav_up_hotkey,
+            hotkey_len = task_nav_up_hotkey.len(),
+            hotkey_bytes = ?task_nav_up_hotkey.as_bytes(),
+            "Attempting to register task navigation up hotkey"
+        );
+
+        let task_nav_up_shortcut: Shortcut = task_nav_up_hotkey
             .parse()
-            .map_err(|e| format!("Failed to parse navigation up hotkey '{}': {:?}", nav_up_hotkey, e))?;
-        let nav_up_hotkey_clone = nav_up_hotkey.clone();
+            .map_err(|e| {
+                tracing::error!(
+                    hotkey = %task_nav_up_hotkey,
+                    error = ?e,
+                    "Failed to parse task navigation up hotkey"
+                );
+                format!("Failed to parse task navigation up hotkey '{}': {:?}", task_nav_up_hotkey, e)
+            })?;
+
+        tracing::debug!(
+            shortcut = ?task_nav_up_shortcut,
+            "Parsed task navigation up shortcut successfully"
+        );
+
+        let task_nav_up_hotkey_clone = task_nav_up_hotkey.clone();
         app.global_shortcut()
-            .on_shortcut(nav_up_shortcut, move |_app, _shortcut, event| {
+            .on_shortcut(task_nav_up_shortcut, move |_app, _shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     navigation_mode::get_navigation_mode()
-                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Up, &nav_up_hotkey_clone);
+                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Up, &task_nav_up_hotkey_clone);
                 }
             })
-            .map_err(|e| format!("Failed to register navigation up hotkey: {:?}", e))?;
+            .map_err(|e| {
+                tracing::error!(
+                    hotkey = %task_nav_up_hotkey,
+                    error = ?e,
+                    "Failed to register task navigation up hotkey with global_shortcut"
+                );
+                format!("Failed to register task navigation up hotkey: {:?}", e)
+            })?;
 
-        tracing::info!(down = %nav_down_hotkey, up = %nav_up_hotkey, "Registered navigation mode hotkeys");
+        tracing::info!(down = %task_nav_down_hotkey, up = %task_nav_up_hotkey, "Registered task navigation mode hotkeys successfully");
     }
 
     Ok(())
@@ -197,8 +269,20 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
 /// Saves the spotlight hotkey to config and registers it
 #[tauri::command]
 fn save_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
+    tracing::info!(
+        hotkey = %hotkey,
+        hotkey_len = hotkey.len(),
+        hotkey_bytes = ?hotkey.as_bytes(),
+        "save_hotkey: received hotkey from frontend"
+    );
+
+    tracing::info!("save_hotkey: calling config::set_spotlight_hotkey");
     config::set_spotlight_hotkey(&hotkey)?;
-    register_hotkey_internal(&app, &hotkey)
+    tracing::info!("save_hotkey: config saved, calling register_hotkey_internal");
+
+    let result = register_hotkey_internal(&app, &hotkey);
+    tracing::info!(success = result.is_ok(), "save_hotkey: completed");
+    result
 }
 
 /// Gets the saved spotlight hotkey from config
@@ -221,46 +305,32 @@ fn get_saved_clipboard_hotkey() -> String {
     config::get_clipboard_hotkey()
 }
 
-/// Saves the task panel hotkey to config and re-registers hotkeys
+/// Saves the task navigation down hotkey to config and re-registers hotkeys
 #[tauri::command]
-fn save_task_panel_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
-    config::set_task_panel_hotkey(&hotkey)?;
+fn save_task_navigation_down_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
+    config::set_task_navigation_down_hotkey(&hotkey)?;
     let spotlight_hotkey = config::get_spotlight_hotkey();
     register_hotkey_internal(&app, &spotlight_hotkey)
 }
 
-/// Gets the saved task panel hotkey from config
+/// Gets the saved task navigation down hotkey from config
 #[tauri::command]
-fn get_saved_task_panel_hotkey() -> String {
-    config::get_task_panel_hotkey()
+fn get_saved_task_navigation_down_hotkey() -> String {
+    config::get_task_navigation_down_hotkey()
 }
 
-/// Saves the navigation down hotkey to config and re-registers hotkeys
+/// Saves the task navigation up hotkey to config and re-registers hotkeys
 #[tauri::command]
-fn save_navigation_down_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
-    config::set_navigation_down_hotkey(&hotkey)?;
+fn save_task_navigation_up_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
+    config::set_task_navigation_up_hotkey(&hotkey)?;
     let spotlight_hotkey = config::get_spotlight_hotkey();
     register_hotkey_internal(&app, &spotlight_hotkey)
 }
 
-/// Gets the saved navigation down hotkey from config
+/// Gets the saved task navigation up hotkey from config
 #[tauri::command]
-fn get_saved_navigation_down_hotkey() -> String {
-    config::get_navigation_down_hotkey()
-}
-
-/// Saves the navigation up hotkey to config and re-registers hotkeys
-#[tauri::command]
-fn save_navigation_up_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
-    config::set_navigation_up_hotkey(&hotkey)?;
-    let spotlight_hotkey = config::get_spotlight_hotkey();
-    register_hotkey_internal(&app, &spotlight_hotkey)
-}
-
-/// Gets the saved navigation up hotkey from config
-#[tauri::command]
-fn get_saved_navigation_up_hotkey() -> String {
-    config::get_navigation_up_hotkey()
+fn get_saved_task_navigation_up_hotkey() -> String {
+    config::get_task_navigation_up_hotkey()
 }
 
 
@@ -679,12 +749,10 @@ pub fn run() {
             get_saved_hotkey,
             save_clipboard_hotkey,
             get_saved_clipboard_hotkey,
-            save_task_panel_hotkey,
-            get_saved_task_panel_hotkey,
-            save_navigation_down_hotkey,
-            get_saved_navigation_down_hotkey,
-            save_navigation_up_hotkey,
-            get_saved_navigation_up_hotkey,
+            save_task_navigation_down_hotkey,
+            get_saved_task_navigation_down_hotkey,
+            save_task_navigation_up_hotkey,
+            get_saved_task_navigation_up_hotkey,
             is_onboarded,
             complete_onboarding,
             show_main_window,
@@ -750,6 +818,8 @@ pub fn run() {
             git_commands::git_list_worktrees,
             git_commands::git_ls_files,
             git_commands::git_ls_files_untracked,
+            git_commands::git_get_head_commit,
+            git_commands::git_diff_files,
             // Mort-specific commands
             mort_commands::fs_get_repo_dir,
             mort_commands::fs_get_repo_source_path,
@@ -758,7 +828,7 @@ pub fn run() {
             // Lock commands
             mort_commands::lock_acquire_repo,
             mort_commands::lock_release_repo,
-            // Thread status (for stale claim detection)
+            // Thread status
             mort_commands::thread_get_status,
             // Task commands (agent updates)
             mort_commands::update_task,
@@ -781,6 +851,13 @@ pub fn run() {
             // Thread commands
             thread_commands::get_thread_status,
             thread_commands::get_thread,
+            // Worktree commands
+            worktree_commands::worktree_list,
+            worktree_commands::worktree_create,
+            worktree_commands::worktree_delete,
+            worktree_commands::worktree_rename,
+            worktree_commands::worktree_touch,
+            worktree_commands::worktree_sync,
             // Logging commands
             logging::get_buffered_logs,
             logging::clear_logs,
@@ -842,9 +919,8 @@ pub fn run() {
                 .handle()
                 .set_activation_policy(ActivationPolicy::Accessory);
 
-            // Clear any stale repository locks and worktree claims from previous sessions
+            // Clear any stale repository locks from previous sessions
             mort_commands::clear_all_locks();
-            mort_commands::clear_all_worktree_claims();
 
             // Initialize config module (uses consolidated .mort/settings/ directory)
             config::initialize();
@@ -889,6 +965,9 @@ pub fn run() {
             // Handle main window visibility and hotkey registration based on onboarding state
             let onboarded = config::is_onboarded();
 
+            // Check if we should skip showing the main window (useful for dev to prevent focus stealing on rebuild)
+            let skip_main_window = std::env::var("MORT_SKIP_MAIN_WINDOW").is_ok();
+
             // Enable macOS fullscreen button (green traffic light) for the main window
             if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                 enable_fullscreen_button(&window);
@@ -900,14 +979,18 @@ pub fn run() {
                 if let Err(e) = register_hotkey_internal(app.handle(), &saved_hotkey) {
                     tracing::error!(error = %e, "Failed to register saved hotkey");
                 }
-                // Show main window with the new layout
-                if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-                    let _ = window.show();
+                // Show main window with the new layout (unless skipped for dev)
+                if !skip_main_window {
+                    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                        let _ = window.show();
+                    }
                 }
             } else {
-                // User hasn't onboarded - show the main window for onboarding
-                if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-                    let _ = window.show();
+                // User hasn't onboarded - show the main window for onboarding (unless skipped for dev)
+                if !skip_main_window {
+                    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                        let _ = window.show();
+                    }
                 }
                 // Only register clipboard hotkey (spotlight hotkey will be set during onboarding)
                 let clipboard_hotkey = config::get_clipboard_hotkey();

@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import { SettingsSection } from "../settings-section";
 import { HotkeyRecorder } from "@/components/onboarding/HotkeyRecorder";
 import {
-  getSavedNavigationDownHotkey,
-  getSavedNavigationUpHotkey,
-  saveNavigationDownHotkey,
-  saveNavigationUpHotkey,
+  getSavedTaskNavigationDownHotkey,
+  getSavedTaskNavigationUpHotkey,
+  saveTaskNavigationDownHotkey,
+  saveTaskNavigationUpHotkey,
 } from "@/lib/hotkey-service";
 import { formatHotkeyDisplay } from "@/utils/hotkey-formatting";
 
-export function NavigationHotkeySettings() {
+export function TaskNavigationHotkeySettings() {
   const [downHotkey, setDownHotkey] = useState<string>("Shift+Down");
   const [upHotkey, setUpHotkey] = useState<string>("Shift+Up");
   const [editingDown, setEditingDown] = useState(false);
@@ -19,13 +19,13 @@ export function NavigationHotkeySettings() {
   const [pendingUp, setPendingUp] = useState<string>("");
 
   useEffect(() => {
-    getSavedNavigationDownHotkey().then(setDownHotkey).catch(console.error);
-    getSavedNavigationUpHotkey().then(setUpHotkey).catch(console.error);
+    getSavedTaskNavigationDownHotkey().then(setDownHotkey).catch(console.error);
+    getSavedTaskNavigationUpHotkey().then(setUpHotkey).catch(console.error);
   }, []);
 
   const handleSaveDown = async () => {
     if (pendingDown) {
-      await saveNavigationDownHotkey(pendingDown);
+      await saveTaskNavigationDownHotkey(pendingDown);
       setDownHotkey(pendingDown);
     }
     setEditingDown(false);
@@ -39,7 +39,7 @@ export function NavigationHotkeySettings() {
 
   const handleSaveUp = async () => {
     if (pendingUp) {
-      await saveNavigationUpHotkey(pendingUp);
+      await saveTaskNavigationUpHotkey(pendingUp);
       setUpHotkey(pendingUp);
     }
     setEditingUp(false);

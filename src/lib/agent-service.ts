@@ -199,6 +199,8 @@ export interface SpawnAgentWithOrchestrationOptions {
   prompt: string;
   /** Override the agent's appended system prompt (used for merge agent with dynamic context) */
   appendedPromptOverride?: string;
+  /** Explicit worktree path - if provided, Node uses this instead of auto-allocating */
+  worktreePath?: string;
 }
 
 /**
@@ -269,6 +271,11 @@ export async function spawnAgentWithOrchestration(
   // Add appended prompt override for dynamic system prompts (e.g., merge agent)
   if (options.appendedPromptOverride) {
     commandArgs.push("--appended-prompt", options.appendedPromptOverride);
+  }
+
+  // Add explicit worktree path if provided (user selected from spotlight)
+  if (options.worktreePath) {
+    commandArgs.push("--worktree-path", options.worktreePath);
   }
 
   // Get the shell PATH (needed for bundled macOS apps which don't inherit user's PATH)

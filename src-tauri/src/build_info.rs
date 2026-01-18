@@ -11,11 +11,6 @@ pub const DEFAULT_SPOTLIGHT_HOTKEY: &str = env!("MORT_SPOTLIGHT_HOTKEY");
 /// Default clipboard hotkey baked at build time
 pub const DEFAULT_CLIPBOARD_HOTKEY: &str = env!("MORT_CLIPBOARD_HOTKEY");
 
-/// Default task panel hotkey baked at build time
-pub const DEFAULT_TASK_PANEL_HOTKEY: &str = env!("MORT_TASK_PANEL_HOTKEY");
-
-
-
 /// Check if this is a non-production build
 pub const fn is_alternate_build() -> bool {
     !APP_SUFFIX.is_empty()

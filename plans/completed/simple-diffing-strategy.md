@@ -114,36 +114,33 @@ This requires invoking git commands from the renderer. Options:
 - Use existing IPC to backend for git commands
 - Add new Tauri command for generating diffs
 
-### Phase 4: UI - Add Tab Navigation to Simple Task Header
+### Phase 4: UI - Add View Toggle to Simple Task Header
 
 **File**: `src/components/simple-task/simple-task-header.tsx`
 
-Add tab icons to the header:
-- Thread icon (conversation view) - default
-- Changes icon (diff view)
+Add a minimal toggle icon in the right side area (before close button) that switches between thread and changes views:
 
 ```tsx
-// Tab state
-type SimpleTaskTab = 'thread' | 'changes';
-
-// Add to header, after status dot area
-<div className="flex gap-1">
-  <button
-    onClick={() => setActiveTab('thread')}
-    className={cn("p-1.5 rounded", activeTab === 'thread' && "bg-accent")}
-    title="Thread"
-  >
-    <MessageSquare className="w-4 h-4" />
-  </button>
-  <button
-    onClick={() => setActiveTab('changes')}
-    className={cn("p-1.5 rounded", activeTab === 'changes' && "bg-accent")}
-    title="Changes"
-  >
-    <GitCompare className="w-4 h-4" /> {/* or FileDiff icon */}
-  </button>
-</div>
+// In the ml-auto flex container, add before the close button:
+<button
+  onClick={() => onToggleView()}
+  className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+  aria-label={activeView === 'thread' ? "View changes" : "View thread"}
+  title={activeView === 'thread' ? "View changes" : "View thread"}
+>
+  {activeView === 'thread' ? (
+    <GitCompare size={16} />  // or FileDiff icon
+  ) : (
+    <MessageSquare size={16} />
+  )}
+</button>
 ```
+
+The toggle shows:
+- `GitCompare` icon when viewing thread (click to see changes)
+- `MessageSquare` icon when viewing changes (click to go back to thread)
+
+This keeps it minimal - just one icon that indicates what you'll switch to.
 
 ### Phase 5: UI - Changes Tab Component
 
@@ -191,24 +188,33 @@ export function ChangesTab({ threadMetadata }: ChangesTabProps) {
 }
 ```
 
-### Phase 6: Wire Up Tab Switching in Simple Task Window
+### Phase 6: Wire Up View Toggle in Simple Task Window
 
 **File**: `src/components/simple-task/simple-task-window.tsx`
 
-Add tab state and conditional rendering:
+Add view state and conditional rendering:
 
 ```tsx
-const [activeTab, setActiveTab] = useState<'thread' | 'changes'>('thread');
+const [activeView, setActiveView] = useState<'thread' | 'changes'>('thread');
 
-// In render, conditionally show ThreadView or ChangesTab
-{activeTab === 'thread' ? (
+const handleToggleView = () => {
+  setActiveView(v => v === 'thread' ? 'changes' : 'thread');
+};
+
+// Pass to header
+<SimpleTaskHeader
+  ...
+  activeView={activeView}
+  onToggleView={handleToggleView}
+/>
+
+// Conditionally render content
+{activeView === 'thread' ? (
   <ThreadView ... />
 ) : (
   <ChangesTab threadMetadata={threadMetadata} />
 )}
 ```
-
-Pass `activeTab` and `setActiveTab` to the header component.
 
 ---
 

@@ -35,13 +35,18 @@ export const ThreadMetadataBaseSchema = z.object({
   ttlMs: z.number().optional(),
   git: z.object({
     branch: z.string(),
+    initialCommitHash: z.string().optional(),  // Captured at thread start for diffing
     commitHash: z.string().optional(),
   }).optional(),
+  /** File paths modified by Edit/Write tools during this thread - persisted for diff generation */
+  changedFilePaths: z.array(z.string()).optional(),
   turns: z.array(ThreadTurnSchema),
   /** Whether the user has viewed this thread's output/activity (defaults to true for new threads) */
   isRead: z.boolean().optional(),
   /** Process ID when agent is running, null otherwise */
   pid: z.number().nullable().optional(),
+  /** Path to the worktree this thread is using (for explicit worktree management) */
+  worktreePath: z.string().optional(),
 });
 
 /**
@@ -74,6 +79,8 @@ export interface CreateThreadInput {
   git?: {
     branch: string;
   };
+  /** Path to the worktree this thread is using (for explicit worktree management) */
+  worktreePath?: string;
 }
 
 /** Input for updating a thread */
@@ -82,11 +89,16 @@ export interface UpdateThreadInput {
   turns?: ThreadTurn[];
   git?: {
     branch: string;
+    initialCommitHash?: string;
     commitHash?: string;
   };
   isRead?: boolean;
   /** Process ID when agent is running, null to clear */
   pid?: number | null;
+  /** File paths modified by Edit/Write tools during this thread */
+  changedFilePaths?: string[];
+  /** Path to the worktree this thread is using (for explicit worktree management) */
+  worktreePath?: string;
 }
 
 /**

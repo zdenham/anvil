@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "./scripts/dev-mort.sh dev",
+    "dev:headless": "MORT_SKIP_MAIN_WINDOW=1 pnpm dev",
     "dev:no-hmr": "MORT_DISABLE_HMR=true pnpm dev",
     "dev:run": "mkdir -p logs && concurrently -n agents,tauri -c green,yellow \"pnpm dev:agents\" \"tauri dev $TAURI_ARGS\" 2>&1 | tee logs/dev.log",
     "dev:run:no-hmr": "mkdir -p logs && pnpm build:agents && tauri dev $TAURI_ARGS 2>&1 | tee logs/dev.log",

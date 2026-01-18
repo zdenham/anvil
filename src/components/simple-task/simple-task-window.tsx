@@ -10,12 +10,13 @@ import {
   confirmQueuedMessage,
   clearPendingQueuedMessages,
 } from "@/lib/agent-service";
-import { SimpleTaskHeader } from "./simple-task-header";
+import { SimpleTaskHeader, type SimpleTaskView } from "./simple-task-header";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
 import { QueuedMessagesBanner } from "./queued-messages-banner";
 import { SuggestedActionsPanel } from "./suggested-actions-panel";
+import { ChangesTab } from "./changes-tab";
 import { logger } from "@/lib/logger-client";
 import { useAgentModeStore } from "@/entities/agent-mode";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
@@ -23,6 +24,7 @@ import { markTaskUnread } from "@/entities/tasks/mark-unread-service";
 import { archiveTask } from "@/entities/tasks/archive-service";
 import { useNavigateToNextTask } from "@/hooks/use-navigate-to-next-task";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 
@@ -98,6 +100,27 @@ function SimpleTaskWindowContent({
   queuedMessagesRef.current = queuedMessages;
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
+
+  // View toggle state: "thread" (default) or "changes"
+  const [activeView, setActiveView] = useState<SimpleTaskView>("thread");
+
+  // Determine if changes view is available (requires git info, but not necessarily file changes)
+  // ChangesTab handles empty state with appropriate message
+  const hasChanges = useMemo(() => {
+    const hasGitInfo = !!activeMetadata?.git?.initialCommitHash;
+
+    logger.debug("[SimpleTaskWindow] hasChanges calculation:", {
+      hasGitInfo,
+      initialCommitHash: activeMetadata?.git?.initialCommitHash,
+      fileChangesLength: activeState?.fileChanges?.length ?? 0,
+    });
+
+    return hasGitInfo;
+  }, [activeMetadata?.git?.initialCommitHash, activeState?.fileChanges?.length]);
+
+  const handleToggleView = useCallback(() => {
+    setActiveView((v) => (v === "thread" ? "changes" : "thread"));
+  }, []);
 
   // Set this thread as active so AGENT_STATE events update the store
   // Also refresh thread from disk if not in store (handles cross-window sync)
@@ -389,36 +412,86 @@ function SimpleTaskWindowContent({
     inputRef.current?.focus();
   }, []);
 
+  const handleWindowDrag = useCallback((e: React.MouseEvent) => {
+    // Only drag on primary (left) mouse button
+    if (e.button !== 0) return;
+
+    // Check if clicking on an interactive element - if so, don't start dragging
+    const target = e.target as HTMLElement;
+    const interactiveSelector = 'button, input, textarea, a, [role="button"], [contenteditable="true"]';
+    if (target.closest(interactiveSelector)) return;
+
+    // Start window drag via Tauri API
+    getCurrentWindow().startDragging().catch((err) => {
+      console.error("[SimpleTaskWindow] startDragging failed:", err);
+    });
+  }, []);
+
   return (
-    <div className="simple-task-container flex flex-col h-screen bg-surface-900 text-surface-50 relative rounded-xl overflow-hidden border border-surface-700/50">
-      <SimpleTaskHeader taskId={taskId} threadId={threadId} status={viewStatus} />
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        <ThreadView
-          ref={messageListRef}
-          messages={messages}
-          isStreaming={isStreaming}
-          status={viewStatus}
-          toolStates={toolStates}
-          onToolResponse={handleToolResponse}
-        />
-      </div>
-      <QueuedMessagesBanner messages={queuedMessages} />
-      <SuggestedActionsPanel
+    <div
+      className="simple-task-container flex flex-col h-screen text-surface-50 relative overflow-hidden"
+      onMouseDown={handleWindowDrag}
+      onDoubleClick={(e) => {
+        // Close panel on double-click, unless clicking on interactive elements
+        const target = e.target as HTMLElement;
+        const interactiveSelector = 'button, input, textarea, a, [role="button"], [contenteditable="true"]';
+        const isInteractive = target.closest(interactiveSelector);
+        if (!isInteractive) {
+          invoke("hide_simple_task");
+        }
+      }}
+    >
+      <SimpleTaskHeader
+        taskId={taskId}
         threadId={threadId}
-        onAction={handleSuggestedAction}
-        onAutoSelectInput={handleAutoSelectInput}
-        isStreaming={isStreaming}
-        onSubmitFollowUp={handleSubmit}
-        onQuickAction={handleQuickAction}
+        status={viewStatus}
+        activeView={activeView}
+        onToggleView={handleToggleView}
+        hasChanges={hasChanges}
       />
-      <ThreadInput
-        ref={inputRef}
-        threadId={threadId}
-        onSubmit={handleSubmit}
-        disabled={false}
-        workingDirectory={workingDirectory}
-        placeholder={canQueueMessages ? "Queue a message..." : undefined}
-      />
+
+      {/* Conditionally render Thread view or Changes tab */}
+      {activeView === "thread" ? (
+        <>
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <ThreadView
+              ref={messageListRef}
+              messages={messages}
+              isStreaming={isStreaming}
+              status={viewStatus}
+              toolStates={toolStates}
+              onToolResponse={handleToolResponse}
+            />
+          </div>
+          <QueuedMessagesBanner messages={queuedMessages} />
+          <SuggestedActionsPanel
+            threadId={threadId}
+            onAction={handleSuggestedAction}
+            onAutoSelectInput={handleAutoSelectInput}
+            isStreaming={isStreaming}
+            onSubmitFollowUp={handleSubmit}
+            onQuickAction={handleQuickAction}
+          />
+          <ThreadInput
+            ref={inputRef}
+            threadId={threadId}
+            onSubmit={handleSubmit}
+            disabled={false}
+            workingDirectory={workingDirectory}
+            placeholder={canQueueMessages ? "Queue a message..." : undefined}
+          />
+        </>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {activeMetadata && (
+            <ChangesTab
+              threadMetadata={activeMetadata}
+              threadState={activeState}
+            />
+          )}
+        </div>
+      )}
+
       {/* <PermissionIndicator threadId={threadId} /> */}
 
       {/* Navigation banner overlays at bottom */}

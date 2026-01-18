@@ -6,36 +6,6 @@ import { z } from "zod";
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Active claim on a worktree.
- * Multiple threads on the same task can share a worktree concurrently.
- *
- * Includes migration support for old format: { threadId: string } -> { threadIds: string[] }
- */
-export const WorktreeClaimSchema = z.preprocess(
-  (data: unknown) => {
-    if (data && typeof data === 'object' && 'threadId' in data) {
-      // Old format: { threadId: string } -> migrate to { threadIds: string[] }
-      const old = data as { threadId: string; taskId: string; claimedAt?: number };
-      return {
-        taskId: old.taskId,
-        threadIds: [old.threadId],
-        claimedAt: old.claimedAt ?? Date.now(),
-      };
-    }
-    return data;
-  },
-  z.object({
-    /** The task ID holding the claim */
-    taskId: z.string(),
-    /** All thread IDs actively using this worktree */
-    threadIds: z.array(z.string()),
-    /** When the claim was first made */
-    claimedAt: z.number(),
-  })
-);
-export type WorktreeClaim = z.infer<typeof WorktreeClaimSchema>;
-
-/**
  * Information about a task's git branch.
  * Stored in repository settings, keyed by task ID.
  */
@@ -54,21 +24,17 @@ export const TaskBranchInfoSchema = z.object({
 export type TaskBranchInfo = z.infer<typeof TaskBranchInfoSchema>;
 
 /**
- * State of a single worktree in the pool.
+ * State of a single worktree.
  */
 export const WorktreeStateSchema = z.object({
   /** Absolute path to the worktree directory */
   path: z.string(),
-  /** Version number (for compatibility/migration) */
-  version: z.number(),
+  /** Name of the worktree */
+  name: z.string(),
+  /** Last access timestamp */
+  lastAccessedAt: z.number().optional(),
   /** Currently checked out branch, or null */
-  currentBranch: z.string().nullable(),
-  /** Active claim, or null if available */
-  claim: WorktreeClaimSchema.nullable(),
-  /** When this worktree was last released (for LRU allocation) */
-  lastReleasedAt: z.number().optional(),
-  /** Last task that used this worktree (for task affinity) */
-  lastTaskId: z.string().optional(),
+  currentBranch: z.string().nullable().optional(),
 });
 export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
 

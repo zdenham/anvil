@@ -414,17 +414,17 @@ pub fn initialize(app: &AppHandle) {
 // Tauri Commands
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Called when navigation hotkey is triggered (navigate down)
+/// Called when task navigation hotkey is triggered (navigate down)
 #[tauri::command]
 pub fn navigation_hotkey_down() {
-    let hotkey = crate::config::get_navigation_down_hotkey();
+    let hotkey = crate::config::get_task_navigation_down_hotkey();
     get_navigation_mode().on_hotkey_pressed(NavigationDirection::Down, &hotkey);
 }
 
-/// Called when navigation hotkey is triggered (navigate up)
+/// Called when task navigation hotkey is triggered (navigate up)
 #[tauri::command]
 pub fn navigation_hotkey_up() {
-    let hotkey = crate::config::get_navigation_up_hotkey();
+    let hotkey = crate::config::get_task_navigation_up_hotkey();
     get_navigation_mode().on_hotkey_pressed(NavigationDirection::Up, &hotkey);
 }
 

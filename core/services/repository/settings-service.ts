@@ -1,66 +1,8 @@
 import * as path from 'path';
 import { execSync } from 'child_process';
 import type { FileSystemAdapter } from '@core/adapters/types';
-import type { RepositorySettings, WorktreeClaim } from '@core/types/repositories.js';
+import type { RepositorySettings } from '@core/types/repositories.js';
 import { RepositorySettingsSchema } from '@core/types/repositories.js';
-
-/**
- * Migrate a single WorktreeClaim from old format to new format.
- * Old: { threadId: string, taskId: string, claimedAt: number }
- * New: { threadIds: string[], taskId: string, claimedAt: number }
- *
- * @deprecated Use WorktreeClaimSchema directly - migration is built into the schema's preprocess.
- */
-export function migrateWorktreeClaim(claim: unknown): WorktreeClaim | null {
-  if (!claim || typeof claim !== 'object') {
-    return null;
-  }
-
-  const c = claim as Record<string, unknown>;
-
-  // Already migrated (has threadIds array)
-  if (Array.isArray(c.threadIds)) {
-    return claim as WorktreeClaim;
-  }
-
-  // Old format (has threadId string) - migrate
-  if (typeof c.threadId === 'string' && typeof c.taskId === 'string') {
-    return {
-      taskId: c.taskId,
-      threadIds: [c.threadId],
-      claimedAt: (c.claimedAt as number) ?? Date.now(),
-    };
-  }
-
-  // Invalid format
-  return null;
-}
-
-/**
- * Migrate settings from any older format to current format.
- *
- * @deprecated Use RepositorySettingsSchema directly - migration is built into the schema.
- */
-export function migrateSettings(settings: unknown): RepositorySettings {
-  const s = settings as RepositorySettings;
-
-  // Ensure worktrees array exists
-  if (!Array.isArray(s.worktrees)) {
-    s.worktrees = [];
-  }
-
-  // Migrate each worktree's claim using the legacy function
-  for (const worktree of s.worktrees) {
-    worktree.claim = migrateWorktreeClaim(worktree.claim);
-  }
-
-  // Add defaultBranch if missing
-  if (!s.defaultBranch) {
-    s.defaultBranch = detectDefaultBranch(s.sourcePath) ?? 'main';
-  }
-
-  return s;
-}
 
 /**
  * Detect the default branch for a repository.
@@ -97,7 +39,27 @@ export function detectDefaultBranch(sourcePath: string): string | null {
 }
 
 /**
- * Pre-process raw settings to add defaultBranch if missing.
+ * Migrate a single worktree state object from old format to new simplified format.
+ * Removes deprecated fields (claim, version, lastTaskId) and ensures required fields exist.
+ */
+function migrateWorktreeState(data: unknown): unknown {
+  if (data && typeof data === 'object') {
+    const worktree = data as Record<string, unknown>;
+    // Destructure to remove deprecated fields
+    const { claim, version, lastTaskId, lastReleasedAt, ...rest } = worktree;
+    return {
+      ...rest,
+      // Convert lastReleasedAt to lastAccessedAt if present
+      lastAccessedAt: rest.lastAccessedAt ?? lastReleasedAt ?? Date.now(),
+      // Generate name from path if not present
+      name: rest.name ?? `worktree-${(rest.path as string)?.split('/').pop() ?? 'unknown'}`,
+    };
+  }
+  return data;
+}
+
+/**
+ * Pre-process raw settings to add defaultBranch if missing and migrate worktrees.
  * This uses git detection which requires runtime execution.
  */
 function preprocessSettings(raw: unknown): unknown {
@@ -106,6 +68,10 @@ function preprocessSettings(raw: unknown): unknown {
     // Add defaultBranch if missing (requires git detection)
     if (!settings.defaultBranch && typeof settings.sourcePath === 'string') {
       settings.defaultBranch = detectDefaultBranch(settings.sourcePath) ?? 'main';
+    }
+    // Migrate worktrees array if present
+    if (Array.isArray(settings.worktrees)) {
+      settings.worktrees = settings.worktrees.map(migrateWorktreeState);
     }
   }
   return raw;

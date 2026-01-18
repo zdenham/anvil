@@ -15,8 +15,9 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: "tasks", label: "Tasks" },
-  { id: "logs", label: "Logs" },
+  { id: "worktrees", label: "Worktrees" },
   { id: "settings", label: "Settings" },
+  { id: "logs", label: "Logs" },
 ];
 
 export function Sidebar({ activeTab, onTabChange, isCollapsed }: SidebarProps) {

@@ -18,6 +18,10 @@ export interface CalculatorResult {
 /** Internal type - task creation result */
 export interface TaskResult {
   query: string;
+  selectedWorktree?: {
+    path: string;
+    name: string;
+  };
 }
 
 /** Internal type - open repository action */

@@ -12,6 +12,7 @@ import {
   appendUserMessage,
   markToolComplete,
   relayEventsFromToolOutput,
+  updateFileChange,
 } from "../output.js";
 import { MessageHandler } from "./message-handler.js";
 import type { ThreadWriter } from "../services/thread-writer.js";
@@ -205,6 +206,9 @@ export async function runAgentLoop(
     `[runner] System prompt: ${systemPrompt.length} chars, cwd=${context.workingDir}`
   );
 
+  // Tools that modify files and should be tracked for diffing
+  const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
+
   // Build hooks for state tracking and side effects
   const hooks = {
     PostToolUse: [
@@ -223,6 +227,24 @@ export async function runAgentLoop(
 
             // Side effect: relay embedded events to stdout
             relayEventsFromToolOutput(toolResponse);
+
+            // Track file changes for file-modifying tools
+            // This must be done here because PostToolUse hooks fire before/instead of
+            // SDK user messages, so MessageHandler may never see the tool result.
+            if (FILE_MODIFYING_TOOLS.includes(input.tool_name)) {
+              const toolInput = input.tool_input as { file_path?: string; notebook_path?: string };
+              const filePath = toolInput.file_path ?? toolInput.notebook_path;
+
+              if (filePath) {
+                const operation = input.tool_name === "Write" ? "create" : "modify";
+                await updateFileChange({
+                  path: filePath,
+                  operation,
+                  diff: "", // Path is what matters for diffing
+                });
+                logger.info(`[PostToolUse] Recorded file change: ${operation} ${filePath}`);
+              }
+            }
 
             // Side effect: notify strategy of file changes
             if (options.onFileChange) {

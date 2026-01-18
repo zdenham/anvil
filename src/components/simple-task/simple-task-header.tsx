@@ -1,15 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { cn } from "@/lib/utils";
 import { useTaskStore } from "@/entities/tasks/store";
 import { useThreadStore } from "@/entities/threads/store";
 import { cancelAgent } from "@/lib/agent-service";
-import { StopCircle, ChevronRight, X } from "lucide-react";
+import { StopCircle, ChevronRight, X, GitCompare, MessageSquare } from "lucide-react";
+
+export type SimpleTaskView = "thread" | "changes";
 
 interface SimpleTaskHeaderProps {
   taskId: string;
   threadId: string;
   status: "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
+  /** Current active view */
+  activeView?: SimpleTaskView;
+  /** Callback when view toggle is clicked */
+  onToggleView?: () => void;
+  /** Whether the changes view is available (has git info and file changes) */
+  hasChanges?: boolean;
 }
 
 /**
@@ -35,10 +42,24 @@ function getStatusDotColor(status: "idle" | "loading" | "running" | "completed" 
   return "bg-surface-500";
 }
 
-export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderProps) {
+export function SimpleTaskHeader({
+  taskId,
+  threadId,
+  status,
+  activeView = "thread",
+  onToggleView,
+  hasChanges = false,
+}: SimpleTaskHeaderProps) {
   const task = useTaskStore((s) => s.tasks[taskId]);
   const thread = useThreadStore((s) => s.threads[threadId]);
 
+  // Debug logging for view toggle visibility
+  console.log("[SimpleTaskHeader] View toggle props:", {
+    hasChanges,
+    onToggleView: !!onToggleView,
+    activeView,
+    shouldShowToggle: hasChanges && !!onToggleView,
+  });
 
   const handleCancel = async () => {
     console.log(`[simple-task-header] Cancel button clicked for threadId=${threadId}`);
@@ -56,17 +77,6 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
     await invoke("hide_simple_task");
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Only drag on primary (left) mouse button and when clicking directly on the header background
-    // Ignore if clicking on interactive elements (they have [-webkit-app-region:no-drag])
-    if (e.button !== 0) return;
-
-    // Start window drag via Tauri API
-    getCurrentWindow().startDragging().catch((err) => {
-      console.error("[simple-task-header] startDragging failed:", err);
-    });
-  };
-
   const isStreaming = status === "running";
 
   // Display task title (truncated) or fall back to task ID
@@ -76,8 +86,7 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
 
   return (
     <div
-      onMouseDown={handleMouseDown}
-      className="group flex items-center gap-3 px-4 py-3 bg-surface-800 border-b border-surface-700 cursor-grab active:cursor-grabbing"
+      className="group flex items-center gap-3 px-4 py-3 bg-surface-800 border-b border-surface-700"
     >
       {/* Status dot */}
       <div className={cn("w-2 h-2 rounded-full", getStatusDotColor(status, thread?.isRead))} />
@@ -85,7 +94,7 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
       <div className="flex items-center gap-1.5 text-xs" onMouseDown={(e) => e.stopPropagation()}>
         <button
           onClick={handleNavigateToTasks}
-          className="text-surface-400 hover:text-surface-200 transition-colors"
+          className="text-surface-400 hover:text-surface-200 focus:outline-none focus:text-surface-200 transition-colors"
         >
           tasks
         </button>
@@ -101,6 +110,21 @@ export function SimpleTaskHeader({ taskId, threadId, status }: SimpleTaskHeaderP
           >
             <StopCircle size={14} />
             Cancel
+          </button>
+        )}
+        {/* View toggle: Thread <-> Changes */}
+        {hasChanges && onToggleView && (
+          <button
+            onClick={onToggleView}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label={activeView === "thread" ? "View changes" : "View thread"}
+            title={activeView === "thread" ? "View changes" : "View thread"}
+          >
+            {activeView === "thread" ? (
+              <GitCompare size={16} />
+            ) : (
+              <MessageSquare size={16} />
+            )}
           </button>
         )}
         <button

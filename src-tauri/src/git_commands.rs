@@ -280,19 +280,27 @@ pub async fn git_create_worktree(
 /// Remove a worktree
 #[tauri::command]
 pub async fn git_remove_worktree(repo_path: String, worktree_path: String) -> Result<(), String> {
+    tracing::info!(repo_path = %repo_path, worktree_path = %worktree_path, "Executing git worktree remove --force");
+
     let output = shell::command("git")
         .args(["worktree", "remove", "--force", &worktree_path])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            tracing::error!(repo_path = %repo_path, worktree_path = %worktree_path, error = %e, "Failed to execute git worktree remove command");
+            e.to_string()
+        })?;
 
     if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(repo_path = %repo_path, worktree_path = %worktree_path, stderr = %stderr, "Git worktree remove command failed");
         return Err(format!(
             "Failed to remove worktree: {}",
-            String::from_utf8_lossy(&output.stderr)
+            stderr
         ));
     }
 
+    tracing::info!(repo_path = %repo_path, worktree_path = %worktree_path, "Git worktree remove command succeeded");
     Ok(())
 }
 
@@ -393,6 +401,58 @@ pub async fn git_ls_files_untracked(repo_path: String) -> Result<Vec<String>, St
         .collect();
 
     Ok(files)
+}
+
+/// Get the current HEAD commit hash
+#[tauri::command]
+pub async fn git_get_head_commit(repo_path: String) -> Result<String, String> {
+    let output = shell::command("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to get HEAD commit: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// Generate a git diff for specific files from a base commit
+/// Returns the raw diff output which can be parsed by the frontend
+#[tauri::command]
+pub async fn git_diff_files(
+    repo_path: String,
+    base_commit: String,
+    file_paths: Vec<String>,
+) -> Result<String, String> {
+    if file_paths.is_empty() {
+        return Ok(String::new());
+    }
+
+    // Build the git diff command:
+    // git diff <base_commit> -- <file1> <file2> ...
+    let mut args = vec!["diff".to_string(), base_commit.clone(), "--".to_string()];
+    args.extend(file_paths);
+
+    let output = shell::command("git")
+        .args(&args)
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Failed to execute git diff: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to generate diff: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 /// Get commits for a branch, comparing against the default branch

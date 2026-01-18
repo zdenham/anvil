@@ -121,6 +121,20 @@ export const gitCommands = {
    */
   lsFilesUntracked: (repoPath: string) =>
     invoke<string[]>("git_ls_files_untracked", { repoPath }),
+
+  /**
+   * Get the current HEAD commit hash.
+   * Used to capture initial commit at thread start for diff generation.
+   */
+  getHeadCommit: (repoPath: string) =>
+    invoke<string>("git_get_head_commit", { repoPath }),
+
+  /**
+   * Generate a git diff for specific files from a base commit.
+   * Returns raw diff output that can be parsed by diff-parser.ts.
+   */
+  diffFiles: (repoPath: string, baseCommit: string, filePaths: string[]) =>
+    invoke<string>("git_diff_files", { repoPath, baseCommit, filePaths }),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

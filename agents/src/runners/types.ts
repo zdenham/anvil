@@ -36,6 +36,8 @@ export interface RunnerConfig {
   env?: Record<string, string>;
   /** Agent mode for tool execution */
   agentMode?: AgentMode;
+  /** Explicit worktree path - required for task-based agents with explicit worktree management */
+  worktreePath?: string;
 }
 
 /**

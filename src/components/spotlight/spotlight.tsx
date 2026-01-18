@@ -23,6 +23,8 @@ import { CalculatorService } from "../../lib/calculator-service";
 import { TriggerSearchInput, type TriggerStateInfo } from "../reusable/trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { repoService, taskService, type Repository, eventBus, type TaskPanelReadyPayload } from "../../entities";
+import { worktreeService } from "../../entities/worktrees";
+import type { WorktreeState } from "@core/types/repositories";
 import { EventName } from "@core/types/events.js";
 import { spawnAgentWithOrchestration, spawnSimpleAgent } from "../../lib/agent-service";
 import { openTask, openSimpleTask, showMainWindow } from "../../lib/hotkey-service";
@@ -33,7 +35,6 @@ import { promptHistoryService } from "../../lib/prompt-history-service";
 type TaskCreationError =
   | { type: "no_repositories" }
   | { type: "no_versions"; repoName: string }
-  | { type: "no_worktrees_available" }
   | { type: "agent_failed"; message: string };
 
 /** Convert TaskCreationError to user-friendly message */
@@ -43,8 +44,6 @@ function formatTaskCreationError(error: TaskCreationError): string {
       return "No repositories configured. Please add a repository first.";
     case "no_versions":
       return `No versions available for repository: ${error.repoName}`;
-    case "no_worktrees_available":
-      return "No worktrees available. Please wait for a task to complete.";
     case "agent_failed":
       return error.message;
     default:
@@ -204,14 +203,15 @@ export class SpotlightController {
    * 1. Generate taskId and threadId upfront
    * 2. Create draft task on disk (Node reads this)
    * 3. Open window IMMEDIATELY with prompt (optimistic UI)
-   * 4. Spawn Node - it will allocate worktree and create thread
+   * 4. Spawn Node - it will use the explicit worktree path
    * 5. Window reacts to events from Node (thread:created, agent:state, etc.)
    *
    * @param content - The task prompt/description
    * @param repo - The repository to work in (optional, uses default if single repo)
+   * @param worktreePath - Explicit worktree path (required for full flow)
    * @throws TaskCreationError on failure
    */
-  async createTask(content: string, repo?: Repository): Promise<void> {
+  async createTask(content: string, repo?: Repository, worktreePath?: string): Promise<void> {
     // Determine which repository to use
     const repos = repoService.getAll();
 
@@ -253,7 +253,16 @@ export class SpotlightController {
     const draftTask = await taskService.createDraft({
       prompt: content,
       repositoryName: selectedRepo.name,
+      // Store worktreePath if provided (for explicit worktree management)
+      ...(worktreePath && { worktreePath }),
     });
+
+    // Touch worktree to update lastAccessedAt (for MRU sorting)
+    if (worktreePath) {
+      worktreeService.touch(selectedRepo.name, worktreePath).catch((err) => {
+        logger.warn("[spotlight:createTask] Failed to touch worktree:", err);
+      });
+    }
     logger.log(
       `spotlight:createTask - Created draft task: ${draftTask.id}, slug: ${draftTask.slug}`
     );
@@ -329,6 +338,7 @@ export class SpotlightController {
         taskId: draftTask.id, // Required for event emissions
         threadId, // Use our pre-generated ID
         prompt: content,
+        worktreePath, // Explicit worktree selection (optional)
       });
       logger.log(`spotlight:createTask - Agent spawn completed successfully`);
     } catch (error) {
@@ -341,16 +351,6 @@ export class SpotlightController {
         logger.error(`spotlight:createTask - Error stack: ${error.stack}`);
       }
       const message = error instanceof Error ? error.message : String(error);
-
-      // Check for specific error types
-      if (message.includes("No available worktrees")) {
-        const taskError: TaskCreationError = { type: "no_worktrees_available" };
-        logger.error(
-          "All worktrees are in use. Please wait for a task to complete."
-        );
-        throw taskError;
-      }
-
       const taskError: TaskCreationError = { type: "agent_failed", message };
       logger.error("Failed to start agent:", error);
       throw taskError;
@@ -435,6 +435,8 @@ interface SpotlightState {
   selectedIndex: number;
   inputExpanded: boolean;
   appSuffix: string;
+  selectedWorktreeIndex: number;
+  availableWorktrees: WorktreeState[];
 }
 
 const INITIAL_STATE: SpotlightState = {
@@ -444,6 +446,8 @@ const INITIAL_STATE: SpotlightState = {
   selectedIndex: 0,
   inputExpanded: false,
   appSuffix: "",
+  selectedWorktreeIndex: 0,
+  availableWorktrees: [],
 };
 
 const INITIAL_TRIGGER_STATE: TriggerStateInfo = {
@@ -461,7 +465,7 @@ export const Spotlight = () => {
   // Track inputExpanded in a ref so async callbacks always have the latest value
   const inputExpandedRef = useRef(false);
 
-  const { query, results, selectedIndex, inputExpanded, appSuffix } = state;
+  const { query, results, selectedIndex, inputExpanded, appSuffix, selectedWorktreeIndex, availableWorktrees } = state;
 
   // Keep ref in sync with state
   inputExpandedRef.current = inputExpanded;
@@ -625,9 +629,14 @@ export const Spotlight = () => {
         };
 
         if (useFullFlow) {
-          // Command+Enter: Full worktree flow (existing behavior)
+          // Command+Enter: Full worktree flow with explicit worktree selection
+          const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
+          if (!selectedWorktree && availableWorktrees.length > 0) {
+            // Shouldn't happen, but fallback to first worktree
+            logger.warn("[Spotlight] No worktree selected, using first available");
+          }
           controller
-            .createTask(result.data.query, selectedRepo)
+            .createTask(result.data.query, selectedRepo, selectedWorktree?.path)
             .catch(handleTaskError);
         } else {
           // Enter: Simple flow (new default) - runs directly in source repo
@@ -799,7 +808,7 @@ export const Spotlight = () => {
         await invoke("restart_app");
       }
     },
-    [triggerState.results]
+    [triggerState.results, availableWorktrees, selectedWorktreeIndex]
   );
 
   // Initialize controller on mount and fetch app suffix
@@ -827,6 +836,32 @@ export const Spotlight = () => {
         logger.error("Failed to get paths info:", error);
       });
   }, []);
+
+  // Load available worktrees when spotlight opens or repository changes
+  useEffect(() => {
+    const loadWorktrees = async () => {
+      const controller = controllerRef.current;
+      const repo = controller.getDefaultRepository();
+      if (repo) {
+        try {
+          const worktrees = await worktreeService.list(repo.name);
+          setState((prev) => ({
+            ...prev,
+            availableWorktrees: worktrees,
+            selectedWorktreeIndex: 0, // Reset to first (most recent)
+          }));
+        } catch (err) {
+          logger.error("[Spotlight] Failed to load worktrees:", err);
+          setState((prev) => ({
+            ...prev,
+            availableWorktrees: [],
+            selectedWorktreeIndex: 0,
+          }));
+        }
+      }
+    };
+    loadWorktrees();
+  }, []); // Run once on mount (when spotlight opens)
 
   // Keyboard navigation
   useEffect(() => {
@@ -907,6 +942,32 @@ export const Spotlight = () => {
             }));
           }
           break;
+        case "ArrowRight": {
+          // Cycle forward through worktrees when on a task result
+          const currentResult = displayResults[selectedIndex];
+          if (currentResult?.type === "task" && availableWorktrees.length > 0) {
+            e.preventDefault();
+            setState((prev) => ({
+              ...prev,
+              selectedWorktreeIndex: (prev.selectedWorktreeIndex + 1) % prev.availableWorktrees.length,
+            }));
+          }
+          break;
+        }
+        case "ArrowLeft": {
+          // Cycle backward through worktrees when on a task result
+          const currentResult = displayResults[selectedIndex];
+          if (currentResult?.type === "task" && availableWorktrees.length > 0) {
+            e.preventDefault();
+            setState((prev) => ({
+              ...prev,
+              selectedWorktreeIndex:
+                (prev.selectedWorktreeIndex - 1 + prev.availableWorktrees.length) %
+                prev.availableWorktrees.length,
+            }));
+          }
+          break;
+        }
         case "Enter":
           // Only intercept if not holding Shift (Shift+Enter = newline in textarea)
           if (!e.shiftKey) {
@@ -935,6 +996,7 @@ export const Spotlight = () => {
     isInHistoryMode,
     handleHistoryNavigation,
     triggerState,
+    availableWorktrees,
   ]);
 
   // Handler for panel hidden - moved outside useEffect to avoid hook violations
@@ -1077,6 +1139,10 @@ export const Spotlight = () => {
           }
         }}
         onActivate={activateResult}
+        worktreeInfo={{
+          availableWorktrees,
+          selectedWorktreeIndex,
+        }}
       />
     </div>
   );

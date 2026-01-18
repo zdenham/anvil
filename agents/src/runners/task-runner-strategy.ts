@@ -1,10 +1,13 @@
 /**
  * TaskRunnerStrategy for task-based agents (research, execution, merge).
  *
- * This strategy handles orchestration for agents that operate within a task context,
- * including worktree allocation, task metadata management, and thread lifecycle.
+ * This strategy handles agents that work on tasks with explicit worktree management.
+ * The UI selects a worktree and passes it via --worktree-path.
  */
+import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from "fs";
+import { execFileSync } from "child_process";
 import { join } from "path";
+import { z } from "zod";
 import type {
   RunnerStrategy,
   RunnerConfig,
@@ -12,100 +15,102 @@ import type {
   AgentType,
 } from "./types.js";
 import { emitEvent, emitLog } from "./shared.js";
-import { NodeFileSystemAdapter } from "@core/adapters/node/fs-adapter.js";
-import { NodeGitAdapter } from "@core/adapters/node/git-adapter.js";
-import { NodePathLock } from "@core/adapters/node/path-lock.js";
-import type { Logger } from "@core/adapters/types.js";
-import { RepositorySettingsService } from "@core/services/repository/settings-service.js";
-import { MergeBaseService } from "@core/services/git/merge-base-service.js";
-import { TaskMetadataService } from "@core/services/task/metadata-service.js";
-import { ThreadService } from "@core/services/thread/thread-service.js";
-import { WorktreeAllocationService } from "@core/services/worktree/allocation-service.js";
-import { BranchManager } from "@core/services/worktree/branch-manager.js";
-import { WorktreePoolManager } from "@core/services/worktree/worktree-pool-manager.js";
-import { getThreadFolderName } from "@core/types/threads.js";
-import { events } from "../lib/events.js";
-import { logger } from "../lib/logger.js";
-
-/** Valid agent types for task-based runners */
-const VALID_TASK_AGENTS: AgentType[] = ["research", "execution", "merge"];
+import {
+  ThreadMetadataBaseSchema,
+} from "@core/types/threads.js";
+import { TaskMetadataSchema, type TaskMetadata } from "@core/types/tasks.js";
 
 /**
- * Internal state for cleanup - tracks resources that need to be released.
+ * Get the current HEAD commit hash.
+ * Returns undefined if not in a git repo or git command fails.
  */
-interface CleanupState {
-  repoName: string;
-  threadId: string;
-  taskSlug: string;
-  threadFolderName: string;
+function getHeadCommit(cwd: string): string | undefined {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
- * Adapter to convert the agents logger to the core Logger interface.
+ * Get the merge base between the current branch and the default branch.
+ * Used for diff generation against the base branch.
  */
-function createLoggerAdapter(): Logger {
-  return {
-    info: (message: string, context?: Record<string, unknown>) => {
-      if (context) {
-        logger.info(message, context);
-      } else {
-        logger.info(message);
-      }
-    },
-    warn: (message: string, context?: Record<string, unknown>) => {
-      if (context) {
-        logger.warn(message, context);
-      } else {
-        logger.warn(message);
-      }
-    },
-    error: (message: string, context?: Record<string, unknown>) => {
-      if (context) {
-        logger.error(message, context);
-      } else {
-        logger.error(message);
-      }
-    },
-    debug: (message: string, context?: Record<string, unknown>) => {
-      if (context) {
-        logger.debug(message, context);
-      } else {
-        logger.debug(message);
-      }
-    },
-  };
+function getMergeBase(cwd: string, baseBranch: string): string | undefined {
+  try {
+    return execFileSync("git", ["merge-base", "HEAD", baseBranch], {
+      cwd,
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    return undefined;
+  }
 }
+
+/**
+ * Get the default branch (main or master).
+ */
+function getDefaultBranch(cwd: string): string {
+  try {
+    // Check for main first, then master
+    execFileSync("git", ["rev-parse", "--verify", "main"], {
+      cwd,
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    return "main";
+  } catch {
+    try {
+      execFileSync("git", ["rev-parse", "--verify", "master"], {
+        cwd,
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
+      return "master";
+    } catch {
+      return "main"; // Default to main if neither exists
+    }
+  }
+}
+
+/**
+ * Schema for task thread metadata with stricter typing.
+ */
+const TaskThreadMetadataSchema = ThreadMetadataBaseSchema.omit({
+  ttlMs: true,
+}).transform((data) => ({
+  ...data,
+  isRead: data.isRead ?? true,
+}));
+
+type TaskThreadMetadata = z.infer<typeof TaskThreadMetadataSchema>;
 
 /**
  * TaskRunnerStrategy implements the RunnerStrategy interface for task-based agents.
  *
- * It handles:
- * - Parsing CLI arguments specific to task-based agents
- * - Setting up the execution environment (worktree, thread, task metadata)
- * - Cleaning up resources on exit (releasing worktree, updating thread status)
+ * Task-based agents work on tasks with explicit worktree management:
+ * - UI selects a worktree and passes it via --worktree-path
+ * - Strategy validates the worktree exists
+ * - Agent runs in the worktree directory
  */
 export class TaskRunnerStrategy implements RunnerStrategy {
-  private cleanupState?: CleanupState;
-  private mortDir?: string;
-
   /**
-   * Parse and validate CLI arguments for task-based agents.
+   * Parse and validate CLI arguments for task-based agent.
    *
    * Required arguments:
-   * - --agent: One of research, execution, merge
-   * - --task-slug: Task identifier
-   * - --thread-id: UUID for the thread
-   * - --mort-dir: Path to .mort directory
+   * - --agent <research|execution|merge>
+   * - --task-slug <slug>
+   * - --thread-id <uuid>
+   * - --mort-dir <path>
+   * - --prompt <string>
+   * - --worktree-path <path> (required - explicit worktree management)
    *
    * Optional arguments:
-   * - --prompt: Additional prompt text
-   * - --history-file: Path to state.json for resuming
-   * - --parent-task-id: Parent task ID for subtask support
-   * - --appended-prompt: Override appended prompt
-   *
-   * @param args - Raw CLI arguments (process.argv.slice(2))
-   * @returns Normalized RunnerConfig
-   * @throws Error if required arguments are missing or invalid
+   * - --history-file <path> (for resuming a thread)
+   * - --appended-prompt <string> (for merge agent with dynamic context)
    */
   parseArgs(args: string[]): RunnerConfig {
     const config: Partial<RunnerConfig> = {};
@@ -115,23 +120,23 @@ export class TaskRunnerStrategy implements RunnerStrategy {
         case "--agent":
           config.agent = args[++i] as AgentType;
           break;
-        case "--prompt":
-          config.prompt = args[++i];
+        case "--task-slug":
+          config.taskSlug = args[++i];
           break;
         case "--thread-id":
           config.threadId = args[++i];
           break;
-        case "--task-slug":
-          config.taskSlug = args[++i];
-          break;
         case "--mort-dir":
           config.mortDir = args[++i];
           break;
+        case "--prompt":
+          config.prompt = args[++i];
+          break;
+        case "--worktree-path":
+          config.worktreePath = args[++i];
+          break;
         case "--history-file":
           config.historyFile = args[++i];
-          break;
-        case "--parent-task-id":
-          config.parentTaskId = args[++i];
           break;
         case "--appended-prompt":
           config.appendedPrompt = args[++i];
@@ -139,314 +144,257 @@ export class TaskRunnerStrategy implements RunnerStrategy {
       }
     }
 
-    // Validate required arguments
-    const missing: string[] = [];
-    if (!config.agent) missing.push("--agent");
-    if (!config.prompt) missing.push("--prompt");
-    if (!config.threadId) missing.push("--thread-id");
-    if (!config.taskSlug) missing.push("--task-slug");
-    if (!config.mortDir) missing.push("--mort-dir");
-
-    if (missing.length > 0) {
+    // Validate agent type
+    if (!config.agent || !["research", "execution", "merge"].includes(config.agent)) {
       throw new Error(
-        `Missing required arguments for task-based agent: ${missing.join(", ")}`
+        `TaskRunnerStrategy requires agent type to be research, execution, or merge, got: ${config.agent}`
       );
     }
 
-    // Validate agent type
-    if (!VALID_TASK_AGENTS.includes(config.agent!)) {
-      throw new Error(
-        `Invalid agent type "${config.agent}" for task-based runner. ` +
-          `Valid options: ${VALID_TASK_AGENTS.join(", ")}`
-      );
+    // Validate required arguments
+    if (!config.taskSlug) {
+      throw new Error("Missing required argument: --task-slug");
+    }
+    if (!config.threadId) {
+      throw new Error("Missing required argument: --thread-id");
+    }
+    if (!config.mortDir) {
+      throw new Error("Missing required argument: --mort-dir");
+    }
+    if (!config.prompt) {
+      throw new Error("Missing required argument: --prompt");
+    }
+    if (!config.worktreePath) {
+      throw new Error("Missing required argument: --worktree-path (explicit worktree management required)");
+    }
+
+    // Validate worktree path exists
+    if (!existsSync(config.worktreePath)) {
+      throw new Error(`Worktree path does not exist: ${config.worktreePath}`);
+    }
+
+    const worktreeStat = statSync(config.worktreePath);
+    if (!worktreeStat.isDirectory()) {
+      throw new Error(`Worktree path is not a directory: ${config.worktreePath}`);
     }
 
     return config as RunnerConfig;
   }
 
   /**
-   * Set up the execution environment for a task-based agent.
+   * Set up the execution environment for task-based agent.
    *
-   * This includes:
-   * 1. Loading repository settings
-   * 2. Loading task metadata
-   * 3. Allocating a worktree (if enabled)
-   * 4. Creating a thread record (unless resuming)
-   * 5. Emitting lifecycle events
-   *
-   * @param config - Normalized configuration from parseArgs
-   * @returns Context needed for agent execution
-   * @throws Error if task metadata cannot be loaded
-   * @throws Error if worktree allocation fails
+   * 1. Load task metadata from disk
+   * 2. Create thread folder and metadata
+   * 3. Emit thread:created event
+   * 4. Return context with worktree as workingDir
    */
   async setup(config: RunnerConfig): Promise<OrchestrationContext> {
-    this.mortDir = config.mortDir;
+    const { taskSlug, threadId, mortDir, prompt, worktreePath, historyFile, agent } = config;
 
-    // Create adapters
-    const fs = new NodeFileSystemAdapter();
-    const git = new NodeGitAdapter();
-    const pathLock = new NodePathLock();
-    const loggerAdapter = createLoggerAdapter();
-
-    // Create services
-    const settingsService = new RepositorySettingsService(config.mortDir, fs);
-    const mergeBaseService = new MergeBaseService(git);
-    const taskMetadataService = new TaskMetadataService(config.mortDir, fs);
-    const threadService = new ThreadService(config.mortDir, fs);
-    const branchManager = new BranchManager(git, loggerAdapter);
-    const poolManager = new WorktreePoolManager(git, config.mortDir);
-    const allocationService = new WorktreeAllocationService(
-      config.mortDir,
-      settingsService,
-      mergeBaseService,
-      git,
-      pathLock,
-      branchManager,
-      poolManager,
-      loggerAdapter
-    );
-
-    // Load task metadata
-    const taskSlug = config.taskSlug!;
-    let taskMeta;
-    try {
-      taskMeta = taskMetadataService.get(taskSlug);
-    } catch (err) {
-      const expectedPath = join(
-        config.mortDir,
-        "tasks",
-        taskSlug,
-        "metadata.json"
-      );
-      throw new Error(
-        `Failed to load task metadata for "${taskSlug}". ` +
-          `Expected file at: ${expectedPath}. ` +
-          `Original error: ${err instanceof Error ? err.message : String(err)}`
-      );
+    if (!taskSlug) {
+      throw new Error("taskSlug is required for task-based agent");
+    }
+    if (!worktreePath) {
+      throw new Error("worktreePath is required for task-based agent");
     }
 
-    const repoName = taskMeta.repositoryName;
-    if (!repoName) {
-      throw new Error(
-        `Task "${taskSlug}" has no repositoryName configured. ` +
-          `Please set repositoryName in the task metadata.`
-      );
+    // 1. Load task metadata
+    const taskPath = join(mortDir, "tasks", taskSlug);
+    const taskMetadataPath = join(taskPath, "metadata.json");
+
+    if (!existsSync(taskMetadataPath)) {
+      throw new Error(`Task not found: ${taskSlug}`);
     }
 
-    // Allocate worktree
-    let allocation;
-    let workingDir: string;
-    let mergeBase: string;
-    let branchName: string;
-
-    try {
-      allocation = allocationService.allocate(repoName, config.threadId, {
-        taskId: taskMeta.id,
-        taskBranch: taskMeta.branchName,
-      });
-
-      workingDir = allocation.worktree.path;
-      mergeBase = allocation.mergeBase;
-      branchName = allocation.branch || taskMeta.branchName;
-
-      logger.info("[TaskRunnerStrategy] Worktree allocated", {
-        worktreePath: workingDir,
-        mergeBase,
-        desiredBranch: taskMeta.branchName,
-        resolvedBranch: branchName,
-        isResume: allocation.isResume,
-      });
-
-      // Emit worktree allocated event
-      events.worktreeAllocated(
-        {
-          path: allocation.worktree.path,
-          currentBranch: allocation.worktree.currentBranch,
-        },
-        allocation.mergeBase
-      );
-    } catch (err) {
-      // Log warning but fall back to sourcePath
-      logger.warn("[TaskRunnerStrategy] Worktree allocation failed, falling back to sourcePath", {
-        error: err instanceof Error ? err.message : String(err),
-        taskSlug,
-        repoName,
-      });
-
-      // Emit event for UI awareness
-      emitEvent("worktree:allocation_failed", {
-        threadId: config.threadId,
-        taskSlug,
-        error: err instanceof Error ? err.message : String(err),
-      });
-
-      // Fall back to sourcePath from settings
-      const settings = settingsService.load(repoName);
-      workingDir = settings.sourcePath;
-      mergeBase = mergeBaseService.compute(
-        settings.sourcePath,
-        `origin/${settings.defaultBranch}`
-      );
-      branchName = taskMeta.branchName;
+    const taskRaw = JSON.parse(readFileSync(taskMetadataPath, "utf-8"));
+    const taskResult = TaskMetadataSchema.safeParse(taskRaw);
+    if (!taskResult.success) {
+      throw new Error(`Invalid task metadata: ${taskResult.error.message}`);
     }
+    const task = taskResult.data;
 
-    // Determine thread folder name
-    const threadFolderName = getThreadFolderName(config.agent, config.threadId);
-    const threadPath = join(
-      config.mortDir,
-      "tasks",
-      taskSlug,
-      "threads",
-      threadFolderName
-    );
+    // 2. Set up thread folder
+    const threadFolderName = `${agent}-${threadId}`;
+    const threadPath = join(taskPath, "threads", threadFolderName);
+    const threadMetadataPath = join(threadPath, "metadata.json");
+    const now = Date.now();
 
-    // Create thread record (unless resuming)
-    const isResume = Boolean(config.historyFile);
-    if (!isResume) {
-      const thread = threadService.create(taskSlug, {
-        id: config.threadId,
-        taskId: taskMeta.id,
-        agentType: config.agent,
-        workingDirectory: workingDir,
-        prompt: config.prompt,
-        git: {
-          branch: branchName,
-        },
-      });
+    // Check if this is a resume scenario
+    const isResume = historyFile && existsSync(threadMetadataPath);
 
-      // Emit thread created event
-      events.threadCreated(thread.id, taskMeta.id);
+    // Get git info from the worktree
+    const initialCommitHash = getHeadCommit(worktreePath);
+    const defaultBranch = getDefaultBranch(worktreePath);
+    const mergeBase = getMergeBase(worktreePath, defaultBranch);
+
+    if (isResume) {
+      // Resume scenario: add a new turn to existing thread
+      emitLog("INFO", `Resuming existing thread ${threadId}`);
+
+      try {
+        const existingContent = readFileSync(threadMetadataPath, "utf-8");
+        const parseResult = TaskThreadMetadataSchema.safeParse(JSON.parse(existingContent));
+
+        if (parseResult.success) {
+          const existingMetadata = parseResult.data;
+          const newTurnIndex = existingMetadata.turns.length;
+
+          const updatedMetadata: TaskThreadMetadata = {
+            ...existingMetadata,
+            status: "running",
+            updatedAt: now,
+            pid: process.pid,
+            turns: [
+              ...existingMetadata.turns,
+              {
+                index: newTurnIndex,
+                prompt,
+                startedAt: now,
+                completedAt: null,
+              },
+            ],
+          };
+
+          writeFileSync(threadMetadataPath, JSON.stringify(updatedMetadata, null, 2));
+
+          emitEvent("thread:updated", {
+            threadId,
+            taskId: task.id,
+            agent,
+            worktreePath,
+          });
+        } else {
+          emitLog("ERROR", `Invalid thread metadata during resume: ${parseResult.error.message}`);
+          throw new Error("Failed to resume: invalid thread metadata");
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("Failed to resume")) {
+          throw err;
+        }
+        emitLog("ERROR", `Failed to read thread metadata during resume: ${err}`);
+        throw new Error("Failed to resume: could not read thread metadata");
+      }
+    } else {
+      // New thread scenario: create thread from scratch
+      mkdirSync(threadPath, { recursive: true });
+
+      const threadMetadata: TaskThreadMetadata = {
+        id: threadId,
+        taskId: task.id,
+        agentType: agent ?? "research",
+        workingDirectory: worktreePath,
+        worktreePath, // Store explicit worktree path
+        status: "running",
+        createdAt: now,
+        updatedAt: now,
+        pid: process.pid,
+        isRead: true,
+        ...(initialCommitHash && task.branchName ? {
+          git: {
+            branch: task.branchName,
+            initialCommitHash,
+          },
+        } : {}),
+        turns: [
+          {
+            index: 0,
+            prompt,
+            startedAt: now,
+            completedAt: null,
+          },
+        ],
+      };
+
+      writeFileSync(threadMetadataPath, JSON.stringify(threadMetadata, null, 2));
+
       emitEvent("thread:created", {
-        threadId: config.threadId,
-        taskSlug,
-        agent: config.agent,
+        threadId,
+        taskId: task.id,
+        agent,
+        worktreePath,
       });
     }
 
-    // Store cleanup state
-    this.cleanupState = {
-      repoName,
-      threadId: config.threadId,
-      taskSlug,
-      threadFolderName,
+    // Update task to in-progress
+    const updatedTask: TaskMetadata = {
+      ...task,
+      status: "in-progress",
+      updatedAt: now,
     };
+    writeFileSync(taskMetadataPath, JSON.stringify(updatedTask, null, 2));
+    emitEvent("task:status:changed", { taskId: task.id, status: "in-progress" });
 
-    // Build and return orchestration context
-    const context: OrchestrationContext = {
-      workingDir,
-      task: taskMeta,
-      threadId: config.threadId,
-      branchName,
+    return {
+      workingDir: worktreePath,
+      task,
+      threadId,
+      branchName: task.branchName ?? undefined,
       mergeBase,
       threadPath,
-      cleanup: () => this.cleanup(context, "completed"),
     };
-
-    emitLog("INFO", `[TaskRunnerStrategy] Setup complete: cwd=${workingDir}, mergeBase=${mergeBase}`);
-
-    return context;
   }
 
   /**
    * Clean up resources on exit.
    *
-   * This includes:
-   * 1. Releasing the worktree (if allocated)
-   * 2. Updating thread status
-   * 3. Emitting lifecycle events
-   *
-   * Note: This is called on both successful completion and error/signal.
-   * Cleanup errors are logged but not thrown (best-effort cleanup).
-   *
-   * @param context - Context from setup
-   * @param status - Final status ("completed" | "error")
-   * @param error - Error message if status is "error"
+   * 1. Update thread metadata with final status
+   * 2. Emit thread:status:changed event
    */
   async cleanup(
     context: OrchestrationContext,
     status: "completed" | "error" | "cancelled",
     error?: string
   ): Promise<void> {
-    if (!this.cleanupState || !this.mortDir) {
-      logger.warn("[TaskRunnerStrategy] Cleanup called without setup state");
-      return;
-    }
+    const { threadPath, threadId, task } = context;
+    const now = Date.now();
 
-    const { repoName, threadId, taskSlug, threadFolderName } = this.cleanupState;
-
-    // Release worktree
     try {
-      const fs = new NodeFileSystemAdapter();
-      const git = new NodeGitAdapter();
-      const pathLock = new NodePathLock();
-      const loggerAdapter = createLoggerAdapter();
-      const settingsService = new RepositorySettingsService(this.mortDir, fs);
-      const mergeBaseService = new MergeBaseService(git);
-      const branchManager = new BranchManager(git, loggerAdapter);
-      const poolManager = new WorktreePoolManager(git, this.mortDir);
-      const allocationService = new WorktreeAllocationService(
-        this.mortDir,
-        settingsService,
-        mergeBaseService,
-        git,
-        pathLock,
-        branchManager,
-        poolManager,
-        loggerAdapter
-      );
+      // 1. Update thread metadata
+      const threadMetadataPath = join(threadPath, "metadata.json");
+      if (existsSync(threadMetadataPath)) {
+        const existingContent = readFileSync(threadMetadataPath, "utf-8");
+        const parseResult = TaskThreadMetadataSchema.safeParse(JSON.parse(existingContent));
 
-      allocationService.release(repoName, threadId);
-      events.worktreeReleased(threadId);
-      emitEvent("worktree:released", {
-        threadId,
-        worktreePath: context.workingDir,
-      });
+        if (parseResult.success) {
+          const turns = [...parseResult.data.turns];
+          if (turns.length > 0) {
+            turns[turns.length - 1] = {
+              ...turns[turns.length - 1],
+              completedAt: now,
+            };
+          }
 
-      logger.info("[TaskRunnerStrategy] Worktree released", {
-        threadId,
-        repoName,
-      });
-    } catch (err) {
-      logger.error("[TaskRunnerStrategy] Failed to release worktree", {
-        error: err instanceof Error ? err.message : String(err),
-        threadId,
-        repoName,
-      });
-      // Don't throw - cleanup should be best-effort
-    }
-
-    // Update thread status
-    try {
-      const fs = new NodeFileSystemAdapter();
-      const threadService = new ThreadService(this.mortDir, fs);
-
-      if (status === "completed") {
-        threadService.markCompleted(taskSlug, threadFolderName);
-      } else if (status === "cancelled") {
-        threadService.markCancelled(taskSlug, threadFolderName);
-      } else {
-        threadService.markError(taskSlug, threadFolderName);
+          const updated: TaskThreadMetadata = {
+            ...parseResult.data,
+            status: status === "completed" ? "completed" : status === "cancelled" ? "cancelled" : "error",
+            updatedAt: now,
+            pid: null,
+            turns,
+          };
+          writeFileSync(threadMetadataPath, JSON.stringify(updated, null, 2));
+        } else {
+          emitLog("ERROR", `Invalid thread metadata during cleanup: ${parseResult.error.message}`);
+        }
       }
 
-      events.threadStatusChanged(threadId, status);
-      emitEvent("thread:status:changed", { threadId, status });
-
-      logger.info("[TaskRunnerStrategy] Thread status updated", {
+      // 2. Emit thread:status:changed event
+      emitEvent("thread:status:changed", {
         threadId,
         status,
+        ...(error && { error }),
       });
+
+      // Note: We don't update task status here because:
+      // - A task can have multiple threads
+      // - Task status should be managed based on all thread states
+      // - The UI handles task status transitions based on business logic
+
     } catch (err) {
-      logger.error("[TaskRunnerStrategy] Failed to update thread status", {
-        error: err instanceof Error ? err.message : String(err),
-        threadId,
-        status,
-      });
-      // Don't throw - cleanup should be best-effort
-    }
-
-    // Log error if provided
-    if (error) {
-      emitLog("ERROR", `[TaskRunnerStrategy] Cleanup after error: ${error}`);
+      emitLog(
+        "ERROR",
+        `Failed during cleanup: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 }

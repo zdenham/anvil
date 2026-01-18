@@ -4,8 +4,6 @@
  */
 export {
   // Worktree types
-  WorktreeClaimSchema,
-  type WorktreeClaim,
   TaskBranchInfoSchema,
   type TaskBranchInfo,
   WorktreeStateSchema,

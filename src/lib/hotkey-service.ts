@@ -1,11 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
+import { logger } from "./logger-client";
 
 /**
  * Registers a global hotkey with Tauri (temporary, not saved)
  * @param hotkey - The hotkey string from HotkeyRecorder (e.g., "Command+Space")
  */
 export const registerGlobalHotkey = async (hotkey: string): Promise<void> => {
-  await invoke("register_hotkey", { hotkey });
+  logger.debug(`[hotkey-service] Registering hotkey: ${hotkey}`);
+  try {
+    await invoke("register_hotkey", { hotkey });
+    logger.debug("[hotkey-service] Hotkey registered successfully");
+  } catch (err) {
+    logger.error("[hotkey-service] Failed to register hotkey:", err);
+    throw err;
+  }
 };
 
 /**
@@ -13,7 +21,18 @@ export const registerGlobalHotkey = async (hotkey: string): Promise<void> => {
  * @param hotkey - The hotkey string to save and register
  */
 export const saveHotkey = async (hotkey: string): Promise<void> => {
-  await invoke("save_hotkey", { hotkey });
+  logger.info(`[hotkey-service] saveHotkey called`, {
+    hotkey,
+    hotkeyLength: hotkey.length,
+    hotkeyCharCodes: [...hotkey].map(c => c.charCodeAt(0)),
+  });
+  try {
+    await invoke("save_hotkey", { hotkey });
+    logger.info("[hotkey-service] saveHotkey completed successfully", { hotkey });
+  } catch (err) {
+    logger.error("[hotkey-service] saveHotkey failed:", { hotkey, error: err });
+    throw err;
+  }
 };
 
 /**
@@ -38,20 +57,6 @@ export const getSavedClipboardHotkey = async (): Promise<string> => {
   return invoke<string>("get_saved_clipboard_hotkey");
 };
 
-/**
- * Saves the task panel hotkey to backend config and registers it
- * @param hotkey - The hotkey string to save and register
- */
-export const saveTaskPanelHotkey = async (hotkey: string): Promise<void> => {
-  await invoke("save_task_panel_hotkey", { hotkey });
-};
-
-/**
- * Gets the saved task panel hotkey from backend config
- */
-export const getSavedTaskPanelHotkey = async (): Promise<string> => {
-  return invoke<string>("get_saved_task_panel_hotkey");
-};
 
 /**
  * Shows the spotlight window
@@ -137,33 +142,51 @@ export const showTasksPanel = async (): Promise<void> => {
 };
 
 /**
- * Saves the navigation down hotkey to backend config and registers it
+ * Saves the task navigation down hotkey to backend config and registers it
  * @param hotkey - The hotkey string to save and register (e.g., "Shift+Down", "Command+J")
  */
-export const saveNavigationDownHotkey = async (hotkey: string): Promise<void> => {
-  await invoke("save_navigation_down_hotkey", { hotkey });
+export const saveTaskNavigationDownHotkey = async (hotkey: string): Promise<void> => {
+  logger.debug(`[hotkey-service] Saving task navigation down hotkey: "${hotkey}"`);
+  try {
+    await invoke("save_task_navigation_down_hotkey", { hotkey });
+    logger.debug("[hotkey-service] Task navigation down hotkey saved successfully");
+  } catch (err) {
+    logger.error("[hotkey-service] Failed to save task navigation down hotkey:", err);
+    throw err;
+  }
 };
 
 /**
- * Gets the saved navigation down hotkey from backend config
+ * Gets the saved task navigation down hotkey from backend config
  */
-export const getSavedNavigationDownHotkey = async (): Promise<string> => {
-  return invoke<string>("get_saved_navigation_down_hotkey");
+export const getSavedTaskNavigationDownHotkey = async (): Promise<string> => {
+  const hotkey = await invoke<string>("get_saved_task_navigation_down_hotkey");
+  logger.debug(`[hotkey-service] Got saved task navigation down hotkey: "${hotkey}"`);
+  return hotkey;
 };
 
 /**
- * Saves the navigation up hotkey to backend config and registers it
+ * Saves the task navigation up hotkey to backend config and registers it
  * @param hotkey - The hotkey string to save and register (e.g., "Shift+Up", "Command+K")
  */
-export const saveNavigationUpHotkey = async (hotkey: string): Promise<void> => {
-  await invoke("save_navigation_up_hotkey", { hotkey });
+export const saveTaskNavigationUpHotkey = async (hotkey: string): Promise<void> => {
+  logger.debug(`[hotkey-service] Saving task navigation up hotkey: "${hotkey}"`);
+  try {
+    await invoke("save_task_navigation_up_hotkey", { hotkey });
+    logger.debug("[hotkey-service] Task navigation up hotkey saved successfully");
+  } catch (err) {
+    logger.error("[hotkey-service] Failed to save task navigation up hotkey:", err);
+    throw err;
+  }
 };
 
 /**
- * Gets the saved navigation up hotkey from backend config
+ * Gets the saved task navigation up hotkey from backend config
  */
-export const getSavedNavigationUpHotkey = async (): Promise<string> => {
-  return invoke<string>("get_saved_navigation_up_hotkey");
+export const getSavedTaskNavigationUpHotkey = async (): Promise<string> => {
+  const hotkey = await invoke<string>("get_saved_task_navigation_up_hotkey");
+  logger.debug(`[hotkey-service] Got saved task navigation up hotkey: "${hotkey}"`);
+  return hotkey;
 };
 
 

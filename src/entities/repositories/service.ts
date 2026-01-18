@@ -9,7 +9,6 @@ import {
   type RepositoryMetadata,
   type RepositoryVersion,
   type RepositorySettings,
-  type WorktreeState,
   type CreateRepositoryInput,
   type UpdateRepositoryInput,
 } from "./types";
@@ -200,15 +199,22 @@ export const repoService = {
 
     // Create directory and settings.json
     await persistence.ensureDir(repoDir);
+    const sourcePath = input.sourcePath ?? "";
     const settings: RepositorySettings = {
       schemaVersion: 1,
       name: input.name,
       originalUrl: input.originalUrl ?? null,
-      sourcePath: input.sourcePath ?? "",
+      sourcePath: sourcePath,
       useWorktrees: input.useWorktrees ?? false,
       defaultBranch: 'main',
       createdAt: now,
-      worktrees: [],
+      // Register source path as "main" worktree if provided
+      worktrees: sourcePath ? [{
+        path: sourcePath,
+        name: 'main',
+        lastAccessedAt: now,
+        currentBranch: null,
+      }] : [],
       taskBranches: {},
       lastUpdated: now,
     };
@@ -221,11 +227,10 @@ export const repoService = {
 
   /**
    * Creates a repository from a local folder.
-   * Uses git worktrees for git repos (fast), falls back to copying for non-git folders.
-   * Structure: repositories/{slug}/{slug}-1, {slug}-2, etc.
+   * Worktrees are created on demand, not upfront.
    * Writes settings.json with the full RepositorySettings schema.
    */
-  async createFromFolder(sourcePath: string, worktreeCount: number = 5): Promise<Repository> {
+  async createFromFolder(sourcePath: string): Promise<Repository> {
     logger.log(`[repo:createFromFolder] Starting creation from: ${sourcePath}`);
 
     if (!(await persistence.absolutePathExists(sourcePath))) {
@@ -252,39 +257,15 @@ export const repoService = {
       throw new Error(`Repository already exists: ${folderName}`);
     }
 
-    // Check if source is a git repo - use worktrees if so (much faster)
+    // Check if source is a git repo
     const isGitRepo = await persistence.isGitRepo(sourcePath);
     const now = Date.now();
 
-    // Create directory structure first
+    // Create directory structure
     await persistence.ensureDir(repoDir);
 
-    // Get the absolute path for the repo directory (needed for worktree paths)
-    const repoDirAbsolute = await persistence.getAbsolutePath(repoDir);
-
-    // Create worktrees and track them
-    const worktrees: WorktreeState[] = [];
-    for (let i = 1; i <= worktreeCount; i++) {
-      const worktreeName = `${slug}-${i}`;
-      const worktreeRelPath = `${repoDir}/${worktreeName}`;
-      const worktreeAbsPath = `${repoDirAbsolute}/${worktreeName}`;
-
-      if (isGitRepo) {
-        await persistence.gitWorktreeAdd(sourcePath, worktreeRelPath);
-      } else {
-        await persistence.copyDirectory(sourcePath, worktreeRelPath);
-      }
-
-      // Track worktree with absolute path
-      worktrees.push({
-        path: worktreeAbsPath,
-        version: i,
-        currentBranch: null,
-        claim: null,
-      });
-    }
-
     // Write settings.json with full RepositorySettings schema
+    // Register the source repo as the "main" worktree
     const settings: RepositorySettings = {
       schemaVersion: 1,
       name: folderName,
@@ -293,7 +274,12 @@ export const repoService = {
       useWorktrees: isGitRepo,
       defaultBranch: 'main',
       createdAt: now,
-      worktrees,
+      worktrees: [{
+        path: sourcePath,
+        name: 'main',
+        lastAccessedAt: now,
+        currentBranch: null,
+      }],
       taskBranches: {},
       lastUpdated: now,
     };

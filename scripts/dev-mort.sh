@@ -11,6 +11,9 @@ fi
 echo "Starting Mort with:"
 echo "  MORT_APP_SUFFIX=${MORT_APP_SUFFIX:-<production>}"
 echo "  MORT_VITE_PORT=${MORT_VITE_PORT:-1420}"
+if [ -n "$MORT_SKIP_MAIN_WINDOW" ]; then
+  echo "  MORT_SKIP_MAIN_WINDOW=1 (main window hidden on startup)"
+fi
 
 # Set TAURI_ARGS for non-production presets
 if [ "$PRESET" != "prod" ] && [ -n "$PRESET" ]; then

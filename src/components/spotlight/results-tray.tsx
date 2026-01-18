@@ -3,12 +3,19 @@ import { ResultItem } from "./result-item";
 import { AppIcon } from "./app-icon";
 import { CalculatorIcon } from "./calculator-icon";
 import { MortLogo } from "../ui/mort-logo";
+import type { WorktreeState } from "@core/types/repositories";
+
+interface WorktreeInfo {
+  availableWorktrees: WorktreeState[];
+  selectedWorktreeIndex: number;
+}
 
 interface ResultsTrayProps {
   results: SpotlightResult[];
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
   onActivate: (result: SpotlightResult) => void;
+  worktreeInfo?: WorktreeInfo;
 }
 
 const getResultKey = (result: SpotlightResult, index: number): string => {
@@ -31,7 +38,8 @@ const getResultKey = (result: SpotlightResult, index: number): string => {
 };
 
 const getResultDisplay = (
-  result: SpotlightResult
+  result: SpotlightResult,
+  worktreeInfo?: WorktreeInfo
 ): { icon: React.ReactNode | null; title: string; subtitle: string } => {
   if (result.type === "file") {
     return {
@@ -42,10 +50,10 @@ const getResultDisplay = (
   }
 
   if (result.type === "history") {
-    const draftIndicator = result.data.isDraft ? "📝 " : "";
+    const draftIndicator = result.data.isDraft ? "-- " : "";
     const timeAgo = new Date(result.data.timestamp).toLocaleString();
     return {
-      icon: <span className="text-2xl">{result.data.isDraft ? "📝" : "📋"}</span>,
+      icon: <span className="text-2xl">{result.data.isDraft ? "--" : "---"}</span>,
       title: `${draftIndicator}${result.data.prompt}`,
       subtitle: result.data.isDraft ? `Draft from ${timeAgo}` : `Submitted ${timeAgo}`,
     };
@@ -66,10 +74,24 @@ const getResultDisplay = (
   }
 
   if (result.type === "task") {
+    // Build subtitle based on worktree state
+    let subtitle = "Ask Mort to help with this";
+    if (worktreeInfo) {
+      const { availableWorktrees, selectedWorktreeIndex } = worktreeInfo;
+      const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
+      if (selectedWorktree) {
+        // Show worktree name with navigation hint if multiple worktrees exist
+        subtitle = availableWorktrees.length > 1
+          ? `Worktree: ${selectedWorktree.name} (use arrow keys to change)`
+          : `Worktree: ${selectedWorktree.name}`;
+      } else if (availableWorktrees.length === 0) {
+        subtitle = "No worktrees available - create one in Worktrees tab";
+      }
+    }
     return {
       icon: <div className="w-10 h-10 flex items-center justify-center"><MortLogo size={7} /></div>,
       title: "Create task",
-      subtitle: "Ask Mort to help with this",
+      subtitle,
     };
   }
 
@@ -118,6 +140,7 @@ export const ResultsTray = ({
   selectedIndex,
   onSelectIndex,
   onActivate,
+  worktreeInfo,
 }: ResultsTrayProps) => {
   if (results.length === 0) {
     return null;
@@ -126,7 +149,9 @@ export const ResultsTray = ({
   return (
     <div data-testid="spotlight-results" className="rounded-b-xl bg-surface-900/80 backdrop-blur-xl overflow-hidden">
       {results.map((result, index) => {
-        const { icon, title, subtitle } = getResultDisplay(result);
+        // Only pass worktreeInfo to task results
+        const displayWorktreeInfo = result.type === "task" ? worktreeInfo : undefined;
+        const { icon, title, subtitle } = getResultDisplay(result, displayWorktreeInfo);
         return (
           <ResultItem
             key={getResultKey(result, index)}

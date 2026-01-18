@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Prevent DMG from auto-opening in Finder after build
+export CI=true
+
 PRESET=${1:-prod}
 
 # Source preset if it exists

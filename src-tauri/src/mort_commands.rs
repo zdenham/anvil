@@ -284,86 +284,6 @@ pub fn clear_all_locks() {
     }
 }
 
-/// Clear all worktree claims on startup.
-/// This releases worktrees from threads that were running when the app was last closed.
-pub fn clear_all_worktree_claims() {
-    let repos_dir = paths::repositories_dir();
-    if !repos_dir.exists() {
-        return;
-    }
-
-    let entries = match fs::read_dir(&repos_dir) {
-        Ok(e) => e,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to read repositories directory");
-            return;
-        }
-    };
-
-    let mut cleared = 0;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-
-        let settings_path = path.join("settings.json");
-        if !settings_path.exists() {
-            continue;
-        }
-
-        // Read settings
-        let content = match fs::read_to_string(&settings_path) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!(path = %settings_path.display(), error = %e, "Failed to read settings");
-                continue;
-            }
-        };
-
-        let mut settings: serde_json::Value = match serde_json::from_str(&content) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!(path = %settings_path.display(), error = %e, "Failed to parse settings");
-                continue;
-            }
-        };
-
-        // Clear claims from all worktrees
-        let mut modified = false;
-        if let Some(worktrees) = settings.get_mut("worktrees").and_then(|w| w.as_array_mut()) {
-            for worktree in worktrees.iter_mut() {
-                if let Some(obj) = worktree.as_object_mut() {
-                    if obj.get("claim").map(|c| !c.is_null()).unwrap_or(false) {
-                        obj.insert("claim".to_string(), serde_json::Value::Null);
-                        modified = true;
-                        cleared += 1;
-                    }
-                }
-            }
-        }
-
-        // Write back if modified
-        if modified {
-            settings["lastUpdated"] = serde_json::json!(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64
-            );
-
-            if let Ok(json) = serde_json::to_string_pretty(&settings) {
-                if let Err(e) = fs::write(&settings_path, json) {
-                    tracing::warn!(path = %settings_path.display(), error = %e, "Failed to write settings");
-                }
-            }
-        }
-    }
-
-    if cleared > 0 {
-        tracing::info!(count = cleared, "Cleared stale worktree claims on startup");
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Thread Commands
@@ -437,7 +357,6 @@ pub fn get_paths_info() -> paths::PathsInfo {
 pub struct HotkeyDefaults {
     pub spotlight: String,
     pub clipboard: String,
-    pub task_panel: String,
     pub app_suffix: String,
     pub is_alternate_build: bool,
 }
@@ -448,7 +367,6 @@ pub fn get_default_hotkeys() -> HotkeyDefaults {
     HotkeyDefaults {
         spotlight: build_info::DEFAULT_SPOTLIGHT_HOTKEY.to_string(),
         clipboard: build_info::DEFAULT_CLIPBOARD_HOTKEY.to_string(),
-        task_panel: build_info::DEFAULT_TASK_PANEL_HOTKEY.to_string(),
         app_suffix: build_info::APP_SUFFIX.to_string(),
         is_alternate_build: build_info::is_alternate_build(),
     }

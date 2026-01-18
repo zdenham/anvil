@@ -1,44 +1,44 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from "fs";
+import { execFileSync } from "child_process";
 import { join } from "path";
 import { z } from "zod";
 import type { RunnerStrategy, RunnerConfig, OrchestrationContext } from "./types.js";
 import type { AgentMode } from "@core/types/agent-mode.js";
 import { emitEvent, emitLog } from "./shared.js";
 import {
-  ThreadTurnSchema,
   ThreadMetadataBaseSchema,
-  ThreadMetadataSchema,
-  type ThreadMetadata,
 } from "@core/types/threads.js";
 import { TaskMetadataSchema } from "@core/types/tasks.js";
 
 /**
- * Zod schema for simple task metadata.
- * Location: {mortDir}/tasks/{taskId}/metadata.json
- *
- * Simple tasks use the same storage structure as regular tasks but with minimal metadata.
- * This is intentionally different from the regular TaskMetadataSchema since simple tasks
- * have a simplified structure without branches, subtasks, etc.
+ * Get the current HEAD commit hash.
+ * Returns undefined if not in a git repo or git command fails.
  */
-const SimpleTaskMetadataSchema = z.object({
-  /** Unique task identifier (UUID) */
-  id: z.string(),
-  /** Task type - always "simple" for simple tasks */
-  type: z.literal("simple"),
-  /** Display title (derived from prompt) */
-  title: z.string(),
-  /** Task status */
-  status: z.enum(["in-progress", "done", "cancelled"]),
-  /** Working directory the agent runs in */
-  cwd: z.string(),
-  /** Unix timestamp when task was created */
-  createdAt: z.number(),
-  /** Unix timestamp of last status update */
-  updatedAt: z.number(),
-});
+function getHeadCommit(cwd: string): string | undefined {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
 
-/** Type derived from schema - single source of truth */
-type SimpleTaskMetadata = z.infer<typeof SimpleTaskMetadataSchema>;
+/**
+ * Get the current git branch name.
+ * Returns undefined if not in a git repo or git command fails.
+ */
+function getCurrentBranch(cwd: string): string | undefined {
+  try {
+    return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd,
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Schema for simple thread metadata with stricter typing.
@@ -46,7 +46,6 @@ type SimpleTaskMetadata = z.infer<typeof SimpleTaskMetadataSchema>;
  * and narrowing agentType to "simple".
  */
 const SimpleThreadMetadataSchema = ThreadMetadataBaseSchema.omit({
-  git: true,
   ttlMs: true,
   agentType: true,
 }).extend({
@@ -290,6 +289,10 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
       }
 
       // 5. Write thread metadata with turns array (matches frontend schema)
+      // Capture git info for diff generation if in a git repo
+      const initialCommitHash = getHeadCommit(cwd);
+      const branch = getCurrentBranch(cwd);
+
       const threadMetadata: SimpleThreadMetadata = {
         id: threadId,
         taskId,
@@ -300,6 +303,13 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         updatedAt: now,
         pid: process.pid, // Write our own PID for cross-window cancellation
         isRead: true,
+        // Capture git info for diff generation (if in a git repo)
+        ...(initialCommitHash && branch ? {
+          git: {
+            branch,
+            initialCommitHash,
+          },
+        } : {}),
         turns: [
           {
             index: 0,

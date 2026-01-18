@@ -20,8 +20,13 @@ import { logger } from "../lib/logger.js";
  *
  * Single responsibility: Route SDK messages to appropriate state updates.
  * Does NOT handle side effects (hooks handle those).
+ *
+ * NOTE: File change tracking is handled in the PostToolUse hook in shared.ts,
+ * NOT here. The hook fires before/instead of SDK user messages being emitted
+ * to the async iterator, so we can't reliably track file changes here.
  */
 export class MessageHandler {
+
   /**
    * Process a single SDK message.
    * Returns true if processing should continue.
@@ -78,7 +83,9 @@ export class MessageHandler {
   }
 
   private async handleUser(msg: SDKUserMessage): Promise<boolean> {
-    // Tool result message - existing behavior
+    // Tool result message
+    // NOTE: File change tracking is handled in PostToolUse hook (shared.ts),
+    // not here, because hooks fire before/instead of these user messages.
     if (msg.parent_tool_use_id) {
       const toolUseId = msg.parent_tool_use_id;
       const result = this.extractToolResult(msg);
@@ -90,6 +97,7 @@ export class MessageHandler {
       );
 
       await markToolComplete(toolUseId, result, isError);
+
       return true;
     }
 

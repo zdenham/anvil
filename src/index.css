@@ -176,8 +176,17 @@ textarea {
 /* Panel container shadows (for transparent window backgrounds) */
 .task-panel-container,
 .tasks-list-container,
-.error-container,
-.simple-task-container {
+.error-container {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Simple task panel - styled similar to spotlight */
+.simple-task-container {
+  background: var(--spotlight-bg);
+  border: 1px solid var(--spotlight-border);
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  cursor: default;
+  user-select: none;
 }
 

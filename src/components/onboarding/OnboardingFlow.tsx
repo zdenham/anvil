@@ -3,6 +3,7 @@ import { Button } from "../reusable/Button";
 import { saveHotkey } from "../../lib/hotkey-service";
 import { repoService } from "../../entities/repositories";
 import { bootstrapMortDirectory } from "../../lib/mort-bootstrap";
+import { logger } from "../../lib/logger-client";
 import { WelcomeStep } from "./steps/WelcomeStep";
 import { HotkeyStep } from "./steps/HotkeyStep";
 import { SpotlightStep } from "./steps/SpotlightStep";
@@ -93,14 +94,28 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
             setError(null);
             (async () => {
               try {
+                logger.debug("[OnboardingFlow] Starting setup completion via Enter key");
+                logger.debug(`[OnboardingFlow] Saving hotkey: ${hotkey}`);
                 await saveHotkey(hotkey);
+                logger.debug("[OnboardingFlow] Hotkey saved successfully");
                 // Create the repository with worktrees before marking onboarding complete
                 // Skip if using an existing repository (already set up)
                 if (selectedRepository && !existingRepoName) {
+                  logger.debug(`[OnboardingFlow] Creating repository from folder: ${selectedRepository}`);
                   await repoService.createFromFolder(selectedRepository);
+                  logger.debug("[OnboardingFlow] Repository created successfully");
+                } else {
+                  logger.debug(`[OnboardingFlow] Skipping repo creation (existing: ${existingRepoName})`);
                 }
+                logger.debug("[OnboardingFlow] Calling onComplete");
                 onComplete();
               } catch (err) {
+                logger.error("[OnboardingFlow] Failed to complete setup:", err);
+                if (err instanceof Error) {
+                  logger.error("[OnboardingFlow] Error name:", err.name);
+                  logger.error("[OnboardingFlow] Error message:", err.message);
+                  logger.error("[OnboardingFlow] Error stack:", err.stack);
+                }
                 setError(
                   err instanceof Error ? err.message : "Failed to complete setup"
                 );
@@ -153,14 +168,28 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     setError(null);
 
     try {
+      logger.debug("[OnboardingFlow] Starting setup completion via handleNext");
+      logger.debug(`[OnboardingFlow] Saving hotkey: ${hotkey}`);
       await saveHotkey(hotkey);
+      logger.debug("[OnboardingFlow] Hotkey saved successfully");
       // Create the repository with worktrees before marking onboarding complete
       // Skip if using an existing repository (already set up)
       if (selectedRepository && !existingRepoName) {
+        logger.debug(`[OnboardingFlow] Creating repository from folder: ${selectedRepository}`);
         await repoService.createFromFolder(selectedRepository);
+        logger.debug("[OnboardingFlow] Repository created successfully");
+      } else {
+        logger.debug(`[OnboardingFlow] Skipping repo creation (existing: ${existingRepoName})`);
       }
+      logger.debug("[OnboardingFlow] Calling onComplete");
       onComplete();
     } catch (err) {
+      logger.error("[OnboardingFlow] Failed to complete setup:", err);
+      if (err instanceof Error) {
+        logger.error("[OnboardingFlow] Error name:", err.name);
+        logger.error("[OnboardingFlow] Error message:", err.message);
+        logger.error("[OnboardingFlow] Error stack:", err.stack);
+      }
       setError(
         err instanceof Error ? err.message : "Failed to complete setup"
       );

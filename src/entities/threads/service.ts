@@ -201,6 +201,8 @@ export const threadService = {
       updatedAt: now,
       git: input.git,
       isRead: true, // New threads start as read
+      // Store worktreePath if provided (for explicit worktree management)
+      ...(input.worktreePath && { worktreePath: input.worktreePath }),
       turns: [
         {
           index: 0,

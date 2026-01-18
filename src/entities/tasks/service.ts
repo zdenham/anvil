@@ -19,6 +19,8 @@ import { ThreadMetadataSchema, parseThreadFolderName, type ThreadMetadata } from
 interface CreateDraftInput {
   prompt: string;
   repositoryName: string;
+  /** Explicit worktree path (for full-flow tasks with worktree management) */
+  worktreePath?: string;
 }
 
 const TASKS_DIR = "tasks";
@@ -354,6 +356,8 @@ export const taskService = {
       sortOrder: now,
       repositoryName: input.repositoryName,
       pendingReviews: [],
+      // Store worktreePath if provided (for explicit worktree management)
+      ...(input.worktreePath && { worktreePath: input.worktreePath }),
     };
 
     logger.debug(`[taskService.createDraft] Generated task metadata:`, {

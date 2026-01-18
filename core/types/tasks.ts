@@ -124,6 +124,8 @@ export const TaskMetadataSchema = z.object({
   prUrl: z.string().optional(),
   /** Working directory for simple tasks */
   cwd: z.string().optional(),
+  /** Path to the worktree this task is using (for explicit worktree management) */
+  worktreePath: z.string().optional(),
 }).transform((data) => ({
   ...data,
   slug: data.slug ?? data.id,                            // Default slug to id for simple tasks
@@ -196,6 +198,8 @@ export interface UpdateTaskInput {
   reviewApproved?: boolean;
   /** Pull request URL when a PR has been created for this task */
   prUrl?: string;
+  /** Path to the worktree this task is using (for explicit worktree management) */
+  worktreePath?: string;
 }
 
 /**

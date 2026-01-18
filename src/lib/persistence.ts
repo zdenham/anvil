@@ -52,7 +52,14 @@ class Persistence {
    */
   async writeJson<T>(path: string, data: T): Promise<void> {
     const fullPath = await this.resolvePath(path);
-    await this.fs.writeJsonFile(fullPath, data);
+    logger.debug(`[persistence.writeJson] path=${path}, fullPath=${fullPath}`);
+    try {
+      await this.fs.writeJsonFile(fullPath, data);
+      logger.debug(`[persistence.writeJson] Successfully wrote to ${fullPath}`);
+    } catch (err) {
+      logger.error(`[persistence.writeJson] Failed to write to ${fullPath}:`, err);
+      throw err;
+    }
   }
 
   /**
@@ -126,7 +133,14 @@ class Persistence {
    */
   async ensureDir(path: string): Promise<void> {
     const fullPath = await this.resolvePath(path);
-    await this.fs.mkdir(fullPath);
+    logger.debug(`[persistence.ensureDir] path=${path}, fullPath=${fullPath}`);
+    try {
+      await this.fs.mkdir(fullPath);
+      logger.debug(`[persistence.ensureDir] Successfully ensured ${fullPath}`);
+    } catch (err) {
+      logger.error(`[persistence.ensureDir] Failed to ensure ${fullPath}:`, err);
+      throw err;
+    }
   }
 
   /**
@@ -134,7 +148,9 @@ class Persistence {
    */
   async exists(path: string): Promise<boolean> {
     const fullPath = await this.resolvePath(path);
-    return this.fs.exists(fullPath);
+    const result = await this.fs.exists(fullPath);
+    logger.debug(`[persistence.exists] path=${path}, fullPath=${fullPath}, exists=${result}`);
+    return result;
   }
 
   /**
@@ -238,14 +254,30 @@ class Persistence {
    * Checks if an absolute path is a git repository.
    */
   async isGitRepo(absolutePath: string): Promise<boolean> {
-    return this.fs.isGitRepo(absolutePath);
+    logger.debug(`[persistence.isGitRepo] Checking: ${absolutePath}`);
+    try {
+      const result = await this.fs.isGitRepo(absolutePath);
+      logger.debug(`[persistence.isGitRepo] ${absolutePath} isGitRepo=${result}`);
+      return result;
+    } catch (err) {
+      logger.error(`[persistence.isGitRepo] Failed to check ${absolutePath}:`, err);
+      throw err;
+    }
   }
 
   /**
    * Checks if an absolute path exists.
    */
   async absolutePathExists(absolutePath: string): Promise<boolean> {
-    return this.fs.exists(absolutePath);
+    logger.debug(`[persistence.absolutePathExists] Checking: ${absolutePath}`);
+    try {
+      const result = await this.fs.exists(absolutePath);
+      logger.debug(`[persistence.absolutePathExists] ${absolutePath} exists=${result}`);
+      return result;
+    } catch (err) {
+      logger.error(`[persistence.absolutePathExists] Failed to check ${absolutePath}:`, err);
+      throw err;
+    }
   }
 
   /**
@@ -312,8 +344,16 @@ export async function saveSettings(
   repoName: string,
   settings: RepositorySettings
 ): Promise<void> {
+  logger.debug(`[saveSettings] Saving settings for repo: ${repoName}`);
   const settingsPath = `${REPOS_DIR}/${repoName}/${SETTINGS_FILE}`;
-  await persistence.writeJson(settingsPath, settings);
+  logger.debug(`[saveSettings] Settings path: ${settingsPath}`);
+  try {
+    await persistence.writeJson(settingsPath, settings);
+    logger.debug(`[saveSettings] Successfully saved settings for ${repoName}`);
+  } catch (err) {
+    logger.error(`[saveSettings] Failed to save settings for ${repoName}:`, err);
+    throw err;
+  }
 }
 
 /**
@@ -375,9 +415,8 @@ async function discoverExistingWorktrees(repoName: string): Promise<import("@/en
     if (match) {
       worktrees.push({
         path: entry.path,
-        version: parseInt(match[1], 10),
+        name: entry.name,
         currentBranch: null,
-        claim: null,
       });
     }
 
@@ -386,14 +425,13 @@ async function discoverExistingWorktrees(repoName: string): Promise<import("@/en
     if (slugMatch && !match) {
       worktrees.push({
         path: entry.path,
-        version: parseInt(slugMatch[1], 10),
+        name: entry.name,
         currentBranch: null,
-        claim: null,
       });
     }
   }
 
-  // Sort by version number
-  worktrees.sort((a, b) => a.version - b.version);
+  // Sort by name
+  worktrees.sort((a, b) => a.name.localeCompare(b.name));
   return worktrees;
 }
