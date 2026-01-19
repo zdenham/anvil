@@ -4,13 +4,6 @@ import { logger } from "@/lib/logger-client";
 
 class WorktreeServiceClient {
   /**
-   * List all worktrees for a repository, sorted by most recently accessed.
-   */
-  async list(repoName: string): Promise<WorktreeState[]> {
-    return invoke("worktree_list", { repoName });
-  }
-
-  /**
    * Create a new named worktree.
    */
   async create(repoName: string, name: string): Promise<WorktreeState> {

@@ -304,6 +304,21 @@ pub async fn git_remove_worktree(repo_path: String, worktree_path: String) -> Re
     Ok(())
 }
 
+/// Prune stale worktree entries (worktrees whose directories no longer exist)
+pub async fn git_prune_worktrees(repo_path: String) -> Result<(), String> {
+    let output = shell::command("git")
+        .args(["worktree", "prune"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+
+    Ok(())
+}
+
 /// List all worktrees
 #[tauri::command]
 pub async fn git_list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, String> {

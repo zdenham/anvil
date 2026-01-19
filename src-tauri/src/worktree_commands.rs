@@ -13,22 +13,6 @@ pub struct WorktreeState {
     pub current_branch: Option<String>,
 }
 
-/// List worktrees from settings, sorted by lastAccessedAt (most recent first).
-#[tauri::command]
-pub async fn worktree_list(repo_name: String) -> Result<Vec<WorktreeState>, String> {
-    let settings = load_settings(&repo_name)?;
-    let mut worktrees: Vec<WorktreeState> = settings
-        .get("worktrees")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
-    worktrees.sort_by(|a, b| {
-        b.last_accessed_at
-            .unwrap_or(0)
-            .cmp(&a.last_accessed_at.unwrap_or(0))
-    });
-    Ok(worktrees)
-}
-
 /// Create a new named worktree.
 #[tauri::command]
 pub async fn worktree_create(repo_name: String, name: String) -> Result<WorktreeState, String> {
@@ -214,6 +198,9 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
         .and_then(|v| v.as_str())
         .ok_or("Repository has no sourcePath")?
         .to_string();
+
+    // Prune stale worktree entries from git (directories that no longer exist)
+    git_commands::git_prune_worktrees(source_path.clone()).await?;
 
     // Get worktrees from git
     let git_worktrees = git_commands::git_list_worktrees(source_path.clone()).await?;

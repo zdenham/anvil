@@ -844,8 +844,8 @@ export const Spotlight = () => {
       });
   }, []);
 
-  // Load worktrees from cache, optionally syncing from git first
-  const loadWorktrees = useCallback(async (syncFirst = false) => {
+  // Load worktrees by syncing from git (removes stale entries, discovers new ones)
+  const loadWorktrees = useCallback(async () => {
     const controller = controllerRef.current;
     const repo = controller.getDefaultRepository();
     if (!repo) {
@@ -854,11 +854,8 @@ export const Spotlight = () => {
     }
 
     try {
-      logger.info(`[Spotlight] Loading worktrees for ${repo.name} (sync=${syncFirst})`);
-      // If syncing, refresh worktrees from git before loading
-      const worktrees = syncFirst
-        ? await worktreeService.sync(repo.name)
-        : await worktreeService.list(repo.name);
+      logger.info(`[Spotlight] Syncing worktrees for ${repo.name}`);
+      const worktrees = await worktreeService.sync(repo.name);
       logger.info(`[Spotlight] Loaded ${worktrees.length} worktrees:`, worktrees.map(w => w.name));
       setState((prev) => ({
         ...prev,
@@ -877,7 +874,7 @@ export const Spotlight = () => {
 
   // Load available worktrees when spotlight mounts
   useEffect(() => {
-    loadWorktrees(false);
+    loadWorktrees();
   }, [loadWorktrees]);
 
   // Keyboard navigation
@@ -1059,7 +1056,7 @@ export const Spotlight = () => {
       inputRef.current?.focus();
       // Asynchronously refresh worktrees from git when spotlight opens
       // This runs in the background so it doesn't block the UI
-      loadWorktrees(true);
+      loadWorktrees();
     };
 
     eventBus.on("spotlight-shown", handleSpotlightShown);

@@ -873,7 +873,6 @@ pub fn run() {
             thread_commands::get_thread_status,
             thread_commands::get_thread,
             // Worktree commands
-            worktree_commands::worktree_list,
             worktree_commands::worktree_create,
             worktree_commands::worktree_delete,
             worktree_commands::worktree_rename,
@@ -987,7 +986,10 @@ pub fn run() {
             let onboarded = config::is_onboarded();
 
             // Check if we should skip showing the main window (useful for dev to prevent focus stealing on rebuild)
-            let skip_main_window = std::env::var("MORT_SKIP_MAIN_WINDOW").is_ok();
+            // Skip if MORT_SKIP_MAIN_WINDOW is set to a non-empty value (allows override with MORT_SKIP_MAIN_WINDOW= pnpm dev)
+            let skip_main_window = std::env::var("MORT_SKIP_MAIN_WINDOW")
+                .map(|v| !v.is_empty())
+                .unwrap_or(false);
 
             // Enable macOS fullscreen button (green traffic light) for the main window
             if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {

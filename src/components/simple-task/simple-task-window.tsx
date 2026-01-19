@@ -99,6 +99,9 @@ function SimpleTaskWindowContent({
   // View toggle state: "thread" (default) or "changes"
   const [activeView, setActiveView] = useState<SimpleTaskView>("thread");
 
+  // Toast state for "coming soon" messages
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   // Determine if changes view is available (requires git info, but not necessarily file changes)
   // ChangesTab handles empty state with appropriate message
   const hasChanges = useMemo(() => {
@@ -201,25 +204,25 @@ function SimpleTaskWindowContent({
     return [];
   }, [activeState?.messages, prompt]);
 
+  // Show toast with auto-dismiss
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 2000);
+  }, []);
+
   const handleSubmit = async (userPrompt: string) => {
     if (!workingDirectory) {
       logger.error("[SimpleTaskWindow] Cannot submit: no working directory");
       return;
     }
 
+    // Message queueing temporarily disabled
     if (canQueueMessages) {
-      // Agent is running - queue the message
-      // Store handles state update (single source of truth)
-      try {
-        await sendQueuedMessage(threadId, userPrompt);
-      } catch (err) {
-        // Process may have exited between status check and send (race condition)
-        // Fall back to resuming the agent with the message
-        logger.warn("[SimpleTaskWindow] Failed to queue message, falling back to resume", err);
-        await resumeSimpleAgent(taskId, threadId, userPrompt, workingDirectory, agentMode);
-      }
-    } else if (canResumeAgent) {
-      // Agent is idle - resume normally
+      showToast("Message queueing coming soon");
+      return;
+    }
+
+    if (canResumeAgent) {
       await resumeSimpleAgent(taskId, threadId, userPrompt, workingDirectory, agentMode);
     } else {
       // Paused or other state - shouldn't happen with current logic
@@ -578,7 +581,8 @@ function SimpleTaskWindowContent({
               onToolResponse={handleToolResponse}
             />
           </div>
-          <QueuedMessagesBanner messages={queuedMessages} />
+          {/* Queued messages banner disabled - queueing is temporarily disabled */}
+          {/* <QueuedMessagesBanner messages={queuedMessages} /> */}
           <SuggestedActionsPanel
             ref={quickActionsPanelRef}
             threadId={threadId}
@@ -594,7 +598,7 @@ function SimpleTaskWindowContent({
             onSubmit={handleSubmit}
             disabled={false}
             workingDirectory={workingDirectory}
-            placeholder={canQueueMessages ? "Queue a message..." : undefined}
+            placeholder={undefined} // Queueing disabled for now
             onNavigateToQuickActions={handleNavigateToQuickActions}
           />
         </>
@@ -613,6 +617,13 @@ function SimpleTaskWindowContent({
 
       {/* Navigation banner overlays at bottom */}
       <NavigationBanner />
+
+      {/* Toast for temporary messages - positioned above quick actions panel */}
+      {toastMessage && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg shadow-lg border border-amber-500 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          {toastMessage}
+        </div>
+      )}
 
       {/* Visual resize indicator - native resize handle is in this corner */}
       <div
