@@ -7,15 +7,14 @@ import {
   resumeSimpleAgent,
   submitToolResult,
   sendQueuedMessage,
-  confirmQueuedMessage,
-  clearPendingQueuedMessages,
 } from "@/lib/agent-service";
+import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
 import { SimpleTaskHeader, type SimpleTaskView } from "./simple-task-header";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
 import { QueuedMessagesBanner } from "./queued-messages-banner";
-import { SuggestedActionsPanel } from "./suggested-actions-panel";
+import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggested-actions-panel";
 import { ChangesTab } from "./changes-tab";
 import { logger } from "@/lib/logger-client";
 import { useAgentModeStore } from "@/entities/agent-mode";
@@ -27,14 +26,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
-import { eventBus } from "@/entities/events";
-import { EventName } from "@core/types/events.js";
-
-interface QueuedMessage {
-  id: string;
-  content: string;
-  timestamp: number;
-}
 
 /** Map entity ThreadStatus to ThreadView's expected status type */
 type ViewStatus = "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
@@ -70,7 +61,10 @@ function SimpleTaskWindowContent({
 }: SimpleTaskWindowContentProps) {
   const activeState = useThreadStore((s) => s.threadStates[threadId]);
   const activeMetadata = useThreadStore((s) => s.threads[threadId]);
-  const agentMode = useAgentModeStore((s) => s.getMode(threadId));
+  // Select the mode value directly to avoid unstable selector return values
+  const threadModes = useAgentModeStore((s) => s.threadModes);
+  const defaultMode = useAgentModeStore((s) => s.defaultMode);
+  const agentMode = threadModes[threadId] ?? defaultMode;
 
   // Handle marking thread as read when viewed or completed
   useMarkThreadAsRead(threadId, {
@@ -96,12 +90,11 @@ function SimpleTaskWindowContent({
     navigateDown,
   } = useQuickActionsStore();
 
-  // Queued messages state
-  const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
-  const queuedMessagesRef = useRef(queuedMessages);
-  queuedMessagesRef.current = queuedMessages;
+  // Queued messages from store (single source of truth)
+  const queuedMessages = useQueuedMessagesForThread(threadId);
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
+  const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
 
   // View toggle state: "thread" (default) or "changes"
   const [activeView, setActiveView] = useState<SimpleTaskView>("thread");
@@ -152,9 +145,27 @@ function SimpleTaskWindowContent({
     });
   }, [threadId]);
 
-  const toolStates = activeState?.toolStates ?? {};
+  const toolStates = useMemo(() => activeState?.toolStates ?? {}, [activeState?.toolStates]);
   const entityStatus = activeMetadata?.status ?? "idle";
   const workingDirectory = activeMetadata?.workingDirectory ?? "";
+
+  // DEBUG: Log tool states to diagnose spinner bug
+  // Note: We select the threadStates object, then derive keys outside to avoid
+  // creating new arrays inside the selector (which causes infinite re-renders)
+  const storeThreadStates = useThreadStore((s) => s.threadStates);
+  const storeThreadStatesKeys = Object.keys(storeThreadStates);
+  logger.info(`[SimpleTaskWindow] Tool states debug`, {
+    threadId,
+    hasActiveState: !!activeState,
+    hasToolStates: !!activeState?.toolStates,
+    toolStatesKeys: Object.keys(toolStates),
+    toolStatesCount: Object.keys(toolStates).length,
+    toolStatesSnapshot: JSON.stringify(toolStates).slice(0, 500),
+    // DEBUG: Check what threadIds have state in the store
+    storeHasAnyStates: storeThreadStatesKeys.length > 0,
+    storeThreadStatesKeys: storeThreadStatesKeys,
+    currentThreadInStore: storeThreadStatesKeys.includes(threadId),
+  });
 
   // Derive status to handle optimistic state
   // If we have optimistic messages but no real state, treat as "running"
@@ -198,16 +209,14 @@ function SimpleTaskWindowContent({
 
     if (canQueueMessages) {
       // Agent is running - queue the message
+      // Store handles state update (single source of truth)
       try {
-        const messageId = await sendQueuedMessage(threadId, userPrompt);
-        setQueuedMessages(prev => [...prev, {
-          id: messageId,
-          content: userPrompt,
-          timestamp: Date.now(),
-        }]);
+        await sendQueuedMessage(threadId, userPrompt);
       } catch (err) {
-        logger.error("[SimpleTaskWindow] Failed to queue message", err);
-        // TODO: Show error toast
+        // Process may have exited between status check and send (race condition)
+        // Fall back to resuming the agent with the message
+        logger.warn("[SimpleTaskWindow] Failed to queue message, falling back to resume", err);
+        await resumeSimpleAgent(taskId, threadId, userPrompt, workingDirectory, agentMode);
       }
     } else if (canResumeAgent) {
       // Agent is idle - resume normally
@@ -218,34 +227,36 @@ function SimpleTaskWindowContent({
     }
   };
 
-  // Remove queued messages when agent acknowledges receipt
-  // Uses event-based confirmation instead of content-based matching
+  // NOTE: QUEUED_MESSAGE_ACK handling is now done in agent-service.ts
+  // which updates the Zustand store directly. No local state or event
+  // listener needed here - the store is the single source of truth.
+
+  // Pin panel when resized - panel stays pinned until explicitly hidden
+  // This allows users to position the panel and have it stay visible on blur
   useEffect(() => {
-    const handler = (payload: { threadId: string; messageId: string }) => {
-      // Only handle events for this thread
-      if (payload.threadId !== threadId) return;
+    const currentWindow = getCurrentWindow();
+    let hasPinned = false;
 
-      logger.debug(`[SimpleTaskWindow] Received QUEUED_MESSAGE_ACK for messageId: ${payload.messageId}`);
-
-      // Confirm in agent-service (clears from pending map)
-      confirmQueuedMessage(payload.messageId);
-
-      // Remove from local queued messages state
-      setQueuedMessages(prev => prev.filter(qm => qm.id !== payload.messageId));
+    const handleResize = async () => {
+      // Only need to pin once - panel stays pinned until hidden
+      if (!hasPinned) {
+        try {
+          await invoke("pin_simple_task_panel");
+          hasPinned = true;
+          logger.debug("[SimpleTaskWindow] Panel pinned due to resize (will stay pinned until closed)");
+        } catch (err) {
+          logger.error("[SimpleTaskWindow] Failed to pin panel for resize:", err);
+        }
+      }
     };
 
-    eventBus.on(EventName.QUEUED_MESSAGE_ACK, handler);
+    // Listen to Tauri window resize events
+    const unlisten = currentWindow.onResized(handleResize);
+
     return () => {
-      eventBus.off(EventName.QUEUED_MESSAGE_ACK, handler);
+      unlisten.then((unlistenFn) => unlistenFn());
     };
-  }, [threadId]);
-
-  // Clear pending queued messages on unmount
-  useEffect(() => {
-    return () => {
-      clearPendingQueuedMessages(threadId);
-    };
-  }, [threadId]);
+  }, []);
 
   // Auto-scroll to bottom when simple task panel opens with messages
   useEffect(() => {
@@ -264,6 +275,97 @@ function SimpleTaskWindowContent({
   useEffect(() => {
     resetState();
   }, [taskId, resetState]);
+
+  // Focus restoration after task navigation
+  // This ensures keyboard navigation works after archive/nextTask actions
+  useEffect(() => {
+    const initialFocus = document.hasFocus();
+    logger.info(`[SimpleTaskWindow] Focus restoration effect triggered`, {
+      taskId,
+      documentHasFocus: initialFocus,
+      activeElement: document.activeElement?.tagName,
+      activeElementId: document.activeElement?.id,
+    });
+
+    // Track focus changes during the restoration window to diagnose focus theft
+    let focusLostAt: number | null = null;
+    const handleBlur = () => {
+      focusLostAt = Date.now();
+      logger.warn(`[SimpleTaskWindow] Window BLUR detected during focus restoration window`, {
+        taskId,
+        timestamp: focusLostAt,
+        documentHasFocus: document.hasFocus(),
+      });
+    };
+    const handleFocus = () => {
+      logger.info(`[SimpleTaskWindow] Window FOCUS detected during focus restoration window`, {
+        taskId,
+        timestamp: Date.now(),
+        focusLostAt,
+        documentHasFocus: document.hasFocus(),
+      });
+    };
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+
+    // Short delay to ensure DOM is ready after task change
+    const timer = setTimeout(async () => {
+      // Log state before attempting focus
+      logger.info(`[SimpleTaskWindow] Attempting focus restoration`, {
+        taskId,
+        documentHasFocus: document.hasFocus(),
+        focusLostDuringWait: focusLostAt !== null,
+        focusLostAt,
+        inputRefExists: !!inputRef.current,
+        quickActionsPanelRefExists: !!quickActionsPanelRef.current,
+        activeElementBefore: document.activeElement?.tagName,
+      });
+
+      // First, ensure the native window has focus via Tauri command
+      // This is necessary because something may steal window focus during the async gap
+      try {
+        await invoke("focus_simple_task_panel");
+        logger.debug(`[SimpleTaskWindow] Native panel focus restored via invoke`);
+      } catch (e) {
+        logger.warn(`[SimpleTaskWindow] Failed to invoke focus_simple_task_panel`, { error: e });
+      }
+
+      // Focus the quick actions panel to enable keyboard navigation
+      // We prefer the quick actions panel over input so arrow keys work immediately
+      if (quickActionsPanelRef.current) {
+        quickActionsPanelRef.current.focus();
+      } else {
+        // Fallback to input if panel ref not available
+        inputRef.current?.focus();
+      }
+
+      // Log whether focus was successful
+      const activeEl = document.activeElement;
+      const focusedQuickActions = activeEl?.closest('[data-quick-actions-panel]') !== null;
+      const focusedInput = activeEl?.closest('[data-thread-input]') !== null ||
+                          activeEl?.tagName === 'TEXTAREA';
+
+      logger.info(`[SimpleTaskWindow] Focus restoration completed`, {
+        taskId,
+        documentHasFocus: document.hasFocus(),
+        activeElementAfter: document.activeElement?.tagName,
+        activeElementId: document.activeElement?.id,
+        focusedQuickActions,
+        focusedInput,
+        focusSucceeded: focusedQuickActions || focusedInput,
+      });
+
+      // Clean up listeners after restoration completes
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [taskId]);
 
   // Reset selectedIndex when streaming state changes (actions array changes)
   useEffect(() => {
@@ -406,7 +508,17 @@ function SimpleTaskWindowContent({
     inputRef.current?.focus();
   }, []);
 
-  const handleWindowDrag = useCallback((e: React.MouseEvent) => {
+  // Handle focus transfer from ThreadInput to quick actions panel
+  const handleNavigateToQuickActions = useCallback(() => {
+    logger.debug(`[SimpleTaskWindow] handleNavigateToQuickActions called`);
+    // Focus the quick actions panel so keyboard nav works
+    // The document-level keydown listener will handle arrow keys
+    if (quickActionsPanelRef.current) {
+      quickActionsPanelRef.current.focus();
+    }
+  }, []);
+
+  const handleWindowDrag = useCallback(async (e: React.MouseEvent) => {
     // Only drag on primary (left) mouse button
     if (e.button !== 0) return;
 
@@ -414,6 +526,15 @@ function SimpleTaskWindowContent({
     const target = e.target as HTMLElement;
     const interactiveSelector = 'button, input, textarea, a, [role="button"], [contenteditable="true"]';
     if (target.closest(interactiveSelector)) return;
+
+    // Pin the panel - it stays pinned until explicitly hidden
+    // This allows users to position the panel and have it stay visible on blur
+    try {
+      await invoke("pin_simple_task_panel");
+      logger.debug("[SimpleTaskWindow] Panel pinned due to drag (will stay pinned until closed)");
+    } catch (err) {
+      logger.error("[SimpleTaskWindow] Failed to pin panel for drag:", err);
+    }
 
     // Start window drag via Tauri API
     getCurrentWindow().startDragging().catch((err) => {
@@ -459,6 +580,7 @@ function SimpleTaskWindowContent({
           </div>
           <QueuedMessagesBanner messages={queuedMessages} />
           <SuggestedActionsPanel
+            ref={quickActionsPanelRef}
             threadId={threadId}
             onAction={handleSuggestedAction}
             onAutoSelectInput={handleAutoSelectInput}
@@ -473,6 +595,7 @@ function SimpleTaskWindowContent({
             disabled={false}
             workingDirectory={workingDirectory}
             placeholder={canQueueMessages ? "Queue a message..." : undefined}
+            onNavigateToQuickActions={handleNavigateToQuickActions}
           />
         </>
       ) : (

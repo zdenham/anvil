@@ -9,6 +9,12 @@ vi.mock("../lib/logger.js", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
+  stdout: vi.fn(),
+}));
+
+// Mock output module
+vi.mock("../output.js", () => ({
+  appendUserMessage: vi.fn(),
 }));
 
 describe("StdinMessageStream", () => {
@@ -154,5 +160,116 @@ describe("createStdinMessageStream", () => {
     // Stream should complete
     const result = await nextPromise;
     expect(result.done).toBe(true);
+  });
+});
+
+describe("StdinMessageStream uuid handling", () => {
+  it("initial prompt has isSynthetic: true and no uuid", async () => {
+    const stream = new StdinMessageStream();
+    const generator = stream.createStream("Hello, agent!");
+
+    const first = await generator.next();
+    expect(first.done).toBe(false);
+    expect(first.value.isSynthetic).toBe(true);
+    // Initial prompt should not have a uuid (it's not a queued message)
+    expect(first.value.uuid).toBeUndefined();
+
+    // Clean up
+    stream.close();
+  });
+
+  it("formatUserMessage sets uuid field when queuedMessageId is provided", () => {
+    const stream = new StdinMessageStream();
+    const testUuid = "550e8400-e29b-41d4-a716-446655440000";
+
+    // Access formatUserMessage via type assertion since it's private
+    const formatted = (stream as unknown as {
+      formatUserMessage: (content: string, isSynthetic: boolean, queuedMessageId?: string) => {
+        uuid?: string;
+        isSynthetic: boolean;
+        message: { content: string };
+      };
+    }).formatUserMessage(
+      "Test content",
+      false,
+      testUuid
+    );
+
+    expect(formatted.uuid).toBe(testUuid);
+    expect(formatted.isSynthetic).toBe(false);
+    expect(formatted.message.content).toBe("Test content");
+
+    stream.close();
+  });
+
+  it("formatUserMessage leaves uuid undefined when queuedMessageId is not provided", () => {
+    const stream = new StdinMessageStream();
+
+    const formatted = (stream as unknown as {
+      formatUserMessage: (content: string, isSynthetic: boolean, queuedMessageId?: string) => {
+        uuid?: string;
+        isSynthetic: boolean;
+        message: { content: string };
+      };
+    }).formatUserMessage(
+      "Content",
+      true
+      // no queuedMessageId
+    );
+
+    expect(formatted.uuid).toBeUndefined();
+    expect(formatted.isSynthetic).toBe(true);
+
+    stream.close();
+  });
+
+  it("formatUserMessage sets isSynthetic correctly for non-queued messages", () => {
+    const stream = new StdinMessageStream();
+
+    // Synthetic (initial prompt)
+    const synthetic = (stream as unknown as {
+      formatUserMessage: (content: string, isSynthetic: boolean, queuedMessageId?: string) => {
+        uuid?: string;
+        isSynthetic: boolean;
+      };
+    }).formatUserMessage("Initial", true);
+    expect(synthetic.isSynthetic).toBe(true);
+
+    // Non-synthetic (queued message)
+    const nonSynthetic = (stream as unknown as {
+      formatUserMessage: (content: string, isSynthetic: boolean, queuedMessageId?: string) => {
+        uuid?: string;
+        isSynthetic: boolean;
+      };
+    }).formatUserMessage("Follow-up", false, "test-uuid");
+    expect(nonSynthetic.isSynthetic).toBe(false);
+
+    stream.close();
+  });
+
+  it("formatted message includes all required SDKUserMessage fields", () => {
+    const stream = new StdinMessageStream();
+    stream.setSessionId("test-session-123");
+
+    const formatted = (stream as unknown as {
+      formatUserMessage: (content: string, isSynthetic: boolean, queuedMessageId?: string) => {
+        type: string;
+        message: { role: string; content: string };
+        parent_tool_use_id: null;
+        session_id: string;
+        isSynthetic: boolean;
+        uuid?: string;
+      };
+    }).formatUserMessage("Test", false, "my-uuid");
+
+    expect(formatted.type).toBe("user");
+    expect(formatted.message.role).toBe("user");
+    expect(formatted.message.content).toBe("Test");
+    expect(formatted.parent_tool_use_id).toBeNull();
+    expect(formatted.session_id).toBe("test-session-123");
+    expect(formatted.isSynthetic).toBe(false);
+    expect(formatted.uuid).toBe("my-uuid");
+
+    stream.close();
   });
 });

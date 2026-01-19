@@ -9,19 +9,21 @@ interface ThreadInputProps {
   disabled?: boolean;
   workingDirectory?: string;
   placeholder?: string;
+  onNavigateToQuickActions?: () => void; // Callback for safe focus transfer to quick actions
 }
 
 export interface ThreadInputRef {
   focus: () => void;
 }
 
-export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
+export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function ThreadInput({
   threadId,
   onSubmit,
   disabled,
   workingDirectory,
   placeholder,
-}: ThreadInputProps, ref) => {
+  onNavigateToQuickActions,
+}: ThreadInputProps, ref) {
   const [value, setValue] = useState("");
   const [triggerState, setTriggerState] = useState<TriggerStateInfo | null>(null);
   const inputRef = useRef<TriggerSearchInputRef>(null);
@@ -80,8 +82,15 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
         // - ArrowDown on last line (navigate to quick actions below)
         // Otherwise, stop propagation so arrow keys work normally in textarea
         if (isEmpty) {
-          // Blur the input so quick actions can take over keyboard navigation
-          textarea.blur();
+          // Transfer focus to quick actions panel safely
+          // If callback provided, use it; otherwise fall back to blur
+          if (onNavigateToQuickActions) {
+            e.preventDefault();
+            e.stopPropagation();
+            onNavigateToQuickActions();
+          } else {
+            textarea.blur();
+          }
           return;
         }
 
@@ -89,8 +98,14 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
         const onLastLine = isCursorOnLastLine(textarea);
 
         if (e.key === "ArrowUp" && onFirstLine) {
-          // Blur the input so quick actions can take over keyboard navigation
-          textarea.blur();
+          // Transfer focus to quick actions panel safely
+          if (onNavigateToQuickActions) {
+            e.preventDefault();
+            e.stopPropagation();
+            onNavigateToQuickActions();
+          } else {
+            textarea.blur();
+          }
           return;
         }
 
@@ -117,7 +132,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
       // Note: Arrow keys, Tab, plain Enter are handled by TriggerSearchInput
       // when trigger is active and dropdown is enabled
     },
-    [handleSubmit, triggerState?.isActive, handleModeKeyDown, value, isCursorOnFirstLine, isCursorOnLastLine]
+    [handleSubmit, triggerState?.isActive, handleModeKeyDown, value, isCursorOnFirstLine, isCursorOnLastLine, onNavigateToQuickActions]
   );
 
   const handleTriggerStateChange = useCallback((state: TriggerStateInfo) => {
@@ -137,7 +152,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(({
   };
 
   return (
-    <div className="flex gap-2 px-4 py-3 bg-surface-800 border-t border-surface-700">
+    <div className="flex gap-2 px-4 py-3 bg-surface-800 border-t border-surface-700" data-thread-input>
       <div className="flex-1 min-w-0">
         <TriggerSearchInput
           ref={inputRef}

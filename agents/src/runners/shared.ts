@@ -14,6 +14,7 @@ import {
   relayEventsFromToolOutput,
   updateFileChange,
 } from "../output.js";
+import type { ToolExecutionState } from "@core/types/events.js";
 import { MessageHandler } from "./message-handler.js";
 import type { ThreadWriter } from "../services/thread-writer.js";
 import {
@@ -151,13 +152,15 @@ export interface AgentLoopOptions {
 
 /**
  * Prior state loaded from a previous run.
- * Contains both messages (for UI history) and sessionId (for SDK resume).
+ * Contains messages (for UI history), sessionId (for SDK resume), and toolStates (for UI rendering).
  */
 export interface PriorState {
   /** Prior conversation messages - kept for UI display */
   messages: MessageParam[];
   /** SDK session ID from previous run - used for resume */
   sessionId?: string;
+  /** Prior tool states - preserved so resumed conversations show completed tools correctly */
+  toolStates?: Record<string, ToolExecutionState>;
 }
 
 /**
@@ -177,19 +180,22 @@ export async function runAgentLoop(
   priorState: PriorState = { messages: [] },
   options: AgentLoopOptions = {}
 ): Promise<void> {
-  const { messages: priorMessages, sessionId: priorSessionId } = priorState;
+  const { messages: priorMessages, sessionId: priorSessionId, toolStates: priorToolStates } = priorState;
 
   // Log prior state for debugging
   logger.info(`[runAgentLoop] Starting with ${priorMessages.length} prior messages`);
   if (priorSessionId) {
     logger.info(`[runAgentLoop] Resuming SDK session: ${priorSessionId}`);
   }
+  if (priorToolStates) {
+    logger.info(`[runAgentLoop] Preserving ${Object.keys(priorToolStates).length} prior tool states`);
+  }
   if (priorMessages.length > 0) {
     logger.info(`[runAgentLoop] Prior message roles: ${priorMessages.map(m => m.role).join(", ")}`);
   }
 
-  // Initialize state with prior messages (for UI) and sessionId (for resume)
-  await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId);
+  // Initialize state with prior messages (for UI), sessionId (for resume), and toolStates (for UI rendering)
+  await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId, priorToolStates);
   await appendUserMessage(config.prompt);
 
   // Build system prompt

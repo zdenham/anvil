@@ -2,7 +2,8 @@ import * as readline from "readline";
 import { randomUUID, type UUID } from "crypto";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { parseStdinMessage, type StdinMessage } from "./stdin-message-schema.js";
-import { logger } from "../lib/logger.js";
+import { logger, stdout } from "../lib/logger.js";
+import { appendUserMessage } from "../output.js";
 
 const MAX_QUEUE_SIZE = 50;
 
@@ -59,6 +60,20 @@ export class StdinMessageStream {
         const msg = await this.waitForMessage();
         if (msg === null) break;
         logger.info(`[StdinMessageStream] Processing queued message: ${msg.id}`);
+
+        // Emit ack event BEFORE yielding to SDK
+        // The SDK doesn't emit user messages back through the iterator,
+        // so we emit the ack here when we receive the message from stdin.
+        stdout({
+          type: "event",
+          name: "queued-message:ack",
+          payload: { messageId: msg.id },
+        });
+        logger.info(`[StdinMessageStream] Emitted ack for message: ${msg.id}`);
+
+        // Append to state immediately (SDK won't emit this message back)
+        await appendUserMessage(msg.content);
+
         // Queued messages are non-synthetic so MessageHandler will append them
         // Pass msg.id as uuid for acknowledgement tracking
         yield this.formatUserMessage(msg.content, false, msg.id);

@@ -466,6 +466,18 @@ fn focus_simple_task_panel(app: AppHandle) -> Result<(), String> {
     panels::focus_simple_task_panel(&app)
 }
 
+/// Pins the simple task panel (prevents hide on blur during drag/resize)
+#[tauri::command]
+fn pin_simple_task_panel() {
+    panels::pin_simple_task_panel()
+}
+
+/// Unpins the simple task panel (allows hide on blur)
+#[tauri::command]
+fn unpin_simple_task_panel() {
+    panels::unpin_simple_task_panel()
+}
+
 /// Checks if a specific panel is visible
 #[tauri::command]
 fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
@@ -710,6 +722,14 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Log window events with throttling for noisy ones
             match event {
+                tauri::WindowEvent::Focused(focused) => {
+                    // Log focus changes to diagnose focus theft issues
+                    tracing::info!(
+                        window = %window.label(),
+                        focused = %focused,
+                        "[WindowFocus] Window focus changed"
+                    );
+                }
                 tauri::WindowEvent::Resized(size) => {
                     throttle_debug!("window_resized", 500,
                         window = %window.label(),
@@ -761,6 +781,8 @@ pub fn run() {
             hide_task,
             hide_simple_task,
             focus_simple_task_panel,
+            pin_simple_task_panel,
+            unpin_simple_task_panel,
             is_panel_visible,
             get_pending_task,
             clear_pending_task,

@@ -37,13 +37,15 @@ let threadWriter: ThreadWriter | null = null;
  * @param priorMessages - Prior conversation messages (for UI history display)
  * @param writer - Optional ThreadWriter for resilient writes
  * @param priorSessionId - SDK session ID from previous run (for resuming)
+ * @param priorToolStates - Prior tool states (for UI rendering of completed tools from previous turns)
  */
 export async function initState(
   threadPath: string,
   workingDirectory: string,
   priorMessages: MessageParam[] = [],
   writer?: ThreadWriter,
-  priorSessionId?: string
+  priorSessionId?: string,
+  priorToolStates?: Record<string, ToolExecutionState>
 ): Promise<void> {
   statePath = join(threadPath, "state.json");
   threadWriter = writer ?? null;
@@ -53,7 +55,7 @@ export async function initState(
     workingDirectory,
     status: "running",
     timestamp: Date.now(),
-    toolStates: {},
+    toolStates: priorToolStates ?? {},
     sessionId: priorSessionId,
   };
   await emitState();

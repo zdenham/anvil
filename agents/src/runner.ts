@@ -59,6 +59,14 @@ function loadPriorState(historyFile: string | undefined): PriorState {
       logger.info("[runner] No prior sessionId found (will start new SDK session)");
     }
 
+    // Load toolStates for UI rendering (so prior tool calls show as complete, not spinning)
+    if (state.toolStates && typeof state.toolStates === "object") {
+      result.toolStates = state.toolStates;
+      logger.info(`[runner] Loaded ${Object.keys(state.toolStates).length} prior tool states from history`);
+    } else {
+      logger.info("[runner] No prior toolStates found");
+    }
+
     return result;
   } catch (err) {
     logger.warn(`[runner] Failed to load history file: ${err}`);

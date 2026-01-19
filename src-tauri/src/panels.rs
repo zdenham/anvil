@@ -380,7 +380,7 @@ pub fn create_clipboard_panel(app: &AppHandle) -> Result<(), Box<dyn std::error:
 
 /// Shows the spotlight panel on the screen containing the mouse cursor
 pub fn show_spotlight(app: &AppHandle) -> Result<(), String> {
-    tracing::debug!("[Spotlight] show_spotlight: called");
+    tracing::info!("[PanelFocus] show_spotlight: SHOWING spotlight panel");
     if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
         // Reposition panel to the screen where the cursor is
         let (x, y) = calculate_panel_position_cocoa(app, SPOTLIGHT_WIDTH);
@@ -388,6 +388,7 @@ pub fn show_spotlight(app: &AppHandle) -> Result<(), String> {
             .as_panel()
             .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
         panel.show_and_make_key();
+        tracing::info!("[PanelFocus] show_spotlight: spotlight panel now KEY");
 
         // Emit spotlight-shown event globally (emit_to doesn't work for NSPanels)
         tracing::debug!("[Spotlight] show_spotlight: emitting spotlight-shown event");
@@ -878,6 +879,39 @@ pub struct PendingSimpleTask {
 /// Global storage for pending simple task
 static PENDING_SIMPLE_TASK: OnceLock<Mutex<Option<PendingSimpleTask>>> = OnceLock::new();
 
+/// Global storage for simple task panel pinned state
+/// When pinned, the panel won't hide on blur (used during drag/resize)
+static SIMPLE_TASK_PINNED: OnceLock<Mutex<bool>> = OnceLock::new();
+
+fn get_simple_task_pinned_mutex() -> &'static Mutex<bool> {
+    SIMPLE_TASK_PINNED.get_or_init(|| Mutex::new(false))
+}
+
+/// Pin the simple task panel (prevents hide on blur)
+pub fn pin_simple_task_panel() {
+    if let Ok(mut guard) = get_simple_task_pinned_mutex().lock() {
+        tracing::info!("[SimpleTaskPanel] Pinning panel (preventing hide on blur)");
+        *guard = true;
+    }
+}
+
+/// Unpin the simple task panel (allows hide on blur)
+pub fn unpin_simple_task_panel() {
+    if let Ok(mut guard) = get_simple_task_pinned_mutex().lock() {
+        tracing::info!("[SimpleTaskPanel] Unpinning panel (allowing hide on blur)");
+        *guard = false;
+    }
+}
+
+/// Check if simple task panel is pinned
+pub fn is_simple_task_pinned() -> bool {
+    if let Ok(guard) = get_simple_task_pinned_mutex().lock() {
+        *guard
+    } else {
+        false
+    }
+}
+
 fn get_pending_simple_task_mutex() -> &'static Mutex<Option<PendingSimpleTask>> {
     PENDING_SIMPLE_TASK.get_or_init(|| Mutex::new(None))
 }
@@ -957,6 +991,9 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
                 .visible(false)
                 .transparent(true)
                 .title("simple-task")
+                // Allow first click on unfocused panel to pass through to webview
+                // This enables dragging without needing to focus the panel first
+                .accept_first_mouse(true)
         })
         .build()?;
 
@@ -964,11 +1001,33 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
     panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
 
     // Enable native dragging by clicking anywhere on the window background
+    // Note: This may not work with WebViews since they consume mouse events,
+    // but we keep it as a backup. The primary drag mechanism is startDragging() in React.
     panel.as_panel().setMovableByWindowBackground(true);
 
-    // Note: Unlike other panels, simple-task does NOT auto-hide on blur.
-    // Users explicitly close it via Escape key or X button.
-    // This allows clicking outside the panel without losing the task view.
+    // Set up event handler to hide panel when it loses focus (blur)
+    // BUT only if not pinned (pinned state is set during drag/resize operations)
+    let event_handler = SimpleTaskEventHandler::new();
+    event_handler.window_did_resign_key(|_notification| {
+        // Check if panel is pinned (during drag/resize)
+        if is_simple_task_pinned() {
+            tracing::info!("[SimpleTaskPanel] Blur ignored - panel is pinned (drag/resize in progress)");
+            return;
+        }
+
+        if let Some(app) = APP_HANDLE.get() {
+            if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
+                tracing::info!("[SimpleTaskPanel] Hiding panel on blur (not pinned)");
+                panel.hide();
+            }
+
+            // Clear pending simple task when panel is hidden
+            clear_pending_simple_task();
+            // Emit event so frontend can reset state
+            let _ = app.emit_to(SIMPLE_TASK_LABEL, "panel-hidden", ());
+        }
+    });
+    panel.set_event_handler(Some(event_handler.as_ref()));
 
     // Ensure panel starts hidden
     panel.hide();
@@ -1018,14 +1077,12 @@ pub fn show_simple_task(
             tracing::info!("[SimpleTaskPanel] Event emitted");
 
             // Show the panel and ensure it's focused
-            tracing::info!("[SimpleTaskPanel] Calling show_and_make_key...");
+            // Note: show_and_make_key() already calls makeKeyAndOrderFront internally,
+            // so we don't need a redundant call. Calling it twice causes focus flickering
+            // and can trigger spurious blur events during task navigation.
+            tracing::info!("[PanelFocus] show_simple_task: SHOWING simple-task panel");
             panel.show_and_make_key();
-
-            // Force focus even if panel was already visible
-            // This is crucial for navigation between tasks where the same panel instance is reused
-            tracing::info!("[SimpleTaskPanel] Ensuring panel is key window...");
-            panel.as_panel().makeKeyAndOrderFront(None);
-            tracing::info!("[SimpleTaskPanel] Panel focused successfully");
+            tracing::info!("[PanelFocus] show_simple_task: simple-task panel now KEY");
 
             Ok(())
         }
@@ -1040,6 +1097,8 @@ pub fn show_simple_task(
 pub fn hide_simple_task(app: &AppHandle) -> Result<(), String> {
     if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
         panel.hide();
+        // Clear pinned state when panel is explicitly hidden
+        unpin_simple_task_panel();
         // Clear pending simple task when panel is hidden
         clear_pending_simple_task();
         // Emit event so frontend can reset state
@@ -1052,8 +1111,11 @@ pub fn hide_simple_task(app: &AppHandle) -> Result<(), String> {
 pub fn focus_simple_task_panel(app: &AppHandle) -> Result<(), String> {
     if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
         if panel.is_visible() {
-            tracing::debug!("[SimpleTaskPanel] Force focusing panel via makeKeyAndOrderFront");
+            tracing::info!("[PanelFocus] focus_simple_task_panel: RE-FOCUSING simple-task panel");
             panel.as_panel().makeKeyAndOrderFront(None);
+            tracing::info!("[PanelFocus] focus_simple_task_panel: simple-task panel now KEY");
+        } else {
+            tracing::debug!("[PanelFocus] focus_simple_task_panel: panel not visible, skipping");
         }
     }
     Ok(())
@@ -1127,7 +1189,7 @@ pub fn create_tasks_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
 
 /// Shows the tasks list panel
 pub fn show_tasks_list(app: &AppHandle) -> Result<(), String> {
-    tracing::info!("[TasksListPanel] show_tasks_list called");
+    tracing::info!("[PanelFocus] show_tasks_list: SHOWING tasks-list panel");
 
     match app.get_webview_panel(TASKS_LIST_LABEL) {
         Ok(panel) => {
@@ -1137,7 +1199,7 @@ pub fn show_tasks_list(app: &AppHandle) -> Result<(), String> {
                 .as_panel()
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
             panel.show_and_make_key();
-            tracing::info!("[TasksListPanel] Panel shown");
+            tracing::info!("[PanelFocus] show_tasks_list: tasks-list panel now KEY");
 
             // Emit panel-shown event so frontend can refresh data
             let _ = app.emit_to(TASKS_LIST_LABEL, "panel-shown", ());

@@ -619,6 +619,10 @@ export const threadService = {
         messageCount: result.data.messages.length,
         fileChangeCount: result.data.fileChanges?.length ?? 0,
         status: result.data.status,
+        // DEBUG: Log tool states being loaded
+        hasToolStates: !!result.data.toolStates,
+        toolStatesKeys: result.data.toolStates ? Object.keys(result.data.toolStates) : [],
+        toolStatesCount: result.data.toolStates ? Object.keys(result.data.toolStates).length : 0,
       });
       store.setThreadState(threadId, result.data);
 

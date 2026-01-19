@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useSimpleTaskNavigation } from "./use-simple-task-navigation";
 import { useNavigationBannerStore } from "@/stores/navigation-banner-store";
+import { isPanelVisible, switchSimpleTaskClientSide, openSimpleTask } from "@/lib/hotkey-service";
 
 // Helper to get action-specific completion messages
 function getCompletionMessage(actionType: 'archive' | 'markUnread' | 'quickAction'): string {
@@ -46,9 +47,17 @@ export function useNavigateToNextTask(currentTaskId: string) {
     const result = await getNextUnreadTaskId(currentTaskId);
 
     if (result.taskId && result.threadId) {
-      // Import openSimpleTask dynamically to avoid circular imports
-      const { openSimpleTask } = await import("@/lib/hotkey-service");
-      await openSimpleTask(result.threadId, result.taskId);
+      // Check if simple-task panel is already visible
+      // If so, use client-side navigation to avoid IPC round-trips and focus flickering
+      const isSimpleTaskVisible = await isPanelVisible("simple-task");
+
+      if (isSimpleTaskVisible) {
+        // Client-side switch - no IPC needed, avoids blur events during navigation
+        switchSimpleTaskClientSide(result.threadId, result.taskId);
+      } else {
+        // Panel not visible - need to show it via Tauri
+        await openSimpleTask(result.threadId, result.taskId);
+      }
 
       // Show success banner with completion confirmation
       const completionMessage = getCompletionMessage(actionType);

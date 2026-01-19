@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Send } from "lucide-react";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 
@@ -12,15 +12,25 @@ interface SuggestedActionsPanelProps {
   onQuickAction?: (action: ActionType) => void; // Callback for quick actions (keyboard navigation)
 }
 
-export function SuggestedActionsPanel({
+export interface SuggestedActionsPanelRef {
+  focus: () => void;
+}
+
+export const SuggestedActionsPanel = forwardRef<SuggestedActionsPanelRef, SuggestedActionsPanelProps>(function SuggestedActionsPanel({
   onAction,
   disabled = false,
   onAutoSelectInput,
   isStreaming = false,
   onSubmitFollowUp,
   onQuickAction,
-}: SuggestedActionsPanelProps) {
+}, ref) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const followUpInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Expose focus method to parent via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => panelRef.current?.focus(),
+  }), []);
 
   // Get state from the store
   const {
@@ -68,7 +78,15 @@ export function SuggestedActionsPanel({
   };
 
   return (
-    <div className="px-4 py-3 bg-surface-800 border-t border-surface-700">
+    <div
+      ref={panelRef}
+      className="px-4 py-3 bg-surface-800 border-t border-surface-700 outline-none"
+      tabIndex={-1}
+      role="listbox"
+      aria-label="Quick actions"
+      aria-activedescendant={`action-${selectedIndex}`}
+      data-quick-actions-panel
+    >
       <div className="mb-2">
         <h3 className="font-bold text-sm text-surface-200">Quick Actions</h3>
       </div>
@@ -151,4 +169,4 @@ export function SuggestedActionsPanel({
       </div>
     </div>
   );
-}
+});

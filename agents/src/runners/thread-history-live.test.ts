@@ -52,7 +52,14 @@ vi.mock("../output.js", () => {
   };
 
   return {
-    initState: vi.fn(async (threadPath: string, workingDirectory: string, priorMessages: MessageParam[] = []) => {
+    initState: vi.fn(async (
+      threadPath: string,
+      workingDirectory: string,
+      priorMessages: MessageParam[] = [],
+      _writer?: unknown,
+      _priorSessionId?: string,
+      priorToolStates?: Record<string, unknown>
+    ) => {
       statePath = join(threadPath, "state.json");
       actualStatePath = statePath;
       state = {
@@ -61,7 +68,7 @@ vi.mock("../output.js", () => {
         workingDirectory,
         status: "running",
         timestamp: Date.now(),
-        toolStates: {},
+        toolStates: priorToolStates ?? {},
       };
       mockCalls.initState.push({ threadPath, workingDirectory, priorMessages });
       writeFileSync(statePath, JSON.stringify(state, null, 2));

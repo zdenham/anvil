@@ -189,4 +189,32 @@ export const getSavedTaskNavigationUpHotkey = async (): Promise<string> => {
   return hotkey;
 };
 
+/**
+ * Checks if a specific panel is currently visible
+ * @param panelLabel - The label of the panel to check (e.g., "simple-task", "tasks-list")
+ */
+export const isPanelVisible = async (panelLabel: string): Promise<boolean> => {
+  return invoke<boolean>("is_panel_visible", { panelLabel });
+};
+
+/**
+ * Switches to a different task within an already-visible simple-task panel.
+ * This is a client-side only operation that avoids Tauri IPC round-trips.
+ * It directly emits to the eventBus, which useSimpleTaskParams listens to.
+ *
+ * Use this when the simple-task panel is already visible and you just want
+ * to switch to a different task without the focus flickering that comes
+ * from going through Rust's show_simple_task.
+ */
+export const switchSimpleTaskClientSide = (
+  threadId: string,
+  taskId: string,
+  prompt?: string,
+): void => {
+  // Import eventBus dynamically to avoid circular dependencies
+  import("@/entities").then(({ eventBus }) => {
+    logger.debug(`[hotkey-service] Client-side task switch to: ${taskId}`);
+    eventBus.emit("open-simple-task", { threadId, taskId, prompt });
+  });
+};
 

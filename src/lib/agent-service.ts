@@ -16,6 +16,7 @@ import type { ThreadState } from "@/lib/types/agent-messages";
 import type { TaskMetadata } from "@/entities/tasks/types";
 import type { WorkflowMode } from "@/entities/settings/types";
 import { useSettingsStore } from "@/entities/settings/store";
+import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
 
 // MergeContext type - mirrors agents/src/agent-types/merge-types.ts
 // Defined locally until exported from @mort/agents
@@ -44,7 +45,6 @@ let cachedShellPath: string | null = null;
 interface ProcessMaps {
   activeSimpleProcesses: Map<string, Child>;
   agentProcesses: Map<string, Child>;
-  pendingQueuedMessages: Map<string, { threadId: string; content: string; timestamp: number }>;
 }
 
 declare global {
@@ -58,7 +58,6 @@ function getProcessMaps(): ProcessMaps {
     window.__agentServiceProcessMaps = {
       activeSimpleProcesses: new Map(),
       agentProcesses: new Map(),
-      pendingQueuedMessages: new Map(),
     };
     logger.info("[agent-service] Initialized process maps on window");
   }
@@ -70,9 +69,6 @@ const activeSimpleProcesses = getProcessMaps().activeSimpleProcesses;
 
 // Track all agent processes by threadId for stdin communication (e.g., permission responses)
 const agentProcesses = getProcessMaps().agentProcesses;
-
-// Track queued message IDs for confirmation matching
-const pendingQueuedMessages = getProcessMaps().pendingQueuedMessages;
 
 /**
  * Gets the shell PATH captured from the user's login shell.
@@ -161,9 +157,13 @@ function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
     case EventName.QUEUED_MESSAGE_ACK:
       // Agent only sends messageId; we need to add threadId from context
       if (threadId) {
+        const messageId = (payload as { messageId: string }).messageId;
+        // Confirm in store (single source of truth)
+        useQueuedMessagesStore.getState().confirmMessage(messageId);
+        // Still emit event for any other listeners
         eventBus.emit(EventName.QUEUED_MESSAGE_ACK, {
           threadId,
-          messageId: (payload as { messageId: string }).messageId,
+          messageId,
         });
       } else {
         logger.warn(`[handleAgentEvent] QUEUED_MESSAGE_ACK received without threadId context`);
@@ -1126,45 +1126,17 @@ export async function sendQueuedMessage(
     timestamp,
   }) + '\n';
 
-  // Track for confirmation
-  pendingQueuedMessages.set(messageId, {
-    threadId,
-    content: message,
-    timestamp,
-  });
+  // Add to store BEFORE sending (optimistic)
+  useQueuedMessagesStore.getState().addMessage(threadId, messageId, message);
 
   try {
     await child.write(payload);
     logger.info('[agent-service] Sent queued message', { threadId, messageId });
     return messageId;
   } catch (err) {
-    pendingQueuedMessages.delete(messageId);
+    // Rollback on failure
+    useQueuedMessagesStore.getState().confirmMessage(messageId);
     throw err;
-  }
-}
-
-/**
- * Check if a queued message has been processed.
- */
-export function isQueuedMessagePending(messageId: string): boolean {
-  return pendingQueuedMessages.has(messageId);
-}
-
-/**
- * Mark a queued message as processed.
- */
-export function confirmQueuedMessage(messageId: string): void {
-  pendingQueuedMessages.delete(messageId);
-}
-
-/**
- * Clear all pending queued messages for a thread.
- */
-export function clearPendingQueuedMessages(threadId: string): void {
-  for (const [id, data] of pendingQueuedMessages.entries()) {
-    if (data.threadId === threadId) {
-      pendingQueuedMessages.delete(id);
-    }
   }
 }
 

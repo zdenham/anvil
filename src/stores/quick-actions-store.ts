@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { create } from 'zustand';
 
 export type ActionType = "markUnread" | "archive" | "respond" | "nextTask" | "closeTask" | "followUp";
@@ -6,7 +7,7 @@ export interface ActionConfig {
   key: ActionType;
   label: string;
   description?: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
 }
 
 export const defaultActions: Array<ActionConfig> = [

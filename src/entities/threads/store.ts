@@ -110,6 +110,10 @@ export const useThreadStore = create<
       threadId,
       hasState: !!state,
       messageCount: state?.messages?.length ?? 0,
+      // DEBUG: Log tool states to diagnose spinner bug
+      hasToolStates: !!state?.toolStates,
+      toolStatesKeys: state?.toolStates ? Object.keys(state.toolStates) : [],
+      toolStatesCount: state?.toolStates ? Object.keys(state.toolStates).length : 0,
     });
     set((prev) => {
       if (state) {

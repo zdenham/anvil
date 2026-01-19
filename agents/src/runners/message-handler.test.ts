@@ -16,7 +16,7 @@ vi.mock("../output.js", () => ({
   complete: vi.fn(),
 }));
 
-// Mock the logger
+// Mock the logger and stdout
 vi.mock("../lib/logger.js", () => ({
   logger: {
     debug: vi.fn(),
@@ -24,6 +24,7 @@ vi.mock("../lib/logger.js", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
+  stdout: vi.fn(),
 }));
 
 // Import mocked functions for assertions
@@ -34,7 +35,7 @@ import {
   markToolComplete,
   complete,
 } from "../output.js";
-import { logger } from "../lib/logger.js";
+import { logger, stdout } from "../lib/logger.js";
 
 describe("MessageHandler", () => {
   let handler: MessageHandler;
@@ -440,6 +441,149 @@ describe("MessageHandler", () => {
       expect(logger.debug).toHaveBeenCalledWith(
         "[MessageHandler] Ignoring message type: unknown_type"
       );
+    });
+  });
+
+  describe("handleUser - queued message ack", () => {
+    it("emits queued-message:ack event when msg.uuid is present and isSynthetic is false", async () => {
+      const testUuid = "550e8400-e29b-41d4-a716-446655440000" as `${string}-${string}-${string}-${string}-${string}`;
+
+      const msg: SDKUserMessage = {
+        type: "user",
+        message: {
+          role: "user",
+          content: "Follow-up from user",
+        },
+        parent_tool_use_id: null,
+        isSynthetic: false,
+        uuid: testUuid,
+        session_id: "session-123",
+      };
+
+      await handler.handle(msg);
+
+      // Verify stdout was called with ack event
+      expect(stdout).toHaveBeenCalledWith({
+        type: "event",
+        name: "queued-message:ack",
+        payload: { messageId: testUuid },
+      });
+
+      // Verify appendUserMessage was also called
+      expect(appendUserMessage).toHaveBeenCalledWith("Follow-up from user");
+    });
+
+    it("does NOT emit ack when uuid is missing", async () => {
+      const msg: SDKUserMessage = {
+        type: "user",
+        message: {
+          role: "user",
+          content: "Message without uuid",
+        },
+        parent_tool_use_id: null,
+        isSynthetic: false,
+        // uuid is undefined
+        session_id: "session-123",
+      };
+
+      await handler.handle(msg);
+
+      // stdout should not have been called with ack event
+      expect(stdout).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "queued-message:ack",
+        })
+      );
+
+      // But appendUserMessage should still be called
+      expect(appendUserMessage).toHaveBeenCalledWith("Message without uuid");
+    });
+
+    it("does NOT emit ack for synthetic messages", async () => {
+      const msg: SDKUserMessage = {
+        type: "user",
+        message: {
+          role: "user",
+          content: "Initial prompt",
+        },
+        parent_tool_use_id: null,
+        isSynthetic: true, // synthetic = initial prompt
+        uuid: "550e8400-e29b-41d4-a716-446655440000" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-123",
+      };
+
+      await handler.handle(msg);
+
+      expect(stdout).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "queued-message:ack",
+        })
+      );
+
+      // Synthetic messages should be ignored (not appended)
+      expect(appendUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("does NOT emit ack for tool result messages", async () => {
+      const msg: SDKUserMessage = {
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_abc",
+              content: "Tool output",
+            },
+          ],
+        },
+        parent_tool_use_id: "toolu_abc",
+        uuid: "550e8400-e29b-41d4-a716-446655440000" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-123",
+      };
+
+      await handler.handle(msg);
+
+      // Tool results should not trigger ack
+      expect(stdout).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "queued-message:ack",
+        })
+      );
+
+      // But markToolComplete should be called
+      expect(markToolComplete).toHaveBeenCalled();
+    });
+
+    it("emits ack BEFORE appending user message", async () => {
+      const callOrder: string[] = [];
+
+      // Track call order
+      vi.mocked(stdout).mockImplementation(() => {
+        callOrder.push("stdout");
+      });
+      vi.mocked(appendUserMessage).mockImplementation(async () => {
+        callOrder.push("appendUserMessage");
+      });
+
+      const testUuid = "550e8400-e29b-41d4-a716-446655440000" as `${string}-${string}-${string}-${string}-${string}`;
+
+      const msg: SDKUserMessage = {
+        type: "user",
+        message: {
+          role: "user",
+          content: "Follow-up message",
+        },
+        parent_tool_use_id: null,
+        isSynthetic: false,
+        uuid: testUuid,
+        session_id: "session-123",
+      };
+
+      await handler.handle(msg);
+
+      // Verify stdout (ack) is called before appendUserMessage
+      expect(callOrder).toEqual(["stdout", "appendUserMessage"]);
     });
   });
 });

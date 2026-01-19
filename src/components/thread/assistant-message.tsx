@@ -63,6 +63,16 @@ export function AssistantMessage({
                 // Defensive: handle missing toolStates (old state files) or missing entry
                 const state = toolStates?.[block.id] ?? { status: "running" as const };
 
+                // DEBUG: Log tool state lookup to diagnose spinner bug
+                logger.info(`[AssistantMessage] Tool state lookup`, {
+                  toolId: block.id,
+                  toolName: block.name,
+                  hasToolStates: !!toolStates,
+                  toolStatesKeys: toolStates ? Object.keys(toolStates) : [],
+                  foundState: !!toolStates?.[block.id],
+                  resolvedStatus: state.status,
+                });
+
                 // Handle AskUserQuestion specially with interactive UI
                 if (block.name === "AskUserQuestion") {
                   const parsed = parseAskUserQuestionInput(block.input);
