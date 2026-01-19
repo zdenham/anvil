@@ -127,6 +127,7 @@ type LocalEvents = {
   // Rust panel events
   "panel-hidden": void;
   "panel-shown": void;
+  "spotlight-shown": void;
   "open-simple-task": OpenSimpleTaskPayload;
   "clipboard-entry-added": void;
   "show-error": ShowErrorPayload;

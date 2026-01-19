@@ -4,7 +4,7 @@ import { cn } from "../../lib/utils";
 interface ResultItemProps {
   icon: ReactNode | null;
   title: string;
-  subtitle: string;
+  subtitle: ReactNode;
   isSelected: boolean;
   onSelect: () => void;
   onActivate: () => void;

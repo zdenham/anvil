@@ -13,7 +13,7 @@ import {
   complete,
   setSessionId,
 } from "../output.js";
-import { logger } from "../lib/logger.js";
+import { logger, stdout } from "../lib/logger.js";
 
 /**
  * MessageHandler processes SDK messages and updates thread state.
@@ -112,6 +112,18 @@ export class MessageHandler {
             .filter((block): block is { type: "text"; text: string } => block.type === "text")
             .map(block => block.text)
             .join("\n");
+
+      // Emit acknowledgement event BEFORE appending (so UI gets it first)
+      // msg.uuid carries the queued message ID from stdin-message-stream
+      // Emit as proper event protocol: {type: "event", name: "...", payload: {...}}
+      if (msg.uuid) {
+        stdout({
+          type: "event",
+          name: "queued-message:ack",
+          payload: { messageId: msg.uuid },
+        });
+        logger.info(`[MessageHandler] Emitted ack for queued message: ${msg.uuid}`);
+      }
 
       await appendUserMessage(content);
       logger.info("[MessageHandler] Processed queued user message");

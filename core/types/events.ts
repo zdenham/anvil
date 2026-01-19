@@ -83,6 +83,9 @@ export const EventName = {
   // Permission flow
   PERMISSION_REQUEST: "permission:request",
   PERMISSION_RESPONSE: "permission:response",
+
+  // Queued message acknowledgement
+  QUEUED_MESSAGE_ACK: "queued-message:ack",
 } as const;
 
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
@@ -149,6 +152,12 @@ export interface EventPayloads {
     threadId: string;
     decision: "approve" | "deny";
     reason?: string;
+  };
+
+  // Queued message acknowledgement
+  [EventName.QUEUED_MESSAGE_ACK]: {
+    threadId: string;
+    messageId: string;
   };
 }
 
@@ -244,6 +253,7 @@ export const EventNameSchema = z.enum([
   EventName.SETTINGS_UPDATED,
   EventName.PERMISSION_REQUEST,
   EventName.PERMISSION_RESPONSE,
+  EventName.QUEUED_MESSAGE_ACK,
 ]);
 
 /**

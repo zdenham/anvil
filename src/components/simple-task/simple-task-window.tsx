@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
-import type { MessageParam, ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { useSimpleTaskParams } from "./use-simple-task-params";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
@@ -27,6 +27,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
+import { eventBus } from "@/entities/events";
+import { EventName } from "@core/types/events.js";
 
 interface QueuedMessage {
   id: string;
@@ -216,35 +218,27 @@ function SimpleTaskWindowContent({
     }
   };
 
-  // Remove queued messages once they appear in conversation
-  // NOTE: Content-based matching (SDK doesn't echo message IDs)
+  // Remove queued messages when agent acknowledges receipt
+  // Uses event-based confirmation instead of content-based matching
   useEffect(() => {
-    if (!activeState?.messages) return;
+    const handler = (payload: { threadId: string; messageId: string }) => {
+      // Only handle events for this thread
+      if (payload.threadId !== threadId) return;
 
-    const processedIds: string[] = [];
-    const currentQueued = queuedMessagesRef.current;
+      logger.debug(`[SimpleTaskWindow] Received QUEUED_MESSAGE_ACK for messageId: ${payload.messageId}`);
 
-    for (const qm of currentQueued) {
-      const foundInConversation = activeState.messages.some(m => {
-        if (m.role !== 'user') return false;
-        const content = typeof m.content === 'string'
-          ? m.content
-          : Array.isArray(m.content)
-            ? (m.content.find((b: ContentBlockParam) => b.type === 'text') as { text: string } | undefined)?.text
-            : '';
-        return content === qm.content;
-      });
+      // Confirm in agent-service (clears from pending map)
+      confirmQueuedMessage(payload.messageId);
 
-      if (foundInConversation) {
-        processedIds.push(qm.id);
-        confirmQueuedMessage(qm.id);
-      }
-    }
+      // Remove from local queued messages state
+      setQueuedMessages(prev => prev.filter(qm => qm.id !== payload.messageId));
+    };
 
-    if (processedIds.length > 0) {
-      setQueuedMessages(prev => prev.filter(qm => !processedIds.includes(qm.id)));
-    }
-  }, [activeState?.messages]);
+    eventBus.on(EventName.QUEUED_MESSAGE_ACK, handler);
+    return () => {
+      eventBus.off(EventName.QUEUED_MESSAGE_ACK, handler);
+    };
+  }, [threadId]);
 
   // Clear pending queued messages on unmount
   useEffect(() => {

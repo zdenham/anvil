@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { FileEdit, ArrowUpRight } from "lucide-react";
+import { FileEdit, ArrowUpRight, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 
 interface InlineDiffHeaderProps {
   /** File path being changed */
@@ -8,6 +8,14 @@ interface InlineDiffHeaderProps {
   stats: { additions: number; deletions: number };
   /** Callback when user wants to open full diff viewer */
   onExpand?: () => void;
+  /** Whether there are any collapsible regions */
+  hasCollapsedRegions?: boolean;
+  /** Whether all regions are currently expanded */
+  allExpanded?: boolean;
+  /** Callback to expand all collapsed regions */
+  onExpandAll?: () => void;
+  /** Callback to collapse all regions */
+  onCollapseAll?: () => void;
 }
 
 /**
@@ -18,6 +26,10 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
   filePath,
   stats,
   onExpand,
+  hasCollapsedRegions,
+  allExpanded,
+  onExpandAll,
+  onCollapseAll,
 }: InlineDiffHeaderProps) {
   // Extract just the filename for compact display
   const fileName = filePath.split("/").pop() ?? filePath;
@@ -45,6 +57,31 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
             <span className="text-red-400">-{stats.deletions}</span>
           )}
         </div>
+      )}
+
+      {/* Expand/Collapse all button */}
+      {hasCollapsedRegions && (
+        <button
+          type="button"
+          onClick={allExpanded ? onCollapseAll : onExpandAll}
+          className="
+            text-xs text-surface-400 hover:text-surface-200
+            flex items-center gap-1
+            px-1.5 py-0.5 rounded
+            hover:bg-surface-700
+            transition-colors
+            focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500
+          "
+          aria-label={allExpanded ? "Collapse unchanged regions" : "Expand unchanged regions"}
+          title={allExpanded ? "Collapse unchanged regions" : "Expand unchanged regions"}
+        >
+          {allExpanded ? (
+            <ChevronsDownUp className="w-3.5 h-3.5" aria-hidden="true" />
+          ) : (
+            <ChevronsUpDown className="w-3.5 h-3.5" aria-hidden="true" />
+          )}
+          <span>{allExpanded ? "Collapse" : "Expand"}</span>
+        </button>
       )}
 
       {/* Expand button */}

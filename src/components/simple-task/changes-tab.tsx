@@ -16,6 +16,8 @@ import {
 } from "@/lib/utils/thread-diff-generator";
 import { InlineDiffBlock } from "@/components/thread/inline-diff-block";
 import { parseDiff } from "@/lib/diff-parser";
+import { buildAnnotatedFiles, type AnnotatedFile } from "@/lib/annotated-file-builder";
+import { FilesystemClient } from "@/lib/filesystem-client";
 
 interface ChangesTabProps {
   /** Thread metadata containing git info */
@@ -97,11 +99,51 @@ function DiffSummaryHeader({
   );
 }
 
+// Singleton filesystem client
+const fsClient = new FilesystemClient();
+
+/**
+ * Reads file contents for all non-deleted files in the diff.
+ * Returns a map of file path to array of lines.
+ */
+async function fetchFileContents(
+  diffResult: ThreadDiffResult,
+  workingDirectory: string
+): Promise<Record<string, string[]>> {
+  const fileContents: Record<string, string[]> = {};
+
+  for (const file of diffResult.diff.files) {
+    // Skip deleted and binary files - we can't read their current contents
+    if (file.type === "deleted" || file.type === "binary") {
+      continue;
+    }
+
+    const filePath = file.newPath ?? file.oldPath;
+    if (!filePath) continue;
+
+    // Build full path relative to working directory
+    const fullPath = workingDirectory
+      ? `${workingDirectory}/${filePath}`
+      : filePath;
+
+    try {
+      const content = await fsClient.readFile(fullPath);
+      fileContents[filePath] = content.split("\n");
+    } catch {
+      // File might not exist or be unreadable - skip it
+      // The annotated file builder will handle missing content gracefully
+    }
+  }
+
+  return fileContents;
+}
+
 /**
  * Changes tab for viewing all file changes in a thread.
  */
 export function ChangesTab({ threadMetadata, threadState }: ChangesTabProps) {
   const [diffResult, setDiffResult] = useState<ThreadDiffResult | null>(null);
+  const [annotatedFiles, setAnnotatedFiles] = useState<AnnotatedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,6 +184,13 @@ export function ChangesTab({ threadMetadata, threadState }: ChangesTabProps) {
           setError(result.error);
         } else {
           setDiffResult(result);
+
+          // Fetch full file contents for all changed files
+          const fileContents = await fetchFileContents(result, workingDirectory);
+
+          // Build annotated files with full content
+          const annotated = buildAnnotatedFiles(result.diff, fileContents);
+          setAnnotatedFiles(annotated);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to generate diff");
@@ -197,21 +246,37 @@ export function ChangesTab({ threadMetadata, threadState }: ChangesTabProps) {
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {diffResult.diff.files.map((file, index) => {
-          const filePath = file.newPath ?? file.oldPath ?? `file-${index}`;
+        {annotatedFiles.length > 0
+          ? // Use annotated files with full content when available
+            annotatedFiles.map((annotatedFile, index) => {
+              const filePath =
+                annotatedFile.file.newPath ??
+                annotatedFile.file.oldPath ??
+                `file-${index}`;
 
-          // Reconstruct the raw diff for this single file
-          // We need to create a diff string that InlineDiffBlock can parse
-          const fileDiff = reconstructFileDiff(file);
+              return (
+                <InlineDiffBlock
+                  key={filePath}
+                  filePath={filePath}
+                  lines={annotatedFile.lines}
+                  stats={annotatedFile.file.stats}
+                  fileType={annotatedFile.file.type}
+                />
+              );
+            })
+          : // Fallback to diff-only display
+            diffResult.diff.files.map((file, index) => {
+              const filePath = file.newPath ?? file.oldPath ?? `file-${index}`;
+              const fileDiff = reconstructFileDiff(file);
 
-          return (
-            <InlineDiffBlock
-              key={filePath}
-              filePath={filePath}
-              diff={fileDiff}
-            />
-          );
-        })}
+              return (
+                <InlineDiffBlock
+                  key={filePath}
+                  filePath={filePath}
+                  diff={fileDiff}
+                />
+              );
+            })}
       </div>
     </div>
   );

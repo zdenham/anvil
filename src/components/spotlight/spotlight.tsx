@@ -961,13 +961,40 @@ export const Spotlight = () => {
           break;
         case "ArrowRight": {
           // Cycle forward through worktrees when on a task result
+          // Only cycle if cursor is at the very end AND no text is selected
           const currentResult = displayResults[selectedIndex];
-          if (currentResult?.type === "task" && availableWorktrees.length > 0) {
-            e.preventDefault();
-            setState((prev) => ({
-              ...prev,
-              selectedWorktreeIndex: (prev.selectedWorktreeIndex + 1) % prev.availableWorktrees.length,
-            }));
+          if (currentResult?.type === "task" && availableWorktrees.length > 1) {
+            const cursorPos = inputRef.current?.getCursorPosition() ?? 0;
+            const inputLength = query.length;
+            // Check if cursor is at the end of the input
+            const isAtEnd = cursorPos === inputLength;
+
+            if (isAtEnd) {
+              e.preventDefault();
+              setState((prev) => ({
+                ...prev,
+                selectedWorktreeIndex: (prev.selectedWorktreeIndex + 1) % prev.availableWorktrees.length,
+              }));
+            }
+            // Otherwise: let default behavior happen (cursor moves right)
+          }
+          break;
+        }
+        case "ArrowLeft": {
+          // Cycle back through worktrees when on a task result
+          // Only cycle if not on the first worktree
+          const currentResultLeft = displayResults[selectedIndex];
+          if (currentResultLeft?.type === "task" && availableWorktrees.length > 1) {
+            const notOnFirstWorktree = selectedWorktreeIndex > 0;
+
+            if (notOnFirstWorktree) {
+              e.preventDefault();
+              setState((prev) => ({
+                ...prev,
+                selectedWorktreeIndex: prev.selectedWorktreeIndex - 1,
+              }));
+            }
+            // Otherwise (on first worktree): let default behavior happen (cursor moves left)
           }
           break;
         }
@@ -1000,6 +1027,7 @@ export const Spotlight = () => {
     handleHistoryNavigation,
     triggerState,
     availableWorktrees,
+    selectedWorktreeIndex,
   ]);
 
   // Handler for panel hidden - moved outside useEffect to avoid hook violations
@@ -1023,23 +1051,22 @@ export const Spotlight = () => {
     resetState();
   }, [query, resetState]);
 
-  // Focus input when panel gains focus, reset state when panel is hidden
-  // Uses eventBus instead of direct Tauri APIs to avoid async cleanup races
+  // Focus input and refresh worktrees when spotlight is shown, reset state when hidden
+  // Uses eventBus for Tauri panel events (global emit, not emit_to for NSPanels)
   useEffect(() => {
-    const handleFocusChanged = ({ focused }: { focused: boolean }) => {
-      if (focused) {
-        inputRef.current?.focus();
-        // Asynchronously refresh worktrees from git when spotlight opens
-        // This runs in the background so it doesn't block the UI
-        loadWorktrees(true);
-      }
+    const handleSpotlightShown = () => {
+      logger.info("[Spotlight] Spotlight shown - focusing input and refreshing worktrees");
+      inputRef.current?.focus();
+      // Asynchronously refresh worktrees from git when spotlight opens
+      // This runs in the background so it doesn't block the UI
+      loadWorktrees(true);
     };
 
-    eventBus.on("window:focus-changed", handleFocusChanged);
+    eventBus.on("spotlight-shown", handleSpotlightShown);
     eventBus.on("panel-hidden", handlePanelHidden);
 
     return () => {
-      eventBus.off("window:focus-changed", handleFocusChanged);
+      eventBus.off("spotlight-shown", handleSpotlightShown);
       eventBus.off("panel-hidden", handlePanelHidden);
     };
   }, [handlePanelHidden, loadWorktrees]);

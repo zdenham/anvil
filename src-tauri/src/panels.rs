@@ -380,6 +380,7 @@ pub fn create_clipboard_panel(app: &AppHandle) -> Result<(), Box<dyn std::error:
 
 /// Shows the spotlight panel on the screen containing the mouse cursor
 pub fn show_spotlight(app: &AppHandle) -> Result<(), String> {
+    tracing::debug!("[Spotlight] show_spotlight: called");
     if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
         // Reposition panel to the screen where the cursor is
         let (x, y) = calculate_panel_position_cocoa(app, SPOTLIGHT_WIDTH);
@@ -387,6 +388,10 @@ pub fn show_spotlight(app: &AppHandle) -> Result<(), String> {
             .as_panel()
             .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
         panel.show_and_make_key();
+
+        // Emit spotlight-shown event globally (emit_to doesn't work for NSPanels)
+        tracing::debug!("[Spotlight] show_spotlight: emitting spotlight-shown event");
+        let _ = app.emit("spotlight-shown", ());
     }
     Ok(())
 }
@@ -403,14 +408,20 @@ pub fn hide_spotlight(app: &AppHandle) -> Result<(), String> {
 pub fn toggle_spotlight(app: &AppHandle) {
     if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
         if panel.is_visible() {
+            tracing::debug!("[Spotlight] toggle_spotlight: hiding panel");
             panel.hide();
         } else {
+            tracing::debug!("[Spotlight] toggle_spotlight: showing panel");
             // Reposition panel to the screen where the cursor is
             let (x, y) = calculate_panel_position_cocoa(app, SPOTLIGHT_WIDTH);
             panel
                 .as_panel()
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
             panel.show_and_make_key();
+
+            // Emit spotlight-shown event globally (emit_to doesn't work for NSPanels)
+            tracing::debug!("[Spotlight] toggle_spotlight: emitting spotlight-shown event");
+            let _ = app.emit("spotlight-shown", ());
         }
     }
 }

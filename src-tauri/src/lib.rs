@@ -27,7 +27,6 @@ mod logging;
 mod mort_commands;
 mod panels;
 mod paths;
-mod task_navigation;
 mod process_commands;
 mod shell;
 mod thread_commands;

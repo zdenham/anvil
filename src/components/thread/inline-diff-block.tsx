@@ -9,7 +9,7 @@ import {
 } from "../diff-viewer/use-collapsed-regions";
 import { InlineDiffHeader } from "./inline-diff-header";
 import { InlineDiffActions } from "./inline-diff-actions";
-import type { AnnotatedLine } from "../diff-viewer/types";
+import type { AnnotatedLine, ParsedDiffFile } from "../diff-viewer/types";
 
 interface InlineDiffBlockProps {
   /** Absolute file path */
@@ -20,6 +20,8 @@ interface InlineDiffBlockProps {
   lines?: AnnotatedLine[];
   /** Pre-computed stats (required if using lines instead of diff) */
   stats?: { additions: number; deletions: number };
+  /** File operation type for determining collapse behavior */
+  fileType?: ParsedDiffFile["type"];
   /** Whether this block is currently focused for keyboard nav */
   isFocused?: boolean;
   /** Callback when user wants to open full diff viewer */
@@ -41,6 +43,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   diff,
   lines: precomputedLines,
   stats: precomputedStats,
+  fileType = "modified",
   isFocused,
   onExpand,
   isPending,
@@ -100,7 +103,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   }, [diff, precomputedLines, precomputedStats]);
 
   // Manage collapsed regions
-  const collapsedRegions = useCollapsedRegions(lines, "modified");
+  const collapsedRegions = useCollapsedRegions(lines, fileType);
   const renderItems = buildRenderItems(
     lines,
     collapsedRegions.regions,
@@ -146,13 +149,21 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
       aria-label={`Changes to ${fileName}`}
     >
       {/* Header */}
-      <InlineDiffHeader filePath={filePath} stats={stats} onExpand={onExpand} />
+      <InlineDiffHeader
+        filePath={filePath}
+        stats={stats}
+        onExpand={onExpand}
+        hasCollapsedRegions={collapsedRegions.regions.length > 0}
+        allExpanded={collapsedRegions.expanded.size === collapsedRegions.regions.length}
+        onExpandAll={collapsedRegions.expandAll}
+        onCollapseAll={collapsedRegions.collapseAll}
+      />
 
       {/* Diff content */}
       <div
         role="table"
         aria-label="Diff content"
-        className="bg-surface-900/50 max-h-64 overflow-y-auto"
+        className="bg-surface-900/50"
       >
         <div role="rowgroup">
           {renderItems.map((item) => {

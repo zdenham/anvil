@@ -1,3 +1,4 @@
+import { GitBranch } from "lucide-react";
 import { SpotlightResult } from "./types";
 import { ResultItem } from "./result-item";
 import { AppIcon } from "./app-icon";
@@ -40,7 +41,7 @@ const getResultKey = (result: SpotlightResult, index: number): string => {
 const getResultDisplay = (
   result: SpotlightResult,
   worktreeInfo?: WorktreeInfo
-): { icon: React.ReactNode | null; title: string; subtitle: string } => {
+): { icon: React.ReactNode | null; title: string; subtitle: React.ReactNode } => {
   if (result.type === "file") {
     return {
       icon: null,
@@ -75,15 +76,20 @@ const getResultDisplay = (
 
   if (result.type === "task") {
     // Build subtitle based on worktree state
-    let subtitle = "Ask Mort to help with this";
+    let subtitle: React.ReactNode = "Ask Mort to help with this";
     if (worktreeInfo) {
       const { availableWorktrees, selectedWorktreeIndex } = worktreeInfo;
       const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
       if (selectedWorktree) {
-        // Show worktree name with navigation hint if multiple worktrees exist
-        subtitle = availableWorktrees.length > 1
-          ? `Worktree: ${selectedWorktree.name} (use arrow keys to change)`
-          : `Worktree: ${selectedWorktree.name}`;
+        // Show worktree name with icon and navigation hint if multiple worktrees exist
+        const worktreeIcon = <GitBranch size={12} className="inline-block align-middle" />;
+        const hint = availableWorktrees.length > 1 ? " · ← → to change" : "";
+        subtitle = (
+          <span className="inline-flex items-center gap-1">
+            {worktreeIcon}
+            <span>{selectedWorktree.name}{hint}</span>
+          </span>
+        );
       } else if (availableWorktrees.length === 0) {
         subtitle = "No worktrees available - create one in Worktrees tab";
       }

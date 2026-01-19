@@ -49,6 +49,9 @@ const BROADCAST_EVENTS = [
   // Permission flow
   EventName.PERMISSION_REQUEST,
   EventName.PERMISSION_RESPONSE,
+
+  // Queued message acknowledgement
+  EventName.QUEUED_MESSAGE_ACK,
 ] as const;
 
 /**
@@ -58,6 +61,7 @@ const BROADCAST_EVENTS = [
 const RUST_PANEL_EVENTS = [
   "panel-hidden",
   "panel-shown",
+  "spotlight-shown",
   "open-simple-task",
   "clipboard-entry-added",
   "show-error",
@@ -170,12 +174,19 @@ async function registerTauriToMitt(
 ): Promise<UnlistenFn | null> {
   try {
     const unlisten = await listen(tauriEvent, (event) => {
-      if (shouldDebugEvents()) {
+      // Always log spotlight-shown for debugging
+      if (tauriEvent === "spotlight-shown") {
+        logger.info(`[event-bridge] 🔦 Received spotlight-shown event, forwarding to mitt`);
+      } else if (shouldDebugEvents()) {
         logger.debug(`[event-bridge] ${tauriEvent} → mitt ${mittEvent}`);
       }
       // Use type assertion since we're bridging between Tauri and mitt types
       eventBus.emit(mittEvent as keyof AppEvents, event.payload as AppEvents[keyof AppEvents]);
     });
+    // Log registration for spotlight-shown
+    if (tauriEvent === "spotlight-shown") {
+      logger.info(`[event-bridge] ✅ Registered listener for spotlight-shown event`);
+    }
     return unlisten;
   } catch (error) {
     logger.error(`[event-bridge] Failed to register ${tauriEvent}:`, error);

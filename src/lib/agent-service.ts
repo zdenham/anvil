@@ -133,8 +133,11 @@ function countToolResults(messages: ThreadState["messages"]): number {
 /**
  * Handle typed events from agent process.
  * Emits to eventBus - entity listeners handle disk refreshes.
+ *
+ * @param event - The agent event message
+ * @param threadId - Optional threadId to augment event payloads that need it
  */
-function handleAgentEvent(event: AgentEventMessage): void {
+function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
   const { name, payload } = event;
 
   // Type assertion needed because eventBus.emit expects specific event types
@@ -153,6 +156,18 @@ function handleAgentEvent(event: AgentEventMessage): void {
     case EventName.AGENT_CANCELLED:
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       eventBus.emit(name as any, payload as any);
+      break;
+
+    case EventName.QUEUED_MESSAGE_ACK:
+      // Agent only sends messageId; we need to add threadId from context
+      if (threadId) {
+        eventBus.emit(EventName.QUEUED_MESSAGE_ACK, {
+          threadId,
+          messageId: (payload as { messageId: string }).messageId,
+        });
+      } else {
+        logger.warn(`[handleAgentEvent] QUEUED_MESSAGE_ACK received without threadId context`);
+      }
       break;
 
     default:
@@ -331,7 +346,7 @@ export async function spawnAgentWithOrchestration(
           }
 
           case "event":
-            handleAgentEvent(output);
+            handleAgentEvent(output, threadId);
             break;
 
           case "state": {
@@ -576,7 +591,7 @@ export async function resumeAgent(
           }
 
           case "event":
-            handleAgentEvent(output);
+            handleAgentEvent(output, threadId);
             break;
 
           case "state": {
@@ -681,7 +696,7 @@ function handleSimpleAgentOutput(
         }
 
         case "event":
-          handleAgentEvent(output);
+          handleAgentEvent(output, threadId);
           break;
 
         case "state":

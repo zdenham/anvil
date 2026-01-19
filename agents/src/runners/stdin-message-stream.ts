@@ -1,5 +1,5 @@
 import * as readline from "readline";
-import { randomUUID } from "crypto";
+import { randomUUID, type UUID } from "crypto";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { parseStdinMessage, type StdinMessage } from "./stdin-message-schema.js";
 import { logger } from "../lib/logger.js";
@@ -60,20 +60,24 @@ export class StdinMessageStream {
         if (msg === null) break;
         logger.info(`[StdinMessageStream] Processing queued message: ${msg.id}`);
         // Queued messages are non-synthetic so MessageHandler will append them
-        yield this.formatUserMessage(msg.content, false);
+        // Pass msg.id as uuid for acknowledgement tracking
+        yield this.formatUserMessage(msg.content, false, msg.id);
       }
     } finally {
       this.close();
     }
   }
 
-  private formatUserMessage(content: string, isSynthetic: boolean): SDKUserMessage {
+  private formatUserMessage(content: string, isSynthetic: boolean, queuedMessageId?: string): SDKUserMessage {
     return {
       type: "user",
       message: { role: "user", content },
       parent_tool_use_id: null,
       session_id: this.sessionId,
       isSynthetic,
+      // Use SDK's native uuid field for ack tracking
+      // Cast string to UUID - the queued message ID is already a valid UUID from crypto.randomUUID()
+      uuid: queuedMessageId as UUID | undefined,
     };
   }
 
