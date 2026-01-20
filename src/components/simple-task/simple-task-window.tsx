@@ -6,14 +6,11 @@ import { threadService } from "@/entities/threads/service";
 import {
   resumeSimpleAgent,
   submitToolResult,
-  sendQueuedMessage,
 } from "@/lib/agent-service";
-import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
 import { SimpleTaskHeader, type SimpleTaskView } from "./simple-task-header";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
-import { QueuedMessagesBanner } from "./queued-messages-banner";
 import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggested-actions-panel";
 import { ChangesTab } from "./changes-tab";
 import { logger } from "@/lib/logger-client";
@@ -90,8 +87,6 @@ function SimpleTaskWindowContent({
     navigateDown,
   } = useQuickActionsStore();
 
-  // Queued messages from store (single source of truth)
-  const queuedMessages = useQueuedMessagesForThread(threadId);
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
   const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);

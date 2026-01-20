@@ -1,10 +1,20 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Plus, Trash2, GitBranch, RefreshCw, Loader2, FolderGit2 } from "lucide-react";
 import { Command } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
 import { worktreeService } from "@/entities/worktrees";
 import { useRepoStore } from "@/entities/repositories";
 import type { WorktreeState } from "@core/types/repositories";
 import { logger } from "@/lib/logger-client";
+
+// Cache the shell PATH for opening external apps (needed for production builds)
+let cachedShellPath: string | null = null;
+async function getShellPath(): Promise<string> {
+  if (cachedShellPath === null) {
+    cachedShellPath = await invoke<string>("get_shell_path");
+  }
+  return cachedShellPath;
+}
 
 type WorktreesByRepo = Record<string, WorktreeState[]>;
 
@@ -224,11 +234,23 @@ function WorktreeRow({
 
   const openInCursor = async () => {
     try {
-      const cmd = Command.create("cursor", [worktree.path]);
+      const shellPath = await getShellPath();
+      logger.log(`[WorktreeRow] Opening worktree in Cursor`, {
+        name: worktree.name,
+        path: worktree.path,
+      });
+
+      const cmd = Command.create("cursor", [worktree.path], {
+        env: { PATH: shellPath },
+      });
       await cmd.execute();
       logger.log(`[WorktreeRow] Opened worktree "${worktree.name}" in Cursor`);
     } catch (err) {
-      logger.error(`[WorktreeRow] Failed to open worktree in Cursor:`, err);
+      logger.error(`[WorktreeRow] Failed to open worktree in Cursor`, {
+        name: worktree.name,
+        path: worktree.path,
+        error: err,
+      });
     }
   };
 
