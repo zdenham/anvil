@@ -1,9 +1,10 @@
-import { useRef, useCallback, useState, forwardRef, useImperativeHandle } from "react";
+import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { Turn } from "@/lib/utils/turn-grouping";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
 import { TurnRenderer } from "./turn-renderer";
+import { WorkingIndicator } from "./working-indicator";
 
 interface MessageListProps {
   /** Turns to render */
@@ -38,6 +39,13 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
+  // Show working indicator when streaming but no assistant content yet
+  const showWorkingIndicator = useMemo(() => {
+    if (!isStreaming || turns.length === 0) return false;
+    const lastTurn = turns[turns.length - 1];
+    return lastTurn?.type === "user";
+  }, [isStreaming, turns]);
+
   const scrollToBottom = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({
       index: "LAST",
@@ -68,6 +76,12 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     [messages, turns.length, isStreaming, toolStates, onToolResponse]
   );
 
+  // Footer component for working indicator (renders at end of virtualized list)
+  const Footer = useCallback(() => {
+    if (!showWorkingIndicator) return null;
+    return <WorkingIndicator />;
+  }, [showWorkingIndicator]);
+
   return (
     <div
       data-testid="message-list"
@@ -80,6 +94,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         ref={virtuosoRef}
         data={turns}
         itemContent={itemContent}
+        components={{ Footer }}
         followOutput={isStreaming ? "smooth" : false}
         alignToBottom
         atBottomStateChange={setIsAtBottom}

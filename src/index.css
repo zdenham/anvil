@@ -49,6 +49,13 @@ html:has(.simple-task-container) #root {
   background: transparent !important;
 }
 
+/* Clipboard panel transparency */
+html:has(.clipboard-container),
+html:has(.clipboard-container) body,
+html:has(.clipboard-container) #root {
+  background: transparent !important;
+}
+
 :root {
   font-family: 'Inter', system-ui, sans-serif;
 
@@ -181,12 +188,32 @@ textarea {
 }
 
 /* Simple task panel - styled similar to spotlight */
+/* Note: border-radius and shadow are handled natively via NSPanel corner_radius + has_shadow */
 .simple-task-container {
   background: var(--spotlight-bg);
   border: 1px solid var(--spotlight-border);
-  border-radius: 12px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   cursor: default;
   user-select: none;
+}
+
+/* Working indicator - Claude Code style pulsing dot */
+.working-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #22c55e; /* green-500 */
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  animation: workingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes workingPulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.3);
+  }
 }
 

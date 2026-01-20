@@ -42,11 +42,11 @@ fn default_clipboard_hotkey() -> String {
 }
 
 fn default_task_navigation_down_hotkey() -> String {
-    "Shift+Down".to_string()
+    "Alt+Down".to_string()
 }
 
 fn default_task_navigation_up_hotkey() -> String {
-    "Shift+Up".to_string()
+    "Alt+Up".to_string()
 }
 
 

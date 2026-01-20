@@ -32,7 +32,10 @@ mod shell;
 mod thread_commands;
 mod worktree_commands;
 
-use tauri::{AppHandle, Manager};
+#[cfg(target_os = "macos")]
+mod menu;
+
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -760,6 +763,20 @@ pub fn run() {
                 _ => {}
             }
         })
+        .on_menu_event(|app, event| {
+            let menu_id = event.id().as_ref();
+
+            // Handle navigation menu items
+            if let Some(tab) = menu_id.strip_prefix("nav_") {
+                // Show main window if hidden
+                let _ = show_main_window(app.clone());
+
+                // Emit navigation event to frontend
+                if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                    let _ = window.emit("navigate", tab);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             web_log,
             greet,
@@ -972,6 +989,21 @@ pub fn run() {
                 tracing::error!(error = %e, "Failed to create tasks list panel");
             }
 
+            // Build and set the native macOS menu bar
+            #[cfg(target_os = "macos")]
+            {
+                match menu::build_menu(app.handle()) {
+                    Ok(menu) => {
+                        if let Err(e) = app.set_menu(menu) {
+                            tracing::error!(error = %e, "Failed to set application menu");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to build application menu");
+                    }
+                }
+            }
+
             // Initialize icon cache (extracts icons in background)
             icons::initialize(app.handle());
 
@@ -1011,6 +1043,10 @@ pub fn run() {
             } else {
                 // User hasn't onboarded - show the main window for onboarding (unless skipped for dev)
                 if !skip_main_window {
+                    // During onboarding, show the dock icon so the app feels like a real app
+                    // This helps new users understand they're interacting with a persistent application
+                    let _ = app.handle().set_activation_policy(ActivationPolicy::Regular);
+
                     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                         let _ = window.show();
                     }

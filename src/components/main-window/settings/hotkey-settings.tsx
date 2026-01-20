@@ -42,12 +42,14 @@ export function HotkeySettings() {
           />
           <div className="flex gap-2 justify-end">
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleCancel}
               className="px-3 py-1.5 text-sm text-surface-400 hover:text-surface-300"
             >
               Cancel
             </button>
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleSave}
               disabled={!pendingHotkey}
               className="px-3 py-1.5 text-sm bg-accent-600 text-accent-900 rounded hover:bg-accent-500 disabled:opacity-50 disabled:cursor-not-allowed"

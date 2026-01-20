@@ -65,8 +65,8 @@
           "args": true
         },
         {
-          "name": "cursor",
-          "cmd": "cursor",
+          "name": "open",
+          "cmd": "open",
           "args": true
         }
       ]

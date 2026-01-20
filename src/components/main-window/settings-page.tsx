@@ -2,7 +2,6 @@ import { HotkeySettings } from "./settings/hotkey-settings";
 import { ClipboardHotkeySettings } from "./settings/clipboard-hotkey-settings";
 import { TaskNavigationHotkeySettings } from "./settings/navigation-hotkey-settings";
 import { RepositorySettings } from "./settings/repository-settings";
-import { MergeSettings } from "./settings/merge-settings";
 import { AboutSettings } from "./settings/about-settings";
 
 export function SettingsPage() {
@@ -16,7 +15,6 @@ export function SettingsPage() {
         <ClipboardHotkeySettings />
         <TaskNavigationHotkeySettings />
         <RepositorySettings />
-        <MergeSettings />
         <AboutSettings />
       </div>
     </div>

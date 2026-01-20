@@ -177,7 +177,7 @@ export const ClipboardManager = () => {
   };
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full w-full clipboard-container">
       {/* Search input */}
       <form onSubmit={handleSubmit}>
         <SearchInput

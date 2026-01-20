@@ -258,8 +258,10 @@ export class SpotlightController {
     });
 
     // Touch worktree to update lastAccessedAt (for MRU sorting)
-    if (worktreePath) {
-      worktreeService.touch(selectedRepo.name, worktreePath).catch((err) => {
+    // Use explicit worktreePath if provided, otherwise touch main worktree (sourcePath)
+    const pathToTouch = worktreePath ?? selectedRepo.sourcePath;
+    if (pathToTouch) {
+      worktreeService.touch(selectedRepo.name, pathToTouch).catch((err) => {
         logger.warn("[spotlight:createTask] Failed to touch worktree:", err);
       });
     }
@@ -384,6 +386,11 @@ export class SpotlightController {
     const threadId = crypto.randomUUID();
 
     logger.info(`[spotlight:createSimpleTask] Creating simple task: ${taskId}, workingDir: ${workingDir}`);
+
+    // Touch worktree to update lastAccessedAt (for MRU sorting)
+    worktreeService.touch(repo.name, workingDir).catch((err) => {
+      logger.warn("[spotlight:createSimpleTask] Failed to touch worktree:", err);
+    });
 
     // Open simple task window immediately (optimistic UI)
     // Window shows prompt while agent starts up

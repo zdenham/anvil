@@ -1,20 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Plus, Trash2, GitBranch, RefreshCw, Loader2, FolderGit2 } from "lucide-react";
 import { Command } from "@tauri-apps/plugin-shell";
-import { invoke } from "@tauri-apps/api/core";
 import { worktreeService } from "@/entities/worktrees";
 import { useRepoStore } from "@/entities/repositories";
 import type { WorktreeState } from "@core/types/repositories";
 import { logger } from "@/lib/logger-client";
-
-// Cache the shell PATH for opening external apps (needed for production builds)
-let cachedShellPath: string | null = null;
-async function getShellPath(): Promise<string> {
-  if (cachedShellPath === null) {
-    cachedShellPath = await invoke<string>("get_shell_path");
-  }
-  return cachedShellPath;
-}
 
 type WorktreesByRepo = Record<string, WorktreeState[]>;
 
@@ -234,15 +224,12 @@ function WorktreeRow({
 
   const openInCursor = async () => {
     try {
-      const shellPath = await getShellPath();
       logger.log(`[WorktreeRow] Opening worktree in Cursor`, {
         name: worktree.name,
         path: worktree.path,
       });
 
-      const cmd = Command.create("cursor", [worktree.path], {
-        env: { PATH: shellPath },
-      });
+      const cmd = Command.create("open", ["-a", "Cursor", worktree.path], {});
       await cmd.execute();
       logger.log(`[WorktreeRow] Opened worktree "${worktree.name}" in Cursor`);
     } catch (err) {
@@ -323,23 +310,25 @@ function WorktreeRow({
         open
       </button>
 
-      {isDeleting ? (
-        <span className="p-1.5 text-surface-500">
-          <Loader2 size={14} className="animate-spin" />
-        </span>
-      ) : (
-        <button
-          ref={buttonRef}
-          onClick={handleClick}
-          className={`p-1.5 rounded transition-colors ${
-            confirming
-              ? "text-red-400 text-xs font-medium"
-              : "text-surface-400 hover:text-red-400 hover:bg-surface-700"
-          }`}
-          title={confirming ? "Click again to confirm" : "Delete worktree"}
-        >
-          {confirming ? "Confirm" : <Trash2 size={14} />}
-        </button>
+      {worktree.name !== "main" && (
+        isDeleting ? (
+          <span className="p-1.5 text-surface-500">
+            <Loader2 size={14} className="animate-spin" />
+          </span>
+        ) : (
+          <button
+            ref={buttonRef}
+            onClick={handleClick}
+            className={`p-1.5 rounded transition-colors ${
+              confirming
+                ? "text-red-400 text-xs font-medium"
+                : "text-surface-400 hover:text-red-400 hover:bg-surface-700"
+            }`}
+            title={confirming ? "Click again to confirm" : "Delete worktree"}
+          >
+            {confirming ? "Confirm" : <Trash2 size={14} />}
+          </button>
+        )
       )}
     </div>
   );

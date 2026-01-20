@@ -981,7 +981,8 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
         )
         // Note: borderless() resets the mask, so resizable() must come after it
         .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
-        .has_shadow(false)
+        .has_shadow(true)
+        .corner_radius(12.0)
         .hides_on_deactivate(false)
         .transparent(true)
         .no_activate(true)
@@ -1057,6 +1058,9 @@ pub fn show_simple_task(
     tracing::info!("[SimpleTaskPanel] Getting panel with label: {}", SIMPLE_TASK_LABEL);
     match app.get_webview_panel(SIMPLE_TASK_LABEL) {
         Ok(panel) => {
+            // Reset panel size to default (may have been resized by user)
+            panel.set_content_size(SIMPLE_TASK_WIDTH, SIMPLE_TASK_HEIGHT);
+
             tracing::info!("[SimpleTaskPanel] Got panel, calculating position...");
             // Reposition panel to center of the screen where the cursor is
             let (x, y) = calculate_centered_panel_position_cocoa(app, SIMPLE_TASK_WIDTH, SIMPLE_TASK_HEIGHT);

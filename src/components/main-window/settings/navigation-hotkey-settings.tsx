@@ -11,8 +11,8 @@ import {
 import { formatHotkeyDisplay } from "@/utils/hotkey-formatting";
 
 export function TaskNavigationHotkeySettings() {
-  const [downHotkey, setDownHotkey] = useState<string>("Shift+Down");
-  const [upHotkey, setUpHotkey] = useState<string>("Shift+Up");
+  const [downHotkey, setDownHotkey] = useState<string>("Alt+Down");
+  const [upHotkey, setUpHotkey] = useState<string>("Alt+Up");
   const [editingDown, setEditingDown] = useState(false);
   const [editingUp, setEditingUp] = useState(false);
   const [pendingDown, setPendingDown] = useState<string>("");

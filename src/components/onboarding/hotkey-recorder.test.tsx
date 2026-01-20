@@ -17,7 +17,7 @@ describe("HotkeyRecorder", () => {
     it("displays default hotkey Command+Space", () => {
       render(<HotkeyRecorder onHotkeyChanged={mockOnHotkeyChanged} />);
 
-      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-800");
+      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-900");
       expect(screen.getByTestId("hotkey-key")).toHaveTextContent("Space");
     });
 
@@ -30,9 +30,9 @@ describe("HotkeyRecorder", () => {
       );
 
       expect(screen.getByTestId("modifier-control")).toHaveClass(
-        "bg-surface-800"
+        "bg-surface-900"
       );
-      expect(screen.getByTestId("modifier-alt")).toHaveClass("bg-surface-800");
+      expect(screen.getByTestId("modifier-alt")).toHaveClass("bg-surface-900");
       expect(screen.getByTestId("hotkey-key")).toHaveTextContent("K");
     });
 
@@ -55,7 +55,7 @@ describe("HotkeyRecorder", () => {
       fireEvent.keyDown(container, { key: "Meta", metaKey: true });
 
       expect(container).toHaveAttribute("data-state", "recording");
-      expect(container).toHaveClass("border-accent-500");
+      expect(container).toHaveClass("border-blue-500");
     });
 
     it("lights up pressed modifiers during recording", () => {
@@ -64,7 +64,7 @@ describe("HotkeyRecorder", () => {
 
       fireEvent.keyDown(container, { key: "Meta", metaKey: true });
 
-      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-800");
+      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-900");
     });
 
     it("shows ? for key during recording", () => {
@@ -86,8 +86,8 @@ describe("HotkeyRecorder", () => {
         shiftKey: true,
       });
 
-      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-800");
-      expect(screen.getByTestId("modifier-shift")).toHaveClass("bg-surface-800");
+      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-900");
+      expect(screen.getByTestId("modifier-shift")).toHaveClass("bg-surface-900");
     });
 
     it("returns to idle when all modifiers released without setting", () => {
@@ -151,7 +151,7 @@ describe("HotkeyRecorder", () => {
       fireEvent.keyDown(container, { key: "k", code: "KeyK", metaKey: true });
 
       expect(screen.getByTestId("hotkey-key")).toHaveTextContent("K");
-      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-800");
+      expect(screen.getByTestId("modifier-meta")).toHaveClass("bg-surface-900");
     });
 
     it("sets hotkey with multiple modifiers", () => {
@@ -295,6 +295,84 @@ describe("HotkeyRecorder", () => {
       });
 
       expect(screen.getByTestId("hotkey-key")).toHaveTextContent("↑");
+    });
+  });
+
+  describe("overlay and status text", () => {
+    it("shows overlay when unfocused and idle", () => {
+      render(
+        <HotkeyRecorder
+          onHotkeyChanged={mockOnHotkeyChanged}
+          autoFocus={false}
+        />
+      );
+
+      expect(screen.getByTestId("hotkey-recorder-overlay")).toBeInTheDocument();
+      expect(
+        screen.getByText("Click to start recording")
+      ).toBeInTheDocument();
+    });
+
+    it("hides overlay when focused", () => {
+      render(<HotkeyRecorder onHotkeyChanged={mockOnHotkeyChanged} />);
+
+      expect(
+        screen.queryByTestId("hotkey-recorder-overlay")
+      ).not.toBeInTheDocument();
+    });
+
+    it("clicking overlay focuses the recorder", () => {
+      render(
+        <HotkeyRecorder
+          onHotkeyChanged={mockOnHotkeyChanged}
+          autoFocus={false}
+        />
+      );
+
+      const overlay = screen.getByTestId("hotkey-recorder-overlay");
+      fireEvent.click(overlay);
+
+      expect(getContainer()).toHaveFocus();
+      expect(
+        screen.queryByTestId("hotkey-recorder-overlay")
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows status text when focused and idle", () => {
+      render(<HotkeyRecorder onHotkeyChanged={mockOnHotkeyChanged} />);
+
+      expect(screen.getByTestId("hotkey-recorder-status")).toHaveTextContent(
+        "Press modifier keys (⌘ ⌃ ⌥ ⇧) then a letter or key"
+      );
+    });
+
+    it("shows recording status text during recording", () => {
+      render(<HotkeyRecorder onHotkeyChanged={mockOnHotkeyChanged} />);
+      const container = getContainer();
+
+      fireEvent.keyDown(container, { key: "Meta", metaKey: true });
+
+      expect(screen.getByTestId("hotkey-recorder-status")).toHaveTextContent(
+        "Now press a key to complete the shortcut..."
+      );
+    });
+
+    it("shows locked status text after setting hotkey", () => {
+      render(<HotkeyRecorder onHotkeyChanged={mockOnHotkeyChanged} />);
+      const container = getContainer();
+
+      fireEvent.keyDown(container, { key: "Meta", metaKey: true });
+      fireEvent.keyDown(container, { key: "k", code: "KeyK", metaKey: true });
+
+      expect(screen.getByTestId("hotkey-recorder-status")).toHaveTextContent(
+        "✓ Hotkey set! Release all keys to continue"
+      );
+    });
+
+    it("uses teal border when focused and idle", () => {
+      render(<HotkeyRecorder onHotkeyChanged={mockOnHotkeyChanged} />);
+
+      expect(getContainer()).toHaveClass("border-secondary-500");
     });
   });
 });

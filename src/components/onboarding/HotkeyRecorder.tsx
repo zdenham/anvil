@@ -186,54 +186,97 @@ export const HotkeyRecorder = ({
     state === "recording" ? recordingModifiers : hotkey.modifiers;
   const displayKey = state === "recording" ? null : hotkey.key;
 
+  const getStatusText = () => {
+    if (!isFocused && state === "idle") return null; // Handled by overlay
+    if (state === "idle" && isFocused)
+      return "Press modifier keys (⌘ ⌃ ⌥ ⇧) then a letter or key";
+    if (state === "recording") return "Now press a key to complete the shortcut...";
+    if (state === "locked") return "✓ Hotkey set! Release all keys to continue";
+    return null;
+  };
+
+  const statusText = getStatusText();
+
   return (
-    <div
-      ref={containerRef}
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      onKeyUp={handleKeyUp}
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
-      data-testid="hotkey-recorder"
-      data-state={state}
-      className={cn(
-        "border-2 rounded-lg p-6 my-4 min-h-[80px] flex items-center justify-center gap-6 transition-all outline-none",
-        state === "locked" && "border-green-500 bg-green-900/20",
-        state === "recording" && "border-blue-500 bg-blue-900/20",
-        state === "idle" && isFocused && "border-surface-500 bg-surface-700",
-        state === "idle" && !isFocused && "border-surface-600 bg-surface-800"
-      )}
-    >
-      <div className="flex gap-2">
-        {MODIFIERS.map((mod) => (
-          <kbd
-            key={mod}
-            data-testid={`modifier-${mod.toLowerCase()}`}
-            className={cn(
-              "px-3 py-1.5 rounded-md font-mono text-lg min-w-[2.5rem] text-center font-semibold transition-all duration-100 border",
-              displayModifiers.has(mod)
-                ? "bg-surface-900 text-surface-100 shadow-md border-surface-500"
-                : "bg-surface-600 text-surface-400 border-surface-500"
-            )}
-          >
-            {MODIFIER_DISPLAY[mod]}
-          </kbd>
-        ))}
-      </div>
-
-      <span className="text-surface-400 text-xl font-light">+</span>
-
-      <kbd
-        data-testid="hotkey-key"
+    <div className="my-4">
+      <div
+        ref={containerRef}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        data-testid="hotkey-recorder"
+        data-state={state}
         className={cn(
-          "px-2 py-1.5 rounded-md font-mono text-lg w-[5rem] text-center font-semibold transition-all duration-100 border",
-          displayKey
-            ? "bg-surface-900 text-surface-100 shadow-md border-surface-500"
-            : "bg-surface-600 text-surface-400 border-surface-500"
+          "relative border-2 rounded-lg p-6 min-h-[80px] flex items-center justify-center gap-6 transition-all outline-none",
+          state === "locked" && "border-green-500 bg-green-900/20",
+          state === "recording" && "border-blue-500 bg-blue-900/20",
+          state === "idle" &&
+            isFocused &&
+            "border-secondary-500 bg-secondary-900/20",
+          state === "idle" && !isFocused && "border-surface-600 bg-surface-800"
         )}
       >
-        {displayKey ? formatKeyDisplay(displayKey) : "?"}
-      </kbd>
+        {/* Gaussian blur overlay for unfocused idle state */}
+        {!isFocused && state === "idle" && (
+          <div
+            className="absolute inset-0 rounded-lg backdrop-blur-sm bg-surface-900/30 flex items-center justify-center cursor-pointer z-10"
+            onClick={() => containerRef.current?.focus()}
+            data-testid="hotkey-recorder-overlay"
+          >
+            <span className="px-4 py-2 rounded-md bg-surface-700 text-surface-200 text-sm font-medium border border-surface-500 hover:bg-surface-600 transition-colors">
+              Click to start recording
+            </span>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {MODIFIERS.map((mod) => (
+            <kbd
+              key={mod}
+              data-testid={`modifier-${mod.toLowerCase()}`}
+              className={cn(
+                "px-3 py-1.5 rounded-md font-mono text-lg min-w-[2.5rem] text-center font-semibold transition-all duration-100 border",
+                displayModifiers.has(mod)
+                  ? "bg-surface-900 text-surface-100 shadow-md border-surface-500"
+                  : "bg-surface-600 text-surface-400 border-surface-500"
+              )}
+            >
+              {MODIFIER_DISPLAY[mod]}
+            </kbd>
+          ))}
+        </div>
+
+        <span className="text-surface-400 text-xl font-light">+</span>
+
+        <kbd
+          data-testid="hotkey-key"
+          className={cn(
+            "px-2 py-1.5 rounded-md font-mono text-lg w-[5rem] text-center font-semibold transition-all duration-100 border",
+            displayKey
+              ? "bg-surface-900 text-surface-100 shadow-md border-surface-500"
+              : "bg-surface-600 text-surface-400 border-surface-500"
+          )}
+        >
+          {displayKey ? formatKeyDisplay(displayKey) : "?"}
+        </kbd>
+      </div>
+
+      {/* Status text indicator */}
+      {statusText && (
+        <p
+          className={cn(
+            "text-sm mt-2 text-center transition-colors",
+            state === "locked" && "text-green-400",
+            state === "recording" && "text-blue-400",
+            state === "idle" && "text-surface-400"
+          )}
+          data-testid="hotkey-recorder-status"
+        >
+          {statusText}
+        </p>
+      )}
     </div>
   );
 };
