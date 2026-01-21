@@ -4,6 +4,7 @@ export {
   type AppEvents,
   type OpenTaskPayload,
   type OpenSimpleTaskPayload,
+  type SimpleTaskViewType,
   type ShowErrorPayload,
   type TaskPanelReadyPayload,
   type WindowFocusChangedPayload,
@@ -34,6 +35,11 @@ export { useLogStore, useFilteredLogs } from "./logs";
 export { logService } from "./logs";
 export * from "./logs/types";
 
+// Plans
+export { usePlanStore } from "./plans/store";
+export { planService } from "./plans/service";
+export * from "./plans/types";
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // App-level hydration & event listeners
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -41,6 +47,7 @@ import { taskService } from "./tasks/service";
 import { threadService } from "./threads/service";
 import { repoService } from "./repositories/service";
 import { settingsService } from "./settings/service";
+import { planService } from "./plans/service";
 import { logger } from "@/lib/logger-client";
 import { setupTaskListeners } from "./tasks/listeners";
 import { setupThreadListeners } from "./threads/listeners";
@@ -60,6 +67,7 @@ export async function hydrateEntities(): Promise<void> {
       threadService.hydrate(),
       repoService.hydrate(),
       settingsService.hydrate(),
+      planService.hydrate(),
     ]);
     logger.log("[entities:hydrate] All entities hydrated successfully");
   } catch (error) {

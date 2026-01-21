@@ -411,9 +411,14 @@ export const taskService = {
     const existing = useTaskStore.getState().tasks[id];
     if (!existing) throw new Error(`Task not found: ${id}`);
 
+    // Handle planId: null as explicit unset (convert to undefined)
+    const { planId, ...restUpdates } = updates;
+    const planIdUpdate = planId === null ? { planId: undefined } : (planId !== undefined ? { planId } : {});
+
     const updated: TaskMetadata = {
       ...existing,
-      ...updates,
+      ...restUpdates,
+      ...planIdUpdate,
       updatedAt: Date.now(),
     };
 
@@ -625,5 +630,19 @@ export const taskService = {
    */
   listSlugs(): string[] {
     return Object.values(useTaskStore.getState().tasks).map((task) => task.slug);
+  },
+
+  /**
+   * Associates a task with a plan.
+   */
+  async associateWithPlan(taskId: string, planId: string): Promise<void> {
+    await this.update(taskId, { planId });
+  },
+
+  /**
+   * Dissociates a task from its plan.
+   */
+  async dissociateFromPlan(taskId: string): Promise<void> {
+    await this.update(taskId, { planId: null });
   },
 };

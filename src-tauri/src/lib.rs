@@ -574,8 +574,9 @@ fn resize_spotlight(
     app: AppHandle,
     result_count: usize,
     input_expanded: bool,
+    compact: bool,
 ) -> Result<(), String> {
-    panels::resize_spotlight(&app, result_count, input_expanded)
+    panels::resize_spotlight(&app, result_count, input_expanded, compact)
 }
 
 /// Toggles the spotlight window/panel visibility
@@ -941,6 +942,10 @@ pub fn run() {
 
             // Initialize paths first (before anything that might use them)
             paths::initialize();
+
+            // Run login shell to capture user's full PATH (includes node from nvm/fnm/etc)
+            // This is done eagerly at startup to avoid "node not found" errors when spawning agents
+            paths::run_login_shell_initialization();
 
             // Ensure .mort directories exist (NEW)
             if let Err(e) = ensure_mort_directories() {

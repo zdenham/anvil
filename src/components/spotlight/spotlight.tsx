@@ -151,9 +151,13 @@ export class SpotlightController {
 
   async resizeWindow(
     resultCount: number,
-    inputExpanded: boolean
+    inputExpanded: boolean,
+    compact: boolean = false
   ): Promise<void> {
-    await invoke("resize_spotlight", { resultCount, inputExpanded });
+    console.log(
+      `[SPOTLIGHT-HEIGHT] resizeWindow called: resultCount=${resultCount}, inputExpanded=${inputExpanded}, compact=${compact}`
+    );
+    await invoke("resize_spotlight", { resultCount, inputExpanded, compact });
   }
 
   async hideSpotlight(): Promise<void> {
@@ -477,11 +481,14 @@ export const Spotlight = () => {
   const controllerRef = useRef<SpotlightController>(new SpotlightController());
   // Track inputExpanded in a ref so async callbacks always have the latest value
   const inputExpandedRef = useRef(false);
+  // Track trigger state in a ref so async callbacks can check current trigger status
+  const triggerStateRef = useRef<TriggerStateInfo>(INITIAL_TRIGGER_STATE);
 
   const { query, results, selectedIndex, inputExpanded, appSuffix, selectedWorktreeIndex, availableWorktrees } = state;
 
-  // Keep ref in sync with state
+  // Keep refs in sync with state
   inputExpandedRef.current = inputExpanded;
+  triggerStateRef.current = triggerState;
 
   const { handleHistoryNavigation, resetHistory, isInHistoryMode } =
     useSpotlightHistory({
@@ -496,10 +503,9 @@ export const Spotlight = () => {
         }));
 
         // Run search to populate results (including "create task" option)
-        // Use inputExpandedRef.current to get latest expansion state (avoids stale closure)
+        // Resize is handled by the unified useEffect
         if (newQuery.trim()) {
           const newResults = await controller.search(newQuery);
-          await controller.resizeWindow(newResults.length, inputExpandedRef.current);
           setState((prev) => ({
             ...prev,
             results: newResults,
@@ -507,7 +513,6 @@ export const Spotlight = () => {
           }));
         } else {
           setState((prev) => ({ ...prev, results: [] }));
-          await controller.resizeWindow(0, inputExpandedRef.current);
         }
 
         // Set cursor to end after state update
@@ -536,6 +541,17 @@ export const Spotlight = () => {
   const displaySelectedIndex = triggerState.isActive
     ? triggerState.selectedIndex
     : selectedIndex;
+
+  // Centralized resize helper that properly handles compact mode for file triggers
+  const resizeSpotlight = useCallback(
+    async (resultCount: number, expanded: boolean, isCompact?: boolean) => {
+      const controller = controllerRef.current;
+      // Use provided isCompact flag, or default to false
+      const compact = isCompact ?? false;
+      await controller.resizeWindow(resultCount, expanded, compact);
+    },
+    []
+  );
 
   const resetState = useCallback(() => {
     setState(INITIAL_STATE);
@@ -567,7 +583,7 @@ export const Spotlight = () => {
           selectedIndex: 0,
         }));
         resetHistory();
-        await controller.resizeWindow(0, inputExpanded);
+        // Resize is handled by the unified useEffect (results changed to [])
         // Focus and set cursor to end after state update
         requestAnimationFrame(() => {
           inputRef.current?.focus();
@@ -822,7 +838,7 @@ export const Spotlight = () => {
         await invoke("restart_app");
       }
     },
-    [triggerState.results, availableWorktrees, selectedWorktreeIndex]
+    [triggerState.results, availableWorktrees, selectedWorktreeIndex, resizeSpotlight, inputExpanded]
   );
 
   // Initialize controller on mount and fetch app suffix
@@ -1090,15 +1106,14 @@ export const Spotlight = () => {
       }));
 
       if (!displayQuery.trim()) {
-        // Clear results and resize for empty query
+        // Clear results - resize is handled by the unified useEffect below
         setState((prev) => ({ ...prev, results: [] }));
-        await controller.resizeWindow(0, inputExpandedRef.current);
         return;
       }
 
       // Perform async operations after input state is updated
+      // Resize is handled by the unified useEffect below
       const newResults = await controller.search(displayQuery);
-      await controller.resizeWindow(newResults.length, inputExpandedRef.current);
 
       // Update results separately
       setState((prev) => ({
@@ -1110,23 +1125,22 @@ export const Spotlight = () => {
     []
   );
 
-  // Resize window when trigger results change
+  // Unified resize logic - single source of truth for window height
+  // Watches both trigger state and normal results to avoid race conditions
   useEffect(() => {
-    const controller = controllerRef.current;
     if (triggerState.isActive) {
-      controller.resizeWindow(triggerState.results.length, inputExpanded);
+      // Trigger is active - resize for trigger results (compact mode)
+      resizeSpotlight(triggerState.results.length, inputExpanded, true);
+    } else {
+      // No trigger - resize for normal results (non-compact mode)
+      resizeSpotlight(results.length, inputExpanded, false);
     }
-  }, [triggerState.isActive, triggerState.results.length, inputExpanded]);
+  }, [triggerState.isActive, triggerState.results.length, results.length, inputExpanded, resizeSpotlight]);
 
-  const handleExpandedChange = useCallback(
-    async (expanded: boolean) => {
-      const controller = controllerRef.current;
-      setState((prev) => ({ ...prev, inputExpanded: expanded }));
-      // Use displayResults for proper count
-      await controller.resizeWindow(displayResults.length, expanded);
-    },
-    [displayResults.length]
-  );
+  const handleExpandedChange = useCallback((expanded: boolean) => {
+    // Just update state - resize is handled by the unified useEffect
+    setState((prev) => ({ ...prev, inputExpanded: expanded }));
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

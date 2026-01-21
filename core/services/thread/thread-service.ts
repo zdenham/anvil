@@ -99,9 +99,15 @@ export class ThreadService {
     updates: UpdateThreadInput
   ): ThreadMetadata {
     const metadata = this.get(taskSlug, folderName);
+
+    // Handle planId: null as explicit unset (convert to undefined)
+    const { planId, ...restUpdates } = updates;
+    const planIdUpdate = planId === null ? { planId: undefined } : (planId !== undefined ? { planId } : {});
+
     const updated: ThreadMetadata = {
       ...metadata,
-      ...updates,
+      ...restUpdates,
+      ...planIdUpdate,
       updatedAt: Date.now(),
     };
 

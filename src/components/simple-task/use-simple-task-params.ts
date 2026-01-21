@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 import { logger } from "@/lib/logger-client";
-import { eventBus, type OpenSimpleTaskPayload } from "@/entities";
+import { eventBus, type OpenSimpleTaskPayload, type SimpleTaskViewType } from "@/entities";
 
 /** Internal type for hook return value */
 interface SimpleTaskParams {
   taskId: string;
   threadId: string;
   prompt?: string;
+  /** Initial view to display when opening the task */
+  initialView?: SimpleTaskViewType;
 }
 
 /** Schema for IPC data from Rust (snake_case) */
@@ -37,6 +39,7 @@ export function useSimpleTaskParams(): SimpleTaskParams | null {
             taskId: pending.task_id,
             threadId: pending.thread_id,
             prompt: pending.prompt ?? undefined, // Convert null to undefined
+            // Note: IPC from Rust doesn't include initialView - it defaults to "thread"
           });
         } else {
           logger.warn("[useSimpleTaskParams] No pending simple task found");
@@ -55,6 +58,7 @@ export function useSimpleTaskParams(): SimpleTaskParams | null {
         taskId: payload.taskId,
         threadId: payload.threadId,
         prompt: payload.prompt ?? undefined,
+        initialView: payload.initialView,
       });
     };
 

@@ -258,9 +258,14 @@ export const threadService = {
     const existing = useThreadStore.getState().threads[id];
     if (!existing) throw new Error(`Thread not found: ${id}`);
 
+    // Handle planId: null as explicit unset (convert to undefined)
+    const { planId, ...restUpdates } = updates;
+    const planIdUpdate = planId === null ? { planId: undefined } : (planId !== undefined ? { planId } : {});
+
     const updated: ThreadMetadata = {
       ...existing,
-      ...updates,
+      ...restUpdates,
+      ...planIdUpdate,
       updatedAt: Date.now(),
     };
 
@@ -658,5 +663,19 @@ export const threadService = {
    */
   async refreshThreadState(threadId: string): Promise<void> {
     return this.loadThreadState(threadId);
+  },
+
+  /**
+   * Associates a thread with a plan.
+   */
+  async associateWithPlan(threadId: string, planId: string): Promise<void> {
+    await this.update(threadId, { planId });
+  },
+
+  /**
+   * Dissociates a thread from its plan.
+   */
+  async dissociateFromPlan(threadId: string): Promise<void> {
+    await this.update(threadId, { planId: null });
   },
 };

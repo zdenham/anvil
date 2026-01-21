@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { GitBranch } from "lucide-react";
 import { SpotlightResult } from "./types";
 import { ResultItem } from "./result-item";
@@ -141,6 +142,11 @@ const getResultDisplay = (
   };
 };
 
+// Must match MAX_VISIBLE_RESULTS in src-tauri/src/panels.rs
+const MAX_VISIBLE_RESULTS = 8;
+const RESULT_ITEM_HEIGHT = 56; // h-14 = 56px
+const RESULT_ITEM_HEIGHT_COMPACT = 32; // h-8 = 32px
+
 export const ResultsTray = ({
   results,
   selectedIndex,
@@ -148,28 +154,54 @@ export const ResultsTray = ({
   onActivate,
   worktreeInfo,
 }: ResultsTrayProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLDivElement>(null);
+
+  // Scroll selected item into view when selection changes
+  useEffect(() => {
+    if (selectedRef.current && containerRef.current) {
+      selectedRef.current.scrollIntoView({
+        block: "nearest",
+        behavior: "instant",
+      });
+    }
+  }, [selectedIndex]);
+
   if (results.length === 0) {
     return null;
   }
 
+  // Determine if results are compact (file type results)
+  const isCompact = results.length > 0 && results[0].type === "file";
+  const itemHeight = isCompact ? RESULT_ITEM_HEIGHT_COMPACT : RESULT_ITEM_HEIGHT;
+  const maxHeight = MAX_VISIBLE_RESULTS * itemHeight;
+  const needsScroll = results.length > MAX_VISIBLE_RESULTS;
+
   return (
-    <div data-testid="spotlight-results" className="rounded-b-xl bg-surface-900/80 backdrop-blur-xl overflow-hidden">
+    <div
+      ref={containerRef}
+      data-testid="spotlight-results"
+      className="rounded-b-xl bg-surface-900/80 backdrop-blur-xl overflow-y-auto"
+      style={needsScroll ? { maxHeight } : undefined}
+    >
       {results.map((result, index) => {
         // Only pass worktreeInfo to task results
         const displayWorktreeInfo = result.type === "task" ? worktreeInfo : undefined;
         const { icon, title, subtitle } = getResultDisplay(result, displayWorktreeInfo);
+        const isSelected = index === selectedIndex;
         return (
-          <ResultItem
-            key={getResultKey(result, index)}
-            data-testid={`spotlight-result-${index}`}
-            icon={icon}
-            title={title}
-            subtitle={subtitle}
-            isSelected={index === selectedIndex}
-            onSelect={() => onSelectIndex(index)}
-            onActivate={() => onActivate(result)}
-            compact={result.type === "file"}
-          />
+          <div key={getResultKey(result, index)} ref={isSelected ? selectedRef : undefined}>
+            <ResultItem
+              data-testid={`spotlight-result-${index}`}
+              icon={icon}
+              title={title}
+              subtitle={subtitle}
+              isSelected={isSelected}
+              onSelect={() => onSelectIndex(index)}
+              onActivate={() => onActivate(result)}
+              compact={result.type === "file"}
+            />
+          </div>
         );
       })}
     </div>

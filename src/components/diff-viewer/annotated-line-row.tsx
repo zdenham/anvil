@@ -1,4 +1,5 @@
 import { memo } from "react";
+import type { ThemedToken } from "shiki";
 import type { AnnotatedLine } from "./types";
 
 interface AnnotatedLineRowProps {
@@ -97,14 +98,37 @@ export const AnnotatedLineRow = memo(function AnnotatedLineRow({
         role="cell"
         className={`
           flex-1 px-2 whitespace-pre overflow-x-auto
-          ${getContentColor(line.type)}
+          ${line.tokens ? "" : getContentColor(line.type)}
         `}
       >
-        {line.content || " "}
+        {line.tokens ? (
+          <TokenizedContent tokens={line.tokens} />
+        ) : (
+          line.content || " "
+        )}
       </span>
     </div>
   );
 });
+
+/**
+ * Renders syntax-highlighted tokens as colored spans.
+ */
+function TokenizedContent({ tokens }: { tokens: ThemedToken[] }) {
+  if (tokens.length === 0) {
+    return <span>&nbsp;</span>;
+  }
+
+  return (
+    <>
+      {tokens.map((token, index) => (
+        <span key={index} style={{ color: token.color }}>
+          {token.content}
+        </span>
+      ))}
+    </>
+  );
+}
 
 // Helper functions for styling
 

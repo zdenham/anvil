@@ -126,6 +126,8 @@ export const TaskMetadataSchema = z.object({
   cwd: z.string().optional(),
   /** Path to the worktree this task is using (for explicit worktree management) */
   worktreePath: z.string().optional(),
+  /** Plan ID this task is associated with (UUID) */
+  planId: z.string().uuid().optional(),
 }).transform((data) => ({
   ...data,
   slug: data.slug ?? data.id,                            // Default slug to id for simple tasks
@@ -200,6 +202,8 @@ export interface UpdateTaskInput {
   prUrl?: string;
   /** Path to the worktree this task is using (for explicit worktree management) */
   worktreePath?: string;
+  /** Plan ID to associate with task, or null to explicitly unset */
+  planId?: string | null;
 }
 
 /**

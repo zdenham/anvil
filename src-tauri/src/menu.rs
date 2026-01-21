@@ -7,6 +7,7 @@ use tauri::{
 ///
 /// Menu structure:
 /// - Mort: About, Services, Hide/Show, Quit
+/// - Edit: Undo, Redo, Cut, Copy, Paste, Select All
 /// - View: Tasks, Worktrees, Settings (Cmd+,), Logs
 /// - Window: Minimize, Zoom, Close
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -21,6 +22,18 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&PredefinedMenuItem::show_all(app, Some("Show All"))?)
         .separator()
         .item(&PredefinedMenuItem::quit(app, Some("Quit Mort"))?)
+        .build()?;
+
+    // Edit menu with standard clipboard operations
+    // This is required for Cmd+V (paste), Cmd+C (copy), etc. to work in webviews
+    let edit_menu = SubmenuBuilder::new(app, "Edit")
+        .item(&PredefinedMenuItem::undo(app, Some("Undo"))?)
+        .item(&PredefinedMenuItem::redo(app, Some("Redo"))?)
+        .separator()
+        .item(&PredefinedMenuItem::cut(app, Some("Cut"))?)
+        .item(&PredefinedMenuItem::copy(app, Some("Copy"))?)
+        .item(&PredefinedMenuItem::paste(app, Some("Paste"))?)
+        .item(&PredefinedMenuItem::select_all(app, Some("Select All"))?)
         .build()?;
 
     // View menu with navigation items
@@ -54,6 +67,7 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
     let menu = MenuBuilder::new(app)
         .item(&app_menu)
+        .item(&edit_menu)
         .item(&view_menu)
         .item(&window_menu)
         .build()?;

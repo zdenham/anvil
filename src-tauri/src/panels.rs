@@ -92,6 +92,7 @@ pub const SIMPLE_TASK_HEIGHT: f64 = 750.0;
 pub const TASKS_LIST_WIDTH: f64 = 600.0;
 pub const TASKS_LIST_HEIGHT: f64 = 500.0;
 pub const RESULT_ITEM_HEIGHT: f64 = 56.0;
+pub const RESULT_ITEM_HEIGHT_COMPACT: f64 = 32.0;
 pub const MAX_VISIBLE_RESULTS: usize = 8;
 
 // Store app handle globally to access from event callbacks
@@ -432,7 +433,14 @@ pub fn resize_spotlight(
     app: &AppHandle,
     result_count: usize,
     input_expanded: bool,
+    compact: bool,
 ) -> Result<(), String> {
+    tracing::info!(
+        "[SPOTLIGHT-HEIGHT] resize_spotlight called: result_count={}, input_expanded={}, compact={}",
+        result_count,
+        input_expanded,
+        compact
+    );
     if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
         let base_height = if input_expanded {
             SPOTLIGHT_HEIGHT_EXPANDED
@@ -440,10 +448,27 @@ pub fn resize_spotlight(
             SPOTLIGHT_HEIGHT
         };
         let visible_results = result_count.min(MAX_VISIBLE_RESULTS);
-        let results_height = visible_results as f64 * RESULT_ITEM_HEIGHT;
+        let item_height = if compact {
+            RESULT_ITEM_HEIGHT_COMPACT
+        } else {
+            RESULT_ITEM_HEIGHT
+        };
+        let results_height = visible_results as f64 * item_height;
         let new_height = base_height + results_height;
 
+        tracing::info!(
+            "[SPOTLIGHT-HEIGHT] calculating: base_height={}, visible_results={}, item_height={}, results_height={}, new_height={}",
+            base_height,
+            visible_results,
+            item_height,
+            results_height,
+            new_height
+        );
+
         panel.set_content_size(SPOTLIGHT_WIDTH, new_height);
+        tracing::info!("[SPOTLIGHT-HEIGHT] set_content_size called with width={}, height={}", SPOTLIGHT_WIDTH, new_height);
+    } else {
+        tracing::warn!("[SPOTLIGHT-HEIGHT] Failed to get spotlight panel");
     }
     Ok(())
 }

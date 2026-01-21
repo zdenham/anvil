@@ -2,6 +2,7 @@ import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { useSimpleTaskParams } from "./use-simple-task-params";
 import { useThreadStore } from "@/entities/threads/store";
+import { useTaskStore } from "@/entities/tasks/store";
 import { threadService } from "@/entities/threads/service";
 import {
   resumeSimpleAgent,
@@ -13,6 +14,7 @@ import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
 import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggested-actions-panel";
 import { ChangesTab } from "./changes-tab";
+import { PlanTab } from "./plan-tab";
 import { logger } from "@/lib/logger-client";
 import { useAgentModeStore } from "@/entities/agent-mode";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
@@ -38,13 +40,25 @@ export function SimpleTaskWindow() {
     );
   }
 
-  return <SimpleTaskWindowContent {...params} />;
+  // Map SimpleTaskViewType to SimpleTaskView ("plan" remains "plan", "changes" remains "changes")
+  const initialView: SimpleTaskView = params.initialView === "changes" ? "changes" : params.initialView === "plan" ? "plan" : "thread";
+
+  return (
+    <SimpleTaskWindowContent
+      taskId={params.taskId}
+      threadId={params.threadId}
+      prompt={params.prompt}
+      initialView={initialView}
+    />
+  );
 }
 
 interface SimpleTaskWindowContentProps {
   taskId: string;
   threadId: string;
   prompt?: string;
+  /** Initial view to display when opening the task */
+  initialView?: SimpleTaskView;
 }
 
 /**
@@ -55,13 +69,18 @@ function SimpleTaskWindowContent({
   taskId,
   threadId,
   prompt,
+  initialView: initialViewProp,
 }: SimpleTaskWindowContentProps) {
   const activeState = useThreadStore((s) => s.threadStates[threadId]);
   const activeMetadata = useThreadStore((s) => s.threads[threadId]);
+  const task = useTaskStore((s) => s.tasks[taskId]);
   // Select the mode value directly to avoid unstable selector return values
   const threadModes = useAgentModeStore((s) => s.threadModes);
   const defaultMode = useAgentModeStore((s) => s.defaultMode);
   const agentMode = threadModes[threadId] ?? defaultMode;
+
+  // Determine planId - thread takes priority over task
+  const planId = activeMetadata?.planId ?? task?.planId ?? null;
 
   // Handle marking thread as read when viewed or completed
   useMarkThreadAsRead(threadId, {
@@ -91,8 +110,9 @@ function SimpleTaskWindowContent({
   const messageListRef = useRef<MessageListRef>(null);
   const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
 
-  // View toggle state: "thread" (default) or "changes"
-  const [activeView, setActiveView] = useState<SimpleTaskView>("thread");
+  // View toggle state: "thread" (default), "changes", or "plan"
+  // Use initialViewProp if provided, otherwise default to "thread"
+  const [activeView, setActiveView] = useState<SimpleTaskView>(initialViewProp ?? "thread");
 
   // Toast state for "coming soon" messages
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -111,8 +131,18 @@ function SimpleTaskWindowContent({
     return hasGitInfo;
   }, [activeMetadata?.git?.initialCommitHash, activeState?.fileChanges?.length]);
 
+  // Three-way toggle: thread -> changes -> plan -> thread
   const handleToggleView = useCallback(() => {
-    setActiveView((v) => (v === "thread" ? "changes" : "thread"));
+    setActiveView((current) => {
+      switch (current) {
+        case "thread":
+          return "changes";
+        case "changes":
+          return "plan";
+        case "plan":
+          return "thread";
+      }
+    });
   }, []);
 
   // Set this thread as active so AGENT_STATE events update the store
@@ -273,6 +303,14 @@ function SimpleTaskWindowContent({
   useEffect(() => {
     resetState();
   }, [taskId, resetState]);
+
+  // Update activeView when navigating to a task with a specific initialView
+  // This handles the case when the component is already mounted and we navigate to a new task
+  useEffect(() => {
+    if (initialViewProp) {
+      setActiveView(initialViewProp);
+    }
+  }, [taskId, initialViewProp]);
 
   // Focus restoration after task navigation
   // This ensures keyboard navigation works after archive/nextTask actions
@@ -563,8 +601,8 @@ function SimpleTaskWindowContent({
         hasChanges={hasChanges}
       />
 
-      {/* Conditionally render Thread view or Changes tab */}
-      {activeView === "thread" ? (
+      {/* Conditionally render Thread view, Changes tab, or Plan tab */}
+      {activeView === "thread" && (
         <>
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             <ThreadView
@@ -597,7 +635,9 @@ function SimpleTaskWindowContent({
             onNavigateToQuickActions={handleNavigateToQuickActions}
           />
         </>
-      ) : (
+      )}
+
+      {activeView === "changes" && (
         <div className="flex-1 min-h-0 overflow-hidden">
           {activeMetadata && (
             <ChangesTab
@@ -605,6 +645,12 @@ function SimpleTaskWindowContent({
               threadState={activeState}
             />
           )}
+        </div>
+      )}
+
+      {activeView === "plan" && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <PlanTab planId={planId} />
         </div>
       )}
 

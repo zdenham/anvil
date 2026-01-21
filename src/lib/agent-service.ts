@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { FilesystemClient } from "./filesystem-client";
 import { threadService, settingsService, taskService } from "@/entities";
 import { eventBus } from "@/entities/events";
-import { gitCommands, fsCommands } from "./tauri-commands";
+import { gitCommands, fsCommands, shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
 import { EventName, type AgentEventMessage } from "@core/types/events.js";
 import type { AgentMode } from "@core/types/agent-mode.js";
@@ -80,6 +80,27 @@ async function getShellPath(): Promise<string> {
     logger.info(`[agent] Captured shell PATH: ${cachedShellPath}`);
   }
   return cachedShellPath;
+}
+
+/**
+ * Ensures shell environment is initialized before spawning agents.
+ * Auto-runs login shell if not already initialized.
+ * This ensures the real user PATH (with version managers like nvm, fnm, volta)
+ * is available for finding the `node` binary.
+ */
+async function ensureShellInitialized(): Promise<void> {
+  const initialized = await shellEnvironmentCommands.isShellInitialized();
+  if (!initialized) {
+    logger.info("[agent-service] Shell not initialized, running login shell...");
+    const success = await shellEnvironmentCommands.initializeShellEnvironment();
+    if (success) {
+      // Clear cached shell path so next getShellPath() fetches updated value
+      cachedShellPath = null;
+      logger.info("[agent-service] Shell initialized successfully");
+    } else {
+      logger.warn("[agent-service] Shell initialization returned false, will use fallback PATH");
+    }
+  }
 }
 
 /**
@@ -239,6 +260,9 @@ export async function spawnAgentWithOrchestration(
     taskSlug: options.taskSlug,
     threadId: options.threadId,
   });
+
+  // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
+  await ensureShellInitialized();
 
   const settings = settingsService.get();
   const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
@@ -483,6 +507,9 @@ export async function resumeAgent(
   prompt: string,
   callbacks: AgentStreamCallbacks
 ): Promise<void> {
+  // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
+  await ensureShellInitialized();
+
   const settings = settingsService.get();
   const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
 
@@ -719,9 +746,39 @@ function handleSimpleAgentOutput(
 export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promise<void> {
   logger.info("[agent-service] spawnSimpleAgent START");
 
+  // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
+  await ensureShellInitialized();
+
   const mortDir = await fs.getDataDir();
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
   const shellPath = await getShellPath();
+
+  // Debug logging for spawn diagnostics
+  logger.info("[agent-service] spawnSimpleAgent paths:", {
+    mortDir,
+    runnerPath,
+    nodeModulesPath,
+    shellPathLength: shellPath?.length ?? 0,
+    shellPathPreview: shellPath?.substring(0, 200) ?? "NULL",
+    sourcePath: options.sourcePath,
+  });
+
+  // Check if paths exist (to diagnose "file not found" errors)
+  try {
+    const runnerExists = await fs.exists(runnerPath);
+    const cwdExists = await fs.exists(options.sourcePath);
+    const nodeModulesExists = await fs.exists(nodeModulesPath);
+    logger.info("[agent-service] Path existence check:", {
+      runnerPath,
+      runnerExists,
+      cwdPath: options.sourcePath,
+      cwdExists,
+      nodeModulesPath,
+      nodeModulesExists,
+    });
+  } catch (e) {
+    logger.error("[agent-service] Failed to check path existence:", e);
+  }
 
   // Get API key from settings or env
   const settings = settingsService.get();
@@ -744,6 +801,13 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     "--mort-dir", mortDir,
     "--agent-mode", agentMode,
   ];
+
+  logger.info("[agent-service] spawnSimpleAgent command:", {
+    command: "node",
+    argsCount: commandArgs.length,
+    firstArg: commandArgs[0],
+    cwd: options.sourcePath,
+  });
 
   const command = Command.create("node", commandArgs, {
     cwd: options.sourcePath,
@@ -792,17 +856,28 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   });
 
   // Note: PID is written to disk by the runner, not here
-  const child = await command.spawn();
-  activeSimpleProcesses.set(options.threadId, child);
-  agentProcesses.set(options.threadId, child);
-  logger.info(`[agent-service] Agent spawned for threadId=${options.threadId}, pid=${child.pid}`);
+  logger.info("[agent-service] About to spawn command...");
+  try {
+    const child = await command.spawn();
+    activeSimpleProcesses.set(options.threadId, child);
+    agentProcesses.set(options.threadId, child);
+    logger.info(`[agent-service] Agent spawned for threadId=${options.threadId}, pid=${child.pid}`);
 
-  eventBus.emit(EventName.AGENT_SPAWNED, {
-    threadId: options.threadId,
-    taskId: options.taskId,
-  });
+    eventBus.emit(EventName.AGENT_SPAWNED, {
+      threadId: options.threadId,
+      taskId: options.taskId,
+    });
 
-  logger.info("[agent-service] spawnSimpleAgent COMPLETE");
+    logger.info("[agent-service] spawnSimpleAgent COMPLETE");
+  } catch (spawnError) {
+    logger.error("[agent-service] SPAWN FAILED:", {
+      error: spawnError,
+      errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
+      errorType: typeof spawnError,
+      errorConstructor: spawnError?.constructor?.name,
+    });
+    throw spawnError;
+  }
 }
 
 /**
@@ -816,6 +891,9 @@ export async function resumeSimpleAgent(
   sourcePath: string,
   agentMode: AgentMode = "normal",
 ): Promise<void> {
+  // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
+  await ensureShellInitialized();
+
   const mortDir = await fs.getDataDir();
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
   const shellPath = await getShellPath();

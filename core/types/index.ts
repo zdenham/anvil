@@ -38,3 +38,6 @@ export * from "./permissions.js";
 
 // AskUserQuestion types - shared between Node agent and Tauri frontend
 export * from "./ask-user-question.js";
+
+// Plan types - shared between Node agent and Tauri frontend
+export * from "./plans.js";

@@ -205,16 +205,22 @@ export const isPanelVisible = async (panelLabel: string): Promise<boolean> => {
  * Use this when the simple-task panel is already visible and you just want
  * to switch to a different task without the focus flickering that comes
  * from going through Rust's show_simple_task.
+ *
+ * @param threadId - The thread ID to switch to
+ * @param taskId - The task ID to switch to
+ * @param prompt - Optional prompt text
+ * @param initialView - Optional initial view to display ("thread", "changes", or "plan")
  */
 export const switchSimpleTaskClientSide = (
   threadId: string,
   taskId: string,
   prompt?: string,
+  initialView?: "thread" | "changes" | "plan",
 ): void => {
   // Import eventBus dynamically to avoid circular dependencies
   import("@/entities").then(({ eventBus }) => {
-    logger.debug(`[hotkey-service] Client-side task switch to: ${taskId}`);
-    eventBus.emit("open-simple-task", { threadId, taskId, prompt });
+    logger.debug(`[hotkey-service] Client-side task switch to: ${taskId}`, { initialView });
+    eventBus.emit("open-simple-task", { threadId, taskId, prompt, initialView });
   });
 };
 

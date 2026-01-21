@@ -47,6 +47,8 @@ export const ThreadMetadataBaseSchema = z.object({
   pid: z.number().nullable().optional(),
   /** Path to the worktree this thread is using (for explicit worktree management) */
   worktreePath: z.string().optional(),
+  /** Plan ID this thread is associated with (UUID) */
+  planId: z.string().uuid().optional(),
 });
 
 /**
@@ -99,6 +101,8 @@ export interface UpdateThreadInput {
   changedFilePaths?: string[];
   /** Path to the worktree this thread is using (for explicit worktree management) */
   worktreePath?: string;
+  /** Plan ID to associate with thread, or null to explicitly unset */
+  planId?: string | null;
 }
 
 /**

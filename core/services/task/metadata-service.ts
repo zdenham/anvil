@@ -39,9 +39,15 @@ export class TaskMetadataService {
    */
   update(taskSlug: string, updates: UpdateTaskInput): TaskMetadata {
     const metadata = this.get(taskSlug);
+
+    // Handle planId: null as explicit unset (convert to undefined)
+    const { planId, ...restUpdates } = updates;
+    const planIdUpdate = planId === null ? { planId: undefined } : (planId !== undefined ? { planId } : {});
+
     const updated: TaskMetadata = {
       ...metadata,
-      ...updates,
+      ...restUpdates,
+      ...planIdUpdate,
       updatedAt: Date.now(),
     };
 

@@ -27,272 +27,364 @@ ChatPane (h-full flex flex-col)
 - Virtuoso handles message virtualization with 50px bottom threshold
 - Auto-scroll during streaming with smooth behavior
 
+## Key Decisions
+
+### Decision 1: Turn-Based vs Message-Based Tracking
+**Decision**: Track the **latest user turn** (not individual messages).
+
+Rationale:
+- The virtualization unit in Virtuoso is the turn, not the message
+- `rangeChanged` reports turn indices, not message indices
+- The turn contains the user message content we need to display
+- Simpler integration with existing turn-grouping architecture
+
+### Decision 2: State Location
+**Decision**: State lives in `ThreadView`, with visibility computed from Virtuoso range data passed up via callback.
+
+Structure:
+```typescript
+// ThreadView owns this state
+const [stickyState, setStickyState] = useState<StickyMessageState | null>(null);
+
+// MessageList reports range changes up
+onRangeChanged={(range) => {
+  // ThreadView computes sticky visibility from range + turns data
+}}
+```
+
+### Decision 3: Layout Approach
+**Decision**: Use absolute positioning with conditional padding-top on the Virtuoso container.
+
+- Sticky message positioned absolutely at top of ThreadView
+- When sticky is visible, add `padding-top` to Virtuoso wrapper to prevent content overlap
+- No changes needed to ChatPane height
+
+### Decision 4: Streaming Behavior
+**Decision**: Show sticky message during streaming.
+
+Rationale:
+- Users may scroll up during long streaming responses to re-read their prompt
+- The sticky provides context for what the assistant is responding to
+- Hiding it would remove useful context during the most important time
+
+### Decision 5: Visibility Hysteresis
+**Decision**: Only show sticky when the user turn is **fully out of view** (not partially visible).
+
+Rationale:
+- Prevents flickering when the message is at the edge of the viewport
+- If `startIndex > latestUserTurnIndex`, the turn is fully scrolled above
+- This provides a clean transition point
+
+---
+
 ## Implementation Plan
-
-### Phase 0: Architecture Alignment (CRITICAL)
-
-#### 0.1 Turn-Based Tracking Analysis
-**Research**: Understand turn vs message tracking implications
-- Your system uses turn grouping (`getUserTurnPrompt(turn)`)
-- Need to decide: track individual user messages OR complete user turns
-- **Recommendation**: Track individual user messages for simplicity
-
-#### 0.2 Virtuoso Integration Strategy
-**Research**: Leverage existing react-virtuoso patterns
-- Current implementation uses `rangeChanged` callbacks effectively
-- **Recommendation**: Use Virtuoso's built-in range tracking instead of IntersectionObserver
-- Better performance and integration with existing scroll behavior
 
 ### Phase 1: Core Sticky Message Infrastructure
 
-#### 1.1 Create Sticky Message Detection Hook
-**File**: `src/hooks/use-sticky-user-message.ts`
+#### 1.1 Create Sticky Message State Types
+**File**: `src/components/thread/types.ts` (or inline in thread-view.tsx)
 
-Create a custom hook using **Virtuoso-native approach**:
-- Track latest user message content and turn index
-- Use Virtuoso's `rangeChanged` callback for visibility detection
-- Coordinate with existing streaming and auto-scroll states
-- Handle streaming hide/show behavior
-
-Key features:
-- Integrate with existing MessageList ref pattern
-- Track turn-level visibility using `rangeChanged`
-- Debounce state updates (100ms, following existing pattern)
-- Reset state when new user message arrives
-- Hide during active streaming to avoid conflicts
+```typescript
+interface StickyMessageState {
+  isVisible: boolean;
+  messageContent: string;  // The text content to display
+  turnIndex: number;       // For scrolling back to original
+}
+```
 
 #### 1.2 Create Sticky Message Component
 **File**: `src/components/thread/sticky-user-message.tsx`
 
-Sticky message component with:
-- Fixed positioning at top of chat area
-- 2-line text truncation with ellipses
-- Same styling as regular user messages but compressed
-- Smooth show/hide animations (slide down from top)
-- Click handler to scroll to original message location
+A compact, styled component that:
+- Displays truncated user message (max 2 lines)
+- Matches UserMessage styling but compressed
+- Includes click-to-scroll functionality
+- Animates in/out smoothly
+
+```typescript
+interface StickyUserMessageProps {
+  content: string;
+  onScrollToOriginal: () => void;
+}
+```
 
 Styling requirements:
 - Max 2 lines with `line-clamp-2`
 - Same accent-600 background as regular messages
-- Smaller padding for compact display (px-3 py-2 vs px-4 py-3)
-- Drop shadow for elevation effect
-- Rounded corners consistent with message bubbles
+- Smaller padding for compact display (px-3 py-2)
+- Drop shadow for elevation (`shadow-lg`)
+- Rounded corners consistent with message bubbles (`rounded-lg`)
+- Cursor pointer to indicate clickability
 
-#### 1.3 Enhanced MessageList Integration
+#### 1.3 Update MessageList for Range Reporting
 **File**: `src/components/thread/message-list.tsx`
 
-Extend existing MessageList to support sticky functionality:
-- Add `rangeChanged` callback to existing Virtuoso configuration
-- Extend MessageListRef interface with sticky message controls
-- Integrate with existing scroll-to-bottom functionality
-- Track latest user turn index for visibility detection
-- Coordinate with streaming states to hide sticky during assistant responses
+Add/extend the following:
 
+1. Accept an `onRangeChanged` callback prop:
 ```typescript
-// Extend existing interface
-export interface MessageListRef {
-  scrollToBottom: () => void;
-  // Add sticky controls
-  getStickyMessageState: () => StickyMessageState;
-  scrollToTurn: (turnIndex: number) => void;
+interface MessageListProps {
+  // ... existing props
+  onRangeChanged?: (range: { startIndex: number; endIndex: number }) => void;
 }
 ```
 
-### Phase 2: Layout Adjustments
-
-#### 2.1 Update ThreadView Layout
-**File**: `src/components/thread/thread-view.tsx`
-
-Modify container to accommodate sticky message:
-- Add sticky message container above MessageList
-- Implement state management for sticky message visibility
-- Coordinate between scroll detection and message rendering
-- Pass user message data to sticky component
-
-New layout structure:
-```
-ThreadView (flex-1 flex flex-col min-h-0)
-├── StickyUserMessage (absolute top positioning)
-└── MessageList (flex-1 min-h-0 with top padding when sticky active)
-```
-
-#### 2.2 Adjust Chat Panel Height
-**File**: `src/components/workspace/chat-pane.tsx`
-
-Increase effective chat area height:
-- Add 60-80px to accommodate sticky message space
-- Ensure sticky message doesn't overlap header
-- Maintain existing collapse/expand behavior
-- Preserve resize functionality
-
-#### 2.3 Update Chat Panel Constraints
-**File**: `src/components/workspace/task-workspace.tsx`
-
-Adjust minimum chat panel width if needed:
-- Test sticky message at 250px width (current minimum)
-- Ensure readability of truncated text
-- Consider increasing minimum width to 280px if needed
-- Update localStorage persistence for new constraints
-
-### Phase 3: User Experience Enhancements
-
-#### 3.1 Smooth Animations
-Add CSS transitions for:
-- Sticky message slide-in/slide-out (from top)
-- Opacity fade for smooth appearance
-- MessageList padding adjustment when sticky appears
-- Coordinated animations to avoid jarring layout shifts
-
-#### 3.2 Interactive Behaviors
-- Click sticky message to scroll to original location
-- Hover effects for visual feedback
-- Maintain accessibility with proper ARIA labels
-- Keyboard navigation support
-
-#### 3.3 Edge Case Handling
-- Multiple rapid user messages (only pin latest)
-- Very short messages (maintain minimum height)
-- Empty or whitespace-only messages (don't pin)
-- Message editing/deletion scenarios
-- Thread switching behavior
-
-### Phase 4: Performance Optimization (Updated)
-
-#### 4.1 Virtuoso Range Optimization
-- Leverage Virtuoso's built-in range tracking instead of observers
-- Efficient turn index calculation and caching
-- Throttled range change callbacks (100ms)
-- Memory-efficient turn lookup patterns
-
-#### 4.2 Re-render Minimization
-- Use React.memo for sticky message component
-- Minimize state updates with useCallback optimization
-- Lazy evaluation of message truncation
-- Debounced range change tracking (following existing patterns)
-
-#### 4.3 Streaming Coordination
-- Hide sticky messages during active assistant streaming
-- Coordinate with existing `followOutput="smooth"` behavior
-- Maintain smooth scrolling during pin/unpin transitions
-- Integrate with existing `isStreaming` state management
-
-## Technical Implementation Details
-
-### State Management Pattern (Updated)
+2. Wire it to Virtuoso's `rangeChanged`:
 ```typescript
-interface StickyMessageState {
-  isVisible: boolean;
-  messageContent: string;
-  turnId: string;
-  turnIndex: number;
-  isStreaming: boolean; // Hide sticky during streaming
-}
-
-// Integration with existing turn utilities
-const latestUserTurnIndex = turns.findLastIndex(turn =>
-  turn.type === 'user' && !isToolResultOnlyTurn(turn)
-);
-```
-
-### Virtuoso Range Tracking Implementation
-```typescript
-// Add to existing Virtuoso configuration in MessageList
 <Virtuoso
-  ref={virtuosoRef}
-  data={turns}
-  itemContent={itemContent}
-  followOutput={isStreaming ? "smooth" : false}
-  alignToBottom
-  atBottomStateChange={setIsAtBottom}
-  atBottomThreshold={50}
-  // NEW: Add range tracking for sticky messages
+  // ... existing props
   rangeChanged={(range) => {
-    const latestUserTurnIndex = findLatestUserTurnIndex(turns);
-    const isLatestUserVisible = range.startIndex <= latestUserTurnIndex &&
-                               latestUserTurnIndex <= range.endIndex;
-    updateStickyVisibility(!isLatestUserVisible && !isStreaming);
+    onRangeChanged?.(range);
   }}
-  style={{ height: "100%" }}
-  overscan={200}
 />
 ```
 
-### CSS Classes for Truncation
-```css
-.sticky-message {
-  @apply line-clamp-2 max-h-12 overflow-hidden text-ellipsis;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  background: rgba(22, 163, 74, 0.95); /* accent-600 with opacity */
-  backdrop-filter: blur(4px);
+3. Expose `scrollToIndex` via the ref:
+```typescript
+export interface MessageListRef {
+  scrollToBottom: () => void;
+  scrollToIndex: (index: number) => void;  // NEW
+}
+
+// In imperative handle:
+scrollToIndex: (index: number) => {
+  virtuosoRef.current?.scrollToIndex({
+    index,
+    align: 'start',
+    behavior: 'smooth'
+  });
 }
 ```
 
-### Performance Considerations (Updated)
-- Use Virtuoso's `rangeChanged` instead of intersection observers
-- Implement `useMemo` for turn content processing following existing patterns
-- Debounce range change callbacks (100ms, consistent with codebase)
-- Integrate with existing ref cleanup and state management patterns
-- Hide sticky during streaming to avoid conflicts with auto-scroll
+### Phase 2: ThreadView Integration
 
-### Accessibility Requirements
-- `aria-label` describing sticky message purpose
-- Screen reader announcements for pin/unpin state
-- Keyboard navigation to scroll to original message
-- Sufficient color contrast for truncated text
+#### 2.1 Add Sticky State Management
+**File**: `src/components/thread/thread-view.tsx`
 
-## Files to Modify
+```typescript
+// State
+const [stickyMessage, setStickyMessage] = useState<StickyMessageState | null>(null);
+
+// Find latest user turn (memoized)
+const latestUserTurn = useMemo(() => {
+  const index = turns.findLastIndex(turn =>
+    turn.type === 'user' && !isToolResultOnlyTurn(turn)
+  );
+  if (index === -1) return null;
+  return { index, turn: turns[index] };
+}, [turns]);
+
+// Handle range changes from MessageList
+const handleRangeChanged = useCallback((range: { startIndex: number; endIndex: number }) => {
+  if (!latestUserTurn) {
+    setStickyMessage(null);
+    return;
+  }
+
+  // Show sticky only when turn is FULLY out of view (scrolled above)
+  const isFullyAboveViewport = range.startIndex > latestUserTurn.index;
+
+  if (isFullyAboveViewport) {
+    const content = getUserTurnPrompt(latestUserTurn.turn);
+    setStickyMessage({
+      isVisible: true,
+      messageContent: content,
+      turnIndex: latestUserTurn.index,
+    });
+  } else {
+    setStickyMessage(null);
+  }
+}, [latestUserTurn]);
+
+// Scroll to original message
+const handleScrollToOriginal = useCallback(() => {
+  if (stickyMessage && messageListRef.current) {
+    messageListRef.current.scrollToIndex(stickyMessage.turnIndex);
+  }
+}, [stickyMessage]);
+```
+
+#### 2.2 Update ThreadView Layout
+**File**: `src/components/thread/thread-view.tsx`
+
+```tsx
+<div className="flex-1 flex flex-col min-h-0 relative">
+  {/* Sticky message - absolutely positioned */}
+  {stickyMessage?.isVisible && (
+    <StickyUserMessage
+      content={stickyMessage.messageContent}
+      onScrollToOriginal={handleScrollToOriginal}
+    />
+  )}
+
+  {/* Message list with conditional padding */}
+  <div className={cn(
+    "flex-1 min-h-0",
+    stickyMessage?.isVisible && "pt-14" // ~56px for sticky height
+  )}>
+    <MessageList
+      ref={messageListRef}
+      turns={turns}
+      onRangeChanged={handleRangeChanged}
+      // ... other props
+    />
+  </div>
+</div>
+```
+
+### Phase 3: Styling and Animation
+
+#### 3.1 Sticky Message Styles
+**File**: `src/components/thread/sticky-user-message.tsx`
+
+```tsx
+export function StickyUserMessage({ content, onScrollToOriginal }: StickyUserMessageProps) {
+  return (
+    <button
+      onClick={onScrollToOriginal}
+      className={cn(
+        // Positioning
+        "absolute top-0 left-0 right-0 z-10",
+        // Sizing & layout
+        "mx-3 mt-2 px-3 py-2",
+        // Visual styling (match UserMessage)
+        "bg-accent-600 text-white rounded-lg",
+        "shadow-lg",
+        // Text truncation
+        "text-sm text-left line-clamp-2",
+        // Animation
+        "animate-in slide-in-from-top-2 fade-in duration-150",
+        // Interactive
+        "cursor-pointer hover:bg-accent-500 transition-colors",
+        // Accessibility
+        "focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-surface-800"
+      )}
+      aria-label="Click to scroll to original message"
+    >
+      {content}
+    </button>
+  );
+}
+```
+
+#### 3.2 Animation Details
+If the project doesn't have `animate-in` utilities, add equivalent CSS:
+
+```css
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.sticky-message-enter {
+  animation: slideInFromTop 150ms ease-out;
+}
+```
+
+### Phase 4: Edge Cases
+
+#### 4.1 Edge Case Handling
+
+| Scenario | Behavior |
+|----------|----------|
+| Very first user message, no scrolling yet | No sticky (message is visible) |
+| User scrolls up 1px, message partially visible | No sticky (hysteresis: must be fully above) |
+| User scrolls up, message fully above viewport | Show sticky |
+| New user message sent | Reset sticky state, scroll to bottom |
+| Thread switch | Reset sticky state |
+| Very long first message | Same rules apply - only sticky when fully above |
+| Empty/whitespace message | Don't show sticky (filter in `latestUserTurn` logic) |
+| User clicks sticky during streaming | Scroll to original, streaming continues |
+
+#### 4.2 Thread Switching
+Reset sticky state when thread changes:
+```typescript
+useEffect(() => {
+  setStickyMessage(null);
+}, [threadId]);
+```
+
+#### 4.3 New Message Reset
+When a new user message is added, the scroll-to-bottom behavior will naturally hide the sticky since the new message will be in view.
+
+### Phase 5: Performance Optimization
+
+#### 5.1 Memoization
+```typescript
+// Memoize latest user turn calculation
+const latestUserTurn = useMemo(() => { ... }, [turns]);
+
+// Memoize range handler
+const handleRangeChanged = useCallback(() => { ... }, [latestUserTurn]);
+
+// Memoize scroll handler
+const handleScrollToOriginal = useCallback(() => { ... }, [stickyMessage]);
+```
+
+#### 5.2 Debouncing (Optional)
+If range changes fire too frequently, debounce the handler:
+```typescript
+const handleRangeChanged = useDebouncedCallback((range) => {
+  // ... sticky logic
+}, 50); // 50ms debounce
+```
+
+However, start without debouncing and add only if performance issues arise.
+
+#### 5.3 Component Memoization
+```typescript
+export const StickyUserMessage = memo(function StickyUserMessage({ ... }) {
+  // ...
+});
+```
+
+---
+
+## Files Summary
 
 ### New Files
-1. `src/hooks/use-sticky-user-message.ts` - Core sticky message logic with Virtuoso integration
-2. `src/components/thread/sticky-user-message.tsx` - Sticky message UI component
+1. `src/components/thread/sticky-user-message.tsx` - Sticky message UI component
 
-### Modified Files (Priority Order)
-1. `src/components/thread/message-list.tsx` - **CRITICAL**: Add rangeChanged callback and extend MessageListRef interface
-2. `src/components/thread/thread-view.tsx` - **CRITICAL**: Layout integration and sticky message positioning
-3. `src/lib/utils/turn-grouping.ts` - **OPTIONAL**: Add utility for finding latest user turn index
-4. `src/components/workspace/chat-pane.tsx` - **MINOR**: Height adjustments (may not be needed with absolute positioning)
+### Modified Files
+1. `src/components/thread/message-list.tsx` - Add `onRangeChanged` prop and `scrollToIndex` ref method
+2. `src/components/thread/thread-view.tsx` - Add sticky state management, layout changes
 
-### Reference Files (For Implementation Patterns)
-1. `src/components/diff-viewer/use-diff-navigation.ts` - Debouncing and cleanup patterns
-2. `src/components/thread/turn-renderer.tsx` - Turn structure understanding
-3. `src/components/thread/user-message.tsx` - Existing user message styling
+### Reference Files (For Patterns)
+1. `src/components/thread/user-message.tsx` - Existing user message styling
+2. `src/lib/utils/turn-grouping.ts` - Turn utilities like `getUserTurnPrompt`
 
-### CSS Updates
-- Add line-clamp utilities to global CSS
-- Sticky message specific animations
-- Z-index management for proper layering
+---
 
 ## Success Criteria
 
-1. **Functional**: Latest user message pins at top when scrolled out of view
-2. **Visual**: Clean 2-line truncation with proper ellipses
-3. **Performance**: No scroll lag or memory leaks
-4. **Accessible**: Screen reader compatible with keyboard navigation
-5. **Responsive**: Works across all chat panel sizes (250px-800px)
-6. **Compatible**: Integrates seamlessly with existing virtualization and auto-scroll
+1. **Functional**: Latest user message pins at top when fully scrolled out of view
+2. **Visual**: Clean 2-line truncation with proper ellipses, matches UserMessage styling
+3. **Interactive**: Click scrolls smoothly to original message location
+4. **Performance**: No scroll lag, minimal re-renders
+5. **Streaming**: Sticky remains functional during assistant streaming
+6. **Accessible**: Proper ARIA labels, keyboard accessible (button element)
+7. **Responsive**: Works across all chat panel sizes (250px-800px)
 
-## Risk Mitigation
+---
 
-### Potential Issues
-- Layout shifting when sticky appears/disappears
-- Performance impact on scroll-heavy conversations
-- Intersection observer browser compatibility
-- Z-index conflicts with other UI elements
+## Testing Checklist
 
-### Mitigation Strategies
-- Thorough testing across different message lengths
-- Performance monitoring during scroll events
-- Fallback behavior for unsupported browsers
-- CSS isolation to prevent style conflicts
-
-## Testing Strategy
-
-1. **Unit Tests**: Hook logic and component rendering
-2. **Integration Tests**: Scroll behavior and state management
-3. **Manual Testing**: Various message lengths and chat panel sizes
-4. **Performance Tests**: Memory usage and scroll smoothness
-5. **Accessibility Tests**: Screen reader and keyboard navigation
+- [ ] Short message: pins correctly, no truncation
+- [ ] Long message: pins with 2-line truncation and ellipsis
+- [ ] Click sticky: smoothly scrolls to original message
+- [ ] Partial scroll: message partially visible = no sticky
+- [ ] Full scroll: message fully above = sticky appears
+- [ ] During streaming: sticky shows and functions normally
+- [ ] Scroll up during streaming: sticky shows, can click to scroll
+- [ ] New message sent: sticky disappears, view scrolls to new message
+- [ ] Thread switch: sticky resets
+- [ ] Narrow panel (250px): sticky readable and functional
+- [ ] Wide panel (800px): sticky doesn't stretch oddly
+- [ ] Keyboard: can tab to sticky and activate with Enter/Space
+- [ ] Screen reader: announces purpose of sticky message

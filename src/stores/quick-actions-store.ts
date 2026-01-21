@@ -19,12 +19,12 @@ export const defaultActions: Array<ActionConfig> = [
 export const streamingActions: Array<ActionConfig> = [
   {
     key: "nextTask",
-    label: "Go to next task",
-    description: "proceed to next unread task",
+    label: "Next unread",
+    description: "proceed to next unread item",
   },
   {
     key: "closeTask",
-    label: "Close task",
+    label: "Close",
     description: "close this panel",
   },
   {

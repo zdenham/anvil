@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 import { useTaskStore } from "@/entities/tasks/store";
 import { useThreadStore } from "@/entities/threads/store";
 import { cancelAgent } from "@/lib/agent-service";
-import { StopCircle, ChevronRight, X, GitCompare, MessageSquare } from "lucide-react";
+import { StopCircle, ChevronRight, X, GitCompare, MessageSquare, FileText } from "lucide-react";
 
-export type SimpleTaskView = "thread" | "changes";
+export type SimpleTaskView = "thread" | "changes" | "plan";
 
 interface SimpleTaskHeaderProps {
   taskId: string;
@@ -58,7 +58,6 @@ export function SimpleTaskHeader({
     hasChanges,
     onToggleView: !!onToggleView,
     activeView,
-    shouldShowToggle: hasChanges && !!onToggleView,
   });
 
   const handleCancel = async () => {
@@ -112,16 +111,30 @@ export function SimpleTaskHeader({
             Cancel
           </button>
         )}
-        {/* View toggle: Thread <-> Changes */}
-        {hasChanges && onToggleView && (
+        {/* View toggle: Thread -> Changes -> Plan -> Thread (three-way cycle) */}
+        {onToggleView && (
           <button
             onClick={onToggleView}
             className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label={activeView === "thread" ? "View changes" : "View thread"}
-            title={activeView === "thread" ? "View changes" : "View thread"}
+            aria-label={
+              activeView === "thread"
+                ? "View changes"
+                : activeView === "changes"
+                  ? "View plan"
+                  : "View thread"
+            }
+            title={
+              activeView === "thread"
+                ? "View changes"
+                : activeView === "changes"
+                  ? "View plan"
+                  : "View thread"
+            }
           >
             {activeView === "thread" ? (
               <GitCompare size={16} />
+            ) : activeView === "changes" ? (
+              <FileText size={16} />
             ) : (
               <MessageSquare size={16} />
             )}

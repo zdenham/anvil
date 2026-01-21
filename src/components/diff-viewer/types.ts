@@ -3,6 +3,8 @@
  * See plans/diff-viewer/readme.md for full architecture.
  */
 
+import type { ThemedToken } from "shiki";
+
 // ============================================================================
 // Parser Types (from Phase 1)
 // ============================================================================
@@ -81,6 +83,8 @@ export interface AnnotatedLine {
   oldLineNumber: number | null;
   /** Line number in new file (null for deletions) */
   newLineNumber: number | null;
+  /** Syntax highlighting tokens (optional, populated async) */
+  tokens?: ThemedToken[];
 }
 
 // ============================================================================

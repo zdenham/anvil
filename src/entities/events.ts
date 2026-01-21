@@ -39,12 +39,19 @@ export interface OpenTaskPayload {
 }
 
 /**
+ * View type for simple task panel
+ */
+export type SimpleTaskViewType = "thread" | "changes" | "plan";
+
+/**
  * Payload for open-simple-task event from Rust
  */
 export interface OpenSimpleTaskPayload {
   threadId: string;
   taskId: string;
   prompt?: string;
+  /** Initial view to display when opening the task */
+  initialView?: SimpleTaskViewType;
 }
 
 /**

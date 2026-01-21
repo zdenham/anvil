@@ -1,12 +1,14 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import type { AnnotatedFile, ParsedDiffFile } from "./types";
 import { parseDiff } from "@/lib/diff-parser";
 import { buildAnnotatedFiles } from "@/lib/annotated-file-builder";
+import { highlightAnnotatedFiles } from "@/lib/highlight-annotated-files";
 import { DiffHeader } from "./diff-header";
 import { DiffFileCard } from "./diff-file-card";
 import { FileCardErrorBoundary } from "./file-card-error-boundary";
 import { DiffEmptyState } from "./diff-empty-state";
 import { DiffErrorState } from "./diff-error-state";
+import { DiffViewerSkeleton } from "./diff-viewer-skeleton";
 import { SkipLinks } from "./skip-links";
 import { useLiveAnnouncer, LiveAnnouncerRegion } from "./use-live-announcer";
 import type { FileChange } from "@/lib/types/agent-messages";
@@ -57,9 +59,11 @@ export function DiffViewer({
   priorityFn,
 }: DiffViewerProps) {
   const [allExpanded, setAllExpanded] = useState(false);
+  const [highlightedFiles, setHighlightedFiles] = useState<AnnotatedFile[]>([]);
+  const [isHighlighting, setIsHighlighting] = useState(true);
   const { announce, setRef } = useLiveAnnouncer();
 
-  // Parse and annotate all files
+  // Parse and annotate all files (sync)
   const { files, stats, error, rawDiffs } = useMemo(() => {
     try {
       // Combine all diffs into a single diff text
@@ -117,6 +121,48 @@ export function DiffViewer({
     }
   }, [fileChanges, fullFileContents, priorityFn]);
 
+  // Apply syntax highlighting asynchronously
+  useEffect(() => {
+    if (files.length === 0 || error) {
+      setIsHighlighting(false);
+      setHighlightedFiles([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsHighlighting(true);
+
+    async function applyHighlighting() {
+      try {
+        // Deep clone files to avoid mutating the memoized value
+        const clonedFiles: AnnotatedFile[] = files.map((file) => ({
+          ...file,
+          lines: file.lines.map((line) => ({ ...line })),
+        }));
+
+        await highlightAnnotatedFiles(clonedFiles, fullFileContents);
+
+        if (!cancelled) {
+          setHighlightedFiles(clonedFiles);
+          setIsHighlighting(false);
+        }
+      } catch (err) {
+        logger.warn("Syntax highlighting failed, falling back to plain text:", err);
+        if (!cancelled) {
+          // Fall back to unhighlighted files
+          setHighlightedFiles(files);
+          setIsHighlighting(false);
+        }
+      }
+    }
+
+    applyHighlighting();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [files, fullFileContents, error]);
+
   const handleExpandAll = useCallback(() => {
     setAllExpanded(true);
     announce("Expanded all collapsed regions");
@@ -144,16 +190,24 @@ export function DiffViewer({
     return <DiffEmptyState />;
   }
 
+  // Loading state while syntax highlighting is applied
+  if (isHighlighting) {
+    return <DiffViewerSkeleton />;
+  }
+
+  // Use highlighted files for rendering (has tokens attached)
+  const displayFiles = highlightedFiles.length > 0 ? highlightedFiles : files;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Live announcer for screen readers */}
       <LiveAnnouncerRegion setRef={setRef} />
 
       {/* Skip links for keyboard navigation between files */}
-      <SkipLinks files={files} />
+      <SkipLinks files={displayFiles} />
 
       <DiffHeader
-        fileCount={files.length}
+        fileCount={displayFiles.length}
         totalAdditions={stats.additions}
         totalDeletions={stats.deletions}
         onExpandAll={handleExpandAll}
@@ -162,7 +216,7 @@ export function DiffViewer({
       />
 
       <div className="flex flex-col gap-4">
-        {files.map((file, index) => (
+        {displayFiles.map((file, index) => (
           <FileCardErrorBoundary
             key={file.file.newPath ?? file.file.oldPath ?? index}
             filePath={file.file.newPath ?? file.file.oldPath ?? "Unknown"}

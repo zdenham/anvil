@@ -191,6 +191,21 @@ The existing `useEffect([value])` in SearchInput already ensures `checkExpansion
 
 The synchronous classList update in `checkExpansion()` (direct DOM manipulation) still happens, preserving cursor stability. We just ensure `resizeWindow()` happens after that, not before.
 
+## Important Constraint: Separation of Concerns
+
+**The centralized resize effect handles ONLY native window resizing (Tauri command).**
+
+The `checkExpansion()` function in SearchInput must remain completely unchanged. It handles:
+- Synchronous DOM manipulation via classList updates
+- Web-level input height expansion/collapse
+- Cursor stability during typing
+
+These are two separate concerns:
+1. **Web-level:** `checkExpansion()` in SearchInput → DOM classList manipulation (unchanged)
+2. **Native-level:** Centralized resize effect → Tauri `resize_spotlight` command (this fix)
+
+The fix consolidates scattered `resizeWindow()` calls into one effect. It does NOT touch the web-level input height logic.
+
 ## Files to Modify
 
 1. `src-tauri/src/panels.rs` - Add `RESULT_ITEM_HEIGHT_COMPACT`, update `resize_spotlight`
