@@ -481,6 +481,13 @@ fn unpin_simple_task_panel() {
     panels::unpin_simple_task_panel()
 }
 
+/// Snaps the simple task panel position to integer pixel coordinates.
+/// This fixes text blurriness caused by subpixel positioning during drag.
+#[tauri::command]
+fn snap_simple_task_panel_position(app: AppHandle) -> Result<(), String> {
+    panels::snap_simple_task_panel_position(&app)
+}
+
 /// Checks if a specific panel is visible
 #[tauri::command]
 fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
@@ -801,6 +808,7 @@ pub fn run() {
             focus_simple_task_panel,
             pin_simple_task_panel,
             unpin_simple_task_panel,
+            snap_simple_task_panel_position,
             is_panel_visible,
             get_pending_task,
             clear_pending_task,
@@ -943,9 +951,9 @@ pub fn run() {
             // Initialize paths first (before anything that might use them)
             paths::initialize();
 
-            // Run login shell to capture user's full PATH (includes node from nvm/fnm/etc)
-            // This is done eagerly at startup to avoid "node not found" errors when spawning agents
-            paths::run_login_shell_initialization();
+            // NOTE: Shell initialization is deferred until first agent spawn via ensureShellInitialized()
+            // in the frontend. This avoids triggering the Documents permission prompt before the UI
+            // renders, which would bypass the normal permission grant flow.
 
             // Ensure .mort directories exist (NEW)
             if let Err(e) = ensure_mort_directories() {

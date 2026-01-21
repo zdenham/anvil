@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useTaskStore } from "@/entities/tasks/store";
 import { taskService } from "@/entities/tasks/service";
 import { eventBus } from "@/entities/events";
@@ -83,7 +84,7 @@ export function TaskOverview({ taskId }: TaskOverviewProps) {
             {/* Markdown content */}
             {content ? (
               <article className="prose prose-invert prose-surface max-w-none prose-headings:text-surface-200 prose-p:text-surface-300 prose-a:text-accent-400 prose-code:text-surface-300 prose-pre:bg-surface-800/50">
-                <ReactMarkdown>{content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               </article>
             ) : (
               <p className="text-surface-500 text-sm">No content yet.</p>

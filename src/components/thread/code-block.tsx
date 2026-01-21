@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { Copy, Check, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCodeHighlight } from "@/hooks/use-code-highlight";
@@ -6,6 +6,21 @@ import type { ThemedToken } from "@/lib/syntax-highlighter";
 
 const LINE_COLLAPSE_THRESHOLD = 20;
 const COPY_FEEDBACK_MS = 2000;
+
+// Persist expand state across remounts using content-based keys
+// This survives component remounting when parent re-renders
+const expandedStateCache = new Map<string, boolean>();
+const MAX_CACHE_SIZE = 200;
+
+function getExpandedStateKey(code: string, language: string): string {
+  // Use first 100 chars + length as a quick identifier
+  return `${language}:${code.length}:${code.slice(0, 100)}`;
+}
+
+// Exported for testing - clears the expand state cache
+export function clearExpandedStateCache(): void {
+  expandedStateCache.clear();
+}
 
 interface CodeBlockProps {
   code: string;
@@ -40,7 +55,7 @@ function CopyButton({ code, isCopied, onCopy }: {
   );
 }
 
-function HighlightedCode({ tokens }: { tokens: ThemedToken[][] }) {
+const HighlightedCode = memo(function HighlightedCode({ tokens }: { tokens: ThemedToken[][] }) {
   return (
     <>
       {tokens.map((line, lineIndex) => (
@@ -58,42 +73,71 @@ function HighlightedCode({ tokens }: { tokens: ThemedToken[][] }) {
       ))}
     </>
   );
-}
+});
 
-function CollapsedOverlay({ onExpand }: { onExpand: () => void }) {
+function ExpandCollapseOverlay({ isExpanded, onToggle }: { isExpanded: boolean; onToggle: () => void }) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggle();
+  };
+
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-zinc-900 to-transparent flex items-end justify-center pb-3">
+    <div className={cn(
+      "absolute bottom-0 left-0 right-0 flex items-end justify-center pb-3 pointer-events-none",
+      !isExpanded && "h-24 bg-gradient-to-t from-zinc-900 to-transparent"
+    )}>
       <button
-        onClick={onExpand}
-        className="flex items-center gap-1 px-3 py-1.5 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors"
+        onClick={handleClick}
+        className="flex items-center gap-1 px-3 py-1.5 text-sm text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors pointer-events-auto relative z-10"
+        aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
       >
-        <ChevronDown className="h-4 w-4" />
-        Expand
+        {isExpanded ? (
+          <>
+            <ChevronUp className="h-4 w-4" />
+            Collapse
+          </>
+        ) : (
+          <>
+            <ChevronDown className="h-4 w-4" />
+            Expand
+          </>
+        )}
       </button>
     </div>
   );
 }
 
-function CollapseToggle({ onCollapse }: { onCollapse: () => void }) {
-  return (
-    <button
-      onClick={onCollapse}
-      className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
-      aria-label="Collapse code block"
-    >
-      <ChevronUp className="h-4 w-4" />
-    </button>
-  );
-}
-
-export function CodeBlock({ code, language = "plaintext", className }: CodeBlockProps) {
+export const CodeBlock = memo(function CodeBlock({ code, language = "plaintext", className }: CodeBlockProps) {
   const lineCount = code.split("\n").length;
   const isLongCode = lineCount > LINE_COLLAPSE_THRESHOLD;
+  const stateKey = getExpandedStateKey(code, language);
 
-  const [isExpanded, setIsExpanded] = useState(!isLongCode);
+  // Initialize from cache if available, otherwise default based on code length
+  const [isExpanded, setIsExpanded] = useState(() => {
+    const cached = expandedStateCache.get(stateKey);
+    if (cached !== undefined) return cached;
+    return !isLongCode;
+  });
   const [isCopied, setIsCopied] = useState(false);
 
   const { tokens, isLoading } = useCodeHighlight(code, language);
+
+  // Persist expand state changes to cache
+  useEffect(() => {
+    // Only cache if it differs from default (saves memory)
+    const defaultValue = !isLongCode;
+    if (isExpanded !== defaultValue) {
+      // Simple LRU eviction
+      if (expandedStateCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = expandedStateCache.keys().next().value;
+        if (firstKey) expandedStateCache.delete(firstKey);
+      }
+      expandedStateCache.set(stateKey, isExpanded);
+    } else {
+      // Remove from cache if back to default
+      expandedStateCache.delete(stateKey);
+    }
+  }, [isExpanded, stateKey, isLongCode]);
 
   const handleCopy = useCallback(() => {
     setIsCopied(true);
@@ -111,20 +155,14 @@ export function CodeBlock({ code, language = "plaintext", className }: CodeBlock
       tabIndex={0}
       className={cn(
         "relative group rounded-lg border border-zinc-800 bg-zinc-900",
-        "focus:outline-none focus:ring-2 focus:ring-amber-500/50",
-        "focus:ring-offset-2 focus:ring-offset-zinc-900",
+        "focus:outline-none",
         className
       )}
     >
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="text-xs text-zinc-400 font-mono">{language}</span>
-        <div className="flex items-center gap-1">
-          {isExpanded && isLongCode && (
-            <CollapseToggle onCollapse={() => setIsExpanded(false)} />
-          )}
-          <CopyButton code={code} isCopied={isCopied} onCopy={handleCopy} />
-        </div>
+        <CopyButton code={code} isCopied={isCopied} onCopy={handleCopy} />
       </div>
 
       {/* Code content */}
@@ -134,7 +172,7 @@ export function CodeBlock({ code, language = "plaintext", className }: CodeBlock
           !isExpanded && isLongCode && "max-h-[400px] overflow-hidden"
         )}
       >
-        <code>
+        <code className="before:content-none after:content-none">
           {isLoading || !tokens ? (
             <pre className="text-zinc-300 whitespace-pre">{code}</pre>
           ) : (
@@ -143,10 +181,13 @@ export function CodeBlock({ code, language = "plaintext", className }: CodeBlock
         </code>
       </div>
 
-      {/* Collapsed overlay */}
-      {!isExpanded && isLongCode && (
-        <CollapsedOverlay onExpand={() => setIsExpanded(true)} />
+      {/* Expand/Collapse overlay */}
+      {isLongCode && (
+        <ExpandCollapseOverlay
+          isExpanded={isExpanded}
+          onToggle={() => setIsExpanded(!isExpanded)}
+        />
       )}
     </div>
   );
-}
+});

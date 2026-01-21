@@ -193,6 +193,25 @@ textarea {
   background: var(--spotlight-bg);
   border: 1px solid var(--spotlight-border);
   cursor: default;
+  /* Text selection is enabled - JS handles drag vs selection based on focus state */
+  user-select: text;
+
+  /* GPU acceleration hints to maintain text quality during drag */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Force GPU layer to maintain consistent rendering */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Header is always a drag zone, never selectable */
+[data-drag-region="header"] {
+  user-select: none;
+}
+
+/* Disable text selection while dragging to prevent flashes */
+.simple-task-container.is-dragging {
   user-select: none;
 }
 

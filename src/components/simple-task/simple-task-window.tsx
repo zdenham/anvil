@@ -109,6 +109,15 @@ function SimpleTaskWindowContent({
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
   const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
+  const hasScrolledOnMount = useRef(false);
+
+  // Track window focus state for drag behavior:
+  // - When unfocused: click anywhere to drag (quick repositioning)
+  // - When focused: drag only from header, text selection enabled in content
+  const [isWindowFocused, setIsWindowFocused] = useState(() => document.hasFocus());
+
+  // Track dragging state to disable text selection during drag (prevents selection flashes)
+  const [isDragging, setIsDragging] = useState(false);
 
   // View toggle state: "thread" (default), "changes", or "plan"
   // Use initialViewProp if provided, otherwise default to "thread"
@@ -286,10 +295,15 @@ function SimpleTaskWindowContent({
     };
   }, []);
 
-  // Auto-scroll to bottom when simple task panel opens with messages
+  // Reset scroll tracking when taskId changes (navigating to a different task)
   useEffect(() => {
-    // Only auto-scroll if we have messages and the component just mounted or messages were just loaded
-    if (messages.length > 0 && messageListRef.current) {
+    hasScrolledOnMount.current = false;
+  }, [taskId]);
+
+  // Auto-scroll to bottom ONLY on initial mount when opening panel with messages
+  useEffect(() => {
+    if (!hasScrolledOnMount.current && messages.length > 0 && messageListRef.current) {
+      hasScrolledOnMount.current = true;
       // Small delay to ensure the DOM has rendered the messages
       const timer = setTimeout(() => {
         messageListRef.current?.scrollToBottom();
@@ -297,12 +311,26 @@ function SimpleTaskWindowContent({
 
       return () => clearTimeout(timer);
     }
-  }, [messages.length > 0 && activeState?.messages ? activeState.messages.length : 0]);
+  }, [messages.length > 0]);
 
   // Reset quick actions state when taskId changes
   useEffect(() => {
     resetState();
   }, [taskId, resetState]);
+
+  // Track window focus state for focus-aware drag behavior
+  useEffect(() => {
+    const handleFocus = () => setIsWindowFocused(true);
+    const handleBlur = () => setIsWindowFocused(false);
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // Update activeView when navigating to a task with a specific initialView
   // This handles the case when the component is already mounted and we navigate to a new task
@@ -563,6 +591,13 @@ function SimpleTaskWindowContent({
     const interactiveSelector = 'button, input, textarea, a, [role="button"], [contenteditable="true"]';
     if (target.closest(interactiveSelector)) return;
 
+    // When focused, only allow dragging from the header area
+    // This enables text selection in the content area when the panel is focused
+    if (isWindowFocused) {
+      const isInHeader = target.closest('[data-drag-region="header"]');
+      if (!isInHeader) return; // Allow text selection in content
+    }
+
     // Pin the panel - it stays pinned until explicitly hidden
     // This allows users to position the panel and have it stay visible on blur
     try {
@@ -572,15 +607,42 @@ function SimpleTaskWindowContent({
       logger.error("[SimpleTaskWindow] Failed to pin panel for drag:", err);
     }
 
+    // Set dragging state to disable text selection during drag
+    setIsDragging(true);
+
     // Start window drag via Tauri API
     getCurrentWindow().startDragging().catch((err) => {
       console.error("[SimpleTaskWindow] startDragging failed:", err);
     });
-  }, []);
+
+    // After drag ends, snap position to pixel boundaries to fix text blur
+    // caused by subpixel positioning during native drag
+    const snapPositionAfterDrag = async () => {
+      logger.info("[SimpleTaskWindow] Calling snap_simple_task_panel_position...");
+      try {
+        const result = await invoke("snap_simple_task_panel_position");
+        logger.info("[SimpleTaskWindow] snap_simple_task_panel_position returned:", result);
+      } catch (err) {
+        logger.error("[SimpleTaskWindow] Failed to snap position:", err);
+      }
+    };
+
+    // Listen for mouseup to know when drag ended
+    const handleMouseUp = () => {
+      logger.info("[SimpleTaskWindow] mouseup detected, scheduling snap in 50ms");
+      window.removeEventListener('mouseup', handleMouseUp);
+      setIsDragging(false);
+      // Small delay to ensure drag has fully completed
+      setTimeout(snapPositionAfterDrag, 50);
+    };
+
+    logger.info("[SimpleTaskWindow] Adding mouseup listener for drag end detection");
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [isWindowFocused]);
 
   return (
     <div
-      className="simple-task-container flex flex-col h-screen text-surface-50 relative overflow-hidden"
+      className={`simple-task-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${isDragging ? 'is-dragging' : ''}`}
       onMouseDown={handleWindowDrag}
       onDoubleClick={(e) => {
         // Close panel on double-click, unless clicking on interactive elements

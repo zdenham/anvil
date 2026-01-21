@@ -52,6 +52,9 @@ const BROADCAST_EVENTS = [
 
   // Queued message acknowledgement
   EventName.QUEUED_MESSAGE_ACK,
+
+  // Plan lifecycle
+  EventName.PLAN_DETECTED,
 ] as const;
 
 /**

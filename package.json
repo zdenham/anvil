@@ -1,7 +1,7 @@
 {
   "name": "mort",
   "private": true,
-  "version": "v0.0.15",
+  "version": "v0.0.16",
   "type": "module",
   "scripts": {
     "dev": "./scripts/dev-mort.sh dev",
@@ -45,6 +45,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.12.0",
     "react-virtuoso": "^4.17.0",
+    "remark-gfm": "^4.0.1",
     "shiki": "^3.20.0",
     "streamdown": "^1.6.10",
     "tailwind-merge": "^3.4.0",

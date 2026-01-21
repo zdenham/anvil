@@ -86,6 +86,7 @@ export function SimpleTaskHeader({
   return (
     <div
       className="group flex items-center gap-3 px-4 py-3 bg-surface-800 border-b border-surface-700"
+      data-drag-region="header"
     >
       {/* Status dot */}
       <div className={cn("w-2 h-2 rounded-full", getStatusDotColor(status, thread?.isRead))} />

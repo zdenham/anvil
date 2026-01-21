@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Streamdown } from "streamdown";
 import { DragHandle } from "./drag-handle";
-import { useActionState, type ActionState } from "@/hooks/use-action-state";
+import { useActionState, type ActionState } from "@/hooks";
 import { useTaskStore, useRepoStore } from "@/entities";
 import { taskService } from "@/entities/tasks/service";
 import { eventBus } from "@/entities/events";
@@ -344,8 +344,6 @@ function ActionContent({ state, taskId, latestReview, taskStatus, reviewApproved
               <span className="text-surface-500">Pull Request: </span>
               <a
                 href={prUrl}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="text-accent-400 hover:underline"
               >
                 {prUrl}

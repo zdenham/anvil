@@ -15,6 +15,21 @@ import {
 import { logger } from "../lib/logger.js";
 
 const TASKS_DIR = "tasks";
+const PLANS_DIR = "plans";
+
+/**
+ * Minimal plan metadata stored on disk.
+ * Agent only needs to create/update the metadata.json - frontend refreshes from disk.
+ */
+interface PlanMetadata {
+  id: string;
+  path: string;
+  repositoryName: string;
+  title: string;
+  isRead: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
 
 /** All valid statuses including cancelled (which isn't in TASK_STATUSES display array) */
 const ALL_VALID_STATUSES = [...TASK_STATUSES, "cancelled"] as const;
@@ -406,6 +421,99 @@ export abstract class MortPersistence {
       throw new Error(`Task not found: ${taskId}`);
     }
     await this.writeText(`${TASKS_DIR}/${task.slug}/content.md`, content);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Plan operations
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Create or update a plan.
+   * Idempotent - looks up by repositoryName + path first.
+   */
+  async ensurePlanExists(
+    repositoryName: string,
+    path: string
+  ): Promise<{ id: string; isNew: boolean }> {
+    // Find existing plan by path
+    const existing = await this.findPlanByPath(repositoryName, path);
+    if (existing) {
+      // Mark as unread (content was updated)
+      await this.updatePlan(existing.id, { isRead: false });
+      return { id: existing.id, isNew: false };
+    }
+
+    // Create new plan
+    const plan = await this.createPlan({ repositoryName, path });
+    return { id: plan.id, isNew: true };
+  }
+
+  /**
+   * Create a new plan.
+   */
+  async createPlan(input: { repositoryName: string; path: string; title?: string }): Promise<PlanMetadata> {
+    const title = input.title || this.extractTitleFromPath(input.path);
+    const now = Date.now();
+    const id = crypto.randomUUID();
+
+    const plan: PlanMetadata = {
+      id,
+      path: input.path,
+      repositoryName: input.repositoryName,
+      title,
+      isRead: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.mkdir(`${PLANS_DIR}/${id}`);
+    await this.write(`${PLANS_DIR}/${id}/metadata.json`, plan);
+    return plan;
+  }
+
+  /**
+   * Update plan metadata.
+   */
+  async updatePlan(id: string, updates: { title?: string; isRead?: boolean }): Promise<void> {
+    const plan = await this.getPlan(id);
+    if (!plan) return;
+
+    const updated = {
+      ...plan,
+      ...updates,
+      updatedAt: Date.now(),
+    };
+    await this.write(`${PLANS_DIR}/${id}/metadata.json`, updated);
+  }
+
+  /**
+   * Get plan by ID.
+   */
+  async getPlan(id: string): Promise<PlanMetadata | null> {
+    return this.read<PlanMetadata>(`${PLANS_DIR}/${id}/metadata.json`);
+  }
+
+  /**
+   * Find plan by repository + path.
+   */
+  async findPlanByPath(repositoryName: string, path: string): Promise<PlanMetadata | null> {
+    const dirs = await this.listDirs(PLANS_DIR);
+    for (const dir of dirs) {
+      const plan = await this.read<PlanMetadata>(`${PLANS_DIR}/${dir}/metadata.json`);
+      if (plan && plan.repositoryName === repositoryName && plan.path === path) {
+        return plan;
+      }
+    }
+    return null;
+  }
+
+  private extractTitleFromPath(path: string): string {
+    const filename = path.split("/").pop() || path;
+    const nameWithoutExt = filename.replace(/\.md$/, "");
+    return nameWithoutExt
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   }
 
   // ─────────────────────────────────────────────────────────────────────────

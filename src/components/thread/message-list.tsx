@@ -95,7 +95,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         data={turns}
         itemContent={itemContent}
         components={{ Footer }}
-        followOutput={isStreaming ? "smooth" : false}
+        followOutput={isStreaming && isAtBottom ? "smooth" : false}
         alignToBottom
         atBottomStateChange={setIsAtBottom}
         atBottomThreshold={50}

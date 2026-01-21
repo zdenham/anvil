@@ -5,6 +5,7 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import { relative, isAbsolute } from "path";
 import type { RunnerConfig, OrchestrationContext } from "./types.js";
 import type { AgentConfig } from "../agent-types/index.js";
 import {
@@ -14,6 +15,8 @@ import {
   relayEventsFromToolOutput,
   updateFileChange,
 } from "../output.js";
+import { NodePersistence } from "../lib/persistence-node.js";
+import { EventName } from "@core/types/events.js";
 import type { ToolExecutionState } from "@core/types/events.js";
 import { MessageHandler } from "./message-handler.js";
 import type { ThreadWriter } from "../services/thread-writer.js";
@@ -135,6 +138,22 @@ export function setupSignalHandlers(
 }
 
 /**
+ * Check if a file path is a plan path (plans/*.md).
+ * Handles both absolute and relative paths.
+ */
+function isPlanPath(filePath: string, workingDir: string): boolean {
+  // Normalize to relative path
+  let relativePath = filePath;
+  if (isAbsolute(filePath)) {
+    relativePath = relative(workingDir, filePath);
+  }
+  // Normalize slashes for cross-platform
+  relativePath = relativePath.replace(/\\/g, "/");
+  // Check if it's in plans/ directory and is a .md file
+  return relativePath.startsWith("plans/") && relativePath.endsWith(".md");
+}
+
+/**
  * Options for the agent loop, allowing strategies to customize behavior.
  */
 export interface AgentLoopOptions {
@@ -215,6 +234,10 @@ export async function runAgentLoop(
   // Tools that modify files and should be tracked for diffing
   const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
 
+  // Persistence instance for plan detection (lazy, only created if needed)
+  const persistence = new NodePersistence(config.mortDir);
+  const repositoryName = context.task?.repositoryName;
+
   // Build hooks for state tracking and side effects
   const hooks = {
     PostToolUse: [
@@ -249,6 +272,24 @@ export async function runAgentLoop(
                   diff: "", // Path is what matters for diffing
                 });
                 logger.info(`[PostToolUse] Recorded file change: ${operation} ${filePath}`);
+
+                // Detect plan files and create/update plan entity
+                if (repositoryName && isPlanPath(filePath, context.workingDir)) {
+                  // Normalize to relative path for storage
+                  let relativePath = filePath;
+                  if (isAbsolute(filePath)) {
+                    relativePath = relative(context.workingDir, filePath);
+                  }
+                  relativePath = relativePath.replace(/\\/g, "/");
+
+                  try {
+                    const { id: planId } = await persistence.ensurePlanExists(repositoryName, relativePath);
+                    emitEvent(EventName.PLAN_DETECTED, { planId });
+                    logger.info(`[PostToolUse] Plan detected: ${relativePath} -> ${planId}`);
+                  } catch (err) {
+                    logger.warn(`[PostToolUse] Failed to create plan entity: ${err}`);
+                  }
+                }
               }
             }
 

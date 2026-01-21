@@ -1,12 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./index.css";
 import App from "./App";
 import { WorkspaceSettingsProvider, GlobalErrorProvider } from "./contexts";
 import { logger, setLogSource } from "./lib/logger-client";
 import { initWebErrorCapture } from "./lib/web-error-capture";
 import { setupOutgoingBridge, setupIncomingBridge } from "./lib/event-bridge";
+import { setupPlanListeners } from "./entities/plans";
 
 // Set log source before any logging occurs
 setLogSource("main");
@@ -18,6 +20,24 @@ initWebErrorCapture("main");
 // This ensures events (e.g., repository:created) can be broadcast during onboarding
 setupOutgoingBridge();
 setupIncomingBridge();
+
+// Set up plan detection listener
+setupPlanListeners();
+
+// Global handler to open external links in system browser
+document.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+  const anchor = target.closest("a");
+  if (!anchor) return;
+
+  const href = anchor.getAttribute("href");
+  if (href?.startsWith("http://") || href?.startsWith("https://")) {
+    e.preventDefault();
+    openUrl(href).catch((err) => {
+      logger.error("[main] Failed to open external URL:", err);
+    });
+  }
+});
 
 interface PathsInfo {
   data_dir: string;

@@ -24,16 +24,10 @@ describe("TextBlock", () => {
   // ============================================================================
 
   describe("Streaming Mode", () => {
-    it("uses Streamdown during streaming", () => {
-      const { container } = render(
-        <TextBlock content="Hello world" isStreaming={true} />
-      );
+    it("renders content during streaming", () => {
+      render(<TextBlock content="Hello world" isStreaming={true} />);
 
-      // Streamdown renders content directly in the DOM
       expect(screen.getByText("Hello world")).toBeInTheDocument();
-      // Should have prose classes on container when streaming
-      const wrapper = container.firstChild as HTMLElement;
-      expect(wrapper).toHaveClass("prose");
     });
 
     it("shows streaming cursor during streaming", () => {
@@ -43,16 +37,17 @@ describe("TextBlock", () => {
       expect(screen.getByText("Assistant is typing")).toBeInTheDocument();
     });
 
-    it("applies prose styles to container when streaming", () => {
+    it("has prose styles in MarkdownRenderer during streaming", () => {
       const { container } = render(
         <TextBlock content="test" isStreaming={true} />
       );
 
-      const wrapper = container.firstChild as HTMLElement;
-      expect(wrapper).toHaveClass("prose");
-      expect(wrapper).toHaveClass("prose-invert");
-      expect(wrapper).toHaveClass("prose-sm");
-      expect(wrapper).toHaveClass("max-w-none");
+      // Prose classes are now inside MarkdownRenderer, not on outer wrapper
+      const proseDiv = container.querySelector(".prose");
+      expect(proseDiv).toBeInTheDocument();
+      expect(proseDiv).toHaveClass("prose-invert");
+      expect(proseDiv).toHaveClass("prose-sm");
+      expect(proseDiv).toHaveClass("max-w-none");
     });
   });
 
@@ -86,14 +81,19 @@ const x = 1;
       expect(screen.getByText("typescript")).toBeInTheDocument();
     });
 
-    it("does not apply prose styles to outer container when complete (delegated to MarkdownRenderer)", () => {
+    it("prose styles are inside MarkdownRenderer (not on outer container)", () => {
       const { container } = render(
         <TextBlock content="test" isStreaming={false} />
       );
 
-      // The outer div should not have prose classes (MarkdownRenderer owns them)
+      // The outer div should have 'relative', not prose classes
       const wrapper = container.firstChild as HTMLElement;
+      expect(wrapper).toHaveClass("relative");
       expect(wrapper).not.toHaveClass("prose");
+
+      // Prose classes are inside MarkdownRenderer
+      const proseDiv = container.querySelector(".prose");
+      expect(proseDiv).toBeInTheDocument();
     });
   });
 
@@ -124,14 +124,14 @@ const x = 1;
       expect(wrapper).toHaveClass("custom-class");
     });
 
-    it("applies custom className alongside streaming prose styles", () => {
+    it("applies custom className alongside default styles", () => {
       const { container } = render(
         <TextBlock content="test" isStreaming={true} className="custom-class" />
       );
 
       const wrapper = container.firstChild as HTMLElement;
       expect(wrapper).toHaveClass("custom-class");
-      expect(wrapper).toHaveClass("prose");
+      expect(wrapper).toHaveClass("relative");
     });
   });
 });

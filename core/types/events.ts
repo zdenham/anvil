@@ -86,6 +86,9 @@ export const EventName = {
 
   // Queued message acknowledgement
   QUEUED_MESSAGE_ACK: "queued-message:ack",
+
+  // Plan lifecycle
+  PLAN_DETECTED: "plan:detected",
 } as const;
 
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
@@ -158,6 +161,11 @@ export interface EventPayloads {
   [EventName.QUEUED_MESSAGE_ACK]: {
     threadId: string;
     messageId: string;
+  };
+
+  // Plan lifecycle
+  [EventName.PLAN_DETECTED]: {
+    planId: string;
   };
 }
 
@@ -254,6 +262,7 @@ export const EventNameSchema = z.enum([
   EventName.PERMISSION_REQUEST,
   EventName.PERMISSION_RESPONSE,
   EventName.QUEUED_MESSAGE_ACK,
+  EventName.PLAN_DETECTED,
 ]);
 
 /**

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@/test/helpers";
-import { CodeBlock } from "./code-block";
+import { CodeBlock, clearExpandedStateCache } from "./code-block";
 
 // Mock the useCodeHighlight hook
 vi.mock("@/hooks/use-code-highlight", () => ({
@@ -17,6 +17,7 @@ describe("CodeBlock", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    clearExpandedStateCache(); // Reset expand state between tests
     vi.stubGlobal("navigator", {
       ...navigator,
       clipboard: {
@@ -150,32 +151,33 @@ describe("CodeBlock", () => {
       const expandButton = screen.getByRole("button", { name: /expand/i });
       fireEvent.click(expandButton);
 
-      // Expand button should be gone after expanding
-      expect(screen.queryByRole("button", { name: /expand/i })).not.toBeInTheDocument();
+      // Button should now show "Collapse" after expanding
+      expect(screen.getByRole("button", { name: /collapse/i })).toBeInTheDocument();
     });
 
-    it("does not collapse short code blocks", () => {
+    it("does not show expand/collapse for short code blocks", () => {
       render(<CodeBlock code={shortCode} language="typescript" />);
 
-      // Should not show expand button for short code
+      // Should not show expand or collapse buttons for short code
       expect(screen.queryByRole("button", { name: /expand/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /collapse/i })).not.toBeInTheDocument();
     });
 
-    it("shows collapse toggle button in header when expanded and >20 lines", async () => {
+    it("shows collapse button at bottom when expanded", async () => {
       render(<CodeBlock code={longCode} language="typescript" />);
 
-      // Initially collapsed, so no collapse toggle
-      expect(screen.queryByRole("button", { name: /collapse/i })).not.toBeInTheDocument();
+      // Initially shows expand
+      expect(screen.getByRole("button", { name: /expand/i })).toBeInTheDocument();
 
       // Expand the code
       const expandButton = screen.getByRole("button", { name: /expand/i });
       fireEvent.click(expandButton);
 
-      // Now collapse toggle should be visible
+      // Now collapse button should be visible at the same position
       expect(screen.getByRole("button", { name: /collapse/i })).toBeInTheDocument();
     });
 
-    it("collapse toggle re-collapses the code block", async () => {
+    it("collapse button re-collapses the code block", async () => {
       render(<CodeBlock code={longCode} language="typescript" />);
 
       // Expand first

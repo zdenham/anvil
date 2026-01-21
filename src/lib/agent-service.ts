@@ -191,6 +191,12 @@ function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
       }
       break;
 
+    case EventName.PLAN_DETECTED:
+      // Forward plan:detected to eventBus - listeners will refresh from disk
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      eventBus.emit(name as any, payload as any);
+      break;
+
     default:
       logger.warn(`[handleAgentEvent] Unhandled event: ${name}`);
   }

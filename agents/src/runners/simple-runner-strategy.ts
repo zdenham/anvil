@@ -8,7 +8,7 @@ import { emitEvent, emitLog } from "./shared.js";
 import {
   ThreadMetadataBaseSchema,
 } from "@core/types/threads.js";
-import { TaskMetadataSchema } from "@core/types/tasks.js";
+import { TaskMetadataSchema, type TaskMetadata } from "@core/types/tasks.js";
 
 /**
  * Get the current HEAD commit hash.
@@ -259,6 +259,19 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
       }
 
       // 3. Write task metadata (unified format compatible with TaskMetadataSchema)
+      // Check if task metadata already exists (e.g., created by test harness) and preserve repositoryName
+      const taskMetadataPath = join(taskPath, "metadata.json");
+      let existingRepositoryName: string | undefined;
+      if (existsSync(taskMetadataPath)) {
+        try {
+          const existingTaskContent = readFileSync(taskMetadataPath, "utf-8");
+          const existingTask = JSON.parse(existingTaskContent);
+          existingRepositoryName = existingTask.repositoryName;
+        } catch {
+          // Ignore errors reading existing metadata
+        }
+      }
+
       const taskMetadata = {
         id: taskId,
         slug: taskId,                    // Use taskId as slug (simple tasks don't have title-based slugs)
@@ -275,9 +288,10 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         createdAt: now,
         updatedAt: now,
         pendingReviews: [],
+        // Preserve repositoryName if it was set by test harness or external tooling
+        ...(existingRepositoryName && { repositoryName: existingRepositoryName }),
       };
 
-      const taskMetadataPath = join(taskPath, "metadata.json");
       writeFileSync(taskMetadataPath, JSON.stringify(taskMetadata, null, 2));
 
       // 4. Create tasks/{taskId}/threads/simple-{threadId}/ directory
@@ -333,11 +347,26 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     }
 
     // 7. Return context with cwd as workingDir
+    // Read task metadata to include in context (enables plan detection via repositoryName)
+    let taskForContext: TaskMetadata | undefined;
+    const taskMetadataPathForContext = join(taskPath, "metadata.json");
+    if (existsSync(taskMetadataPathForContext)) {
+      try {
+        const taskContent = readFileSync(taskMetadataPathForContext, "utf-8");
+        const parseResult = TaskMetadataSchema.safeParse(JSON.parse(taskContent));
+        if (parseResult.success) {
+          taskForContext = parseResult.data;
+        }
+      } catch {
+        // Ignore errors reading task metadata
+      }
+    }
+
     return {
       workingDir: cwd,
       threadId,
       threadPath,
-      // No task property for simple agents (different schema)
+      task: taskForContext, // Include task for plan detection (repositoryName)
       // No branchName for simple agents
       // No mergeBase for simple agents
     };

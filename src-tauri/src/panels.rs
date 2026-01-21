@@ -1026,10 +1026,10 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
     // Disable macOS Tahoe window animations for snappy appearance
     panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
 
-    // Enable native dragging by clicking anywhere on the window background
-    // Note: This may not work with WebViews since they consume mouse events,
-    // but we keep it as a backup. The primary drag mechanism is startDragging() in React.
-    panel.as_panel().setMovableByWindowBackground(true);
+    // NOTE: We intentionally do NOT enable setMovableByWindowBackground(true) here.
+    // Dragging is handled in React via startDragging(), which allows us to implement
+    // focus-aware behavior: drag from anywhere when unfocused, drag only from header
+    // when focused (to allow text selection in content).
 
     // Set up event handler to hide panel when it loses focus (blur)
     // BUT only if not pinned (pinned state is set during drag/resize operations)
@@ -1150,6 +1150,68 @@ pub fn focus_simple_task_panel(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Snaps the simple task panel position to integer pixel coordinates.
+/// This fixes text blurriness caused by subpixel positioning during drag.
+pub fn snap_simple_task_panel_position(app: &AppHandle) -> Result<(), String> {
+    tracing::info!("[SimpleTaskPanel] snap_simple_task_panel_position called");
+
+    if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
+        let frame = panel.as_panel().frame();
+
+        tracing::info!(
+            "[SimpleTaskPanel] Current frame: origin=({:.6}, {:.6}), size=({:.6}, {:.6})",
+            frame.origin.x,
+            frame.origin.y,
+            frame.size.width,
+            frame.size.height
+        );
+
+        // Round position to nearest integer
+        let snapped_x = frame.origin.x.round();
+        let snapped_y = frame.origin.y.round();
+
+        let x_diff = (frame.origin.x - snapped_x).abs();
+        let y_diff = (frame.origin.y - snapped_y).abs();
+
+        tracing::info!(
+            "[SimpleTaskPanel] Snap calculation: snapped=({}, {}), diff=({:.6}, {:.6})",
+            snapped_x,
+            snapped_y,
+            x_diff,
+            y_diff
+        );
+
+        // Only update if position changed (avoid unnecessary redraws)
+        if x_diff > 0.001 || y_diff > 0.001 {
+            tracing::info!(
+                "[SimpleTaskPanel] SNAPPING position from ({:.3}, {:.3}) to ({}, {})",
+                frame.origin.x,
+                frame.origin.y,
+                snapped_x,
+                snapped_y
+            );
+            panel
+                .as_panel()
+                .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(snapped_x, snapped_y));
+
+            // Verify the snap worked
+            let new_frame = panel.as_panel().frame();
+            tracing::info!(
+                "[SimpleTaskPanel] After snap: origin=({:.6}, {:.6})",
+                new_frame.origin.x,
+                new_frame.origin.y
+            );
+        } else {
+            tracing::info!("[SimpleTaskPanel] Position already at integer coordinates, no snap needed");
+        }
+
+        Ok(())
+    } else {
+        tracing::error!("[SimpleTaskPanel] Panel not found!");
+        Err("Simple task panel not found".to_string())
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Tasks List Panel
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1205,9 +1267,20 @@ pub fn create_tasks_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
     // Enable native dragging by clicking anywhere on the window background
     panel.as_panel().setMovableByWindowBackground(true);
 
-    // Note: Unlike other panels, tasks-list does NOT auto-hide on blur.
-    // Users explicitly close it via Escape key or X button.
-    // This allows clicking outside the panel without losing the task list.
+    // Set up event handler to hide panel when it loses focus (blur)
+    let event_handler = TasksListEventHandler::new();
+    event_handler.window_did_resign_key(|_notification| {
+        if let Some(app) = APP_HANDLE.get() {
+            if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
+                tracing::info!("[TasksListPanel] Hiding panel on blur");
+                panel.hide();
+            }
+
+            // Emit event so frontend can reset state
+            let _ = app.emit_to(TASKS_LIST_LABEL, "panel-hidden", ());
+        }
+    });
+    panel.set_event_handler(Some(event_handler.as_ref()));
 
     // Ensure panel starts hidden
     panel.hide();
