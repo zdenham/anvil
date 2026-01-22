@@ -70,9 +70,10 @@ describe("runAgentLoop - tool completion via hooks", () => {
   let mockScriptPath = "";
 
   const baseConfig: RunnerConfig = {
+    agent: "simple",
     prompt: "Test prompt",
     mortDir: "/tmp/mort",
-    mode: "simple",
+    threadId: "test-thread-id",
   };
 
   const baseContext: OrchestrationContext = {
@@ -82,9 +83,10 @@ describe("runAgentLoop - tool completion via hooks", () => {
   };
 
   const baseAgentConfig: AgentConfig = {
-    agentType: "simple",
-    appendedPrompt: "Test agent",
-    tools: ["Read", "Write", "Bash"],
+    name: "simple",
+    description: "Test agent",
+    appendedPrompt: "Test agent prompt",
+    tools: { type: "preset", preset: "claude_code" },
   };
 
   beforeEach(() => {

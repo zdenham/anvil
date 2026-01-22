@@ -16,66 +16,10 @@ use tauri_nspanel::{
 };
 
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Pending Task State (Pull Model for HMR resilience)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Information about a pending task to be displayed in the task panel.
-/// This is stored before showing the panel and retrieved by the React app on mount.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PendingTask {
-    pub thread_id: String,
-    pub task_id: String,
-    pub prompt: Option<String>,
-    pub repo_name: Option<String>,
-}
-
-/// Global storage for pending task - survives HMR/page reloads
-static PENDING_TASK: OnceLock<Mutex<Option<PendingTask>>> = OnceLock::new();
-
-fn get_pending_task_mutex() -> &'static Mutex<Option<PendingTask>> {
-    PENDING_TASK.get_or_init(|| Mutex::new(None))
-}
-
-/// Store a pending task (called before showing panel)
-pub fn set_pending_task(task: PendingTask) {
-    if let Ok(mut guard) = get_pending_task_mutex().lock() {
-        tracing::info!("Storing pending task: {:?}", task);
-        *guard = Some(task);
-    }
-}
-
-/// Retrieve the pending task (does NOT clear - survives HMR reloads)
-/// The pending task is only cleared when a new task is set or panel is hidden
-pub fn get_pending_task() -> Option<PendingTask> {
-    if let Ok(guard) = get_pending_task_mutex().lock() {
-        let task = guard.clone();
-        tracing::info!("Retrieved pending task (not clearing): {:?}", task);
-        task
-    } else {
-        None
-    }
-}
-
-/// Clear the pending task (called when panel is hidden)
-pub fn clear_pending_task() {
-    if let Ok(mut guard) = get_pending_task_mutex().lock() {
-        tracing::info!("Clearing pending task");
-        *guard = None;
-    }
-}
-
-/// Peek at the pending task without clearing it (same as get_pending_task now)
-pub fn peek_pending_task() -> Option<PendingTask> {
-    get_pending_task()
-}
-
 // Panel labels
 pub const SPOTLIGHT_LABEL: &str = "spotlight";
 pub const CLIPBOARD_LABEL: &str = "clipboard";
-pub const TASK_LABEL: &str = "task";
 pub const ERROR_LABEL: &str = "error";
-pub const TASKS_LIST_LABEL: &str = "tasks-list";
 
 // Window dimensions
 pub const SPOTLIGHT_WIDTH: f64 = 570.0;
@@ -83,14 +27,10 @@ pub const SPOTLIGHT_HEIGHT: f64 = 84.0;
 pub const SPOTLIGHT_HEIGHT_EXPANDED: f64 = 210.0;
 pub const CLIPBOARD_WIDTH: f64 = 570.0;
 pub const CLIPBOARD_HEIGHT: f64 = 400.0;
-pub const TASK_WIDTH: f64 = 1200.0;
-pub const TASK_HEIGHT: f64 = 800.0;
 pub const ERROR_WIDTH: f64 = 500.0;
 pub const ERROR_HEIGHT: f64 = 300.0;
-pub const SIMPLE_TASK_WIDTH: f64 = 650.0;
-pub const SIMPLE_TASK_HEIGHT: f64 = 750.0;
-pub const TASKS_LIST_WIDTH: f64 = 600.0;
-pub const TASKS_LIST_HEIGHT: f64 = 500.0;
+pub const CONTROL_PANEL_WIDTH: f64 = 650.0;
+pub const CONTROL_PANEL_HEIGHT: f64 = 750.0;
 pub const RESULT_ITEM_HEIGHT: f64 = 56.0;
 pub const RESULT_ITEM_HEIGHT_COMPACT: f64 = 32.0;
 pub const MAX_VISIBLE_RESULTS: usize = 8;
@@ -178,14 +118,6 @@ tauri_panel! {
         }
     })
 
-    // Task panel for displaying task workspace
-    panel!(TaskPanel {
-        config: {
-            can_become_key_window: true,
-            is_floating_panel: true
-        }
-    })
-
     // Error panel for displaying errors from other panels
     panel!(ErrorPanel {
         config: {
@@ -194,16 +126,8 @@ tauri_panel! {
         }
     })
 
-    // Simple task panel for lightweight task display
-    panel!(SimpleTaskPanel {
-        config: {
-            can_become_key_window: true,
-            is_floating_panel: true
-        }
-    })
-
-    // Tasks list panel for displaying all tasks
-    panel!(TasksListPanel {
+    // Control panel for lightweight task display
+    panel!(ControlPanel {
         config: {
             can_become_key_window: true,
             is_floating_panel: true
@@ -220,23 +144,13 @@ tauri_panel! {
         window_did_resign_key(notification: &NSNotification) -> ()
     })
 
-    // Event handler for task panel - hides on blur (resign key)
-    panel_event!(TaskEventHandler {
-        window_did_resign_key(notification: &NSNotification) -> ()
-    })
-
     // Event handler for error panel - hides on blur (resign key)
     panel_event!(ErrorEventHandler {
         window_did_resign_key(notification: &NSNotification) -> ()
     })
 
-    // Event handler for simple task panel - hides on blur (resign key)
-    panel_event!(SimpleTaskEventHandler {
-        window_did_resign_key(notification: &NSNotification) -> ()
-    })
-
-    // Event handler for tasks list panel - hides on blur (resign key)
-    panel_event!(TasksListEventHandler {
+    // Event handler for control panel - hides on blur (resign key)
+    panel_event!(ControlPanelEventHandler {
         window_did_resign_key(notification: &NSNotification) -> ()
     })
 }
@@ -514,81 +428,6 @@ pub fn toggle_clipboard(app: &AppHandle) -> bool {
     }
 }
 
-/// Creates the task panel (hidden by default)
-pub fn create_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("====== CREATING TASK PANEL ======");
-
-    let monitor = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .ok_or("No primary monitor found")?;
-
-    let monitor_size = monitor.size();
-    let scale_factor = monitor.scale_factor();
-    let screen_width = monitor_size.width as f64 / scale_factor;
-    let screen_height = monitor_size.height as f64 / scale_factor;
-
-    // Calculate centered position (both horizontally and vertically)
-    let x = (screen_width - TASK_WIDTH) / 2.0;
-    let y = (screen_height - TASK_HEIGHT) / 2.0;
-
-    let panel = PanelBuilder::<_, TaskPanel>::new(app, TASK_LABEL)
-        .url(WebviewUrl::App("task.html".into()))
-        .size(Size::Logical(LogicalSize::new(
-            TASK_WIDTH,
-            TASK_HEIGHT,
-        )))
-        .position(Position::Logical(LogicalPosition::new(x, y)))
-        .level(PanelLevel::ScreenSaver)
-        .collection_behavior(
-            CollectionBehavior::new()
-                .move_to_active_space()
-                .full_screen_auxiliary(),
-        )
-        // Note: borderless() resets the mask, so resizable() must come after it
-        .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
-        .has_shadow(false)
-        .hides_on_deactivate(false)
-        .transparent(true)
-        .no_activate(true)
-        .with_window(|w| {
-            w.decorations(false)
-                .resizable(true)
-                .visible(false)
-                .transparent(true)
-                .title("task")
-        })
-        .build()?;
-
-    // Disable macOS Tahoe window animations for snappy appearance
-    panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
-
-    // Enable native dragging by clicking anywhere on the window background
-    panel.as_panel().setMovableByWindowBackground(true);
-
-    // Set up event handler to hide panel when it loses focus (blur)
-    let event_handler = TaskEventHandler::new();
-    event_handler.window_did_resign_key(|_notification| {
-        if let Some(app) = APP_HANDLE.get() {
-            if let Ok(panel) = app.get_webview_panel(TASK_LABEL) {
-                panel.hide();
-            }
-
-
-            // Emit event so frontend can reset state
-            let _ = app.emit_to(TASK_LABEL, "panel-hidden", ());
-        }
-    });
-    panel.set_event_handler(Some(event_handler.as_ref()));
-
-    // Ensure panel starts hidden
-    panel.hide();
-
-    tracing::info!("====== TASK PANEL CREATED (hidden) ======");
-    Ok(())
-}
-
 /// Calculates centered panel position on the screen containing the mouse cursor.
 /// Returns (x, y) in Cocoa screen coordinates (origin at bottom-left of primary display).
 fn calculate_centered_panel_position_cocoa(
@@ -636,77 +475,6 @@ fn calculate_centered_panel_position_cocoa(
     let x = (screen_width - panel_width) / 2.0;
     let y = primary_height - (primary_height - panel_height) / 2.0; // Centered in Cocoa coords
     (x, y)
-}
-
-/// Shows the task panel and emits an event to open a specific task
-/// If prompt is provided, includes it for optimistic UI display
-/// task_id is required - all threads must be associated with a task
-pub fn show_task(
-    app: &AppHandle,
-    thread_id: &str,
-    task_id: &str,
-    prompt: Option<&str>,
-    repo_name: Option<&str>,
-) -> Result<(), String> {
-    match app.get_webview_panel(TASK_LABEL) {
-        Ok(panel) => {
-            tracing::info!(thread_id = %thread_id, task_id = %task_id, prompt = ?prompt, "====== SHOW_TASK CALLED ======");
-
-            // Store pending task BEFORE showing panel (Pull Model for HMR resilience)
-            // React will retrieve this on mount, even after HMR reloads
-            set_pending_task(PendingTask {
-                thread_id: thread_id.to_string(),
-                task_id: task_id.to_string(),
-                prompt: prompt.map(|s| s.to_string()),
-                repo_name: repo_name.map(|s| s.to_string()),
-            });
-
-            // Reposition panel to center of the screen where the cursor is
-            let (x, y) =
-                calculate_centered_panel_position_cocoa(app, TASK_WIDTH, TASK_HEIGHT);
-            panel
-                .as_panel()
-                .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
-
-            // Build event payload
-            let mut payload = serde_json::json!({
-                "threadId": thread_id,
-                "taskId": task_id
-            });
-            if let Some(p) = prompt {
-                payload["prompt"] = serde_json::json!(p);
-            }
-            if let Some(r) = repo_name {
-                payload["repoName"] = serde_json::json!(r);
-            }
-
-            // Show panel first, then emit event
-            tracing::info!("About to call panel.show_and_make_key()");
-            panel.show_and_make_key();
-            tracing::info!("panel.show_and_make_key() completed, panel is now visible");
-
-            // Also emit event for backwards compatibility (React may receive either)
-            tracing::info!("About to emit 'open-task' event with payload: {:?}", payload);
-            match app.emit("open-task", &payload) {
-                Ok(_) => tracing::info!("====== open-task EVENT EMITTED SUCCESSFULLY ======"),
-                Err(e) => tracing::error!("Failed to emit open-task: {:?}", e),
-            }
-
-            Ok(())
-        }
-        Err(e) => {
-            tracing::error!(error = ?e, "Failed to get task panel - panel may not be created");
-            Err(format!("Task panel not available: {:?}", e))
-        }
-    }
-}
-
-/// Hides the task panel
-pub fn hide_task(app: &AppHandle) -> Result<(), String> {
-    if let Ok(panel) = app.get_webview_panel(TASK_LABEL) {
-        panel.hide();
-    }
-    Ok(())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -890,91 +658,91 @@ pub fn hide_error(app: &AppHandle) -> Result<(), String> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Pending Simple Task State (Pull Model for HMR resilience)
+// Pending Control Panel State (Pull Model for HMR resilience)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Information about a pending simple task to be displayed in the simple task panel.
+/// Information about a pending control panel to be displayed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PendingSimpleTask {
+pub struct PendingControlPanel {
     pub thread_id: String,
     pub task_id: String,
     pub prompt: Option<String>,
 }
 
-/// Global storage for pending simple task
-static PENDING_SIMPLE_TASK: OnceLock<Mutex<Option<PendingSimpleTask>>> = OnceLock::new();
+/// Global storage for pending control panel
+static PENDING_CONTROL_PANEL: OnceLock<Mutex<Option<PendingControlPanel>>> = OnceLock::new();
 
-/// Global storage for simple task panel pinned state
+/// Global storage for control panel pinned state
 /// When pinned, the panel won't hide on blur (used during drag/resize)
-static SIMPLE_TASK_PINNED: OnceLock<Mutex<bool>> = OnceLock::new();
+static CONTROL_PANEL_PINNED: OnceLock<Mutex<bool>> = OnceLock::new();
 
-fn get_simple_task_pinned_mutex() -> &'static Mutex<bool> {
-    SIMPLE_TASK_PINNED.get_or_init(|| Mutex::new(false))
+fn get_control_panel_pinned_mutex() -> &'static Mutex<bool> {
+    CONTROL_PANEL_PINNED.get_or_init(|| Mutex::new(false))
 }
 
-/// Pin the simple task panel (prevents hide on blur)
-pub fn pin_simple_task_panel() {
-    if let Ok(mut guard) = get_simple_task_pinned_mutex().lock() {
-        tracing::info!("[SimpleTaskPanel] Pinning panel (preventing hide on blur)");
+/// Pin the control panel (prevents hide on blur)
+pub fn pin_control_panel() {
+    if let Ok(mut guard) = get_control_panel_pinned_mutex().lock() {
+        tracing::info!("[ControlPanel] Pinning panel (preventing hide on blur)");
         *guard = true;
     }
 }
 
-/// Unpin the simple task panel (allows hide on blur)
-pub fn unpin_simple_task_panel() {
-    if let Ok(mut guard) = get_simple_task_pinned_mutex().lock() {
-        tracing::info!("[SimpleTaskPanel] Unpinning panel (allowing hide on blur)");
+/// Unpin the control panel (allows hide on blur)
+pub fn unpin_control_panel() {
+    if let Ok(mut guard) = get_control_panel_pinned_mutex().lock() {
+        tracing::info!("[ControlPanel] Unpinning panel (allowing hide on blur)");
         *guard = false;
     }
 }
 
-/// Check if simple task panel is pinned
-pub fn is_simple_task_pinned() -> bool {
-    if let Ok(guard) = get_simple_task_pinned_mutex().lock() {
+/// Check if control panel is pinned
+pub fn is_control_panel_pinned() -> bool {
+    if let Ok(guard) = get_control_panel_pinned_mutex().lock() {
         *guard
     } else {
         false
     }
 }
 
-fn get_pending_simple_task_mutex() -> &'static Mutex<Option<PendingSimpleTask>> {
-    PENDING_SIMPLE_TASK.get_or_init(|| Mutex::new(None))
+fn get_pending_control_panel_mutex() -> &'static Mutex<Option<PendingControlPanel>> {
+    PENDING_CONTROL_PANEL.get_or_init(|| Mutex::new(None))
 }
 
-/// Store a pending simple task (called before showing panel)
-pub fn set_pending_simple_task(task: PendingSimpleTask) {
-    if let Ok(mut guard) = get_pending_simple_task_mutex().lock() {
-        tracing::info!("[SimpleTaskPanel] Storing pending simple task: {:?}", task);
+/// Store a pending control panel (called before showing panel)
+pub fn set_pending_control_panel(task: PendingControlPanel) {
+    if let Ok(mut guard) = get_pending_control_panel_mutex().lock() {
+        tracing::info!("[ControlPanel] Storing pending control panel: {:?}", task);
         *guard = Some(task);
     }
 }
 
-/// Retrieve the pending simple task
-pub fn get_pending_simple_task() -> Option<PendingSimpleTask> {
-    if let Ok(guard) = get_pending_simple_task_mutex().lock() {
+/// Retrieve the pending control panel
+pub fn get_pending_control_panel() -> Option<PendingControlPanel> {
+    if let Ok(guard) = get_pending_control_panel_mutex().lock() {
         guard.clone()
     } else {
         None
     }
 }
 
-/// Clear the pending simple task
-pub fn clear_pending_simple_task() {
-    if let Ok(mut guard) = get_pending_simple_task_mutex().lock() {
-        tracing::info!("[SimpleTaskPanel] Clearing pending simple task");
+/// Clear the pending control panel
+pub fn clear_pending_control_panel() {
+    if let Ok(mut guard) = get_pending_control_panel_mutex().lock() {
+        tracing::info!("[ControlPanel] Clearing pending control panel");
         *guard = None;
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Simple Task Panel
+// Control Panel
 // ═══════════════════════════════════════════════════════════════════════════
 
-pub const SIMPLE_TASK_LABEL: &str = "simple-task";
+pub const CONTROL_PANEL_LABEL: &str = "control-panel";
 
-/// Creates the simple task panel (hidden by default) - called once at startup
-pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("[SimpleTaskPanel] Creating simple task panel at startup");
+/// Creates the control panel (hidden by default) - called once at startup
+pub fn create_control_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    tracing::info!("[ControlPanel] Creating control panel at startup");
 
     let monitor = app
         .primary_monitor()
@@ -988,14 +756,14 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
     let screen_height = monitor_size.height as f64 / scale_factor;
 
     // Calculate centered position
-    let x = (screen_width - SIMPLE_TASK_WIDTH) / 2.0;
-    let y = (screen_height - SIMPLE_TASK_HEIGHT) / 2.0;
+    let x = (screen_width - CONTROL_PANEL_WIDTH) / 2.0;
+    let y = (screen_height - CONTROL_PANEL_HEIGHT) / 2.0;
 
-    let panel = PanelBuilder::<_, SimpleTaskPanel>::new(app, SIMPLE_TASK_LABEL)
-        .url(WebviewUrl::App("simple-task.html".into()))
+    let panel = PanelBuilder::<_, ControlPanel>::new(app, CONTROL_PANEL_LABEL)
+        .url(WebviewUrl::App("control-panel.html".into()))
         .size(Size::Logical(LogicalSize::new(
-            SIMPLE_TASK_WIDTH,
-            SIMPLE_TASK_HEIGHT,
+            CONTROL_PANEL_WIDTH,
+            CONTROL_PANEL_HEIGHT,
         )))
         .position(Position::Logical(LogicalPosition::new(x, y)))
         .level(PanelLevel::ScreenSaver)
@@ -1016,7 +784,7 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
                 .resizable(true)
                 .visible(false)
                 .transparent(true)
-                .title("simple-task")
+                .title("control-panel")
                 // Allow first click on unfocused panel to pass through to webview
                 // This enables dragging without needing to focus the panel first
                 .accept_first_mouse(true)
@@ -1033,24 +801,24 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
 
     // Set up event handler to hide panel when it loses focus (blur)
     // BUT only if not pinned (pinned state is set during drag/resize operations)
-    let event_handler = SimpleTaskEventHandler::new();
+    let event_handler = ControlPanelEventHandler::new();
     event_handler.window_did_resign_key(|_notification| {
         // Check if panel is pinned (during drag/resize)
-        if is_simple_task_pinned() {
-            tracing::info!("[SimpleTaskPanel] Blur ignored - panel is pinned (drag/resize in progress)");
+        if is_control_panel_pinned() {
+            tracing::info!("[ControlPanel] Blur ignored - panel is pinned (drag/resize in progress)");
             return;
         }
 
         if let Some(app) = APP_HANDLE.get() {
-            if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
-                tracing::info!("[SimpleTaskPanel] Hiding panel on blur (not pinned)");
+            if let Ok(panel) = app.get_webview_panel(CONTROL_PANEL_LABEL) {
+                tracing::info!("[ControlPanel] Hiding panel on blur (not pinned)");
                 panel.hide();
             }
 
-            // Clear pending simple task when panel is hidden
-            clear_pending_simple_task();
+            // Clear pending control panel when panel is hidden
+            clear_pending_control_panel();
             // Emit event so frontend can reset state
-            let _ = app.emit_to(SIMPLE_TASK_LABEL, "panel-hidden", ());
+            let _ = app.emit_to(CONTROL_PANEL_LABEL, "panel-hidden", ());
         }
     });
     panel.set_event_handler(Some(event_handler.as_ref()));
@@ -1058,42 +826,42 @@ pub fn create_simple_task_panel(app: &AppHandle) -> Result<(), Box<dyn std::erro
     // Ensure panel starts hidden
     panel.hide();
 
-    tracing::info!("[SimpleTaskPanel] Simple task panel created (hidden)");
+    tracing::info!("[ControlPanel] Control panel created (hidden)");
     Ok(())
 }
 
-/// Shows the simple task panel with the given task info
-pub fn show_simple_task(
+/// Shows the control panel with the given task info
+pub fn show_control_panel(
     app: &AppHandle,
     thread_id: &str,
     task_id: &str,
     prompt: Option<&str>,
 ) -> Result<(), String> {
-    tracing::info!("[SimpleTaskPanel] show_simple_task called: thread_id={}, task_id={}", thread_id, task_id);
+    tracing::info!("[ControlPanel] show_control_panel called: thread_id={}, task_id={}", thread_id, task_id);
 
-    // Store pending simple task BEFORE showing panel (Pull Model for HMR resilience)
-    tracing::info!("[SimpleTaskPanel] Storing pending simple task...");
-    set_pending_simple_task(PendingSimpleTask {
+    // Store pending control panel BEFORE showing panel (Pull Model for HMR resilience)
+    tracing::info!("[ControlPanel] Storing pending control panel...");
+    set_pending_control_panel(PendingControlPanel {
         thread_id: thread_id.to_string(),
         task_id: task_id.to_string(),
         prompt: prompt.map(|s| s.to_string()),
     });
-    tracing::info!("[SimpleTaskPanel] Pending simple task stored");
+    tracing::info!("[ControlPanel] Pending control panel stored");
 
-    tracing::info!("[SimpleTaskPanel] Getting panel with label: {}", SIMPLE_TASK_LABEL);
-    match app.get_webview_panel(SIMPLE_TASK_LABEL) {
+    tracing::info!("[ControlPanel] Getting panel with label: {}", CONTROL_PANEL_LABEL);
+    match app.get_webview_panel(CONTROL_PANEL_LABEL) {
         Ok(panel) => {
             // Reset panel size to default (may have been resized by user)
-            panel.set_content_size(SIMPLE_TASK_WIDTH, SIMPLE_TASK_HEIGHT);
+            panel.set_content_size(CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT);
 
-            tracing::info!("[SimpleTaskPanel] Got panel, calculating position...");
+            tracing::info!("[ControlPanel] Got panel, calculating position...");
             // Reposition panel to center of the screen where the cursor is
-            let (x, y) = calculate_centered_panel_position_cocoa(app, SIMPLE_TASK_WIDTH, SIMPLE_TASK_HEIGHT);
-            tracing::info!("[SimpleTaskPanel] Position: ({}, {}), setting frame...", x, y);
+            let (x, y) = calculate_centered_panel_position_cocoa(app, CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT);
+            tracing::info!("[ControlPanel] Position: ({}, {}), setting frame...", x, y);
             panel
                 .as_panel()
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
-            tracing::info!("[SimpleTaskPanel] Frame set");
+            tracing::info!("[ControlPanel] Frame set");
 
             // Emit event to frontend with task info
             let payload = serde_json::json!({
@@ -1101,65 +869,100 @@ pub fn show_simple_task(
                 "taskId": task_id,
                 "prompt": prompt
             });
-            tracing::info!("[SimpleTaskPanel] Emitting open-simple-task event...");
-            let _ = app.emit("open-simple-task", &payload);
-            tracing::info!("[SimpleTaskPanel] Event emitted");
+            tracing::info!("[ControlPanel] Emitting open-control-panel event...");
+            let _ = app.emit("open-control-panel", &payload);
+            tracing::info!("[ControlPanel] Event emitted");
 
             // Show the panel and ensure it's focused
             // Note: show_and_make_key() already calls makeKeyAndOrderFront internally,
             // so we don't need a redundant call. Calling it twice causes focus flickering
             // and can trigger spurious blur events during task navigation.
-            tracing::info!("[PanelFocus] show_simple_task: SHOWING simple-task panel");
+            tracing::info!("[PanelFocus] show_control_panel: SHOWING control-panel");
             panel.show_and_make_key();
-            tracing::info!("[PanelFocus] show_simple_task: simple-task panel now KEY");
+            tracing::info!("[PanelFocus] show_control_panel: control-panel now KEY");
 
             Ok(())
         }
         Err(e) => {
-            tracing::error!("[SimpleTaskPanel] Failed to get panel: {:?}", e);
-            Err(format!("Simple task panel not available: {:?}", e))
+            tracing::error!("[ControlPanel] Failed to get panel: {:?}", e);
+            Err(format!("Control panel not available: {:?}", e))
         }
     }
 }
 
-/// Hides the simple task panel
-pub fn hide_simple_task(app: &AppHandle) -> Result<(), String> {
-    if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
+/// Shows the control panel without setting thread context.
+/// The view will be set via eventBus from the frontend.
+pub fn show_control_panel_simple(app: &AppHandle) -> Result<(), String> {
+    tracing::info!("[ControlPanel] show_control_panel_simple called");
+
+    match app.get_webview_panel(CONTROL_PANEL_LABEL) {
+        Ok(panel) => {
+            if panel.is_visible() {
+                // Window exists and is visible - just focus it
+                tracing::info!("[ControlPanel] Panel already visible, focusing");
+                panel.as_panel().makeKeyAndOrderFront(None);
+            } else {
+                // Window exists but is hidden - show it
+                // Reset panel size to default (may have been resized by user)
+                panel.set_content_size(CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT);
+
+                // Reposition panel to center of the screen where the cursor is
+                let (x, y) = calculate_centered_panel_position_cocoa(app, CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT);
+                panel
+                    .as_panel()
+                    .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
+
+                tracing::info!("[PanelFocus] show_control_panel_simple: SHOWING control-panel");
+                panel.show_and_make_key();
+                tracing::info!("[PanelFocus] show_control_panel_simple: control-panel now KEY");
+            }
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("[ControlPanel] Failed to get panel: {:?}", e);
+            Err(format!("Control panel not available: {:?}", e))
+        }
+    }
+}
+
+/// Hides the control panel
+pub fn hide_control_panel(app: &AppHandle) -> Result<(), String> {
+    if let Ok(panel) = app.get_webview_panel(CONTROL_PANEL_LABEL) {
         panel.hide();
         // Clear pinned state when panel is explicitly hidden
-        unpin_simple_task_panel();
-        // Clear pending simple task when panel is hidden
-        clear_pending_simple_task();
+        unpin_control_panel();
+        // Clear pending control panel when panel is hidden
+        clear_pending_control_panel();
         // Emit event so frontend can reset state
-        let _ = app.emit_to(SIMPLE_TASK_LABEL, "panel-hidden", ());
+        let _ = app.emit_to(CONTROL_PANEL_LABEL, "panel-hidden", ());
     }
     Ok(())
 }
 
-/// Forces focus on the simple task panel if it's visible (hack for focus restoration)
-pub fn focus_simple_task_panel(app: &AppHandle) -> Result<(), String> {
-    if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
+/// Forces focus on the control panel if it's visible (hack for focus restoration)
+pub fn focus_control_panel(app: &AppHandle) -> Result<(), String> {
+    if let Ok(panel) = app.get_webview_panel(CONTROL_PANEL_LABEL) {
         if panel.is_visible() {
-            tracing::info!("[PanelFocus] focus_simple_task_panel: RE-FOCUSING simple-task panel");
+            tracing::info!("[PanelFocus] focus_control_panel: RE-FOCUSING control-panel");
             panel.as_panel().makeKeyAndOrderFront(None);
-            tracing::info!("[PanelFocus] focus_simple_task_panel: simple-task panel now KEY");
+            tracing::info!("[PanelFocus] focus_control_panel: control-panel now KEY");
         } else {
-            tracing::debug!("[PanelFocus] focus_simple_task_panel: panel not visible, skipping");
+            tracing::debug!("[PanelFocus] focus_control_panel: panel not visible, skipping");
         }
     }
     Ok(())
 }
 
-/// Snaps the simple task panel position to integer pixel coordinates.
+/// Snaps the control panel position to integer pixel coordinates.
 /// This fixes text blurriness caused by subpixel positioning during drag.
-pub fn snap_simple_task_panel_position(app: &AppHandle) -> Result<(), String> {
-    tracing::info!("[SimpleTaskPanel] snap_simple_task_panel_position called");
+pub fn snap_control_panel_position(app: &AppHandle) -> Result<(), String> {
+    tracing::info!("[ControlPanel] snap_control_panel_position called");
 
-    if let Ok(panel) = app.get_webview_panel(SIMPLE_TASK_LABEL) {
+    if let Ok(panel) = app.get_webview_panel(CONTROL_PANEL_LABEL) {
         let frame = panel.as_panel().frame();
 
         tracing::info!(
-            "[SimpleTaskPanel] Current frame: origin=({:.6}, {:.6}), size=({:.6}, {:.6})",
+            "[ControlPanel] Current frame: origin=({:.6}, {:.6}), size=({:.6}, {:.6})",
             frame.origin.x,
             frame.origin.y,
             frame.size.width,
@@ -1174,7 +977,7 @@ pub fn snap_simple_task_panel_position(app: &AppHandle) -> Result<(), String> {
         let y_diff = (frame.origin.y - snapped_y).abs();
 
         tracing::info!(
-            "[SimpleTaskPanel] Snap calculation: snapped=({}, {}), diff=({:.6}, {:.6})",
+            "[ControlPanel] Snap calculation: snapped=({}, {}), diff=({:.6}, {:.6})",
             snapped_x,
             snapped_y,
             x_diff,
@@ -1184,7 +987,7 @@ pub fn snap_simple_task_panel_position(app: &AppHandle) -> Result<(), String> {
         // Only update if position changed (avoid unnecessary redraws)
         if x_diff > 0.001 || y_diff > 0.001 {
             tracing::info!(
-                "[SimpleTaskPanel] SNAPPING position from ({:.3}, {:.3}) to ({}, {})",
+                "[ControlPanel] SNAPPING position from ({:.3}, {:.3}) to ({}, {})",
                 frame.origin.x,
                 frame.origin.y,
                 snapped_x,
@@ -1197,143 +1000,29 @@ pub fn snap_simple_task_panel_position(app: &AppHandle) -> Result<(), String> {
             // Verify the snap worked
             let new_frame = panel.as_panel().frame();
             tracing::info!(
-                "[SimpleTaskPanel] After snap: origin=({:.6}, {:.6})",
+                "[ControlPanel] After snap: origin=({:.6}, {:.6})",
                 new_frame.origin.x,
                 new_frame.origin.y
             );
         } else {
-            tracing::info!("[SimpleTaskPanel] Position already at integer coordinates, no snap needed");
+            tracing::info!("[ControlPanel] Position already at integer coordinates, no snap needed");
         }
 
         Ok(())
     } else {
-        tracing::error!("[SimpleTaskPanel] Panel not found!");
-        Err("Simple task panel not found".to_string())
+        tracing::error!("[ControlPanel] Panel not found!");
+        Err("Control panel not found".to_string())
     }
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Tasks List Panel
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Creates the tasks list panel (hidden by default) - called once at startup
-pub fn create_tasks_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("[TasksListPanel] Creating tasks list panel at startup");
-
-    let monitor = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .ok_or("No primary monitor found")?;
-
-    let monitor_size = monitor.size();
-    let scale_factor = monitor.scale_factor();
-
-    // Calculate center position (horizontally centered, ~20% from top)
-    let x = ((monitor_size.width as f64 / scale_factor) - TASKS_LIST_WIDTH) / 2.0;
-    let y = (monitor_size.height as f64 / scale_factor) * 0.2;
-
-    let panel = PanelBuilder::<_, TasksListPanel>::new(app, TASKS_LIST_LABEL)
-        .url(WebviewUrl::App("tasks-panel.html".into()))
-        .size(Size::Logical(LogicalSize::new(
-            TASKS_LIST_WIDTH,
-            TASKS_LIST_HEIGHT,
-        )))
-        .position(Position::Logical(LogicalPosition::new(x, y)))
-        .level(PanelLevel::ScreenSaver)
-        .collection_behavior(
-            CollectionBehavior::new()
-                .move_to_active_space()
-                .full_screen_auxiliary(),
-        )
-        // Note: borderless() resets the mask, so resizable() must come after it
-        .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
-        .has_shadow(true)
-        .hides_on_deactivate(false)
-        .transparent(true)
-        .no_activate(true)
-        .with_window(|w| {
-            w.decorations(false)
-                .resizable(true)
-                .visible(false)
-                .transparent(true)
-                .title("tasks-list")
-        })
-        .build()?;
-
-    // Disable macOS Tahoe window animations for snappy appearance
-    panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
-
-    // Enable native dragging by clicking anywhere on the window background
-    panel.as_panel().setMovableByWindowBackground(true);
-
-    // Set up event handler to hide panel when it loses focus (blur)
-    let event_handler = TasksListEventHandler::new();
-    event_handler.window_did_resign_key(|_notification| {
-        if let Some(app) = APP_HANDLE.get() {
-            if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
-                tracing::info!("[TasksListPanel] Hiding panel on blur");
-                panel.hide();
-            }
-
-            // Emit event so frontend can reset state
-            let _ = app.emit_to(TASKS_LIST_LABEL, "panel-hidden", ());
-        }
-    });
-    panel.set_event_handler(Some(event_handler.as_ref()));
-
-    // Ensure panel starts hidden
-    panel.hide();
-
-    tracing::info!("[TasksListPanel] Tasks list panel created (hidden)");
-    Ok(())
-}
-
-/// Shows the tasks list panel
-pub fn show_tasks_list(app: &AppHandle) -> Result<(), String> {
-    tracing::info!("[PanelFocus] show_tasks_list: SHOWING tasks-list panel");
-
-    match app.get_webview_panel(TASKS_LIST_LABEL) {
-        Ok(panel) => {
-            // Reposition panel to the screen where the cursor is
-            let (x, y) = calculate_panel_position_cocoa(app, TASKS_LIST_WIDTH);
-            panel
-                .as_panel()
-                .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
-            panel.show_and_make_key();
-            tracing::info!("[PanelFocus] show_tasks_list: tasks-list panel now KEY");
-
-            // Emit panel-shown event so frontend can refresh data
-            let _ = app.emit_to(TASKS_LIST_LABEL, "panel-shown", ());
-
-            Ok(())
-        }
-        Err(e) => {
-            tracing::error!("[TasksListPanel] Failed to get panel: {:?}", e);
-            Err(format!("Tasks list panel not available: {:?}", e))
-        }
-    }
-}
-
-/// Hides the tasks list panel
-pub fn hide_tasks_list(app: &AppHandle) -> Result<(), String> {
-    if let Ok(panel) = app.get_webview_panel(TASKS_LIST_LABEL) {
-        panel.hide();
-    }
-    Ok(())
-}
-
 
 /// Checks if any nspanel is currently visible
-/// Returns true if at least one of the panels (spotlight, clipboard, task, error, simple-task, tasks-list) is visible
+/// Returns true if at least one of the panels (spotlight, clipboard, error, control-panel) is visible
 pub fn is_any_panel_visible(app: &AppHandle) -> bool {
     let panel_labels = [
         SPOTLIGHT_LABEL,
         CLIPBOARD_LABEL,
-        TASK_LABEL,
         ERROR_LABEL,
-        SIMPLE_TASK_LABEL,
-        TASKS_LIST_LABEL,
+        CONTROL_PANEL_LABEL,
     ];
 
     for label in &panel_labels {

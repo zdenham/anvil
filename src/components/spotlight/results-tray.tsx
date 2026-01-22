@@ -24,8 +24,8 @@ const getResultKey = (result: SpotlightResult, index: number): string => {
   if (result.type === "app") {
     return `app-${result.data.path}-${index}`;
   }
-  if (result.type === "task") {
-    return `task-${result.data.query}-${index}`;
+  if (result.type === "thread") {
+    return `thread-${result.data.query}-${index}`;
   }
   if (result.type === "action") {
     return `action-${result.data.action}-${index}`;
@@ -75,7 +75,7 @@ const getResultDisplay = (
     };
   }
 
-  if (result.type === "task") {
+  if (result.type === "thread") {
     // Build subtitle based on worktree state
     let subtitle: React.ReactNode = "Ask Mort to help with this";
     if (worktreeInfo) {
@@ -97,7 +97,7 @@ const getResultDisplay = (
     }
     return {
       icon: <div className="w-10 h-10 flex items-center justify-center"><MortLogo size={7} /></div>,
-      title: "Create task",
+      title: "Create thread",
       subtitle,
     };
   }
@@ -110,11 +110,11 @@ const getResultDisplay = (
         subtitle: "Open the main window",
       };
     }
-    if (result.data.action === "open-tasks") {
+    if (result.data.action === "open-threads") {
       return {
         icon: <span className="text-3xl">📋</span>,
-        title: "Tasks",
-        subtitle: "View all tasks",
+        title: "Threads",
+        subtitle: "View all threads",
       };
     }
     if (result.data.action === "refresh") {
@@ -185,8 +185,8 @@ export const ResultsTray = ({
       style={needsScroll ? { maxHeight } : undefined}
     >
       {results.map((result, index) => {
-        // Only pass worktreeInfo to task results
-        const displayWorktreeInfo = result.type === "task" ? worktreeInfo : undefined;
+        // Only pass worktreeInfo to thread results
+        const displayWorktreeInfo = result.type === "thread" ? worktreeInfo : undefined;
         const { icon, title, subtitle } = getResultDisplay(result, displayWorktreeInfo);
         const isSelected = index === selectedIndex;
         return (

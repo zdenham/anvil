@@ -4,8 +4,8 @@
  */
 export {
   // Worktree types
-  TaskBranchInfoSchema,
-  type TaskBranchInfo,
+  ThreadBranchInfoSchema,
+  type ThreadBranchInfo,
   WorktreeStateSchema,
   type WorktreeState,
   // Settings types

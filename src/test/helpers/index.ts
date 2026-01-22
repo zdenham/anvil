@@ -7,12 +7,12 @@
  * import { render, screen, VirtualFS, TestEvents, testIds } from "@/test/helpers";
  *
  * @example
- * import { createTask, createThread } from "@/test/helpers";
- * const task = createTask({ status: "in-progress" });
+ * import { createThread } from "@/test/helpers";
+ * const thread = createThread({ status: "running" });
  */
 
 // Virtual filesystem
-export { VirtualFS, type SeedTaskOptions, type SeedThreadOptions } from "./virtual-fs";
+export { VirtualFS, type SeedThreadOptions } from "./virtual-fs";
 
 // Store seeding
 export { TestStores } from "./stores";
@@ -40,9 +40,6 @@ export {
 // Query helpers
 export {
   testIds,
-  getTaskItem,
-  queryTaskItem,
-  getTaskStatus,
   getMessage,
   getAllMessages,
   getThreadStatus,
@@ -55,19 +52,12 @@ export {
   getKanbanCard,
   getKanbanColumn,
   getCardsInColumn,
-  expectTaskExists,
-  expectTaskNotExists,
-  expectTaskHasStatus,
   expectThreadStatus,
   expectMessageWithContent,
 } from "./queries";
 
 // Test data factories
 export {
-  createTask,
-  createSubtask,
-  createPendingReview,
-  resetTaskCounter,
   createThread,
   createThreadTurn,
   resetThreadCounter,

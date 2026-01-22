@@ -33,8 +33,6 @@ import type {
   RunnerConfig,
   AgentRunOutput,
   AgentTestOptions,
-  TaskMetadata,
-  TaskStatus,
   ThreadState,
   FileChange,
   ResultMetrics,
@@ -172,63 +170,23 @@ describe("testing module exports", () => {
 
     it("defaultRunnerConfig.buildArgs generates correct args for simple agent", () => {
       const opts: AgentTestOptions = {
-        agent: "simple",
         prompt: "test prompt",
         threadId: "test-thread-123",
+        repoId: "test-repo-456",
         cwd: "/test/cwd",
       };
-      const task: TaskMetadata = {
-        schemaVersion: 1,
-        id: "task-id",
-        slug: "test-task",
-        status: "todo",
-        name: "Test Task",
-        repositoryId: "repo-id",
-        createdAt: Date.now(),
-        lastUpdated: Date.now(),
-        sortOrder: 0,
-      };
-      const args = defaultRunnerConfig.buildArgs(opts, task, "/mort/dir", "/repo/cwd");
+      const args = defaultRunnerConfig.buildArgs(opts, "/mort/dir", "/repo/cwd");
 
-      expect(args).toContain("--agent");
-      expect(args).toContain("simple");
       expect(args).toContain("--prompt");
       expect(args).toContain("test prompt");
       expect(args).toContain("--thread-id");
       expect(args).toContain("test-thread-123");
+      expect(args).toContain("--repo-id");
+      expect(args).toContain("test-repo-456");
       expect(args).toContain("--mort-dir");
       expect(args).toContain("/mort/dir");
       expect(args).toContain("--cwd");
       expect(args).toContain("/test/cwd");
-      // Simple agent should NOT have --task-slug
-      expect(args).not.toContain("--task-slug");
-    });
-
-    it("defaultRunnerConfig.buildArgs generates correct args for task-based agent", () => {
-      const opts: AgentTestOptions = {
-        agent: "research",
-        prompt: "test prompt",
-        threadId: "test-thread-456",
-      };
-      const task: TaskMetadata = {
-        schemaVersion: 1,
-        id: "task-id",
-        slug: "my-task",
-        status: "todo",
-        name: "My Task",
-        repositoryId: "repo-id",
-        createdAt: Date.now(),
-        lastUpdated: Date.now(),
-        sortOrder: 0,
-      };
-      const args = defaultRunnerConfig.buildArgs(opts, task, "/mort/dir", "/repo/cwd");
-
-      expect(args).toContain("--agent");
-      expect(args).toContain("research");
-      expect(args).toContain("--task-slug");
-      expect(args).toContain("my-task");
-      // Task-based agent should NOT have --cwd
-      expect(args).not.toContain("--cwd");
     });
   });
 
@@ -305,11 +263,10 @@ describe("testing module exports", () => {
 
     it("AgentTestHarnessOptions type is usable", () => {
       const opts: AgentTestHarnessOptions = {
-        agent: "simple",
         prompt: "test",
         timeout: 30000,
       };
-      expect(opts.agent).toBe("simple");
+      expect(opts.prompt).toBe("test");
     });
 
     it("RunnerConfig type is usable", () => {

@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import { SettingsSection } from "../settings-section";
 import { HotkeyRecorder } from "@/components/onboarding/HotkeyRecorder";
 import {
-  getSavedTaskNavigationDownHotkey,
-  getSavedTaskNavigationUpHotkey,
-  saveTaskNavigationDownHotkey,
-  saveTaskNavigationUpHotkey,
+  getSavedControlPanelNavigationDownHotkey,
+  getSavedControlPanelNavigationUpHotkey,
+  saveControlPanelNavigationDownHotkey,
+  saveControlPanelNavigationUpHotkey,
 } from "@/lib/hotkey-service";
 import { formatHotkeyDisplay } from "@/utils/hotkey-formatting";
 
-export function TaskNavigationHotkeySettings() {
+export function ControlPanelNavigationHotkeySettings() {
   const [downHotkey, setDownHotkey] = useState<string>("Alt+Down");
   const [upHotkey, setUpHotkey] = useState<string>("Alt+Up");
   const [editingDown, setEditingDown] = useState(false);
@@ -19,13 +19,13 @@ export function TaskNavigationHotkeySettings() {
   const [pendingUp, setPendingUp] = useState<string>("");
 
   useEffect(() => {
-    getSavedTaskNavigationDownHotkey().then(setDownHotkey).catch(console.error);
-    getSavedTaskNavigationUpHotkey().then(setUpHotkey).catch(console.error);
+    getSavedControlPanelNavigationDownHotkey().then(setDownHotkey).catch(console.error);
+    getSavedControlPanelNavigationUpHotkey().then(setUpHotkey).catch(console.error);
   }, []);
 
   const handleSaveDown = async () => {
     if (pendingDown) {
-      await saveTaskNavigationDownHotkey(pendingDown);
+      await saveControlPanelNavigationDownHotkey(pendingDown);
       setDownHotkey(pendingDown);
     }
     setEditingDown(false);
@@ -39,7 +39,7 @@ export function TaskNavigationHotkeySettings() {
 
   const handleSaveUp = async () => {
     if (pendingUp) {
-      await saveTaskNavigationUpHotkey(pendingUp);
+      await saveControlPanelNavigationUpHotkey(pendingUp);
       setUpHotkey(pendingUp);
     }
     setEditingUp(false);
@@ -53,8 +53,8 @@ export function TaskNavigationHotkeySettings() {
 
   return (
     <SettingsSection
-      title="Task Navigation Hotkeys"
-      description="Command+Tab style navigation through tasks. Hold modifier(s) and press key to navigate, release modifier(s) to open the selected task."
+      title="Control Panel Navigation Hotkeys"
+      description="Command+Tab style navigation through control panel items. Hold modifier(s) and press key to navigate, release modifier(s) to open the selected item."
     >
       <div className="space-y-3">
         {/* Navigate Down Hotkey */}

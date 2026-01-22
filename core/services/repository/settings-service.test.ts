@@ -26,6 +26,7 @@ function createMockFS(
 
 function createValidSettings(overrides: Partial<RepositorySettings> = {}): RepositorySettings {
   return {
+    id: '550e8400-e29b-41d4-a716-446655440000',
     schemaVersion: 1,
     name: 'test-repo',
     originalUrl: 'https://github.com/example/repo.git',
@@ -34,8 +35,10 @@ function createValidSettings(overrides: Partial<RepositorySettings> = {}): Repos
     defaultBranch: 'main',
     createdAt: 1700000000000,
     worktrees: [],
-    taskBranches: {},
+    threadBranches: {},
     lastUpdated: 1700000000000,
+    plansDirectory: 'plans/',
+    completedDirectory: 'plans/completed/',
     ...overrides,
   };
 }

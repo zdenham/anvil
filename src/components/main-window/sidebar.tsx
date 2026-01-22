@@ -14,7 +14,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: "tasks", label: "Tasks" },
+  { id: "inbox", label: "Mission Control" },
   { id: "worktrees", label: "Worktrees" },
   { id: "settings", label: "Settings" },
   { id: "logs", label: "Logs" },

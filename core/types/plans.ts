@@ -9,20 +9,18 @@ import { z } from 'zod';
  * Schema for plan metadata persisted to disk.
  * Validated when loading from JSON files.
  *
- * Uses absolute paths to simplify plan detection and content resolution.
- * This eliminates the need for repositoryName lookups and works correctly
- * with worktrees.
+ * Uses structured paths (repoId + worktreeId + relativePath) instead of
+ * absolute paths for better portability and worktree support.
  */
 export const PlanMetadataSchema = z.object({
-  /** Unique plan ID (UUID) */
   id: z.string().uuid(),
-  /** Absolute path to the plan file (e.g., "/Users/.../mortician/plans/feature-x.md") */
-  absolutePath: z.string(),
-  /** Whether user has viewed the plan - defaults to false (unread) */
+  repoId: z.string().uuid(),
+  worktreeId: z.string().uuid(),       // Required - main repo is also a worktree
+  relativePath: z.string(),            // Path relative to repo's plans directory
+  parentId: z.string().uuid().optional(), // For nested plans
   isRead: z.boolean().default(false),
-  /** Timestamps */
-  createdAt: z.number(),
-  updatedAt: z.number(),
+  createdAt: z.number(),               // Unix milliseconds
+  updatedAt: z.number(),               // Unix milliseconds
 });
 
 /** Plan metadata persisted to disk */
@@ -30,10 +28,14 @@ export type PlanMetadata = z.infer<typeof PlanMetadataSchema>;
 
 /** Input for creating a new plan */
 export interface CreatePlanInput {
-  absolutePath: string;
+  repoId: string;
+  worktreeId: string;
+  relativePath: string;
+  parentId?: string;
 }
 
 /** Input for updating a plan */
 export interface UpdatePlanInput {
   isRead?: boolean;
+  parentId?: string;
 }

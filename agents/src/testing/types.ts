@@ -1,5 +1,4 @@
 // Re-export existing types from core - these are the canonical definitions
-export type { TaskMetadata, TaskStatus } from "@core/types/tasks.js";
 export type {
   ThreadState,
   FileChange,
@@ -51,23 +50,23 @@ export interface QueuedMessageSpec {
 }
 
 export interface AgentTestOptions {
-  /** Agent type to run */
-  agent: "research" | "execution" | "merge" | "simple";
   /** The prompt/instruction to send to the agent */
   prompt: string;
   /** Path to the mort directory (defaults to temp directory if not provided) */
   mortDir?: string;
-  /** Task slug for task-based agents (research, execution, merge) */
-  taskSlug?: string;
   /** Repository name for context */
   repositoryName?: string;
   /** Thread ID to resume or create */
   threadId?: string;
+  /** Repository UUID for the agent */
+  repoId?: string;
+  /** Worktree UUID for the agent */
+  worktreeId?: string;
   /** Timeout in milliseconds (default: 60000) */
   timeout?: number;
   /** Additional environment variables to pass to the agent process */
   env?: Record<string, string>;
-  /** Working directory for simple agents (required for simple agent type) */
+  /** Working directory for the agent */
   cwd?: string;
   /**
    * Queued messages to send during execution.

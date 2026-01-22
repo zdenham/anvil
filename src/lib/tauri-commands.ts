@@ -292,16 +292,22 @@ export const agentCommands = {
 export const panelCommands = {
   /**
    * Check if any nspanel is currently visible.
-   * Returns true if any panel (spotlight, clipboard, task, error, simple-task, tasks-list) is visible.
+   * Returns true if any panel (spotlight, clipboard, task, error, control-panel, tasks-list) is visible.
    */
   isAnyPanelVisible: () => invoke<boolean>("is_any_panel_visible"),
 
   /**
    * Check if a specific panel is currently visible.
    * Returns true if the specified panel is visible, false otherwise.
-   * @param panelLabel The panel label to check (e.g., "simple-task", "task", "spotlight")
+   * @param panelLabel The panel label to check (e.g., "control-panel", "task", "spotlight")
    */
   isPanelVisible: (panelLabel: string) => invoke<boolean>("is_panel_visible", { panelLabel }),
+
+  /**
+   * Show the control panel without setting thread context.
+   * The view will be set via eventBus from the frontend.
+   */
+  showControlPanel: () => invoke<void>("show_control_panel"),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -385,6 +391,14 @@ export const updateCommands = {
  * Running the login shell may trigger macOS Documents permission prompt
  * if the user's shell config files access ~/Documents.
  */
+/**
+ * Show the control panel without setting thread context.
+ * The view will be set via eventBus from the frontend.
+ */
+export async function showControlPanel(): Promise<void> {
+  await invoke("show_control_panel");
+}
+
 export const shellEnvironmentCommands = {
   /**
    * Initialize shell environment by running the login shell.

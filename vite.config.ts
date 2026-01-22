@@ -25,17 +25,15 @@ export default defineConfig(async () => ({
     },
   },
 
-  // Multi-page app configuration for main, spotlight, clipboard, task, and error windows
+  // Multi-page app configuration for main, spotlight, clipboard, and error windows
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
         spotlight: resolve(__dirname, "spotlight.html"),
         clipboard: resolve(__dirname, "clipboard.html"),
-        task: resolve(__dirname, "task.html"),
         error: resolve(__dirname, "error.html"),
-        "simple-task": resolve(__dirname, "simple-task.html"),
-        "tasks-panel": resolve(__dirname, "tasks-panel.html"),
+        "control-panel": resolve(__dirname, "control-panel.html"),
       },
     },
   },

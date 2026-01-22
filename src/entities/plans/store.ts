@@ -20,9 +20,15 @@ interface PlanStoreActions {
   /** Selectors */
   getAll: () => PlanMetadata[];
   getPlan: (id: string) => PlanMetadata | undefined;
-  getByPathPrefix: (pathPrefix: string) => PlanMetadata[];
   getUnreadPlans: () => PlanMetadata[];
-  findByPath: (absolutePath: string) => PlanMetadata | undefined;
+
+  /** Repository and worktree filtering */
+  getByRepository: (repoId: string) => PlanMetadata[];
+  getByWorktree: (worktreeId: string) => PlanMetadata[];
+
+  /** Hierarchy methods */
+  getChildren: (planId: string) => PlanMetadata[];
+  getRootPlans: (repoId: string) => PlanMetadata[];
 
   /** Read status management */
   markPlanAsRead: (id: string) => void;
@@ -62,13 +68,25 @@ export const usePlanStore = create<PlanStoreState & PlanStoreActions>(
 
     getPlan: (id) => get().plans[id],
 
-    getByPathPrefix: (pathPrefix) =>
-      get()._plansArray.filter((p) => p.absolutePath.startsWith(pathPrefix)),
-
     getUnreadPlans: () => get()._plansArray.filter((p) => !p.isRead),
 
-    findByPath: (absolutePath) =>
-      get()._plansArray.find((p) => p.absolutePath === absolutePath),
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Repository and Worktree Filtering
+    // ═══════════════════════════════════════════════════════════════════════════
+    getByRepository: (repoId: string) =>
+      get()._plansArray.filter((p) => p.repoId === repoId),
+
+    getByWorktree: (worktreeId: string) =>
+      get()._plansArray.filter((p) => p.worktreeId === worktreeId),
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Hierarchy Methods
+    // ═══════════════════════════════════════════════════════════════════════════
+    getChildren: (planId: string) =>
+      get()._plansArray.filter((p) => p.parentId === planId),
+
+    getRootPlans: (repoId: string) =>
+      get()._plansArray.filter((p) => p.repoId === repoId && !p.parentId),
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Read Status Management

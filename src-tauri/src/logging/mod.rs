@@ -1,7 +1,7 @@
 //! Centralized logging system with multiple output streams.
 //!
 //! Provides structured JSON logs for LLM querying, colored console output
-//! for human readability, and optional ClickHouse upload for centralized observability.
+//! for human readability, and optional log server upload for centralized observability.
 //! Uses the `tracing` crate for structured logging.
 //!
 //! Also maintains an in-memory log buffer that emits events to the frontend
@@ -10,11 +10,11 @@
 //! Note: This module initializes before paths::initialize() is called,
 //! so we use a fallback path resolution that matches paths.rs logic.
 
-mod clickhouse;
 mod config;
+mod log_server;
 
-pub use clickhouse::ClickHouseLayer;
-pub use config::ClickHouseConfig;
+pub use config::LogServerConfig;
+pub use log_server::LogServerLayer;
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -323,13 +323,10 @@ pub fn initialize() {
         }
     };
 
-    // Optional ClickHouse layer - only enabled if configured
-    let clickhouse_layer = ClickHouseConfig::from_env().map(|config| {
-        eprintln!(
-            "ClickHouse logging enabled: {}@{}",
-            config.database, config.host
-        );
-        ClickHouseLayer::new(config)
+    // Optional log server layer - only enabled if configured
+    let log_server_layer = LogServerConfig::from_env().map(|config| {
+        eprintln!("Log server logging enabled: {}", config.url);
+        LogServerLayer::new(config)
     });
 
     // Initialize the subscriber with all layers
@@ -337,7 +334,7 @@ pub fn initialize() {
         .with(console_layer)
         .with(json_layer)
         .with(BufferLayer)
-        .with(clickhouse_layer)
+        .with(log_server_layer)
         .init();
 
     tracing::info!("Logging initialized");

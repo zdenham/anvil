@@ -15,12 +15,12 @@ export type Rollback = () => void;
  *
  * @example
  * ```typescript
- * const updated: TaskMetadata = { ...existing, ...updates };
+ * const updated: ThreadMetadata = { ...existing, ...updates };
  *
  * await optimistic(
  *   updated,
- *   (task) => useTaskStore.getState()._applyUpdate(id, task),
- *   (task) => persistence.writeJson(`tasks/${task.slug}/metadata.json`, task)
+ *   (thread) => useThreadStore.getState()._applyUpdate(id, thread),
+ *   (thread) => persistence.writeJson(`threads/${thread.id}/metadata.json`, thread)
  * );
  * ```
  */

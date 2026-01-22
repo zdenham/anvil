@@ -94,6 +94,6 @@ afterEach(() => {
 // (This is already enabled by `globals: true` in vitest config,
 // but we include it here for clarity)
 declare global {
-  // eslint-disable-next-line no-var
+   
   var vi: typeof import("vitest")["vi"];
 }

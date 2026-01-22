@@ -48,7 +48,7 @@ export type MockThreadStatus = "running" | "completed" | "error" | "paused";
 
 export interface MockThreadMetadata {
   id: string;
-  taskId: string;
+  repoId: string;
   status: MockThreadStatus;
 }
 

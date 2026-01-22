@@ -1,6 +1,6 @@
 import { HotkeySettings } from "./settings/hotkey-settings";
 import { ClipboardHotkeySettings } from "./settings/clipboard-hotkey-settings";
-import { TaskNavigationHotkeySettings } from "./settings/navigation-hotkey-settings";
+import { ControlPanelNavigationHotkeySettings } from "./settings/navigation-hotkey-settings";
 import { RepositorySettings } from "./settings/repository-settings";
 import { AboutSettings } from "./settings/about-settings";
 
@@ -13,7 +13,7 @@ export function SettingsPage() {
       <div className="p-6 space-y-6 max-w-2xl">
         <HotkeySettings />
         <ClipboardHotkeySettings />
-        <TaskNavigationHotkeySettings />
+        <ControlPanelNavigationHotkeySettings />
         <RepositorySettings />
         <AboutSettings />
       </div>

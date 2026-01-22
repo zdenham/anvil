@@ -8,7 +8,7 @@ import {
 } from "@core/types/ask-user-question.js";
 
 vi.mock("@/lib/logger-client", () => ({
-  logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  logger: { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 describe("AskUserQuestionBlock - Schema Validation", () => {

@@ -1,14 +1,4 @@
-import { research } from "./research.js";
-import { execution } from "./execution.js";
-import { merge } from "./merge.js";
 import { simple } from "./simple.js";
-
-// Re-export merge agent types and functions for dynamic prompt building
-export { buildMergeAgentPrompt } from "./merge.js";
-export type {
-  MergeContext,
-  WorkflowMode,
-} from "./merge-types.js";
 
 export interface AgentConfig {
   name: string;
@@ -19,9 +9,6 @@ export interface AgentConfig {
 }
 
 const agents: Record<string, AgentConfig> = {
-  research,
-  execution,
-  merge,
   simple,
 };
 

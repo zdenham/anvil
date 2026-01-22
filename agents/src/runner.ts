@@ -1,7 +1,6 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { TaskRunnerStrategy } from "./runners/task-runner-strategy.js";
 import { SimpleRunnerStrategy } from "./runners/simple-runner-strategy.js";
 import {
   runAgentLoop,
@@ -9,7 +8,7 @@ import {
   emitLog,
   type PriorState,
 } from "./runners/shared.js";
-import type { RunnerStrategy, OrchestrationContext } from "./runners/types.js";
+import type { OrchestrationContext } from "./runners/types.js";
 import { getAgentConfig } from "./agent-types/index.js";
 import { cancelled } from "./output.js";
 import { logger } from "./lib/logger.js";
@@ -101,35 +100,12 @@ exec node "${cliPath}" "$@"
   process.env.PATH = `${binDir}:${process.env.PATH}`;
 }
 
-/**
- * Parse --agent flag to determine which strategy to use.
- * @throws Error if --agent flag is missing or agent type is unknown
- */
-function getStrategy(args: string[]): RunnerStrategy {
-  const agentIndex = args.indexOf("--agent");
-  if (agentIndex === -1 || !args[agentIndex + 1]) {
-    throw new Error("Missing required --agent flag");
-  }
-
-  const agentType = args[agentIndex + 1];
-
-  switch (agentType) {
-    case "simple":
-      return new SimpleRunnerStrategy();
-    case "research":
-    case "execution":
-    case "merge":
-      return new TaskRunnerStrategy();
-    default:
-      throw new Error(`Unknown agent type: ${agentType}`);
-  }
-}
-
 async function main(): Promise<void> {
   // Set up `mort` command before anything else
   setupMortCommand();
 
-  let strategy: RunnerStrategy | undefined;
+  // Only one strategy exists: SimpleRunnerStrategy
+  const strategy = new SimpleRunnerStrategy();
   let context: OrchestrationContext | undefined;
 
   // Create abort controller for cancellation support
@@ -138,7 +114,6 @@ async function main(): Promise<void> {
 
   try {
     const args = process.argv.slice(2);
-    strategy = getStrategy(args);
 
     // Log the strategy
     emitLog(
@@ -153,15 +128,15 @@ async function main(): Promise<void> {
     // This is important because the CLI is invoked as a subprocess by agents
     process.env.MORT_DATA_DIR = config.mortDir;
 
-    // Get agent configuration (model, tools, prompts)
-    const agentConfig = getAgentConfig(config.agent);
+    // Get agent configuration (model, tools, prompts) - hardcoded to "simple"
+    const agentConfig = getAgentConfig("simple");
 
     // Override appended prompt if provided via CLI (e.g., merge agent with dynamic context)
     if (config.appendedPrompt) {
       agentConfig.appendedPrompt = config.appendedPrompt;
     }
 
-    // Set up orchestration context (working directory, task metadata, etc.)
+    // Set up orchestration context (working directory, thread metadata, etc.)
     context = await strategy.setup(config);
 
     // Set up signal handlers with abort support
@@ -178,10 +153,9 @@ async function main(): Promise<void> {
 
     // Run the common agent loop with abort controller
     // Enable stdin queue for simple agents to support queued messages
-    const enableStdinQueue = config.agent === "simple";
     await runAgentLoop(config, context, agentConfig, priorState, {
       abortController,
-      enableStdinQueue,
+      enableStdinQueue: true,
     });
 
     // Clean up on successful completion

@@ -1,37 +1,19 @@
 import { Command, type Child } from "@tauri-apps/plugin-shell";
 import { join, resolveResource, dirname } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
+import { z } from "zod";
 import { FilesystemClient } from "./filesystem-client";
-import { threadService, settingsService, taskService } from "@/entities";
+import { threadService, settingsService } from "@/entities";
 import { eventBus } from "@/entities/events";
-import { gitCommands, fsCommands, shellEnvironmentCommands } from "./tauri-commands";
+import { shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
 import { EventName, type AgentEventMessage } from "@core/types/events.js";
-import type { AgentMode } from "@core/types/agent-mode.js";
 
 const fs = new FilesystemClient();
 const isDev = import.meta.env.DEV;
 import { logger } from "./logger-client";
 import type { ThreadState } from "@/lib/types/agent-messages";
-import type { TaskMetadata } from "@/entities/tasks/types";
-import type { WorkflowMode } from "@/entities/settings/types";
-import { useSettingsStore } from "@/entities/settings/store";
 import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
-
-// MergeContext type - mirrors agents/src/agent-types/merge-types.ts
-// Defined locally until exported from @mort/agents
-interface MergeContext {
-  /** The task branch to merge (e.g., mort/task-abc123) */
-  taskBranch: string;
-  /** The base branch to merge into (e.g., main) */
-  baseBranch: string;
-  /** Absolute path to the worktree where task branch is checked out */
-  taskWorktreePath: string;
-  /** Absolute path to the main worktree (source repo) where base branch is checked out */
-  mainWorktreePath: string;
-  /** Workflow mode: solo (local merge) or team (PR) */
-  workflowMode: WorkflowMode;
-}
 
 // Cache the shell PATH to avoid repeated Tauri calls
 let cachedShellPath: string | null = null;
@@ -130,24 +112,6 @@ async function getRunnerPaths(): Promise<{
 }
 
 /**
- * Counts the number of tool_result blocks in the messages array.
- * Used to detect when new tool results have been added.
- */
-function countToolResults(messages: ThreadState["messages"]): number {
-  let count = 0;
-  for (const msg of messages) {
-    if (msg.role === "user" && Array.isArray(msg.content)) {
-      for (const block of msg.content) {
-        if (typeof block === "object" && block !== null && "type" in block && block.type === "tool_result") {
-          count++;
-        }
-      }
-    }
-  }
-  return count;
-}
-
-/**
  * Handle typed events from agent process.
  * Emits to eventBus - entity listeners handle disk refreshes.
  *
@@ -160,10 +124,6 @@ function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
   // Type assertion needed because eventBus.emit expects specific event types
   // but we're handling all event types dynamically from agent output
   switch (name) {
-    case EventName.TASK_CREATED:
-    case EventName.TASK_UPDATED:
-    case EventName.TASK_DELETED:
-    case EventName.TASK_STATUS_CHANGED:
     case EventName.THREAD_CREATED:
     case EventName.THREAD_UPDATED:
     case EventName.THREAD_STATUS_CHANGED:
@@ -217,479 +177,14 @@ export interface AgentStreamCallbacks {
  * Simple agents run directly in the source repository without worktree allocation.
  */
 export interface SpawnSimpleAgentOptions {
-  taskId: string;
+  /** Repository UUID from settings.json */
+  repoId: string;
+  /** Worktree UUID from settings.json (can be same as repoId for main worktree) */
+  worktreeId: string;
   threadId: string;
   prompt: string;
   /** Repository source path - agent runs here directly (no worktree) */
   sourcePath: string;
-  /** Agent interaction mode - controls how agent handles edits */
-  agentMode?: AgentMode;
-}
-
-/**
- * Options for spawning an agent with Node orchestration.
- * Node handles worktree allocation and thread creation.
- */
-export interface SpawnAgentWithOrchestrationOptions {
-  agentType: string;
-  /** Task slug - Node reads task metadata from disk */
-  taskSlug: string;
-  /** Task ID - required for event emissions and optimistic UI */
-  taskId: string;
-  /** Pre-generated thread ID for optimistic UI */
-  threadId: string;
-  prompt: string;
-  /** Override the agent's appended system prompt (used for merge agent with dynamic context) */
-  appendedPromptOverride?: string;
-  /** Explicit worktree path - if provided, Node uses this instead of auto-allocating */
-  worktreePath?: string;
-}
-
-/**
- * Spawns an agent with Node orchestration.
- * Node handles worktree allocation and thread creation.
- *
- * Simplified flow:
- * 1. Frontend creates draft task on disk
- * 2. Frontend spawns Node with --task-slug
- * 3. Node reads task, allocates worktree, creates thread
- * 4. Node emits events: worktree:allocated, thread:created, agent:state
- * 5. Frontend reacts to events via eventBus
- *
- * @param options - Orchestration options with taskSlug instead of cwd
- */
-export async function spawnAgentWithOrchestration(
-  options: SpawnAgentWithOrchestrationOptions
-): Promise<void> {
-  logger.log(`[spawnAgentWithOrchestration] Called with options:`, {
-    agentType: options.agentType,
-    taskSlug: options.taskSlug,
-    threadId: options.threadId,
-  });
-
-  // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
-  await ensureShellInitialized();
-
-  const settings = settingsService.get();
-  const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    logger.error(`[spawnAgentWithOrchestration] No API key configured!`);
-    throw new Error("Anthropic API key not configured");
-  }
-
-  // Get centralized data directory (e.g., ~/.mort or ~/.mort-dev)
-  const mortDir = await fs.getDataDir();
-  logger.log(`[spawnAgentWithOrchestration] Data dir: ${mortDir}`);
-
-  // Resolve paths for the agent runner
-  let runnerPath: string;
-  let nodeModulesPath: string;
-  let cliPath: string;
-
-  if (isDev) {
-    runnerPath = `${__PROJECT_ROOT__}/agents/dist/runner.js`;
-    nodeModulesPath = `${__PROJECT_ROOT__}/agents/node_modules`;
-    cliPath = `${__PROJECT_ROOT__}/agents/dist/cli/mort.js`;
-    logger.info(`[spawnAgentWithOrchestration] Dev mode paths - runner: ${runnerPath}`);
-  } else {
-    runnerPath = await resolveResource("_up_/agents/dist/runner.js");
-    const agentsDistDir = await dirname(runnerPath);
-    const agentsDir = await dirname(agentsDistDir);
-    nodeModulesPath = await join(agentsDir, "node_modules");
-    cliPath = await join(agentsDistDir, "cli", "mort.js");
-    logger.info(`[spawnAgentWithOrchestration] Prod mode paths - runner: ${runnerPath}`);
-  }
-
-  // Build the agent command args with --task-slug (orchestration mode)
-  // Node will allocate worktree and create thread
-  const commandArgs = [
-    runnerPath,
-    "--agent", options.agentType,
-    "--task-slug", options.taskSlug, // Node reads task from disk, allocates worktree
-    "--thread-id", options.threadId,
-    "--prompt", options.prompt,
-    "--mort-dir", mortDir,
-    // NO --cwd, NO --merge-base - Node computes these via orchestration
-  ];
-
-  // Add appended prompt override for dynamic system prompts (e.g., merge agent)
-  if (options.appendedPromptOverride) {
-    commandArgs.push("--appended-prompt", options.appendedPromptOverride);
-  }
-
-  // Add explicit worktree path if provided (user selected from spotlight)
-  if (options.worktreePath) {
-    commandArgs.push("--worktree-path", options.worktreePath);
-  }
-
-  // Get the shell PATH (needed for bundled macOS apps which don't inherit user's PATH)
-  const shellPath = await getShellPath();
-
-  logger.info(`[spawnAgentWithOrchestration] Runner path: ${runnerPath}`);
-  logger.info(`[spawnAgentWithOrchestration] Task slug: ${options.taskSlug}`);
-
-  // Build and spawn the command
-  const command = Command.create("node", commandArgs, {
-    cwd: mortDir, // Initial cwd, Node will switch to allocated worktree
-    env: {
-      ANTHROPIC_API_KEY: apiKey,
-      NODE_PATH: nodeModulesPath,
-      MORT_CLI: cliPath,
-      MORT_DATA_DIR: mortDir,
-      PATH: shellPath,
-    },
-  });
-
-  // Line buffer for stdout - shell plugin may split JSON across chunks
-  let stdoutBuffer = "";
-  let lastCostUsd: number | undefined;
-  let lastToolResultCount = 0;
-
-  command.stdout.on("data", (chunk: string) => {
-    stdoutBuffer += chunk;
-
-    // Process complete lines (each line is a full state JSON or orchestration event)
-    const lines = stdoutBuffer.split("\n");
-    stdoutBuffer = lines.pop() ?? "";
-
-    const threadId = options.threadId;
-    const taskId = options.taskId;
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
-      // Use typed parser for agent output
-      const output = parseAgentOutput(line);
-      if (output) {
-        switch (output.type) {
-          case "log": {
-            const level = output.level.toLowerCase() as "debug" | "info" | "warn" | "error";
-            const message = `[agent:${threadId}] ${output.message}`;
-            switch (level) {
-              case "error": logger.error(message); break;
-              case "warn": logger.warn(message); break;
-              case "debug": logger.debug(message); break;
-              default: logger.info(message);
-            }
-            break;
-          }
-
-          case "event":
-            handleAgentEvent(output, threadId);
-            break;
-
-          case "state": {
-            const threadState = output.state;
-            if (threadState.status === "complete" && threadState.metrics?.totalCostUsd !== undefined) {
-              lastCostUsd = threadState.metrics.totalCostUsd;
-            }
-
-            // Emit state to eventBus for UI updates
-            eventBus.emit(EventName.AGENT_STATE, {
-              threadId,
-              state: threadState,
-            });
-
-            // Detect tool completion and emit event for content refresh
-            const currentCount = countToolResults(threadState.messages);
-            if (currentCount > lastToolResultCount) {
-              lastToolResultCount = currentCount;
-              eventBus.emit(EventName.AGENT_TOOL_COMPLETED, {
-                threadId,
-                taskId, // Now correctly using options.taskId (fixes Bug 1)
-              });
-            }
-            break;
-          }
-        }
-        continue;
-      }
-
-      // Fall back to raw JSON parsing for legacy orchestration events
-      try {
-        const parsed = JSON.parse(line);
-
-        // Legacy orchestration events (backward compat)
-        if (parsed.type === "worktree:allocated") {
-          logger.log(`[spawnAgentWithOrchestration] Worktree allocated:`, parsed.worktree?.path);
-          eventBus.emit(EventName.AGENT_SPAWNED, {
-            threadId,
-            taskId,
-          });
-          continue;
-        }
-
-        if (parsed.type === "thread:created") {
-          logger.log(`[spawnAgentWithOrchestration] Thread created:`, parsed.thread?.id);
-          // Add thread to store directly (Node already wrote to disk)
-          threadService.handleRemoteCreate(parsed.thread);
-          // Also emit event for any other listeners
-          eventBus.emit("thread:created", {
-            threadId: parsed.thread.id,
-            taskId: parsed.thread.taskId,
-          });
-          continue;
-        }
-
-        if (parsed.type === "worktree:released") {
-          logger.log(`[spawnAgentWithOrchestration] Worktree released for thread:`, parsed.threadId);
-          continue;
-        }
-
-        // Unknown JSON - log for visibility
-        logger.debug(`[agent:${threadId}] unknown message: ${line}`);
-      } catch {
-        // Non-JSON stdout - pipe through as debug log
-        logger.debug(`[agent:${threadId}] ${line}`);
-      }
-    }
-  });
-
-  command.stderr.on("data", (line: string) => {
-    // stderr is reserved for actual process errors
-    logger.error(`[agent:${options.threadId}] stderr: ${line}`);
-    eventBus.emit("agent:error", { threadId: options.threadId, error: line });
-  });
-
-  command.on("close", async (data) => {
-    // Note: PID is cleared by the runner during cleanup, not here
-    agentProcesses.delete(options.threadId);
-    logger.log(`[spawnAgentWithOrchestration] Agent closed with code: ${data.code}`);
-
-    // Update thread entity based on exit code
-    // Note: Thread was created by Node, so we need to update it
-    const thread = threadService.get(options.threadId);
-    if (thread) {
-      if (data.code === 0) {
-        await threadService.completeTurn(options.threadId, data.code, lastCostUsd);
-        await threadService.markCompleted(options.threadId);
-      } else if (data.code === 130) {
-        // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
-        await threadService.completeTurn(options.threadId, data.code, lastCostUsd);
-        await threadService.markCancelled(options.threadId);
-        eventBus.emit(EventName.AGENT_CANCELLED, {
-          threadId: options.threadId,
-        });
-      } else {
-        await threadService.completeTurn(options.threadId, data.code ?? -1);
-        await threadService.markError(options.threadId);
-      }
-    }
-
-    eventBus.emit("agent:completed", {
-      threadId: options.threadId,
-      exitCode: data.code ?? -1,
-      costUsd: lastCostUsd,
-    });
-  });
-
-  // Spawn the command
-  // Note: PID is written to disk by the runner, not here
-  try {
-    logger.info(`[spawnAgentWithOrchestration] Spawning agent for thread ${options.threadId}`);
-    const child = await command.spawn();
-    agentProcesses.set(options.threadId, child);
-    logger.info(`[spawnAgentWithOrchestration] Agent spawned successfully, pid=${child.pid}`);
-  } catch (error) {
-    logger.error(`[spawnAgentWithOrchestration] Failed to spawn agent:`, error);
-    eventBus.emit("agent:error", {
-      threadId: options.threadId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw new Error(
-      `Failed to spawn agent: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-
-/**
- * Resumes an existing thread with a follow-up message.
- * Uses the existing thread's working directory and agent type,
- * and passes the prior thread history via --history-file.
- */
-export async function resumeAgent(
-  threadId: string,
-  prompt: string,
-  callbacks: AgentStreamCallbacks
-): Promise<void> {
-  // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
-  await ensureShellInitialized();
-
-  const settings = settingsService.get();
-  const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Anthropic API key not configured");
-  }
-
-  // 1. Look up the existing thread
-  const thread = threadService.get(threadId);
-  if (!thread) {
-    throw new Error(`Thread not found: ${threadId}`);
-  }
-
-  // 2. Get paths using new structure: tasks/{slug}/threads/{agentType}-{threadId}/
-  const mortDir = await fs.getDataDir();
-  const threadFolderName = `${thread.agentType}-${threadId}`;
-  // We need to get the task slug for the path - use the thread's taskId to look up the task
-  const task = taskService.get(thread.taskId);
-  if (!task) {
-    throw new Error(`Task not found for thread: ${thread.taskId}`);
-  }
-  const stateFilePath = fs.joinPath(mortDir, "tasks", task.slug, "threads", threadFolderName, "state.json");
-
-  // 3. Add a new turn to the thread
-  await threadService.addTurn(threadId, prompt);
-
-  // 4. Mark thread as running
-  await threadService.markRunning(threadId);
-
-  // Resolve paths for the agent runner
-  let runnerPath: string;
-  let nodeModulesPath: string;
-  let cliPath: string;
-
-  if (isDev) {
-    runnerPath = `${__PROJECT_ROOT__}/agents/dist/runner.js`;
-    nodeModulesPath = `${__PROJECT_ROOT__}/agents/node_modules`;
-    cliPath = `${__PROJECT_ROOT__}/agents/dist/cli/mort.js`;
-  } else {
-    runnerPath = await resolveResource("_up_/agents/dist/runner.js");
-    const agentsDistDir = await dirname(runnerPath);
-    const agentsDir = await dirname(agentsDistDir);
-    nodeModulesPath = await join(agentsDir, "node_modules");
-    cliPath = await join(agentsDistDir, "cli", "mort.js");
-  }
-
-  // 5. Build command args with --task-slug and --history-file for resuming
-  // Node orchestration will allocate a worktree (may be different from original)
-  const commandArgs = [
-    runnerPath,
-    "--agent", thread.agentType,
-    "--task-slug", task.slug,
-    "--thread-id", threadId,
-    "--prompt", prompt,
-    "--mort-dir", mortDir,
-    "--history-file", stateFilePath,
-  ];
-
-  logger.info(`[agent] Resuming thread ${threadId} with history from ${stateFilePath}`);
-
-  // Get the shell PATH (needed for bundled macOS apps which don't inherit user's PATH)
-  const shellPath = await getShellPath();
-
-  // Use "node" as the command name to match the Tauri shell scope,
-  // and set PATH in the environment so it resolves to the correct binary
-  // Initial cwd is mortDir - Node orchestration will switch to allocated worktree
-  const command = Command.create("node", commandArgs, {
-    cwd: mortDir,
-    env: {
-      ANTHROPIC_API_KEY: apiKey,
-      NODE_PATH: nodeModulesPath,
-      MORT_CLI: cliPath,
-      MORT_DATA_DIR: mortDir,
-      PATH: shellPath,
-    },
-  });
-
-  // Line buffer for stdout
-  let stdoutBuffer = "";
-  let lastCostUsd: number | undefined;
-  let lastToolResultCount = 0;
-
-  command.stdout.on("data", (chunk: string) => {
-    stdoutBuffer += chunk;
-
-    const lines = stdoutBuffer.split("\n");
-    stdoutBuffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
-      // Use typed parser for agent output
-      const output = parseAgentOutput(line);
-      if (output) {
-        switch (output.type) {
-          case "log": {
-            const level = output.level.toLowerCase() as "debug" | "info" | "warn" | "error";
-            const message = `[agent:${threadId}] ${output.message}`;
-            switch (level) {
-              case "error": logger.error(message); break;
-              case "warn": logger.warn(message); break;
-              case "debug": logger.debug(message); break;
-              default: logger.info(message);
-            }
-            break;
-          }
-
-          case "event":
-            handleAgentEvent(output, threadId);
-            break;
-
-          case "state": {
-            const threadState = output.state;
-            if (threadState.status === "complete" && threadState.metrics?.totalCostUsd !== undefined) {
-              lastCostUsd = threadState.metrics.totalCostUsd;
-            }
-            callbacks.onState(threadState);
-
-            // Detect tool completion and emit event for content refresh
-            const currentCount = countToolResults(threadState.messages);
-            if (currentCount > lastToolResultCount) {
-              lastToolResultCount = currentCount;
-              eventBus.emit(EventName.AGENT_TOOL_COMPLETED, {
-                threadId,
-                taskId: thread.taskId,
-              });
-            }
-            break;
-          }
-        }
-        continue;
-      }
-
-      // Non-JSON stdout - pipe through as debug log
-      logger.debug(`[agent:${threadId}] ${line}`);
-    }
-  });
-
-  command.stderr.on("data", (line: string) => {
-    // stderr is reserved for actual process errors
-    logger.error(`[agent:${threadId}] stderr: ${line}`);
-    callbacks.onError(line);
-  });
-
-  command.on("close", async (data) => {
-    // Note: PID is cleared by the runner during cleanup, not here
-    agentProcesses.delete(threadId);
-    if (data.code === 0) {
-      await threadService.completeTurn(threadId, data.code, lastCostUsd);
-      await threadService.markCompleted(threadId);
-    } else if (data.code === 130) {
-      // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
-      await threadService.completeTurn(threadId, data.code, lastCostUsd);
-      await threadService.markCancelled(threadId);
-      eventBus.emit(EventName.AGENT_CANCELLED, {
-        threadId,
-      });
-    } else {
-      await threadService.completeTurn(threadId, data.code ?? -1);
-      await threadService.markError(threadId);
-    }
-    callbacks.onComplete(data.code ?? -1, lastCostUsd);
-  });
-
-  // Note: PID is written to disk by the runner, not here
-  try {
-    const child = await command.spawn();
-    agentProcesses.set(threadId, child);
-  } catch (error) {
-    await threadService.markError(threadId);
-    throw new Error(
-      `Failed to spawn agent: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -746,11 +241,26 @@ function handleSimpleAgentOutput(
 }
 
 /**
+ * Schema for validating spawn options.
+ * Ensures repoId, worktreeId, and threadId are valid UUIDs.
+ */
+const SpawnOptionsSchema = z.object({
+  repoId: z.string().uuid("repoId must be a valid UUID"),
+  worktreeId: z.string().uuid("worktreeId must be a valid UUID"),
+  threadId: z.string().uuid("threadId must be a valid UUID"),
+  prompt: z.string(),
+  sourcePath: z.string(),
+});
+
+/**
  * Spawns a simple agent that runs directly in the source repository.
  * No worktree allocation, no branch management.
  */
 export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promise<void> {
   logger.info("[agent-service] spawnSimpleAgent START");
+
+  // Validate UUIDs early to fail fast with clear error
+  const parsed = SpawnOptionsSchema.parse(options);
 
   // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
   await ensureShellInitialized();
@@ -794,18 +304,15 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     throw new Error("Anthropic API key not configured");
   }
 
-  const agentMode = options.agentMode ?? "normal";
-
   // Command args for simple agent - matches SimpleRunnerStrategy.parseArgs()
   const commandArgs = [
     runnerPath,
-    "--agent", "simple",
-    "--task-id", options.taskId,
-    "--thread-id", options.threadId,
-    "--cwd", options.sourcePath,
-    "--prompt", options.prompt,
+    "--repo-id", parsed.repoId,
+    "--worktree-id", parsed.worktreeId,
+    "--thread-id", parsed.threadId,
+    "--cwd", parsed.sourcePath,
+    "--prompt", parsed.prompt,
     "--mort-dir", mortDir,
-    "--agent-mode", agentMode,
   ];
 
   logger.info("[agent-service] spawnSimpleAgent command:", {
@@ -871,7 +378,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 
     eventBus.emit(EventName.AGENT_SPAWNED, {
       threadId: options.threadId,
-      taskId: options.taskId,
+      repoId: options.repoId,
     });
 
     logger.info("[agent-service] spawnSimpleAgent COMPLETE");
@@ -888,14 +395,12 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 
 /**
  * Resumes a simple agent with a new prompt.
- * State path: tasks/{taskId}/threads/simple-{threadId}/state.json
+ * State path: threads/{threadId}/state.json
  */
 export async function resumeSimpleAgent(
-  taskId: string,
   threadId: string,
   prompt: string,
   sourcePath: string,
-  agentMode: AgentMode = "normal",
 ): Promise<void> {
   // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
   await ensureShellInitialized();
@@ -912,22 +417,24 @@ export async function resumeSimpleAgent(
     throw new Error("Anthropic API key not configured");
   }
 
-  // State path: tasks/{taskId}/threads/simple-{threadId}/state.json
-  const stateFilePath = await join(mortDir, "tasks", taskId, "threads", `simple-${threadId}`, "state.json");
+  // State path: threads/{threadId}/state.json
+  const stateFilePath = await join(mortDir, "threads", threadId, "state.json");
+
+  // Get repoId from thread metadata for resume
+  const thread = threadService.get(threadId);
+  const repoId = thread?.repoId ?? threadId;
 
   const commandArgs = [
     runnerPath,
-    "--agent", "simple",
-    "--task-id", taskId,
+    "--repo-id", repoId,
     "--thread-id", threadId,
     "--cwd", sourcePath,
     "--prompt", prompt,
     "--mort-dir", mortDir,
-    "--agent-mode", agentMode,
     "--history-file", stateFilePath,
   ];
 
-  logger.info("[agent-service] Resuming simple agent", { taskId, threadId });
+  logger.info("[agent-service] Resuming simple agent", { threadId });
 
   const command = Command.create("node", commandArgs, {
     cwd: sourcePath,
@@ -1119,14 +626,12 @@ export function hasAgentProcess(threadId: string): boolean {
  * 3. Agent appends tool_result message and resumes the agent loop
  */
 export async function submitToolResult(
-  taskId: string,
   threadId: string,
   toolId: string,
   response: string,
   workingDirectory: string
 ): Promise<void> {
   return invoke("submit_tool_result", {
-    taskId,
     threadId,
     toolId,
     response,
@@ -1134,53 +639,6 @@ export async function submitToolResult(
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Merge Agent Support
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Builds the merge context for a task.
- * Returns null if context cannot be determined.
- * Note: taskWorktreePath is set to "." since the agent runs in the task worktree via orchestration.
- */
-export async function buildMergeContextForTask(
-  task: TaskMetadata
-): Promise<MergeContext | null> {
-  if (!task.repositoryName) {
-    logger.warn("[agent] Cannot build merge context: task has no repositoryName", {
-      taskId: task.id,
-    });
-    return null;
-  }
-
-  // Simple tasks don't have branches
-  if (!task.branchName) {
-    logger.warn("[agent] Cannot build merge context: task has no branchName (simple task)", {
-      taskId: task.id,
-    });
-    return null;
-  }
-
-  // Derive branch info from task
-  try {
-    const repoPath = await fsCommands.getRepoSourcePath(task.repositoryName);
-    const baseBranch = await gitCommands.getDefaultBranch(repoPath);
-
-    const settings = useSettingsStore.getState();
-
-    return {
-      taskBranch: task.branchName,
-      baseBranch,
-      // Agent runs in task worktree via orchestration - use "." for current directory
-      taskWorktreePath: ".",
-      mainWorktreePath: repoPath,
-      workflowMode: settings.getWorkflowMode(),
-    };
-  } catch (error) {
-    logger.warn(`[agent] Failed to build merge context: ${error}`);
-    return null;
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Queued Message Support

@@ -1,11 +1,9 @@
 import { optimistic } from "@/lib/optimistic";
 import { persistence } from "@/lib/persistence";
 import { useThreadStore } from "./store";
-import { useTaskStore } from "../tasks/store";
 import { logger } from "@/lib/logger-client";
 import {
   ThreadMetadataSchema,
-  getThreadFolderName,
   type ThreadMetadata,
   type ThreadTurn,
   type CreateThreadInput,
@@ -13,85 +11,78 @@ import {
   type ThreadStatus,
 } from "./types";
 import { ThreadStateSchema } from "@/lib/types/agent-messages";
-
-const TASKS_DIR = "tasks";
+import { eventBus } from "../events";
+import { EventName } from "@core/types/events.js";
+import type { PlanMetadata } from "../plans/types";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// In-Memory Index: UUID → TaskId
-// Rebuilt on hydration, updated on create, refreshed on cache miss
+// Directory Constants
 // ═══════════════════════════════════════════════════════════════════════════
 
-let threadTaskIndex: Map<string, string> = new Map();
-
-function getTaskIdForThread(threadId: string): string | undefined {
-  return threadTaskIndex.get(threadId);
-}
+const THREADS_DIR = "threads";           // New top-level structure
+const LEGACY_TASKS_DIR = "tasks";        // Legacy task-nested structure
+const ARCHIVE_THREADS_DIR = "archive/threads";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Path Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Gets the task's slug (folder name) from the store.
- * Falls back to taskId if task not found (since slug now equals id for drafts).
+ * Gets the path for a thread in the new top-level structure.
+ * Thread folders are stored at ~/.mort/threads/{threadId}/
  */
-function getTaskSlug(taskId: string): string {
-  const task = useTaskStore.getState().tasks[taskId];
-  return task?.slug ?? taskId;
+function getStandaloneThreadPath(threadId: string): string {
+  return `${THREADS_DIR}/${threadId}`;
 }
 
 /**
- * Computes the path to a thread's folder.
- * Uses the task's slug (folder name) not taskId directly.
+ * Finds the path to a thread by its UUID.
+ * Checks new top-level location first, falls back to legacy task-nested location.
+ * Returns the directory path (not including /metadata.json).
  */
-function getThreadPath(taskId: string, agentType: string, threadId: string): string {
-  const folderName = getThreadFolderName(agentType, threadId);
-  const taskSlug = getTaskSlug(taskId);
-  return `${TASKS_DIR}/${taskSlug}/threads/${folderName}`;
-}
-
-// Find thread path by UUID using glob-based discovery
-// Used when we only have threadId and need the full path
 async function findThreadPath(threadId: string): Promise<string | undefined> {
-  const pattern = `${TASKS_DIR}/*/threads/*-${threadId}/metadata.json`;
-  const matches = await persistence.glob(pattern);
-  if (matches.length === 0) return undefined;
-  // Return the directory (strip /metadata.json)
-  return matches[0].replace(/\/metadata\.json$/, "");
-}
-
-// Refresh the thread index for a specific threadId.
-// Returns the taskId if found, undefined otherwise.
-async function refreshThreadIndex(threadId: string): Promise<string | undefined> {
-  const path = await findThreadPath(threadId);
-  if (!path) return undefined;
-  // Extract taskId from path: tasks/{taskId}/threads/...
-  const match = path.match(/^tasks\/([^/]+)\/threads\//);
-  if (match) {
-    threadTaskIndex.set(threadId, match[1]);
-    return match[1];
+  // Check new location first
+  const newPath = `${THREADS_DIR}/${threadId}/metadata.json`;
+  if (await persistence.exists(newPath)) {
+    return `${THREADS_DIR}/${threadId}`;
   }
+
+  // Fall back to legacy task-nested location
+  const legacyPattern = `${LEGACY_TASKS_DIR}/*/threads/*-${threadId}/metadata.json`;
+  const matches = await persistence.glob(legacyPattern);
+  if (matches.length > 0) {
+    return matches[0].replace(/\/metadata\.json$/, "");
+  }
+
   return undefined;
 }
 
 export const threadService = {
-  // Hydrates the thread store from disk.
-  // Should be called once at app initialization.
-  // Scans all task directories for threads
+  /**
+   * Hydrates the thread store from disk.
+   * Should be called once at app initialization.
+   * Loads threads from both new top-level structure and legacy task-nested structure.
+   */
   async hydrate(): Promise<void> {
-    const pattern = `${TASKS_DIR}/*/threads/*/metadata.json`;
-    const metadataFiles = await persistence.glob(pattern);
     const threads: Record<string, ThreadMetadata> = {};
-    threadTaskIndex.clear();
+
+    // Load from new top-level structure: ~/.mort/threads/*/metadata.json
+    const newPattern = `${THREADS_DIR}/*/metadata.json`;
+    const newFiles = await persistence.glob(newPattern);
+
+    // Load from legacy task-nested structure: ~/.mort/tasks/*/threads/*/metadata.json
+    const legacyPattern = `${LEGACY_TASKS_DIR}/*/threads/*/metadata.json`;
+    const legacyFiles = await persistence.glob(legacyPattern);
+
+    const allFiles = [...newFiles, ...legacyFiles];
 
     await Promise.all(
-      metadataFiles.map(async (filePath) => {
+      allFiles.map(async (filePath) => {
         const raw = await persistence.readJson(filePath);
         const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
         if (result?.success) {
           const metadata = result.data;
           threads[metadata.id] = metadata;
-          threadTaskIndex.set(metadata.id, metadata.taskId);
         }
       })
     );
@@ -114,15 +105,22 @@ export const threadService = {
   },
 
   /**
-   * Gets threads for a specific task.
+   * Gets all threads for a specific repository.
    */
-  getByTask(taskId: string): ThreadMetadata[] {
-    return useThreadStore.getState().getThreadsByTask(taskId);
+  getByRepo(repoId: string): ThreadMetadata[] {
+    return useThreadStore.getState().getThreadsByRepo(repoId);
+  },
+
+  /**
+   * Gets all threads for a specific worktree.
+   */
+  getByWorktree(worktreeId: string): ThreadMetadata[] {
+    return useThreadStore.getState().getThreadsByWorktree(worktreeId);
   },
 
   /**
    * Refreshes a single thread from disk by ID.
-   * Uses glob-based discovery to find the thread path.
+   * Uses findThreadPath to locate the thread in either new or legacy locations.
    */
   async refreshById(threadId: string): Promise<void> {
     const path = await findThreadPath(threadId);
@@ -131,7 +129,6 @@ export const threadService = {
       const existing = useThreadStore.getState().threads[threadId];
       if (existing) {
         useThreadStore.getState()._applyDelete(threadId);
-        threadTaskIndex.delete(threadId);
       }
       return;
     }
@@ -141,51 +138,29 @@ export const threadService = {
     if (result?.success) {
       const metadata = result.data;
       useThreadStore.getState()._applyUpdate(threadId, metadata);
-      threadTaskIndex.set(threadId, metadata.taskId);
     }
-  },
-
-  /**
-   * Refreshes all threads for a specific task from disk.
-   * Uses glob-based discovery to find all threads belonging to the task.
-   */
-  async refreshByTask(taskId: string): Promise<void> {
-    const taskSlug = getTaskSlug(taskId);
-    const pattern = `${TASKS_DIR}/${taskSlug}/threads/*/metadata.json`;
-    const metadataFiles = await persistence.glob(pattern);
-
-    await Promise.all(
-      metadataFiles.map(async (filePath) => {
-        const raw = await persistence.readJson(filePath);
-        const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
-        if (result?.success) {
-          const metadata = result.data;
-          useThreadStore.getState()._applyUpdate(metadata.id, metadata);
-          threadTaskIndex.set(metadata.id, metadata.taskId);
-        }
-      })
-    );
   },
 
   /**
    * Creates a new thread.
-   * Thread is created directly inside its parent task's threads folder.
+   * Threads are stored at top-level: ~/.mort/threads/{threadId}/
    * Uses optimistic updates - UI updates immediately, rolls back on failure.
    * If input.id is provided, uses that ID instead of generating a new one.
-   * Creates the thread folder with metadata.json inside.
    *
-   * @throws Error if taskId is not provided
+   * @throws Error if repoId or worktreeId is not provided
    */
   async create(input: CreateThreadInput): Promise<ThreadMetadata> {
-    if (!input.taskId) {
-      throw new Error("taskId is required - every thread must belong to a task");
+    if (!input.repoId) {
+      throw new Error("repoId is required - every thread must belong to a repository");
+    }
+    if (!input.worktreeId) {
+      throw new Error("worktreeId is required - every thread must have a worktree");
     }
 
     logger.info(`[threadService.create] Called with input:`, {
       inputId: input.id,
-      taskId: input.taskId,
-      agentType: input.agentType,
-      workingDirectory: input.workingDirectory,
+      repoId: input.repoId,
+      worktreeId: input.worktreeId,
       promptLength: input.prompt?.length,
       promptPreview: input.prompt?.substring(0, 100),
     });
@@ -193,16 +168,13 @@ export const threadService = {
     const now = Date.now();
     const metadata: ThreadMetadata = {
       id: input.id ?? crypto.randomUUID(),
-      taskId: input.taskId,
-      agentType: input.agentType,
-      workingDirectory: input.workingDirectory,
+      repoId: input.repoId,
+      worktreeId: input.worktreeId,
       status: "idle",
       createdAt: now,
       updatedAt: now,
       git: input.git,
       isRead: true, // New threads start as read
-      // Store worktreePath if provided (for explicit worktree management)
-      ...(input.worktreePath && { worktreePath: input.worktreePath }),
       turns: [
         {
           index: 0,
@@ -215,12 +187,13 @@ export const threadService = {
 
     logger.info(`[threadService.create] Created metadata object:`, {
       threadId: metadata.id,
-      taskId: metadata.taskId,
-      agentType: metadata.agentType,
+      repoId: metadata.repoId,
+      worktreeId: metadata.worktreeId,
       status: metadata.status,
     });
 
-    const threadPath = getThreadPath(input.taskId, metadata.agentType, metadata.id);
+    // All threads go to new top-level structure
+    const threadPath = getStandaloneThreadPath(metadata.id);
 
     logger.info(`[threadService.create] Calling optimistic update for thread ${metadata.id}`);
     await optimistic(
@@ -235,13 +208,10 @@ export const threadService = {
       }
     );
 
-    // Update in-memory index
-    threadTaskIndex.set(metadata.id, input.taskId);
-
     logger.info(`[threadService.create] Returning created thread:`, {
       threadId: metadata.id,
-      taskId: metadata.taskId,
-      agentType: metadata.agentType,
+      repoId: metadata.repoId,
+      worktreeId: metadata.worktreeId,
     });
     return metadata;
   },
@@ -258,27 +228,17 @@ export const threadService = {
     const existing = useThreadStore.getState().threads[id];
     if (!existing) throw new Error(`Thread not found: ${id}`);
 
-    // Handle planId: null as explicit unset (convert to undefined)
-    const { planId, ...restUpdates } = updates;
-    const planIdUpdate = planId === null ? { planId: undefined } : (planId !== undefined ? { planId } : {});
-
     const updated: ThreadMetadata = {
       ...existing,
-      ...restUpdates,
-      ...planIdUpdate,
+      ...updates,
       updatedAt: Date.now(),
     };
 
-    // Get thread path using the index or grep-based discovery
-    let taskId = getTaskIdForThread(id);
-    if (!taskId) {
-      taskId = await refreshThreadIndex(id);
+    // Find thread path (supports both new and legacy locations)
+    const threadPath = await findThreadPath(id);
+    if (!threadPath) {
+      throw new Error(`Thread ${id} not found on disk`);
     }
-    if (!taskId) {
-      throw new Error(`Thread ${id} not found in index or on disk`);
-    }
-
-    const threadPath = getThreadPath(taskId, existing.agentType, id);
 
     await optimistic(
       updated,
@@ -320,16 +280,11 @@ export const threadService = {
       updatedAt: Date.now(),
     };
 
-    // Get thread path
-    let taskId = getTaskIdForThread(id);
-    if (!taskId) {
-      taskId = await refreshThreadIndex(id);
+    // Find thread path (supports both new and legacy locations)
+    const threadPath = await findThreadPath(id);
+    if (!threadPath) {
+      throw new Error(`Thread ${id} not found on disk`);
     }
-    if (!taskId) {
-      throw new Error(`Thread ${id} not found in index or on disk`);
-    }
-
-    const threadPath = getThreadPath(taskId, thread.agentType, id);
 
     await optimistic(
       updated,
@@ -375,16 +330,11 @@ export const threadService = {
       updatedAt: Date.now(),
     };
 
-    // Get thread path
-    let taskId = getTaskIdForThread(id);
-    if (!taskId) {
-      taskId = await refreshThreadIndex(id);
+    // Find thread path (supports both new and legacy locations)
+    const threadPath = await findThreadPath(id);
+    if (!threadPath) {
+      throw new Error(`Thread ${id} not found on disk`);
     }
-    if (!taskId) {
-      throw new Error(`Thread ${id} not found in index or on disk`);
-    }
-
-    const threadPath = getThreadPath(taskId, thread.agentType, id);
 
     await optimistic(
       updated,
@@ -456,60 +406,40 @@ export const threadService = {
     const thread = useThreadStore.getState().threads[id];
     if (!thread) return;
 
-    // Get thread path
-    let taskId = getTaskIdForThread(id);
-    if (!taskId) {
-      taskId = await refreshThreadIndex(id);
-    }
-    if (!taskId) {
+    // Find thread path (supports both new and legacy locations)
+    const threadPath = await findThreadPath(id);
+    if (!threadPath) {
       // Thread doesn't exist on disk, just remove from store
       useThreadStore.getState()._applyDelete(id);
-      threadTaskIndex.delete(id);
       return;
     }
-
-    const threadPath = getThreadPath(taskId, thread.agentType, id);
 
     // Optimistically remove from store, then delete folder
     const rollback = useThreadStore.getState()._applyDelete(id);
     try {
       await persistence.removeDir(threadPath);
-      threadTaskIndex.delete(id);
     } catch (error) {
       rollback();
       throw error;
     }
   },
 
-  // Gets the path to the state.json file for a thread.
-  // Used by hooks that need to read thread state from disk.
+  /**
+   * Gets the path to the state.json file for a thread.
+   * Used by hooks that need to read thread state from disk.
+   */
   async getStatePath(threadId: string): Promise<string | undefined> {
-    const thread = this.get(threadId);
-    if (!thread) return undefined;
-
-    let taskId = getTaskIdForThread(threadId);
-    if (!taskId) {
-      taskId = await refreshThreadIndex(threadId);
-    }
-    if (!taskId) return undefined;
-
-    const threadPath = getThreadPath(taskId, thread.agentType, threadId);
+    const threadPath = await findThreadPath(threadId);
+    if (!threadPath) return undefined;
     return `${threadPath}/state.json`;
   },
 
-  // Gets the full path to a thread's directory.
-  // Used by the runner and agent service for file operations.
+  /**
+   * Gets the full path to a thread's directory.
+   * Used by the runner and agent service for file operations.
+   */
   async getThreadPath(threadId: string): Promise<string | undefined> {
-    const thread = this.get(threadId);
-    if (!thread) return undefined;
-
-    let taskId = getTaskIdForThread(threadId);
-    if (!taskId) {
-      taskId = await refreshThreadIndex(threadId);
-    }
-    if (!taskId) return undefined;
-
-    return getThreadPath(taskId, thread.agentType, threadId);
+    return findThreadPath(threadId);
   },
 
   /**
@@ -517,14 +447,13 @@ export const threadService = {
    * Used for immediate UI feedback before the real thread is created.
    * The thread will be overwritten when disk refresh occurs.
    */
-  createOptimistic(params: { id: string; taskId: string; status: ThreadStatus }): void {
+  createOptimistic(params: { id: string; repoId: string; worktreeId: string; status: ThreadStatus }): void {
     const now = Date.now();
     const optimisticThread: ThreadMetadata = {
       id: params.id,
-      taskId: params.taskId,
+      repoId: params.repoId,
+      worktreeId: params.worktreeId,
       status: params.status,
-      agentType: "", // Will be set on disk refresh
-      workingDirectory: "", // Will be set on disk refresh
       createdAt: now,
       updatedAt: now,
       isRead: false, // Optimistic threads are unread until user views them
@@ -542,15 +471,12 @@ export const threadService = {
   handleRemoteCreate(metadata: ThreadMetadata): void {
     logger.info(`[threadService.handleRemoteCreate] Adding thread from Node:`, {
       threadId: metadata.id,
-      taskId: metadata.taskId,
-      agentType: metadata.agentType,
+      repoId: metadata.repoId,
+      worktreeId: metadata.worktreeId,
     });
 
     // Add to store (no disk write - Node already created it)
     useThreadStore.getState()._applyCreate(metadata);
-
-    // Update in-memory index
-    threadTaskIndex.set(metadata.id, metadata.taskId);
   },
 
   /**
@@ -674,16 +600,79 @@ export const threadService = {
   },
 
   /**
-   * Associates a thread with a plan.
+   * Archives a thread.
+   * Moves the thread folder from its current location to archive/threads/.
+   * Emits THREAD_ARCHIVED event so relation service can archive associated relations.
+   * Uses optimistic update - removes from store immediately, rolls back on failure.
    */
-  async associateWithPlan(threadId: string, planId: string): Promise<void> {
-    await this.update(threadId, { planId });
+  async archive(threadId: string): Promise<void> {
+    const thread = this.get(threadId);
+    if (!thread) return;
+
+    const sourcePath = await findThreadPath(threadId);
+    if (!sourcePath) return;
+
+    const archivePath = `${ARCHIVE_THREADS_DIR}/${threadId}`;
+
+    // Optimistically remove from store
+    const rollback = useThreadStore.getState()._applyDelete(threadId);
+    try {
+      // Ensure archive directory exists
+      await persistence.ensureDir(ARCHIVE_THREADS_DIR);
+
+      // Copy metadata and state to archive
+      const metadata = await persistence.readJson(`${sourcePath}/metadata.json`);
+      const state = await persistence.readJson(`${sourcePath}/state.json`);
+
+      await persistence.ensureDir(archivePath);
+      if (metadata) await persistence.writeJson(`${archivePath}/metadata.json`, metadata);
+      if (state) await persistence.writeJson(`${archivePath}/state.json`, state);
+
+      // Remove original directory
+      await persistence.removeDir(sourcePath);
+
+      // Emit event so relation service can archive associated relations
+      eventBus.emit(EventName.THREAD_ARCHIVED, { threadId });
+
+      logger.info(`[threadService.archive] Archived thread ${threadId}`);
+    } catch (error) {
+      rollback();
+      throw error;
+    }
   },
 
   /**
-   * Dissociates a thread from its plan.
+   * Lists all archived threads.
+   * Returns ThreadMetadata for threads in archive/threads/ directory.
    */
-  async dissociateFromPlan(threadId: string): Promise<void> {
-    await this.update(threadId, { planId: null });
+  async listArchived(): Promise<ThreadMetadata[]> {
+    const pattern = `${ARCHIVE_THREADS_DIR}/*/metadata.json`;
+    const files = await persistence.glob(pattern);
+    const threads: ThreadMetadata[] = [];
+
+    for (const filePath of files) {
+      const raw = await persistence.readJson(filePath);
+      const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
+      if (result?.success) {
+        threads.push(result.data);
+      }
+    }
+
+    return threads;
+  },
+
+  /**
+   * Get plans related to a thread.
+   * Uses the relation service to find associated plans.
+   */
+  getRelatedPlans(threadId: string): PlanMetadata[] {
+    // Lazy import to avoid circular dependency
+    const { relationService } = require("../relations/service");
+    const { usePlanStore } = require("../plans/store");
+    const relations = relationService.getByThread(threadId);
+    const planStore = usePlanStore.getState();
+    return relations
+      .map((r: { planId: string }) => planStore.getPlan(r.planId))
+      .filter((p: PlanMetadata | undefined): p is PlanMetadata => p !== undefined);
   },
 };

@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@/test/helpers";
 import { AskUserQuestionBlock } from "./ask-user-question-block";
 
 vi.mock("@/lib/logger-client", () => ({
-  logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  logger: { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 // Helper to convert string array to options format

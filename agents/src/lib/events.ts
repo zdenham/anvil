@@ -9,7 +9,6 @@ import {
   type EventNameType,
   type WorktreeStatePayload,
 } from "@core/types/events.js";
-import type { TaskStatus } from "@core/types/tasks.js";
 import type { ThreadStatus } from "@core/types/threads.js";
 import { stdout } from "./logger.js";
 
@@ -35,25 +34,12 @@ export function emitEvent<E extends EventNameType>(
 export const events = {
   emit: emitEvent,
 
-  // Task events
-  taskCreated: (taskId: string) =>
-    emitEvent(EventName.TASK_CREATED, { taskId }),
-
-  taskUpdated: (taskId: string) =>
-    emitEvent(EventName.TASK_UPDATED, { taskId }),
-
-  taskDeleted: (taskId: string) =>
-    emitEvent(EventName.TASK_DELETED, { taskId }),
-
-  taskStatusChanged: (taskId: string, status: TaskStatus) =>
-    emitEvent(EventName.TASK_STATUS_CHANGED, { taskId, status }),
-
   // Thread events
-  threadCreated: (threadId: string, taskId: string) =>
-    emitEvent(EventName.THREAD_CREATED, { threadId, taskId }),
+  threadCreated: (threadId: string, repoId: string, worktreeId: string) =>
+    emitEvent(EventName.THREAD_CREATED, { threadId, repoId, worktreeId }),
 
-  threadUpdated: (threadId: string, taskId: string) =>
-    emitEvent(EventName.THREAD_UPDATED, { threadId, taskId }),
+  threadUpdated: (threadId: string) =>
+    emitEvent(EventName.THREAD_UPDATED, { threadId }),
 
   threadStatusChanged: (threadId: string, status: ThreadStatus) =>
     emitEvent(EventName.THREAD_STATUS_CHANGED, { threadId, status }),
@@ -64,8 +50,4 @@ export const events = {
 
   worktreeReleased: (threadId: string) =>
     emitEvent(EventName.WORKTREE_RELEASED, { threadId }),
-
-  // Action request
-  actionRequested: (taskId: string, markdown: string, defaultResponse: string) =>
-    emitEvent(EventName.ACTION_REQUESTED, { taskId, markdown, defaultResponse }),
 };

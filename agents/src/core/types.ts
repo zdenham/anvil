@@ -1,20 +1,5 @@
 /**
- * Task types - re-exported from core for backwards compatibility.
- * The single source of truth is now core/types/tasks.ts
+ * Core types re-exports.
+ * Note: Task types have been removed from the codebase.
+ * This file is kept for backwards compatibility but is now empty.
  */
-export {
-  type TaskStatus,
-  type Subtask,
-  type PendingReview,
-  type TaskMetadata,
-  type Task,
-  type CreateTaskInput,
-  type UpdateTaskInput,
-  TASK_STATUSES,
-  ACTIVE_STATUSES,
-  generateTaskId,
-  // Zod schemas for runtime validation at trust boundaries
-  SubtaskSchema,
-  PendingReviewSchema,
-  TaskMetadataSchema,
-} from "../../../core/types/tasks.js";

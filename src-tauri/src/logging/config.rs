@@ -1,33 +1,29 @@
-//! Configuration for ClickHouse log transport.
+//! Configuration for log server transport.
 //!
-//! Environment variables are shared with the orb CLI tool:
-//! - CLICKHOUSE_HOST: ClickHouse server URL (e.g., https://host:8443)
-//! - CLICKHOUSE_USER: Username for authentication
-//! - CLICKHOUSE_PASSWORD: Password for authentication
-//! - CLICKHOUSE_DATABASE: Database name (default: "default")
-//! - CLICKHOUSE_LOG_TABLE: Table name (default: "logs")
+//! The log server receives logs via HTTP POST and forwards them to ClickHouse.
+//! This keeps ClickHouse credentials server-side and reduces client dependencies.
+//!
+//! Environment variables:
+//! - LOG_SERVER_ENABLED: Set to "true" or "1" to enable log server transport
+//! - LOG_SERVER_URL: Full URL to the log endpoint (e.g., http://localhost:3000/logs)
 
-/// Configuration for ClickHouse log transport.
+/// Configuration for log server transport.
 #[derive(Debug, Clone)]
-pub struct ClickHouseConfig {
-    pub host: String,
-    pub user: String,
-    pub password: String,
-    pub database: String,
-    pub table: String,
+pub struct LogServerConfig {
+    pub url: String,
 }
 
-impl ClickHouseConfig {
+impl LogServerConfig {
     /// Attempts to load configuration from environment variables.
     ///
     /// Returns None if:
-    /// - CLICKHOUSE_ENABLED is not "true" or "1"
-    /// - Required variables (HOST, USER, PASSWORD) are missing
+    /// - LOG_SERVER_ENABLED is not "true" or "1"
+    /// - LOG_SERVER_URL is missing
     ///
-    /// This allows the app to run normally without ClickHouse configured.
+    /// This allows the app to run normally without log server configured.
     pub fn from_env() -> Option<Self> {
         // Check if explicitly enabled
-        let enabled = std::env::var("CLICKHOUSE_ENABLED")
+        let enabled = std::env::var("LOG_SERVER_ENABLED")
             .map(|v| v == "true" || v == "1")
             .unwrap_or(false);
 
@@ -35,30 +31,18 @@ impl ClickHouseConfig {
             return None;
         }
 
-        // Required fields - return None if any are missing
-        let host = std::env::var("CLICKHOUSE_HOST").ok()?;
-        let user = std::env::var("CLICKHOUSE_USER").ok()?;
-        let password = std::env::var("CLICKHOUSE_PASSWORD").ok()?;
+        // Required field - return None if missing
+        let url = std::env::var("LOG_SERVER_URL").ok()?;
 
-        // Optional fields with defaults
-        let database = std::env::var("CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".into());
-        let table = std::env::var("CLICKHOUSE_LOG_TABLE").unwrap_or_else(|_| "logs".into());
-
-        // Validate host URL format
-        if !host.starts_with("http://") && !host.starts_with("https://") {
+        // Validate URL format
+        if !url.starts_with("http://") && !url.starts_with("https://") {
             eprintln!(
-                "Warning: CLICKHOUSE_HOST should include protocol (http:// or https://). Got: {}",
-                host
+                "Warning: LOG_SERVER_URL should include protocol (http:// or https://). Got: {}",
+                url
             );
         }
 
-        Some(Self {
-            host,
-            user,
-            password,
-            database,
-            table,
-        })
+        Some(Self { url })
     }
 }
 
@@ -68,69 +52,45 @@ mod tests {
     use std::env;
 
     fn clear_env_vars() {
-        env::remove_var("CLICKHOUSE_ENABLED");
-        env::remove_var("CLICKHOUSE_HOST");
-        env::remove_var("CLICKHOUSE_USER");
-        env::remove_var("CLICKHOUSE_PASSWORD");
-        env::remove_var("CLICKHOUSE_DATABASE");
-        env::remove_var("CLICKHOUSE_LOG_TABLE");
+        env::remove_var("LOG_SERVER_ENABLED");
+        env::remove_var("LOG_SERVER_URL");
     }
 
     #[test]
     fn test_config_from_env_disabled() {
         clear_env_vars();
-        assert!(ClickHouseConfig::from_env().is_none());
+        assert!(LogServerConfig::from_env().is_none());
     }
 
     #[test]
-    fn test_config_from_env_enabled_but_missing_required() {
+    fn test_config_from_env_enabled_but_missing_url() {
         clear_env_vars();
-        env::set_var("CLICKHOUSE_ENABLED", "true");
-        // Missing HOST, USER, PASSWORD
-        assert!(ClickHouseConfig::from_env().is_none());
-    }
-
-    #[test]
-    fn test_config_from_env_missing_host() {
-        clear_env_vars();
-        env::set_var("CLICKHOUSE_ENABLED", "true");
-        env::set_var("CLICKHOUSE_USER", "test_user");
-        env::set_var("CLICKHOUSE_PASSWORD", "test_pass");
-        assert!(ClickHouseConfig::from_env().is_none());
+        env::set_var("LOG_SERVER_ENABLED", "true");
+        // Missing URL
+        assert!(LogServerConfig::from_env().is_none());
     }
 
     #[test]
     fn test_config_from_env_complete() {
         clear_env_vars();
-        env::set_var("CLICKHOUSE_ENABLED", "true");
-        env::set_var("CLICKHOUSE_HOST", "https://localhost:8443");
-        env::set_var("CLICKHOUSE_USER", "test_user");
-        env::set_var("CLICKHOUSE_PASSWORD", "test_pass");
+        env::set_var("LOG_SERVER_ENABLED", "true");
+        env::set_var("LOG_SERVER_URL", "http://localhost:3000/logs");
 
-        let config = ClickHouseConfig::from_env();
+        let config = LogServerConfig::from_env();
         assert!(config.is_some());
         let config = config.unwrap();
-        assert_eq!(config.host, "https://localhost:8443");
-        assert_eq!(config.user, "test_user");
-        assert_eq!(config.password, "test_pass");
-        assert_eq!(config.database, "default");
-        assert_eq!(config.table, "logs");
+        assert_eq!(config.url, "http://localhost:3000/logs");
     }
 
     #[test]
-    fn test_config_from_env_with_custom_database_and_table() {
+    fn test_config_from_env_with_https() {
         clear_env_vars();
-        env::set_var("CLICKHOUSE_ENABLED", "1");
-        env::set_var("CLICKHOUSE_HOST", "https://localhost:8443");
-        env::set_var("CLICKHOUSE_USER", "test_user");
-        env::set_var("CLICKHOUSE_PASSWORD", "test_pass");
-        env::set_var("CLICKHOUSE_DATABASE", "observability");
-        env::set_var("CLICKHOUSE_LOG_TABLE", "app_logs");
+        env::set_var("LOG_SERVER_ENABLED", "1");
+        env::set_var("LOG_SERVER_URL", "https://logs.example.com/logs");
 
-        let config = ClickHouseConfig::from_env();
+        let config = LogServerConfig::from_env();
         assert!(config.is_some());
         let config = config.unwrap();
-        assert_eq!(config.database, "observability");
-        assert_eq!(config.table, "app_logs");
+        assert_eq!(config.url, "https://logs.example.com/logs");
     }
 }

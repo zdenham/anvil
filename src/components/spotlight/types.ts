@@ -15,8 +15,8 @@ export interface CalculatorResult {
   isValid: boolean;
 }
 
-/** Internal type - task creation result */
-export interface TaskResult {
+/** Internal type - thread creation result */
+export interface ThreadCreationResult {
   query: string;
   selectedWorktree?: {
     path: string;
@@ -34,9 +34,9 @@ export interface OpenMortResult {
   action: "open-mort";
 }
 
-/** Internal type - open tasks list action */
-export interface OpenTasksResult {
-  action: "open-tasks";
+/** Internal type - open threads list action */
+export interface OpenThreadsResult {
+  action: "open-threads";
 }
 
 /** Internal type - refresh action (dev only) */
@@ -45,7 +45,7 @@ export interface RefreshResult {
 }
 
 /** Internal type - action result discriminated union */
-export type ActionResult = OpenRepoResult | OpenMortResult | OpenTasksResult | RefreshResult;
+export type ActionResult = OpenRepoResult | OpenMortResult | OpenThreadsResult | RefreshResult;
 
 /** File mention result from @ trigger */
 export interface FileResult {
@@ -57,14 +57,14 @@ export interface FileResult {
 export interface HistoryResult {
   prompt: string;        // The historical prompt
   timestamp: number;     // When it was created
-  isDraft: boolean;      // Whether this is a draft (no taskId)
+  isDraft: boolean;      // Whether this is a draft (no threadId)
 }
 
 /** Internal type - spotlight result discriminated union */
 export type SpotlightResult =
   | { type: "app"; data: AppResult }
   | { type: "calculator"; data: CalculatorResult }
-  | { type: "task"; data: TaskResult }
+  | { type: "thread"; data: ThreadCreationResult }
   | { type: "action"; data: ActionResult }
   | { type: "file"; data: FileResult }
   | { type: "history"; data: HistoryResult };

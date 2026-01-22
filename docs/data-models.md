@@ -111,15 +111,15 @@ A code repository the user works in.
 - `sourcePath`: Path to source repository
 - `useWorktrees`: Whether worktrees are enabled
 - `worktrees`: Array of `WorktreeState` (see Worktree section)
-- `taskBranches`: Record of task ID → `TaskBranchInfo`
+- `threadBranches`: Record of thread ID → `ThreadBranchInfo`
 - `createdAt`: Timestamp when repo was added
 - `lastUpdated`: Last modification timestamp
 
-**TaskBranchInfo** (stored in `taskBranches`):
-- `branch`: Branch name (e.g., `"mort/task-abc123"`)
+**ThreadBranchInfo** (stored in `threadBranches`):
+- `branch`: Branch name (e.g., `"mort/thread-abc123"`)
 - `baseBranch`: Base branch it was created from (e.g., `"main"`)
 - `mergeBase`: Commit hash at branch creation (for accurate diffs)
-- `parentTaskId`: For subtasks, the parent task ID
+- `parentThreadId`: For child threads, the parent thread ID
 - `createdAt`: Timestamp of branch creation
 
 **Key characteristics**:
@@ -157,7 +157,7 @@ A specific git worktree within a repository. Provides isolated working directori
 ```
 Repository (1) ─── contains ───> (*) Worktree
      │
-     ├── tracks taskBranches (task ID → branch info)
+     ├── tracks threadBranches (thread ID → branch info)
      │
      └── worktrees can be claimed by threads
 
@@ -167,7 +167,7 @@ Task (1) ─── contains ───> (*) Thread
   │
   ├── has (*) ───> Subtask (inline checkboxes)
   │
-  └── has branch info stored in Repository.taskBranches
+  └── has branch info stored in Repository.threadBranches
 ```
 
 **Lifecycle notes**:

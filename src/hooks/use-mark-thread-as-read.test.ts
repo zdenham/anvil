@@ -23,6 +23,7 @@ vi.mock("@/entities/threads/service", () => ({
 // Mock the panel visibility hook to return true by default
 vi.mock("./use-panel-visibility", () => ({
   usePanelVisibility: vi.fn(() => true),
+  useSpecificPanelVisibility: vi.fn(() => true),
 }));
 
 describe("useMarkThreadAsRead", () => {
@@ -30,6 +31,7 @@ describe("useMarkThreadAsRead", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
 
     // Reset the store state
     useThreadStore.setState({
@@ -44,19 +46,19 @@ describe("useMarkThreadAsRead", () => {
 
   afterEach(() => {
     vi.clearAllTimers();
+    vi.useRealTimers();
   });
 
   it("should not mark as read if thread is already read", () => {
     // Create a thread that's already marked as read
     const readThread: ThreadMetadata = {
       id: mockThreadId,
-      taskId: "task-1",
-      agentType: "simple",
+      repoId: "repo-1",
+      worktreeId: "worktree-1",
       status: "idle",
       isRead: true, // Already read
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      workingDirectory: "/test",
       turns: [],
     };
 
@@ -84,13 +86,12 @@ describe("useMarkThreadAsRead", () => {
     // Create a thread that's not marked as read
     const unreadThread: ThreadMetadata = {
       id: mockThreadId,
-      taskId: "task-1",
-      agentType: "simple",
+      repoId: "repo-1",
+      worktreeId: "worktree-1",
       status: "idle",
       isRead: false, // Not read yet
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      workingDirectory: "/test",
       turns: [],
     };
 
@@ -110,6 +111,12 @@ describe("useMarkThreadAsRead", () => {
       })
     );
 
+    // Should not be called immediately (1 second delay)
+    expect(markThreadAsReadSpy).not.toHaveBeenCalled();
+
+    // Advance timer by 1 second
+    vi.advanceTimersByTime(1000);
+
     // Should call markThreadAsRead once because thread is unread
     expect(markThreadAsReadSpy).toHaveBeenCalledTimes(1);
     expect(markThreadAsReadSpy).toHaveBeenCalledWith(mockThreadId);
@@ -119,13 +126,12 @@ describe("useMarkThreadAsRead", () => {
     // Create a thread that's not marked as read
     const unreadThread: ThreadMetadata = {
       id: mockThreadId,
-      taskId: "task-1",
-      agentType: "simple",
+      repoId: "repo-1",
+      worktreeId: "worktree-1",
       status: "idle",
       isRead: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      workingDirectory: "/test",
       turns: [],
     };
 
@@ -163,11 +169,17 @@ describe("useMarkThreadAsRead", () => {
       })
     );
 
+    // Advance timer by 1 second to trigger the delayed mark
+    vi.advanceTimersByTime(1000);
+
     // First render should call markThreadAsRead
     expect(markThreadAsReadSpy).toHaveBeenCalledTimes(1);
 
     // Force a re-render to simulate React re-rendering after state update
     rerender();
+
+    // Advance timer again
+    vi.advanceTimersByTime(1000);
 
     // Should NOT call markThreadAsRead again because thread is now read
     expect(markThreadAsReadSpy).toHaveBeenCalledTimes(1);
@@ -177,13 +189,12 @@ describe("useMarkThreadAsRead", () => {
     // Create a completed but unread thread
     const unreadCompletedThread: ThreadMetadata = {
       id: mockThreadId,
-      taskId: "task-1",
-      agentType: "simple",
+      repoId: "repo-1",
+      worktreeId: "worktree-1",
       status: "completed",
       isRead: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      workingDirectory: "/test",
       turns: [],
     };
 
@@ -203,6 +214,12 @@ describe("useMarkThreadAsRead", () => {
       })
     );
 
+    // Should not be called immediately (1 second delay)
+    expect(markThreadAsReadSpy).not.toHaveBeenCalled();
+
+    // Advance timer by 1 second
+    vi.advanceTimersByTime(1000);
+
     // Should call markThreadAsRead because thread is completed and unread
     expect(markThreadAsReadSpy).toHaveBeenCalledTimes(1);
     expect(markThreadAsReadSpy).toHaveBeenCalledWith(mockThreadId);
@@ -212,13 +229,12 @@ describe("useMarkThreadAsRead", () => {
     // Create a completed and already read thread
     const readCompletedThread: ThreadMetadata = {
       id: mockThreadId,
-      taskId: "task-1",
-      agentType: "simple",
+      repoId: "repo-1",
+      worktreeId: "worktree-1",
       status: "completed",
       isRead: true, // Already read
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      workingDirectory: "/test",
       turns: [],
     };
 
@@ -282,13 +298,12 @@ describe("useMarkThreadAsRead", () => {
     // Create a thread that's not marked as read
     const unreadThread: ThreadMetadata = {
       id: mockThreadId,
-      taskId: "task-1",
-      agentType: "simple",
+      repoId: "repo-1",
+      worktreeId: "worktree-1",
       status: "idle",
       isRead: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      workingDirectory: "/test",
       turns: [],
     };
 

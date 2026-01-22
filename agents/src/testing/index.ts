@@ -3,8 +3,6 @@ export type {
   AgentRunOutput,
   AgentTestOptions,
   QueuedMessageSpec,
-  TaskMetadata,
-  TaskStatus,
   ThreadState,
   FileChange,
   ResultMetrics,

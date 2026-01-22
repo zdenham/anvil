@@ -13,11 +13,9 @@ export { useCodeBlockKeyboard } from "./use-code-block-keyboard";
 export { useFileContents } from "./use-file-contents";
 export type { UseFileContentsResult } from "./use-file-contents";
 
-// Task workspace utilities
-export { useTaskThreads } from "./use-task-threads";
+// Workspace utilities
 export { useActionState } from "./use-action-state";
 export type { ActionState } from "./use-action-state";
-export { useDeleteTask } from "./use-delete-task";
 
 // Thread utilities
 export { useMarkThreadAsRead } from "./use-mark-thread-as-read";
@@ -32,3 +30,6 @@ export type { UseNavigationModeResult } from "./use-navigation-mode";
 // Git utilities
 export { useGitCommits } from "./use-git-commits";
 export type { GitCommit } from "./use-git-commits";
+
+// Plan utilities
+export { usePlanContent } from "./use-plan-content";

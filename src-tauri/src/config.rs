@@ -13,12 +13,12 @@ pub struct AppConfig {
     pub spotlight_hotkey: String,
     #[serde(default = "default_clipboard_hotkey")]
     pub clipboard_hotkey: String,
-    #[serde(default = "default_task_navigation_down_hotkey")]
-    pub task_navigation_down_hotkey: String,
-    #[serde(default = "default_task_navigation_up_hotkey")]
-    pub task_navigation_up_hotkey: String,
     #[serde(default)]
     pub onboarded: bool,
+    #[serde(default = "default_control_panel_navigation_down_hotkey")]
+    pub control_panel_navigation_down_hotkey: String,
+    #[serde(default = "default_control_panel_navigation_up_hotkey")]
+    pub control_panel_navigation_up_hotkey: String,
 }
 
 impl Default for AppConfig {
@@ -26,9 +26,9 @@ impl Default for AppConfig {
         Self {
             spotlight_hotkey: default_spotlight_hotkey(),
             clipboard_hotkey: default_clipboard_hotkey(),
-            task_navigation_down_hotkey: default_task_navigation_down_hotkey(),
-            task_navigation_up_hotkey: default_task_navigation_up_hotkey(),
             onboarded: false,
+            control_panel_navigation_down_hotkey: default_control_panel_navigation_down_hotkey(),
+            control_panel_navigation_up_hotkey: default_control_panel_navigation_up_hotkey(),
         }
     }
 }
@@ -41,11 +41,11 @@ fn default_clipboard_hotkey() -> String {
     build_info::DEFAULT_CLIPBOARD_HOTKEY.to_string()
 }
 
-fn default_task_navigation_down_hotkey() -> String {
+fn default_control_panel_navigation_down_hotkey() -> String {
     "Alt+Down".to_string()
 }
 
-fn default_task_navigation_up_hotkey() -> String {
+fn default_control_panel_navigation_up_hotkey() -> String {
     "Alt+Up".to_string()
 }
 
@@ -84,11 +84,7 @@ pub fn load_config() -> AppConfig {
             );
             match serde_json::from_str::<AppConfig>(&contents) {
                 Ok(config) => {
-                    tracing::debug!(
-                        task_navigation_down = %config.task_navigation_down_hotkey,
-                        task_navigation_up = %config.task_navigation_up_hotkey,
-                        "load_config: parsed config successfully"
-                    );
+                    tracing::debug!("load_config: parsed config successfully");
                     config
                 }
                 Err(e) => {
@@ -194,79 +190,37 @@ pub fn set_clipboard_hotkey(hotkey: &str) -> Result<(), String> {
     save_config(&config)
 }
 
-/// Gets the saved task navigation down hotkey, or the default if none is saved
-pub fn get_task_navigation_down_hotkey() -> String {
-    let config = load_config();
-    let hotkey = config.task_navigation_down_hotkey;
-    tracing::debug!(
-        raw_hotkey = %hotkey,
-        is_empty = hotkey.is_empty(),
-        config_path = %get_config_path().display(),
-        "get_task_navigation_down_hotkey: loaded from config"
-    );
+/// Gets the saved control panel navigation down hotkey, or the default if none is saved
+pub fn get_control_panel_navigation_down_hotkey() -> String {
+    let hotkey = load_config().control_panel_navigation_down_hotkey;
     if hotkey.is_empty() {
-        let default = default_task_navigation_down_hotkey();
-        tracing::debug!(default_hotkey = %default, "get_task_navigation_down_hotkey: using default (was empty)");
-        default
+        default_control_panel_navigation_down_hotkey()
     } else {
-        tracing::debug!(final_hotkey = %hotkey, "get_task_navigation_down_hotkey: using stored value");
         hotkey
     }
 }
 
-/// Saves the task navigation down hotkey to config
-pub fn set_task_navigation_down_hotkey(hotkey: &str) -> Result<(), String> {
-    tracing::info!(
-        hotkey = %hotkey,
-        hotkey_len = hotkey.len(),
-        hotkey_bytes = ?hotkey.as_bytes(),
-        "set_task_navigation_down_hotkey: saving new hotkey"
-    );
+/// Saves the control panel navigation down hotkey to config
+pub fn set_control_panel_navigation_down_hotkey(hotkey: &str) -> Result<(), String> {
     let mut config = load_config();
-    tracing::debug!(
-        old_value = %config.task_navigation_down_hotkey,
-        new_value = %hotkey,
-        "set_task_navigation_down_hotkey: replacing old value"
-    );
-    config.task_navigation_down_hotkey = hotkey.to_string();
+    config.control_panel_navigation_down_hotkey = hotkey.to_string();
     save_config(&config)
 }
 
-/// Gets the saved task navigation up hotkey, or the default if none is saved
-pub fn get_task_navigation_up_hotkey() -> String {
-    let config = load_config();
-    let hotkey = config.task_navigation_up_hotkey;
-    tracing::debug!(
-        raw_hotkey = %hotkey,
-        is_empty = hotkey.is_empty(),
-        config_path = %get_config_path().display(),
-        "get_task_navigation_up_hotkey: loaded from config"
-    );
+/// Gets the saved control panel navigation up hotkey, or the default if none is saved
+pub fn get_control_panel_navigation_up_hotkey() -> String {
+    let hotkey = load_config().control_panel_navigation_up_hotkey;
     if hotkey.is_empty() {
-        let default = default_task_navigation_up_hotkey();
-        tracing::debug!(default_hotkey = %default, "get_task_navigation_up_hotkey: using default (was empty)");
-        default
+        default_control_panel_navigation_up_hotkey()
     } else {
-        tracing::debug!(final_hotkey = %hotkey, "get_task_navigation_up_hotkey: using stored value");
         hotkey
     }
 }
 
-/// Saves the task navigation up hotkey to config
-pub fn set_task_navigation_up_hotkey(hotkey: &str) -> Result<(), String> {
-    tracing::info!(
-        hotkey = %hotkey,
-        hotkey_len = hotkey.len(),
-        hotkey_bytes = ?hotkey.as_bytes(),
-        "set_task_navigation_up_hotkey: saving new hotkey"
-    );
+/// Saves the control panel navigation up hotkey to config
+pub fn set_control_panel_navigation_up_hotkey(hotkey: &str) -> Result<(), String> {
     let mut config = load_config();
-    tracing::debug!(
-        old_value = %config.task_navigation_up_hotkey,
-        new_value = %hotkey,
-        "set_task_navigation_up_hotkey: replacing old value"
-    );
-    config.task_navigation_up_hotkey = hotkey.to_string();
+    config.control_panel_navigation_up_hotkey = hotkey.to_string();
     save_config(&config)
 }
 

@@ -46,8 +46,8 @@ export function useMarkThreadAsRead(
     }
 
     // Add a 1-second delay before marking as read to prevent race condition with mark-as-unread operations.
-    // Without this delay, marking a task as unread would be immediately overridden by the auto-read behavior
-    // when the simple task window is visible, making the unread action ineffective.
+    // Without this delay, marking a thread as unread would be immediately overridden by the auto-read behavior
+    // when the control panel window is visible, making the unread action ineffective.
     const timeoutId = setTimeout(() => {
       // Double-check conditions before marking as read (thread might have changed)
       const currentThread = useThreadStore.getState().threads[threadId];
@@ -74,8 +74,8 @@ export function useMarkThreadAsRead(
     // Mark as read when status changes to completed
     if (thread.status === "completed" && !thread.isRead) {
       // Add a 1-second delay before marking as read to prevent race condition with mark-as-unread operations.
-      // Without this delay, marking a task as unread would be immediately overridden by the auto-read behavior
-      // when the simple task window is visible, making the unread action ineffective.
+      // Without this delay, marking a thread as unread would be immediately overridden by the auto-read behavior
+      // when the control panel window is visible, making the unread action ineffective.
       const timeoutId = setTimeout(() => {
         // Double-check conditions before marking as read (thread might have changed)
         const currentThread = useThreadStore.getState().threads[threadId];

@@ -1,3 +1,3 @@
-export { useThreadStore, type ThreadState } from "./store";
-export { threadService } from "./service";
-export * from "./types";
+export { useThreadStore, type ThreadState } from "./store.js";
+export { threadService } from "./service.js";
+export * from "./types.js";

@@ -39,27 +39,7 @@ export function detectDefaultBranch(sourcePath: string): string | null {
 }
 
 /**
- * Migrate a single worktree state object from old format to new simplified format.
- * Removes deprecated fields (claim, version, lastTaskId) and ensures required fields exist.
- */
-function migrateWorktreeState(data: unknown): unknown {
-  if (data && typeof data === 'object') {
-    const worktree = data as Record<string, unknown>;
-    // Destructure to remove deprecated fields
-    const { claim, version, lastTaskId, lastReleasedAt, ...rest } = worktree;
-    return {
-      ...rest,
-      // Convert lastReleasedAt to lastAccessedAt if present
-      lastAccessedAt: rest.lastAccessedAt ?? lastReleasedAt ?? Date.now(),
-      // Generate name from path if not present
-      name: rest.name ?? `worktree-${(rest.path as string)?.split('/').pop() ?? 'unknown'}`,
-    };
-  }
-  return data;
-}
-
-/**
- * Pre-process raw settings to add defaultBranch if missing and migrate worktrees.
+ * Pre-process raw settings to add defaultBranch if missing.
  * This uses git detection which requires runtime execution.
  */
 function preprocessSettings(raw: unknown): unknown {
@@ -68,10 +48,6 @@ function preprocessSettings(raw: unknown): unknown {
     // Add defaultBranch if missing (requires git detection)
     if (!settings.defaultBranch && typeof settings.sourcePath === 'string') {
       settings.defaultBranch = detectDefaultBranch(settings.sourcePath) ?? 'main';
-    }
-    // Migrate worktrees array if present
-    if (Array.isArray(settings.worktrees)) {
-      settings.worktrees = settings.worktrees.map(migrateWorktreeState);
     }
   }
   return raw;

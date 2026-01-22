@@ -36,6 +36,7 @@ export class WorktreeService {
       this.git.createWorktree(settings.sourcePath, worktreePath);
 
       const worktree: WorktreeState = {
+        id: crypto.randomUUID(),
         path: worktreePath,
         name,
         lastAccessedAt: Date.now(),

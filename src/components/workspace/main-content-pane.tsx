@@ -1,13 +1,11 @@
 import { useMemo } from "react";
-import { TaskOverview } from "./task-overview";
-import { TaskChanges } from "./task-changes";
+import { ThreadChanges } from "./thread-changes";
 import { GitCommitsList } from "./git-commits-list";
 import type { WorkspaceTab } from "./left-menu";
 import type { FileChange } from "@/lib/types/agent-messages";
 
 interface MainContentPaneProps {
   tab: WorkspaceTab;
-  taskId: string;
   fileChanges: Map<string, FileChange>;
   fullFileContents: Record<string, string[] | null>;
   workingDirectory: string;
@@ -17,13 +15,11 @@ interface MainContentPaneProps {
 
 /**
  * Main content pane that renders content based on active tab.
- * - Overview: Task markdown content
  * - Changes: File changes/diff viewer
  * - Git: Git history and operations
  */
 export function MainContentPane({
   tab,
-  taskId,
   fileChanges,
   fullFileContents,
   workingDirectory,
@@ -45,17 +41,10 @@ export function MainContentPane({
   const contentClass = "flex-1 min-h-0 overflow-hidden";
 
   switch (tab) {
-    case "overview":
-      return (
-        <div className={contentClass}>
-          <TaskOverview taskId={taskId} />
-        </div>
-      );
-
     case "changes":
       return (
         <div className={contentClass}>
-          <TaskChanges
+          <ThreadChanges
             fileChanges={fileChanges}
             fullFileContents={validFileContents}
             workingDirectory={workingDirectory}

@@ -4,7 +4,7 @@ import { ToolUseBlock } from "./tool-use-block";
 
 // Mock logger
 vi.mock("@/lib/logger-client", () => ({
-  logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 describe("ToolUseBlock", () => {

@@ -1,16 +1,9 @@
 import type { AgentValidator, ValidationContext, ValidationResult } from "./types.js";
-import { humanReviewValidator } from "./human-review.js";
-import { researchNamingValidator } from "./research-naming.js";
-import { mergeTaskStatusValidator } from "./merge-task-status.js";
 import { logger } from "../lib/logger.js";
 
 export * from "./types.js";
 
-const validators: AgentValidator[] = [
-  researchNamingValidator,   // Run first - research-specific
-  mergeTaskStatusValidator,  // Merge-specific
-  humanReviewValidator,      // Run last - applies to all
-];
+const validators: AgentValidator[] = [];
 
 /**
  * Run all applicable validators for the given context.

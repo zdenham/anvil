@@ -5,7 +5,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
 
 vi.mock("@/lib/logger-client", () => ({
-  logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  logger: { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 vi.mock("@/services/agent-service", () => ({

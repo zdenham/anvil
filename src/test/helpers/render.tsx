@@ -68,13 +68,13 @@ export function renderUI(ui: ReactElement, options: CustomRenderOptions = {}): R
 
 interface RenderWithRouterOptions extends Omit<RenderOptions, "wrapper"> {
   /**
-   * The URL to navigate to (e.g., "/tasks/task-123/threads/thread-456").
+   * The URL to navigate to (e.g., "/threads/thread-456").
    * This becomes the initial entry in MemoryRouter.
    */
   route?: string;
 
   /**
-   * The route pattern for matching (e.g., "/tasks/:taskId/threads/:threadId").
+   * The route pattern for matching (e.g., "/threads/:threadId").
    * If not specified, defaults to the `route` value (exact match).
    */
   path?: string;
@@ -94,18 +94,18 @@ interface RenderWithRouterOptions extends Omit<RenderOptions, "wrapper"> {
  * @example
  * // Testing a component that reads route params
  * renderWithRouter(<ThreadPanel />, {
- *   route: "/tasks/task-123/threads/thread-456",
- *   path: "/tasks/:taskId/threads/:threadId"
+ *   route: "/threads/thread-456",
+ *   path: "/threads/:threadId"
  * });
  *
  * // The component can now call useParams() and receive:
- * // { taskId: "task-123", threadId: "thread-456" }
+ * // { threadId: "thread-456" }
  *
  * @example
  * // Testing a component with navigation
- * renderWithRouter(<TaskCard taskId="task-123" />, {
- *   route: "/tasks",
- *   path: "/tasks"
+ * renderWithRouter(<ThreadCard threadId="thread-123" />, {
+ *   route: "/threads",
+ *   path: "/threads"
  * });
  * // Component can call useNavigate() to navigate
  */

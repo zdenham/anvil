@@ -379,6 +379,7 @@ async function migrateFromMetadata(repoName: string): Promise<RepositorySettings
 
   // Convert to new format
   const settings: RepositorySettings = {
+    id: crypto.randomUUID(),
     schemaVersion: 1,
     name: metadata.name,
     originalUrl: metadata.originalUrl ?? null,
@@ -387,8 +388,10 @@ async function migrateFromMetadata(repoName: string): Promise<RepositorySettings
     defaultBranch: 'main',
     createdAt: metadata.createdAt ?? Date.now(),
     worktrees: existingWorktrees,
-    taskBranches: {},
+    threadBranches: {},
     lastUpdated: Date.now(),
+    plansDirectory: 'plans/',
+    completedDirectory: 'plans/completed/',
   };
 
   // Save new format
@@ -414,6 +417,7 @@ async function discoverExistingWorktrees(repoName: string): Promise<import("@/en
     const match = entry.name.match(/^worktree-(\d+)$/);
     if (match) {
       worktrees.push({
+        id: crypto.randomUUID(),
         path: entry.path,
         name: entry.name,
         currentBranch: null,
@@ -424,6 +428,7 @@ async function discoverExistingWorktrees(repoName: string): Promise<import("@/en
     const slugMatch = entry.name.match(/^[a-z0-9-]+-(\d+)$/);
     if (slugMatch && !match) {
       worktrees.push({
+        id: crypto.randomUUID(),
         path: entry.path,
         name: entry.name,
         currentBranch: null,

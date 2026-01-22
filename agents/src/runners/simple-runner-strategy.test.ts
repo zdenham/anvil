@@ -31,81 +31,26 @@ describe("SimpleRunnerStrategy", () => {
   describe("parseArgs", () => {
     it("parses all required arguments correctly", () => {
       const config = strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
+        "--repo-id", "repo-123",
+        "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", testDir,
         "--mort-dir", testDir,
         "--prompt", "test prompt",
       ]);
 
-      expect(config.agent).toBe("simple");
-      expect(config.taskId).toBe("task-123");
+      expect(config.repoId).toBe("repo-123");
+      expect(config.worktreeId).toBe("worktree-789");
       expect(config.threadId).toBe("thread-456");
       expect(config.cwd).toBe(testDir);
       expect(config.mortDir).toBe(testDir);
       expect(config.prompt).toBe("test prompt");
     });
 
-    it("parses --agent-mode argument with auto-accept", () => {
-      const config = strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
-        "--thread-id", "thread-456",
-        "--cwd", testDir,
-        "--mort-dir", testDir,
-        "--prompt", "test prompt",
-        "--agent-mode", "auto-accept",
-      ]);
-
-      expect(config.agentMode).toBe("auto-accept");
-    });
-
-    it("parses --agent-mode argument with plan", () => {
-      const config = strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
-        "--thread-id", "thread-456",
-        "--cwd", testDir,
-        "--mort-dir", testDir,
-        "--prompt", "test prompt",
-        "--agent-mode", "plan",
-      ]);
-
-      expect(config.agentMode).toBe("plan");
-    });
-
-    it("parses --agent-mode argument with normal", () => {
-      const config = strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
-        "--thread-id", "thread-456",
-        "--cwd", testDir,
-        "--mort-dir", testDir,
-        "--prompt", "test prompt",
-        "--agent-mode", "normal",
-      ]);
-
-      expect(config.agentMode).toBe("normal");
-    });
-
-    it("defaults agentMode to undefined when not provided", () => {
-      const config = strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
-        "--thread-id", "thread-456",
-        "--cwd", testDir,
-        "--mort-dir", testDir,
-        "--prompt", "test prompt",
-      ]);
-
-      expect(config.agentMode).toBeUndefined();
-    });
-
     it("parses --history-file argument", () => {
       const config = strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
+        "--repo-id", "repo-123",
+        "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", testDir,
         "--mort-dir", testDir,
@@ -116,20 +61,48 @@ describe("SimpleRunnerStrategy", () => {
       expect(config.historyFile).toBe("/path/to/history.json");
     });
 
-    it("throws error for missing --task-id", () => {
-      expect(() => strategy.parseArgs([
+    it("ignores deprecated --agent and --agent-mode arguments", () => {
+      const config = strategy.parseArgs([
         "--agent", "simple",
+        "--repo-id", "repo-123",
+        "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", testDir,
         "--mort-dir", testDir,
         "--prompt", "test prompt",
-      ])).toThrow("Missing required argument: --task-id");
+        "--agent-mode", "auto-accept",
+      ]);
+
+      // Should parse successfully and ignore the deprecated args
+      expect(config.repoId).toBe("repo-123");
+      expect(config.worktreeId).toBe("worktree-789");
+      expect(config.threadId).toBe("thread-456");
+    });
+
+    it("throws error for missing --repo-id", () => {
+      expect(() => strategy.parseArgs([
+        "--worktree-id", "worktree-789",
+        "--thread-id", "thread-456",
+        "--cwd", testDir,
+        "--mort-dir", testDir,
+        "--prompt", "test prompt",
+      ])).toThrow("Missing required argument: --repo-id");
+    });
+
+    it("throws error for missing --worktree-id", () => {
+      expect(() => strategy.parseArgs([
+        "--repo-id", "repo-123",
+        "--thread-id", "thread-456",
+        "--cwd", testDir,
+        "--mort-dir", testDir,
+        "--prompt", "test prompt",
+      ])).toThrow("Missing required argument: --worktree-id");
     });
 
     it("throws error for missing --cwd", () => {
       expect(() => strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
+        "--repo-id", "repo-123",
+        "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--mort-dir", testDir,
         "--prompt", "test prompt",
@@ -138,24 +111,13 @@ describe("SimpleRunnerStrategy", () => {
 
     it("throws error for non-existent cwd", () => {
       expect(() => strategy.parseArgs([
-        "--agent", "simple",
-        "--task-id", "task-123",
+        "--repo-id", "repo-123",
+        "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", "/non/existent/path",
         "--mort-dir", testDir,
         "--prompt", "test prompt",
       ])).toThrow("Working directory does not exist: /non/existent/path");
-    });
-
-    it("throws error for wrong agent type", () => {
-      expect(() => strategy.parseArgs([
-        "--agent", "research",
-        "--task-id", "task-123",
-        "--thread-id", "thread-456",
-        "--cwd", testDir,
-        "--mort-dir", testDir,
-        "--prompt", "test prompt",
-      ])).toThrow("SimpleRunnerStrategy only handles simple agent type, got: research");
     });
   });
 });

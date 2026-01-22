@@ -1,4 +1,4 @@
-import { EventName } from "@core/types/events.js";
+import { EventName, EventPayloads } from "@core/types/events.js";
 import { eventBus } from "../events.js";
 import { threadService } from "./service.js";
 import { useThreadStore } from "./store.js";
@@ -8,7 +8,7 @@ import { logger } from "@/lib/logger-client.js";
  * Setup thread event listeners.
  */
 export function setupThreadListeners(): void {
-  eventBus.on(EventName.THREAD_CREATED, async ({ threadId }) => {
+  eventBus.on(EventName.THREAD_CREATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_CREATED]) => {
     try {
       await threadService.refreshById(threadId);
     } catch (e) {
@@ -16,7 +16,7 @@ export function setupThreadListeners(): void {
     }
   });
 
-  eventBus.on(EventName.THREAD_UPDATED, async ({ threadId }) => {
+  eventBus.on(EventName.THREAD_UPDATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_UPDATED]) => {
     try {
       await threadService.refreshById(threadId);
     } catch (e) {
@@ -24,7 +24,7 @@ export function setupThreadListeners(): void {
     }
   });
 
-  eventBus.on(EventName.THREAD_STATUS_CHANGED, async ({ threadId }) => {
+  eventBus.on(EventName.THREAD_STATUS_CHANGED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_STATUS_CHANGED]) => {
     try {
       await threadService.refreshById(threadId);
 
@@ -40,7 +40,7 @@ export function setupThreadListeners(): void {
   });
 
   // Agent state updates - only refresh state if this is the active thread
-  eventBus.on(EventName.AGENT_STATE, async ({ threadId }) => {
+  eventBus.on(EventName.AGENT_STATE, async ({ threadId }: EventPayloads[typeof EventName.AGENT_STATE]) => {
     logger.info(`[FC-DEBUG] AGENT_STATE event received`, {
       threadId,
       activeThreadId: useThreadStore.getState().activeThreadId,
@@ -60,7 +60,7 @@ export function setupThreadListeners(): void {
   });
 
   // Agent completed - always refresh metadata, only refresh state if active
-  eventBus.on(EventName.AGENT_COMPLETED, async ({ threadId }) => {
+  eventBus.on(EventName.AGENT_COMPLETED, async ({ threadId }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
     try {
       const store = useThreadStore.getState();
       // Always refresh metadata (lightweight)
@@ -76,6 +76,20 @@ export function setupThreadListeners(): void {
       }
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh completed thread ${threadId}:`, e);
+    }
+  });
+
+  // Thread archived - remove from store
+  eventBus.on(EventName.THREAD_ARCHIVED, ({ threadId }: EventPayloads[typeof EventName.THREAD_ARCHIVED]) => {
+    try {
+      const store = useThreadStore.getState();
+      // Remove from store (disk already updated by archive operation)
+      if (store.threads[threadId]) {
+        store._applyDelete(threadId);
+        logger.info(`[ThreadListener] Removed archived thread ${threadId} from store`);
+      }
+    } catch (e) {
+      logger.error(`[ThreadListener] Failed to handle thread archive ${threadId}:`, e);
     }
   });
 }

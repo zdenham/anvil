@@ -9,7 +9,7 @@ export type ActionState =
   | { type: "completed" };
 
 /**
- * Determines the current action panel state based on task/thread status.
+ * Determines the current action panel state based on thread status.
  * Used to display the appropriate UI in the action panel.
  */
 export function useActionState(
@@ -37,7 +37,7 @@ export function useActionState(
       return { type: "awaiting-input", placeholder: "Continue the conversation..." };
     }
 
-    // No active thread or task
+    // No active thread
     if (!taskId || !threadId) {
       return { type: "idle" };
     }

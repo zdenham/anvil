@@ -10,7 +10,6 @@ describeWithApi("Agent Tool Usage", () => {
 
   beforeEach(() => {
     harness = new AgentTestHarness({
-      agent: "simple",
       timeout: 30000,
     });
   });
@@ -38,7 +37,6 @@ describeWithApi("Agent Tool Usage", () => {
 
   it("uses Write tool to create files", async () => {
     const output = await harness.run({
-      agent: "execution",
       prompt: "Create a new file called 'test.txt' with the content 'Hello World'",
     });
 

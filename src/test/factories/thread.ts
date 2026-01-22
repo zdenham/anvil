@@ -19,9 +19,8 @@ let threadCounter = 0;
  * @example
  * // Create a thread with specific overrides
  * const thread = createThread({
- *   taskId: "task-123",
+ *   repoId: "repo-123",
  *   status: "running",
- *   agentType: "execution",
  * });
  *
  * @example
@@ -39,16 +38,15 @@ export function createThread(overrides: Partial<ThreadMetadata> = {}): ThreadMet
 
   return {
     id: `thread-${counter}`,
-    taskId: "task-default",
-    agentType: "execution",
-    workingDirectory: "/Users/test/worktrees/default",
+    repoId: "repo-default",
+    worktreeId: "worktree-default",
     status: "idle",
     createdAt: now,
     updatedAt: now,
     isRead: true,
     turns: [],
     ...overrides,
-  };
+  } as ThreadMetadata;
 }
 
 /**

@@ -5,7 +5,6 @@
  * simulating disk state without touching the real filesystem.
  */
 
-import type { TaskMetadata, TaskStatus } from "@core/types/tasks";
 import type { ThreadState } from "@core/types/events";
 import { mockFileSystem, MOCK_MORT_DIR, mockThreadState, type MockThreadMetadata } from "../mocks/tauri-api";
 
@@ -13,22 +12,9 @@ import { mockFileSystem, MOCK_MORT_DIR, mockThreadState, type MockThreadMetadata
 // Types
 // ============================================================================
 
-export interface SeedTaskOptions {
-  id?: string;
-  slug?: string;
-  title?: string;
-  description?: string;
-  status?: TaskStatus;
-  type?: "work" | "investigate" | "simple";
-  repositoryName?: string;
-  branchName?: string;
-  tags?: string[];
-  createdAt?: number;
-  updatedAt?: number;
-}
-
 export interface SeedThreadOptions {
-  taskId?: string;
+  repoId?: string;
+  worktreeId?: string;
   status?: "idle" | "running" | "completed" | "error" | "paused";
   messages?: ThreadState["messages"];
   fileChanges?: ThreadState["fileChanges"];
@@ -85,81 +71,6 @@ export class VirtualFS {
   }
 
   // ==========================================================================
-  // Task Helpers
-  // ==========================================================================
-
-  /**
-   * Seed a task with metadata file on disk.
-   *
-   * @example
-   * VirtualFS.seedTask("fix-bug", { status: "in-progress", title: "Fix the bug" });
-   */
-  static seedTask(taskSlug: string, options: SeedTaskOptions = {}): TaskMetadata {
-    const now = Date.now();
-    const id = options.id ?? `task-${taskSlug}-${now.toString(36)}`;
-
-    const metadata: TaskMetadata = {
-      id,
-      slug: options.slug ?? taskSlug,
-      title: options.title ?? `Test Task: ${taskSlug}`,
-      description: options.description,
-      status: options.status ?? "todo",
-      type: options.type ?? "work",
-      branchName: options.branchName ?? `mort/${taskSlug}`,
-      repositoryName: options.repositoryName,
-      subtasks: [],
-      tags: options.tags ?? [],
-      sortOrder: 0,
-      parentId: null,
-      pendingReviews: [],
-      createdAt: options.createdAt ?? now,
-      updatedAt: options.updatedAt ?? now,
-    };
-
-    const taskDir = `${MOCK_MORT_DIR}/tasks/${taskSlug}`;
-    mockFileSystem.set(`${taskDir}/metadata.json`, JSON.stringify(metadata, null, 2));
-
-    return metadata;
-  }
-
-  /**
-   * Seed multiple tasks at once.
-   *
-   * @example
-   * VirtualFS.seedTasks([
-   *   { slug: "task-1", status: "todo" },
-   *   { slug: "task-2", status: "in-progress" },
-   * ]);
-   */
-  static seedTasks(tasks: Array<{ slug: string } & SeedTaskOptions>): TaskMetadata[] {
-    return tasks.map((task) => this.seedTask(task.slug, task));
-  }
-
-  /**
-   * Update an existing task's metadata.
-   */
-  static updateTask(taskSlug: string, updates: Partial<TaskMetadata>): TaskMetadata | null {
-    const taskDir = `${MOCK_MORT_DIR}/tasks/${taskSlug}`;
-    const existing = mockFileSystem.get(`${taskDir}/metadata.json`);
-    if (!existing) return null;
-
-    const metadata = JSON.parse(existing) as TaskMetadata;
-    const updated = { ...metadata, ...updates, updatedAt: Date.now() };
-    mockFileSystem.set(`${taskDir}/metadata.json`, JSON.stringify(updated, null, 2));
-
-    return updated;
-  }
-
-  /**
-   * Get task metadata from the virtual filesystem.
-   */
-  static getTask(taskSlug: string): TaskMetadata | null {
-    const taskDir = `${MOCK_MORT_DIR}/tasks/${taskSlug}`;
-    const content = mockFileSystem.get(`${taskDir}/metadata.json`);
-    return content ? JSON.parse(content) : null;
-  }
-
-  // ==========================================================================
   // Thread Helpers
   // ==========================================================================
 
@@ -167,16 +78,15 @@ export class VirtualFS {
    * Seed a thread with state files on disk.
    *
    * @example
-   * VirtualFS.seedThread("fix-bug", "thread-123", { status: "running" });
+   * VirtualFS.seedThread("thread-123", { status: "running" });
    */
-  static seedThread(taskSlug: string, threadId: string, options: SeedThreadOptions = {}): void {
-    const taskDir = `${MOCK_MORT_DIR}/tasks/${taskSlug}`;
-    const threadDir = `${taskDir}/threads/${threadId}`;
+  static seedThread(threadId: string, options: SeedThreadOptions = {}): void {
+    const threadDir = `${MOCK_MORT_DIR}/threads/${threadId}`;
 
     // Create thread metadata for Tauri command mocks
     const threadMeta: MockThreadMetadata = {
       id: threadId,
-      taskId: options.taskId ?? `task-${taskSlug}`,
+      repoId: options.repoId ?? "repo-123",
       status:
         options.status === "idle" ? "paused" : options.status === "completed" ? "completed" : options.status ?? "running",
     };
@@ -186,7 +96,7 @@ export class VirtualFS {
     const state: ThreadState = {
       messages: options.messages ?? [],
       fileChanges: options.fileChanges ?? [],
-      workingDirectory: options.workingDirectory ?? `/Users/test/code/worktrees/${taskSlug}`,
+      workingDirectory: options.workingDirectory ?? `/Users/test/code/worktrees/thread-${threadId.slice(0, 8)}`,
       status: options.status === "completed" ? "complete" : options.status === "error" ? "error" : "running",
       timestamp: Date.now(),
       toolStates: {},
@@ -197,7 +107,8 @@ export class VirtualFS {
       `${threadDir}/metadata.json`,
       JSON.stringify({
         id: threadId,
-        taskId: options.taskId ?? `task-${taskSlug}`,
+        repoId: options.repoId ?? "repo-123",
+        worktreeId: options.worktreeId ?? "worktree-123",
         status: options.status ?? "running",
         createdAt: Date.now(),
       })
@@ -207,8 +118,8 @@ export class VirtualFS {
   /**
    * Update thread state.
    */
-  static updateThreadState(taskSlug: string, threadId: string, state: Partial<ThreadState>): void {
-    const threadDir = `${MOCK_MORT_DIR}/tasks/${taskSlug}/threads/${threadId}`;
+  static updateThreadState(threadId: string, state: Partial<ThreadState>): void {
+    const threadDir = `${MOCK_MORT_DIR}/threads/${threadId}`;
     const existing = mockFileSystem.get(`${threadDir}/state.json`);
     const current = existing ? JSON.parse(existing) : {};
     const updated = { ...current, ...state, timestamp: Date.now() };

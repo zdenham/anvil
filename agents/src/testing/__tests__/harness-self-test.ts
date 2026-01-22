@@ -45,7 +45,6 @@ describe("AgentTestHarness Self-Verification", () => {
 
       expect(existsSync(mortDir.path)).toBe(true);
       expect(existsSync(`${mortDir.path}/repositories`)).toBe(true);
-      expect(existsSync(`${mortDir.path}/tasks`)).toBe(true);
       expect(existsSync(`${mortDir.path}/config.json`)).toBe(true);
     });
 
@@ -55,20 +54,6 @@ describe("AgentTestHarness Self-Verification", () => {
 
       mortDir.cleanup();
       expect(existsSync(savedPath)).toBe(false);
-    });
-
-    it("creates tasks with metadata", () => {
-      mortDir = new TestMortDirectory().init();
-      const task = mortDir.createTask({
-        repositoryName: "test-repo",
-        title: "Test Task",
-      });
-
-      expect(task.slug).toMatch(/^test-task-/);
-      expect(task.repositoryName).toBe("test-repo");
-      expect(
-        existsSync(`${mortDir.path}/tasks/${task.slug}/metadata.json`)
-      ).toBe(true);
     });
 
     it("registers repositories with settings", () => {
@@ -135,7 +120,6 @@ describe("AgentTestHarness Self-Verification", () => {
 
     it("exposes tempDirPath after run starts", async () => {
       harness = new AgentTestHarness({
-        agent: "simple",
         timeout: 5000,
       });
 
@@ -155,7 +139,6 @@ describe("AgentTestHarness Self-Verification", () => {
 
     it("removes temp directory on cleanup", async () => {
       harness = new AgentTestHarness({
-        agent: "simple",
         timeout: 5000,
       });
 
@@ -317,7 +300,6 @@ describe("AgentTestHarness Self-Verification", () => {
         harness = new AgentTestHarness();
 
         const output = await harness.run({
-          agent: "simple",
           prompt: "Say exactly: Hello",
           timeout: 30000,
         });
@@ -341,7 +323,6 @@ describe("AgentTestHarness Self-Verification", () => {
         harness = new AgentTestHarness();
 
         const output = await harness.run({
-          agent: "simple",
           prompt: "Write a 10000 word essay about quantum physics",
           timeout: 1000, // Very short timeout to force kill
         });

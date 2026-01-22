@@ -2,18 +2,11 @@
 export {
   eventBus,
   type AppEvents,
-  type OpenTaskPayload,
-  type OpenSimpleTaskPayload,
-  type SimpleTaskViewType,
+  type OpenControlPanelPayload,
+  type ControlPanelViewType,
   type ShowErrorPayload,
-  type TaskPanelReadyPayload,
   type WindowFocusChangedPayload,
 } from "./events";
-
-// Tasks
-export { useTaskStore } from "./tasks/store";
-export { taskService } from "./tasks/service";
-export * from "./tasks/types";
 
 // Threads
 export { useThreadStore } from "./threads/store";
@@ -40,20 +33,24 @@ export { usePlanStore } from "./plans/store";
 export { planService } from "./plans/service";
 export * from "./plans/types";
 
+// Relations
+export { useRelationStore, relationService, relationDetector, useRelatedPlans, useRelatedThreads, useRelatedThreadsIncludingArchived } from "./relations";
+export type { PlanThreadRelation, RelationType } from "./relations";
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // App-level hydration & event listeners
 // ═══════════════════════════════════════════════════════════════════════════════
-import { taskService } from "./tasks/service";
 import { threadService } from "./threads/service";
 import { repoService } from "./repositories/service";
 import { settingsService } from "./settings/service";
 import { planService } from "./plans/service";
+import { relationService } from "./relations/service";
 import { logger } from "@/lib/logger-client";
-import { setupTaskListeners } from "./tasks/listeners";
 import { setupThreadListeners } from "./threads/listeners";
 import { setupRepositoryListeners } from "./repositories/listeners";
 import { setupPermissionListeners } from "./permissions/listeners";
 import { setupPlanListeners } from "./plans/listeners";
+import { setupRelationListeners } from "./relations/listeners";
 
 /**
  * Hydrates all entity stores from disk.
@@ -64,11 +61,11 @@ export async function hydrateEntities(): Promise<void> {
 
   try {
     await Promise.all([
-      taskService.hydrate(),
       threadService.hydrate(),
       repoService.hydrate(),
       settingsService.hydrate(),
       planService.hydrate(),
+      relationService.hydrate(),
     ]);
     logger.log("[entities:hydrate] All entities hydrated successfully");
   } catch (error) {
@@ -83,10 +80,10 @@ export async function hydrateEntities(): Promise<void> {
  */
 export function setupEntityListeners(): void {
   logger.log("[entities:listeners] Setting up entity listeners...");
-  setupTaskListeners();
   setupThreadListeners();
   setupRepositoryListeners();
   setupPermissionListeners();
   setupPlanListeners();
+  setupRelationListeners();
   logger.log("[entities:listeners] All entity listeners initialized");
 }

@@ -14,9 +14,9 @@ interface GitContext {
   recentCommits: string;
 }
 
-interface TaskContext {
-  taskId: string | null;
-  parentTaskId?: string;
+interface ThreadContext {
+  repoId: string | null;
+  parentThreadId?: string;
 }
 
 function checkIsGitRepo(cwd: string): boolean {
@@ -83,15 +83,14 @@ export function buildGitContext(cwd: string): GitContext | null {
 export function formatSystemPromptContext(
   env: EnvironmentContext,
   git: GitContext | null,
-  task: TaskContext
+  thread: ThreadContext
 ): string {
   let context = `<env>
 Working directory: ${env.workingDirectory}
 Is directory a git repo: ${env.isGitRepo ? "Yes" : "No"}
 Platform: ${env.platform}
 OS Version: ${env.osVersion}
-Today's date: ${env.date}
-Task ID: ${task.taskId ?? "none"}${task.parentTaskId ? `\nParent Task ID: ${task.parentTaskId}` : ""}
+Today's date: ${env.date}${thread.parentThreadId ? `\nParent Thread ID: ${thread.parentThreadId}` : ""}
 </env>`;
 
   if (git) {

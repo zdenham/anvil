@@ -1,5 +1,5 @@
-import type { TaskStatus } from "./tasks.js";
 import type { ThreadStatus } from "./threads.js";
+import type { RelationType } from "./relations.js";
 import { z } from "zod";
 
 // WorktreeState is defined in src/entities/repositories/types.ts
@@ -45,17 +45,13 @@ export type AgentThreadStatus = z.infer<typeof AgentThreadStatusSchema>;
  * Used by both Node agent (emission) and Tauri (consumption).
  */
 export const EventName = {
-  // Task lifecycle
-  TASK_CREATED: "task:created",
-  TASK_UPDATED: "task:updated",
-  TASK_DELETED: "task:deleted",
-  TASK_STATUS_CHANGED: "task:status-changed",
-  TASK_MARKED_UNREAD: "task:marked-unread",
-
   // Thread lifecycle
   THREAD_CREATED: "thread:created",
   THREAD_UPDATED: "thread:updated",
   THREAD_STATUS_CHANGED: "thread:status-changed",
+  THREAD_ARCHIVED: "thread:archived",
+  THREAD_FILE_CREATED: "thread:file-created",
+  THREAD_FILE_MODIFIED: "thread:file-modified",
 
   // Agent process
   AGENT_SPAWNED: "agent:spawned",
@@ -89,6 +85,16 @@ export const EventName = {
 
   // Plan lifecycle
   PLAN_DETECTED: "plan:detected",
+  PLAN_CREATED: "plan:created",
+  PLAN_UPDATED: "plan:updated",
+  PLAN_ARCHIVED: "plan:archived",
+
+  // Relation lifecycle
+  RELATION_CREATED: "relation:created",
+  RELATION_UPDATED: "relation:updated",
+
+  // User events
+  USER_MESSAGE_SENT: "user:message-sent",
 } as const;
 
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
@@ -102,24 +108,20 @@ export type EventNameType = (typeof EventName)[keyof typeof EventName];
  * Ensures type safety on both emit and consume sides.
  */
 export interface EventPayloads {
-  // Task events - use taskId (UUID) as primary identifier
-  [EventName.TASK_CREATED]: { taskId: string };
-  [EventName.TASK_UPDATED]: { taskId: string; planId?: string };
-  [EventName.TASK_DELETED]: { taskId: string };
-  [EventName.TASK_STATUS_CHANGED]: { taskId: string; status: TaskStatus };
-  [EventName.TASK_MARKED_UNREAD]: { taskId: string };
-
   // Thread events
-  [EventName.THREAD_CREATED]: { threadId: string; taskId: string };
-  [EventName.THREAD_UPDATED]: { threadId: string; taskId: string; planId?: string };
+  [EventName.THREAD_CREATED]: { threadId: string; repoId: string; worktreeId: string };
+  [EventName.THREAD_UPDATED]: { threadId: string };
   [EventName.THREAD_STATUS_CHANGED]: { threadId: string; status: ThreadStatus };
+  [EventName.THREAD_ARCHIVED]: { threadId: string };
+  [EventName.THREAD_FILE_CREATED]: { threadId: string; filePath: string };
+  [EventName.THREAD_FILE_MODIFIED]: { threadId: string; filePath: string };
 
   // Agent events
-  [EventName.AGENT_SPAWNED]: { threadId: string; taskId: string };
+  [EventName.AGENT_SPAWNED]: { threadId: string; repoId: string };
   [EventName.AGENT_STATE]: { threadId: string; state: ThreadState };
   [EventName.AGENT_COMPLETED]: { threadId: string; exitCode: number; costUsd?: number };
   [EventName.AGENT_ERROR]: { threadId: string; error: string };
-  [EventName.AGENT_TOOL_COMPLETED]: { threadId: string; taskId: string };
+  [EventName.AGENT_TOOL_COMPLETED]: { threadId: string; repoId: string };
   [EventName.AGENT_CANCELLED]: { threadId: string };
 
   // Orchestration events
@@ -133,7 +135,7 @@ export interface EventPayloads {
 
   // User interaction
   [EventName.ACTION_REQUESTED]: {
-    taskId: string;
+    threadId: string;
     markdown: string;
     defaultResponse: string;
   };
@@ -163,10 +165,18 @@ export interface EventPayloads {
     messageId: string;
   };
 
-  // Plan lifecycle
-  [EventName.PLAN_DETECTED]: {
-    planId: string;
-  };
+  // Plan events
+  [EventName.PLAN_DETECTED]: { planId: string };
+  [EventName.PLAN_CREATED]: { planId: string; repoId: string };
+  [EventName.PLAN_UPDATED]: { planId: string };
+  [EventName.PLAN_ARCHIVED]: { planId: string };
+
+  // Relation events
+  [EventName.RELATION_CREATED]: { planId: string; threadId: string; type: RelationType };
+  [EventName.RELATION_UPDATED]: { planId: string; threadId: string; type: RelationType; previousType: RelationType };
+
+  // User events
+  [EventName.USER_MESSAGE_SENT]: { threadId: string; message: string };
 }
 
 // ============================================================================
@@ -243,14 +253,12 @@ export type ThreadState = z.infer<typeof ThreadStateSchema>;
  * Schema for event names.
  */
 export const EventNameSchema = z.enum([
-  EventName.TASK_CREATED,
-  EventName.TASK_UPDATED,
-  EventName.TASK_DELETED,
-  EventName.TASK_STATUS_CHANGED,
-  EventName.TASK_MARKED_UNREAD,
   EventName.THREAD_CREATED,
   EventName.THREAD_UPDATED,
   EventName.THREAD_STATUS_CHANGED,
+  EventName.THREAD_ARCHIVED,
+  EventName.THREAD_FILE_CREATED,
+  EventName.THREAD_FILE_MODIFIED,
   EventName.AGENT_SPAWNED,
   EventName.AGENT_STATE,
   EventName.AGENT_COMPLETED,
@@ -268,6 +276,12 @@ export const EventNameSchema = z.enum([
   EventName.PERMISSION_RESPONSE,
   EventName.QUEUED_MESSAGE_ACK,
   EventName.PLAN_DETECTED,
+  EventName.PLAN_CREATED,
+  EventName.PLAN_UPDATED,
+  EventName.PLAN_ARCHIVED,
+  EventName.RELATION_CREATED,
+  EventName.RELATION_UPDATED,
+  EventName.USER_MESSAGE_SENT,
 ]);
 
 /**

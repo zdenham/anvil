@@ -3,10 +3,12 @@ use crate::paths;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WorktreeState {
+    pub id: String,
     pub path: String,
     pub name: String,
     pub last_accessed_at: Option<u64>,
@@ -56,6 +58,7 @@ pub async fn worktree_create(repo_name: String, name: String) -> Result<Worktree
 
     // Create worktree state
     let worktree = WorktreeState {
+        id: Uuid::new_v4().to_string(),
         path: worktree_path,
         name,
         last_accessed_at: Some(now_millis()),
@@ -244,6 +247,7 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
             };
 
             existing_worktrees.push(WorktreeState {
+                id: Uuid::new_v4().to_string(),
                 path: git_wt.path.clone(),
                 name: final_name,
                 last_accessed_at: Some(now),

@@ -201,6 +201,7 @@ export const repoService = {
     await persistence.ensureDir(repoDir);
     const sourcePath = input.sourcePath ?? "";
     const settings: RepositorySettings = {
+      id: crypto.randomUUID(),
       schemaVersion: 1,
       name: input.name,
       originalUrl: input.originalUrl ?? null,
@@ -210,13 +211,16 @@ export const repoService = {
       createdAt: now,
       // Register source path as "main" worktree if provided
       worktrees: sourcePath ? [{
+        id: crypto.randomUUID(),
         path: sourcePath,
         name: 'main',
         lastAccessedAt: now,
         currentBranch: null,
       }] : [],
-      taskBranches: {},
+      threadBranches: {},
       lastUpdated: now,
+      plansDirectory: 'plans/',
+      completedDirectory: 'plans/completed/',
     };
     await saveSettings(slug, settings);
 
@@ -267,6 +271,7 @@ export const repoService = {
     // Write settings.json with full RepositorySettings schema
     // Register the source repo as the "main" worktree
     const settings: RepositorySettings = {
+      id: crypto.randomUUID(),
       schemaVersion: 1,
       name: folderName,
       originalUrl: null,
@@ -275,13 +280,16 @@ export const repoService = {
       defaultBranch: 'main',
       createdAt: now,
       worktrees: [{
+        id: crypto.randomUUID(),
         path: sourcePath,
         name: 'main',
         lastAccessedAt: now,
         currentBranch: null,
       }],
-      taskBranches: {},
+      threadBranches: {},
       lastUpdated: now,
+      plansDirectory: 'plans/',
+      completedDirectory: 'plans/completed/',
     };
     await saveSettings(slug, settings);
 
@@ -303,7 +311,7 @@ export const repoService = {
 
   /**
    * Updates a repository's metadata.
-   * Preserves worktrees and taskBranches when updating settings.
+   * Preserves worktrees and threadBranches when updating settings.
    */
   async update(name: string, updates: UpdateRepositoryInput): Promise<Repository> {
     const existing = useRepoStore.getState().repositories[name];
@@ -319,7 +327,7 @@ export const repoService = {
       versions: existing.versions,
     };
 
-    // Load existing settings to preserve worktrees and taskBranches
+    // Load existing settings to preserve worktrees and threadBranches
     const settings = await loadSettings(slug);
     settings.name = updated.name;
     settings.useWorktrees = updated.useWorktrees;

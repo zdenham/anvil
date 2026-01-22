@@ -6,27 +6,29 @@ import { z } from "zod";
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Information about a task's git branch.
- * Stored in repository settings, keyed by task ID.
+ * Information about a thread's git branch.
+ * Stored in repository settings, keyed by thread ID.
  */
-export const TaskBranchInfoSchema = z.object({
-  /** Branch name, e.g., "mort/task-abc123" */
+export const ThreadBranchInfoSchema = z.object({
+  /** Branch name, e.g., "mort/thread-abc123" */
   branch: z.string(),
-  /** Base branch this was created from, e.g., "main" or "mort/task-parent" */
+  /** Base branch this was created from, e.g., "main" or "mort/thread-parent" */
   baseBranch: z.string(),
   /** Commit hash at branch creation - used for accurate diffs */
   mergeBase: z.string(),
-  /** For subtasks, the parent task ID */
-  parentTaskId: z.string().optional(),
+  /** For child threads, the parent thread ID */
+  parentThreadId: z.string().optional(),
   /** Timestamp of branch creation */
   createdAt: z.number(),
 });
-export type TaskBranchInfo = z.infer<typeof TaskBranchInfoSchema>;
+export type ThreadBranchInfo = z.infer<typeof ThreadBranchInfoSchema>;
 
 /**
  * State of a single worktree.
  */
 export const WorktreeStateSchema = z.object({
+  /** UUID for worktree identification */
+  id: z.string().uuid(),
   /** Absolute path to the worktree directory */
   path: z.string(),
   /** Name of the worktree */
@@ -47,6 +49,8 @@ export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
  * - Adds worktrees array if missing (defaults to [])
  */
 export const RepositorySettingsSchema = z.object({
+  /** UUID for repository identification */
+  id: z.string().uuid(),
   /** Schema version for migrations */
   schemaVersion: z.literal(1),
   /** Repository name */
@@ -63,10 +67,14 @@ export const RepositorySettingsSchema = z.object({
   createdAt: z.number(),
   /** Pool of available worktrees */
   worktrees: z.array(WorktreeStateSchema).default([]),
-  /** Task branch tracking, keyed by task ID */
-  taskBranches: z.record(z.string(), TaskBranchInfoSchema),
+  /** Thread branch tracking, keyed by thread ID */
+  threadBranches: z.record(z.string(), ThreadBranchInfoSchema),
   /** Last modification timestamp */
   lastUpdated: z.number(),
+  /** Directory where plan files are stored (relative to repo root) */
+  plansDirectory: z.string().default('plans/'),
+  /** Directory for completed/archived plans (relative to repo root) */
+  completedDirectory: z.string().default('plans/completed/'),
 });
 export type RepositorySettings = z.infer<typeof RepositorySettingsSchema>;
 

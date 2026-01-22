@@ -12,7 +12,7 @@ import {
   AppResultSchema,
   OpenRepoResult,
   OpenMortResult,
-  OpenTasksResult,
+  OpenThreadsResult,
   RefreshResult,
   SpotlightResult,
 } from "./types";
@@ -22,23 +22,23 @@ import { useSpotlightHistory } from "./use-spotlight-history";
 import { CalculatorService } from "../../lib/calculator-service";
 import { TriggerSearchInput, type TriggerStateInfo } from "../reusable/trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
-import { repoService, taskService, type Repository, eventBus, type TaskPanelReadyPayload } from "../../entities";
+import { repoService, type Repository, eventBus } from "../../entities";
 import { worktreeService } from "../../entities/worktrees";
 import type { WorktreeState } from "@core/types/repositories";
-import { EventName } from "@core/types/events.js";
-import { spawnAgentWithOrchestration, spawnSimpleAgent } from "../../lib/agent-service";
-import { openTask, openSimpleTask, showMainWindow } from "../../lib/hotkey-service";
+import { spawnSimpleAgent } from "../../lib/agent-service";
+import { openControlPanel, showMainWindow } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
 import { promptHistoryService } from "../../lib/prompt-history-service";
+import { loadSettings } from "../../lib/persistence";
 
-/** Error types for task creation */
-type TaskCreationError =
+/** Error types for thread creation */
+type ThreadCreationError =
   | { type: "no_repositories" }
   | { type: "no_versions"; repoName: string }
   | { type: "agent_failed"; message: string };
 
-/** Convert TaskCreationError to user-friendly message */
-function formatTaskCreationError(error: TaskCreationError): string {
+/** Convert ThreadCreationError to user-friendly message */
+function formatThreadCreationError(error: ThreadCreationError): string {
   switch (error.type) {
     case "no_repositories":
       return "No repositories configured. Please add a repository first.";
@@ -121,12 +121,12 @@ export class SpotlightController {
         });
       }
 
-      // Add "Tasks" action if query partially matches
-      if (this.partialMatch(query, "Tasks")) {
-        const openTasksData: OpenTasksResult = { action: "open-tasks" };
+      // Add "Threads" action if query partially matches
+      if (this.partialMatch(query, "Threads")) {
+        const openThreadsData: OpenThreadsResult = { action: "open-threads" };
         results.push({
           type: "action",
-          data: openTasksData,
+          data: openThreadsData,
         });
       }
 
@@ -139,9 +139,9 @@ export class SpotlightController {
         });
       }
 
-      // Always add a "create task" option at the end
+      // Always add a "create thread" option at the end
       results.push({
-        type: "task",
+        type: "thread",
         data: { query: query.trim() },
       });
     }
@@ -182,7 +182,7 @@ export class SpotlightController {
   }
 
   /**
-   * Gets the repository to use for task creation.
+   * Gets the repository to use for thread creation.
    * If only one repo exists, returns it. Otherwise returns null (needs selection).
    */
   getDefaultRepository(): Repository | null {
@@ -201,217 +201,78 @@ export class SpotlightController {
   }
 
   /**
-   * Creates a new task and starts an agent to work on it.
-   *
-   * Simplified flow with Node orchestration:
-   * 1. Generate taskId and threadId upfront
-   * 2. Create draft task on disk (Node reads this)
-   * 3. Open window IMMEDIATELY with prompt (optimistic UI)
-   * 4. Spawn Node - it will use the explicit worktree path
-   * 5. Window reacts to events from Node (thread:created, agent:state, etc.)
-   *
-   * @param content - The task prompt/description
-   * @param repo - The repository to work in (optional, uses default if single repo)
-   * @param worktreePath - Explicit worktree path (required for full flow)
-   * @throws TaskCreationError on failure
-   */
-  async createTask(content: string, repo?: Repository, worktreePath?: string): Promise<void> {
-    // Determine which repository to use
-    const repos = repoService.getAll();
-
-    logger.log(`[spotlight:createTask] Checking repositories in store`);
-    logger.log(`[spotlight:createTask] Repository count: ${repos.length}`);
-    logger.log(
-      `[spotlight:createTask] Repository names:`,
-      repos.map((r) => r.name)
-    );
-
-    if (repos.length === 0) {
-      const error: TaskCreationError = { type: "no_repositories" };
-      logger.error(
-        "[spotlight:createTask] No repositories in store! Hydration may have failed."
-      );
-      logger.error("No repositories available. Please add a repository first.");
-      throw error;
-    }
-
-    // Use provided repo, or default to first if only one exists
-    const selectedRepo = repo ?? (repos.length === 1 ? repos[0] : null);
-    if (!selectedRepo) {
-      // Multiple repos but none selected - caller should handle this
-      logger.error("Multiple repositories available. Please select one.");
-      throw { type: "no_repositories" } as TaskCreationError;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // CREATE DRAFT TASK & OPTIMISTIC UI
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    // Generate thread ID upfront so we can open window immediately
-    const threadId = crypto.randomUUID();
-    logger.log(`spotlight:createTask - Generated thread ID: ${threadId}`);
-
-    // Create draft task IMMEDIATELY before opening window
-    // This ensures TaskWorkspace always has a taskId from the start
-    // Node orchestration reads this task from disk
-    const draftTask = await taskService.createDraft({
-      prompt: content,
-      repositoryName: selectedRepo.name,
-      // Store worktreePath if provided (for explicit worktree management)
-      ...(worktreePath && { worktreePath }),
-    });
-
-    // Touch worktree to update lastAccessedAt (for MRU sorting)
-    // Use explicit worktreePath if provided, otherwise touch main worktree (sourcePath)
-    const pathToTouch = worktreePath ?? selectedRepo.sourcePath;
-    if (pathToTouch) {
-      worktreeService.touch(selectedRepo.name, pathToTouch).catch((err) => {
-        logger.warn("[spotlight:createTask] Failed to touch worktree:", err);
-      });
-    }
-    logger.log(
-      `spotlight:createTask - Created draft task: ${draftTask.id}, slug: ${draftTask.slug}`
-    );
-
-    // Broadcast task creation to all windows (cross-window store sync)
-    // Use eventBus.emit which goes through the outgoing bridge with correct "app:" prefix
-    logger.log(`[Spotlight] Emitting TASK_CREATED event for task: ${draftTask.id}`);
-    eventBus.emit(EventName.TASK_CREATED, { taskId: draftTask.id });
-
-    // Set up listener for task-panel-ready event BEFORE opening
-    // Uses eventBus instead of direct Tauri listen() to avoid async cleanup races
-    const readyPromise = new Promise<void>((resolve) => {
-      let resolved = false;
-
-      const handler = (payload: TaskPanelReadyPayload) => {
-        logger.log(
-          `spotlight:createTask - Received task-panel-ready event:`,
-          payload
-        );
-        if (payload.threadId === threadId && !resolved) {
-          logger.log(
-            `spotlight:createTask - task-panel-ready MATCHED for: ${threadId}`
-          );
-          resolved = true;
-          clearTimeout(timeout);
-          eventBus.off("task-panel-ready", handler);
-          resolve();
-        }
-      };
-
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          logger.warn(
-            `spotlight:createTask - Timeout waiting for task-panel-ready, spawning anyway`
-          );
-          resolved = true;
-          eventBus.off("task-panel-ready", handler);
-          resolve();
-        }
-      }, 2000);
-
-      eventBus.on("task-panel-ready", handler);
-    });
-
-    // Open task panel with BOTH threadId and taskId (optimistic UI)
-    try {
-      await openTask(threadId, draftTask.id, content, selectedRepo.name);
-      logger.log(
-        `spotlight:createTask - openTask command completed with taskId: ${draftTask.id}`
-      );
-    } catch (error) {
-      logger.error(`spotlight:createTask - Failed to open task panel:`, error);
-      // Continue anyway - we'll still try to do the work
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // SPAWN NODE - It handles worktree allocation and thread creation
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    try {
-      // Wait for thread window to be ready (with timeout)
-      logger.log(`spotlight:createTask - Waiting for readyPromise`);
-      await readyPromise;
-      logger.log(`spotlight:createTask - readyPromise resolved`);
-
-      // Spawn agent with Node orchestration - Node allocates worktree and creates thread
-      logger.log(
-        `spotlight:createTask - Spawning agent with orchestration, taskSlug: ${draftTask.slug}`
-      );
-      await spawnAgentWithOrchestration({
-        agentType: "research", // Research agent handles routing and task management
-        taskSlug: draftTask.slug, // Node uses slug to find task on disk
-        taskId: draftTask.id, // Required for event emissions
-        threadId, // Use our pre-generated ID
-        prompt: content,
-        worktreePath, // Explicit worktree selection (optional)
-      });
-      logger.log(`spotlight:createTask - Agent spawn completed successfully`);
-    } catch (error) {
-      logger.error(
-        `spotlight:createTask - Caught error spawning agent:`,
-        error
-      );
-      if (error instanceof Error) {
-        logger.error(`spotlight:createTask - Error message: ${error.message}`);
-        logger.error(`spotlight:createTask - Error stack: ${error.stack}`);
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      const taskError: TaskCreationError = { type: "agent_failed", message };
-      logger.error("Failed to start agent:", error);
-      throw taskError;
-    }
-  }
-
-  /**
-   * Creates a simple task that runs directly in the source repository or worktree.
+   * Creates a simple thread that runs directly in the source repository or worktree.
    * No worktree allocation, no branch management - just direct execution.
    *
-   * Note: Task metadata is created by the simple-runner process, not here.
+   * Note: Thread metadata is created by the simple-runner process, not here.
    * This follows the "Agent Process Architecture" principle from agents.md.
    *
-   * @param content - The task prompt/description
+   * @param content - The thread prompt/description
    * @param repo - The repository to work in
    * @param worktreePath - Optional worktree path. If provided, agent runs there instead of source repo.
    */
-  async createSimpleTask(content: string, repo: Repository, worktreePath?: string): Promise<void> {
+  async createSimpleThread(content: string, repo: Repository, worktreePath?: string): Promise<void> {
     // Determine working directory: worktree path if provided, otherwise source repo
     const workingDir = worktreePath ?? repo.sourcePath;
 
     if (!workingDir) {
-      const error: TaskCreationError = { type: "no_repositories" };
+      const error: ThreadCreationError = { type: "no_repositories" };
       logger.error(
-        `[spotlight:createSimpleTask] Repository ${repo.name} has no sourcePath and no worktree provided`
+        `[spotlight:createSimpleThread] Repository ${repo.name} has no sourcePath and no worktree provided`
       );
       throw error;
+    }
+
+    // Lookup repository settings to get the UUID
+    const slug = repo.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const settings = await loadSettings(slug);
+
+    // Determine worktree ID - either from selected worktree or use main worktree
+    let worktreeId: string;
+    if (worktreePath) {
+      // Find worktree by path
+      const worktree = settings.worktrees.find(w => w.path === worktreePath);
+      if (!worktree) {
+        throw new Error(`Worktree not found for path: ${worktreePath}`);
+      }
+      worktreeId = worktree.id;
+    } else {
+      // Use main worktree (first in list, or create if missing)
+      const mainWorktree = settings.worktrees.find(w => w.name === 'main');
+      if (!mainWorktree) {
+        throw new Error(`Main worktree not found for repository: ${repo.name}`);
+      }
+      worktreeId = mainWorktree.id;
     }
 
     const taskId = crypto.randomUUID();
     const threadId = crypto.randomUUID();
 
-    logger.info(`[spotlight:createSimpleTask] Creating simple task: ${taskId}, workingDir: ${workingDir}`);
+    logger.info(`[spotlight:createSimpleThread] Creating simple thread: ${threadId}, workingDir: ${workingDir}`);
+    logger.info(`[spotlight:createSimpleThread] Using repoId: ${settings.id}, worktreeId: ${worktreeId}`);
 
     // Touch worktree to update lastAccessedAt (for MRU sorting)
     worktreeService.touch(repo.name, workingDir).catch((err) => {
-      logger.warn("[spotlight:createSimpleTask] Failed to touch worktree:", err);
+      logger.warn("[spotlight:createSimpleThread] Failed to touch worktree:", err);
     });
 
-    // Open simple task window immediately (optimistic UI)
+    // Open control panel immediately (optimistic UI)
     // Window shows prompt while agent starts up
-    logger.info(`[spotlight:createSimpleTask] About to call openSimpleTask...`);
-    await openSimpleTask(threadId, taskId, content);
-    logger.info(`[spotlight:createSimpleTask] openSimpleTask returned successfully`);
+    logger.info(`[spotlight:createSimpleThread] About to call openControlPanel...`);
+    await openControlPanel(threadId, taskId, content);
+    logger.info(`[spotlight:createSimpleThread] openControlPanel returned successfully`);
 
     // Spawn simple agent (no orchestration)
-    // The runner creates task metadata and thread data on disk
-    logger.info(`[spotlight:createSimpleTask] About to call spawnSimpleAgent...`);
+    // The runner creates thread metadata and thread data on disk
+    logger.info(`[spotlight:createSimpleThread] About to call spawnSimpleAgent...`);
     await spawnSimpleAgent({
-      taskId,
+      repoId: settings.id,     // UUID from settings
+      worktreeId,              // UUID from worktree
       threadId,
       prompt: content,
       sourcePath: workingDir,
     });
-    logger.info(`[spotlight:createSimpleTask] spawnSimpleAgent returned successfully`);
+    logger.info(`[spotlight:createSimpleThread] spawnSimpleAgent returned successfully`);
   }
 
   /**
@@ -502,7 +363,7 @@ export const Spotlight = () => {
           selectedIndex: 0,
         }));
 
-        // Run search to populate results (including "create task" option)
+        // Run search to populate results (including "create thread" option)
         // Resize is handled by the unified useEffect
         if (newQuery.trim()) {
           const newResults = await controller.search(newQuery);
@@ -559,9 +420,8 @@ export const Spotlight = () => {
   }, [resetHistory]);
 
   const activateResult = useCallback(
-    async (result: SpotlightResult, options?: { useFullFlow?: boolean }) => {
+    async (result: SpotlightResult) => {
       const controller = controllerRef.current;
-      const useFullFlow = options?.useFullFlow ?? false;
 
       // Handle file selection - insert file path at trigger position
       if (result.type === "file") {
@@ -598,7 +458,7 @@ export const Spotlight = () => {
       } else if (result.type === "calculator" && result.data.isValid) {
         await controller.copyToClipboard(String(result.data.result));
         await controller.hideSpotlight();
-      } else if (result.type === "task") {
+      } else if (result.type === "thread") {
         // Get default repo (single repo case) or use first repo for now
         // TODO: Add repo selection UI for multi-repo scenarios
         const repos = controller.getRepositories();
@@ -620,9 +480,9 @@ export const Spotlight = () => {
           logger.error("[Spotlight] Failed to save prompt to history:", error);
         });
 
-        // Handle task creation error (shared between simple and full flow)
-        const handleTaskError = (error: unknown) => {
-          logger.error("[Spotlight] Task creation error (raw):", error);
+        // Handle thread creation error (shared between simple and full flow)
+        const handleThreadError = (error: unknown) => {
+          logger.error("[Spotlight] Thread creation error (raw):", error);
           logger.error("[Spotlight] Error type:", typeof error);
           logger.error(
             "[Spotlight] Error constructor:",
@@ -640,11 +500,11 @@ export const Spotlight = () => {
             );
           }
 
-          const taskError = error as TaskCreationError;
-          const message = formatTaskCreationError(taskError);
+          const threadError = error as ThreadCreationError;
+          const message = formatThreadCreationError(threadError);
           const stack = error instanceof Error ? error.stack : undefined;
           // Show error in dedicated error panel (appears above other panels)
-          logger.info("[Spotlight] Task creation failed, showing error panel:", {
+          logger.info("[Spotlight] Thread creation failed, showing error panel:", {
             message,
             stack,
           });
@@ -657,25 +517,13 @@ export const Spotlight = () => {
             });
         };
 
-        if (useFullFlow) {
-          // Command+Enter: Full worktree flow with explicit worktree selection
-          const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
-          if (!selectedWorktree && availableWorktrees.length > 0) {
-            // Shouldn't happen, but fallback to first worktree
-            logger.warn("[Spotlight] No worktree selected, using first available");
-          }
-          controller
-            .createTask(result.data.query, selectedRepo, selectedWorktree?.path)
-            .catch(handleTaskError);
-        } else {
-          // Enter: Simple flow - runs in selected worktree (if any) or source repo
-          const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
-          controller
-            .createSimpleTask(result.data.query, selectedRepo, selectedWorktree?.path)
-            .catch(handleTaskError);
-        }
+        // Run in selected worktree (if any) or source repo
+        const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
+        controller
+          .createSimpleThread(result.data.query, selectedRepo, selectedWorktree?.path)
+          .catch(handleThreadError);
 
-        // Hide spotlight immediately - task window is already showing
+        // Hide spotlight immediately - thread window is already showing
         await controller.hideSpotlight();
       } else if (result.type === "action" && result.data.action === "open-repo") {
         // Hide spotlight first, then open file dialog
@@ -694,14 +542,14 @@ export const Spotlight = () => {
         } catch (error) {
           logger.error("[spotlight] Failed to open main window:", error);
         }
-      } else if (result.type === "action" && result.data.action === "open-tasks") {
+      } else if (result.type === "action" && result.data.action === "open-threads") {
         try {
-          logger.info("[spotlight] Opening tasks panel...");
+          logger.info("[spotlight] Opening threads panel...");
           await controller.hideSpotlight();
-          await invoke("show_tasks_panel");
-          logger.info("[spotlight] Tasks panel opened");
+          await invoke("show_threads_panel");
+          logger.info("[spotlight] Threads panel opened");
         } catch (error) {
-          logger.error("[spotlight] Failed to open tasks panel:", error);
+          logger.error("[spotlight] Failed to open threads panel:", error);
         }
       } else if (result.type === "action" && result.data.action === "refresh") {
         // Full rebuild: agents + rust, then restart app
@@ -980,10 +828,10 @@ export const Spotlight = () => {
           }
           break;
         case "ArrowRight": {
-          // Cycle forward through worktrees when on a task result
+          // Cycle forward through worktrees when on a thread result
           // Only cycle if cursor is at the very end AND no text is selected
           const currentResult = displayResults[selectedIndex];
-          if (currentResult?.type === "task" && availableWorktrees.length > 1) {
+          if (currentResult?.type === "thread" && availableWorktrees.length > 1) {
             const cursorPos = inputRef.current?.getCursorPosition() ?? 0;
             const inputLength = query.length;
             // Check if cursor is at the end of the input
@@ -1001,10 +849,10 @@ export const Spotlight = () => {
           break;
         }
         case "ArrowLeft": {
-          // Cycle back through worktrees when on a task result
+          // Cycle back through worktrees when on a thread result
           // Only cycle if not on the first worktree
           const currentResultLeft = displayResults[selectedIndex];
-          if (currentResultLeft?.type === "task" && availableWorktrees.length > 1) {
+          if (currentResultLeft?.type === "thread" && availableWorktrees.length > 1) {
             const notOnFirstWorktree = selectedWorktreeIndex > 0;
 
             if (notOnFirstWorktree) {
@@ -1023,10 +871,7 @@ export const Spotlight = () => {
           if (!e.shiftKey) {
             e.preventDefault();
             if (displayResults.length > 0 && displayResults[selectedIndex]) {
-              // Command+Enter triggers full task flow (worktrees + branches)
-              // Enter triggers simple flow (direct execution in source repo)
-              const useFullFlow = e.metaKey;
-              await activateResult(displayResults[selectedIndex], { useFullFlow });
+              await activateResult(displayResults[selectedIndex]);
             }
           }
           break;

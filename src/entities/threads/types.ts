@@ -5,10 +5,10 @@
 export {
   // Type aliases
   type ThreadStatus,
-  type AgentType,
   // Schemas
   ThreadTurnSchema,
   ThreadMetadataSchema,
+  ThreadMetadataBaseSchema,
   // Types derived from schemas
   type ThreadTurn,
   type ThreadMetadata,

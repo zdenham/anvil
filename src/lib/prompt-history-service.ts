@@ -135,7 +135,7 @@ export class PromptHistoryService {
     data.entries.unshift({
       prompt: trimmed,
       timestamp: Date.now(),
-      // taskId is undefined for drafts
+      // threadId is undefined for drafts (stored as taskId for backwards compatibility)
     });
 
     // Trim to max entries

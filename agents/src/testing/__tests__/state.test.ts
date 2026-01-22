@@ -10,7 +10,6 @@ describeWithApi("Agent State Transitions", () => {
 
   beforeEach(() => {
     harness = new AgentTestHarness({
-      agent: "simple",
       timeout: 30000,
     });
   });
@@ -43,7 +42,6 @@ describeWithApi("Agent State Transitions", () => {
 
   it("tracks file modifications in state", async () => {
     const output = await harness.run({
-      agent: "execution",
       prompt: "Add a newline to the end of README.md",
     });
 

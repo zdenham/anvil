@@ -3,7 +3,7 @@ import { panelCommands } from "@/lib/tauri-commands";
 
 /**
  * Hook to check if any nspanel is currently visible.
- * Returns true if any panel (spotlight, clipboard, task, error, simple-task, tasks-list) is visible.
+ * Returns true if any panel (spotlight, clipboard, task, error, control-panel, tasks-list) is visible.
  */
 export function usePanelVisibility() {
   const [isVisible, setIsVisible] = useState<boolean>(false);
@@ -43,7 +43,7 @@ export function usePanelVisibility() {
  * Hook to check if a specific panel is currently visible.
  * Returns true if the specified panel is visible, false otherwise.
  *
- * @param panelLabel The panel label to check (e.g., "simple-task", "task", "spotlight")
+ * @param panelLabel The panel label to check (e.g., "control-panel", "task", "spotlight")
  */
 export function useSpecificPanelVisibility(panelLabel: string) {
   const [isVisible, setIsVisible] = useState<boolean>(false);

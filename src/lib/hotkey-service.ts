@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { logger } from "./logger-client";
+import type { ControlPanelViewType } from "@/entities/events";
 
 /**
  * Registers a global hotkey with Tauri (temporary, not saved)
@@ -87,37 +88,15 @@ export const hideMainWindow = async (): Promise<void> => {
 };
 
 /**
- * Opens the task panel and displays a specific task.
+ * Opens the control panel and displays a specific task.
  * If prompt is provided, shows optimistic UI with the prompt text before task loads.
- * taskId is required - all threads must be associated with a task.
  */
-export const openTask = async (
-  threadId: string,
-  taskId: string,
-  prompt?: string,
-  repoName?: string
-): Promise<void> => {
-  await invoke("open_task", { threadId, taskId, prompt, repoName });
-};
-
-/**
- * Hides the task panel
- */
-export const hideTask = async (): Promise<void> => {
-  await invoke("hide_task");
-};
-
-/**
- * Opens the simple task panel and displays a specific simple task.
- * If prompt is provided, shows optimistic UI with the prompt text before task loads.
- * Simple tasks run directly in the source repository without worktrees or branches.
- */
-export const openSimpleTask = async (
+export const openControlPanel = async (
   threadId: string,
   taskId: string,
   prompt?: string,
 ): Promise<void> => {
-  await invoke("open_simple_task", { threadId, taskId, prompt });
+  await invoke("open_control_panel", { threadId, taskId, prompt });
 };
 
 /**
@@ -134,93 +113,89 @@ export const completeOnboarding = async (): Promise<void> => {
   await invoke("complete_onboarding");
 };
 
-/**
- * Shows the tasks list panel
- */
-export const showTasksPanel = async (): Promise<void> => {
-  await invoke("show_tasks_panel");
-};
 
 /**
- * Saves the task navigation down hotkey to backend config and registers it
+ * Saves the control panel navigation down hotkey to backend config and registers it
  * @param hotkey - The hotkey string to save and register (e.g., "Shift+Down", "Command+J")
  */
-export const saveTaskNavigationDownHotkey = async (hotkey: string): Promise<void> => {
-  logger.debug(`[hotkey-service] Saving task navigation down hotkey: "${hotkey}"`);
+export const saveControlPanelNavigationDownHotkey = async (hotkey: string): Promise<void> => {
+  logger.debug(`[hotkey-service] Saving control panel navigation down hotkey: "${hotkey}"`);
   try {
-    await invoke("save_task_navigation_down_hotkey", { hotkey });
-    logger.debug("[hotkey-service] Task navigation down hotkey saved successfully");
+    await invoke("save_control_panel_navigation_down_hotkey", { hotkey });
+    logger.debug("[hotkey-service] Control panel navigation down hotkey saved successfully");
   } catch (err) {
-    logger.error("[hotkey-service] Failed to save task navigation down hotkey:", err);
+    logger.error("[hotkey-service] Failed to save control panel navigation down hotkey:", err);
     throw err;
   }
 };
 
 /**
- * Gets the saved task navigation down hotkey from backend config
+ * Gets the saved control panel navigation down hotkey from backend config
  */
-export const getSavedTaskNavigationDownHotkey = async (): Promise<string> => {
-  const hotkey = await invoke<string>("get_saved_task_navigation_down_hotkey");
-  logger.debug(`[hotkey-service] Got saved task navigation down hotkey: "${hotkey}"`);
+export const getSavedControlPanelNavigationDownHotkey = async (): Promise<string> => {
+  const hotkey = await invoke<string>("get_saved_control_panel_navigation_down_hotkey");
+  logger.debug(`[hotkey-service] Got saved control panel navigation down hotkey: "${hotkey}"`);
   return hotkey;
 };
 
 /**
- * Saves the task navigation up hotkey to backend config and registers it
+ * Saves the control panel navigation up hotkey to backend config and registers it
  * @param hotkey - The hotkey string to save and register (e.g., "Shift+Up", "Command+K")
  */
-export const saveTaskNavigationUpHotkey = async (hotkey: string): Promise<void> => {
-  logger.debug(`[hotkey-service] Saving task navigation up hotkey: "${hotkey}"`);
+export const saveControlPanelNavigationUpHotkey = async (hotkey: string): Promise<void> => {
+  logger.debug(`[hotkey-service] Saving control panel navigation up hotkey: "${hotkey}"`);
   try {
-    await invoke("save_task_navigation_up_hotkey", { hotkey });
-    logger.debug("[hotkey-service] Task navigation up hotkey saved successfully");
+    await invoke("save_control_panel_navigation_up_hotkey", { hotkey });
+    logger.debug("[hotkey-service] Control panel navigation up hotkey saved successfully");
   } catch (err) {
-    logger.error("[hotkey-service] Failed to save task navigation up hotkey:", err);
+    logger.error("[hotkey-service] Failed to save control panel navigation up hotkey:", err);
     throw err;
   }
 };
 
 /**
- * Gets the saved task navigation up hotkey from backend config
+ * Gets the saved control panel navigation up hotkey from backend config
  */
-export const getSavedTaskNavigationUpHotkey = async (): Promise<string> => {
-  const hotkey = await invoke<string>("get_saved_task_navigation_up_hotkey");
-  logger.debug(`[hotkey-service] Got saved task navigation up hotkey: "${hotkey}"`);
+export const getSavedControlPanelNavigationUpHotkey = async (): Promise<string> => {
+  const hotkey = await invoke<string>("get_saved_control_panel_navigation_up_hotkey");
+  logger.debug(`[hotkey-service] Got saved control panel navigation up hotkey: "${hotkey}"`);
   return hotkey;
 };
 
 /**
  * Checks if a specific panel is currently visible
- * @param panelLabel - The label of the panel to check (e.g., "simple-task", "tasks-list")
+ * @param panelLabel - The label of the panel to check (e.g., "control-panel", "tasks-list")
  */
 export const isPanelVisible = async (panelLabel: string): Promise<boolean> => {
   return invoke<boolean>("is_panel_visible", { panelLabel });
 };
 
 /**
- * Switches to a different task within an already-visible simple-task panel.
- * This is a client-side only operation that avoids Tauri IPC round-trips.
- * It directly emits to the eventBus, which useSimpleTaskParams listens to.
+ * Switch control panel view client-side (no native window operations).
+ * Use this when the panel is already open to avoid focus flicker.
  *
- * Use this when the simple-task panel is already visible and you just want
- * to switch to a different task without the focus flickering that comes
- * from going through Rust's show_simple_task.
- *
- * @param threadId - The thread ID to switch to
- * @param taskId - The task ID to switch to
- * @param prompt - Optional prompt text
- * @param initialView - Optional initial view to display ("thread", "changes", or "plan")
+ * @param view - The view to switch to (discriminated union)
  */
-export const switchSimpleTaskClientSide = (
-  threadId: string,
-  taskId: string,
-  prompt?: string,
-  initialView?: "thread" | "changes" | "plan",
-): void => {
+export const switchControlPanelClientSide = (view: ControlPanelViewType): void => {
   // Import eventBus dynamically to avoid circular dependencies
   import("@/entities").then(({ eventBus }) => {
-    logger.debug(`[hotkey-service] Client-side task switch to: ${taskId}`, { initialView });
-    eventBus.emit("open-simple-task", { threadId, taskId, prompt, initialView });
+    logger.debug(`[hotkey-service] Client-side switch to:`, view);
+    eventBus.emit("open-control-panel", { view });
   });
 };
+
+/**
+ * Convenience wrapper: Switch to a thread view client-side.
+ */
+export const switchToThread = (threadId: string): void => {
+  switchControlPanelClientSide({ type: "thread", threadId });
+};
+
+/**
+ * Convenience wrapper: Switch to a plan view client-side.
+ */
+export const switchToPlan = (planId: string): void => {
+  switchControlPanelClientSide({ type: "plan", planId });
+};
+
 

@@ -1,13 +1,12 @@
 /**
  * ThreadInput UI Tests
  *
- * Validates ThreadInput behavior including mode switching integration.
+ * Validates ThreadInput behavior including keyboard interaction and message submission.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@/test/helpers";
 import { ThreadInput } from "./thread-input";
-import { useAgentModeStore } from "@/entities/agent-mode";
 
 // Mock the TriggerSearchInput to simplify testing
 vi.mock("./trigger-search-input", () => ({
@@ -34,56 +33,17 @@ vi.mock("./trigger-search-input", () => ({
 }));
 
 describe("ThreadInput", () => {
-  const threadId = "test-thread-123";
   const mockOnSubmit = vi.fn();
 
   const defaultProps = {
-    threadId,
     onSubmit: mockOnSubmit,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset store state before each test
-    useAgentModeStore.setState({
-      threadModes: {},
-      defaultMode: "normal",
-    });
-  });
-
-  describe("mode indicator display", () => {
-    it("shows mode indicator with current mode", () => {
-      render(<ThreadInput {...defaultProps} />);
-      expect(screen.getByRole("status")).toHaveTextContent("Normal");
-    });
-
-    it("shows shortcut hint", () => {
-      render(<ThreadInput {...defaultProps} />);
-      expect(screen.getByText("Shift+Tab")).toBeInTheDocument();
-    });
-
-    it("shows correct mode when thread has custom mode", () => {
-      useAgentModeStore.getState().setMode(threadId, "plan");
-      render(<ThreadInput {...defaultProps} />);
-      expect(screen.getByRole("status")).toHaveTextContent("Plan");
-    });
   });
 
   describe("keyboard interaction", () => {
-    it("cycles through all modes with Shift+Tab", () => {
-      render(<ThreadInput {...defaultProps} />);
-      const textarea = screen.getByTestId("mock-trigger-input");
-      const indicator = screen.getByRole("status");
-
-      expect(indicator).toHaveTextContent("Normal");
-      fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true });
-      expect(indicator).toHaveTextContent("Plan");
-      fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true });
-      expect(indicator).toHaveTextContent("Auto");
-      fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true });
-      expect(indicator).toHaveTextContent("Normal");
-    });
-
     it("submits with Enter and clears input", () => {
       render(<ThreadInput {...defaultProps} />);
       const textarea = screen.getByTestId("mock-trigger-input");
@@ -119,45 +79,12 @@ describe("ThreadInput", () => {
   });
 
   describe("disabled state", () => {
-    it("does not cycle modes when disabled", () => {
-      render(<ThreadInput {...defaultProps} disabled />);
-      const textarea = screen.getByTestId("mock-trigger-input");
-      const indicator = screen.getByRole("status");
-
-      expect(indicator).toHaveTextContent("Normal");
-      fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true });
-      // Mode should remain unchanged when disabled
-      expect(indicator).toHaveTextContent("Normal");
-    });
-
     it("does not submit when disabled", () => {
       render(<ThreadInput {...defaultProps} disabled />);
       const textarea = screen.getByTestId("mock-trigger-input");
       fireEvent.change(textarea, { target: { value: "test message" } });
       fireEvent.keyDown(textarea, { key: "Enter" });
       expect(mockOnSubmit).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("per-thread mode persistence", () => {
-    it("maintains separate modes per thread", () => {
-      // Set different modes for different threads
-      useAgentModeStore.getState().setMode("thread-a", "plan");
-      useAgentModeStore.getState().setMode("thread-b", "auto-accept");
-
-      const { rerender } = render(
-        <ThreadInput {...defaultProps} threadId="thread-a" />
-      );
-      expect(screen.getByRole("status")).toHaveTextContent("Plan");
-
-      rerender(<ThreadInput {...defaultProps} threadId="thread-b" />);
-      expect(screen.getByRole("status")).toHaveTextContent("Auto");
-    });
-
-    it("shows default mode for new thread", () => {
-      useAgentModeStore.getState().setMode("existing-thread", "plan");
-      render(<ThreadInput {...defaultProps} threadId="new-thread" />);
-      expect(screen.getByRole("status")).toHaveTextContent("Normal");
     });
   });
 

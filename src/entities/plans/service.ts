@@ -3,8 +3,20 @@ import { usePlanStore } from "./store";
 import { PlanMetadataSchema } from "./types";
 import type { PlanMetadata, CreatePlanInput, UpdatePlanInput } from "./types";
 import { logger } from "@/lib/logger-client";
+import type { ThreadMetadata } from "../threads/types";
+import { eventBus } from "../events";
+import { EventName } from "@core/types/events.js";
+import { FilesystemClient } from "@/lib/filesystem-client";
 
 const PLANS_DIRECTORY = "plans";
+const ARCHIVE_PLANS_DIR = "archive/plans";
+
+/**
+ * Generate a valid UUID v4.
+ */
+function generateId(): string {
+  return crypto.randomUUID();
+}
 
 class PlanService {
   /**
@@ -56,11 +68,17 @@ class PlanService {
   }
 
   /**
-   * Gets plans that have paths starting with the given prefix.
-   * Useful for filtering plans by repository/directory.
+   * Gets plans for a specific repository.
    */
-  getByPathPrefix(pathPrefix: string): PlanMetadata[] {
-    return usePlanStore.getState().getByPathPrefix(pathPrefix);
+  getByRepository(repoId: string): PlanMetadata[] {
+    return usePlanStore.getState().getByRepository(repoId);
+  }
+
+  /**
+   * Gets plans for a specific worktree.
+   */
+  getByWorktree(worktreeId: string): PlanMetadata[] {
+    return usePlanStore.getState().getByWorktree(worktreeId);
   }
 
   /**
@@ -71,25 +89,60 @@ class PlanService {
   }
 
   /**
-   * Find existing plan by absolute path
+   * Find a plan by repository and relative path.
+   * Used by the relation detection system to look up plans without absolutePath.
    */
-  findByPath(absolutePath: string): PlanMetadata | undefined {
-    return usePlanStore.getState().findByPath(absolutePath);
+  findByRelativePath(repoId: string, relativePath: string): PlanMetadata | undefined {
+    return usePlanStore.getState()
+      .getByRepository(repoId)
+      .find((p) => p.relativePath === relativePath);
   }
 
   /**
-   * Idempotent plan creation - looks up by absolute path first.
-   * If plan exists, marks it as unread (content was updated).
+   * Detect parent plan from file structure.
+   * A plan's parent is the plan file in the immediate parent directory.
+   *
+   * Example: plans/auth/login.md -> parent is plans/auth.md (if it exists)
    */
-  async ensurePlanExists(absolutePath: string): Promise<PlanMetadata> {
-    const existing = this.findByPath(absolutePath);
+  detectParentPlan(relativePath: string, repoId: string): string | undefined {
+    const parts = relativePath.split('/');
+    if (parts.length <= 1) return undefined;
+
+    // Check for parent directory plan (e.g., "auth.md" for "auth/login.md")
+    const parentDir = parts.slice(0, -1).join('/');
+    const parentPlanPath = parentDir + '.md';
+
+    const parentPlan = usePlanStore.getState()
+      .getByRepository(repoId)
+      .find((p) => p.relativePath === parentPlanPath);
+
+    return parentPlan?.id;
+  }
+
+  /**
+   * Ensure a plan exists for the given file path.
+   * Creates the plan if it doesn't exist, returns existing plan if it does.
+   * If the plan already exists, marks it as unread (content was updated).
+   */
+  async ensurePlanExists(
+    repoId: string,
+    worktreeId: string,
+    relativePath: string
+  ): Promise<PlanMetadata> {
+    // Check if plan already exists
+    const existing = usePlanStore.getState()
+      .getByRepository(repoId)
+      .find((p) => p.relativePath === relativePath);
+
     if (existing) {
       // Plan file was updated, mark as unread
       logger.debug(`[planService:ensurePlanExists] Plan already exists, marking as unread: ${existing.id}`);
       await this.markAsUnread(existing.id);
       return usePlanStore.getState().getPlan(existing.id)!;
     }
-    return this.create({ absolutePath });
+
+    // Create new plan
+    return this.create({ repoId, worktreeId, relativePath });
   }
 
   /**
@@ -97,11 +150,15 @@ class PlanService {
    * Uses optimistic updates - UI updates immediately, rolls back on failure.
    */
   async create(input: CreatePlanInput): Promise<PlanMetadata> {
+    const id = generateId();
     const now = Date.now();
 
     const plan: PlanMetadata = {
-      id: crypto.randomUUID(),
-      absolutePath: input.absolutePath,
+      id,
+      repoId: input.repoId,
+      worktreeId: input.worktreeId,
+      relativePath: input.relativePath,
+      parentId: input.parentId ?? this.detectParentPlan(input.relativePath, input.repoId),
       isRead: false, // Always start unread
       createdAt: now,
       updatedAt: now,
@@ -227,19 +284,23 @@ class PlanService {
 
   /**
    * Get plan content from the actual file.
-   * Uses the absolute path stored in plan metadata.
+   * Resolves the path using repoId + worktreeId + relativePath.
    */
   async getPlanContent(planId: string): Promise<string | null> {
     const plan = usePlanStore.getState().getPlan(planId);
     if (!plan) return null;
 
     try {
+      // Import the path resolution utility
+      const { resolvePlanPath } = await import("./utils");
+      const absolutePath = await resolvePlanPath(plan);
+
       // Use filesystem-client directly for absolute paths
       const { FilesystemClient } = await import("@/lib/filesystem-client");
       const fs = new FilesystemClient();
-      return await fs.readFile(plan.absolutePath);
-    } catch {
-      logger.warn(`[planService:getPlanContent] Failed to read plan content at ${plan.absolutePath}`);
+      return await fs.readFile(absolutePath);
+    } catch (err) {
+      logger.warn(`[planService:getPlanContent] Failed to read plan content for ${planId}:`, err);
       return null;
     }
   }
@@ -266,6 +327,127 @@ class PlanService {
     if (result?.success) {
       usePlanStore.getState()._applyUpdate(planId, result.data);
     }
+  }
+
+  /**
+   * Get threads related to a plan.
+   * Uses the relation service to find associated threads.
+   */
+  getRelatedThreads(planId: string): ThreadMetadata[] {
+    // Lazy import to avoid circular dependency
+    const { relationService } = require("../relations/service");
+    const { useThreadStore } = require("../threads/store");
+    const relations = relationService.getByPlan(planId);
+    const threadStore = useThreadStore.getState();
+    return relations
+      .map((r: { threadId: string }) => threadStore.getThread(r.threadId))
+      .filter((t: ThreadMetadata | undefined): t is ThreadMetadata => t !== undefined);
+  }
+
+  /**
+   * Get threads related to a plan, including those with archived relations.
+   * Useful for showing "threads that touched this plan" history.
+   */
+  getRelatedThreadsIncludingArchived(planId: string): ThreadMetadata[] {
+    // Lazy import to avoid circular dependency
+    const { relationService } = require("../relations/service");
+    const { useThreadStore } = require("../threads/store");
+    const relations = relationService.getByPlanIncludingArchived(planId);
+    const threadStore = useThreadStore.getState();
+    return relations
+      .map((r: { threadId: string }) => threadStore.getThread(r.threadId))
+      .filter((t: ThreadMetadata | undefined): t is ThreadMetadata => t !== undefined);
+  }
+
+  /**
+   * Archives a plan.
+   *
+   * Two-step process:
+   * 1. Moves the markdown file from repo `plans/` to `plans/completed/`
+   * 2. Moves the metadata from `~/.mort/plans/{id}` to `~/.mort/archive/plans/{id}`
+   *    and updates relativePath to reflect the new location.
+   *
+   * Emits PLAN_ARCHIVED event so relation service can archive associated relations.
+   * Uses optimistic update - removes from store immediately, rolls back on failure.
+   */
+  async archive(planId: string): Promise<void> {
+    const plan = this.get(planId);
+    if (!plan) return;
+
+    logger.debug(`[planService:archive] Archiving plan: ${planId}`);
+
+    // Optimistically remove from store
+    const rollback = usePlanStore.getState()._applyDelete(planId);
+
+    try {
+      // Step 1: Move markdown file to completed directory
+      const { resolvePlanPath, resolveCompletedPlanPath } = await import("./utils");
+      const sourcePath = await resolvePlanPath(plan);
+      const destPath = await resolveCompletedPlanPath(plan);
+
+      await this.moveMarkdownFile(sourcePath, destPath);
+      logger.debug(`[planService:archive] Moved markdown file from ${sourcePath} to ${destPath}`);
+
+      // Step 2: Move metadata to archive with updated relativePath
+      const metadataSourcePath = `${PLANS_DIRECTORY}/${planId}`;
+      const metadataDestPath = `${ARCHIVE_PLANS_DIR}/${planId}`;
+
+      // Update relativePath to reflect new location under completed/
+      const updatedPlan: PlanMetadata = {
+        ...plan,
+        relativePath: plan.relativePath, // Path stays the same relative to completed/ dir
+        updatedAt: Date.now(),
+      };
+
+      await persistence.ensureDir(ARCHIVE_PLANS_DIR);
+      await persistence.ensureDir(metadataDestPath);
+      await persistence.writeJson(`${metadataDestPath}/metadata.json`, updatedPlan);
+      await persistence.removeDir(metadataSourcePath);
+
+      // Emit event so relation service can archive associated relations
+      eventBus.emit(EventName.PLAN_ARCHIVED, { planId });
+
+      logger.info(`[planService:archive] Archived plan ${planId}`);
+    } catch (error) {
+      rollback();
+      logger.error(`[planService:archive] Failed to archive plan ${planId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Moves a markdown file (or directory for nested plans) to a new location.
+   * Used during plan archival.
+   */
+  private async moveMarkdownFile(sourcePath: string, destPath: string): Promise<void> {
+    const fs = new FilesystemClient();
+
+    // Ensure destination directory exists
+    const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
+    await fs.mkdir(destDir);
+
+    // Use the move command (handles both files and directories)
+    await fs.move(sourcePath, destPath);
+  }
+
+  /**
+   * Lists all archived plans.
+   * Returns PlanMetadata for plans in archive/plans/ directory.
+   */
+  async listArchived(): Promise<PlanMetadata[]> {
+    const pattern = `${ARCHIVE_PLANS_DIR}/*/metadata.json`;
+    const files = await persistence.glob(pattern);
+    const plans: PlanMetadata[] = [];
+
+    for (const filePath of files) {
+      const raw = await persistence.readJson(filePath);
+      const result = raw ? PlanMetadataSchema.safeParse(raw) : null;
+      if (result?.success) {
+        plans.push(result.data);
+      }
+    }
+
+    return plans;
   }
 
 }

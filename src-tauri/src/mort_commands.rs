@@ -290,34 +290,6 @@ pub fn clear_all_locks() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Task Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Updates a task from an agent subprocess.
-/// Emits an event to the frontend for taskService to handle.
-#[tauri::command]
-pub async fn update_task(
-    app: tauri::AppHandle,
-    task_id: String,
-    updates: serde_json::Value,
-) -> Result<(), String> {
-    use tauri::Emitter;
-
-    tracing::info!(task_id = %task_id, updates = ?updates, "Updating task from agent");
-
-    app.emit(
-        "task:update-from-agent",
-        serde_json::json!({
-            "taskId": task_id,
-            "updates": updates,
-        }),
-    )
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Thread Commands
 // ═══════════════════════════════════════════════════════════════════════════
 

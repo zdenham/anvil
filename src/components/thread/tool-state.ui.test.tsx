@@ -19,6 +19,8 @@ vi.mock("@/lib/logger-client", () => ({
     log: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
@@ -132,7 +134,7 @@ describe("Tool State Rendering", () => {
      * This test documents the CURRENT (buggy) behavior - tool shows "running"
      * when toolStates is not passed, even though the tool has completed.
      *
-     * The bug is in SimpleTaskWindow which doesn't pass toolStates to ThreadView.
+     * The bug is in ControlPanelWindow which doesn't pass toolStates to ThreadView.
      */
     it("BUG: defaults to running status when toolStates is not passed", () => {
       render(

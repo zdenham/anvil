@@ -32,7 +32,7 @@ export class CalculatorService {
       const normalized = this.toEvalFormat(expression);
       // Replace ^ with ** for exponentiation
       const sanitized = normalized.replace(/\^/g, "**");
-      // eslint-disable-next-line no-eval
+       
       const result = eval(sanitized);
 
       const isValid = typeof result === "number" && isFinite(result);

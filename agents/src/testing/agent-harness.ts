@@ -13,7 +13,6 @@ import type {
   AgentStateMessage,
   AgentTestOptions,
 } from "./types.js";
-import type { TaskMetadata } from "@core/types/tasks.js";
 
 export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
   /** Custom runner configuration */
@@ -21,12 +20,11 @@ export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
   /**
    * Custom environment setup function.
    * Use this to configure a specific test scenario with custom
-   * mort directory contents, repository fixtures, or task configurations.
+   * mort directory contents or repository fixtures.
    */
   setupEnvironment?: () => Promise<{
     mortDir: TestMortDirectory;
     repo: TestRepository;
-    task: TaskMetadata;
   }>;
 }
 
@@ -66,7 +64,7 @@ export class AgentTestHarness {
   /**
    * Run an agent and capture all stdout output.
    *
-   * Creates temporary test resources (mort directory, repository, task),
+   * Creates temporary test resources (mort directory, repository),
    * spawns the agent subprocess, and collects all JSON output lines.
    *
    * @param overrides - Options to override the constructor defaults for this run
@@ -76,24 +74,17 @@ export class AgentTestHarness {
   async run(overrides?: Partial<AgentTestOptions>): Promise<AgentRunOutput> {
     const opts = { ...this.options, ...overrides } as AgentTestOptions;
 
-    let task: TaskMetadata;
-
     if (this.customSetup) {
       const setup = await this.customSetup();
       this.mortDir = setup.mortDir;
       this.repo = setup.repo;
-      task = setup.task;
     } else {
       this.mortDir = new TestMortDirectory().init();
       this.repo = new TestRepository({ fixture: "minimal" }).init();
       this.mortDir.registerRepository(this.repo);
-      task = this.mortDir.createTask({
-        repositoryName: this.repo.name,
-        slug: opts.taskSlug,
-      });
     }
 
-    return this.spawnAgent(opts, task);
+    return this.spawnAgent(opts);
   }
 
   /**
@@ -110,17 +101,13 @@ export class AgentTestHarness {
   /**
    * Spawn the agent subprocess and collect its output.
    */
-  private spawnAgent(
-    opts: AgentTestOptions,
-    task: TaskMetadata
-  ): Promise<AgentRunOutput> {
+  private spawnAgent(opts: AgentTestOptions): Promise<AgentRunOutput> {
     // Resolve runner path relative to src/testing -> src/runner.ts
     const currentDir = dirname(fileURLToPath(import.meta.url));
     const runnerPath = join(currentDir, "..", this.runnerConfig.runnerPath);
     const repoCwd = opts.cwd ?? this.repo?.path ?? process.cwd();
     const cliArgs = this.runnerConfig.buildArgs(
       opts,
-      task,
       this.mortDir!.path,
       repoCwd
     );

@@ -15,7 +15,7 @@ const MAX_QUEUE_SIZE = 50;
  * The stream yields the initial prompt first, then listens for queued messages
  * and yields them as they arrive.
  *
- * Only used by simple agent - task-based agents don't support queued messages.
+ * Used by simple agent for interactive thread conversations.
  */
 export class StdinMessageStream {
   private rl: readline.Interface | null = null;

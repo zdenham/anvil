@@ -4,9 +4,6 @@ pub mod accessibility;
 #[cfg(target_os = "macos")]
 mod cgevent_test;
 
-#[cfg(target_os = "macos")]
-mod navigation_mode;
-
 // Make public for mort-test CLI access
 #[cfg(target_os = "macos")]
 pub use accessibility::{is_accessibility_trusted, check_accessibility_with_prompt};
@@ -31,6 +28,9 @@ mod process_commands;
 mod shell;
 mod thread_commands;
 mod worktree_commands;
+
+#[cfg(target_os = "macos")]
+mod navigation_mode;
 
 #[cfg(target_os = "macos")]
 mod menu;
@@ -177,92 +177,30 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
         })
         .map_err(|e| format!("Failed to re-register clipboard hotkey: {:?}", e))?;
 
-    // Register task navigation mode hotkeys - macOS only
+    // Register control panel navigation hotkeys (macOS only)
     #[cfg(target_os = "macos")]
     {
-        let task_nav_down_hotkey = config::get_task_navigation_down_hotkey();
-        tracing::info!(
-            hotkey = %task_nav_down_hotkey,
-            hotkey_len = task_nav_down_hotkey.len(),
-            hotkey_bytes = ?task_nav_down_hotkey.as_bytes(),
-            "Attempting to register task navigation down hotkey"
-        );
+        let nav_down_hotkey = config::get_control_panel_navigation_down_hotkey();
+        if let Ok(nav_down_shortcut) = nav_down_hotkey.parse::<Shortcut>() {
+            app.global_shortcut()
+                .on_shortcut(nav_down_shortcut, move |_app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        navigation_mode::get_navigation_mode().on_hotkey_pressed(navigation_mode::NavigationDirection::Down);
+                    }
+                })
+                .map_err(|e| format!("Failed to register nav down hotkey: {:?}", e))?;
+        }
 
-        let task_nav_down_shortcut: Shortcut = task_nav_down_hotkey
-            .parse()
-            .map_err(|e| {
-                tracing::error!(
-                    hotkey = %task_nav_down_hotkey,
-                    error = ?e,
-                    "Failed to parse task navigation down hotkey"
-                );
-                format!("Failed to parse task navigation down hotkey '{}': {:?}", task_nav_down_hotkey, e)
-            })?;
-
-        tracing::debug!(
-            shortcut = ?task_nav_down_shortcut,
-            "Parsed task navigation down shortcut successfully"
-        );
-
-        let task_nav_down_hotkey_clone = task_nav_down_hotkey.clone();
-        app.global_shortcut()
-            .on_shortcut(task_nav_down_shortcut, move |_app, _shortcut, event| {
-                if event.state == ShortcutState::Pressed {
-                    navigation_mode::get_navigation_mode()
-                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Down, &task_nav_down_hotkey_clone);
-                }
-            })
-            .map_err(|e| {
-                tracing::error!(
-                    hotkey = %task_nav_down_hotkey,
-                    error = ?e,
-                    "Failed to register task navigation down hotkey with global_shortcut"
-                );
-                format!("Failed to register task navigation down hotkey: {:?}", e)
-            })?;
-
-        let task_nav_up_hotkey = config::get_task_navigation_up_hotkey();
-        tracing::info!(
-            hotkey = %task_nav_up_hotkey,
-            hotkey_len = task_nav_up_hotkey.len(),
-            hotkey_bytes = ?task_nav_up_hotkey.as_bytes(),
-            "Attempting to register task navigation up hotkey"
-        );
-
-        let task_nav_up_shortcut: Shortcut = task_nav_up_hotkey
-            .parse()
-            .map_err(|e| {
-                tracing::error!(
-                    hotkey = %task_nav_up_hotkey,
-                    error = ?e,
-                    "Failed to parse task navigation up hotkey"
-                );
-                format!("Failed to parse task navigation up hotkey '{}': {:?}", task_nav_up_hotkey, e)
-            })?;
-
-        tracing::debug!(
-            shortcut = ?task_nav_up_shortcut,
-            "Parsed task navigation up shortcut successfully"
-        );
-
-        let task_nav_up_hotkey_clone = task_nav_up_hotkey.clone();
-        app.global_shortcut()
-            .on_shortcut(task_nav_up_shortcut, move |_app, _shortcut, event| {
-                if event.state == ShortcutState::Pressed {
-                    navigation_mode::get_navigation_mode()
-                        .on_hotkey_pressed(navigation_mode::NavigationDirection::Up, &task_nav_up_hotkey_clone);
-                }
-            })
-            .map_err(|e| {
-                tracing::error!(
-                    hotkey = %task_nav_up_hotkey,
-                    error = ?e,
-                    "Failed to register task navigation up hotkey with global_shortcut"
-                );
-                format!("Failed to register task navigation up hotkey: {:?}", e)
-            })?;
-
-        tracing::info!(down = %task_nav_down_hotkey, up = %task_nav_up_hotkey, "Registered task navigation mode hotkeys successfully");
+        let nav_up_hotkey = config::get_control_panel_navigation_up_hotkey();
+        if let Ok(nav_up_shortcut) = nav_up_hotkey.parse::<Shortcut>() {
+            app.global_shortcut()
+                .on_shortcut(nav_up_shortcut, move |_app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        navigation_mode::get_navigation_mode().on_hotkey_pressed(navigation_mode::NavigationDirection::Up);
+                    }
+                })
+                .map_err(|e| format!("Failed to register nav up hotkey: {:?}", e))?;
+        }
     }
 
     Ok(())
@@ -307,35 +245,29 @@ fn get_saved_clipboard_hotkey() -> String {
     config::get_clipboard_hotkey()
 }
 
-/// Saves the task navigation down hotkey to config and re-registers hotkeys
+/// Saves the control panel navigation down hotkey to config
 #[tauri::command]
-fn save_task_navigation_down_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
-    config::set_task_navigation_down_hotkey(&hotkey)?;
-    let spotlight_hotkey = config::get_spotlight_hotkey();
-    register_hotkey_internal(&app, &spotlight_hotkey)
+fn save_control_panel_navigation_down_hotkey(hotkey: String) -> Result<(), String> {
+    config::set_control_panel_navigation_down_hotkey(&hotkey)
 }
 
-/// Gets the saved task navigation down hotkey from config
+/// Gets the saved control panel navigation down hotkey from config
 #[tauri::command]
-fn get_saved_task_navigation_down_hotkey() -> String {
-    config::get_task_navigation_down_hotkey()
+fn get_saved_control_panel_navigation_down_hotkey() -> String {
+    config::get_control_panel_navigation_down_hotkey()
 }
 
-/// Saves the task navigation up hotkey to config and re-registers hotkeys
+/// Saves the control panel navigation up hotkey to config
 #[tauri::command]
-fn save_task_navigation_up_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
-    config::set_task_navigation_up_hotkey(&hotkey)?;
-    let spotlight_hotkey = config::get_spotlight_hotkey();
-    register_hotkey_internal(&app, &spotlight_hotkey)
+fn save_control_panel_navigation_up_hotkey(hotkey: String) -> Result<(), String> {
+    config::set_control_panel_navigation_up_hotkey(&hotkey)
 }
 
-/// Gets the saved task navigation up hotkey from config
+/// Gets the saved control panel navigation up hotkey from config
 #[tauri::command]
-fn get_saved_task_navigation_up_hotkey() -> String {
-    config::get_task_navigation_up_hotkey()
+fn get_saved_control_panel_navigation_up_hotkey() -> String {
+    config::get_control_panel_navigation_up_hotkey()
 }
-
-
 
 /// Checks if the user has completed onboarding
 #[tauri::command]
@@ -418,98 +350,61 @@ fn hide_main_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Opens the task panel and displays a specific task
-/// If prompt is provided, shows optimistic UI with the prompt text before task loads
-/// task_id is required - all threads must be associated with a task
-#[tauri::command]
-fn open_task(
-    app: AppHandle,
-    thread_id: String,
-    task_id: String,
-    prompt: Option<String>,
-    repo_name: Option<String>,
-) -> Result<(), String> {
-    panels::show_task(
-        &app,
-        &thread_id,
-        &task_id,
-        prompt.as_deref(),
-        repo_name.as_deref(),
-    )
-}
-
-/// Opens a simple task panel for a specific thread
+/// Opens the control panel for a specific thread
 /// If prompt is provided, shows optimistic UI with the prompt text before task loads
 /// NOTE: This must be synchronous (not async) because NSPanel operations require main thread
 #[tauri::command]
-fn open_simple_task(
+fn open_control_panel(
     app: AppHandle,
     thread_id: String,
     task_id: String,
     prompt: Option<String>,
 ) -> Result<(), String> {
-    panels::show_simple_task(&app, &thread_id, &task_id, prompt.as_deref())
+    panels::show_control_panel(&app, &thread_id, &task_id, prompt.as_deref())
 }
 
-/// Hides the task panel
+/// Hides the control panel
 #[tauri::command]
-fn hide_task(app: AppHandle) -> Result<(), String> {
-    panels::hide_task(&app)
+fn hide_control_panel(app: AppHandle) -> Result<(), String> {
+    panels::hide_control_panel(&app)
 }
 
-/// Hides the simple task panel
+/// Shows the control panel without setting thread context.
+/// The view will be set via eventBus from the frontend.
 #[tauri::command]
-fn hide_simple_task(app: AppHandle) -> Result<(), String> {
-    panels::hide_simple_task(&app)
+fn show_control_panel(app: AppHandle) -> Result<(), String> {
+    panels::show_control_panel_simple(&app)
 }
 
-/// Forces focus on the simple task panel if it's visible
+/// Forces focus on the control panel if it's visible
 #[tauri::command]
-fn focus_simple_task_panel(app: AppHandle) -> Result<(), String> {
-    panels::focus_simple_task_panel(&app)
+fn focus_control_panel(app: AppHandle) -> Result<(), String> {
+    panels::focus_control_panel(&app)
 }
 
-/// Pins the simple task panel (prevents hide on blur during drag/resize)
+/// Pins the control panel (prevents hide on blur during drag/resize)
 #[tauri::command]
-fn pin_simple_task_panel() {
-    panels::pin_simple_task_panel()
+fn pin_control_panel() {
+    panels::pin_control_panel()
 }
 
-/// Unpins the simple task panel (allows hide on blur)
+/// Unpins the control panel (allows hide on blur)
 #[tauri::command]
-fn unpin_simple_task_panel() {
-    panels::unpin_simple_task_panel()
+fn unpin_control_panel() {
+    panels::unpin_control_panel()
 }
 
-/// Snaps the simple task panel position to integer pixel coordinates.
+/// Snaps the control panel position to integer pixel coordinates.
 /// This fixes text blurriness caused by subpixel positioning during drag.
 #[tauri::command]
-fn snap_simple_task_panel_position(app: AppHandle) -> Result<(), String> {
-    panels::snap_simple_task_panel_position(&app)
+fn snap_control_panel_position(app: AppHandle) -> Result<(), String> {
+    panels::snap_control_panel_position(&app)
 }
 
 /// Checks if a specific panel is visible
 #[tauri::command]
 fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
     panels::is_panel_visible(&app, &panel_label)
-}
-
-/// Gets the pending task (Pull Model for HMR resilience)
-#[tauri::command]
-fn get_pending_task() -> Option<panels::PendingTask> {
-    panels::get_pending_task()
-}
-
-/// Clears the pending task (called when panel is hidden)
-#[tauri::command]
-fn clear_pending_task() {
-    panels::clear_pending_task()
-}
-
-/// Peeks at the pending task without clearing it
-#[tauri::command]
-fn peek_pending_task() -> Option<panels::PendingTask> {
-    panels::peek_pending_task()
 }
 
 /// Shows the error panel with the given message and optional stack trace
@@ -530,22 +425,10 @@ fn get_pending_error() -> Option<panels::PendingError> {
     panels::get_pending_error()
 }
 
-/// Gets the pending simple task (Pull Model for HMR resilience)
+/// Gets the pending control panel (Pull Model for HMR resilience)
 #[tauri::command]
-fn get_pending_simple_task() -> Option<panels::PendingSimpleTask> {
-    panels::get_pending_simple_task()
-}
-
-/// Shows the tasks list panel
-#[tauri::command]
-fn show_tasks_panel(app: AppHandle) -> Result<(), String> {
-    panels::show_tasks_list(&app)
-}
-
-/// Hides the tasks list panel
-#[tauri::command]
-fn hide_tasks_panel(app: AppHandle) -> Result<(), String> {
-    panels::hide_tasks_list(&app)
+fn get_pending_control_panel() -> Option<panels::PendingControlPanel> {
+    panels::get_pending_control_panel()
 }
 
 /// Checks if any nspanel is currently visible
@@ -793,35 +676,29 @@ pub fn run() {
             get_saved_hotkey,
             save_clipboard_hotkey,
             get_saved_clipboard_hotkey,
-            save_task_navigation_down_hotkey,
-            get_saved_task_navigation_down_hotkey,
-            save_task_navigation_up_hotkey,
-            get_saved_task_navigation_up_hotkey,
+            save_control_panel_navigation_down_hotkey,
+            get_saved_control_panel_navigation_down_hotkey,
+            save_control_panel_navigation_up_hotkey,
+            get_saved_control_panel_navigation_up_hotkey,
             is_onboarded,
             complete_onboarding,
             show_main_window,
             hide_main_window,
-            open_task,
-            open_simple_task,
-            hide_task,
-            hide_simple_task,
-            focus_simple_task_panel,
-            pin_simple_task_panel,
-            unpin_simple_task_panel,
-            snap_simple_task_panel_position,
+            open_control_panel,
+            show_control_panel,
+            hide_control_panel,
+            focus_control_panel,
+            pin_control_panel,
+            unpin_control_panel,
+            snap_control_panel_position,
             is_panel_visible,
-            get_pending_task,
-            clear_pending_task,
-            peek_pending_task,
             show_spotlight,
             hide_spotlight,
             resize_spotlight,
             show_error_panel,
             hide_error_panel,
             get_pending_error,
-            get_pending_simple_task,
-            show_tasks_panel,
-            hide_tasks_panel,
+            get_pending_control_panel,
             is_any_panel_visible,
             restart_app,
             app_search::search_applications,
@@ -877,8 +754,6 @@ pub fn run() {
             mort_commands::lock_release_repo,
             // Thread status
             mort_commands::thread_get_status,
-            // Task commands (agent updates)
-            mort_commands::update_task,
             // Build info commands
             mort_commands::get_paths_info,
             mort_commands::get_default_hotkeys,
@@ -929,21 +804,17 @@ pub fn run() {
             cgevent_test::stop_cgevent_test,
             #[cfg(target_os = "macos")]
             cgevent_test::is_cgevent_test_running,
-            // Shell environment commands
-            initialize_shell_environment,
-            is_shell_initialized,
-            check_documents_access,
             // Navigation mode commands (macOS only)
-            #[cfg(target_os = "macos")]
-            navigation_mode::navigation_hotkey_down,
-            #[cfg(target_os = "macos")]
-            navigation_mode::navigation_hotkey_up,
             #[cfg(target_os = "macos")]
             navigation_mode::navigation_panel_blur,
             #[cfg(target_os = "macos")]
             navigation_mode::is_navigation_mode_active,
             #[cfg(target_os = "macos")]
             navigation_mode::get_navigation_state,
+            // Shell environment commands
+            initialize_shell_environment,
+            is_shell_initialized,
+            check_documents_access,
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
@@ -989,17 +860,11 @@ pub fn run() {
             if let Err(e) = panels::create_clipboard_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create clipboard panel");
             }
-            if let Err(e) = panels::create_task_panel(app.handle()) {
-                tracing::error!(error = %e, "Failed to create task panel");
-            }
             if let Err(e) = panels::create_error_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create error panel");
             }
-            if let Err(e) = panels::create_simple_task_panel(app.handle()) {
-                tracing::error!(error = %e, "Failed to create simple task panel");
-            }
-            if let Err(e) = panels::create_tasks_list_panel(app.handle()) {
-                tracing::error!(error = %e, "Failed to create tasks list panel");
+            if let Err(e) = panels::create_control_panel(app.handle()) {
+                tracing::error!(error = %e, "Failed to create control panel");
             }
 
             // Build and set the native macOS menu bar

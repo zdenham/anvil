@@ -4,9 +4,6 @@
   "private": true,
   "type": "module",
   "main": "dist/runner.js",
-  "bin": {
-    "mort": "dist/cli/mort.js"
-  },
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",

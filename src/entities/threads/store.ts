@@ -38,9 +38,10 @@ interface ThreadStoreActions {
   /** Selectors */
   getThread: (id: string) => ThreadMetadata | undefined;
   getAllThreads: () => ThreadMetadata[];
-  getThreadsByTask: (taskId: string) => ThreadMetadata[];
   getThreadsByStatus: (status: ThreadStatus) => ThreadMetadata[];
   getRunningThreads: () => ThreadMetadata[];
+  getThreadsByRepo: (repoId: string) => ThreadMetadata[];
+  getThreadsByWorktree: (worktreeId: string) => ThreadMetadata[];
 
   /** Active thread management */
   setActiveThread: (threadId: string | null) => void;
@@ -54,7 +55,7 @@ interface ThreadStoreActions {
   /** Read state management */
   markThreadAsRead: (threadId: string) => void;
   markThreadAsUnread: (threadId: string) => Promise<void>;
-  getUnreadThreadsByTask: (taskId: string) => ThreadMetadata[];
+  getUnreadThreads: () => ThreadMetadata[];
 
   /** Optimistic apply methods - return rollback functions for use with optimistic() */
   _applyCreate: (thread: ThreadMetadata) => Rollback;
@@ -91,12 +92,14 @@ export const useThreadStore = create<
   // ═══════════════════════════════════════════════════════════════════════════
   getThread: (id) => get().threads[id],
   getAllThreads: () => get()._threadsArray,
-  getThreadsByTask: (taskId) =>
-    get()._threadsArray.filter((c) => c.taskId === taskId),
   getThreadsByStatus: (status) =>
     get()._threadsArray.filter((c) => c.status === status),
   getRunningThreads: () =>
     get()._threadsArray.filter((c) => c.status === "running"),
+  getThreadsByRepo: (repoId) =>
+    get()._threadsArray.filter((c) => c.repoId === repoId),
+  getThreadsByWorktree: (worktreeId) =>
+    get()._threadsArray.filter((c) => c.worktreeId === worktreeId),
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Active Thread Management
@@ -163,7 +166,7 @@ export const useThreadStore = create<
     });
 
     // Emit event to notify other windows
-    eventBus.emit(EventName.THREAD_UPDATED, { threadId, taskId: thread.taskId });
+    eventBus.emit(EventName.THREAD_UPDATED, { threadId });
 
     // Persist to disk - import threadService here to avoid circular dependency
     setTimeout(async () => {
@@ -200,11 +203,11 @@ export const useThreadStore = create<
     }
 
     // Only emit event AFTER disk write completes to avoid race condition
-    eventBus.emit(EventName.THREAD_UPDATED, { threadId, taskId: thread.taskId });
+    eventBus.emit(EventName.THREAD_UPDATED, { threadId });
   },
 
-  getUnreadThreadsByTask: (taskId) =>
-    get()._threadsArray.filter((thread) => thread.taskId === taskId && !thread.isRead),
+  getUnreadThreads: () =>
+    get()._threadsArray.filter((thread) => !thread.isRead),
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Optimistic Apply Methods

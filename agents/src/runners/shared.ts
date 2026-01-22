@@ -6,7 +6,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { relative, isAbsolute, join, resolve } from "path";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, realpathSync } from "fs";
 import type { RunnerConfig, OrchestrationContext } from "./types.js";
 import type { AgentConfig } from "../agent-types/index.js";
 import {
@@ -58,23 +58,23 @@ export function emitEvent(
 
 /**
  * Build system prompt for agent by interpolating template variables
- * and appending runtime context (environment, git status, task info).
+ * and appending runtime context (environment, git status, thread info).
  */
 export function buildSystemPrompt(
   config: AgentConfig,
   context: {
-    taskId?: string;
+    repoId?: string;
     threadId?: string;
     slug?: string;
     branchName?: string | null;
     cwd: string;
     mortDir: string;
-    parentTaskId?: string;
+    parentThreadId?: string;
   }
 ): string {
   // Interpolate template variables
   let prompt = config.appendedPrompt;
-  prompt = prompt.replace(/\{\{taskId\}\}/g, context.taskId ?? "none");
+  prompt = prompt.replace(/\{\{repoId\}\}/g, context.repoId ?? "none");
   prompt = prompt.replace(/\{\{slug\}\}/g, context.slug ?? "none");
   prompt = prompt.replace(/\{\{branchName\}\}/g, context.branchName ?? "none");
   prompt = prompt.replace(/\{\{mortDir\}\}/g, context.mortDir);
@@ -83,14 +83,14 @@ export function buildSystemPrompt(
   // Build runtime context
   const envContext = buildEnvironmentContext(context.cwd);
   const gitContext = buildGitContext(context.cwd);
-  const taskContext = {
-    taskId: context.taskId ?? null,
-    parentTaskId: context.parentTaskId,
+  const threadContext = {
+    repoId: context.repoId ?? null,
+    parentThreadId: context.parentThreadId,
   };
   const runtimeContext = formatSystemPromptContext(
     envContext,
     gitContext,
-    taskContext
+    threadContext
   );
 
   return `${prompt}\n\n${runtimeContext}`;
@@ -141,12 +141,23 @@ export function setupSignalHandlers(
 /**
  * Check if a file path is a plan path (plans/*.md).
  * Handles both absolute and relative paths.
+ *
+ * Note: Uses realpathSync to resolve symlinks (e.g., /var -> /private/var on macOS)
+ * because the SDK may return paths with different symlink resolution than the cwd.
  */
 function isPlanPath(filePath: string, workingDir: string): boolean {
   // Normalize to relative path
   let relativePath = filePath;
   if (isAbsolute(filePath)) {
-    relativePath = relative(workingDir, filePath);
+    // Resolve symlinks to handle /var vs /private/var mismatches on macOS
+    try {
+      const realFilePath = realpathSync(filePath);
+      const realWorkingDir = realpathSync(workingDir);
+      relativePath = relative(realWorkingDir, realFilePath);
+    } catch {
+      // Fall back to direct relative if realpath fails (file may not exist yet)
+      relativePath = relative(workingDir, filePath);
+    }
   }
   // Normalize slashes for cross-platform
   relativePath = relativePath.replace(/\\/g, "/");
@@ -220,10 +231,7 @@ export async function runAgentLoop(
 
   // Build system prompt
   const systemPrompt = buildSystemPrompt(agentConfig, {
-    taskId: context.task?.id,
     threadId: context.threadId,
-    slug: context.task?.slug,
-    branchName: context.task?.branchName,
     cwd: context.workingDir,
     mortDir: config.mortDir,
   });
@@ -300,36 +308,11 @@ export async function runAgentLoop(
                         // Emit thread:updated so frontend refreshes
                         emitEvent(EventName.THREAD_UPDATED, {
                           threadId: context.threadId,
-                          taskId: context.task?.id ?? threadMetadata.taskId,
-                          planId, // Include planId so frontend can update immediately
                         });
                         logger.info(`[PostToolUse] Associated thread ${context.threadId} with plan ${planId}`);
                       }
                     } catch (metaErr) {
                       logger.warn(`[PostToolUse] Failed to associate thread with plan: ${metaErr}`);
-                    }
-
-                    // Also associate task with plan if task exists and doesn't already have a plan
-                    if (context.task?.id) {
-                      // For simple tasks: tasks/{taskId}/metadata.json
-                      // threadPath is: tasks/{taskId}/threads/simple-{threadId}
-                      const taskMetadataPath = join(context.threadPath, "..", "..", "metadata.json");
-                      try {
-                        const taskMetadata = JSON.parse(readFileSync(taskMetadataPath, "utf-8"));
-                        if (!taskMetadata.planId) {
-                          taskMetadata.planId = planId;
-                          taskMetadata.updatedAt = Date.now();
-                          writeFileSync(taskMetadataPath, JSON.stringify(taskMetadata, null, 2));
-                          // Emit task:updated so frontend refreshes
-                          emitEvent(EventName.TASK_UPDATED, {
-                            taskId: context.task.id,
-                            planId,
-                          });
-                          logger.info(`[PostToolUse] Associated task ${context.task.id} with plan ${planId}`);
-                        }
-                      } catch (taskMetaErr) {
-                        logger.warn(`[PostToolUse] Failed to associate task with plan: ${taskMetaErr}`);
-                      }
                     }
                   } catch (err) {
                     logger.warn(`[PostToolUse] Failed to create plan entity: ${err}`);

@@ -1,4 +1,4 @@
-import { MessageSquare, Play, CheckCircle, AlertCircle, Pause, Search, Code, Eye } from "lucide-react";
+import { MessageSquare, Play, CheckCircle, AlertCircle, Pause } from "lucide-react";
 import type { ThreadMetadata } from "@/entities/threads/types";
 
 interface ThreadsListProps {
@@ -7,37 +7,20 @@ interface ThreadsListProps {
   onSelect: (threadId: string) => void;
 }
 
-/** Format agent type for display */
-function formatAgentType(agentType: string): string {
-  switch (agentType) {
-    case "research":
-      return "Research";
-    case "execution":
-      return "Execution";
-    case "review":
-      return "Review";
-    default:
-      return agentType.charAt(0).toUpperCase() + agentType.slice(1);
+/** Get a display name for a thread based on its first prompt */
+function getThreadDisplayName(thread: ThreadMetadata): string {
+  const firstTurn = thread.turns[0];
+  if (firstTurn?.prompt) {
+    // Truncate long prompts
+    const prompt = firstTurn.prompt;
+    return prompt.length > 30 ? prompt.slice(0, 30) + "..." : prompt;
   }
-}
-
-/** Get icon for agent type */
-function AgentTypeIcon({ agentType }: { agentType: string }) {
-  switch (agentType) {
-    case "research":
-      return <Search size={12} className="text-secondary-400" />;
-    case "execution":
-      return <Code size={12} className="text-accent-400" />;
-    case "review":
-      return <Eye size={12} className="text-amber-400" />;
-    default:
-      return <MessageSquare size={12} className="text-surface-400" />;
-  }
+  return "Thread";
 }
 
 /**
  * List of threads displayed under the Threads tab.
- * Shows thread type (agentType) and status, allows selection.
+ * Shows thread name (from first prompt) and status, allows selection.
  */
 export function ThreadsList({ threads, activeThreadId, onSelect }: ThreadsListProps) {
   if (threads.length === 0) {
@@ -62,9 +45,9 @@ export function ThreadsList({ threads, activeThreadId, onSelect }: ThreadsListPr
             }
           `}
         >
-          <AgentTypeIcon agentType={thread.agentType} />
+          <MessageSquare size={12} className="text-surface-400" />
           <span className="truncate flex-1">
-            {formatAgentType(thread.agentType)}
+            {getThreadDisplayName(thread)}
           </span>
           <ThreadStatusIcon status={thread.status} />
         </button>

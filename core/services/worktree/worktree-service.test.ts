@@ -4,6 +4,17 @@ import type { RepositorySettingsService } from '../repository/settings-service';
 import type { GitAdapter, PathLock, Logger } from '@core/adapters/types';
 import type { RepositorySettings, WorktreeState } from '@core/types/repositories.js';
 
+function createTestWorktree(overrides: Partial<WorktreeState> = {}): WorktreeState {
+  return {
+    id: crypto.randomUUID(),
+    path: '/default/path',
+    name: 'default',
+    lastAccessedAt: Date.now(),
+    currentBranch: null,
+    ...overrides,
+  };
+}
+
 function createMockSettingsService(
   settings: RepositorySettings
 ): RepositorySettingsService {
@@ -58,7 +69,7 @@ function createValidSettings(overrides: Partial<RepositorySettings> = {}): Repos
     defaultBranch: 'main',
     createdAt: 1700000000000,
     worktrees: [],
-    taskBranches: {},
+    threadBranches: {},
     lastUpdated: 1700000000000,
     ...overrides,
   };
@@ -124,7 +135,7 @@ describe('WorktreeService', () => {
 
     it('should reject duplicate names', () => {
       settings.worktrees = [
-        { path: '/existing', name: 'my-worktree', lastAccessedAt: 1000 },
+        createTestWorktree({ path: '/existing', name: 'my-worktree', lastAccessedAt: 1000 }),
       ];
 
       expect(() => service.create('test-repo', 'my-worktree')).toThrow(
@@ -161,7 +172,7 @@ describe('WorktreeService', () => {
     });
 
     it('should release lock even if operation fails', () => {
-      settings.worktrees = [{ path: '/existing', name: 'my-worktree', lastAccessedAt: 1000 }];
+      settings.worktrees = [createTestWorktree({ path: '/existing', name: 'my-worktree', lastAccessedAt: 1000 })];
 
       expect(() => service.create('test-repo', 'my-worktree')).toThrow();
       expect(mockLock.release).toHaveBeenCalled();
@@ -171,8 +182,8 @@ describe('WorktreeService', () => {
   describe('delete()', () => {
     beforeEach(() => {
       settings.worktrees = [
-        { path: '/home/user/.mort/repositories/test-repo/wt1', name: 'wt1', lastAccessedAt: 1000 },
-        { path: '/home/user/.mort/repositories/test-repo/wt2', name: 'wt2', lastAccessedAt: 2000 },
+        createTestWorktree({ path: '/home/user/.mort/repositories/test-repo/wt1', name: 'wt1', lastAccessedAt: 1000 }),
+        createTestWorktree({ path: '/home/user/.mort/repositories/test-repo/wt2', name: 'wt2', lastAccessedAt: 2000 }),
       ];
     });
 
@@ -219,7 +230,7 @@ describe('WorktreeService', () => {
   describe('rename()', () => {
     beforeEach(() => {
       settings.worktrees = [
-        { path: '/wt1', name: 'old-name', lastAccessedAt: 1000 },
+        createTestWorktree({ path: '/wt1', name: 'old-name', lastAccessedAt: 1000 }),
       ];
     });
 
@@ -238,8 +249,8 @@ describe('WorktreeService', () => {
 
     it('should reject duplicate names', () => {
       settings.worktrees = [
-        { path: '/wt1', name: 'old-name', lastAccessedAt: 1000 },
-        { path: '/wt2', name: 'existing-name', lastAccessedAt: 2000 },
+        createTestWorktree({ path: '/wt1', name: 'old-name', lastAccessedAt: 1000 }),
+        createTestWorktree({ path: '/wt2', name: 'existing-name', lastAccessedAt: 2000 }),
       ];
 
       expect(() => service.rename('test-repo', 'old-name', 'existing-name')).toThrow(
@@ -263,8 +274,8 @@ describe('WorktreeService', () => {
   describe('list()', () => {
     it('should return all worktrees', () => {
       settings.worktrees = [
-        { path: '/wt1', name: 'wt1', lastAccessedAt: 1000 },
-        { path: '/wt2', name: 'wt2', lastAccessedAt: 2000 },
+        createTestWorktree({ path: '/wt1', name: 'wt1', lastAccessedAt: 1000 }),
+        createTestWorktree({ path: '/wt2', name: 'wt2', lastAccessedAt: 2000 }),
       ];
 
       const result = service.list('test-repo');
@@ -276,9 +287,9 @@ describe('WorktreeService', () => {
 
     it('should sort by lastAccessedAt descending', () => {
       settings.worktrees = [
-        { path: '/wt1', name: 'wt1', lastAccessedAt: 1000 },
-        { path: '/wt2', name: 'wt2', lastAccessedAt: 3000 },
-        { path: '/wt3', name: 'wt3', lastAccessedAt: 2000 },
+        createTestWorktree({ path: '/wt1', name: 'wt1', lastAccessedAt: 1000 }),
+        createTestWorktree({ path: '/wt2', name: 'wt2', lastAccessedAt: 3000 }),
+        createTestWorktree({ path: '/wt3', name: 'wt3', lastAccessedAt: 2000 }),
       ];
 
       const result = service.list('test-repo');
@@ -298,8 +309,8 @@ describe('WorktreeService', () => {
 
     it('should handle worktrees without lastAccessedAt', () => {
       settings.worktrees = [
-        { path: '/wt1', name: 'wt1' },
-        { path: '/wt2', name: 'wt2', lastAccessedAt: 1000 },
+        createTestWorktree({ path: '/wt1', name: 'wt1', lastAccessedAt: undefined }),
+        createTestWorktree({ path: '/wt2', name: 'wt2', lastAccessedAt: 1000 }),
       ];
 
       const result = service.list('test-repo');
@@ -313,8 +324,8 @@ describe('WorktreeService', () => {
   describe('getByPath()', () => {
     beforeEach(() => {
       settings.worktrees = [
-        { path: '/wt1', name: 'wt1', lastAccessedAt: 1000 },
-        { path: '/wt2', name: 'wt2', lastAccessedAt: 2000 },
+        createTestWorktree({ path: '/wt1', name: 'wt1', lastAccessedAt: 1000 }),
+        createTestWorktree({ path: '/wt2', name: 'wt2', lastAccessedAt: 2000 }),
       ];
     });
 
@@ -335,8 +346,8 @@ describe('WorktreeService', () => {
   describe('getByName()', () => {
     beforeEach(() => {
       settings.worktrees = [
-        { path: '/wt1', name: 'wt1', lastAccessedAt: 1000 },
-        { path: '/wt2', name: 'wt2', lastAccessedAt: 2000 },
+        createTestWorktree({ path: '/wt1', name: 'wt1', lastAccessedAt: 1000 }),
+        createTestWorktree({ path: '/wt2', name: 'wt2', lastAccessedAt: 2000 }),
       ];
     });
 
@@ -357,7 +368,7 @@ describe('WorktreeService', () => {
   describe('touch()', () => {
     beforeEach(() => {
       settings.worktrees = [
-        { path: '/wt1', name: 'wt1', lastAccessedAt: 1000 },
+        createTestWorktree({ path: '/wt1', name: 'wt1', lastAccessedAt: 1000 }),
       ];
     });
 

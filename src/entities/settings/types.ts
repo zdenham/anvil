@@ -11,19 +11,19 @@ export type WorkflowMode = "solo" | "team";
 export const WorkspaceSettingsSchema = z.object({
   /**
    * The working repository - either a local path or a git URL.
-   * This is the primary repository that tasks will operate on.
+   * This is the primary repository that threads will operate on.
    * null when no repository has been configured.
    */
   repository: z.string().nullable(),
 
   /**
-   * Anthropic API key for LLM features (task naming, etc.)
+   * Anthropic API key for LLM features (thread naming, etc.)
    * null when not configured.
    */
   anthropicApiKey: z.string().nullable(),
 
   /**
-   * Workflow mode for handling completed tasks.
+   * Workflow mode for handling completed threads.
    * "solo" - Rebase onto local main and fast-forward merge (for solo devs)
    * "team" - Rebase onto origin/main and create a PR (for teams)
    */

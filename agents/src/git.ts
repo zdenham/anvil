@@ -96,12 +96,12 @@ export function getDefaultBranch(cwd: string): string {
 }
 
 /**
- * Create and checkout a task branch. If it already exists, just checkout.
+ * Create and checkout a thread branch. If it already exists, just checkout.
  *
  * @deprecated Use workspace service to create branches via Tauri commands.
  * This function is kept for backward compatibility with the runner.
  */
-export function createTaskBranch(cwd: string, branchName: string): void {
+export function createThreadBranch(cwd: string, branchName: string): void {
   try {
     // Check if branch exists
     execFileSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], { cwd });
@@ -126,20 +126,23 @@ export function getDiff(cwd: string, mergeBase: string): string {
 }
 
 /**
- * Generate a git diff of all changes made on the task branch.
+ * Generate a git diff of all changes made on the thread branch.
+ *
+ * @deprecated Use getDiff with merge base from settings instead.
+ * This function is kept for backward compatibility with the runner.
  *
  * @param cwd - Working directory
- * @param taskBranch - The task branch name (used for merge base detection if not provided)
+ * @param threadBranch - The thread branch name (used for merge base detection if not provided)
  * @param mergeBase - Optional pre-computed merge base (preferred). If not provided, computes it.
  */
-export function generateTaskDiff(
+export function generateThreadDiff(
   cwd: string,
-  taskBranch: string,
+  threadBranch: string,
   mergeBase?: string
 ): string | undefined {
   try {
     // Use provided merge base or compute one
-    const base = mergeBase ?? computeMergeBase(cwd, taskBranch);
+    const base = mergeBase ?? computeMergeBase(cwd, threadBranch);
     if (!base) return undefined;
 
     return getDiff(cwd, base) || undefined;
@@ -152,15 +155,15 @@ export function generateTaskDiff(
  * Compute merge base for a branch against main/master.
  * Internal helper - prefer using merge base from settings.
  */
-function computeMergeBase(cwd: string, taskBranch: string): string | undefined {
+function computeMergeBase(cwd: string, threadBranch: string): string | undefined {
   try {
-    return execFileSync("git", ["merge-base", "main", taskBranch], {
+    return execFileSync("git", ["merge-base", "main", threadBranch], {
       cwd,
       encoding: "utf-8",
     }).trim();
   } catch {
     try {
-      return execFileSync("git", ["merge-base", "master", taskBranch], {
+      return execFileSync("git", ["merge-base", "master", threadBranch], {
         cwd,
         encoding: "utf-8",
       }).trim();
@@ -180,7 +183,7 @@ function computeMergeBase(cwd: string, taskBranch: string): string | undefined {
 
 /**
  * Get list of files changed since the merge base (includes both committed and uncommitted).
- * This shows all changes made on the task branch.
+ * This shows all changes made on the thread branch.
  */
 export function getChangedFilesSinceMergeBase(cwd: string, mergeBase: string): ChangedFile[] {
   try {

@@ -10,7 +10,6 @@ describeWithApi("Agent Event Emissions", () => {
 
   beforeEach(() => {
     harness = new AgentTestHarness({
-      agent: "simple",
       timeout: 30000,
     });
   });
@@ -28,7 +27,7 @@ describeWithApi("Agent Event Emissions", () => {
     assertAgent(output)
       .succeeded()
       .hasEvent("thread:created");
-  });
+  }, 30000);
 
   it("emits thread:status:changed on completion", async () => {
     const output = await harness.run({
@@ -38,17 +37,5 @@ describeWithApi("Agent Event Emissions", () => {
     assertAgent(output)
       .succeeded()
       .hasEventsInOrder(["thread:created", "thread:status:changed"]);
-  });
-
-  it("emits worktree:allocated for task-based agents", async () => {
-    const output = await harness.run({
-      agent: "execution",
-      prompt: "Add a comment to README.md",
-    });
-
-    assertAgent(output)
-      .succeeded()
-      .hasEvent("worktree:allocated")
-      .hasEvent("worktree:released");
-  });
+  }, 30000);
 });

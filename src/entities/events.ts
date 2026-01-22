@@ -29,29 +29,26 @@ type CoreEvents = {
 // ============================================================================
 
 /**
- * Payload for open-task event from Rust
+ * View type for control panel - discriminated union for type safety.
+ *
+ * Thread view: Shows thread conversation, plan relations, and file changes
+ * Plan view: Shows plan content (markdown) and related threads
  */
-export interface OpenTaskPayload {
-  threadId: string;
-  taskId: string;
-  prompt?: string;
-  repoName?: string;
-}
+export type ControlPanelViewType =
+  | { type: "thread"; threadId: string }
+  | { type: "plan"; planId: string }
+  | { type: "inbox" };
 
 /**
- * View type for simple task panel
+ * Payload for open-control-panel event from Rust
  */
-export type SimpleTaskViewType = "thread" | "changes" | "plan";
-
-/**
- * Payload for open-simple-task event from Rust
- */
-export interface OpenSimpleTaskPayload {
-  threadId: string;
-  taskId: string;
+export interface OpenControlPanelPayload {
+  /** Thread ID - required for thread view, optional for plan view */
+  threadId?: string;
+  /** Initial prompt to show */
   prompt?: string;
-  /** Initial view to display when opening the task */
-  initialView?: SimpleTaskViewType;
+  /** View to display - discriminated union format */
+  view?: ControlPanelViewType;
 }
 
 /**
@@ -60,13 +57,6 @@ export interface OpenSimpleTaskPayload {
 export interface ShowErrorPayload {
   message: string;
   stack?: string;
-}
-
-/**
- * Payload for task-panel-ready coordination event
- */
-export interface TaskPanelReadyPayload {
-  threadId: string;
 }
 
 /**
@@ -102,7 +92,7 @@ export interface NavigationUpEvent {
 }
 
 /**
- * Navigation open event - modifier released, open selected task
+ * Navigation open event - modifier released, open selected item
  */
 export interface NavigationOpenEvent {
   type: "nav-open";
@@ -135,16 +125,12 @@ type LocalEvents = {
   "panel-hidden": void;
   "panel-shown": void;
   "spotlight-shown": void;
-  "open-simple-task": OpenSimpleTaskPayload;
+  "open-control-panel": OpenControlPanelPayload;
   "clipboard-entry-added": void;
   "show-error": ShowErrorPayload;
-  "open-task": OpenTaskPayload;
 
   // Navigation mode events (from Rust CGEventTap)
   "navigation-mode": NavigationModeEvent;
-
-  // Window coordination events
-  "task-panel-ready": TaskPanelReadyPayload;
 
   // Window API events (synthetic, from bridge)
   "window:focus-changed": WindowFocusChangedPayload;

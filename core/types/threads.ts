@@ -2,8 +2,6 @@ import { z } from 'zod';
 
 export type ThreadStatus = "idle" | "running" | "completed" | "error" | "paused" | "cancelled";
 
-export type AgentType = "entrypoint" | "execution" | "review" | "merge" | "research" | "simple";
-
 // ============================================================================
 // Zod Schemas - Source of truth for persisted types
 // ============================================================================
@@ -25,30 +23,21 @@ export const ThreadTurnSchema = z.object({
  * Exported for derivation by other schemas that need to omit/extend fields.
  */
 export const ThreadMetadataBaseSchema = z.object({
-  id: z.string(),
-  taskId: z.string(), // Required - every thread must belong to a task
-  agentType: z.string(),
-  workingDirectory: z.string(),
+  id: z.string().uuid(),
+  repoId: z.string().uuid(),           // Repository this thread belongs to
+  worktreeId: z.string().uuid(),       // Required - main repo is also a worktree
   status: z.enum(["idle", "running", "completed", "error", "paused", "cancelled"]),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-  ttlMs: z.number().optional(),
+  turns: z.array(ThreadTurnSchema),
   git: z.object({
     branch: z.string(),
-    initialCommitHash: z.string().optional(),  // Captured at thread start for diffing
+    initialCommitHash: z.string().optional(),
     commitHash: z.string().optional(),
   }).optional(),
-  /** File paths modified by Edit/Write tools during this thread - persisted for diff generation */
   changedFilePaths: z.array(z.string()).optional(),
-  turns: z.array(ThreadTurnSchema),
-  /** Whether the user has viewed this thread's output/activity (defaults to true for new threads) */
   isRead: z.boolean().optional(),
-  /** Process ID when agent is running, null otherwise */
   pid: z.number().nullable().optional(),
-  /** Path to the worktree this thread is using (for explicit worktree management) */
-  worktreePath: z.string().optional(),
-  /** Plan ID this thread is associated with (UUID) */
-  planId: z.string().uuid().optional(),
+  createdAt: z.number(),               // Unix milliseconds
+  updatedAt: z.number(),               // Unix milliseconds
 });
 
 /**
@@ -57,7 +46,7 @@ export const ThreadMetadataBaseSchema = z.object({
  */
 export const ThreadMetadataSchema = ThreadMetadataBaseSchema.transform((data) => ({
   ...data,
-  isRead: data.isRead ?? true, // Default to true for backwards compatibility
+  isRead: data.isRead ?? true,
 }));
 
 // ============================================================================
@@ -72,17 +61,13 @@ export type ThreadMetadata = z.infer<typeof ThreadMetadataSchema>;
 
 /** Input for creating a new thread */
 export interface CreateThreadInput {
-  /** Optional pre-generated ID (used for optimistic UI) */
-  id?: string;
-  taskId: string; // Required - every thread must belong to a task
-  agentType: string;
-  workingDirectory: string;
+  id?: string;                         // Optional pre-generated ID
+  repoId: string;                      // Required
+  worktreeId: string;                  // Required
   prompt: string;
   git?: {
     branch: string;
   };
-  /** Path to the worktree this thread is using (for explicit worktree management) */
-  worktreePath?: string;
 }
 
 /** Input for updating a thread */
@@ -95,31 +80,23 @@ export interface UpdateThreadInput {
     commitHash?: string;
   };
   isRead?: boolean;
-  /** Process ID when agent is running, null to clear */
   pid?: number | null;
-  /** File paths modified by Edit/Write tools during this thread */
   changedFilePaths?: string[];
-  /** Path to the worktree this thread is using (for explicit worktree management) */
-  worktreePath?: string;
-  /** Plan ID to associate with thread, or null to explicitly unset */
-  planId?: string | null;
 }
 
 /**
  * Get the folder name for a thread.
- * Format: {agentType}-{uuid}
+ * Thread folders are stored at ~/.mort/threads/{threadId}/
+ * The folder name is simply the thread's UUID.
  */
-export function getThreadFolderName(agentType: string, id: string): string {
-  return `${agentType}-${id}`;
+export function getThreadFolderName(id: string): string {
+  return id;
 }
 
 /**
- * Parse a thread folder name to extract agent type and UUID.
- * Returns null if the folder name doesn't match the expected format.
+ * Parse a thread folder name to extract the thread ID.
+ * Returns the folder name directly as it is the thread UUID.
  */
-export function parseThreadFolderName(folderName: string): { agentType: string; id: string } | null {
-  // Match any agent type followed by a UUID
-  const match = folderName.match(/^([a-z]+)-(.+)$/);
-  if (!match) return null;
-  return { agentType: match[1], id: match[2] };
+export function parseThreadFolderName(folderName: string): string {
+  return folderName;
 }

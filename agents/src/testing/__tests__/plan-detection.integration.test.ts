@@ -228,14 +228,14 @@ describe('Plan Detection - Live LLM', () => {
 
   }, 120000);
 
-  it('associates plan with task and thread metadata', async () => {
+  it('associates plan with thread via plan:detected event', async () => {
     const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.VITE_ANTHROPIC_API_KEY;
     if (!apiKey) {
       console.log('[LIVE TEST] Skipping: ANTHROPIC_API_KEY not set');
       return;
     }
 
-    console.log('[LIVE TEST] Running plan-task-thread association test...');
+    console.log('[LIVE TEST] Running plan-thread association test...');
 
     const result = await harness.run({
       agent: 'simple',
@@ -252,36 +252,27 @@ describe('Plan Detection - Live LLM', () => {
     const planId = planEvents[0].payload.planId as string;
     console.log(`[LIVE TEST] Plan ID: ${planId}`);
 
-    // Find TASK_UPDATED event with planId
-    const taskUpdatedEvents = result.events.filter(
-      e => e.name === EventName.TASK_UPDATED && e.payload.planId === planId
-    );
-    console.log(`[LIVE TEST] TASK_UPDATED events with planId: ${taskUpdatedEvents.length}`);
-    expect(taskUpdatedEvents.length).toBeGreaterThan(0);
+    // Find thread:created event to get threadId
+    const threadCreatedEvent = result.events.find(e => e.name === EventName.THREAD_CREATED);
+    expect(threadCreatedEvent).toBeDefined();
+    const threadId = threadCreatedEvent!.payload.threadId as string;
+    console.log(`[LIVE TEST] Thread ID: ${threadId}`);
 
-    // Find THREAD_UPDATED event with planId
-    const threadUpdatedEvents = result.events.filter(
-      e => e.name === EventName.THREAD_UPDATED && e.payload.planId === planId
-    );
-    console.log(`[LIVE TEST] THREAD_UPDATED events with planId: ${threadUpdatedEvents.length}`);
-    expect(threadUpdatedEvents.length).toBeGreaterThan(0);
-
-    // Verify task metadata on disk has planId
+    // Verify plan metadata was persisted to disk
     const mortDir = harness.tempDirPath!;
-    const taskId = result.events.find(e => e.name === 'task:created')?.payload.taskId as string;
-    const taskMetadataPath = join(mortDir, 'tasks', taskId, 'metadata.json');
-    const taskMetadata = JSON.parse(readFileSync(taskMetadataPath, 'utf-8'));
-    console.log(`[LIVE TEST] Task metadata planId: ${taskMetadata.planId}`);
-    expect(taskMetadata.planId).toBe(planId);
+    const planMetadataPath = join(mortDir, 'plans', planId, 'metadata.json');
+    const planMetadata = JSON.parse(readFileSync(planMetadataPath, 'utf-8'));
+    console.log(`[LIVE TEST] Plan metadata:`, planMetadata);
+    expect(planMetadata.id).toBe(planId);
 
-    // Verify thread metadata on disk has planId
-    const threadId = result.events.find(e => e.name === 'thread:created')?.payload.threadId as string;
-    const threadDirs = readdirSync(join(mortDir, 'tasks', taskId, 'threads'));
-    const threadDir = threadDirs.find(d => d.includes(threadId));
-    const threadMetadataPath = join(mortDir, 'tasks', taskId, 'threads', threadDir!, 'metadata.json');
+    // Verify thread metadata exists
+    const threadMetadataPath = join(mortDir, 'threads', threadId, 'metadata.json');
     const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, 'utf-8'));
-    console.log(`[LIVE TEST] Thread metadata planId: ${threadMetadata.planId}`);
-    expect(threadMetadata.planId).toBe(planId);
+    console.log(`[LIVE TEST] Thread metadata:`, threadMetadata);
+    expect(threadMetadata.id).toBe(threadId);
+
+    // Both plan and thread exist - association can be made by the frontend
+    // via the relation service based on the sequence of events
 
   }, 120000);
 

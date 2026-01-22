@@ -1,19 +1,15 @@
-import type { TaskStatus } from "@/entities/tasks/types";
+import type { ThreadStatus } from "@core/types/threads";
 
 /**
  * Get the next status in the workflow progression.
  * Returns the same status if already at terminal state.
  */
-export function getNextStatus(status: TaskStatus): TaskStatus {
+export function getNextStatus(status: ThreadStatus): ThreadStatus {
   switch (status) {
-    case "backlog":
-      return "todo";
-    case "todo":
-      return "in-progress";
-    case "in-progress":
-      return "in-review";
-    case "in-review":
-      return "done";
+    case "idle":
+      return "running";
+    case "running":
+      return "completed";
     default:
       return status;
   }
@@ -21,48 +17,26 @@ export function getNextStatus(status: TaskStatus): TaskStatus {
 
 /**
  * Check if a status can progress to the next phase.
- * Only active statuses (where agents can be spawned) can progress.
  */
-export function canProgress(status: TaskStatus): boolean {
-  return status === "todo" || status === "in-progress" || status === "in-review";
-}
-
-/**
- * Get human-readable label for what the next phase is.
- * For in-review, depends on whether review has been approved.
- */
-export function getNextPhaseLabel(status: TaskStatus, reviewApproved?: boolean): string {
-  switch (status) {
-    case "backlog":
-      return "Plan";
-    case "todo":
-      return "Implement";
-    case "in-progress":
-      return "Review";
-    case "in-review":
-      return reviewApproved ? "Complete" : "Merge";
-    default:
-      return "Done";
-  }
+export function canProgress(status: ThreadStatus): boolean {
+  return status === "idle" || status === "running";
 }
 
 /**
  * Get human-readable label for the current phase.
  */
-export function getCurrentPhaseLabel(status: TaskStatus): string {
+export function getCurrentPhaseLabel(status: ThreadStatus): string {
   switch (status) {
-    case "draft":
-      return "Draft";
-    case "backlog":
-      return "Backlog";
-    case "todo":
-      return "Planning";
-    case "in-progress":
-      return "Implementation";
-    case "in-review":
-      return "Review & Merge";
-    case "done":
-      return "Done";
+    case "idle":
+      return "Idle";
+    case "running":
+      return "Running";
+    case "completed":
+      return "Completed";
+    case "error":
+      return "Error";
+    case "paused":
+      return "Paused";
     case "cancelled":
       return "Cancelled";
     default:

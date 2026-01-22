@@ -42,10 +42,10 @@ html:has(.error-container) #root {
   background: transparent !important;
 }
 
-/* Simple task panel transparency */
-html:has(.simple-task-container),
-html:has(.simple-task-container) body,
-html:has(.simple-task-container) #root {
+/* Control panel transparency */
+html:has(.control-panel-container),
+html:has(.control-panel-container) body,
+html:has(.control-panel-container) #root {
   background: transparent !important;
 }
 
@@ -187,9 +187,9 @@ textarea {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
-/* Simple task panel - styled similar to spotlight */
+/* Control panel - styled similar to spotlight */
 /* Note: border-radius and shadow are handled natively via NSPanel corner_radius + has_shadow */
-.simple-task-container {
+.control-panel-container {
   background: var(--spotlight-bg);
   border: 1px solid var(--spotlight-border);
   cursor: default;
@@ -207,21 +207,18 @@ textarea {
 }
 
 /* Disable text selection while dragging to prevent flashes */
-.simple-task-container.is-dragging {
+.control-panel-container.is-dragging {
   user-select: none;
 }
 
-/* Working indicator - Claude Code style pulsing dot */
-.working-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+/* Status dot - running state with glow animation */
+.status-dot-running {
   background-color: #22c55e; /* green-500 */
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
-  animation: workingPulse 1.5s ease-in-out infinite;
+  animation: statusDotPulse 1.5s ease-in-out infinite;
 }
 
-@keyframes workingPulse {
+@keyframes statusDotPulse {
   0%, 100% {
     opacity: 1;
     box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
@@ -230,5 +227,13 @@ textarea {
     opacity: 0.6;
     box-shadow: 0 0 4px rgba(34, 197, 94, 0.3);
   }
+}
+
+/* Working indicator - Claude Code style pulsing dot (alias for backwards compatibility) */
+.working-dot {
+  @apply status-dot-running;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 

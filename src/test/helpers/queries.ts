@@ -17,13 +17,6 @@ import { screen, within } from "@testing-library/react";
  * Add new test IDs here and use the corresponding getters below.
  */
 export const testIds = {
-  // Task List
-  taskList: "task-list",
-  taskItem: (id: string) => `task-item-${id}`,
-  taskTitle: (id: string) => `task-title-${id}`,
-  taskStatus: (id: string) => `task-status-${id}`,
-  taskActions: (id: string) => `task-actions-${id}`,
-
   // Thread Panel
   threadPanel: "thread-panel",
   threadHeader: "thread-header",
@@ -76,27 +69,6 @@ export const testIds = {
 // ============================================================================
 // Query Helpers
 // ============================================================================
-
-/**
- * Get a task item element by task ID.
- */
-export function getTaskItem(taskId: string): HTMLElement {
-  return screen.getByTestId(testIds.taskItem(taskId));
-}
-
-/**
- * Query for a task item element by task ID (returns null if not found).
- */
-export function queryTaskItem(taskId: string): HTMLElement | null {
-  return screen.queryByTestId(testIds.taskItem(taskId));
-}
-
-/**
- * Get the task status element for a task.
- */
-export function getTaskStatus(taskId: string): HTMLElement {
-  return screen.getByTestId(testIds.taskStatus(taskId));
-}
 
 /**
  * Get a message element by index.
@@ -186,28 +158,6 @@ export function getCardsInColumn(status: string): HTMLElement[] {
 // ============================================================================
 // Assertion Helpers
 // ============================================================================
-
-/**
- * Assert that a task exists in the task list.
- */
-export function expectTaskExists(taskId: string): void {
-  expect(screen.getByTestId(testIds.taskItem(taskId))).toBeInTheDocument();
-}
-
-/**
- * Assert that a task does not exist in the task list.
- */
-export function expectTaskNotExists(taskId: string): void {
-  expect(screen.queryByTestId(testIds.taskItem(taskId))).not.toBeInTheDocument();
-}
-
-/**
- * Assert that a task has a specific status displayed.
- */
-export function expectTaskHasStatus(taskId: string, status: string): void {
-  const statusElement = screen.getByTestId(testIds.taskStatus(taskId));
-  expect(statusElement).toHaveTextContent(status);
-}
 
 /**
  * Assert the thread panel shows a specific status.

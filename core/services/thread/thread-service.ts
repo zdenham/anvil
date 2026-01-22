@@ -10,17 +10,16 @@ import { getThreadFolderName, ThreadMetadataSchema } from '@core/types/threads.j
 
 /**
  * Service for creating, reading, and updating thread metadata.
- * Threads are stored at ~/.mort/tasks/{taskSlug}/threads/{agentType}-{id}/
+ * Threads are stored at ~/.mort/threads/{threadId}/
  *
  * This service ONLY:
  * - Creates thread metadata on disk
  * - Reads thread metadata
  * - Updates thread metadata
- * - Lists threads for a task
+ * - Lists threads
  *
  * It does NOT:
  * - Allocate worktrees
- * - Manage task metadata
  * - Emit events
  */
 export class ThreadService {
@@ -31,14 +30,13 @@ export class ThreadService {
 
   /**
    * Create a new thread with initial metadata and first turn.
-   * @param taskSlug - The slug of the parent task
    * @param input - Thread creation input
    * @returns The created thread metadata
    */
-  create(taskSlug: string, input: CreateThreadInput): ThreadMetadata {
+  create(input: CreateThreadInput): ThreadMetadata {
     const id = input.id ?? this.generateId();
-    const folderName = getThreadFolderName(input.agentType, id);
-    const threadDir = this.getThreadDir(taskSlug, folderName);
+    const folderName = getThreadFolderName(id);
+    const threadDir = this.getThreadDir(folderName);
 
     // Create thread directory
     this.fs.mkdir(threadDir, { recursive: true });
@@ -55,9 +53,8 @@ export class ThreadService {
     // Create metadata
     const metadata: ThreadMetadata = {
       id,
-      taskId: input.taskId,
-      agentType: input.agentType,
-      workingDirectory: input.workingDirectory,
+      repoId: input.repoId,
+      worktreeId: input.worktreeId,
       status: 'running',
       createdAt: now,
       updatedAt: now,
@@ -68,66 +65,52 @@ export class ThreadService {
     };
 
     // Write metadata file
-    this.writeMetadata(taskSlug, folderName, metadata);
+    this.writeMetadata(folderName, metadata);
 
     return metadata;
   }
 
   /**
-   * Get thread metadata by task slug and folder name.
-   * @param taskSlug - The slug of the parent task
-   * @param folderName - The thread folder name (e.g., "execution-uuid")
+   * Get thread metadata by thread ID.
+   * @param threadId - The thread ID
    * @returns The thread metadata
    * @throws If thread does not exist
    */
-  get(taskSlug: string, folderName: string): ThreadMetadata {
-    const metadataPath = this.getMetadataPath(taskSlug, folderName);
+  get(threadId: string): ThreadMetadata {
+    const folderName = getThreadFolderName(threadId);
+    const metadataPath = this.getMetadataPath(folderName);
     const content = this.fs.readFile(metadataPath);
     return ThreadMetadataSchema.parse(JSON.parse(content));
   }
 
   /**
    * Update thread metadata with partial updates.
-   * @param taskSlug - The slug of the parent task
-   * @param folderName - The thread folder name
+   * @param threadId - The thread ID
    * @param updates - Partial updates to apply
    * @returns The updated thread metadata
    */
-  update(
-    taskSlug: string,
-    folderName: string,
-    updates: UpdateThreadInput
-  ): ThreadMetadata {
-    const metadata = this.get(taskSlug, folderName);
-
-    // Handle planId: null as explicit unset (convert to undefined)
-    const { planId, ...restUpdates } = updates;
-    const planIdUpdate = planId === null ? { planId: undefined } : (planId !== undefined ? { planId } : {});
+  update(threadId: string, updates: UpdateThreadInput): ThreadMetadata {
+    const metadata = this.get(threadId);
+    const folderName = getThreadFolderName(threadId);
 
     const updated: ThreadMetadata = {
       ...metadata,
-      ...restUpdates,
-      ...planIdUpdate,
+      ...updates,
       updatedAt: Date.now(),
     };
 
-    this.writeMetadata(taskSlug, folderName, updated);
+    this.writeMetadata(folderName, updated);
     return updated;
   }
 
   /**
    * Mark a thread as completed and finalize the current turn.
-   * @param taskSlug - The slug of the parent task
-   * @param folderName - The thread folder name
+   * @param threadId - The thread ID
    * @param exitCode - Optional exit code for the turn
    * @returns The updated thread metadata
    */
-  markCompleted(
-    taskSlug: string,
-    folderName: string,
-    exitCode?: number
-  ): ThreadMetadata {
-    const metadata = this.get(taskSlug, folderName);
+  markCompleted(threadId: string, exitCode?: number): ThreadMetadata {
+    const metadata = this.get(threadId);
     const turns = [...metadata.turns];
 
     // Complete the current turn if any
@@ -142,7 +125,7 @@ export class ThreadService {
       }
     }
 
-    return this.update(taskSlug, folderName, {
+    return this.update(threadId, {
       status: 'completed',
       pid: null, // Clear PID - process is exiting
       turns,
@@ -151,17 +134,12 @@ export class ThreadService {
 
   /**
    * Mark a thread as errored and finalize the current turn.
-   * @param taskSlug - The slug of the parent task
-   * @param folderName - The thread folder name
+   * @param threadId - The thread ID
    * @param exitCode - Optional exit code for the turn
    * @returns The updated thread metadata
    */
-  markError(
-    taskSlug: string,
-    folderName: string,
-    exitCode?: number
-  ): ThreadMetadata {
-    const metadata = this.get(taskSlug, folderName);
+  markError(threadId: string, exitCode?: number): ThreadMetadata {
+    const metadata = this.get(threadId);
     const turns = [...metadata.turns];
 
     // Complete the current turn if any
@@ -176,7 +154,7 @@ export class ThreadService {
       }
     }
 
-    return this.update(taskSlug, folderName, {
+    return this.update(threadId, {
       status: 'error',
       pid: null, // Clear PID - process is exiting
       turns,
@@ -185,17 +163,12 @@ export class ThreadService {
 
   /**
    * Mark a thread as cancelled and finalize the current turn.
-   * @param taskSlug - The slug of the parent task
-   * @param folderName - The thread folder name
+   * @param threadId - The thread ID
    * @param exitCode - Optional exit code for the turn (defaults to 130)
    * @returns The updated thread metadata
    */
-  markCancelled(
-    taskSlug: string,
-    folderName: string,
-    exitCode?: number
-  ): ThreadMetadata {
-    const metadata = this.get(taskSlug, folderName);
+  markCancelled(threadId: string, exitCode?: number): ThreadMetadata {
+    const metadata = this.get(threadId);
     const turns = [...metadata.turns];
 
     // Complete the current turn if any
@@ -210,7 +183,7 @@ export class ThreadService {
       }
     }
 
-    return this.update(taskSlug, folderName, {
+    return this.update(threadId, {
       status: 'cancelled',
       pid: null, // Clear PID - process is exiting
       turns,
@@ -219,43 +192,38 @@ export class ThreadService {
 
   /**
    * Check if a thread exists.
-   * @param taskSlug - The slug of the parent task
-   * @param folderName - The thread folder name
+   * @param threadId - The thread ID
    * @returns true if thread exists, false otherwise
    */
-  exists(taskSlug: string, folderName: string): boolean {
-    return this.fs.exists(this.getMetadataPath(taskSlug, folderName));
+  exists(threadId: string): boolean {
+    const folderName = getThreadFolderName(threadId);
+    return this.fs.exists(this.getMetadataPath(folderName));
   }
 
   /**
-   * List all thread folder names for a task.
-   * @param taskSlug - The slug of the parent task
-   * @returns Array of thread folder names
+   * List all thread IDs.
+   * @returns Array of thread IDs
    */
-  list(taskSlug: string): string[] {
-    const threadsDir = path.join(this.mortDir, 'tasks', taskSlug, 'threads');
+  list(): string[] {
+    const threadsDir = path.join(this.mortDir, 'threads');
     if (!this.fs.exists(threadsDir)) {
       return [];
     }
     return this.fs.readDir(threadsDir).filter((name) => {
-      return this.exists(taskSlug, name);
+      return this.exists(name);
     });
   }
 
-  private getThreadDir(taskSlug: string, folderName: string): string {
-    return path.join(this.mortDir, 'tasks', taskSlug, 'threads', folderName);
+  private getThreadDir(folderName: string): string {
+    return path.join(this.mortDir, 'threads', folderName);
   }
 
-  private getMetadataPath(taskSlug: string, folderName: string): string {
-    return path.join(this.getThreadDir(taskSlug, folderName), 'metadata.json');
+  private getMetadataPath(folderName: string): string {
+    return path.join(this.getThreadDir(folderName), 'metadata.json');
   }
 
-  private writeMetadata(
-    taskSlug: string,
-    folderName: string,
-    metadata: ThreadMetadata
-  ): void {
-    const metadataPath = this.getMetadataPath(taskSlug, folderName);
+  private writeMetadata(folderName: string, metadata: ThreadMetadata): void {
+    const metadataPath = this.getMetadataPath(folderName);
     this.fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
   }
 

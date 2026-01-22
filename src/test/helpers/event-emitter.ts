@@ -51,56 +51,21 @@ export class TestEvents {
   }
 
   // ==========================================================================
-  // Task Events
-  // ==========================================================================
-
-  /**
-   * Emit task:created and wait for React to process.
-   */
-  static async taskCreated(taskId: string): Promise<void> {
-    await this.emitAndWait(EventName.TASK_CREATED, { taskId });
-  }
-
-  /**
-   * Emit task:updated and wait for React to process.
-   */
-  static async taskUpdated(taskId: string): Promise<void> {
-    await this.emitAndWait(EventName.TASK_UPDATED, { taskId });
-  }
-
-  /**
-   * Emit task:deleted and wait for React to process.
-   */
-  static async taskDeleted(taskId: string): Promise<void> {
-    await this.emitAndWait(EventName.TASK_DELETED, { taskId });
-  }
-
-  /**
-   * Emit task:status-changed and wait for React to process.
-   */
-  static async taskStatusChanged(
-    taskId: string,
-    status: "draft" | "backlog" | "todo" | "in-progress" | "in-review" | "done" | "cancelled"
-  ): Promise<void> {
-    await this.emitAndWait(EventName.TASK_STATUS_CHANGED, { taskId, status });
-  }
-
-  // ==========================================================================
   // Thread Events
   // ==========================================================================
 
   /**
    * Emit thread:created and wait for React to process.
    */
-  static async threadCreated(threadId: string, taskId: string): Promise<void> {
-    await this.emitAndWait(EventName.THREAD_CREATED, { threadId, taskId });
+  static async threadCreated(threadId: string, repoId: string, worktreeId: string): Promise<void> {
+    await this.emitAndWait(EventName.THREAD_CREATED, { threadId, repoId, worktreeId });
   }
 
   /**
    * Emit thread:updated and wait for React to process.
    */
-  static async threadUpdated(threadId: string, taskId: string): Promise<void> {
-    await this.emitAndWait(EventName.THREAD_UPDATED, { threadId, taskId });
+  static async threadUpdated(threadId: string): Promise<void> {
+    await this.emitAndWait(EventName.THREAD_UPDATED, { threadId });
   }
 
   /**
@@ -120,8 +85,8 @@ export class TestEvents {
   /**
    * Emit agent:spawned and wait for React to process.
    */
-  static async agentSpawned(threadId: string, taskId: string): Promise<void> {
-    await this.emitAndWait(EventName.AGENT_SPAWNED, { threadId, taskId });
+  static async agentSpawned(threadId: string, repoId: string): Promise<void> {
+    await this.emitAndWait(EventName.AGENT_SPAWNED, { threadId, repoId });
   }
 
   /**
@@ -153,18 +118,18 @@ export class TestEvents {
    * Simulate a complete agent lifecycle.
    *
    * @example
-   * await TestEvents.simulateAgentRun("thread-123", "task-abc", [
+   * await TestEvents.simulateAgentRun("thread-123", "repo-abc", [
    *   { role: "assistant", content: "Analyzing..." },
    *   { role: "assistant", content: "Found the issue." },
    * ]);
    */
   static async simulateAgentRun(
     threadId: string,
-    taskId: string,
+    repoId: string,
     messages: ThreadState["messages"]
   ): Promise<void> {
     // Spawn
-    await this.agentSpawned(threadId, taskId);
+    await this.agentSpawned(threadId, repoId);
 
     // Stream messages
     const accumulatedMessages: ThreadState["messages"] = [];
@@ -187,8 +152,8 @@ export class TestEvents {
   /**
    * Simulate an agent run that ends in error.
    */
-  static async simulateAgentError(threadId: string, taskId: string, error: string): Promise<void> {
-    await this.agentSpawned(threadId, taskId);
+  static async simulateAgentError(threadId: string, repoId: string, error: string): Promise<void> {
+    await this.agentSpawned(threadId, repoId);
     await this.agentError(threadId, error);
   }
 
@@ -224,8 +189,8 @@ export class TestEvents {
   /**
    * Emit action-requested and wait for React to process.
    */
-  static async actionRequested(taskId: string, markdown: string, defaultResponse: string): Promise<void> {
-    await this.emitAndWait(EventName.ACTION_REQUESTED, { taskId, markdown, defaultResponse });
+  static async actionRequested(threadId: string, markdown: string, defaultResponse: string): Promise<void> {
+    await this.emitAndWait(EventName.ACTION_REQUESTED, { threadId, markdown, defaultResponse });
   }
 
   // ==========================================================================
@@ -248,9 +213,9 @@ export class TestEvents {
    * Useful for asserting that events were emitted with expected payloads.
    *
    * @example
-   * const spy = TestEvents.spy(EventName.TASK_UPDATED);
+   * const spy = TestEvents.spy(EventName.THREAD_UPDATED);
    * // ... trigger some action
-   * expect(spy).toHaveBeenCalledWith({ taskId: "task-123" });
+   * expect(spy).toHaveBeenCalledWith({ threadId: "thread-123" });
    */
   static spy<E extends keyof AppEvents>(eventName: E): Mock<(payload: AppEvents[E]) => void> {
     const mockFn = vi.fn();
@@ -262,8 +227,8 @@ export class TestEvents {
    * Wait for a specific event to be emitted.
    *
    * @example
-   * const promise = TestEvents.waitFor(EventName.TASK_CREATED);
-   * // ... trigger task creation
+   * const promise = TestEvents.waitFor(EventName.THREAD_CREATED);
+   * // ... trigger thread creation
    * const payload = await promise;
    */
   static waitFor<E extends keyof AppEvents>(

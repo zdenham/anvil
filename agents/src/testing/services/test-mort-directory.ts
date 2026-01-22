@@ -2,9 +2,7 @@ import { mkdirSync, rmSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { randomUUID } from "crypto";
-import type { TaskMetadata } from "@core/types/tasks.js";
 import type { RepositorySettings } from "@core/types/repositories.js";
-import { generateTaskId } from "@core/types/tasks.js";
 
 export interface TestMortDirectoryOptions {
   /** Keep directory after cleanup for debugging */
@@ -35,7 +33,6 @@ export class TestMortDirectory {
   init(): this {
     mkdirSync(this.path, { recursive: true });
     mkdirSync(join(this.path, "repositories"), { recursive: true });
-    mkdirSync(join(this.path, "tasks"), { recursive: true });
 
     // Write minimal config
     writeFileSync(
@@ -58,6 +55,7 @@ export class TestMortDirectory {
 
     const now = Date.now();
     const settings: RepositorySettings = {
+      id: randomUUID(),
       schemaVersion: 1,
       name: repo.name,
       originalUrl: null,
@@ -66,8 +64,10 @@ export class TestMortDirectory {
       defaultBranch: repo.defaultBranch ?? "main",
       createdAt: now,
       worktrees: [],
-      taskBranches: {},
+      threadBranches: {},
       lastUpdated: now,
+      plansDirectory: "plans/",
+      completedDirectory: "plans/completed/",
     };
 
     writeFileSync(
@@ -76,50 +76,6 @@ export class TestMortDirectory {
     );
 
     return this;
-  }
-
-  /**
-   * Create a task with full metadata structure.
-   * Returns the created TaskMetadata for use in assertions.
-   */
-  createTask(input: {
-    repositoryName: string;
-    title?: string;
-    slug?: string;
-    type?: "work" | "investigate" | "simple";
-    description?: string;
-  }): TaskMetadata {
-    const slug = input.slug ?? `test-task-${randomUUID().slice(0, 8)}`;
-    const now = Date.now();
-
-    const task: TaskMetadata = {
-      id: generateTaskId(),
-      slug,
-      title: input.title ?? "Test Task",
-      description: input.description,
-      branchName: `task/${slug}`,
-      type: input.type ?? "work",
-      subtasks: [],
-      status: "draft",
-      createdAt: now,
-      updatedAt: now,
-      parentId: null,
-      tags: [],
-      sortOrder: 0,
-      repositoryName: input.repositoryName,
-      pendingReviews: [],
-    };
-
-    const taskDir = join(this.path, "tasks", slug);
-    mkdirSync(taskDir, { recursive: true });
-    mkdirSync(join(taskDir, "threads"), { recursive: true });
-
-    writeFileSync(
-      join(taskDir, "metadata.json"),
-      JSON.stringify(task, null, 2)
-    );
-
-    return task;
   }
 
   /**

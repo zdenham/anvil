@@ -5,19 +5,11 @@
  * Use these to reduce boilerplate in UI tests.
  *
  * @example
- * import { createTask, createThread, createSubtask } from "@/test/factories";
+ * import { createThread, createPlan } from "@/test/factories";
  *
- * const task = createTask({ status: "in-progress" });
- * const thread = createThread({ taskId: task.id, status: "running" });
+ * const thread = createThread({ status: "running" });
+ * const plan = createPlan({ relativePath: "my-plan.md" });
  */
-
-// Task factories
-export {
-  createTask,
-  createSubtask,
-  createPendingReview,
-  resetTaskCounter,
-} from "./task";
 
 // Thread factories
 export {
@@ -26,9 +18,18 @@ export {
   resetThreadCounter,
 } from "./thread";
 
+// Plan factories
+export {
+  createPlan,
+  resetPlanCounter,
+} from "./plan";
+
+// Relation factories
+export { createRelation } from "./relation";
+
 // Import reset functions directly for use in resetAllCounters
-import { resetTaskCounter } from "./task";
 import { resetThreadCounter } from "./thread";
+import { resetPlanCounter } from "./plan";
 
 /**
  * Reset all factory counters.
@@ -40,6 +41,6 @@ import { resetThreadCounter } from "./thread";
  * });
  */
 export function resetAllCounters(): void {
-  resetTaskCounter();
   resetThreadCounter();
+  resetPlanCounter();
 }

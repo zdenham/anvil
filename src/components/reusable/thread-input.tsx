@@ -1,10 +1,8 @@
 import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { TriggerSearchInput, type TriggerStateInfo } from "./trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
-import { useModeKeyboard } from "@/components/simple-task/use-mode-keyboard";
 
 interface ThreadInputProps {
-  threadId: string;
   onSubmit: (prompt: string) => void;
   disabled?: boolean;
   workingDirectory?: string;
@@ -17,7 +15,6 @@ export interface ThreadInputRef {
 }
 
 export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function ThreadInput({
-  threadId,
   onSubmit,
   disabled,
   workingDirectory,
@@ -27,11 +24,6 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   const [value, setValue] = useState("");
   const [triggerState, setTriggerState] = useState<TriggerStateInfo | null>(null);
   const inputRef = useRef<TriggerSearchInputRef>(null);
-
-  const { handleKeyDown: handleModeKeyDown } = useModeKeyboard({
-    threadId,
-    enabled: !disabled,
-  });
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -115,24 +107,15 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
         }
 
         // Input has content and cursor is in the middle of the text
-        // Stop propagation so SimpleTaskWindow doesn't intercept
+        // Stop propagation so ControlPanelWindow doesn't intercept
         e.stopPropagation();
         return;
       }
 
-      // Skip mode switching if trigger dropdown is open (Shift+Tab navigates dropdown)
-      if (triggerState?.isActive && e.shiftKey && e.key === "Tab") {
-        return; // Let dropdown handle it
-      }
-
-      // Check for mode switching (Shift+Tab)
-      handleModeKeyDown(e);
-      if (e.defaultPrevented) return;
-
       // Note: Arrow keys, Tab, plain Enter are handled by TriggerSearchInput
       // when trigger is active and dropdown is enabled
     },
-    [handleSubmit, triggerState?.isActive, handleModeKeyDown, value, isCursorOnFirstLine, isCursorOnLastLine, onNavigateToQuickActions]
+    [handleSubmit, triggerState?.isActive, value, isCursorOnFirstLine, isCursorOnLastLine, onNavigateToQuickActions]
   );
 
   const handleTriggerStateChange = useCallback((state: TriggerStateInfo) => {
@@ -172,9 +155,6 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           aria-autocomplete="list"
         />
       </div>
-      {/* <div className="flex items-center gap-2 self-end">
-        <ModeIndicatorWithShortcut mode={currentMode} />
-      </div> */}
     </div>
   );
 });

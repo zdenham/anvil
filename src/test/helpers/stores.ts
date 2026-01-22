@@ -5,18 +5,18 @@
  * ensuring test isolation and predictable initial state.
  */
 
-import { useTaskStore } from "@/entities/tasks/store";
 import { useThreadStore } from "@/entities/threads/store";
 import { useRepoStore } from "@/entities/repositories/store";
 import { useSettingsStore } from "@/entities/settings/store";
 import { useLogStore } from "@/entities/logs/store";
 import { usePlanStore } from "@/entities/plans/store";
+import { useRelationStore } from "@/entities/relations/store";
 import { DEFAULT_WORKSPACE_SETTINGS } from "@/entities/settings/types";
-import type { TaskMetadata } from "@/entities/tasks/types";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { Repository } from "@/entities/repositories/types";
 import type { ThreadState } from "@/lib/types/agent-messages";
 import type { PlanMetadata } from "@/entities/plans/types";
+import type { PlanThreadRelation } from "@core/types/relations.js";
 
 // ============================================================================
 // Store State Types (for seeding)
@@ -45,14 +45,9 @@ export class TestStores {
    * Sets _hydrated: false on all stores.
    */
   static clear(): void {
-    useTaskStore.setState({
-      tasks: {},
-      taskContent: {},
-      _hydrated: false,
-    });
-
     useThreadStore.setState({
       threads: {},
+      _threadsArray: [],
       activeThreadId: null,
       threadStates: {},
       activeThreadLoading: false,
@@ -80,28 +75,12 @@ export class TestStores {
       _plansArray: [],
       _hydrated: false,
     });
-  }
 
-  // ==========================================================================
-  // Task Store Methods
-  // ==========================================================================
-
-  static seedTasks(tasks: TaskMetadata[]): void {
-    const taskMap = Object.fromEntries(tasks.map((t) => [t.id, t]));
-    useTaskStore.setState({ tasks: taskMap, _hydrated: true });
-  }
-
-  static seedTask(task: TaskMetadata): void {
-    useTaskStore.setState((state) => ({
-      tasks: { ...state.tasks, [task.id]: task },
-      _hydrated: true,
-    }));
-  }
-
-  static seedTaskContent(taskId: string, content: string): void {
-    useTaskStore.setState((state) => ({
-      taskContent: { ...state.taskContent, [taskId]: content },
-    }));
+    useRelationStore.setState({
+      relations: {},
+      _relationsArray: [],
+      _hydrated: false,
+    });
   }
 
   // ==========================================================================
@@ -109,8 +88,10 @@ export class TestStores {
   // ==========================================================================
 
   static seedThreads(state: ThreadStoreState): void {
+    const threads = state.threads ?? {};
     useThreadStore.setState({
-      threads: state.threads ?? {},
+      threads,
+      _threadsArray: Object.values(threads),
       activeThreadId: state.activeThreadId ?? null,
       threadStates: state.threadStates ?? {},
       activeThreadLoading: state.activeThreadLoading ?? false,
@@ -120,10 +101,14 @@ export class TestStores {
   }
 
   static seedThread(thread: ThreadMetadata): void {
-    useThreadStore.setState((state) => ({
-      threads: { ...state.threads, [thread.id]: thread },
-      _hydrated: true,
-    }));
+    useThreadStore.setState((state) => {
+      const newThreads = { ...state.threads, [thread.id]: thread };
+      return {
+        threads: newThreads,
+        _threadsArray: Object.values(newThreads),
+        _hydrated: true,
+      };
+    });
   }
 
   static seedThreadState(threadId: string, state: ThreadState): void {
@@ -192,12 +177,35 @@ export class TestStores {
   }
 
   // ==========================================================================
-  // Getter Methods (for assertions)
+  // Relation Store Methods
   // ==========================================================================
 
-  static getTaskState() {
-    return useTaskStore.getState();
+  static seedRelations(relations: PlanThreadRelation[]): void {
+    const relationMap = Object.fromEntries(
+      relations.map((r) => [`${r.planId}-${r.threadId}`, r])
+    );
+    useRelationStore.setState({
+      relations: relationMap,
+      _relationsArray: relations,
+      _hydrated: true,
+    });
   }
+
+  static seedRelation(relation: PlanThreadRelation): void {
+    useRelationStore.setState((state) => {
+      const key = `${relation.planId}-${relation.threadId}`;
+      const newRelations = { ...state.relations, [key]: relation };
+      return {
+        relations: newRelations,
+        _relationsArray: Object.values(newRelations),
+        _hydrated: true,
+      };
+    });
+  }
+
+  // ==========================================================================
+  // Getter Methods (for assertions)
+  // ==========================================================================
 
   static getThreadState() {
     return useThreadStore.getState();
@@ -217,5 +225,9 @@ export class TestStores {
 
   static getPlanState() {
     return usePlanStore.getState();
+  }
+
+  static getRelationState() {
+    return useRelationStore.getState();
   }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "mort"
-version = "0.0.16"
+version = "0.0.17"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -38,14 +38,11 @@ tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
-clickhouse = { version = "0.14", features = ["native-tls"] }
-tokio = { version = "1", features = ["sync", "time", "rt"] }
+ureq = { version = "2", features = ["json"] }
 fs2 = "0.4"
 shellexpand = "3.1"
 clap = { version = "4", features = ["derive"] }
-urlencoding = "2.1"
 raw-window-handle = "0.6"
-ctrlc = "3.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

@@ -17,8 +17,8 @@ interface LeftMenuProps {
 }
 
 /**
- * Left menu navigation for the task workspace.
- * Contains task title, tab navigation (Overview, Changes, Git), and always-visible thread list.
+ * Left menu navigation for the workspace.
+ * Contains title, tab navigation (Overview, Changes, Git), and always-visible thread list.
  */
 export function LeftMenu({
   taskTitle,
@@ -32,7 +32,7 @@ export function LeftMenu({
 }: LeftMenuProps) {
   return (
     <div className="w-48 h-full flex flex-col border-r border-surface-600 bg-surface-950">
-      {/* Task title at top */}
+      {/* Title at top */}
       <div className="px-3 py-3 border-b border-surface-700">
         <h2 className="text-sm font-medium text-surface-200 truncate font-mono">
           {taskTitle}
