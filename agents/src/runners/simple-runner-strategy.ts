@@ -347,7 +347,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     }
 
     // 7. Return context with cwd as workingDir
-    // Read task metadata to include in context (enables plan detection via repositoryName)
+    // Read task metadata to include in context
     let taskForContext: TaskMetadata | undefined;
     const taskMetadataPathForContext = join(taskPath, "metadata.json");
     if (existsSync(taskMetadataPathForContext)) {
@@ -366,7 +366,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
       workingDir: cwd,
       threadId,
       threadPath,
-      task: taskForContext, // Include task for plan detection (repositoryName)
+      task: taskForContext,
       // No branchName for simple agents
       // No mergeBase for simple agents
     };

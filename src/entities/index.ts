@@ -53,6 +53,7 @@ import { setupTaskListeners } from "./tasks/listeners";
 import { setupThreadListeners } from "./threads/listeners";
 import { setupRepositoryListeners } from "./repositories/listeners";
 import { setupPermissionListeners } from "./permissions/listeners";
+import { setupPlanListeners } from "./plans/listeners";
 
 /**
  * Hydrates all entity stores from disk.
@@ -86,5 +87,6 @@ export function setupEntityListeners(): void {
   setupThreadListeners();
   setupRepositoryListeners();
   setupPermissionListeners();
+  setupPlanListeners();
   logger.log("[entities:listeners] All entity listeners initialized");
 }

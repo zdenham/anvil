@@ -8,7 +8,6 @@ import { WorkspaceSettingsProvider, GlobalErrorProvider } from "./contexts";
 import { logger, setLogSource } from "./lib/logger-client";
 import { initWebErrorCapture } from "./lib/web-error-capture";
 import { setupOutgoingBridge, setupIncomingBridge } from "./lib/event-bridge";
-import { setupPlanListeners } from "./entities/plans";
 
 // Set log source before any logging occurs
 setLogSource("main");
@@ -21,8 +20,7 @@ initWebErrorCapture("main");
 setupOutgoingBridge();
 setupIncomingBridge();
 
-// Set up plan detection listener
-setupPlanListeners();
+// Plan listeners are now set up via setupEntityListeners() in App.tsx
 
 // Global handler to open external links in system browser
 document.addEventListener("click", (e) => {

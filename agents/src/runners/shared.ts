@@ -5,7 +5,8 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
-import { relative, isAbsolute } from "path";
+import { relative, isAbsolute, join, resolve } from "path";
+import { readFileSync, writeFileSync } from "fs";
 import type { RunnerConfig, OrchestrationContext } from "./types.js";
 import type { AgentConfig } from "../agent-types/index.js";
 import {
@@ -236,7 +237,6 @@ export async function runAgentLoop(
 
   // Persistence instance for plan detection (lazy, only created if needed)
   const persistence = new NodePersistence(config.mortDir);
-  const repositoryName = context.task?.repositoryName;
 
   // Build hooks for state tracking and side effects
   const hooks = {
@@ -266,26 +266,71 @@ export async function runAgentLoop(
 
               if (filePath) {
                 const operation = input.tool_name === "Write" ? "create" : "modify";
-                await updateFileChange({
-                  path: filePath,
-                  operation,
-                  diff: "", // Path is what matters for diffing
-                });
+                await updateFileChange(
+                  {
+                    path: filePath,
+                    operation,
+                  },
+                  context.workingDir
+                );
                 logger.info(`[PostToolUse] Recorded file change: ${operation} ${filePath}`);
 
                 // Detect plan files and create/update plan entity
-                if (repositoryName && isPlanPath(filePath, context.workingDir)) {
-                  // Normalize to relative path for storage
-                  let relativePath = filePath;
-                  if (isAbsolute(filePath)) {
-                    relativePath = relative(context.workingDir, filePath);
-                  }
-                  relativePath = relativePath.replace(/\\/g, "/");
+                // No longer requires repositoryName - just check if it's a plan path
+                if (isPlanPath(filePath, context.workingDir)) {
+                  // Normalize to absolute path for storage
+                  const absolutePath = isAbsolute(filePath)
+                    ? filePath
+                    : resolve(context.workingDir, filePath);
 
                   try {
-                    const { id: planId } = await persistence.ensurePlanExists(repositoryName, relativePath);
+                    const { id: planId } = await persistence.ensurePlanExists(absolutePath);
                     emitEvent(EventName.PLAN_DETECTED, { planId });
-                    logger.info(`[PostToolUse] Plan detected: ${relativePath} -> ${planId}`);
+                    logger.info(`[PostToolUse] Plan detected: ${absolutePath} -> ${planId}`);
+
+                    // Associate thread with plan by updating thread metadata
+                    const threadMetadataPath = join(context.threadPath, "metadata.json");
+                    try {
+                      const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, "utf-8"));
+                      // Only associate if thread doesn't already have a plan
+                      if (!threadMetadata.planId) {
+                        threadMetadata.planId = planId;
+                        threadMetadata.updatedAt = Date.now();
+                        writeFileSync(threadMetadataPath, JSON.stringify(threadMetadata, null, 2));
+                        // Emit thread:updated so frontend refreshes
+                        emitEvent(EventName.THREAD_UPDATED, {
+                          threadId: context.threadId,
+                          taskId: context.task?.id ?? threadMetadata.taskId,
+                          planId, // Include planId so frontend can update immediately
+                        });
+                        logger.info(`[PostToolUse] Associated thread ${context.threadId} with plan ${planId}`);
+                      }
+                    } catch (metaErr) {
+                      logger.warn(`[PostToolUse] Failed to associate thread with plan: ${metaErr}`);
+                    }
+
+                    // Also associate task with plan if task exists and doesn't already have a plan
+                    if (context.task?.id) {
+                      // For simple tasks: tasks/{taskId}/metadata.json
+                      // threadPath is: tasks/{taskId}/threads/simple-{threadId}
+                      const taskMetadataPath = join(context.threadPath, "..", "..", "metadata.json");
+                      try {
+                        const taskMetadata = JSON.parse(readFileSync(taskMetadataPath, "utf-8"));
+                        if (!taskMetadata.planId) {
+                          taskMetadata.planId = planId;
+                          taskMetadata.updatedAt = Date.now();
+                          writeFileSync(taskMetadataPath, JSON.stringify(taskMetadata, null, 2));
+                          // Emit task:updated so frontend refreshes
+                          emitEvent(EventName.TASK_UPDATED, {
+                            taskId: context.task.id,
+                            planId,
+                          });
+                          logger.info(`[PostToolUse] Associated task ${context.task.id} with plan ${planId}`);
+                        }
+                      } catch (taskMetaErr) {
+                        logger.warn(`[PostToolUse] Failed to associate task with plan: ${taskMetaErr}`);
+                      }
+                    }
                   } catch (err) {
                     logger.warn(`[PostToolUse] Failed to create plan entity: ${err}`);
                   }

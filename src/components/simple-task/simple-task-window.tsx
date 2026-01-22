@@ -73,6 +73,7 @@ function SimpleTaskWindowContent({
 }: SimpleTaskWindowContentProps) {
   const activeState = useThreadStore((s) => s.threadStates[threadId]);
   const activeMetadata = useThreadStore((s) => s.threads[threadId]);
+  const isLoadingThreadState = useThreadStore((s) => s.activeThreadLoading);
   const task = useTaskStore((s) => s.tasks[taskId]);
   // Select the mode value directly to avoid unstable selector return values
   const threadModes = useAgentModeStore((s) => s.threadModes);
@@ -140,15 +141,15 @@ function SimpleTaskWindowContent({
     return hasGitInfo;
   }, [activeMetadata?.git?.initialCommitHash, activeState?.fileChanges?.length]);
 
-  // Three-way toggle: thread -> changes -> plan -> thread
+  // Three-way toggle: thread -> plan -> changes -> thread
   const handleToggleView = useCallback(() => {
     setActiveView((current) => {
       switch (current) {
         case "thread":
-          return "changes";
-        case "changes":
           return "plan";
         case "plan":
+          return "changes";
+        case "changes":
           return "thread";
       }
     });
@@ -185,25 +186,6 @@ function SimpleTaskWindowContent({
   const toolStates = useMemo(() => activeState?.toolStates ?? {}, [activeState?.toolStates]);
   const entityStatus = activeMetadata?.status ?? "idle";
   const workingDirectory = activeMetadata?.workingDirectory ?? "";
-
-  // DEBUG: Log tool states to diagnose spinner bug
-  // Note: We select the threadStates object, then derive keys outside to avoid
-  // creating new arrays inside the selector (which causes infinite re-renders)
-  const storeThreadStates = useThreadStore((s) => s.threadStates);
-  const storeThreadStatesKeys = Object.keys(storeThreadStates);
-  logger.info(`[SimpleTaskWindow] Tool states debug`, {
-    threadId,
-    hasActiveState: !!activeState,
-    hasToolStates: !!activeState?.toolStates,
-    toolStatesKeys: Object.keys(toolStates),
-    toolStatesCount: Object.keys(toolStates).length,
-    toolStatesSnapshot: JSON.stringify(toolStates).slice(0, 500),
-    // DEBUG: Check what threadIds have state in the store
-    storeHasAnyStates: storeThreadStatesKeys.length > 0,
-    storeThreadStatesKeys: storeThreadStatesKeys,
-    currentThreadInStore: storeThreadStatesKeys.includes(threadId),
-  });
-
   // Derive status to handle optimistic state
   // If we have optimistic messages but no real state, treat as "running"
   // This prevents ThreadView from showing EmptyState when status === "idle"
@@ -255,6 +237,9 @@ function SimpleTaskWindowContent({
       showToast("Message queueing coming soon");
       return;
     }
+
+    // Switch to thread tab when submitting a message
+    setActiveView("thread");
 
     if (canResumeAgent) {
       await resumeSimpleAgent(taskId, threadId, userPrompt, workingDirectory, agentMode);
@@ -615,28 +600,12 @@ function SimpleTaskWindowContent({
       console.error("[SimpleTaskWindow] startDragging failed:", err);
     });
 
-    // After drag ends, snap position to pixel boundaries to fix text blur
-    // caused by subpixel positioning during native drag
-    const snapPositionAfterDrag = async () => {
-      logger.info("[SimpleTaskWindow] Calling snap_simple_task_panel_position...");
-      try {
-        const result = await invoke("snap_simple_task_panel_position");
-        logger.info("[SimpleTaskWindow] snap_simple_task_panel_position returned:", result);
-      } catch (err) {
-        logger.error("[SimpleTaskWindow] Failed to snap position:", err);
-      }
-    };
-
     // Listen for mouseup to know when drag ended
     const handleMouseUp = () => {
-      logger.info("[SimpleTaskWindow] mouseup detected, scheduling snap in 50ms");
       window.removeEventListener('mouseup', handleMouseUp);
       setIsDragging(false);
-      // Small delay to ensure drag has fully completed
-      setTimeout(snapPositionAfterDrag, 50);
     };
 
-    logger.info("[SimpleTaskWindow] Adding mouseup listener for drag end detection");
     window.addEventListener('mouseup', handleMouseUp);
   }, [isWindowFocused]);
 
@@ -663,40 +632,18 @@ function SimpleTaskWindowContent({
         hasChanges={hasChanges}
       />
 
-      {/* Conditionally render Thread view, Changes tab, or Plan tab */}
+      {/* Main content area - only one tab visible at a time */}
       {activeView === "thread" && (
-        <>
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <ThreadView
-              ref={messageListRef}
-              messages={messages}
-              isStreaming={isStreaming}
-              status={viewStatus}
-              toolStates={toolStates}
-              onToolResponse={handleToolResponse}
-            />
-          </div>
-          {/* Queued messages banner disabled - queueing is temporarily disabled */}
-          {/* <QueuedMessagesBanner messages={queuedMessages} /> */}
-          <SuggestedActionsPanel
-            ref={quickActionsPanelRef}
-            threadId={threadId}
-            onAction={handleSuggestedAction}
-            onAutoSelectInput={handleAutoSelectInput}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <ThreadView
+            ref={messageListRef}
+            messages={messages}
             isStreaming={isStreaming}
-            onSubmitFollowUp={handleSubmit}
-            onQuickAction={handleQuickAction}
+            status={viewStatus}
+            toolStates={toolStates}
+            onToolResponse={handleToolResponse}
           />
-          <ThreadInput
-            ref={inputRef}
-            threadId={threadId}
-            onSubmit={handleSubmit}
-            disabled={false}
-            workingDirectory={workingDirectory}
-            placeholder={undefined} // Queueing disabled for now
-            onNavigateToQuickActions={handleNavigateToQuickActions}
-          />
-        </>
+        </div>
       )}
 
       {activeView === "changes" && (
@@ -705,6 +652,7 @@ function SimpleTaskWindowContent({
             <ChangesTab
               threadMetadata={activeMetadata}
               threadState={activeState}
+              isLoadingThreadState={isLoadingThreadState}
             />
           )}
         </div>
@@ -715,6 +663,26 @@ function SimpleTaskWindowContent({
           <PlanTab planId={planId} />
         </div>
       )}
+
+      {/* Quick actions and input - always visible */}
+      <SuggestedActionsPanel
+        ref={quickActionsPanelRef}
+        threadId={threadId}
+        onAction={handleSuggestedAction}
+        onAutoSelectInput={handleAutoSelectInput}
+        isStreaming={isStreaming}
+        onSubmitFollowUp={handleSubmit}
+        onQuickAction={handleQuickAction}
+      />
+      <ThreadInput
+        ref={inputRef}
+        threadId={threadId}
+        onSubmit={handleSubmit}
+        disabled={false}
+        workingDirectory={workingDirectory}
+        placeholder={undefined}
+        onNavigateToQuickActions={handleNavigateToQuickActions}
+      />
 
       {/* <PermissionIndicator threadId={threadId} /> */}
 

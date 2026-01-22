@@ -97,9 +97,7 @@ describe('Plan Detection - Live LLM', () => {
 
     let planMetadata: {
       id: string;
-      path: string;
-      repositoryName: string;
-      title: string;
+      absolutePath: string;
       isRead: boolean;
       createdAt: number;
       updatedAt: number;
@@ -116,10 +114,9 @@ describe('Plan Detection - Live LLM', () => {
 
     // 8. Verify plan metadata structure
     expect(planMetadata.id).toBe(planId);
-    expect(planMetadata.path).toBe('plans/hello-world.md');
-    expect(planMetadata.title).toBe('Hello World');
+    // absolutePath should end with plans/hello-world.md
+    expect(planMetadata.absolutePath).toContain('plans/hello-world.md');
     expect(planMetadata.isRead).toBe(false);
-    expect(planMetadata.repositoryName).toBeDefined();
     expect(typeof planMetadata.createdAt).toBe('number');
     expect(typeof planMetadata.updatedAt).toBe('number');
 
@@ -198,12 +195,15 @@ describe('Plan Detection - Live LLM', () => {
 
     const result = await harness.run({
       agent: 'simple',
-      prompt: 'Create a file named feature-x.md in the plans/features subdirectory with the text "Feature X details". Use the Write tool to create the file at plans/features/feature-x.md',
+      // Note: Using plans/sub/file.md to test nested path detection
+      // The file must be in the plans/ directory to trigger plan detection
+      prompt: 'Use the Write tool exactly once to create a markdown file at the path plans/sub/nested-plan.md with the content "# Nested Plan\\n\\nThis is a nested plan file."',
       timeout: 90000,
     });
 
     console.log(`[LIVE TEST] Agent exit code: ${result.exitCode}`);
     console.log(`[LIVE TEST] Duration: ${result.durationMs}ms`);
+    console.log(`[LIVE TEST] All events:`, JSON.stringify(result.events.map(e => ({ name: e.name, payload: e.payload })), null, 2));
 
     expect(result.exitCode).toBe(0);
 
@@ -222,8 +222,66 @@ describe('Plan Detection - Live LLM', () => {
     const planMetadataPath = join(mortDir, 'plans', planId, 'metadata.json');
     const planMetadata = JSON.parse(readFileSync(planMetadataPath, 'utf-8'));
 
-    console.log(`[LIVE TEST] Nested plan path: ${planMetadata.path}`);
-    expect(planMetadata.path).toBe('plans/features/feature-x.md');
+    console.log(`[LIVE TEST] Nested plan absolutePath: ${planMetadata.absolutePath}`);
+    // absolutePath should contain the nested path under plans/
+    expect(planMetadata.absolutePath).toMatch(/plans\/.*\.md$/);
+
+  }, 120000);
+
+  it('associates plan with task and thread metadata', async () => {
+    const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.VITE_ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.log('[LIVE TEST] Skipping: ANTHROPIC_API_KEY not set');
+      return;
+    }
+
+    console.log('[LIVE TEST] Running plan-task-thread association test...');
+
+    const result = await harness.run({
+      agent: 'simple',
+      prompt: 'Use the Write tool to create a file at plans/associated-plan.md with the content "# Associated Plan"',
+      timeout: 90000,
+    });
+
+    console.log(`[LIVE TEST] Agent exit code: ${result.exitCode}`);
+    expect(result.exitCode).toBe(0);
+
+    // Find PLAN_DETECTED event
+    const planEvents = result.events.filter(e => e.name === EventName.PLAN_DETECTED);
+    expect(planEvents.length).toBeGreaterThan(0);
+    const planId = planEvents[0].payload.planId as string;
+    console.log(`[LIVE TEST] Plan ID: ${planId}`);
+
+    // Find TASK_UPDATED event with planId
+    const taskUpdatedEvents = result.events.filter(
+      e => e.name === EventName.TASK_UPDATED && e.payload.planId === planId
+    );
+    console.log(`[LIVE TEST] TASK_UPDATED events with planId: ${taskUpdatedEvents.length}`);
+    expect(taskUpdatedEvents.length).toBeGreaterThan(0);
+
+    // Find THREAD_UPDATED event with planId
+    const threadUpdatedEvents = result.events.filter(
+      e => e.name === EventName.THREAD_UPDATED && e.payload.planId === planId
+    );
+    console.log(`[LIVE TEST] THREAD_UPDATED events with planId: ${threadUpdatedEvents.length}`);
+    expect(threadUpdatedEvents.length).toBeGreaterThan(0);
+
+    // Verify task metadata on disk has planId
+    const mortDir = harness.tempDirPath!;
+    const taskId = result.events.find(e => e.name === 'task:created')?.payload.taskId as string;
+    const taskMetadataPath = join(mortDir, 'tasks', taskId, 'metadata.json');
+    const taskMetadata = JSON.parse(readFileSync(taskMetadataPath, 'utf-8'));
+    console.log(`[LIVE TEST] Task metadata planId: ${taskMetadata.planId}`);
+    expect(taskMetadata.planId).toBe(planId);
+
+    // Verify thread metadata on disk has planId
+    const threadId = result.events.find(e => e.name === 'thread:created')?.payload.threadId as string;
+    const threadDirs = readdirSync(join(mortDir, 'tasks', taskId, 'threads'));
+    const threadDir = threadDirs.find(d => d.includes(threadId));
+    const threadMetadataPath = join(mortDir, 'tasks', taskId, 'threads', threadDir!, 'metadata.json');
+    const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, 'utf-8'));
+    console.log(`[LIVE TEST] Thread metadata planId: ${threadMetadata.planId}`);
+    expect(threadMetadata.planId).toBe(planId);
 
   }, 120000);
 

@@ -12,7 +12,8 @@
 import { useEffect, useState, useRef } from "react";
 import { planService, usePlanStore } from "@/entities/plans";
 import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
-import { FileText, Loader2, AlertCircle, FileWarning } from "lucide-react";
+import { AlertCircle, FileWarning } from "lucide-react";
+import { logger } from "@/lib/logger-client";
 
 interface PlanTabProps {
   planId: string | null;
@@ -22,16 +23,60 @@ export function PlanTab({ planId }: PlanTabProps) {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planNotFound, setPlanNotFound] = useState(false);
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
   const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const plan = usePlanStore((state) =>
     planId ? state.getPlan(planId) : undefined
   );
 
+  // Stable values for effect dependencies - avoids re-running on isRead changes
+  const planExists = !!plan;
+  const planUpdatedAt = plan?.updatedAt;
+
+  // Reset refresh state when planId changes
+  useEffect(() => {
+    setPlanNotFound(false);
+    setRefreshAttempted(false);
+    setContent(null);
+    setError(null);
+  }, [planId]);
+
+  // Refresh plan from disk if not in store (handles cross-window sync and late hydration)
+  useEffect(() => {
+    if (!planId) return;
+    if (plan) return; // Already in store
+    if (refreshAttempted) return; // Already tried refresh
+
+    const currentPlanId = planId; // Capture for closure (TypeScript needs this)
+    logger.debug(`[PlanTab] Plan ${currentPlanId} not in store, attempting refresh from disk`);
+
+    async function refreshPlan() {
+      setLoading(true);
+      setRefreshAttempted(true);
+      try {
+        await planService.refreshById(currentPlanId);
+        // Check if plan is now in store
+        const refreshedPlan = usePlanStore.getState().getPlan(currentPlanId);
+        if (!refreshedPlan) {
+          logger.debug(`[PlanTab] Plan ${currentPlanId} not found after refresh`);
+          setPlanNotFound(true);
+        }
+      } catch (err) {
+        logger.error(`[PlanTab] Failed to refresh plan ${currentPlanId}:`, err);
+        setPlanNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    refreshPlan();
+  }, [planId, plan, refreshAttempted]);
+
   // Load plan content and mark as read (with delay, matching thread behavior)
   useEffect(() => {
-    if (!planId) {
-      setContent(null);
+    if (!planId || !planExists) {
       return;
     }
 
@@ -70,35 +115,42 @@ export function PlanTab({ planId }: PlanTabProps) {
         clearTimeout(markAsReadTimeoutRef.current);
       }
     };
-  }, [planId]);
+  }, [planId, planExists, planUpdatedAt]);
 
-  // Empty state - no plan associated (always visible per design decision)
-  if (!planId || !plan) {
+  // No planId provided
+  if (!planId) {
     return (
       <div
-        className="flex flex-col items-center justify-center h-full text-muted-foreground"
+        className="flex items-center justify-center h-full text-muted-foreground text-sm"
         data-testid="plan-empty-state"
       >
-        <FileText className="w-12 h-12 mb-4 opacity-50" />
-        <p>No plan associated with this task</p>
-        <p className="text-sm mt-2 text-center max-w-md">
-          Plans are automatically detected when threads create or edit files in
-          the plans/ directory, or when you mention a plan path in your message.
-        </p>
+        No plan yet
       </div>
     );
   }
 
-  // Loading state
+  // Loading state (refreshing plan from disk or loading content)
+  // Render blank screen - loading is fast enough that a spinner is jarring
   if (loading) {
+    return <div className="h-full" data-testid="plan-loading-state" />;
+  }
+
+  // Plan not found after refresh attempt
+  if (!plan && planNotFound) {
     return (
       <div
-        className="flex items-center justify-center h-full"
-        data-testid="plan-loading-state"
+        className="flex items-center justify-center h-full text-muted-foreground text-sm"
+        data-testid="plan-empty-state"
       >
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        No plan yet
       </div>
     );
+  }
+
+  // Plan is being loaded from store (refresh in progress)
+  // Render blank screen - loading is fast enough that a spinner is jarring
+  if (!plan) {
+    return <div className="h-full" data-testid="plan-loading-state" />;
   }
 
   // Error state
@@ -124,18 +176,27 @@ export function PlanTab({ planId }: PlanTabProps) {
       >
         <FileWarning className="w-12 h-12 mb-4" />
         <p>Plan file not found</p>
-        <p className="text-sm mt-2">{plan.path}</p>
+        <p className="text-sm mt-2">{plan.absolutePath}</p>
       </div>
     );
   }
 
+  // Compute relative path (relative to parent of /plans)
+  const getRelativePath = (absolutePath: string): string => {
+    const plansIndex = absolutePath.lastIndexOf("/plans/");
+    if (plansIndex !== -1) {
+      return absolutePath.slice(plansIndex + 1); // Returns "plans/..."
+    }
+    // Fallback to just the filename
+    return absolutePath.split("/").pop() || absolutePath;
+  };
+
   // Render plan content
   return (
     <div className="h-full overflow-auto p-4" data-testid="plan-content">
-      <div className="mb-4 pb-4 border-b">
-        <h2 className="text-lg font-semibold">{plan.title}</h2>
-        <p className="text-sm text-muted-foreground">{plan.path}</p>
-      </div>
+      <p className="text-sm text-muted-foreground mb-4">
+        {getRelativePath(plan.absolutePath)}
+      </p>
       <MarkdownRenderer content={content} />
     </div>
   );

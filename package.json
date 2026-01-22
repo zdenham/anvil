@@ -4,6 +4,7 @@
   "version": "v0.0.16",
   "type": "module",
   "scripts": {
+    "orb": "tsx observability/orb/index.ts",
     "dev": "./scripts/dev-mort.sh dev",
     "dev:headless": "MORT_SKIP_MAIN_WINDOW=1 pnpm dev",
     "dev:no-hmr": "MORT_DISABLE_HMR=true pnpm dev",
@@ -23,6 +24,7 @@
     "release:internal": "./scripts/internal-build.sh"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.0.0",
     "@ai-sdk/anthropic": "^2.0.53",
     "@anthropic-ai/sdk": "^0.52.0",
     "@dnd-kit/core": "^6.3.1",

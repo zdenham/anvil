@@ -1,13 +1,20 @@
-//! Centralized logging system with dual output streams.
+//! Centralized logging system with multiple output streams.
 //!
-//! Provides structured JSON logs for LLM querying and colored console output
-//! for human readability. Uses the `tracing` crate for structured logging.
+//! Provides structured JSON logs for LLM querying, colored console output
+//! for human readability, and optional ClickHouse upload for centralized observability.
+//! Uses the `tracing` crate for structured logging.
 //!
 //! Also maintains an in-memory log buffer that emits events to the frontend
 //! for the Logs tab display.
 //!
 //! Note: This module initializes before paths::initialize() is called,
 //! so we use a fallback path resolution that matches paths.rs logic.
+
+mod clickhouse;
+mod config;
+
+pub use clickhouse::ClickHouseLayer;
+pub use config::ClickHouseConfig;
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -290,9 +297,11 @@ fn get_logs_dir() -> io::Result<PathBuf> {
 
 /// Initializes the dual-output logging system.
 ///
-/// Sets up two output streams:
+/// Sets up multiple output streams:
 /// - JSON Lines file (`logs/structured.jsonl`) for programmatic analysis
 /// - Colored console output for human readability
+/// - In-memory buffer for frontend display
+/// - Optional ClickHouse layer for centralized observability (if configured)
 pub fn initialize() {
     let _ = START_TIME.set(Instant::now());
 
@@ -314,11 +323,21 @@ pub fn initialize() {
         }
     };
 
+    // Optional ClickHouse layer - only enabled if configured
+    let clickhouse_layer = ClickHouseConfig::from_env().map(|config| {
+        eprintln!(
+            "ClickHouse logging enabled: {}@{}",
+            config.database, config.host
+        );
+        ClickHouseLayer::new(config)
+    });
+
     // Initialize the subscriber with all layers
     tracing_subscriber::registry()
         .with(console_layer)
         .with(json_layer)
         .with(BufferLayer)
+        .with(clickhouse_layer)
         .init();
 
     tracing::info!("Logging initialized");

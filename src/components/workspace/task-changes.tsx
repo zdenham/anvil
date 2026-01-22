@@ -8,6 +8,8 @@ interface TaskChangesProps {
   fullFileContents: Record<string, string[]>;
   workingDirectory: string;
   filesLoading?: boolean;
+  /** Optional initial commit hash for diff generation. If not provided, HEAD is used. */
+  initialCommitHash?: string;
 }
 
 export function TaskChanges({
@@ -15,6 +17,7 @@ export function TaskChanges({
   fullFileContents,
   workingDirectory,
   filesLoading = false,
+  initialCommitHash,
 }: TaskChangesProps) {
   return (
     <div className="overflow-auto h-full p-4">
@@ -30,6 +33,7 @@ export function TaskChanges({
           fileChanges={fileChanges}
           fullFileContents={fullFileContents}
           workingDirectory={workingDirectory}
+          initialCommitHash={initialCommitHash}
         />
       )}
     </div>

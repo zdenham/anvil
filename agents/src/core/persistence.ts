@@ -20,11 +20,11 @@ const PLANS_DIR = "plans";
 /**
  * Minimal plan metadata stored on disk.
  * Agent only needs to create/update the metadata.json - frontend refreshes from disk.
+ * Uses absolute paths to simplify detection and avoid repositoryName dependencies.
  */
 interface PlanMetadata {
   id: string;
-  path: string;
-  repositoryName: string;
+  absolutePath: string;
   title: string;
   isRead: boolean;
   createdAt: number;
@@ -429,14 +429,13 @@ export abstract class MortPersistence {
 
   /**
    * Create or update a plan.
-   * Idempotent - looks up by repositoryName + path first.
+   * Idempotent - looks up by absolute path first.
    */
   async ensurePlanExists(
-    repositoryName: string,
-    path: string
+    absolutePath: string
   ): Promise<{ id: string; isNew: boolean }> {
-    // Find existing plan by path
-    const existing = await this.findPlanByPath(repositoryName, path);
+    // Find existing plan by absolute path
+    const existing = await this.findPlanByPath(absolutePath);
     if (existing) {
       // Mark as unread (content was updated)
       await this.updatePlan(existing.id, { isRead: false });
@@ -444,23 +443,20 @@ export abstract class MortPersistence {
     }
 
     // Create new plan
-    const plan = await this.createPlan({ repositoryName, path });
+    const plan = await this.createPlan({ absolutePath });
     return { id: plan.id, isNew: true };
   }
 
   /**
    * Create a new plan.
    */
-  async createPlan(input: { repositoryName: string; path: string; title?: string }): Promise<PlanMetadata> {
-    const title = input.title || this.extractTitleFromPath(input.path);
+  async createPlan(input: { absolutePath: string }): Promise<PlanMetadata> {
     const now = Date.now();
     const id = crypto.randomUUID();
 
     const plan: PlanMetadata = {
       id,
-      path: input.path,
-      repositoryName: input.repositoryName,
-      title,
+      absolutePath: input.absolutePath,
       isRead: false,
       createdAt: now,
       updatedAt: now,
@@ -474,7 +470,7 @@ export abstract class MortPersistence {
   /**
    * Update plan metadata.
    */
-  async updatePlan(id: string, updates: { title?: string; isRead?: boolean }): Promise<void> {
+  async updatePlan(id: string, updates: { isRead?: boolean }): Promise<void> {
     const plan = await this.getPlan(id);
     if (!plan) return;
 
@@ -494,26 +490,17 @@ export abstract class MortPersistence {
   }
 
   /**
-   * Find plan by repository + path.
+   * Find plan by absolute path.
    */
-  async findPlanByPath(repositoryName: string, path: string): Promise<PlanMetadata | null> {
+  async findPlanByPath(absolutePath: string): Promise<PlanMetadata | null> {
     const dirs = await this.listDirs(PLANS_DIR);
     for (const dir of dirs) {
       const plan = await this.read<PlanMetadata>(`${PLANS_DIR}/${dir}/metadata.json`);
-      if (plan && plan.repositoryName === repositoryName && plan.path === path) {
+      if (plan && plan.absolutePath === absolutePath) {
         return plan;
       }
     }
     return null;
-  }
-
-  private extractTitleFromPath(path: string): string {
-    const filename = path.split("/").pop() || path;
-    const nameWithoutExt = filename.replace(/\.md$/, "");
-    return nameWithoutExt
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
   }
 
   // ─────────────────────────────────────────────────────────────────────────

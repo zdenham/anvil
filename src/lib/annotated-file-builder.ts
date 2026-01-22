@@ -1,5 +1,6 @@
 import type { ParsedDiff, ParsedDiffFile, DiffLine } from "./diff-parser";
 import { calculatePriority } from "./diff-prioritizer";
+import { logger } from "./logger-client";
 
 export interface AnnotatedFile {
   /** Original parsed file metadata */
@@ -166,11 +167,19 @@ export function buildAnnotatedFiles(
   fullFileContents: Record<string, string[]>,
   priorityFn: (file: ParsedDiffFile) => number = calculatePriority
 ): AnnotatedFile[] {
-  return parsedDiff.files.map((file) => {
+  logger.info(`[FC-DEBUG] buildAnnotatedFiles called`, {
+    parsedDiffFileCount: parsedDiff.files.length,
+    fullFileContentsPaths: Object.keys(fullFileContents),
+    fullFileContentsCount: Object.keys(fullFileContents).length,
+  });
+
+  const result = parsedDiff.files.map((file) => {
     const priority = priorityFn(file);
+    const filePath = file.newPath ?? file.oldPath;
 
     // Skip binary files
     if (file.type === "binary") {
+      logger.info(`[FC-DEBUG] buildAnnotatedFiles: skipping binary file`, { filePath });
       return { file, priority, lines: [] };
     }
 
@@ -178,8 +187,17 @@ export function buildAnnotatedFiles(
     const contentKey = file.type === "deleted" ? file.oldPath : file.newPath;
     const content = fullFileContents[contentKey ?? ""];
 
+    logger.info(`[FC-DEBUG] buildAnnotatedFiles processing file`, {
+      filePath,
+      fileType: file.type,
+      contentKey,
+      hasContent: !!content,
+      contentLineCount: content?.length ?? 0,
+    });
+
     // Handle missing content
     if (!content) {
+      logger.info(`[FC-DEBUG] buildAnnotatedFiles: no content for file`, { filePath, contentKey });
       return { file, priority, lines: [] };
     }
 
@@ -189,6 +207,20 @@ export function buildAnnotatedFiles(
         ? buildDeletedFileAnnotation(file, content)
         : buildAnnotatedFile(file, content);
 
+    logger.info(`[FC-DEBUG] buildAnnotatedFiles: built annotation`, {
+      filePath,
+      lineCount: lines.length,
+      additionCount: lines.filter((l) => l.type === "addition").length,
+      deletionCount: lines.filter((l) => l.type === "deletion").length,
+    });
+
     return { file, priority, lines };
   });
+
+  logger.info(`[FC-DEBUG] buildAnnotatedFiles returning`, {
+    totalFiles: result.length,
+    filesWithContent: result.filter((f) => f.lines.length > 0).length,
+  });
+
+  return result;
 }

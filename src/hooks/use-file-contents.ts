@@ -38,9 +38,6 @@ export function useFileContents(
     const fileChangesArray = Array.from(fileChanges.entries()).map(([path, change]) => ({
       path,
       operation: change.operation,
-      hasDiff: !!change.diff,
-      diffLength: change.diff?.length ?? 0,
-      diffPreview: change.diff?.substring(0, 200) ?? "(no diff)",
     }));
 
     logger.log("[useFileContents] ========== EFFECT TRIGGERED ==========");

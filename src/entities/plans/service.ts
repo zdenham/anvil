@@ -28,7 +28,7 @@ class PlanService {
 
         if (result.success) {
           plans[result.data.id] = result.data;
-          logger.debug(`[planService:hydrate] Loaded plan: ${result.data.id} (${result.data.title})`);
+          logger.debug(`[planService:hydrate] Loaded plan: ${result.data.id}`);
         } else {
           logger.warn(`[planService:hydrate] Invalid plan metadata at ${filePath}:`, result.error.message);
         }
@@ -56,10 +56,11 @@ class PlanService {
   }
 
   /**
-   * Gets plans for a specific repository.
+   * Gets plans that have paths starting with the given prefix.
+   * Useful for filtering plans by repository/directory.
    */
-  getByRepository(repositoryName: string): PlanMetadata[] {
-    return usePlanStore.getState().getByRepository(repositoryName);
+  getByPathPrefix(pathPrefix: string): PlanMetadata[] {
+    return usePlanStore.getState().getByPathPrefix(pathPrefix);
   }
 
   /**
@@ -70,28 +71,25 @@ class PlanService {
   }
 
   /**
-   * Find existing plan by repository + path
+   * Find existing plan by absolute path
    */
-  findByPath(repositoryName: string, path: string): PlanMetadata | undefined {
-    return usePlanStore.getState().findByPath(repositoryName, path);
+  findByPath(absolutePath: string): PlanMetadata | undefined {
+    return usePlanStore.getState().findByPath(absolutePath);
   }
 
   /**
-   * Idempotent plan creation - looks up by path first.
+   * Idempotent plan creation - looks up by absolute path first.
    * If plan exists, marks it as unread (content was updated).
    */
-  async ensurePlanExists(
-    repositoryName: string,
-    path: string
-  ): Promise<PlanMetadata> {
-    const existing = this.findByPath(repositoryName, path);
+  async ensurePlanExists(absolutePath: string): Promise<PlanMetadata> {
+    const existing = this.findByPath(absolutePath);
     if (existing) {
       // Plan file was updated, mark as unread
       logger.debug(`[planService:ensurePlanExists] Plan already exists, marking as unread: ${existing.id}`);
       await this.markAsUnread(existing.id);
       return usePlanStore.getState().getPlan(existing.id)!;
     }
-    return this.create({ repositoryName, path });
+    return this.create({ absolutePath });
   }
 
   /**
@@ -99,20 +97,17 @@ class PlanService {
    * Uses optimistic updates - UI updates immediately, rolls back on failure.
    */
   async create(input: CreatePlanInput): Promise<PlanMetadata> {
-    const title = input.title || this.extractTitleFromPath(input.path);
     const now = Date.now();
 
     const plan: PlanMetadata = {
       id: crypto.randomUUID(),
-      path: input.path,
-      repositoryName: input.repositoryName,
-      title,
+      absolutePath: input.absolutePath,
       isRead: false, // Always start unread
       createdAt: now,
       updatedAt: now,
     };
 
-    logger.debug(`[planService:create] Creating plan: ${plan.id} (${plan.title})`);
+    logger.debug(`[planService:create] Creating plan: ${plan.id}`);
 
     // Optimistic update with rollback
     const rollback = usePlanStore.getState()._applyCreate(plan);
@@ -199,6 +194,9 @@ class PlanService {
    * Mark plan as read.
    */
   async markAsRead(id: string): Promise<void> {
+    const existing = usePlanStore.getState().getPlan(id);
+    if (!existing || existing.isRead) return; // Skip if not found or already read
+
     logger.debug(`[planService:markAsRead] Marking plan as read: ${id}`);
     usePlanStore.getState().markPlanAsRead(id);
 
@@ -228,29 +226,20 @@ class PlanService {
   }
 
   /**
-   * Get plan content from the actual file in the repository.
-   * Requires looking up the repository's source path first.
+   * Get plan content from the actual file.
+   * Uses the absolute path stored in plan metadata.
    */
   async getPlanContent(planId: string): Promise<string | null> {
     const plan = usePlanStore.getState().getPlan(planId);
     if (!plan) return null;
 
-    // Need to resolve the repository's source path
-    // The plan.path is relative to repo root, need absolute path
-    const repoSourcePath = await this.getRepositorySourcePath(
-      plan.repositoryName
-    );
-    if (!repoSourcePath) return null;
-
-    const absolutePath = `${repoSourcePath}/${plan.path}`;
-
     try {
-      // Use filesystem-client directly for absolute paths outside data directory
+      // Use filesystem-client directly for absolute paths
       const { FilesystemClient } = await import("@/lib/filesystem-client");
       const fs = new FilesystemClient();
-      return await fs.readFile(absolutePath);
+      return await fs.readFile(plan.absolutePath);
     } catch {
-      logger.warn(`[planService:getPlanContent] Failed to read plan content at ${absolutePath}`);
+      logger.warn(`[planService:getPlanContent] Failed to read plan content at ${plan.absolutePath}`);
       return null;
     }
   }
@@ -279,28 +268,6 @@ class PlanService {
     }
   }
 
-  /**
-   * Get repository source path from repo service.
-   */
-  private async getRepositorySourcePath(
-    repositoryName: string
-  ): Promise<string | null> {
-    const { repoService } = await import("@/entities/repositories");
-    const repo = repoService.get(repositoryName);
-    return repo?.sourcePath ?? null;
-  }
-
-  /**
-   * Extract title from path (e.g., "plans/my-feature.md" -> "My Feature")
-   */
-  private extractTitleFromPath(path: string): string {
-    const filename = path.split("/").pop() || path;
-    const nameWithoutExt = filename.replace(/\.md$/, "");
-    return nameWithoutExt
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  }
 }
 
 export const planService = new PlanService();

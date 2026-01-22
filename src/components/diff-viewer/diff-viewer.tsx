@@ -13,11 +13,16 @@ import { SkipLinks } from "./skip-links";
 import { useLiveAnnouncer, LiveAnnouncerRegion } from "./use-live-announcer";
 import type { FileChange } from "@/lib/types/agent-messages";
 import { logger } from "@/lib/logger-client";
+import {
+  generateThreadDiff,
+  extractFileChanges,
+} from "@/lib/utils/thread-diff-generator";
+import { gitCommands } from "@/lib/tauri-commands";
 
 export interface DiffViewerProps {
   /**
    * File changes from the agent, keyed by path.
-   * Each FileChange contains the full cumulative diff from HEAD.
+   * Contains path and operation info (diffs are generated on-demand).
    */
   fileChanges: Map<string, FileChange>;
   /**
@@ -27,6 +32,8 @@ export interface DiffViewerProps {
   fullFileContents: Record<string, string[]>;
   /** Working directory for the thread */
   workingDirectory: string;
+  /** Optional: Initial commit hash for diff generation (required for proper diffing) */
+  initialCommitHash?: string;
   /** Optional: Custom priority scoring function */
   priorityFn?: (file: ParsedDiffFile) => number;
 }
@@ -55,34 +62,132 @@ export interface DiffViewerState {
 export function DiffViewer({
   fileChanges,
   fullFileContents,
-  workingDirectory: _workingDirectory,
+  workingDirectory,
+  initialCommitHash,
   priorityFn,
 }: DiffViewerProps) {
   const [allExpanded, setAllExpanded] = useState(false);
   const [highlightedFiles, setHighlightedFiles] = useState<AnnotatedFile[]>([]);
   const [isHighlighting, setIsHighlighting] = useState(true);
+  const [diffLoading, setDiffLoading] = useState(true);
+  const [generatedDiff, setGeneratedDiff] = useState<string>("");
+  const [diffError, setDiffError] = useState<string | null>(null);
   const { announce, setRef } = useLiveAnnouncer();
 
-  // Parse and annotate all files (sync)
-  const { files, stats, error, rawDiffs } = useMemo(() => {
-    try {
-      // Combine all diffs into a single diff text
-      const allDiffs: string[] = [];
-      const rawDiffsMap: Record<string, string> = {};
+  // Generate diffs on-demand using the Rust backend
+  useEffect(() => {
+    async function fetchDiffs() {
+      if (fileChanges.size === 0) {
+        setDiffLoading(false);
+        setGeneratedDiff("");
+        return;
+      }
 
-      for (const [, change] of fileChanges) {
-        if (change.diff) {
-          allDiffs.push(change.diff);
-          rawDiffsMap[change.path] = change.diff;
+      // Need initialCommitHash for proper diff generation
+      // If not provided, try to get current HEAD as fallback
+      let baseCommit = initialCommitHash;
+      if (!baseCommit && workingDirectory) {
+        try {
+          baseCommit = await gitCommands.getHeadCommit(workingDirectory);
+        } catch {
+          // Can't get HEAD - diffs won't work properly
+          setDiffError("Unable to determine base commit for diff");
+          setDiffLoading(false);
+          return;
         }
       }
 
-      if (allDiffs.length === 0) {
-        return { files: [], stats: { additions: 0, deletions: 0 }, error: null, rawDiffs: {} };
+      if (!baseCommit) {
+        setDiffError("No base commit available for diff generation");
+        setDiffLoading(false);
+        return;
       }
 
-      const combinedDiff = allDiffs.join("\n");
-      const parsedDiff = parseDiff(combinedDiff);
+      try {
+        // Extract file change info from the Map
+        const changes = extractFileChanges(
+          Array.from(fileChanges.values())
+        );
+
+        // Generate diffs via Rust backend
+        const result = await generateThreadDiff(
+          baseCommit,
+          changes,
+          workingDirectory
+        );
+
+        if (result.error) {
+          setDiffError(result.error);
+        } else {
+          // Reconstruct raw diff string from parsed diff for downstream use
+          const rawDiff = result.diff.files
+            .map((file) => {
+              const lines: string[] = [];
+              const oldPath = file.oldPath ?? "/dev/null";
+              const newPath = file.newPath ?? "/dev/null";
+              lines.push(`diff --git a/${oldPath} b/${newPath}`);
+              if (file.type === "added") lines.push("new file mode 100644");
+              else if (file.type === "deleted") lines.push("deleted file mode 100644");
+              lines.push(`--- ${file.oldPath ? `a/${file.oldPath}` : "/dev/null"}`);
+              lines.push(`+++ ${file.newPath ? `b/${file.newPath}` : "/dev/null"}`);
+              for (const hunk of file.hunks) {
+                lines.push(`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@${hunk.sectionHeader ? ` ${hunk.sectionHeader}` : ""}`);
+                for (const line of hunk.lines) {
+                  const prefix = line.type === "addition" ? "+" : line.type === "deletion" ? "-" : " ";
+                  lines.push(`${prefix}${line.content}`);
+                }
+              }
+              return lines.join("\n");
+            })
+            .join("\n");
+          setGeneratedDiff(rawDiff);
+        }
+      } catch (err) {
+        setDiffError(err instanceof Error ? err.message : "Failed to generate diff");
+      } finally {
+        setDiffLoading(false);
+      }
+    }
+
+    setDiffLoading(true);
+    setDiffError(null);
+    fetchDiffs();
+  }, [fileChanges, workingDirectory, initialCommitHash]);
+
+  // Parse and annotate all files (sync) - uses generated diff
+  const { files, stats, error, rawDiffs } = useMemo(() => {
+    const emptyRawDiffs: Record<string, string> = {};
+    if (diffLoading || !generatedDiff) {
+      return { files: [], stats: { additions: 0, deletions: 0 }, error: diffError, rawDiffs: emptyRawDiffs };
+    }
+
+    try {
+      const parsedDiff = parseDiff(generatedDiff);
+
+      // Build raw diffs map for error fallback
+      const rawDiffsMap: Record<string, string> = {};
+      for (const file of parsedDiff.files) {
+        const path = file.newPath ?? file.oldPath ?? "";
+        if (path) {
+          // Reconstruct individual file diff
+          const lines: string[] = [];
+          const oldPath = file.oldPath ?? "/dev/null";
+          const newPath = file.newPath ?? "/dev/null";
+          lines.push(`diff --git a/${oldPath} b/${newPath}`);
+          if (file.type === "added") lines.push("new file mode 100644");
+          else if (file.type === "deleted") lines.push("deleted file mode 100644");
+          lines.push(`--- ${file.oldPath ? `a/${file.oldPath}` : "/dev/null"}`);
+          lines.push(`+++ ${file.newPath ? `b/${file.newPath}` : "/dev/null"}`);
+          for (const hunk of file.hunks) {
+            lines.push(`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@${hunk.sectionHeader ? ` ${hunk.sectionHeader}` : ""}`);
+            for (const line of hunk.lines) {
+              const prefix = line.type === "addition" ? "+" : line.type === "deletion" ? "-" : " ";
+              lines.push(`${prefix}${line.content}`);
+            }
+          }
+          rawDiffsMap[path] = lines.join("\n");
+        }
+      }
 
       const annotatedFiles = buildAnnotatedFiles(
         parsedDiff,
@@ -105,21 +210,14 @@ export function DiffViewer({
       return { files: annotatedFiles, stats: totalStats, error: null, rawDiffs: rawDiffsMap };
     } catch (err) {
       logger.error("Failed to parse diff:", err);
-      // Collect raw diffs for error fallback
-      const rawDiffsMap: Record<string, string> = {};
-      for (const [path, change] of fileChanges) {
-        if (change.diff) {
-          rawDiffsMap[path] = change.diff;
-        }
-      }
       return {
         files: [],
         stats: { additions: 0, deletions: 0 },
         error: err instanceof Error ? err.message : "Failed to parse diff",
-        rawDiffs: rawDiffsMap,
+        rawDiffs: emptyRawDiffs,
       };
     }
-  }, [fileChanges, fullFileContents, priorityFn]);
+  }, [generatedDiff, diffLoading, diffError, fullFileContents, priorityFn]);
 
   // Apply syntax highlighting asynchronously
   useEffect(() => {
@@ -185,14 +283,14 @@ export function DiffViewer({
     );
   }
 
+  // Loading state while generating diffs or syntax highlighting
+  if (diffLoading || isHighlighting) {
+    return <DiffViewerSkeleton />;
+  }
+
   // Empty state
   if (files.length === 0) {
     return <DiffEmptyState />;
-  }
-
-  // Loading state while syntax highlighting is applied
-  if (isHighlighting) {
-    return <DiffViewerSkeleton />;
   }
 
   // Use highlighted files for rendering (has tokens attached)

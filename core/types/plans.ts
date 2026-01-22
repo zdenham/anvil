@@ -8,16 +8,16 @@ import { z } from 'zod';
 /**
  * Schema for plan metadata persisted to disk.
  * Validated when loading from JSON files.
+ *
+ * Uses absolute paths to simplify plan detection and content resolution.
+ * This eliminates the need for repositoryName lookups and works correctly
+ * with worktrees.
  */
 export const PlanMetadataSchema = z.object({
   /** Unique plan ID (UUID) */
   id: z.string().uuid(),
-  /** Path to the plan file relative to repository root (e.g., "plans/feature-x.md") */
-  path: z.string(),
-  /** Repository name this plan belongs to */
-  repositoryName: z.string(),
-  /** Plan title (extracted from filename or first H1 in content) */
-  title: z.string(),
+  /** Absolute path to the plan file (e.g., "/Users/.../mortician/plans/feature-x.md") */
+  absolutePath: z.string(),
   /** Whether user has viewed the plan - defaults to false (unread) */
   isRead: z.boolean().default(false),
   /** Timestamps */
@@ -30,13 +30,10 @@ export type PlanMetadata = z.infer<typeof PlanMetadataSchema>;
 
 /** Input for creating a new plan */
 export interface CreatePlanInput {
-  path: string;
-  repositoryName: string;
-  title?: string;
+  absolutePath: string;
 }
 
 /** Input for updating a plan */
 export interface UpdatePlanInput {
-  title?: string;
   isRead?: boolean;
 }

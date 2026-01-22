@@ -559,9 +559,11 @@ export const threadService = {
    * State is stored keyed by threadId, so late-arriving updates don't affect active view.
    */
   async loadThreadState(threadId: string): Promise<void> {
+    logger.info(`[FC-DEBUG] loadThreadState starting`, { threadId });
     logger.info(`[threadService.loadThreadState] Starting load for ${threadId}`);
     const store = useThreadStore.getState();
     const hasCachedState = !!store.threadStates[threadId];
+    logger.info(`[FC-DEBUG] loadThreadState cache check`, { threadId, hasCachedState });
     logger.info(`[threadService.loadThreadState] Has cached state: ${hasCachedState}`);
 
     // Only show loading if we don't have cached state (stale-while-revalidate)
@@ -620,6 +622,11 @@ export const threadService = {
       }
 
       // Store state keyed by threadId - naturally handles race conditions
+      logger.info(`[FC-DEBUG] loadThreadState parsed state successfully`, {
+        threadId,
+        fileChangesCount: result.data.fileChanges?.length ?? 0,
+        fileChangePaths: result.data.fileChanges?.map((c) => c.path) ?? [],
+      });
       logger.info(`[threadService.loadThreadState] Setting thread state for ${threadId}`, {
         messageCount: result.data.messages.length,
         fileChangeCount: result.data.fileChanges?.length ?? 0,
@@ -630,6 +637,7 @@ export const threadService = {
         toolStatesCount: result.data.toolStates ? Object.keys(result.data.toolStates).length : 0,
       });
       store.setThreadState(threadId, result.data);
+      logger.info(`[FC-DEBUG] loadThreadState stored state in zustand store`);
 
       logger.info(`[threadService.loadThreadState] Successfully loaded state for ${threadId}`);
     } catch (err) {

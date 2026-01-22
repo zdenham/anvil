@@ -104,14 +104,14 @@ export type EventNameType = (typeof EventName)[keyof typeof EventName];
 export interface EventPayloads {
   // Task events - use taskId (UUID) as primary identifier
   [EventName.TASK_CREATED]: { taskId: string };
-  [EventName.TASK_UPDATED]: { taskId: string };
+  [EventName.TASK_UPDATED]: { taskId: string; planId?: string };
   [EventName.TASK_DELETED]: { taskId: string };
   [EventName.TASK_STATUS_CHANGED]: { taskId: string; status: TaskStatus };
   [EventName.TASK_MARKED_UNREAD]: { taskId: string };
 
   // Thread events
   [EventName.THREAD_CREATED]: { threadId: string; taskId: string };
-  [EventName.THREAD_UPDATED]: { threadId: string; taskId: string };
+  [EventName.THREAD_UPDATED]: { threadId: string; taskId: string; planId?: string };
   [EventName.THREAD_STATUS_CHANGED]: { threadId: string; status: ThreadStatus };
 
   // Agent events
@@ -175,12 +175,17 @@ export interface EventPayloads {
 
 /**
  * File change tracked during agent execution.
+ *
+ * NOTE: The `diff` field was removed - diffs are generated on-demand by the
+ * frontend using git_diff_files, which handles both tracked files (git diff)
+ * and untracked files (synthetic diff generation).
+ *
+ * Paths are always relative to the working directory (normalized at agent level).
  */
 export const FileChangeSchema = z.object({
   path: z.string(),
   operation: z.enum(["create", "modify", "delete", "rename"]),
   oldPath: z.string().optional(),
-  diff: z.string(),
 });
 export type FileChange = z.infer<typeof FileChangeSchema>;
 

@@ -5,25 +5,28 @@
  * Shows a consolidated diff view from the initial commit at thread start.
  */
 
-import { useEffect, useState, useMemo } from "react";
-import { Loader2, FileCode2, AlertCircle, GitBranch } from "lucide-react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { FileCode2, AlertCircle, GitBranch } from "lucide-react";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { ThreadState } from "@/lib/types/agent-messages";
 import {
   generateThreadDiff,
-  extractChangedFilePaths,
+  extractFileChanges,
   type ThreadDiffResult,
 } from "@/lib/utils/thread-diff-generator";
 import { InlineDiffBlock } from "@/components/thread/inline-diff-block";
 import { parseDiff } from "@/lib/diff-parser";
 import { buildAnnotatedFiles, type AnnotatedFile } from "@/lib/annotated-file-builder";
 import { FilesystemClient } from "@/lib/filesystem-client";
+import { logger } from "@/lib/logger-client";
 
 interface ChangesTabProps {
   /** Thread metadata containing git info */
   threadMetadata: ThreadMetadata;
   /** Thread state containing file changes */
   threadState?: ThreadState;
+  /** Whether thread state is still being loaded from disk */
+  isLoadingThreadState?: boolean;
 }
 
 /**
@@ -52,14 +55,10 @@ function ErrorState({ error }: { error: string }) {
 
 /**
  * Loading state shown while generating diffs.
+ * Renders blank screen - loading is fast enough that a spinner is jarring.
  */
 function LoadingState() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-surface-400 p-8">
-      <Loader2 size={32} className="mb-4 animate-spin" />
-      <p className="text-sm">Generating diff...</p>
-    </div>
-  );
+  return <div className="h-full" />;
 }
 
 /**
@@ -141,44 +140,123 @@ async function fetchFileContents(
 /**
  * Changes tab for viewing all file changes in a thread.
  */
-export function ChangesTab({ threadMetadata, threadState }: ChangesTabProps) {
+export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }: ChangesTabProps) {
   const [diffResult, setDiffResult] = useState<ThreadDiffResult | null>(null);
   const [annotatedFiles, setAnnotatedFiles] = useState<AnnotatedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Track whether the initial load has completed (isLoadingThreadState went from true to false, OR we received state)
+  const [initialLoadComplete, setInitialLoadComplete] = useState(!!threadState);
+  const prevLoadingRef = useRef(isLoadingThreadState);
 
-  // Extract file paths from thread state's fileChanges
-  const changedFilePaths = useMemo(() => {
-    return extractChangedFilePaths(threadState?.fileChanges);
-  }, [threadState?.fileChanges]);
+  logger.info(`[FC-DEBUG] ChangesTab render`, {
+    threadId: threadMetadata.id,
+    hasThreadState: !!threadState,
+    isLoadingThreadState,
+    fileChangesCount: threadState?.fileChanges?.length ?? 0,
+    initialCommitHash: threadMetadata.git?.initialCommitHash,
+    // Add current state values
+    loading,
+    hasDiffResult: !!diffResult,
+    diffResultFileCount: diffResult?.diff?.files?.length ?? 0,
+    error,
+    initialLoadComplete,
+  });
+
+  // Track when loading completes or when state arrives
+  useEffect(() => {
+    // If we receive threadState, initial load is complete
+    if (threadState) {
+      setInitialLoadComplete(true);
+    }
+    // If isLoadingThreadState transitions from true to false, load is complete
+    if (prevLoadingRef.current && !isLoadingThreadState) {
+      setInitialLoadComplete(true);
+    }
+    prevLoadingRef.current = isLoadingThreadState;
+  }, [threadState, isLoadingThreadState]);
+
+  // Extract file change info from thread state's fileChanges
+  const fileChanges = useMemo(() => {
+    const changes = extractFileChanges(threadState?.fileChanges);
+    logger.info(`[FC-DEBUG] ChangesTab extractFileChanges`, {
+      threadId: threadMetadata.id,
+      hasThreadState: !!threadState,
+      fileChangesCount: threadState?.fileChanges?.length ?? 0,
+      extractedChangesCount: changes.length,
+      changes,
+    });
+    return changes;
+  }, [threadState?.fileChanges, threadMetadata.id]);
 
   // Check if we have the required data for diffing
   const initialCommitHash = threadMetadata.git?.initialCommitHash;
   const workingDirectory = threadMetadata.workingDirectory;
 
+  // We're still waiting for thread state if initial load hasn't completed yet
+  const isWaitingForThreadState = !initialLoadComplete;
+
   useEffect(() => {
+    logger.info(`[FC-DEBUG] generateDiffs useEffect triggered`, {
+      threadId: threadMetadata.id,
+      initialCommitHash,
+      fileChangesCount: fileChanges.length,
+      isLoadingThreadState,
+      isWaitingForThreadState,
+      initialLoadComplete,
+    });
+
     const generateDiffs = async () => {
+      logger.info(`[FC-DEBUG] generateDiffs effect starting`, {
+        threadId: threadMetadata.id,
+        initialCommitHash,
+        fileChangesCount: fileChanges.length,
+        fileChanges,
+        isLoadingThreadState,
+        isWaitingForThreadState,
+        initialLoadComplete,
+      });
+
       setLoading(true);
       setError(null);
 
       // No git info - can't generate diff
       if (!initialCommitHash) {
+        logger.info(`[FC-DEBUG] No initialCommitHash, aborting diff generation`);
         setLoading(false);
         return;
       }
 
+      // If thread state is still loading or hasn't arrived yet, wait for it
+      if (isLoadingThreadState || isWaitingForThreadState) {
+        logger.info(`[FC-DEBUG] Waiting for thread state`, { isLoadingThreadState, isWaitingForThreadState });
+        // Don't set loading to false - let the parent loading state take precedence
+        return;
+      }
+
       // No changed files - nothing to diff
-      if (changedFilePaths.length === 0) {
+      if (fileChanges.length === 0) {
+        logger.info(`[FC-DEBUG] No file changes, nothing to diff`);
         setLoading(false);
         return;
       }
 
       try {
+        logger.info(`[FC-DEBUG] Calling generateThreadDiff`, {
+          initialCommitHash,
+          fileChanges,
+          workingDirectory,
+        });
         const result = await generateThreadDiff(
           initialCommitHash,
-          changedFilePaths,
+          fileChanges,
           workingDirectory
         );
+        logger.info(`[FC-DEBUG] generateThreadDiff returned`, {
+          hasError: !!result.error,
+          fileCount: result.diff.files.length,
+          error: result.error,
+        });
 
         if (result.error) {
           setError(result.error);
@@ -186,44 +264,65 @@ export function ChangesTab({ threadMetadata, threadState }: ChangesTabProps) {
           setDiffResult(result);
 
           // Fetch full file contents for all changed files
+          logger.info(`[FC-DEBUG] Fetching file contents`);
           const fileContents = await fetchFileContents(result, workingDirectory);
+          logger.info(`[FC-DEBUG] fetchFileContents returned`, {
+            fileCount: Object.keys(fileContents).length,
+            filePaths: Object.keys(fileContents),
+          });
 
           // Build annotated files with full content
+          logger.info(`[FC-DEBUG] Building annotated files`);
           const annotated = buildAnnotatedFiles(result.diff, fileContents);
+          logger.info(`[FC-DEBUG] buildAnnotatedFiles returned`, {
+            annotatedFileCount: annotated.length,
+            filesWithLines: annotated.filter((f) => f.lines.length > 0).length,
+          });
           setAnnotatedFiles(annotated);
         }
       } catch (err) {
+        logger.error(`[FC-DEBUG] generateDiffs error`, err);
         setError(err instanceof Error ? err.message : "Failed to generate diff");
       } finally {
         setLoading(false);
+        logger.info(`[FC-DEBUG] generateDiffs completed`);
       }
     };
 
     generateDiffs();
-  }, [initialCommitHash, changedFilePaths, workingDirectory]);
+  }, [initialCommitHash, fileChanges, workingDirectory, isLoadingThreadState, isWaitingForThreadState, threadMetadata.id, initialLoadComplete]);
 
-  // Loading state
-  if (loading) {
+  // Loading state - show when diff is generating OR when thread state is still loading from disk
+  if (loading || isLoadingThreadState || isWaitingForThreadState) {
+    logger.info(`[FC-DEBUG] ChangesTab rendering LoadingState`, {
+      loading,
+      isLoadingThreadState,
+      isWaitingForThreadState,
+    });
     return <LoadingState />;
   }
 
   // No git info available
   if (!initialCommitHash) {
+    logger.info(`[FC-DEBUG] ChangesTab rendering EmptyState: no git info`);
     return <EmptyState message="No git information available for this thread" />;
   }
 
   // No file changes
-  if (changedFilePaths.length === 0) {
+  if (fileChanges.length === 0) {
+    logger.info(`[FC-DEBUG] ChangesTab rendering EmptyState: no file changes`);
     return <EmptyState message="No file changes in this thread" />;
   }
 
   // Error state
   if (error) {
+    logger.info(`[FC-DEBUG] ChangesTab rendering ErrorState`, { error });
     return <ErrorState error={error} />;
   }
 
   // No diff result
   if (!diffResult || diffResult.diff.files.length === 0) {
+    logger.info(`[FC-DEBUG] ChangesTab rendering EmptyState: no diff result`);
     return <EmptyState message="No changes to display" />;
   }
 
@@ -235,6 +334,13 @@ export function ChangesTab({ threadMetadata, threadState }: ChangesTabProps) {
     }),
     { additions: 0, deletions: 0 }
   );
+
+  logger.info(`[FC-DEBUG] ChangesTab rendering diff view`, {
+    fileCount: diffResult.diff.files.length,
+    annotatedFilesCount: annotatedFiles.length,
+    totalAdditions: totalStats.additions,
+    totalDeletions: totalStats.deletions,
+  });
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

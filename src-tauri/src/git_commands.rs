@@ -437,14 +437,116 @@ pub async fn git_get_head_commit(repo_path: String) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Request for a single file's diff, including operation type
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiffRequest {
+    pub path: String,
+    pub operation: String, // "create", "modify", "delete", "rename"
+}
+
+/// Generate a synthetic diff for a newly created (untracked) file.
+/// Shows all lines as additions, similar to what git would show for a new file.
+fn generate_new_file_diff(repo_path: &str, file_path: &str) -> Result<String, String> {
+    let full_path = std::path::Path::new(repo_path).join(file_path);
+
+    let content = std::fs::read_to_string(&full_path)
+        .map_err(|e| format!("Failed to read new file {}: {}", file_path, e))?;
+
+    let lines: Vec<&str> = content.lines().collect();
+    let line_count = lines.len().max(1); // At least 1 for empty files
+
+    let mut diff = String::new();
+    diff.push_str(&format!("diff --git a/{} b/{}\n", file_path, file_path));
+    diff.push_str("new file mode 100644\n");
+    diff.push_str("--- /dev/null\n");
+    diff.push_str(&format!("+++ b/{}\n", file_path));
+    diff.push_str(&format!("@@ -0,0 +1,{} @@\n", line_count));
+
+    for line in lines {
+        diff.push('+');
+        diff.push_str(line);
+        diff.push('\n');
+    }
+
+    // Handle files that don't end with newline
+    if !content.is_empty() && !content.ends_with('\n') {
+        diff.push_str("\\ No newline at end of file\n");
+    }
+
+    Ok(diff)
+}
+
 /// Generate a git diff for specific files from a base commit
 /// Returns the raw diff output which can be parsed by the frontend
+///
+/// Handles both tracked files (using git diff) and untracked/new files
+/// (by generating synthetic diffs).
 #[tauri::command]
 pub async fn git_diff_files(
     repo_path: String,
     base_commit: String,
     file_paths: Vec<String>,
+    file_requests: Option<Vec<FileDiffRequest>>,
 ) -> Result<String, String> {
+    // If file_requests is provided, use the new operation-aware logic
+    if let Some(requests) = file_requests {
+        if requests.is_empty() {
+            return Ok(String::new());
+        }
+
+        let mut all_diffs = Vec::new();
+
+        // Separate files by operation type
+        let (new_files, tracked_files): (Vec<_>, Vec<_>) = requests
+            .into_iter()
+            .partition(|r| r.operation == "create");
+
+        // Generate diffs for tracked files using git diff
+        if !tracked_files.is_empty() {
+            let tracked_paths: Vec<String> = tracked_files.iter().map(|r| r.path.clone()).collect();
+
+            let mut args = vec!["diff".to_string(), base_commit.clone(), "--".to_string()];
+            args.extend(tracked_paths);
+
+            let output = shell::command("git")
+                .args(&args)
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| format!("Failed to execute git diff: {}", e))?;
+
+            if !output.status.success() {
+                return Err(format!(
+                    "Failed to generate diff: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ));
+            }
+
+            let diff_output = String::from_utf8_lossy(&output.stdout).to_string();
+            if !diff_output.is_empty() {
+                all_diffs.push(diff_output);
+            }
+        }
+
+        // Generate synthetic diffs for new/untracked files
+        for file in new_files {
+            match generate_new_file_diff(&repo_path, &file.path) {
+                Ok(diff) => {
+                    if !diff.is_empty() {
+                        all_diffs.push(diff);
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to generate diff for new file {}: {}", file.path, e);
+                    // Continue with other files even if one fails
+                }
+            }
+        }
+
+        return Ok(all_diffs.join("\n"));
+    }
+
+    // Legacy path: just file_paths without operation info
     if file_paths.is_empty() {
         return Ok(String::new());
     }

@@ -20,9 +20,9 @@ interface PlanStoreActions {
   /** Selectors */
   getAll: () => PlanMetadata[];
   getPlan: (id: string) => PlanMetadata | undefined;
-  getByRepository: (repositoryName: string) => PlanMetadata[];
+  getByPathPrefix: (pathPrefix: string) => PlanMetadata[];
   getUnreadPlans: () => PlanMetadata[];
-  findByPath: (repositoryName: string, path: string) => PlanMetadata | undefined;
+  findByPath: (absolutePath: string) => PlanMetadata | undefined;
 
   /** Read status management */
   markPlanAsRead: (id: string) => void;
@@ -62,22 +62,20 @@ export const usePlanStore = create<PlanStoreState & PlanStoreActions>(
 
     getPlan: (id) => get().plans[id],
 
-    getByRepository: (repositoryName) =>
-      get()._plansArray.filter((p) => p.repositoryName === repositoryName),
+    getByPathPrefix: (pathPrefix) =>
+      get()._plansArray.filter((p) => p.absolutePath.startsWith(pathPrefix)),
 
     getUnreadPlans: () => get()._plansArray.filter((p) => !p.isRead),
 
-    findByPath: (repositoryName, path) =>
-      get()._plansArray.find(
-        (p) => p.repositoryName === repositoryName && p.path === path
-      ),
+    findByPath: (absolutePath) =>
+      get()._plansArray.find((p) => p.absolutePath === absolutePath),
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Read Status Management
     // ═══════════════════════════════════════════════════════════════════════════
     markPlanAsRead: (id) => {
       const plan = get().plans[id];
-      if (!plan) return;
+      if (!plan || plan.isRead) return; // Skip if already read
 
       const updated = { ...plan, isRead: true };
       set((state) => {

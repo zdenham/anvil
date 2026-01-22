@@ -10,11 +10,13 @@ import { useThreadStore } from "@/entities/threads/store";
 import { useRepoStore } from "@/entities/repositories/store";
 import { useSettingsStore } from "@/entities/settings/store";
 import { useLogStore } from "@/entities/logs/store";
+import { usePlanStore } from "@/entities/plans/store";
 import { DEFAULT_WORKSPACE_SETTINGS } from "@/entities/settings/types";
 import type { TaskMetadata } from "@/entities/tasks/types";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { Repository } from "@/entities/repositories/types";
 import type { ThreadState } from "@/lib/types/agent-messages";
+import type { PlanMetadata } from "@/entities/plans/types";
 
 // ============================================================================
 // Store State Types (for seeding)
@@ -70,6 +72,12 @@ export class TestStores {
 
     useLogStore.setState({
       logs: [],
+      _hydrated: false,
+    });
+
+    usePlanStore.setState({
+      plans: {},
+      _plansArray: [],
       _hydrated: false,
     });
   }
@@ -160,6 +168,30 @@ export class TestStores {
   }
 
   // ==========================================================================
+  // Plan Store Methods
+  // ==========================================================================
+
+  static seedPlans(plans: PlanMetadata[]): void {
+    const planMap = Object.fromEntries(plans.map((p) => [p.id, p]));
+    usePlanStore.setState({
+      plans: planMap,
+      _plansArray: plans,
+      _hydrated: true,
+    });
+  }
+
+  static seedPlan(plan: PlanMetadata): void {
+    usePlanStore.setState((state) => {
+      const newPlans = { ...state.plans, [plan.id]: plan };
+      return {
+        plans: newPlans,
+        _plansArray: Object.values(newPlans),
+        _hydrated: true,
+      };
+    });
+  }
+
+  // ==========================================================================
   // Getter Methods (for assertions)
   // ==========================================================================
 
@@ -181,5 +213,9 @@ export class TestStores {
 
   static getLogsState() {
     return useLogStore.getState();
+  }
+
+  static getPlanState() {
+    return usePlanStore.getState();
   }
 }

@@ -1,5 +1,5 @@
 import { writeFileSync } from "fs";
-import { join } from "path";
+import { join, isAbsolute, relative } from "path";
 import { z } from "zod";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ThreadWriter } from "./services/thread-writer.js";
@@ -10,6 +10,18 @@ import type {
   ThreadState,
   ToolExecutionState,
 } from "@core/types/events.js";
+
+/**
+ * Normalize a file path to be relative to the working directory.
+ * This ensures consistent path handling regardless of whether tools
+ * return absolute or relative paths.
+ */
+function normalizeToRelativePath(filePath: string, workingDirectory: string): string {
+  if (isAbsolute(filePath)) {
+    return relative(workingDirectory, filePath);
+  }
+  return filePath;
+}
 
 /**
  * Schema for tool event protocol messages.
@@ -71,6 +83,13 @@ export async function initState(
 export async function emitState(): Promise<void> {
   state.timestamp = Date.now();
   const payload = { ...state };
+
+  logger.info(`[FC-DEBUG] emitState called`, {
+    fileChangesCount: state.fileChanges.length,
+    fileChangePaths: state.fileChanges.map((c) => c.path),
+    status: state.status,
+    messageCount: state.messages.length,
+  });
 
   // Write to disk FIRST (await completion)
   if (threadWriter) {
@@ -167,13 +186,36 @@ export async function markToolComplete(
 
 /**
  * Update or add a file change. Later changes for the same path supersede earlier ones.
+ * Paths are normalized to be relative to the working directory.
+ *
+ * @param change - The file change to record
+ * @param workingDirectory - The working directory for path normalization (optional for backwards compat)
  */
-export async function updateFileChange(change: FileChange): Promise<void> {
-  const idx = state.fileChanges.findIndex((c) => c.path === change.path);
+export async function updateFileChange(change: FileChange, workingDirectory?: string): Promise<void> {
+  // Normalize path to relative if workingDirectory is provided
+  const normalizedPath = workingDirectory
+    ? normalizeToRelativePath(change.path, workingDirectory)
+    : change.path;
+
+  const normalizedChange: FileChange = {
+    ...change,
+    path: normalizedPath,
+  };
+
+  logger.info(`[FC-DEBUG] updateFileChange called`, {
+    originalPath: change.path,
+    normalizedPath,
+    operation: change.operation,
+    currentFileChangesCount: state.fileChanges.length,
+  });
+
+  const idx = state.fileChanges.findIndex((c) => c.path === normalizedPath);
   if (idx >= 0) {
-    state.fileChanges[idx] = change;
+    logger.info(`[FC-DEBUG] Updating existing file change at index ${idx}`);
+    state.fileChanges[idx] = normalizedChange;
   } else {
-    state.fileChanges.push(change);
+    logger.info(`[FC-DEBUG] Adding new file change, new count will be ${state.fileChanges.length + 1}`);
+    state.fileChanges.push(normalizedChange);
   }
   await emitState();
 }

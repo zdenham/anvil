@@ -132,9 +132,19 @@ export const gitCommands = {
   /**
    * Generate a git diff for specific files from a base commit.
    * Returns raw diff output that can be parsed by diff-parser.ts.
+   *
+   * @param repoPath - Path to the repository
+   * @param baseCommit - Base commit hash to diff against
+   * @param filePaths - Array of file paths (legacy, for backwards compatibility)
+   * @param fileRequests - Array of file requests with operation info (preferred)
    */
-  diffFiles: (repoPath: string, baseCommit: string, filePaths: string[]) =>
-    invoke<string>("git_diff_files", { repoPath, baseCommit, filePaths }),
+  diffFiles: (
+    repoPath: string,
+    baseCommit: string,
+    filePaths: string[],
+    fileRequests?: Array<{ path: string; operation: string }>
+  ) =>
+    invoke<string>("git_diff_files", { repoPath, baseCommit, filePaths, fileRequests }),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
