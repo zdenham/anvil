@@ -16,7 +16,7 @@
     "build:agents": "cd agents && pnpm build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "vitest",
+    "test": "NODE_OPTIONS='--require ./src/test/epipe-handler.cjs' vitest",
     "test:ui": "vitest run --config vitest.config.ui.ts",
     "test:ui:watch": "vitest --config vitest.config.ui.ts",
     "lint": "eslint src core",
