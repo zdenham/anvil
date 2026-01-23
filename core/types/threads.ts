@@ -35,6 +35,7 @@ export const ThreadMetadataBaseSchema = z.object({
   }).optional(),
   changedFilePaths: z.array(z.string()).optional(),
   isRead: z.boolean().optional(),
+  markedUnreadAt: z.number().optional(), // Timestamp when marked unread (for navigation cooldown)
   pid: z.number().nullable().optional(),
   createdAt: z.number(),               // Unix milliseconds
   updatedAt: z.number(),               // Unix milliseconds

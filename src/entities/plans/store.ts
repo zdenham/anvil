@@ -104,7 +104,7 @@ export const usePlanStore = create<PlanStoreState & PlanStoreActions>(
       const plan = get().plans[id];
       if (!plan || plan.isRead) return; // Skip if already read
 
-      const updated = { ...plan, isRead: true };
+      const updated = { ...plan, isRead: true, markedUnreadAt: undefined };
       set((state) => {
         const newPlans = { ...state.plans, [id]: updated };
         return {
@@ -121,7 +121,7 @@ export const usePlanStore = create<PlanStoreState & PlanStoreActions>(
       const plan = get().plans[id];
       if (!plan) return;
 
-      const updated = { ...plan, isRead: false };
+      const updated = { ...plan, isRead: false, markedUnreadAt: Date.now() };
       set((state) => {
         const newPlans = { ...state.plans, [id]: updated };
         return {

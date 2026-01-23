@@ -3,6 +3,36 @@ import { relative, isAbsolute } from "path";
 import { realpathSync } from "fs";
 
 const PLANS_DIR = "plans";
+const RELATIONS_DIR = "plan-thread-edges";
+
+/**
+ * Relation type for plan-thread edges.
+ * Matches core/types/relations.ts RelationType.
+ */
+type RelationType = 'created' | 'modified' | 'mentioned';
+
+/**
+ * Plan-thread relation stored on disk.
+ * Matches core/types/relations.ts PlanThreadRelation.
+ */
+interface PlanThreadRelation {
+  planId: string;
+  threadId: string;
+  type: RelationType;
+  archived: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Precedence values for relation types.
+ * Higher number = higher precedence (created > modified > mentioned).
+ */
+const RELATION_TYPE_PRECEDENCE: Record<RelationType, number> = {
+  mentioned: 1,
+  modified: 2,
+  created: 3,
+};
 
 /**
  * Plan metadata stored on disk.
@@ -148,5 +178,65 @@ export abstract class MortPersistence {
       }
     }
     return null;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Plan-Thread Relation operations
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Create or upgrade a plan-thread relation.
+   * Per Decision #13: Relations can only upgrade (mentioned -> modified -> created), never downgrade.
+   *
+   * @param planId - The plan UUID
+   * @param threadId - The thread UUID
+   * @param type - The relation type (created, modified, or mentioned)
+   * @returns The created or existing relation
+   */
+  async createOrUpgradeRelation(
+    planId: string,
+    threadId: string,
+    type: RelationType
+  ): Promise<PlanThreadRelation> {
+    const path = `${RELATIONS_DIR}/${planId}-${threadId}.json`;
+
+    // Ensure directory exists
+    try {
+      await this.mkdir(RELATIONS_DIR);
+    } catch {
+      // Directory may already exist
+    }
+
+    // Check for existing relation
+    const existing = await this.read<PlanThreadRelation>(path);
+
+    if (existing) {
+      // Only upgrade, never downgrade
+      if (RELATION_TYPE_PRECEDENCE[type] > RELATION_TYPE_PRECEDENCE[existing.type]) {
+        const updated: PlanThreadRelation = {
+          ...existing,
+          type,
+          updatedAt: Date.now(),
+        };
+        await this.write(path, updated);
+        return updated;
+      }
+      // Return existing if no upgrade needed
+      return existing;
+    }
+
+    // Create new relation
+    const now = Date.now();
+    const relation: PlanThreadRelation = {
+      planId,
+      threadId,
+      type,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.write(path, relation);
+    return relation;
   }
 }

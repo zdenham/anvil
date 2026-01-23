@@ -442,6 +442,18 @@ fn focus_inbox_list_panel(app: AppHandle) -> Result<(), String> {
     panels::focus_inbox_list_panel(&app)
 }
 
+/// Pins the inbox list panel (prevents hide on blur during drag/resize)
+#[tauri::command]
+fn pin_inbox_list_panel() {
+    panels::pin_inbox_list_panel()
+}
+
+/// Unpins the inbox list panel (allows hide on blur)
+#[tauri::command]
+fn unpin_inbox_list_panel() {
+    panels::unpin_inbox_list_panel()
+}
+
 /// Shows the error panel with the given message and optional stack trace
 #[tauri::command]
 fn show_error_panel(app: AppHandle, message: String, stack: Option<String>) -> Result<(), String> {
@@ -731,6 +743,8 @@ pub fn run() {
             open_inbox_list_panel,
             hide_inbox_list_panel,
             focus_inbox_list_panel,
+            pin_inbox_list_panel,
+            unpin_inbox_list_panel,
             show_spotlight,
             hide_spotlight,
             resize_spotlight,

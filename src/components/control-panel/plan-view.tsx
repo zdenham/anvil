@@ -24,6 +24,7 @@ import { useQuickActionsStore, planDefaultActions, type ActionType } from "@/sto
 import { useRepoStore } from "@/entities/repositories";
 import { loadSettings } from "@/lib/persistence";
 import { spawnSimpleAgent } from "@/lib/agent-service";
+import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
 import { logger } from "@/lib/logger-client";
 
 interface PlanViewProps {
@@ -61,6 +62,9 @@ export function PlanView({ planId }: PlanViewProps) {
     navigateUp,
     navigateDown,
   } = useQuickActionsStore();
+
+  // Navigation hook for quick action next item
+  const { navigateToNextItemOrFallback } = useNavigateToNextItem();
 
   // Reset quick actions state when planId changes
   useEffect(() => {
@@ -155,13 +159,15 @@ export function PlanView({ planId }: PlanViewProps) {
     if (isProcessing) return;
 
     setProcessing(action);
+    const currentItem = { type: "plan" as const, id: planId };
+
     try {
       if (action === "archive") {
         await planService.archive(planId);
-        await invoke("hide_control_panel");
+        await navigateToNextItemOrFallback(currentItem, { actionType: "archive" });
       } else if (action === "markUnread") {
         await planService.markAsUnread(planId);
-        await invoke("hide_control_panel");
+        await navigateToNextItemOrFallback(currentItem, { actionType: "markUnread" });
       } else if (action === "respond") {
         // Focus the message input
         inputRef.current?.focus();
@@ -173,7 +179,7 @@ export function PlanView({ planId }: PlanViewProps) {
     } finally {
       setProcessing(null);
     }
-  }, [planId, isProcessing, setProcessing]);
+  }, [planId, isProcessing, setProcessing, navigateToNextItemOrFallback]);
 
   // Legacy action handler - routes to handleQuickAction
   const handleLegacyAction = useCallback(async (action: "markUnread" | "archive") => {

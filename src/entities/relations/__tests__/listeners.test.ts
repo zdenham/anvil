@@ -2,9 +2,13 @@
  * Relation Listeners Tests
  *
  * Tests for event listeners that manage relations automatically.
+ * The agent runner writes relations directly to disk - these listeners:
+ * - Refresh relations from disk when threads/plans are updated
+ * - Archive relations when threads/plans are archived
+ * - Mark plans as unread when relations are created/upgraded to 'modified'
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EventName } from "@core/types/events.js";
 
 // Store the event handlers
@@ -23,19 +27,13 @@ vi.mock("../../events", () => ({
   },
 }));
 
-// Mock the relation detector
-vi.mock("../detection", () => ({
-  relationDetector: {
-    onFileChange: vi.fn().mockResolvedValue(undefined),
-    onUserMessage: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
 // Mock the relation service
 vi.mock("../service", () => ({
   relationService: {
     archiveByThread: vi.fn().mockResolvedValue(undefined),
     archiveByPlan: vi.fn().mockResolvedValue(undefined),
+    refreshByThread: vi.fn().mockResolvedValue(undefined),
+    refreshByPlan: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -58,7 +56,6 @@ vi.mock("@/lib/logger-client", () => ({
 }));
 
 import { setupRelationListeners } from "../listeners";
-import { relationDetector } from "../detection";
 import { relationService } from "../service";
 import { planService } from "../../plans/service";
 
@@ -77,61 +74,74 @@ describe("RelationListeners", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // THREAD_FILE_CREATED event Tests
+  // THREAD_UPDATED event Tests
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("THREAD_FILE_CREATED event", () => {
-    it("should call relationDetector.onFileChange with 'created' type", async () => {
-      const handlers = eventHandlers[EventName.THREAD_FILE_CREATED];
+  describe("THREAD_UPDATED event", () => {
+    it("should call relationService.refreshByThread", async () => {
+      const handlers = eventHandlers[EventName.THREAD_UPDATED];
       expect(handlers).toBeDefined();
       expect(handlers.length).toBeGreaterThan(0);
 
-      await handlers[0]({ threadId: "thread1", filePath: "/path/to/file.md" });
+      await handlers[0]({ threadId: "thread1" });
 
-      expect(relationDetector.onFileChange).toHaveBeenCalledWith(
-        "thread1",
-        "/path/to/file.md",
-        "created"
-      );
+      expect(relationService.refreshByThread).toHaveBeenCalledWith("thread1");
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // THREAD_FILE_MODIFIED event Tests
+  // PLAN_UPDATED event Tests
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("THREAD_FILE_MODIFIED event", () => {
-    it("should call relationDetector.onFileChange with 'modified' type", async () => {
-      const handlers = eventHandlers[EventName.THREAD_FILE_MODIFIED];
+  describe("PLAN_UPDATED event", () => {
+    it("should call relationService.refreshByPlan", async () => {
+      const handlers = eventHandlers[EventName.PLAN_UPDATED];
       expect(handlers).toBeDefined();
       expect(handlers.length).toBeGreaterThan(0);
 
-      await handlers[0]({ threadId: "thread1", filePath: "/path/to/file.md" });
+      await handlers[0]({ planId: "plan1" });
 
-      expect(relationDetector.onFileChange).toHaveBeenCalledWith(
-        "thread1",
-        "/path/to/file.md",
-        "modified"
-      );
+      expect(relationService.refreshByPlan).toHaveBeenCalledWith("plan1");
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // USER_MESSAGE_SENT event Tests
+  // RELATION_CREATED event Tests
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("USER_MESSAGE_SENT event", () => {
-    it("should call relationDetector.onUserMessage", async () => {
-      const handlers = eventHandlers[EventName.USER_MESSAGE_SENT];
+  describe("RELATION_CREATED event", () => {
+    it("should call relationService.refreshByThread", async () => {
+      const handlers = eventHandlers[EventName.RELATION_CREATED];
       expect(handlers).toBeDefined();
       expect(handlers.length).toBeGreaterThan(0);
 
-      await handlers[0]({ threadId: "thread1", message: "Check out plans/feature.md" });
+      await handlers[0]({ planId: "plan1", threadId: "thread1", type: "created" });
 
-      expect(relationDetector.onUserMessage).toHaveBeenCalledWith(
-        "thread1",
-        "Check out plans/feature.md"
-      );
+      expect(relationService.refreshByThread).toHaveBeenCalledWith("thread1");
+    });
+
+    it("should call planService.markAsUnread when type is 'modified'", async () => {
+      const handlers = eventHandlers[EventName.RELATION_CREATED];
+
+      await handlers[0]({ planId: "plan1", threadId: "thread1", type: "modified" });
+
+      expect(planService.markAsUnread).toHaveBeenCalledWith("plan1");
+    });
+
+    it("should NOT call planService.markAsUnread when type is 'mentioned'", async () => {
+      const handlers = eventHandlers[EventName.RELATION_CREATED];
+
+      await handlers[0]({ planId: "plan1", threadId: "thread1", type: "mentioned" });
+
+      expect(planService.markAsUnread).not.toHaveBeenCalled();
+    });
+
+    it("should NOT call planService.markAsUnread when type is 'created'", async () => {
+      const handlers = eventHandlers[EventName.RELATION_CREATED];
+
+      await handlers[0]({ planId: "plan1", threadId: "thread1", type: "created" });
+
+      expect(planService.markAsUnread).not.toHaveBeenCalled();
     });
   });
 
@@ -168,42 +178,10 @@ describe("RelationListeners", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RELATION_CREATED event (plan unread behavior) Tests
+  // RELATION_UPDATED event Tests
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("RELATION_CREATED event (plan unread behavior)", () => {
-    it("should call planService.markAsUnread when type is 'modified'", async () => {
-      const handlers = eventHandlers[EventName.RELATION_CREATED];
-      expect(handlers).toBeDefined();
-      expect(handlers.length).toBeGreaterThan(0);
-
-      await handlers[0]({ planId: "plan1", threadId: "thread1", type: "modified" });
-
-      expect(planService.markAsUnread).toHaveBeenCalledWith("plan1");
-    });
-
-    it("should NOT call planService.markAsUnread when type is 'mentioned'", async () => {
-      const handlers = eventHandlers[EventName.RELATION_CREATED];
-
-      await handlers[0]({ planId: "plan1", threadId: "thread1", type: "mentioned" });
-
-      expect(planService.markAsUnread).not.toHaveBeenCalled();
-    });
-
-    it("should NOT call planService.markAsUnread when type is 'created'", async () => {
-      const handlers = eventHandlers[EventName.RELATION_CREATED];
-
-      await handlers[0]({ planId: "plan1", threadId: "thread1", type: "created" });
-
-      expect(planService.markAsUnread).not.toHaveBeenCalled();
-    });
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RELATION_UPDATED event (plan unread behavior) Tests
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe("RELATION_UPDATED event (plan unread behavior)", () => {
+  describe("RELATION_UPDATED event", () => {
     it("should call planService.markAsUnread when upgrading to 'modified'", async () => {
       const handlers = eventHandlers[EventName.RELATION_UPDATED];
       expect(handlers).toBeDefined();

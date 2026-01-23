@@ -12,6 +12,7 @@ import { InboxItemRow } from "@/components/inbox/inbox-item";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { threadService } from "@/entities/threads/service";
 import { planService } from "@/entities/plans/service";
+import { useWindowDrag } from "@/hooks/use-window-drag";
 
 /**
  * InboxListWindow is the main component for the inbox-list-panel.
@@ -33,6 +34,13 @@ export function InboxListWindow() {
 
   // Refresh state
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Window drag functionality - enables dragging the panel
+  const { dragProps } = useWindowDrag({
+    pinCommand: "pin_inbox_list_panel",
+    hideCommand: "hide_inbox_list_panel",
+    enableDoubleClickClose: true,
+  });
 
   // Handle refresh button click
   const handleRefresh = useCallback(async (e: React.MouseEvent) => {
@@ -205,21 +213,17 @@ export function InboxListWindow() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Empty state
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col h-screen bg-surface-900 rounded-lg overflow-hidden">
-        <div className="flex-1 flex items-center justify-center text-surface-500 text-sm">
-          No items in inbox
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-screen bg-surface-900 rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-surface-700 flex items-center justify-between">
+    <div
+      className={`flex flex-col h-screen bg-surface-900 rounded-lg overflow-hidden ${dragProps.className}`}
+      onMouseDown={dragProps.onMouseDown}
+      onDoubleClick={dragProps.onDoubleClick}
+    >
+      {/* Header - marked as drag region for focused panel */}
+      <div
+        data-drag-region="header"
+        className="px-4 py-3 border-b border-surface-700 flex items-center justify-between"
+      >
         <h2 className="text-sm font-medium text-surface-300">Mission Control Panel</h2>
         <div className="flex items-center gap-1">
           {/* Refresh button */}
@@ -242,25 +246,34 @@ export function InboxListWindow() {
         </div>
       </div>
 
-      {/* Item list */}
-      <div className="flex-1 overflow-auto">
-        <ul className="space-y-2 px-3 pt-3">
-          {items.map((item, index) => (
-            <InboxItemRow
-              key={`${item.type}-${item.data.id}`}
-              item={item}
-              isSelected={selectedIndex === index}
-              onSelect={() => handleItemClick(index)}
-            />
-          ))}
-        </ul>
-      </div>
+      {/* Content: Item list or empty state */}
+      {items.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-surface-500 text-sm">
+          No items in inbox
+        </div>
+      ) : (
+        <>
+          {/* Item list */}
+          <div className="flex-1 overflow-auto">
+            <ul className="space-y-2 px-3 pt-3">
+              {items.map((item, index) => (
+                <InboxItemRow
+                  key={`${item.type}-${item.data.id}`}
+                  item={item}
+                  isSelected={selectedIndex === index}
+                  onSelect={() => handleItemClick(index)}
+                />
+              ))}
+            </ul>
+          </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-surface-700 text-xs text-surface-500">
-        <StatusLegend />
-        <span>Release Alt to open, Escape to cancel</span>
-      </div>
+          {/* Footer */}
+          <div className="flex items-center justify-between px-4 py-2 border-t border-surface-700 text-xs text-surface-500">
+            <StatusLegend />
+            <span>Release Alt to open, Escape to cancel</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

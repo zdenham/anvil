@@ -41,3 +41,9 @@ export type { RepoNameMap } from "./use-repo-names";
 // Window drag utilities
 export { useWindowDrag } from "./use-window-drag";
 export type { UseWindowDragOptions, UseWindowDragResult } from "./use-window-drag";
+
+// Inbox navigation utilities
+export { useUnifiedInboxNavigation } from "./use-unified-inbox-navigation";
+export type { NavigationResult, UseUnifiedInboxNavigationReturn } from "./use-unified-inbox-navigation";
+export { useNavigateToNextItem } from "./use-navigate-to-next-item";
+export type { NavigationActionType, UseNavigateToNextItemReturn } from "./use-navigate-to-next-item";

@@ -165,8 +165,10 @@ tauri_panel! {
         window_did_resign_key(notification: &NSNotification) -> ()
     })
 
-    // NOTE: InboxListPanel intentionally has NO event handler.
-    // Hide is managed explicitly to avoid race conditions from multiple hide paths.
+    // Event handler for inbox list panel - hides on blur (resign key)
+    panel_event!(InboxListPanelEventHandler {
+        window_did_resign_key(notification: &NSNotification) -> ()
+    })
 }
 
 /// Stores the app handle for use in event callbacks
@@ -723,6 +725,43 @@ fn get_pending_control_panel_mutex() -> &'static Mutex<Option<PendingControlPane
     PENDING_CONTROL_PANEL.get_or_init(|| Mutex::new(None))
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Inbox List Panel Pinned State (for drag behavior)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Global storage for inbox list panel pinned state
+/// When pinned, the panel won't hide on blur (used during drag/resize)
+static INBOX_LIST_PANEL_PINNED: OnceLock<Mutex<bool>> = OnceLock::new();
+
+fn get_inbox_list_panel_pinned_mutex() -> &'static Mutex<bool> {
+    INBOX_LIST_PANEL_PINNED.get_or_init(|| Mutex::new(false))
+}
+
+/// Pin the inbox list panel (prevents hide on blur)
+pub fn pin_inbox_list_panel() {
+    if let Ok(mut guard) = get_inbox_list_panel_pinned_mutex().lock() {
+        tracing::info!("[InboxListPanel] Pinning panel (preventing hide on blur)");
+        *guard = true;
+    }
+}
+
+/// Unpin the inbox list panel (allows hide on blur)
+pub fn unpin_inbox_list_panel() {
+    if let Ok(mut guard) = get_inbox_list_panel_pinned_mutex().lock() {
+        tracing::info!("[InboxListPanel] Unpinning panel (allowing hide on blur)");
+        *guard = false;
+    }
+}
+
+/// Check if inbox list panel is pinned
+pub fn is_inbox_list_panel_pinned() -> bool {
+    if let Ok(guard) = get_inbox_list_panel_pinned_mutex().lock() {
+        *guard
+    } else {
+        false
+    }
+}
+
 /// Store a pending control panel (called before showing panel)
 pub fn set_pending_control_panel(task: PendingControlPanel) {
     if let Ok(mut guard) = get_pending_control_panel_mutex().lock() {
@@ -1097,7 +1136,8 @@ pub fn create_inbox_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
                 .move_to_active_space()
                 .full_screen_auxiliary(),
         )
-        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+        // Note: borderless() resets the mask, so resizable() must come after it
+        .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
         .has_shadow(true)
         .corner_radius(12.0)
         .hides_on_deactivate(false)
@@ -1105,20 +1145,42 @@ pub fn create_inbox_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error
         .no_activate(true)
         .with_window(|w| {
             w.decorations(false)
-                .resizable(false)
+                .resizable(true)
                 .visible(false)
                 .transparent(true)
                 .title("inbox-list-panel")
+                // Allow first click on unfocused panel to pass through to webview
+                // This enables dragging without needing to focus the panel first
+                .accept_first_mouse(true)
         })
         .build()?;
 
     // Disable macOS Tahoe window animations for snappy appearance
     panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
 
-    // NOTE: Unlike other panels, we intentionally do NOT set up a blur handler here.
-    // The inbox-list panel's hide is managed explicitly via hide_inbox_list_panel().
-    // This avoids race conditions from multiple hide paths (blur + explicit hide).
-    // This matches the reference implementation pattern from the tasks-list panel.
+    // Set up event handler to hide panel when it loses focus (blur)
+    // BUT only if not pinned (pinned state is set during drag/resize operations)
+    let event_handler = InboxListPanelEventHandler::new();
+    event_handler.window_did_resign_key(|_notification| {
+        // Check if panel is pinned (during drag/resize)
+        if is_inbox_list_panel_pinned() {
+            tracing::info!("[InboxListPanel] Blur ignored - panel is pinned (drag/resize in progress)");
+            return;
+        }
+
+        if let Some(app) = APP_HANDLE.get() {
+            if let Ok(panel) = app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
+                tracing::info!("[InboxListPanel] Hiding panel on blur (not pinned)");
+                panel.hide();
+            }
+
+            // Also cancel navigation mode if active
+            crate::navigation_mode::get_navigation_mode().on_panel_blur();
+            // Emit event so frontend can reset state
+            let _ = app.emit("inbox-list-panel-hidden", ());
+        }
+    });
+    panel.set_event_handler(Some(event_handler.as_ref()));
 
     // Ensure panel starts hidden
     panel.hide();
@@ -1161,6 +1223,8 @@ pub fn hide_inbox_list_panel(app: &AppHandle) -> Result<(), String> {
 
     if let Ok(panel) = app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
         panel.hide();
+        // Clear pinned state when panel is explicitly hidden
+        unpin_inbox_list_panel();
         // Emit event so frontend can reset state
         let _ = app.emit_to(INBOX_LIST_PANEL_LABEL, "panel-hidden", ());
         let _ = app.emit("inbox-list-panel-hidden", ());

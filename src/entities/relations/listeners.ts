@@ -1,6 +1,5 @@
 import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
-import { relationDetector } from "./detection";
 import { relationService } from "./service";
 import { planService } from "../plans/service";
 import { logger } from "@/lib/logger-client";
@@ -8,33 +7,36 @@ import { logger } from "@/lib/logger-client";
 /**
  * Set up event listeners for automatic relation management.
  *
- * The agent runner emits:
- * - THREAD_FILE_CREATED - when a thread creates a file
- * - THREAD_FILE_MODIFIED - when a thread modifies a file
- * - USER_MESSAGE_SENT - when user sends a message to a thread
- *
- * The relation service listens and creates/updates relations
- * when file paths match plan files.
+ * The agent runner writes relations directly to disk. These listeners:
+ * - Refresh relations from disk when threads/plans are updated
+ * - Archive relations when threads/plans are archived
+ * - Mark plans as unread when relations are created/upgraded to 'modified'
  */
 export function setupRelationListeners(): void {
   logger.log("[relations:listeners] Setting up relation listeners...");
 
-  // When thread creates a file (emitted by agent runner)
-  eventBus.on(EventName.THREAD_FILE_CREATED, async ({ threadId, filePath }) => {
-    logger.debug(`[relations:listeners] THREAD_FILE_CREATED: ${threadId} -> ${filePath}`);
-    await relationDetector.onFileChange(threadId, filePath, 'created');
+  // When thread is updated (e.g., refreshed from disk), refresh its relations
+  eventBus.on(EventName.THREAD_UPDATED, async ({ threadId }) => {
+    logger.debug(`[relations:listeners] THREAD_UPDATED: refreshing relations for ${threadId}`);
+    await relationService.refreshByThread(threadId);
   });
 
-  // When thread modifies a file (emitted by agent runner)
-  eventBus.on(EventName.THREAD_FILE_MODIFIED, async ({ threadId, filePath }) => {
-    logger.debug(`[relations:listeners] THREAD_FILE_MODIFIED: ${threadId} -> ${filePath}`);
-    await relationDetector.onFileChange(threadId, filePath, 'modified');
+  // When plan is updated (e.g., refreshed from disk), refresh its relations
+  eventBus.on(EventName.PLAN_UPDATED, async ({ planId }) => {
+    logger.debug(`[relations:listeners] PLAN_UPDATED: refreshing relations for ${planId}`);
+    await relationService.refreshByPlan(planId);
   });
 
-  // When user sends message to thread (emitted by agent runner)
-  eventBus.on(EventName.USER_MESSAGE_SENT, async ({ threadId, message }) => {
-    logger.debug(`[relations:listeners] USER_MESSAGE_SENT: ${threadId}`);
-    await relationDetector.onUserMessage(threadId, message);
+  // When a relation is created (emitted by agent), refresh from disk and mark unread if modified
+  eventBus.on(EventName.RELATION_CREATED, async ({ planId, threadId, type }) => {
+    logger.debug(`[relations:listeners] RELATION_CREATED: ${planId}-${threadId} (${type})`);
+    // Refresh by thread to pick up the new relation from disk
+    await relationService.refreshByThread(threadId);
+    // Mark plan as unread if this was a modification
+    if (type === 'modified') {
+      logger.debug(`[relations:listeners] RELATION_CREATED (modified): marking plan ${planId} as unread`);
+      await planService.markAsUnread(planId);
+    }
   });
 
   // When thread is archived, archive its relations
@@ -47,15 +49,6 @@ export function setupRelationListeners(): void {
   eventBus.on(EventName.PLAN_ARCHIVED, async ({ planId }) => {
     logger.debug(`[relations:listeners] PLAN_ARCHIVED: ${planId}`);
     await relationService.archiveByPlan(planId);
-  });
-
-  // When a relation is created with type 'modified', mark the plan as unread
-  // Note: planService.markAsUnread is defined in plan-entity
-  eventBus.on(EventName.RELATION_CREATED, async ({ planId, type }) => {
-    if (type === 'modified') {
-      logger.debug(`[relations:listeners] RELATION_CREATED (modified): marking plan ${planId} as unread`);
-      await planService.markAsUnread(planId);
-    }
   });
 
   // When a relation is upgraded to 'modified', mark the plan as unread

@@ -34,7 +34,7 @@ export { planService } from "./plans/service";
 export * from "./plans/types";
 
 // Relations
-export { useRelationStore, relationService, relationDetector, useRelatedPlans, useRelatedThreads, useRelatedThreadsIncludingArchived } from "./relations";
+export { useRelationStore, relationService, useRelatedPlans, useRelatedThreads, useRelatedThreadsIncludingArchived } from "./relations";
 export type { PlanThreadRelation, RelationType } from "./relations";
 
 // ═══════════════════════════════════════════════════════════════════════════════

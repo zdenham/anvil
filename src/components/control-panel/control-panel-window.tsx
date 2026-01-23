@@ -6,6 +6,7 @@ import { threadService } from "@/entities/threads/service";
 import {
   resumeSimpleAgent,
   submitToolResult,
+  sendQueuedMessage,
 } from "@/lib/agent-service";
 import { ControlPanelHeader } from "./control-panel-header";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
@@ -15,13 +16,17 @@ import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggeste
 import { ChangesTab } from "./changes-tab";
 import { PlanView } from "./plan-view";
 import { logger } from "@/lib/logger-client";
+import { cn } from "@/lib/utils";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
 import { useWorkingDirectory } from "@/hooks/use-working-directory";
 import { useWindowDrag } from "@/hooks/use-window-drag";
+import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
+import { QueuedMessagesBanner } from "./queued-messages-banner";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
+import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
 import type { ControlPanelViewType } from "@/entities/events";
 
 /** Map entity ThreadStatus to ThreadView's expected status type */
@@ -119,6 +124,9 @@ function ControlPanelWindowContent({
   // Window drag behavior via reusable hook
   const { dragProps } = useWindowDrag();
 
+  // Navigation hook for quick action next item
+  const { navigateToNextItemOrFallback } = useNavigateToNextItem();
+
   // Local tab state for thread view only - two-way toggle between conversation and changes
   const [threadTab, setThreadTab] = useState<ThreadTab>("conversation");
 
@@ -176,6 +184,9 @@ function ControlPanelWindowContent({
   const resumableStatuses: ViewStatus[] = ['idle', 'error', 'cancelled', 'completed'];
   const canResumeAgent = resumableStatuses.includes(viewStatus);
 
+  // Get queued messages for this thread (reactive)
+  const queuedMessages = useQueuedMessagesForThread(threadId);
+
   // Create optimistic messages when store is empty
   const messages = useMemo((): MessageParam[] => {
     // If we have messages from the store, use those (real data)
@@ -203,9 +214,15 @@ function ControlPanelWindowContent({
       return;
     }
 
-    // Message queueing temporarily disabled
+    // Queue message if agent is currently running
     if (canQueueMessages) {
-      showToast("Message queueing coming soon");
+      try {
+        await sendQueuedMessage(threadId, userPrompt);
+        // No toast needed - the banner provides visual feedback
+      } catch (error) {
+        logger.error('[ControlPanelWindow] Failed to queue message:', error);
+        showToast("Failed to queue message");
+      }
       return;
     }
 
@@ -375,41 +392,43 @@ function ControlPanelWindowContent({
     setSelectedIndex(0);
   }, [isStreaming, setSelectedIndex]);
 
-  const handleSuggestedAction = useCallback(
-    async (action: "markUnread" | "archive") => {
-      if (action === "archive") {
-        await threadService.archive(threadId);
-      } else if (action === "markUnread") {
-        await useThreadStore.getState().markThreadAsUnread(threadId);
-      }
-      await invoke("hide_control_panel");
-    },
-    [threadId]
-  );
-
   const handleQuickAction = useCallback(async (action: ActionType) => {
     if (isProcessing) return;
 
     setProcessing(action);
+    const currentItem = { type: "thread" as const, id: threadId };
+
     try {
       if (action === "nextItem") {
-        // TODO: Implement thread navigation
-        await invoke("hide_control_panel");
+        // Navigate to next unread item
+        await navigateToNextItemOrFallback(currentItem, { actionType: "nextItem" });
       } else if (action === "closePanel") {
         await invoke("hide_control_panel");
       } else if (action === "followUp") {
         setShowFollowUpInput(true);
       } else if (action === "respond") {
         inputRef.current?.focus();
-      } else if (action === "markUnread" || action === "archive") {
-        await handleSuggestedAction(action);
+      } else if (action === "archive") {
+        await threadService.archive(threadId);
+        await navigateToNextItemOrFallback(currentItem, { actionType: "archive" });
+      } else if (action === "markUnread") {
+        await useThreadStore.getState().markThreadAsUnread(threadId);
+        await navigateToNextItemOrFallback(currentItem, { actionType: "markUnread" });
       }
     } catch (error) {
       logger.error(`[ControlPanelWindow] Failed to handle quick action ${action}:`, error);
     } finally {
       setProcessing(null);
     }
-  }, [isProcessing, setProcessing, setShowFollowUpInput, handleSuggestedAction]);
+  }, [isProcessing, setProcessing, setShowFollowUpInput, threadId, navigateToNextItemOrFallback]);
+
+  // Legacy handler for SuggestedActionsPanel onAction prop
+  const handleSuggestedAction = useCallback(
+    async (action: "markUnread" | "archive") => {
+      await handleQuickAction(action);
+    },
+    [handleQuickAction]
+  );
 
   // Global keyboard navigation for quick actions
   useEffect(() => {
@@ -547,14 +566,22 @@ function ControlPanelWindowContent({
         onSubmitFollowUp={handleSubmit}
         onQuickAction={handleQuickAction}
       />
-      <ThreadInput
-        ref={inputRef}
-        onSubmit={handleSubmit}
-        disabled={false}
-        workingDirectory={workingDirectory}
-        placeholder={undefined}
-        onNavigateToQuickActions={handleNavigateToQuickActions}
-      />
+      {/* Queued messages banner - shows pending messages while agent is running */}
+      <QueuedMessagesBanner messages={queuedMessages} />
+      {/* Wrap input with visual indicator when in queue mode */}
+      <div className={cn(
+        "relative",
+        canQueueMessages && "ring-1 ring-amber-500/30 ring-inset"
+      )}>
+        <ThreadInput
+          ref={inputRef}
+          onSubmit={handleSubmit}
+          disabled={false}
+          workingDirectory={workingDirectory}
+          placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+          onNavigateToQuickActions={handleNavigateToQuickActions}
+        />
+      </div>
 
       {/* <PermissionIndicator threadId={threadId} /> */}
 

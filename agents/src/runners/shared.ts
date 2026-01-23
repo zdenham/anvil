@@ -141,6 +141,81 @@ export function setupSignalHandlers(
 }
 
 /**
+ * Extract plan mentions from a user message.
+ * Plan mentions use the syntax @{relativePlanPath} like @plans/my-feature.md
+ *
+ * @param message - The user message content to scan
+ * @returns Array of relative plan paths found in the message
+ */
+function extractPlanMentions(message: string): string[] {
+  // Match @plans/...md or @{plans/...md} patterns
+  const mentionPattern = /@\{?(plans\/[^\s\}]+\.md)\}?/g;
+  const matches: string[] = [];
+  let match;
+
+  while ((match = mentionPattern.exec(message)) !== null) {
+    matches.push(match[1]);
+  }
+
+  return matches;
+}
+
+/**
+ * Process plan mentions in a user message and create 'mentioned' relations.
+ * This is called after appending a user message to detect @plans/*.md references.
+ *
+ * @param message - The user message content
+ * @param persistence - Persistence instance for plan lookups and relation creation
+ * @param context - Orchestration context with repoId, threadId, etc.
+ */
+async function processPlanMentions(
+  message: string,
+  persistence: NodePersistence,
+  context: OrchestrationContext
+): Promise<void> {
+  // Skip if we don't have required context
+  if (!context.repoId || !context.threadId) {
+    return;
+  }
+
+  const mentions = extractPlanMentions(message);
+  if (mentions.length === 0) {
+    return;
+  }
+
+  logger.info(`[processPlanMentions] Found ${mentions.length} plan mentions: ${mentions.join(', ')}`);
+
+  for (const relativePath of mentions) {
+    try {
+      // Look up plan by relative path
+      const plan = await persistence.findPlanByPath(context.repoId, relativePath);
+
+      if (plan) {
+        // Create 'mentioned' relation (will be upgraded if thread later modifies/creates)
+        const relation = await persistence.createOrUpgradeRelation(
+          plan.id,
+          context.threadId,
+          'mentioned'
+        );
+
+        logger.info(`[processPlanMentions] Created/found relation for ${relativePath}: ${relation.type}`);
+
+        // Emit relation event
+        emitEvent(EventName.RELATION_CREATED, {
+          planId: plan.id,
+          threadId: context.threadId,
+          type: relation.type,
+        });
+      } else {
+        logger.info(`[processPlanMentions] Plan not found for path: ${relativePath}`);
+      }
+    } catch (err) {
+      logger.warn(`[processPlanMentions] Failed to process mention ${relativePath}: ${err}`);
+    }
+  }
+}
+
+/**
  * Check if a file path is a plan path (plans/*.md).
  * Handles both absolute and relative paths.
  *
@@ -231,6 +306,12 @@ export async function runAgentLoop(
   await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId, priorToolStates);
   await appendUserMessage(config.prompt);
 
+  // Persistence instance for plan detection and mention tracking
+  const persistence = new NodePersistence(config.mortDir);
+
+  // Process plan mentions in the initial prompt (e.g., @plans/my-feature.md)
+  await processPlanMentions(config.prompt, persistence, context);
+
   // Build system prompt
   const systemPrompt = buildSystemPrompt(agentConfig, {
     threadId: context.threadId,
@@ -244,9 +325,6 @@ export async function runAgentLoop(
 
   // Tools that modify files and should be tracked for diffing
   const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
-
-  // Persistence instance for plan detection (lazy, only created if needed)
-  const persistence = new NodePersistence(config.mortDir);
 
   // Build hooks for state tracking and side effects
   const hooks = {
@@ -285,12 +363,14 @@ export async function runAgentLoop(
                 );
                 logger.info(`[PostToolUse] Recorded file change: ${operation} ${filePath}`);
 
-                // Detect plan files and create/update plan entity
+                // Detect plan files and create/update plan entity + relation
                 // Requires repoId and worktreeId for proper plan creation
                 if (isPlanPath(filePath, context.workingDir)) {
                   // Require repoId and worktreeId for plan creation
                   if (!context.repoId || !context.worktreeId) {
                     logger.warn(`[PostToolUse] Cannot create plan: missing repoId or worktreeId`);
+                  } else if (!context.threadId) {
+                    logger.warn(`[PostToolUse] Cannot create relation: missing threadId`);
                   } else {
                     // Normalize to absolute path for conversion
                     const absolutePath = isAbsolute(filePath)
@@ -298,7 +378,7 @@ export async function runAgentLoop(
                       : resolve(context.workingDir, filePath);
 
                     try {
-                      const { id: planId } = await persistence.ensurePlanExists(
+                      const { id: planId, isNew } = await persistence.ensurePlanExists(
                         context.repoId,
                         context.worktreeId,
                         absolutePath,
@@ -307,6 +387,26 @@ export async function runAgentLoop(
                       logger.info(`[PostToolUse] 📋 About to emit PLAN_DETECTED event: planId=${planId}`);
                       emitEvent(EventName.PLAN_DETECTED, { planId });
                       logger.info(`[PostToolUse] 📋 PLAN_DETECTED event emitted to stdout: ${filePath} -> ${planId}`);
+
+                      // Write plan-thread relation directly to disk
+                      // 'created' if this thread just created the plan, 'modified' otherwise
+                      const relationType = isNew ? 'created' : 'modified';
+                      try {
+                        const relation = await persistence.createOrUpgradeRelation(
+                          planId,
+                          context.threadId,
+                          relationType as 'created' | 'modified'
+                        );
+                        logger.info(`[PostToolUse] 📋 Created/upgraded relation: ${planId}-${context.threadId} (${relation.type})`);
+                        // Emit relation event for UI refresh
+                        emitEvent(EventName.RELATION_CREATED, {
+                          planId,
+                          threadId: context.threadId,
+                          type: relation.type,
+                        });
+                      } catch (relErr) {
+                        logger.warn(`[PostToolUse] Failed to create relation: ${relErr}`);
+                      }
 
                       // Associate thread with plan by updating thread metadata
                       const threadMetadataPath = join(context.threadPath, "metadata.json");

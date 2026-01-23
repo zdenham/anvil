@@ -157,7 +157,7 @@ export const useThreadStore = create<
     set((state) => {
       const newThreads = {
         ...state.threads,
-        [threadId]: { ...thread, isRead: true },
+        [threadId]: { ...thread, isRead: true, markedUnreadAt: undefined },
       };
       return {
         threads: newThreads,
@@ -183,10 +183,11 @@ export const useThreadStore = create<
     const thread = get().threads[threadId];
     if (!thread) return;
 
+    const markedUnreadAt = Date.now();
     set((state) => {
       const newThreads = {
         ...state.threads,
-        [threadId]: { ...thread, isRead: false },
+        [threadId]: { ...thread, isRead: false, markedUnreadAt },
       };
       return {
         threads: newThreads,

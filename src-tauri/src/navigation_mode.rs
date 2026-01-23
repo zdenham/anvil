@@ -201,6 +201,15 @@ impl NavigationMode {
             drop(state); // Release lock before calling stop_modifier_tap
             self.stop_modifier_tap();
 
+            // Hide the panel based on target
+            if let Some(app) = self.app_handle.lock().unwrap().as_ref() {
+                match target {
+                    NavigationTarget::InboxList => {
+                        let _ = panels::hide_inbox_list_panel(app);
+                    }
+                }
+            }
+
             // Emit cancel
             self.emit(NavigationEvent::NavCancel);
         }
@@ -383,18 +392,6 @@ pub fn initialize(app: &AppHandle) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Tauri Commands
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Called when navigation hotkey is triggered (Alt+Down)
-#[tauri::command]
-pub fn navigation_hotkey_down() {
-    get_navigation_mode().on_hotkey_pressed(NavigationDirection::Down);
-}
-
-/// Called when navigation hotkey is triggered (Alt+Up)
-#[tauri::command]
-pub fn navigation_hotkey_up() {
-    get_navigation_mode().on_hotkey_pressed(NavigationDirection::Up);
-}
 
 /// Called when control panel loses focus (from frontend)
 #[tauri::command]

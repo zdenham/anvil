@@ -227,6 +227,88 @@ class RelationService {
     logger.log(`[relationService:hydrate] Complete. Loaded ${Object.keys(relations).length} relations`);
     useRelationStore.getState().hydrate(relations);
   }
+
+  /**
+   * Refresh relations for a specific thread from disk.
+   * Called when THREAD_UPDATED event is received.
+   * Loads any new or updated relations from disk into the store.
+   */
+  async refreshByThread(threadId: string): Promise<void> {
+    logger.debug(`[relationService:refreshByThread] Refreshing relations for thread ${threadId}`);
+
+    await persistence.ensureDir(RELATIONS_DIR);
+    const files = await persistence.listDir(RELATIONS_DIR);
+    const store = useRelationStore.getState();
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      // Quick filter by threadId in filename (format: {planId}-{threadId}.json)
+      if (!file.includes(threadId)) continue;
+
+      try {
+        const raw = await persistence.readJson(`${RELATIONS_DIR}/${file}`);
+        const result = raw ? PlanThreadRelationSchema.safeParse(raw) : null;
+
+        if (result?.success && result.data.threadId === threadId) {
+          const key = makeKey(result.data.planId, result.data.threadId);
+          const existing = store.relations[key];
+
+          if (!existing) {
+            // New relation from disk - add to store
+            store._applyCreate(result.data);
+            logger.debug(`[relationService:refreshByThread] Added new relation: ${key}`);
+          } else if (result.data.updatedAt > existing.updatedAt) {
+            // Disk version is newer - update store
+            store._applyUpdate(result.data.planId, result.data.threadId, result.data);
+            logger.debug(`[relationService:refreshByThread] Updated relation: ${key}`);
+          }
+        }
+      } catch (error) {
+        logger.warn(`[relationService:refreshByThread] Failed to load relation file: ${file}`, error);
+      }
+    }
+  }
+
+  /**
+   * Refresh relations for a specific plan from disk.
+   * Called when PLAN_UPDATED event is received.
+   * Loads any new or updated relations from disk into the store.
+   */
+  async refreshByPlan(planId: string): Promise<void> {
+    logger.debug(`[relationService:refreshByPlan] Refreshing relations for plan ${planId}`);
+
+    await persistence.ensureDir(RELATIONS_DIR);
+    const files = await persistence.listDir(RELATIONS_DIR);
+    const store = useRelationStore.getState();
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      // Quick filter by planId in filename (format: {planId}-{threadId}.json)
+      if (!file.includes(planId)) continue;
+
+      try {
+        const raw = await persistence.readJson(`${RELATIONS_DIR}/${file}`);
+        const result = raw ? PlanThreadRelationSchema.safeParse(raw) : null;
+
+        if (result?.success && result.data.planId === planId) {
+          const key = makeKey(result.data.planId, result.data.threadId);
+          const existing = store.relations[key];
+
+          if (!existing) {
+            // New relation from disk - add to store
+            store._applyCreate(result.data);
+            logger.debug(`[relationService:refreshByPlan] Added new relation: ${key}`);
+          } else if (result.data.updatedAt > existing.updatedAt) {
+            // Disk version is newer - update store
+            store._applyUpdate(result.data.planId, result.data.threadId, result.data);
+            logger.debug(`[relationService:refreshByPlan] Updated relation: ${key}`);
+          }
+        }
+      } catch (error) {
+        logger.warn(`[relationService:refreshByPlan] Failed to load relation file: ${file}`, error);
+      }
+    }
+  }
 }
 
 export const relationService = new RelationService();
