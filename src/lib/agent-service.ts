@@ -71,17 +71,45 @@ async function getShellPath(): Promise<string> {
  * is available for finding the `node` binary.
  */
 async function ensureShellInitialized(): Promise<void> {
-  const initialized = await shellEnvironmentCommands.isShellInitialized();
-  if (!initialized) {
-    logger.info("[agent-service] Shell not initialized, running login shell...");
-    const success = await shellEnvironmentCommands.initializeShellEnvironment();
-    if (success) {
-      // Clear cached shell path so next getShellPath() fetches updated value
-      cachedShellPath = null;
-      logger.info("[agent-service] Shell initialized successfully");
+  logger.info("[agent-service] ensureShellInitialized: checking shell initialization status...");
+
+  try {
+    const initialized = await shellEnvironmentCommands.isShellInitialized();
+    logger.info(`[agent-service] ensureShellInitialized: isShellInitialized returned ${initialized}`);
+
+    if (!initialized) {
+      logger.info("[agent-service] ensureShellInitialized: Shell not initialized, running login shell...");
+      const startTime = Date.now();
+
+      try {
+        const success = await shellEnvironmentCommands.initializeShellEnvironment();
+        const elapsed = Date.now() - startTime;
+
+        if (success) {
+          // Clear cached shell path so next getShellPath() fetches updated value
+          cachedShellPath = null;
+          logger.info(`[agent-service] ensureShellInitialized: Shell initialized successfully in ${elapsed}ms`);
+        } else {
+          logger.warn(`[agent-service] ensureShellInitialized: Shell initialization returned false after ${elapsed}ms, will use fallback PATH`);
+        }
+      } catch (initError) {
+        const elapsed = Date.now() - startTime;
+        logger.error(`[agent-service] ensureShellInitialized: Shell initialization threw error after ${elapsed}ms:`, {
+          error: initError,
+          errorMessage: initError instanceof Error ? initError.message : String(initError),
+          errorStack: initError instanceof Error ? initError.stack : undefined,
+        });
+        // Don't rethrow - we'll proceed with fallback PATH
+      }
     } else {
-      logger.warn("[agent-service] Shell initialization returned false, will use fallback PATH");
+      logger.info("[agent-service] ensureShellInitialized: Shell already initialized, skipping");
     }
+  } catch (checkError) {
+    logger.error("[agent-service] ensureShellInitialized: Failed to check shell initialization status:", {
+      error: checkError,
+      errorMessage: checkError instanceof Error ? checkError.message : String(checkError),
+    });
+    // Don't rethrow - we'll proceed with whatever PATH we have
   }
 }
 
@@ -260,19 +288,81 @@ const SpawnOptionsSchema = z.object({
  * No worktree allocation, no branch management.
  */
 export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promise<void> {
+  const spawnStartTime = Date.now();
+  logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
   logger.info("[agent-service] spawnSimpleAgent START");
+  logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
+  logger.info("[agent-service] Input options:", {
+    repoId: options.repoId,
+    worktreeId: options.worktreeId,
+    threadId: options.threadId,
+    sourcePath: options.sourcePath,
+    promptLength: options.prompt?.length ?? 0,
+    promptPreview: options.prompt?.substring(0, 100) ?? "NULL",
+  });
 
   // Validate UUIDs early to fail fast with clear error
-  const parsed = SpawnOptionsSchema.parse(options);
+  logger.info("[agent-service] Validating spawn options with Zod schema...");
+  let parsed: typeof options;
+  try {
+    parsed = SpawnOptionsSchema.parse(options);
+    logger.info("[agent-service] Zod validation passed");
+  } catch (zodError) {
+    logger.error("[agent-service] Zod validation FAILED:", {
+      error: zodError,
+      errorMessage: zodError instanceof Error ? zodError.message : String(zodError),
+    });
+    throw zodError;
+  }
 
   // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
+  logger.info("[agent-service] Calling ensureShellInitialized...");
+  const shellInitStart = Date.now();
   await ensureShellInitialized();
+  logger.info(`[agent-service] ensureShellInitialized completed in ${Date.now() - shellInitStart}ms`);
 
   logger.info(`[agent-service] Agent will spawn in path: ${parsed.sourcePath}`);
 
-  const mortDir = await fs.getDataDir();
-  const { runnerPath, nodeModulesPath } = await getRunnerPaths();
-  const shellPath = await getShellPath();
+  logger.info("[agent-service] Resolving paths...");
+
+  let mortDir: string;
+  try {
+    mortDir = await fs.getDataDir();
+    logger.info(`[agent-service] mortDir resolved: ${mortDir}`);
+  } catch (mortDirError) {
+    logger.error("[agent-service] Failed to get mortDir:", {
+      error: mortDirError,
+      errorMessage: mortDirError instanceof Error ? mortDirError.message : String(mortDirError),
+    });
+    throw mortDirError;
+  }
+
+  let runnerPath: string;
+  let nodeModulesPath: string;
+  try {
+    const paths = await getRunnerPaths();
+    runnerPath = paths.runnerPath;
+    nodeModulesPath = paths.nodeModulesPath;
+    logger.info("[agent-service] Runner paths resolved:", { runnerPath, nodeModulesPath, cliPath: paths.cliPath });
+  } catch (pathsError) {
+    logger.error("[agent-service] Failed to get runner paths:", {
+      error: pathsError,
+      errorMessage: pathsError instanceof Error ? pathsError.message : String(pathsError),
+    });
+    throw pathsError;
+  }
+
+  let shellPath: string;
+  try {
+    shellPath = await getShellPath();
+    logger.info("[agent-service] Shell PATH retrieved successfully");
+  } catch (shellPathError) {
+    logger.error("[agent-service] Failed to get shell PATH:", {
+      error: shellPathError,
+      errorMessage: shellPathError instanceof Error ? shellPathError.message : String(shellPathError),
+    });
+    throw shellPathError;
+  }
 
   // Debug logging for spawn diagnostics
   logger.info("[agent-service] spawnSimpleAgent paths:", {
@@ -284,7 +374,17 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     sourcePath: options.sourcePath,
   });
 
+  // Log the full shell PATH for debugging (split into readable lines)
+  const pathEntries = shellPath?.split(":") ?? [];
+  logger.info(`[agent-service] Shell PATH has ${pathEntries.length} entries`);
+  if (pathEntries.length > 0) {
+    logger.info("[agent-service] Shell PATH entries (first 20):", {
+      entries: pathEntries.slice(0, 20),
+    });
+  }
+
   // Check if paths exist (to diagnose "file not found" errors)
+  logger.info("[agent-service] Checking path existence...");
   try {
     const runnerExists = await fs.exists(runnerPath);
     const cwdExists = await fs.exists(options.sourcePath);
@@ -297,17 +397,56 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
       nodeModulesPath,
       nodeModulesExists,
     });
+
+    if (!runnerExists) {
+      logger.error("[agent-service] CRITICAL: runner.js does not exist at path:", runnerPath);
+    }
+    if (!cwdExists) {
+      logger.error("[agent-service] CRITICAL: working directory does not exist:", options.sourcePath);
+    }
+    if (!nodeModulesExists) {
+      logger.warn("[agent-service] WARNING: node_modules path does not exist:", nodeModulesPath);
+    }
   } catch (e) {
-    logger.error("[agent-service] Failed to check path existence:", e);
+    logger.error("[agent-service] Failed to check path existence:", {
+      error: e,
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  // Check if 'node' binary can be found in the shell PATH
+  logger.info("[agent-service] Checking if 'node' binary is findable in PATH...");
+  try {
+    const nodeFound = pathEntries.some(dir => {
+      // This is a client-side check - we can't actually verify file existence here
+      // But we can log what directories we're checking
+      return dir.includes("node") || dir.includes("nvm") || dir.includes("fnm") || dir.includes("volta");
+    });
+    if (nodeFound) {
+      logger.info("[agent-service] PATH contains node-related directories (nvm/fnm/volta)");
+    } else {
+      logger.warn("[agent-service] PATH does not appear to contain node version manager directories");
+    }
+
+    // Check for common node locations
+    const commonNodePaths = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"];
+    const hasCommonPaths = commonNodePaths.filter(p => pathEntries.includes(p));
+    logger.info("[agent-service] Common bin directories in PATH:", { found: hasCommonPaths });
+  } catch (nodeCheckError) {
+    logger.warn("[agent-service] Error during node PATH check:", nodeCheckError);
   }
 
   // Get API key from settings or env
+  logger.info("[agent-service] Retrieving API key...");
   const settings = settingsService.get();
   const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
 
   if (!apiKey) {
+    logger.error("[agent-service] CRITICAL: No Anthropic API key configured");
+    logger.error("[agent-service] Checked: settings.anthropicApiKey and VITE_ANTHROPIC_API_KEY env var");
     throw new Error("Anthropic API key not configured");
   }
+  logger.info("[agent-service] API key found (length: " + apiKey.length + ", starts with: " + apiKey.substring(0, 10) + "...)");
 
   // Command args for simple agent - matches SimpleRunnerStrategy.parseArgs()
   const commandArgs = [
@@ -327,14 +466,27 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     cwd: options.sourcePath,
   });
 
+  // Log full command for debugging
+  logger.info("[agent-service] Full command args:", commandArgs);
+
+  const envVars = {
+    ANTHROPIC_API_KEY: apiKey,
+    NODE_PATH: nodeModulesPath,
+    MORT_DATA_DIR: mortDir,
+    PATH: shellPath,
+  };
+
+  logger.info("[agent-service] Command environment (excluding API key):", {
+    NODE_PATH: nodeModulesPath,
+    MORT_DATA_DIR: mortDir,
+    PATH_length: shellPath.length,
+    PATH_preview: shellPath.substring(0, 150) + "...",
+  });
+
+  logger.info("[agent-service] Creating Command.create('node', [...])...");
   const command = Command.create("node", commandArgs, {
     cwd: options.sourcePath,
-    env: {
-      ANTHROPIC_API_KEY: apiKey,
-      NODE_PATH: nodeModulesPath,
-      MORT_DATA_DIR: mortDir,
-      PATH: shellPath,
-    },
+    env: envVars,
   });
 
   // Line buffer for stdout - shell plugin may split JSON across chunks
@@ -345,11 +497,18 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   });
 
   command.stderr.on("data", (data) => {
-    logger.debug("[simple-agent] stderr:", data);
+    // Log stderr as error level since it often contains important error info
+    logger.error("[simple-agent] stderr:", data);
   });
 
+  logger.info("[agent-service] Setting up 'close' event handler...");
   command.on("close", async (code) => {
-    logger.info(`[agent-service] Process closed for threadId=${options.threadId}, exitCode=${code.code}, signal=${code.signal}`);
+    const totalElapsed = Date.now() - spawnStartTime;
+    logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
+    logger.info(`[agent-service] Process closed for threadId=${options.threadId}`);
+    logger.info(`[agent-service] Exit code: ${code.code}, Signal: ${code.signal}`);
+    logger.info(`[agent-service] Total time from spawn start: ${totalElapsed}ms`);
+    logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
 
     // Note: PID is cleared by the runner during cleanup, not here
     activeSimpleProcesses.delete(options.threadId);
@@ -374,26 +533,59 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   });
 
   // Note: PID is written to disk by the runner, not here
+  logger.info("[agent-service] ───────────────────────────────────────────────────────────────");
   logger.info("[agent-service] About to spawn command...");
+  logger.info("[agent-service] Spawn parameters summary:");
+  logger.info(`[agent-service]   - threadId: ${options.threadId}`);
+  logger.info(`[agent-service]   - repoId: ${options.repoId}`);
+  logger.info(`[agent-service]   - worktreeId: ${options.worktreeId}`);
+  logger.info(`[agent-service]   - cwd: ${options.sourcePath}`);
+  logger.info(`[agent-service]   - runner: ${runnerPath}`);
+  logger.info("[agent-service] ───────────────────────────────────────────────────────────────");
+
+  const preSpawnTime = Date.now();
   try {
+    logger.info("[agent-service] Calling command.spawn()...");
     const child = await command.spawn();
+    const spawnDuration = Date.now() - preSpawnTime;
+
     activeSimpleProcesses.set(options.threadId, child);
     agentProcesses.set(options.threadId, child);
-    logger.info(`[agent-service] Agent spawned for threadId=${options.threadId}, pid=${child.pid}`);
+
+    logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
+    logger.info(`[agent-service] SPAWN SUCCESS`);
+    logger.info(`[agent-service]   - threadId: ${options.threadId}`);
+    logger.info(`[agent-service]   - pid: ${child.pid}`);
+    logger.info(`[agent-service]   - spawn duration: ${spawnDuration}ms`);
+    logger.info(`[agent-service]   - total setup time: ${Date.now() - spawnStartTime}ms`);
+    logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
 
     eventBus.emit(EventName.AGENT_SPAWNED, {
       threadId: options.threadId,
       repoId: options.repoId,
     });
 
-    logger.info("[agent-service] spawnSimpleAgent COMPLETE");
+    logger.info("[agent-service] spawnSimpleAgent COMPLETE - agent is now running");
   } catch (spawnError) {
-    logger.error("[agent-service] SPAWN FAILED:", {
+    const spawnDuration = Date.now() - preSpawnTime;
+    logger.error("[agent-service] ═══════════════════════════════════════════════════════════════");
+    logger.error("[agent-service] SPAWN FAILED");
+    logger.error("[agent-service] ═══════════════════════════════════════════════════════════════");
+    logger.error("[agent-service] Spawn error details:", {
       error: spawnError,
       errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
       errorType: typeof spawnError,
       errorConstructor: spawnError?.constructor?.name,
+      errorStack: spawnError instanceof Error ? spawnError.stack : undefined,
+      spawnDuration: `${spawnDuration}ms`,
+      totalSetupTime: `${Date.now() - spawnStartTime}ms`,
     });
+    logger.error("[agent-service] Context at failure:");
+    logger.error(`[agent-service]   - threadId: ${options.threadId}`);
+    logger.error(`[agent-service]   - cwd: ${options.sourcePath}`);
+    logger.error(`[agent-service]   - runner: ${runnerPath}`);
+    logger.error(`[agent-service]   - PATH entries: ${pathEntries.length}`);
+    logger.error("[agent-service] ═══════════════════════════════════════════════════════════════");
     throw spawnError;
   }
 }
@@ -407,28 +599,56 @@ export async function resumeSimpleAgent(
   prompt: string,
   sourcePath: string,
 ): Promise<void> {
+  const resumeStartTime = Date.now();
+  logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
+  logger.info("[agent-service] resumeSimpleAgent START");
+  logger.info("[agent-service] ═══════════════════════════════════════════════════════════════");
+  logger.info("[agent-service] Resume parameters:", {
+    threadId,
+    promptLength: prompt.length,
+    promptPreview: prompt.substring(0, 100),
+    sourcePath,
+  });
+
   // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
+  logger.info("[agent-service] resumeSimpleAgent: ensuring shell is initialized...");
   await ensureShellInitialized();
 
+  logger.info("[agent-service] resumeSimpleAgent: resolving paths...");
   const mortDir = await fs.getDataDir();
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
   const shellPath = await getShellPath();
+
+  logger.info("[agent-service] resumeSimpleAgent: paths resolved", {
+    mortDir,
+    runnerPath,
+    nodeModulesPath,
+    shellPathLength: shellPath.length,
+  });
 
   // Get API key from settings or env
   const settings = settingsService.get();
   const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
 
   if (!apiKey) {
+    logger.error("[agent-service] resumeSimpleAgent: No API key configured");
     throw new Error("Anthropic API key not configured");
   }
 
   // State path: threads/{threadId}/state.json
   const stateFilePath = await join(mortDir, "threads", threadId, "state.json");
+  logger.info("[agent-service] resumeSimpleAgent: state file path:", stateFilePath);
 
   // Get repoId and worktreeId from thread metadata for resume
   const thread = threadService.get(threadId);
   const repoId = thread?.repoId ?? threadId;
   const worktreeId = thread?.worktreeId ?? threadId;
+
+  logger.info("[agent-service] resumeSimpleAgent: thread metadata:", {
+    threadFound: !!thread,
+    repoId,
+    worktreeId,
+  });
 
   const commandArgs = [
     runnerPath,
@@ -441,7 +661,7 @@ export async function resumeSimpleAgent(
     "--history-file", stateFilePath,
   ];
 
-  logger.info("[agent-service] Resuming simple agent", { threadId });
+  logger.info("[agent-service] resumeSimpleAgent: command args:", commandArgs);
 
   const command = Command.create("node", commandArgs, {
     cwd: sourcePath,
@@ -460,16 +680,25 @@ export async function resumeSimpleAgent(
   });
 
   command.stderr.on("data", (data) => {
-    logger.debug("[simple-agent] stderr:", data);
+    logger.error("[simple-agent-resume] stderr:", data);
   });
 
   command.on("close", async (code) => {
+    const totalElapsed = Date.now() - resumeStartTime;
+    logger.info("[agent-service] resumeSimpleAgent: process closed", {
+      threadId,
+      exitCode: code.code,
+      signal: code.signal,
+      totalElapsed: `${totalElapsed}ms`,
+    });
+
     // Note: PID is cleared by the runner during cleanup, not here
     activeSimpleProcesses.delete(threadId);
     agentProcesses.delete(threadId);
 
     if (code.code === 130) {
       // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
+      logger.info("[agent-service] resumeSimpleAgent: exit code 130, marking as cancelled");
       await threadService.markCancelled(threadId);
       eventBus.emit(EventName.AGENT_CANCELLED, {
         threadId,
@@ -483,9 +712,26 @@ export async function resumeSimpleAgent(
   });
 
   // Note: PID is written to disk by the runner, not here
-  const child = await command.spawn();
-  activeSimpleProcesses.set(threadId, child);
-  agentProcesses.set(threadId, child);
+  logger.info("[agent-service] resumeSimpleAgent: spawning process...");
+  try {
+    const child = await command.spawn();
+    activeSimpleProcesses.set(threadId, child);
+    agentProcesses.set(threadId, child);
+    logger.info("[agent-service] resumeSimpleAgent: SPAWN SUCCESS", {
+      threadId,
+      pid: child.pid,
+      elapsed: `${Date.now() - resumeStartTime}ms`,
+    });
+  } catch (spawnError) {
+    logger.error("[agent-service] resumeSimpleAgent: SPAWN FAILED", {
+      error: spawnError,
+      errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
+      errorStack: spawnError instanceof Error ? spawnError.stack : undefined,
+      threadId,
+      sourcePath,
+    });
+    throw spawnError;
+  }
 }
 
 /**

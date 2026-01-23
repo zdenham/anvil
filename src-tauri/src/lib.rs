@@ -590,13 +590,31 @@ fn kill_system_settings() -> Result<(), String> {
 /// Returns true if a valid PATH was captured from the shell.
 #[tauri::command]
 fn initialize_shell_environment() -> bool {
-    paths::run_login_shell_initialization()
+    tracing::info!("═══════════════════════════════════════════════════════════════");
+    tracing::info!("[tauri-cmd] initialize_shell_environment: called from frontend");
+    tracing::info!("═══════════════════════════════════════════════════════════════");
+
+    let start_time = std::time::Instant::now();
+    let result = paths::run_login_shell_initialization();
+    let elapsed = start_time.elapsed();
+
+    tracing::info!(
+        result = result,
+        elapsed_ms = elapsed.as_millis(),
+        "[tauri-cmd] initialize_shell_environment: completed"
+    );
+    result
 }
 
 /// Check if shell environment has been initialized (login shell has been run).
 #[tauri::command]
 fn is_shell_initialized() -> bool {
-    paths::is_shell_initialized()
+    let result = paths::is_shell_initialized();
+    tracing::info!(
+        is_initialized = result,
+        "[tauri-cmd] is_shell_initialized: returning"
+    );
+    result
 }
 
 /// Check if the app has Documents folder access.
@@ -605,7 +623,13 @@ fn is_shell_initialized() -> bool {
 /// Returns true if we can access the folder, false otherwise.
 #[tauri::command]
 fn check_documents_access() -> bool {
-    paths::check_documents_access()
+    tracing::info!("[tauri-cmd] check_documents_access: called from frontend");
+    let result = paths::check_documents_access();
+    tracing::info!(
+        has_access = result,
+        "[tauri-cmd] check_documents_access: returning"
+    );
+    result
 }
 
 /// Get detailed accessibility status for debugging

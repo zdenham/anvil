@@ -212,67 +212,153 @@ export class SpotlightController {
    * @param worktreePath - Optional worktree path. If provided, agent runs there instead of source repo.
    */
   async createSimpleThread(content: string, repo: Repository, worktreePath?: string): Promise<void> {
+    const startTime = Date.now();
+    logger.info("═══════════════════════════════════════════════════════════════");
+    logger.info("[spotlight:createSimpleThread] START");
+    logger.info("═══════════════════════════════════════════════════════════════");
+    logger.info("[spotlight:createSimpleThread] Input parameters:", {
+      repoName: repo.name,
+      repoSourcePath: repo.sourcePath,
+      worktreePath: worktreePath ?? "NOT PROVIDED",
+      contentLength: content.length,
+      contentPreview: content.substring(0, 100),
+    });
+
     // Determine working directory: worktree path if provided, otherwise source repo
     const workingDir = worktreePath ?? repo.sourcePath;
+    logger.info(`[spotlight:createSimpleThread] Resolved workingDir: ${workingDir}`);
 
     if (!workingDir) {
       const error: ThreadCreationError = { type: "no_repositories" };
       logger.error(
-        `[spotlight:createSimpleThread] Repository ${repo.name} has no sourcePath and no worktree provided`
+        `[spotlight:createSimpleThread] CRITICAL: Repository ${repo.name} has no sourcePath and no worktree provided`
       );
+      logger.error("[spotlight:createSimpleThread] repo object:", JSON.stringify(repo, null, 2));
       throw error;
     }
 
     // Lookup repository settings to get the UUID
     const slug = repo.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    const settings = await loadSettings(slug);
+    logger.info(`[spotlight:createSimpleThread] Loading settings for slug: ${slug}`);
+
+    let settings;
+    try {
+      settings = await loadSettings(slug);
+      logger.info(`[spotlight:createSimpleThread] Settings loaded:`, {
+        settingsId: settings.id,
+        worktreesCount: settings.worktrees?.length ?? 0,
+      });
+    } catch (settingsError) {
+      logger.error("[spotlight:createSimpleThread] Failed to load settings:", {
+        slug,
+        error: settingsError,
+        errorMessage: settingsError instanceof Error ? settingsError.message : String(settingsError),
+      });
+      throw settingsError;
+    }
 
     // Determine worktree ID - either from selected worktree or use main worktree
     let worktreeId: string;
     if (worktreePath) {
       // Find worktree by path
+      logger.info(`[spotlight:createSimpleThread] Looking for worktree with path: ${worktreePath}`);
       const worktree = settings.worktrees.find(w => w.path === worktreePath);
       if (!worktree) {
+        logger.error("[spotlight:createSimpleThread] Worktree not found for path:", {
+          worktreePath,
+          availableWorktrees: settings.worktrees.map(w => ({ name: w.name, path: w.path, id: w.id })),
+        });
         throw new Error(`Worktree not found for path: ${worktreePath}`);
       }
       worktreeId = worktree.id;
+      logger.info(`[spotlight:createSimpleThread] Found worktree: name=${worktree.name}, id=${worktreeId}`);
     } else {
       // Use main worktree (first in list, or create if missing)
+      logger.info("[spotlight:createSimpleThread] No worktreePath provided, looking for 'main' worktree");
       const mainWorktree = settings.worktrees.find(w => w.name === 'main');
       if (!mainWorktree) {
+        logger.error("[spotlight:createSimpleThread] Main worktree not found:", {
+          repoName: repo.name,
+          availableWorktrees: settings.worktrees.map(w => ({ name: w.name, path: w.path, id: w.id })),
+        });
         throw new Error(`Main worktree not found for repository: ${repo.name}`);
       }
       worktreeId = mainWorktree.id;
+      logger.info(`[spotlight:createSimpleThread] Using main worktree: id=${worktreeId}, path=${mainWorktree.path}`);
     }
 
     const taskId = crypto.randomUUID();
     const threadId = crypto.randomUUID();
 
-    logger.info(`[spotlight:createSimpleThread] Creating simple thread: ${threadId}, workingDir: ${workingDir}`);
-    logger.info(`[spotlight:createSimpleThread] Using repoId: ${settings.id}, worktreeId: ${worktreeId}`);
+    logger.info("[spotlight:createSimpleThread] Generated IDs:", {
+      taskId,
+      threadId,
+      repoId: settings.id,
+      worktreeId,
+    });
 
     // Touch worktree to update lastAccessedAt (for MRU sorting)
+    logger.info("[spotlight:createSimpleThread] Touching worktree for MRU...");
     worktreeService.touch(repo.name, workingDir).catch((err) => {
-      logger.warn("[spotlight:createSimpleThread] Failed to touch worktree:", err);
+      logger.warn("[spotlight:createSimpleThread] Failed to touch worktree (non-fatal):", err);
     });
 
     // Open control panel immediately (optimistic UI)
     // Window shows prompt while agent starts up
-    logger.info(`[spotlight:createSimpleThread] About to call openControlPanel...`);
-    await openControlPanel(threadId, taskId, content);
-    logger.info(`[spotlight:createSimpleThread] openControlPanel returned successfully`);
+    logger.info("[spotlight:createSimpleThread] ───────────────────────────────────────────────────────────────");
+    logger.info("[spotlight:createSimpleThread] Calling openControlPanel...");
+    const openControlPanelStart = Date.now();
+    try {
+      await openControlPanel(threadId, taskId, content);
+      logger.info(`[spotlight:createSimpleThread] openControlPanel completed in ${Date.now() - openControlPanelStart}ms`);
+    } catch (controlPanelError) {
+      logger.error("[spotlight:createSimpleThread] openControlPanel FAILED:", {
+        error: controlPanelError,
+        errorMessage: controlPanelError instanceof Error ? controlPanelError.message : String(controlPanelError),
+        threadId,
+        taskId,
+      });
+      throw controlPanelError;
+    }
 
     // Spawn simple agent (no orchestration)
     // The runner creates thread metadata and thread data on disk
-    logger.info(`[spotlight:createSimpleThread] About to call spawnSimpleAgent...`);
-    await spawnSimpleAgent({
-      repoId: settings.id,     // UUID from settings
-      worktreeId,              // UUID from worktree
+    logger.info("[spotlight:createSimpleThread] ───────────────────────────────────────────────────────────────");
+    logger.info("[spotlight:createSimpleThread] Calling spawnSimpleAgent...");
+    logger.info("[spotlight:createSimpleThread] spawnSimpleAgent parameters:", {
+      repoId: settings.id,
+      worktreeId,
       threadId,
-      prompt: content,
+      promptLength: content.length,
       sourcePath: workingDir,
     });
-    logger.info(`[spotlight:createSimpleThread] spawnSimpleAgent returned successfully`);
+
+    const spawnStart = Date.now();
+    try {
+      await spawnSimpleAgent({
+        repoId: settings.id,     // UUID from settings
+        worktreeId,              // UUID from worktree
+        threadId,
+        prompt: content,
+        sourcePath: workingDir,
+      });
+      logger.info(`[spotlight:createSimpleThread] spawnSimpleAgent completed in ${Date.now() - spawnStart}ms`);
+    } catch (spawnError) {
+      logger.error("[spotlight:createSimpleThread] spawnSimpleAgent FAILED:", {
+        error: spawnError,
+        errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
+        errorStack: spawnError instanceof Error ? spawnError.stack : undefined,
+        threadId,
+        workingDir,
+        elapsed: `${Date.now() - spawnStart}ms`,
+      });
+      throw spawnError;
+    }
+
+    const totalElapsed = Date.now() - startTime;
+    logger.info("═══════════════════════════════════════════════════════════════");
+    logger.info(`[spotlight:createSimpleThread] SUCCESS - total time: ${totalElapsed}ms`);
+    logger.info("═══════════════════════════════════════════════════════════════");
   }
 
   /**
@@ -490,7 +576,10 @@ export const Spotlight = () => {
 
         // Handle thread creation error (shared between simple and full flow)
         const handleThreadError = (error: unknown) => {
-          logger.error("[Spotlight] Thread creation error (raw):", error);
+          logger.error("═══════════════════════════════════════════════════════════════");
+          logger.error("[Spotlight] THREAD CREATION ERROR");
+          logger.error("═══════════════════════════════════════════════════════════════");
+          logger.error("[Spotlight] Error (raw):", error);
           logger.error("[Spotlight] Error type:", typeof error);
           logger.error(
             "[Spotlight] Error constructor:",
@@ -502,20 +591,33 @@ export const Spotlight = () => {
           }
           if (typeof error === "object" && error !== null) {
             logger.error("[Spotlight] Error keys:", Object.keys(error));
-            logger.error(
-              "[Spotlight] Error JSON:",
-              JSON.stringify(error, null, 2)
-            );
+            try {
+              logger.error(
+                "[Spotlight] Error JSON:",
+                JSON.stringify(error, null, 2)
+              );
+            } catch (jsonError) {
+              logger.error("[Spotlight] Could not stringify error:", jsonError);
+            }
           }
+
+          // Log context about the failed thread creation attempt
+          logger.error("[Spotlight] Context at failure:", {
+            selectedRepo: selected?.repoName ?? "NONE",
+            selectedWorktreePath: selected?.worktree?.path ?? "NONE",
+            promptLength: result.data.query?.length ?? 0,
+          });
 
           const threadError = error as ThreadCreationError;
           const message = formatThreadCreationError(threadError);
           const stack = error instanceof Error ? error.stack : undefined;
           // Show error in dedicated error panel (appears above other panels)
-          logger.info("[Spotlight] Thread creation failed, showing error panel:", {
+          logger.error("[Spotlight] Thread creation failed, showing error panel:", {
             message,
-            stack,
+            stack: stack?.substring(0, 500),
           });
+          logger.error("═══════════════════════════════════════════════════════════════");
+
           invoke("show_error_panel", { message, stack })
             .then(() => {
               logger.info("[Spotlight] show_error_panel invoke completed");
