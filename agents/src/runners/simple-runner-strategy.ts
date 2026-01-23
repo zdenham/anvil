@@ -286,8 +286,8 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
       workingDir: cwd,
       threadId,
       threadPath,
-      // No branchName for simple agents
-      // No mergeBase for simple agents
+      repoId,
+      worktreeId,
     };
   }
 

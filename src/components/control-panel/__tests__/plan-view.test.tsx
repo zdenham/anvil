@@ -6,12 +6,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { PlanView } from "../plan-view";
 
 // Mock Tauri core API for ControlPanelHeader
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock planService for refresh functionality
+vi.mock("@/entities/plans/service", () => ({
+  planService: {
+    refreshById: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
 // Mock dependencies
@@ -36,9 +43,10 @@ vi.mock("@/entities/plans/store", () => ({
 }));
 
 vi.mock("@/hooks/use-plan-content", () => ({
-  usePlanContent: vi.fn((planId: string) =>
-    planId === "valid-plan-id" ? "# Test Plan\n\nSome content here." : null
-  ),
+  usePlanContent: vi.fn((planId: string) => ({
+    content: planId === "valid-plan-id" ? "# Test Plan\n\nSome content here." : null,
+    isLoading: false,
+  })),
 }));
 
 vi.mock("@/entities/relations", () => ({
@@ -64,10 +72,13 @@ describe("PlanView", () => {
       expect(screen.getByText(/Test Plan/)).toBeDefined();
     });
 
-    it("should show 'Plan not found' for invalid plan", () => {
+    it("should show 'Plan not found' for invalid plan after refresh attempt", async () => {
       render(<PlanView planId="invalid-plan-id" />);
 
-      expect(screen.getByText("Plan not found")).toBeDefined();
+      // Wait for the async refresh to complete and planNotFound state to be set
+      await waitFor(() => {
+        expect(screen.getByText("Plan not found")).toBeDefined();
+      });
     });
   });
 

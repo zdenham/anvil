@@ -98,10 +98,6 @@ export const RepositoryStep = ({
           </div>
         )}
 
-        <p className="text-sm text-surface-300">
-          <span className="text-green-500">Note:</span> we currently only support one repository
-        </p>
-
       </div>
     </div>
   );

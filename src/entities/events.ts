@@ -33,11 +33,12 @@ type CoreEvents = {
  *
  * Thread view: Shows thread conversation, plan relations, and file changes
  * Plan view: Shows plan content (markdown) and related threads
+ *
+ * Note: Inbox view has been moved to a dedicated inbox-list-panel (see plans/inbox-navigation-fix.md)
  */
 export type ControlPanelViewType =
   | { type: "thread"; threadId: string }
-  | { type: "plan"; planId: string }
-  | { type: "inbox" };
+  | { type: "plan"; planId: string };
 
 /**
  * Payload for open-control-panel event from Rust
@@ -92,11 +93,11 @@ export interface NavigationUpEvent {
 }
 
 /**
- * Navigation open event - modifier released, open selected item
+ * Navigation release event - modifier released, frontend should open its currently selected item
  */
-export interface NavigationOpenEvent {
-  type: "nav-open";
-  selectedIndex: number;
+export interface NavigationReleaseEvent {
+  type: "nav-release";
+  // No payload - frontend owns the index
 }
 
 /**
@@ -113,7 +114,7 @@ export type NavigationModeEvent =
   | NavigationStartEvent
   | NavigationDownEvent
   | NavigationUpEvent
-  | NavigationOpenEvent
+  | NavigationReleaseEvent
   | NavigationCancelEvent;
 
 /**

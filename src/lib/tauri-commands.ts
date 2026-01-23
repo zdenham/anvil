@@ -423,3 +423,32 @@ export const shellEnvironmentCommands = {
    */
   checkDocumentsAccess: () => invoke<boolean>("check_documents_access"),
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Repository Commands
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface RepoValidation {
+  exists: boolean;
+  is_git_repo: boolean;
+  error: string | null;
+}
+
+export const repoCommands = {
+  /**
+   * Validate that a path exists and is a git repository.
+   * Returns validation result with exists, is_git_repo flags and optional error.
+   */
+  validateRepository: (sourcePath: string) =>
+    invoke<RepoValidation>("validate_repository", { sourcePath }),
+
+  /**
+   * Remove repository data from ~/.mort/repositories/{repo_slug}.
+   * Used when removing a repository from Mort.
+   */
+  removeRepositoryData: async (repoSlug: string): Promise<void> => {
+    const homeDir = await fsCommands.getHomeDir();
+    const mortDir = `${homeDir}/.mort`;
+    return invoke<void>("remove_repository_data", { repoSlug, mortDir });
+  },
+};

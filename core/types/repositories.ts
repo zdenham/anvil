@@ -41,6 +41,16 @@ export const WorktreeStateSchema = z.object({
 export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
 
 /**
+ * A worktree combined with its repository context.
+ * Used for unified MRU navigation across all repositories.
+ */
+export interface RepoWorktree {
+  repoName: string;
+  repoId: string;
+  worktree: WorktreeState;
+}
+
+/**
  * Repository settings file structure.
  * Location: ~/.mort/repositories/{repo-slug}/settings.json
  *
@@ -127,4 +137,6 @@ export interface CreateRepositoryInput {
 export interface UpdateRepositoryInput {
   name?: string;
   useWorktrees?: boolean;
+  /** Update the source path (for relocating moved repositories) */
+  sourcePath?: string;
 }

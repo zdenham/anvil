@@ -5,8 +5,6 @@ import type { UnifiedInboxProps } from "./types";
 import { InboxItemRow } from "./inbox-item";
 import { createUnifiedList } from "./utils";
 import { EmptyInboxState } from "./empty-inbox-state";
-import { useNavigationMode } from "@/hooks/use-navigation-mode";
-import { switchToThread, switchToPlan } from "@/lib/hotkey-service";
 
 /**
  * Unified inbox component displaying threads and plans in a single interleaved list.
@@ -17,6 +15,10 @@ import { switchToThread, switchToPlan } from "@/lib/hotkey-service";
  * - Icon differentiation - MessageSquare for threads, FileText for plans
  * - Thread display shows last user message (truncated)
  * - Plan display shows plan filename (from relativePath)
+ *
+ * Note: This component does NOT handle global hotkey navigation. Global hotkey
+ * navigation (Alt+Up/Down) only affects the inbox-list panel, not this main
+ * window inbox view. Direct clicks on items are the only way to select here.
  */
 export function UnifiedInbox({
   threads,
@@ -32,19 +34,6 @@ export function UnifiedInbox({
     [threads, plans, threadLastMessages]
   );
 
-  // Keyboard navigation support
-  const { isNavigating, selectedIndex } = useNavigationMode({
-    itemCount: items.length,
-    onItemSelect: (index) => {
-      const item = items[index];
-      if (item.type === "thread") {
-        switchToThread(item.data.id);
-      } else if (item.type === "plan") {
-        switchToPlan(item.data.id);
-      }
-    },
-  });
-
   if (items.length === 0) {
     return <EmptyInboxState />;
   }
@@ -52,11 +41,11 @@ export function UnifiedInbox({
   return (
     <div className={className} data-testid="unified-inbox">
       <ul className="space-y-2 px-3 pt-3">
-        {items.map((item, index) => (
+        {items.map((item) => (
           <InboxItemRow
             key={`${item.type}-${item.data.id}`}
             item={item}
-            isSelected={isNavigating && selectedIndex === index}
+            isSelected={false}
             onSelect={() => {
               if (item.type === "thread") {
                 onThreadSelect(item.data as ThreadMetadata);

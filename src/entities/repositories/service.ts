@@ -12,6 +12,7 @@ import {
   type CreateRepositoryInput,
   type UpdateRepositoryInput,
 } from "./types";
+import { repoCommands } from "@/lib/tauri-commands";
 import { z } from "zod";
 
 // Schema for legacy metadata.json format
@@ -163,6 +164,37 @@ export const repoService = {
    */
   getAll(): Repository[] {
     return Object.values(useRepoStore.getState().repositories);
+  },
+
+  /**
+   * Validates a path before creating a new repository.
+   * Checks for duplicate paths and names, and verifies the path exists.
+   */
+  async validateNewRepository(path: string): Promise<{ valid: boolean; error?: string }> {
+    const existing = this.getAll();
+
+    // Check for duplicate source path
+    for (const repo of existing) {
+      if (repo.sourcePath === path) {
+        return { valid: false, error: "Repository already added" };
+      }
+    }
+
+    // Check if path exists
+    if (!(await persistence.absolutePathExists(path))) {
+      return { valid: false, error: "Path does not exist" };
+    }
+
+    // Check for duplicate name/slug
+    const folderName = extractFolderName(path);
+    const slug = slugify(folderName);
+    const repoDir = `${REPOS_DIR}/${slug}`;
+
+    if (await persistence.exists(repoDir)) {
+      return { valid: false, error: `Repository "${folderName}" already exists` };
+    }
+
+    return { valid: true };
   },
 
   /**
@@ -321,7 +353,7 @@ export const repoService = {
     const updated: Repository = {
       name: updates.name ?? existing.name,
       originalUrl: existing.originalUrl,
-      sourcePath: existing.sourcePath,
+      sourcePath: updates.sourcePath ?? existing.sourcePath,
       useWorktrees: updates.useWorktrees ?? existing.useWorktrees,
       createdAt: existing.createdAt,
       versions: existing.versions,
@@ -331,6 +363,9 @@ export const repoService = {
     const settings = await loadSettings(slug);
     settings.name = updated.name;
     settings.useWorktrees = updated.useWorktrees;
+    if (updates.sourcePath !== undefined) {
+      settings.sourcePath = updates.sourcePath;
+    }
     settings.lastUpdated = Date.now();
     await saveSettings(slug, settings);
 
@@ -385,6 +420,50 @@ export const repoService = {
   },
 
   /**
+   * Removes a repository from Mort settings without deleting source files on disk.
+   * This is the user-facing "remove" action from the UI.
+   * Removes the ~/.mort/repositories/{slug} folder but leaves source code untouched.
+   */
+  async remove(repoId: string): Promise<void> {
+    const existing = useRepoStore.getState().repositories[repoId];
+    if (!existing) return;
+
+    const slug = slugify(repoId);
+
+    // Remove the settings folder from ~/.mort/repositories/{slug}
+    // Do NOT delete source files on disk - they remain untouched
+    await persistence.removeDir(`${REPOS_DIR}/${slug}`);
+    useRepoStore.getState()._applyDelete(repoId);
+    eventBus.emit(EventName.REPOSITORY_DELETED, { name: repoId });
+  },
+
+  /**
+   * Renames a repository's display name.
+   * Updates the settings.json with the new name.
+   * Note: Does not change the slug/folder name to avoid breaking references.
+   */
+  async rename(repoId: string, newName: string): Promise<void> {
+    const existing = useRepoStore.getState().repositories[repoId];
+    if (!existing) throw new Error(`Repository not found: ${repoId}`);
+
+    const slug = slugify(repoId);
+
+    // Load existing settings and update the name
+    const settings = await loadSettings(slug);
+    settings.name = newName;
+    settings.lastUpdated = Date.now();
+    await saveSettings(slug, settings);
+
+    // Update the store
+    const updated: Repository = {
+      ...existing,
+      name: newName,
+    };
+    useRepoStore.getState()._applyUpdate(repoId, updated);
+    eventBus.emit(EventName.REPOSITORY_UPDATED, { name: newName });
+  },
+
+  /**
    * Refreshes worktrees from disk for a repository.
    * Call this after external changes to the filesystem.
    */
@@ -398,5 +477,84 @@ export const repoService = {
 
     useRepoStore.getState()._applyUpdate(name, updated);
     return updated;
+  },
+
+  /**
+   * Validates all repository source paths.
+   * Useful for detecting repos that have been moved on disk.
+   * Returns validation results for each repository.
+   */
+  async validateAllPaths(): Promise<{ repoId: string; valid: boolean }[]> {
+    const repos = this.getAll();
+    const results: { repoId: string; valid: boolean }[] = [];
+
+    for (const repo of repos) {
+      if (!repo.sourcePath) {
+        results.push({ repoId: repo.name, valid: false });
+        continue;
+      }
+
+      try {
+        const validation = await repoCommands.validateRepository(repo.sourcePath);
+        results.push({
+          repoId: repo.name,
+          valid: validation.exists && validation.is_git_repo,
+        });
+      } catch (error) {
+        logger.error(`[repo:validateAllPaths] Failed to validate ${repo.name}:`, error);
+        results.push({ repoId: repo.name, valid: false });
+      }
+    }
+
+    return results;
+  },
+
+  /**
+   * Updates the source path of a repository.
+   * Used when a repository has been moved on disk and needs to be relocated.
+   */
+  async updatePath(repoId: string, newPath: string): Promise<void> {
+    const existing = useRepoStore.getState().repositories[repoId];
+    if (!existing) throw new Error(`Repository not found: ${repoId}`);
+
+    const slug = slugify(repoId);
+
+    // Validate the new path is a git repo
+    const validation = await repoCommands.validateRepository(newPath);
+    if (!validation.exists || !validation.is_git_repo) {
+      throw new Error(`Invalid repository path: ${newPath}`);
+    }
+
+    // Load existing settings and update sourcePath
+    const settings = await loadSettings(slug);
+    settings.sourcePath = newPath;
+    settings.lastUpdated = Date.now();
+
+    // Update the main worktree path if it exists
+    const mainWorktree = settings.worktrees.find(w => w.name === 'main');
+    if (mainWorktree) {
+      mainWorktree.path = newPath;
+    }
+
+    await saveSettings(slug, settings);
+
+    // Update the store
+    const updated: Repository = {
+      ...existing,
+      sourcePath: newPath,
+    };
+    useRepoStore.getState()._applyUpdate(repoId, updated);
+    eventBus.emit(EventName.REPOSITORY_UPDATED, { name: repoId });
+
+    logger.info(`[repo:updatePath] Updated path for ${repoId} to ${newPath}`);
+  },
+
+  /**
+   * Gets repositories that have invalid/missing source paths.
+   * Returns array of repository names that need to be relocated.
+   */
+  async getInvalidRepositories(): Promise<string[]> {
+    const results = await this.validateAllPaths();
+    return results.filter(r => !r.valid).map(r => r.repoId);
   },
 };

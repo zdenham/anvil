@@ -3,6 +3,7 @@
  *
  * Tests for the ControlPanelViewType discriminated union.
  * Note: Tab state is managed locally in components, not in the routing type.
+ * Note: Inbox view has been moved to a dedicated inbox-list-panel (see plans/inbox-navigation-fix.md)
  */
 
 import { describe, it, expect } from "vitest";
@@ -27,14 +28,7 @@ describe("ControlPanelViewType", () => {
     expect(planView.planId).toBe("test-id");
   });
 
-  it("should support inbox view", () => {
-    const inboxView: ControlPanelViewType = {
-      type: "inbox",
-    };
-    expect(inboxView.type).toBe("inbox");
-  });
-
-  it("should discriminate between thread, plan, and inbox views", () => {
+  it("should discriminate between thread and plan views", () => {
     const view: ControlPanelViewType = {
       type: "plan",
       planId: "test-id",
@@ -43,9 +37,6 @@ describe("ControlPanelViewType", () => {
     if (view.type === "plan") {
       // TypeScript should know this is a plan view
       expect(view.planId).toBe("test-id");
-    } else if (view.type === "inbox") {
-      // TypeScript should know this is an inbox view
-      expect(view.type).toBe("inbox");
     } else {
       // TypeScript should know this is a thread view
       expect(view.threadId).toBeDefined();

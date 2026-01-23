@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export type StatusDotVariant = "running" | "unread" | "read";
+export type StatusDotVariant = "running" | "unread" | "read" | "stale";
 
 interface StatusDotProps {
   variant: StatusDotVariant;
@@ -15,6 +15,7 @@ interface StatusDotProps {
  * - running: Green with glow animation (uses .status-dot-running CSS class)
  * - unread: Blue (bg-blue-500)
  * - read: Grey (bg-zinc-400)
+ * - stale: Amber/yellow (bg-amber-500) - plan file not found
  */
 export function StatusDot({ variant, className, ...props }: StatusDotProps) {
   return (
@@ -24,6 +25,7 @@ export function StatusDot({ variant, className, ...props }: StatusDotProps) {
         variant === "running" && "status-dot-running",
         variant === "unread" && "bg-blue-500",
         variant === "read" && "bg-zinc-400",
+        variant === "stale" && "bg-amber-500",
         className
       )}
       {...props}

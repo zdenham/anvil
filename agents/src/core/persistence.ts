@@ -1,15 +1,19 @@
 import crypto from "crypto";
+import { relative, isAbsolute } from "path";
+import { realpathSync } from "fs";
 
 const PLANS_DIR = "plans";
 
 /**
- * Minimal plan metadata stored on disk.
- * Agent only needs to create/update the metadata.json - frontend refreshes from disk.
- * Uses absolute paths to simplify detection and avoid repositoryName dependencies.
+ * Plan metadata stored on disk.
+ * Schema matches frontend's PlanMetadataSchema in core/types/plans.ts.
+ * Uses structured paths (repoId + worktreeId + relativePath) for portability.
  */
 interface PlanMetadata {
   id: string;
-  absolutePath: string;
+  repoId: string;
+  worktreeId: string;
+  relativePath: string;
   isRead: boolean;
   createdAt: number;
   updatedAt: number;
@@ -42,14 +46,37 @@ export abstract class MortPersistence {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
+   * Convert an absolute path to a relative path from the working directory.
+   * Handles symlink resolution (e.g., macOS /var -> /private/var).
+   */
+  private toRelativePath(absolutePath: string, workingDir: string): string {
+    try {
+      const realAbsolute = realpathSync(absolutePath);
+      const realWorkDir = realpathSync(workingDir);
+      return relative(realWorkDir, realAbsolute);
+    } catch {
+      // Fall back to direct relative if realpath fails (file may not exist yet)
+      return relative(workingDir, absolutePath);
+    }
+  }
+
+  /**
    * Create or update a plan.
-   * Idempotent - looks up by absolute path first.
+   * Idempotent - looks up by repoId + relativePath first.
    */
   async ensurePlanExists(
-    absolutePath: string
+    repoId: string,
+    worktreeId: string,
+    absolutePath: string,
+    workingDir: string
   ): Promise<{ id: string; isNew: boolean }> {
-    // Find existing plan by absolute path
-    const existing = await this.findPlanByPath(absolutePath);
+    // Convert absolutePath to relativePath
+    const relativePath = isAbsolute(absolutePath)
+      ? this.toRelativePath(absolutePath, workingDir)
+      : absolutePath;
+
+    // Find existing plan by repoId + relativePath
+    const existing = await this.findPlanByPath(repoId, relativePath);
     if (existing) {
       // Mark as unread (content was updated)
       await this.updatePlan(existing.id, { isRead: false });
@@ -57,20 +84,26 @@ export abstract class MortPersistence {
     }
 
     // Create new plan
-    const plan = await this.createPlan({ absolutePath });
+    const plan = await this.createPlan({ repoId, worktreeId, relativePath });
     return { id: plan.id, isNew: true };
   }
 
   /**
    * Create a new plan.
    */
-  async createPlan(input: { absolutePath: string }): Promise<PlanMetadata> {
+  async createPlan(input: {
+    repoId: string;
+    worktreeId: string;
+    relativePath: string;
+  }): Promise<PlanMetadata> {
     const now = Date.now();
     const id = crypto.randomUUID();
 
     const plan: PlanMetadata = {
       id,
-      absolutePath: input.absolutePath,
+      repoId: input.repoId,
+      worktreeId: input.worktreeId,
+      relativePath: input.relativePath,
       isRead: false,
       createdAt: now,
       updatedAt: now,
@@ -104,13 +137,13 @@ export abstract class MortPersistence {
   }
 
   /**
-   * Find plan by absolute path.
+   * Find plan by repoId and relativePath.
    */
-  async findPlanByPath(absolutePath: string): Promise<PlanMetadata | null> {
+  async findPlanByPath(repoId: string, relativePath: string): Promise<PlanMetadata | null> {
     const dirs = await this.listDirs(PLANS_DIR);
     for (const dir of dirs) {
       const plan = await this.read<PlanMetadata>(`${PLANS_DIR}/${dir}/metadata.json`);
-      if (plan && plan.absolutePath === absolutePath) {
+      if (plan && plan.repoId === repoId && plan.relativePath === relativePath) {
         return plan;
       }
     }

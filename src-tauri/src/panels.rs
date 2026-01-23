@@ -20,6 +20,7 @@ use tauri_nspanel::{
 pub const SPOTLIGHT_LABEL: &str = "spotlight";
 pub const CLIPBOARD_LABEL: &str = "clipboard";
 pub const ERROR_LABEL: &str = "error";
+pub const INBOX_LIST_PANEL_LABEL: &str = "inbox-list-panel";
 
 // Window dimensions
 pub const SPOTLIGHT_WIDTH: f64 = 570.0;
@@ -31,6 +32,8 @@ pub const ERROR_WIDTH: f64 = 500.0;
 pub const ERROR_HEIGHT: f64 = 300.0;
 pub const CONTROL_PANEL_WIDTH: f64 = 650.0;
 pub const CONTROL_PANEL_HEIGHT: f64 = 750.0;
+pub const INBOX_LIST_PANEL_WIDTH: f64 = 650.0;
+pub const INBOX_LIST_PANEL_HEIGHT: f64 = 550.0;
 pub const RESULT_ITEM_HEIGHT: f64 = 56.0;
 pub const RESULT_ITEM_HEIGHT_COMPACT: f64 = 32.0;
 pub const MAX_VISIBLE_RESULTS: usize = 8;
@@ -134,6 +137,14 @@ tauri_panel! {
         }
     })
 
+    // Inbox list panel for navigation mode inbox display
+    panel!(InboxListPanel {
+        config: {
+            can_become_key_window: true,
+            is_floating_panel: true
+        }
+    })
+
     // Event handler for spotlight panel - hides on blur (resign key)
     panel_event!(SpotlightEventHandler {
         window_did_resign_key(notification: &NSNotification) -> ()
@@ -153,6 +164,9 @@ tauri_panel! {
     panel_event!(ControlPanelEventHandler {
         window_did_resign_key(notification: &NSNotification) -> ()
     })
+
+    // NOTE: InboxListPanel intentionally has NO event handler.
+    // Hide is managed explicitly to avoid race conditions from multiple hide paths.
 }
 
 /// Stores the app handle for use in event callbacks
@@ -1016,13 +1030,14 @@ pub fn snap_control_panel_position(app: &AppHandle) -> Result<(), String> {
 }
 
 /// Checks if any nspanel is currently visible
-/// Returns true if at least one of the panels (spotlight, clipboard, error, control-panel) is visible
+/// Returns true if at least one of the panels (spotlight, clipboard, error, control-panel, inbox-list-panel) is visible
 pub fn is_any_panel_visible(app: &AppHandle) -> bool {
     let panel_labels = [
         SPOTLIGHT_LABEL,
         CLIPBOARD_LABEL,
         ERROR_LABEL,
         CONTROL_PANEL_LABEL,
+        INBOX_LIST_PANEL_LABEL,
     ];
 
     for label in &panel_labels {
@@ -1044,4 +1059,125 @@ pub fn is_panel_visible(app: &AppHandle, panel_label: &str) -> bool {
     } else {
         false
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Inbox List Panel (for navigation mode)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Creates the inbox list panel (hidden by default) - called once at startup
+pub fn create_inbox_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    tracing::info!("[InboxListPanel] Creating inbox list panel at startup");
+
+    let monitor = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .ok_or("No primary monitor found")?;
+
+    let monitor_size = monitor.size();
+    let scale_factor = monitor.scale_factor();
+    let screen_width = monitor_size.width as f64 / scale_factor;
+    let screen_height = monitor_size.height as f64 / scale_factor;
+
+    // Calculate centered position
+    let x = (screen_width - INBOX_LIST_PANEL_WIDTH) / 2.0;
+    let y = (screen_height - INBOX_LIST_PANEL_HEIGHT) / 2.0;
+
+    let panel = PanelBuilder::<_, InboxListPanel>::new(app, INBOX_LIST_PANEL_LABEL)
+        .url(WebviewUrl::App("inbox-list.html".into()))
+        .size(Size::Logical(LogicalSize::new(
+            INBOX_LIST_PANEL_WIDTH,
+            INBOX_LIST_PANEL_HEIGHT,
+        )))
+        .position(Position::Logical(LogicalPosition::new(x, y)))
+        .level(PanelLevel::ScreenSaver)
+        .collection_behavior(
+            CollectionBehavior::new()
+                .move_to_active_space()
+                .full_screen_auxiliary(),
+        )
+        .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+        .has_shadow(true)
+        .corner_radius(12.0)
+        .hides_on_deactivate(false)
+        .transparent(true)
+        .no_activate(true)
+        .with_window(|w| {
+            w.decorations(false)
+                .resizable(false)
+                .visible(false)
+                .transparent(true)
+                .title("inbox-list-panel")
+        })
+        .build()?;
+
+    // Disable macOS Tahoe window animations for snappy appearance
+    panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
+
+    // NOTE: Unlike other panels, we intentionally do NOT set up a blur handler here.
+    // The inbox-list panel's hide is managed explicitly via hide_inbox_list_panel().
+    // This avoids race conditions from multiple hide paths (blur + explicit hide).
+    // This matches the reference implementation pattern from the tasks-list panel.
+
+    // Ensure panel starts hidden
+    panel.hide();
+
+    tracing::info!("[InboxListPanel] Inbox list panel created (hidden)");
+    Ok(())
+}
+
+/// Shows the inbox list panel on the screen containing the mouse cursor
+pub fn show_inbox_list_panel(app: &AppHandle) -> Result<(), String> {
+    tracing::info!("[InboxListPanel] show_inbox_list_panel called");
+
+    match app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
+        Ok(panel) => {
+            // Reposition panel to center of the screen where the cursor is
+            let (x, y) = calculate_centered_panel_position_cocoa(app, INBOX_LIST_PANEL_WIDTH, INBOX_LIST_PANEL_HEIGHT);
+            panel
+                .as_panel()
+                .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
+
+            tracing::info!("[PanelFocus] show_inbox_list_panel: SHOWING inbox-list-panel");
+            panel.show_and_make_key();
+            tracing::info!("[PanelFocus] show_inbox_list_panel: inbox-list-panel now KEY");
+
+            // Emit event to notify frontend
+            let _ = app.emit("inbox-list-panel-shown", ());
+
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("[InboxListPanel] Failed to get panel: {:?}", e);
+            Err(format!("Inbox list panel not available: {:?}", e))
+        }
+    }
+}
+
+/// Hides the inbox list panel
+pub fn hide_inbox_list_panel(app: &AppHandle) -> Result<(), String> {
+    tracing::info!("[InboxListPanel] hide_inbox_list_panel called");
+
+    if let Ok(panel) = app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
+        panel.hide();
+        // Emit event so frontend can reset state
+        let _ = app.emit_to(INBOX_LIST_PANEL_LABEL, "panel-hidden", ());
+        let _ = app.emit("inbox-list-panel-hidden", ());
+    }
+    Ok(())
+}
+
+/// Forces focus on the inbox list panel if it's visible
+pub fn focus_inbox_list_panel(app: &AppHandle) -> Result<(), String> {
+    if let Ok(panel) = app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
+        if panel.is_visible() {
+            tracing::info!("[PanelFocus] focus_inbox_list_panel: RE-FOCUSING inbox-list-panel");
+            panel.as_panel().makeKeyAndOrderFront(None);
+            tracing::info!("[PanelFocus] focus_inbox_list_panel: inbox-list-panel now KEY");
+        } else {
+            tracing::debug!("[PanelFocus] focus_inbox_list_panel: panel not visible, skipping");
+        }
+    }
+    Ok(())
 }

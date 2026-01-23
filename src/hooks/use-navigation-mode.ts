@@ -78,19 +78,15 @@ export function useNavigationMode({
           });
           break;
 
-        case "nav-open":
+        case "nav-release":
           logger.log(
-            "[use-navigation-mode] Navigation mode ended, opening item at index:",
-            event.selectedIndex
+            "[use-navigation-mode] Navigation mode ended, opening item at local index:",
+            selectedIndex
           );
           setIsNavigating(false);
-          // Use the selectedIndex from the event (which comes from Rust state)
-          // but prefer our local state since it's more accurate for the frontend
+          // Frontend owns the index - use local state
           if (onItemSelectRef.current) {
-            // Use current selectedIndex state, not the event's index
-            // because our frontend state is more up-to-date
-            const currentIndex = selectedIndex;
-            onItemSelectRef.current(currentIndex);
+            onItemSelectRef.current(selectedIndex);
           }
           break;
 

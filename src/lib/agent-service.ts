@@ -153,8 +153,10 @@ function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
 
     case EventName.PLAN_DETECTED:
       // Forward plan:detected to eventBus - listeners will refresh from disk
+      logger.info(`[handleAgentEvent] 📋 PLAN_DETECTED received from agent stdout, planId=${(payload as { planId: string }).planId}`);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       eventBus.emit(name as any, payload as any);
+      logger.info(`[handleAgentEvent] 📋 PLAN_DETECTED emitted to eventBus`);
       break;
 
     default:
@@ -224,6 +226,7 @@ function handleSimpleAgentOutput(
         }
 
         case "event":
+          logger.info(`[simple-agent:${threadId}] 📤 Parsed event from stdout: name=${output.name}`);
           handleAgentEvent(output, threadId);
           break;
 
@@ -264,6 +267,8 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 
   // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
   await ensureShellInitialized();
+
+  logger.info(`[agent-service] Agent will spawn in path: ${parsed.sourcePath}`);
 
   const mortDir = await fs.getDataDir();
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
@@ -420,13 +425,15 @@ export async function resumeSimpleAgent(
   // State path: threads/{threadId}/state.json
   const stateFilePath = await join(mortDir, "threads", threadId, "state.json");
 
-  // Get repoId from thread metadata for resume
+  // Get repoId and worktreeId from thread metadata for resume
   const thread = threadService.get(threadId);
   const repoId = thread?.repoId ?? threadId;
+  const worktreeId = thread?.worktreeId ?? threadId;
 
   const commandArgs = [
     runnerPath,
     "--repo-id", repoId,
+    "--worktree-id", worktreeId,
     "--thread-id", threadId,
     "--cwd", sourcePath,
     "--prompt", prompt,

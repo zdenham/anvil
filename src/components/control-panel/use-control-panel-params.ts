@@ -27,15 +27,12 @@ const PendingControlPanelSchema = z.object({
 
 /**
  * Parse view type from URL search params.
- * Supports: ?view=inbox, ?view=thread&threadId=xxx, ?view=plan&planId=xxx
+ * Supports: ?view=thread&threadId=xxx, ?view=plan&planId=xxx
+ * Note: Inbox view has been moved to a dedicated inbox-list-panel (see plans/inbox-navigation-fix.md)
  */
 function parseUrlParams(): ControlPanelViewType | null {
   const searchParams = new URLSearchParams(window.location.search);
   const view = searchParams.get("view");
-
-  if (view === "inbox") {
-    return { type: "inbox" };
-  }
 
   if (view === "thread") {
     const threadId = searchParams.get("threadId");

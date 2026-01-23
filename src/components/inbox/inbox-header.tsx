@@ -11,9 +11,9 @@ interface InboxHeaderProps {
 /**
  * Header component for Mission Control / Unified Inbox.
  *
- * Matches the original TasksPage header design:
+ * Layout:
  * - Panel toggle button on left
- * - Search bar (max-w-xs, inline styling)
+ * - Search bar (max-w-xs)
  * - Spacer to push refresh right
  * - Refresh button on far right
  */

@@ -39,9 +39,9 @@ export const threadStreamingActions: Array<ActionConfig> = [
 
 // Plan view actions
 export const planDefaultActions: Array<ActionConfig> = [
-  { key: "createThread", label: "Create Thread", description: "start a new thread for this plan", shortcut: "\u2318N" },
-  { key: "editPlan", label: "Edit Plan", description: "modify plan content", shortcut: "\u2318E" },
-  { key: "deletePlan", label: "Delete Plan", description: "remove this plan", shortcut: "\u2318\u232B" },
+  { key: "archive", label: "Archive", description: "complete and file away" },
+  { key: "markUnread", label: "Mark unread", description: "return to inbox for later" },
+  { key: "respond", label: "Type something to respond" },
 ];
 
 // Legacy aliases for backwards compatibility

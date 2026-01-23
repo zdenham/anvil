@@ -171,31 +171,50 @@ export const isPanelVisible = async (panelLabel: string): Promise<boolean> => {
 };
 
 /**
+ * Shows the control panel with a specific view.
+ * Routes through Rust to ensure the open-control-panel event reaches the control panel window.
+ *
+ * This is the preferred way to switch control panel views from any window,
+ * as it properly crosses the window boundary (unlike JS eventBus which stays local).
+ *
+ * @param view - The view to switch to (discriminated union)
+ */
+export const showControlPanelWithView = async (view: ControlPanelViewType): Promise<void> => {
+  logger.info(`[hotkey-service] showControlPanelWithView:`, view);
+  await invoke("show_control_panel_with_view", { view });
+};
+
+/**
  * Switch control panel view client-side (no native window operations).
- * Use this when the panel is already open to avoid focus flicker.
+ *
+ * @deprecated Use showControlPanelWithView instead - this function emits a JS event
+ * that doesn't cross window boundaries, causing stale content when switching threads.
  *
  * @param view - The view to switch to (discriminated union)
  */
 export const switchControlPanelClientSide = (view: ControlPanelViewType): void => {
   // Import eventBus dynamically to avoid circular dependencies
   import("@/entities").then(({ eventBus }) => {
-    logger.debug(`[hotkey-service] Client-side switch to:`, view);
+    logger.warn(`[hotkey-service] ⚠️ switchControlPanelClientSide is DEPRECATED - use showControlPanelWithView instead`);
+    logger.info(`[hotkey-service] 📋 Client-side switch to:`, view);
     eventBus.emit("open-control-panel", { view });
   });
 };
 
 /**
- * Convenience wrapper: Switch to a thread view client-side.
+ * Switch to a thread view in the control panel.
+ * Routes through Rust to ensure the event reaches the control panel window.
  */
-export const switchToThread = (threadId: string): void => {
-  switchControlPanelClientSide({ type: "thread", threadId });
+export const switchToThread = async (threadId: string): Promise<void> => {
+  await showControlPanelWithView({ type: "thread", threadId });
 };
 
 /**
- * Convenience wrapper: Switch to a plan view client-side.
+ * Switch to a plan view in the control panel.
+ * Routes through Rust to ensure the event reaches the control panel window.
  */
-export const switchToPlan = (planId: string): void => {
-  switchControlPanelClientSide({ type: "plan", planId });
+export const switchToPlan = async (planId: string): Promise<void> => {
+  await showControlPanelWithView({ type: "plan", planId });
 };
 
 

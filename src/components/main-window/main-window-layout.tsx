@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./sidebar";
 import { WorktreesPage } from "./worktrees-page";
 import { LogsPage } from "./logs-page";
@@ -13,10 +12,10 @@ import { usePlanStore } from "@/entities/plans/store";
 import { useThreadLastMessages } from "@/hooks/use-thread-last-messages";
 import { threadService } from "@/entities/threads/service";
 import { planService } from "@/entities/plans/service";
-import { eventBus } from "@/entities";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
 import { logger } from "@/lib/logger-client";
+import { showControlPanelWithView } from "@/lib/hotkey-service";
 
 export type TabId = "inbox" | "worktrees" | "logs" | "settings";
 
@@ -42,6 +41,7 @@ export function MainWindowLayout() {
   // Filter threads based on search query
   const filteredThreads = useMemo(() => {
     if (!searchQuery.trim()) return threads;
+
     const query = searchQuery.toLowerCase();
     return threads.filter((t) =>
       t.id.toLowerCase().includes(query) ||
@@ -52,6 +52,7 @@ export function MainWindowLayout() {
   // Filter plans based on search query
   const filteredPlans = useMemo(() => {
     if (!searchQuery.trim()) return plans;
+
     const query = searchQuery.toLowerCase();
     return plans.filter((p) =>
       p.id.toLowerCase().includes(query) ||
@@ -79,26 +80,16 @@ export function MainWindowLayout() {
   const handleThreadSelect = useCallback(async (thread: ThreadMetadata) => {
     logger.info("[MainWindowLayout] Thread selected:", thread.id);
 
-    // Emit event for control panel to handle the view switch
-    eventBus.emit("open-control-panel", {
-      view: { type: "thread", threadId: thread.id },
-    });
-
-    // Ensure panel is visible (may need to open native window)
-    await invoke("show_control_panel");
+    // Route through Rust to ensure event reaches control panel window
+    await showControlPanelWithView({ type: "thread", threadId: thread.id });
   }, []);
 
   // Handle plan selection - open control panel with plan view
   const handlePlanSelect = useCallback(async (plan: PlanMetadata) => {
     logger.info("[MainWindowLayout] Plan selected:", plan.id);
 
-    // Emit event for control panel to handle the view switch
-    eventBus.emit("open-control-panel", {
-      view: { type: "plan", planId: plan.id },
-    });
-
-    // Ensure panel is visible
-    await invoke("show_control_panel");
+    // Route through Rust to ensure event reaches control panel window
+    await showControlPanelWithView({ type: "plan", planId: plan.id });
   }, []);
 
   // Listen for navigation events from the native macOS menu

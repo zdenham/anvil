@@ -1,13 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main, spotlight, clipboard, error, and control-panel windows",
+  "description": "Capability for the main, spotlight, clipboard, error, control-panel, and inbox-list-panel windows",
   "windows": [
     "main",
     "spotlight",
     "clipboard",
     "error",
-    "control-panel"
+    "control-panel",
+    "inbox-list-panel"
   ],
   "permissions": [
     "core:default",

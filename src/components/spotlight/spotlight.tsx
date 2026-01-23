@@ -24,7 +24,7 @@ import { TriggerSearchInput, type TriggerStateInfo } from "../reusable/trigger-s
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { repoService, type Repository, eventBus } from "../../entities";
 import { worktreeService } from "../../entities/worktrees";
-import type { WorktreeState } from "@core/types/repositories";
+import type { RepoWorktree } from "@core/types/repositories";
 import { spawnSimpleAgent } from "../../lib/agent-service";
 import { openControlPanel, showMainWindow } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
@@ -314,7 +314,7 @@ interface SpotlightState {
   inputExpanded: boolean;
   appSuffix: string;
   selectedWorktreeIndex: number;
-  availableWorktrees: WorktreeState[];
+  repoWorktrees: RepoWorktree[];  // Flat MRU list across all repositories
 }
 
 const INITIAL_STATE: SpotlightState = {
@@ -325,7 +325,7 @@ const INITIAL_STATE: SpotlightState = {
   inputExpanded: false,
   appSuffix: "",
   selectedWorktreeIndex: 0,
-  availableWorktrees: [],
+  repoWorktrees: [],
 };
 
 const INITIAL_TRIGGER_STATE: TriggerStateInfo = {
@@ -345,7 +345,7 @@ export const Spotlight = () => {
   // Track trigger state in a ref so async callbacks can check current trigger status
   const triggerStateRef = useRef<TriggerStateInfo>(INITIAL_TRIGGER_STATE);
 
-  const { query, results, selectedIndex, inputExpanded, appSuffix, selectedWorktreeIndex, availableWorktrees } = state;
+  const { query, results, selectedIndex, inputExpanded, appSuffix, selectedWorktreeIndex, repoWorktrees } = state;
 
   // Keep refs in sync with state
   inputExpandedRef.current = inputExpanded;
@@ -459,10 +459,7 @@ export const Spotlight = () => {
         await controller.copyToClipboard(String(result.data.result));
         await controller.hideSpotlight();
       } else if (result.type === "thread") {
-        // Get default repo (single repo case) or use first repo for now
-        // TODO: Add repo selection UI for multi-repo scenarios
         const repos = controller.getRepositories();
-        const defaultRepo = controller.getDefaultRepository();
 
         if (repos.length === 0) {
           logger.error(
@@ -471,9 +468,20 @@ export const Spotlight = () => {
           return;
         }
 
-        // Use default repo if available, otherwise use first repo
-        // Future: Show repo selector when multiple repos exist
-        const selectedRepo = defaultRepo ?? repos[0];
+        // Get selected repo+worktree from unified MRU list
+        const selected = repoWorktrees[selectedWorktreeIndex];
+        if (!selected) {
+          logger.error("No worktree selected");
+          return;
+        }
+
+        // Find the repository by name (repoId in RepoWorktree is the name)
+        const selectedRepo = repos.find(r => r.name === selected.repoName);
+        if (!selectedRepo) {
+          logger.error(`Repository not found: ${selected.repoName}`);
+          return;
+        }
+        const selectedWorktree = selected.worktree;
 
         // Save prompt to history (fire and forget)
         promptHistoryService.add(result.data.query).catch((error) => {
@@ -517,10 +525,9 @@ export const Spotlight = () => {
             });
         };
 
-        // Run in selected worktree (if any) or source repo
-        const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
+        // Run in selected worktree
         controller
-          .createSimpleThread(result.data.query, selectedRepo, selectedWorktree?.path)
+          .createSimpleThread(result.data.query, selectedRepo, selectedWorktree.path)
           .catch(handleThreadError);
 
         // Hide spotlight immediately - thread window is already showing
@@ -686,7 +693,7 @@ export const Spotlight = () => {
         await invoke("restart_app");
       }
     },
-    [triggerState.results, availableWorktrees, selectedWorktreeIndex, resizeSpotlight, inputExpanded]
+    [triggerState.results, repoWorktrees, selectedWorktreeIndex, resizeSpotlight, inputExpanded]
   );
 
   // Initialize controller on mount and fetch app suffix
@@ -715,32 +722,52 @@ export const Spotlight = () => {
       });
   }, []);
 
-  // Load worktrees by syncing from git (removes stale entries, discovers new ones)
+  // Load worktrees from ALL repositories and sort by MRU
   const loadWorktrees = useCallback(async () => {
     const controller = controllerRef.current;
-    const repo = controller.getDefaultRepository();
-    if (!repo) {
-      logger.info("[Spotlight] No default repository, skipping worktree load");
+    const repos = controller.getRepositories();
+
+    if (repos.length === 0) {
+      logger.info("[Spotlight] No repositories, skipping worktree load");
+      setState((prev) => ({
+        ...prev,
+        repoWorktrees: [],
+        selectedWorktreeIndex: 0,
+      }));
       return;
     }
 
-    try {
-      logger.info(`[Spotlight] Syncing worktrees for ${repo.name}`);
-      const worktrees = await worktreeService.sync(repo.name);
-      logger.info(`[Spotlight] Loaded ${worktrees.length} worktrees:`, worktrees.map(w => w.name));
-      setState((prev) => ({
-        ...prev,
-        availableWorktrees: worktrees,
-        selectedWorktreeIndex: 0, // Reset to first (most recent)
-      }));
-    } catch (err) {
-      logger.error("[Spotlight] Failed to load worktrees:", err);
-      setState((prev) => ({
-        ...prev,
-        availableWorktrees: [],
-        selectedWorktreeIndex: 0,
-      }));
+    const allRepoWorktrees: RepoWorktree[] = [];
+
+    for (const repo of repos) {
+      try {
+        logger.info(`[Spotlight] Syncing worktrees for ${repo.name}`);
+        const worktrees = await worktreeService.sync(repo.name);
+        for (const wt of worktrees) {
+          allRepoWorktrees.push({
+            repoName: repo.name,
+            repoId: repo.name, // Using name as ID for now, will need settings lookup for UUID
+            worktree: wt,
+          });
+        }
+      } catch (err) {
+        logger.error(`[Spotlight] Failed to load worktrees for ${repo.name}:`, err);
+      }
     }
+
+    // Sort by MRU across ALL repos
+    allRepoWorktrees.sort((a, b) =>
+      (b.worktree.lastAccessedAt ?? 0) - (a.worktree.lastAccessedAt ?? 0)
+    );
+
+    logger.info(`[Spotlight] Loaded ${allRepoWorktrees.length} worktrees across ${repos.length} repos:`,
+      allRepoWorktrees.map(rw => `${rw.repoName}/${rw.worktree.name}`));
+
+    setState((prev) => ({
+      ...prev,
+      repoWorktrees: allRepoWorktrees,
+      selectedWorktreeIndex: 0, // Reset to first (most recent)
+    }));
   }, []);
 
   // Load available worktrees when spotlight mounts
@@ -831,7 +858,7 @@ export const Spotlight = () => {
           // Cycle forward through worktrees when on a thread result
           // Only cycle if cursor is at the very end AND no text is selected
           const currentResult = displayResults[selectedIndex];
-          if (currentResult?.type === "thread" && availableWorktrees.length > 1) {
+          if (currentResult?.type === "thread" && repoWorktrees.length > 1) {
             const cursorPos = inputRef.current?.getCursorPosition() ?? 0;
             const inputLength = query.length;
             // Check if cursor is at the end of the input
@@ -841,7 +868,7 @@ export const Spotlight = () => {
               e.preventDefault();
               setState((prev) => ({
                 ...prev,
-                selectedWorktreeIndex: (prev.selectedWorktreeIndex + 1) % prev.availableWorktrees.length,
+                selectedWorktreeIndex: (prev.selectedWorktreeIndex + 1) % prev.repoWorktrees.length,
               }));
             }
             // Otherwise: let default behavior happen (cursor moves right)
@@ -852,7 +879,7 @@ export const Spotlight = () => {
           // Cycle back through worktrees when on a thread result
           // Only cycle if not on the first worktree
           const currentResultLeft = displayResults[selectedIndex];
-          if (currentResultLeft?.type === "thread" && availableWorktrees.length > 1) {
+          if (currentResultLeft?.type === "thread" && repoWorktrees.length > 1) {
             const notOnFirstWorktree = selectedWorktreeIndex > 0;
 
             if (notOnFirstWorktree) {
@@ -891,7 +918,7 @@ export const Spotlight = () => {
     isInHistoryMode,
     handleHistoryNavigation,
     triggerState,
-    availableWorktrees,
+    repoWorktrees,
     selectedWorktreeIndex,
   ]);
 
@@ -1017,7 +1044,9 @@ export const Spotlight = () => {
           onExpandedChange={handleExpandedChange}
           hasContentBelow={displayResults.length > 0}
           triggerContext={{
-            rootPath: controllerRef.current.getDefaultRepository()?.sourcePath ?? null,
+            // Use MRU worktree path for file triggers - this ensures "@" works
+            // correctly even with multiple repositories configured
+            rootPath: repoWorktrees[0]?.worktree.path ?? null,
           }}
           disableDropdown // Render trigger results in ResultsTray instead
           onTriggerStateChange={setTriggerState}
@@ -1036,8 +1065,9 @@ export const Spotlight = () => {
         }}
         onActivate={activateResult}
         worktreeInfo={{
-          availableWorktrees,
+          repoWorktrees,
           selectedWorktreeIndex,
+          repoCount: controllerRef.current.getRepositories().length,
         }}
       />
     </div>

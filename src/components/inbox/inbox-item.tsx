@@ -23,7 +23,6 @@ interface InboxItemRowProps {
  */
 export function InboxItemRow({ item, onSelect, isSelected }: InboxItemRowProps) {
   const variant = useItemDotVariant(item);
-  const isUnread = !item.data.isRead;
 
   const handleArchive = async () => {
     if (item.type === "thread") {
@@ -52,6 +51,7 @@ export function InboxItemRow({ item, onSelect, isSelected }: InboxItemRowProps) 
         data-testid="status-dot"
       />
 
+
       {/* Display text - last message for threads, filename for plans */}
       <span
         className="flex-1 text-sm text-surface-100 truncate font-mono"
@@ -59,15 +59,6 @@ export function InboxItemRow({ item, onSelect, isSelected }: InboxItemRowProps) 
       >
         {item.displayText}
       </span>
-
-      {/* Unread indicator */}
-      {isUnread && (
-        <span
-          className="w-2 h-2 rounded-full bg-accent-500"
-          title="Unread"
-          data-testid="unread-indicator"
-        />
-      )}
 
       {/* Archive button with two-click confirmation */}
       <ArchiveButton onArchive={handleArchive} />
@@ -111,5 +102,5 @@ function useItemDotVariant(item: InboxItem): StatusDotVariant {
     });
   }, [planId, relationsArray, threads]);
 
-  return getPlanStatusVariant(plan.isRead, hasRunningThread);
+  return getPlanStatusVariant(plan.isRead, hasRunningThread, plan.stale);
 }

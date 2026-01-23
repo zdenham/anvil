@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
@@ -42,12 +43,6 @@ export function ControlPanelHeader({
     return <PlanModeHeader planId={view.planId} onClose={handleClose} />;
   }
 
-  // Inbox view doesn't use this header - it has its own UI
-  // This branch should not be reached in practice since InboxView doesn't render ControlPanelHeader
-  if (view.type === "inbox") {
-    return null;
-  }
-
   // Thread mode header
   return (
     <ThreadModeHeader
@@ -71,7 +66,9 @@ function PlanModeHeader({
   planId: string;
   onClose: () => void;
 }) {
-  const plan = usePlanStore((s) => s.getPlan(planId));
+  const plan = usePlanStore(
+    useCallback((s) => s.getPlan(planId), [planId])
+  );
   // Use the file name from relativePath, or truncated ID as fallback
   const planLabel = plan?.relativePath?.split('/').pop() ?? planId.slice(0, 8) + "...";
 
@@ -121,7 +118,9 @@ function ThreadModeHeader({
   isStreaming: boolean;
   onClose: () => void;
 }) {
-  const thread = useThreadStore((s) => s.threads[threadId]);
+  const thread = useThreadStore(
+    useCallback((s) => s.threads[threadId], [threadId])
+  );
 
   const handleCancel = async () => {
     console.log(`[control-panel-header] Cancel button clicked for threadId=${threadId}`);
@@ -135,8 +134,22 @@ function ThreadModeHeader({
     }
   };
 
-  // Display thread ID (truncated)
-  const threadLabel = threadId.slice(0, 8) + "...";
+  // Display last user message (or truncated ID as fallback)
+  const threadLabel = (() => {
+    if (!thread?.turns || thread.turns.length === 0) {
+      return threadId.slice(0, 8) + "...";
+    }
+    const lastTurn = thread.turns[thread.turns.length - 1];
+    if (!lastTurn?.prompt) {
+      return threadId.slice(0, 8) + "...";
+    }
+    // Truncate long messages for display in breadcrumb
+    const maxLength = 50;
+    if (lastTurn.prompt.length > maxLength) {
+      return lastTurn.prompt.slice(0, maxLength) + "...";
+    }
+    return lastTurn.prompt;
+  })();
 
   return (
     <div

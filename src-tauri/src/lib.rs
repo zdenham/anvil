@@ -25,6 +25,7 @@ mod mort_commands;
 mod panels;
 mod paths;
 mod process_commands;
+mod repo_commands;
 mod shell;
 mod thread_commands;
 mod worktree_commands;
@@ -376,6 +377,22 @@ fn show_control_panel(app: AppHandle) -> Result<(), String> {
     panels::show_control_panel_simple(&app)
 }
 
+/// Shows the control panel with a specific view (thread, plan, or inbox).
+/// Emits the open-control-panel event to the control panel window via Rust,
+/// ensuring it crosses the window boundary (unlike JS eventBus which stays local).
+#[tauri::command]
+fn show_control_panel_with_view(app: AppHandle, view: serde_json::Value) -> Result<(), String> {
+    tracing::info!("[ControlPanel] show_control_panel_with_view called: {:?}", view);
+
+    // Emit event to control panel window
+    // NOTE: Must use emit() not emit_to() - emit_to() doesn't work with NSPanels
+    let payload = serde_json::json!({ "view": view });
+    let _ = app.emit("open-control-panel", &payload);
+
+    // Show the panel
+    panels::show_control_panel_simple(&app)
+}
+
 /// Forces focus on the control panel if it's visible
 #[tauri::command]
 fn focus_control_panel(app: AppHandle) -> Result<(), String> {
@@ -405,6 +422,24 @@ fn snap_control_panel_position(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
     panels::is_panel_visible(&app, &panel_label)
+}
+
+/// Opens the inbox list panel for navigation mode
+#[tauri::command]
+fn open_inbox_list_panel(app: AppHandle) -> Result<(), String> {
+    panels::show_inbox_list_panel(&app)
+}
+
+/// Hides the inbox list panel
+#[tauri::command]
+fn hide_inbox_list_panel(app: AppHandle) -> Result<(), String> {
+    panels::hide_inbox_list_panel(&app)
+}
+
+/// Forces focus on the inbox list panel if it's visible
+#[tauri::command]
+fn focus_inbox_list_panel(app: AppHandle) -> Result<(), String> {
+    panels::focus_inbox_list_panel(&app)
 }
 
 /// Shows the error panel with the given message and optional stack trace
@@ -686,12 +721,16 @@ pub fn run() {
             hide_main_window,
             open_control_panel,
             show_control_panel,
+            show_control_panel_with_view,
             hide_control_panel,
             focus_control_panel,
             pin_control_panel,
             unpin_control_panel,
             snap_control_panel_position,
             is_panel_visible,
+            open_inbox_list_panel,
+            hide_inbox_list_panel,
+            focus_inbox_list_panel,
             show_spotlight,
             hide_spotlight,
             resize_spotlight,
@@ -815,6 +854,9 @@ pub fn run() {
             initialize_shell_environment,
             is_shell_initialized,
             check_documents_access,
+            // Repository commands
+            repo_commands::validate_repository,
+            repo_commands::remove_repository_data,
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
@@ -865,6 +907,9 @@ pub fn run() {
             }
             if let Err(e) = panels::create_control_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create control panel");
+            }
+            if let Err(e) = panels::create_inbox_list_panel(app.handle()) {
+                tracing::error!(error = %e, "Failed to create inbox list panel");
             }
 
             // Build and set the native macOS menu bar

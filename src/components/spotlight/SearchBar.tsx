@@ -7,6 +7,10 @@ export const SearchBar = () => {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Disable autocomplete only when actively @ tagging (@ followed by non-space chars at end)
+  // e.g., "@foo" or "hello @bar" but not "hello@email.com " (completed tag)
+  const isAtTagging = /@[^\s@]*$/.test(query);
+
   useEffect(() => {
     inputRef.current?.focus();
 
@@ -52,6 +56,9 @@ export const SearchBar = () => {
         onChange={(e) => setQuery(e.target.value)}
         className="w-full px-4 py-4 bg-gradient-to-br from-surface-900 to-surface-800 text-white text-3xl font-light focus:outline-none rounded-xl border border-surface-700/50 shadow-2xl"
         autoFocus
+        autoComplete={isAtTagging ? "off" : "on"}
+        autoCorrect={isAtTagging ? "off" : "on"}
+        autoCapitalize="off"
         spellCheck={false}
       />
     </form>

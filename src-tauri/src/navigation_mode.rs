@@ -16,7 +16,7 @@
 //! ┌─────────────────────┐                       │
 //! │                     │   Alt released        │
 //! │   NAVIGATING        │───────────────────────┘
-//! │                     │   (emit: nav-open)
+//! │                     │   (emit: nav-release)
 //! └─────────────────────┘
 //!           │ ▲
 //!           │ │ Alt+Down (emit: nav-down)
@@ -44,6 +44,14 @@ pub enum NavigationDirection {
     Down,
 }
 
+/// Navigation target - which panel to show during navigation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NavigationTarget {
+    /// Navigate the inbox list (default for Alt+Up/Down)
+    #[default]
+    InboxList,
+}
+
 /// Navigation mode state
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -62,11 +70,8 @@ pub enum NavigationEvent {
     NavDown,
     /// Navigate up in the list
     NavUp,
-    /// Modifier released - open the selected task
-    NavOpen {
-        #[serde(rename = "selectedIndex")]
-        selected_index: usize,
-    },
+    /// Modifier released - frontend should open currently selected item
+    NavRelease,
     /// Navigation cancelled (panel blur, escape pressed, etc.)
     NavCancel,
 }
@@ -78,8 +83,8 @@ const OPTION_MASK: u64 = 0x00080000; // CGEventFlags::CGEventFlagOption (Alt key
 pub struct NavigationMode {
     /// Current state of the navigation mode
     state: Mutex<NavigationState>,
-    /// Currently selected index during navigation
-    current_index: Mutex<usize>,
+    /// Current navigation target (which panel is being navigated)
+    current_target: Mutex<NavigationTarget>,
     /// Flag to signal the CGEventTap thread to stop
     stop_flag: Arc<AtomicBool>,
     /// Flag indicating the tap thread has fully exited
@@ -94,7 +99,7 @@ impl NavigationMode {
     pub fn new() -> Self {
         Self {
             state: Mutex::new(NavigationState::Idle),
-            current_index: Mutex::new(0),
+            current_target: Mutex::new(NavigationTarget::default()),
             stop_flag: Arc::new(AtomicBool::new(false)),
             tap_thread_exited: Arc::new(AtomicBool::new(true)), // Starts as exited (no thread running)
             tap_thread_handle: Mutex::new(None),
@@ -109,47 +114,48 @@ impl NavigationMode {
 
     /// Called when a navigation hotkey is pressed (Alt+Up or Alt+Down)
     pub fn on_hotkey_pressed(&self, direction: NavigationDirection) {
+        self.enter_navigation_mode(direction, NavigationTarget::InboxList);
+    }
+
+    /// Enter navigation mode with a specific target panel
+    pub fn enter_navigation_mode(&self, direction: NavigationDirection, target: NavigationTarget) {
         let mut state = self.state.lock().unwrap();
 
         match *state {
             NavigationState::Idle => {
                 tracing::info!(
                     direction = ?direction,
+                    target = ?target,
                     "NavigationMode: Idle -> Navigating (starting navigation mode)"
                 );
                 *state = NavigationState::Navigating;
-                *self.current_index.lock().unwrap() = 0;
+                *self.current_target.lock().unwrap() = target;
 
                 // Start modifier tap to detect Alt release
                 self.start_modifier_tap();
 
-                // Show the control panel
+                // Show the appropriate panel based on target
                 if let Some(app) = self.app_handle.lock().unwrap().as_ref() {
-                    let _ = panels::show_control_panel_simple(app);
+                    match target {
+                        NavigationTarget::InboxList => {
+                            let _ = panels::show_inbox_list_panel(app);
+                        }
+                    }
                 }
 
                 // Emit nav-start to signal navigation mode has begun
+                // First press just shows panel with first item selected - no direction event
                 self.emit(NavigationEvent::NavStart);
-
-                // Emit the initial navigation direction
-                match direction {
-                    NavigationDirection::Down => self.emit(NavigationEvent::NavDown),
-                    NavigationDirection::Up => self.emit(NavigationEvent::NavUp),
-                }
             }
             NavigationState::Navigating => {
-                // Continue navigating in the requested direction
+                // Continue navigating - just emit direction events, frontend owns the index
                 match direction {
                     NavigationDirection::Down => {
-                        let mut index = self.current_index.lock().unwrap();
-                        *index = index.saturating_add(1);
-                        tracing::debug!(index = *index, "NavigationMode: nav-down");
+                        tracing::debug!("NavigationMode: nav-down");
                         self.emit(NavigationEvent::NavDown);
                     }
                     NavigationDirection::Up => {
-                        let mut index = self.current_index.lock().unwrap();
-                        *index = index.saturating_sub(1);
-                        tracing::debug!(index = *index, "NavigationMode: nav-up");
+                        tracing::debug!("NavigationMode: nav-up");
                         self.emit(NavigationEvent::NavUp);
                     }
                 }
@@ -162,10 +168,10 @@ impl NavigationMode {
         let mut state = self.state.lock().unwrap();
 
         if *state == NavigationState::Navigating {
-            let index = *self.current_index.lock().unwrap();
+            let target = *self.current_target.lock().unwrap();
             tracing::info!(
-                index = index,
-                "NavigationMode: Navigating -> Idle (modifier released, opening task)"
+                target = ?target,
+                "NavigationMode: Navigating -> Idle (modifier released)"
             );
             *state = NavigationState::Idle;
 
@@ -173,10 +179,9 @@ impl NavigationMode {
             // Note: We don't call stop_modifier_tap() here because we're already
             // in the callback from the tap thread - it will exit after returning
 
-            // Emit nav-open with selected index
-            self.emit(NavigationEvent::NavOpen {
-                selected_index: index,
-            });
+            // Emit nav-release (no index needed - frontend knows what's selected)
+            tracing::info!("[NavigationMode] on_modifier_released: Emitting nav-release event");
+            self.emit(NavigationEvent::NavRelease);
         }
     }
 
@@ -185,7 +190,11 @@ impl NavigationMode {
         let mut state = self.state.lock().unwrap();
 
         if *state == NavigationState::Navigating {
-            tracing::info!("NavigationMode: Navigating -> Idle (panel blur/cancel)");
+            let target = *self.current_target.lock().unwrap();
+            tracing::info!(
+                target = ?target,
+                "NavigationMode: Navigating -> Idle (panel blur/cancel)"
+            );
             *state = NavigationState::Idle;
 
             // Stop modifier tap
@@ -222,6 +231,8 @@ impl NavigationMode {
         let stop_flag = self.stop_flag.clone();
         let tap_thread_exited = self.tap_thread_exited.clone();
 
+        tracing::info!("[NavigationMode] start_modifier_tap: Creating CGEventTap");
+
         // We need to call on_modifier_released from the thread, so we use
         // a global singleton pattern
         let handle = thread::spawn(move || {
@@ -234,25 +245,32 @@ impl NavigationMode {
             let stop_flag_clone = stop_flag.clone();
 
             // Create the event tap for FlagsChanged events only
+            tracing::info!("[NavigationMode] start_modifier_tap: About to create CGEventTap");
             let event_tap_result = CGEventTap::new(
                 CGEventTapLocation::HID,
                 CGEventTapPlacement::HeadInsertEventTap,
                 CGEventTapOptions::ListenOnly,
                 vec![CGEventType::FlagsChanged],
                 move |_proxy, _event_type, event| {
+                    tracing::debug!("[NavigationMode] CGEventTap callback triggered");
                     let flags = event.get_flags();
                     let flags_bits = flags.bits();
                     let old_flags = prev_flags_clone.swap(flags_bits, Ordering::SeqCst);
+
+                    tracing::debug!("[NavigationMode] FlagsChanged: flags_bits={:#x}, old_flags={:#x}", flags_bits, old_flags);
 
                     // Detect Option/Alt release (was set, now clear)
                     let option_was_down = (old_flags & OPTION_MASK) != 0;
                     let option_is_down = (flags_bits & OPTION_MASK) != 0;
 
+                    tracing::debug!("[NavigationMode] FlagsChanged: option_was_down={}, option_is_down={}", option_was_down, option_is_down);
+
                     if option_was_down && !option_is_down {
-                        tracing::info!("NavigationMode: Option/Alt released detected");
+                        tracing::info!("[NavigationMode] Option/Alt released detected - flags_bits={:#x}, option_was_down={}, option_is_down={}", flags_bits, option_was_down, option_is_down);
                         // Signal thread to stop
                         stop_flag_clone.store(true, Ordering::SeqCst);
                         // Call the modifier released handler
+                        tracing::info!("[NavigationMode] Calling on_modifier_released()");
                         get_navigation_mode().on_modifier_released();
                     }
 

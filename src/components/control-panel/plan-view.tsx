@@ -9,15 +9,21 @@
  * - Quick actions panel (create thread, edit, delete)
  */
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { usePlanStore } from "@/entities/plans/store";
+import { planService, usePlanStore } from "@/entities/plans";
+import { useWindowDrag } from "@/hooks/use-window-drag";
 import { usePlanContent } from "@/hooks/use-plan-content";
+import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";
 import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
 import { ControlPanelHeader } from "./control-panel-header";
+import { StalePlanView } from "./stale-plan-view";
 import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggested-actions-panel";
-import { useRelatedThreads } from "@/entities/relations";
+import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
 import { useQuickActionsStore, planDefaultActions, type ActionType } from "@/stores/quick-actions-store";
+import { useRepoStore } from "@/entities/repositories";
+import { loadSettings } from "@/lib/persistence";
+import { spawnSimpleAgent } from "@/lib/agent-service";
 import { logger } from "@/lib/logger-client";
 
 interface PlanViewProps {
@@ -25,16 +31,33 @@ interface PlanViewProps {
 }
 
 export function PlanView({ planId }: PlanViewProps) {
-  const plan = usePlanStore((s) => s.getPlan(planId));
-  const content = usePlanContent(planId);
-  const relatedThreads = useRelatedThreads(planId);
+  const plan = usePlanStore(
+    useCallback((s) => s.getPlan(planId), [planId])
+  );
+  const { content, isLoading: isContentLoading, isStale } = usePlanContent(planId);
   const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
+  const inputRef = useRef<ThreadInputRef>(null);
+
+  // State for loading and refresh tracking (cross-window sync)
+  const [loading, setLoading] = useState(false);
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
+  const [planNotFound, setPlanNotFound] = useState(false);
+
+  // Working directory for the plan's repository
+  const [workingDirectory, setWorkingDirectory] = useState<string | undefined>(undefined);
+
+  // Window drag behavior via reusable hook
+  const { dragProps } = useWindowDrag();
+
+  // Mark plan as read when viewed
+  useMarkPlanAsRead(planId);
 
   // Quick actions store for keyboard navigation
   const {
     selectedIndex,
     isProcessing,
     setProcessing,
+    setSelectedIndex,
     resetState,
     navigateUp,
     navigateDown,
@@ -44,6 +67,78 @@ export function PlanView({ planId }: PlanViewProps) {
   useEffect(() => {
     resetState();
   }, [planId, resetState]);
+
+  // Reset refresh state when planId changes
+  useEffect(() => {
+    setPlanNotFound(false);
+    setRefreshAttempted(false);
+  }, [planId]);
+
+  // Resolve working directory from plan's repoId/worktreeId
+  useEffect(() => {
+    if (!plan) {
+      setWorkingDirectory(undefined);
+      return;
+    }
+
+    const resolveWorkingDir = async () => {
+      const repoNames = useRepoStore.getState().getRepositoryNames();
+
+      for (const name of repoNames) {
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        try {
+          const settings = await loadSettings(slug);
+          if (settings.id === plan.repoId) {
+            // Find the worktree by matching worktreeId
+            const worktree = settings.worktrees.find((wt) => wt.id === plan.worktreeId);
+            const dir = worktree?.path ?? settings.sourcePath;
+            setWorkingDirectory(dir);
+            return;
+          }
+        } catch (err) {
+          // Skip repos that fail to load
+          logger.debug(`[PlanView] Failed to load settings for ${name}:`, err);
+          continue;
+        }
+      }
+
+      // Fallback: no matching repo found
+      logger.warn(`[PlanView] No repo found for repoId: ${plan.repoId}`);
+      setWorkingDirectory(undefined);
+    };
+
+    resolveWorkingDir();
+  }, [plan?.id, plan?.repoId, plan?.worktreeId]);
+
+  // Refresh plan from disk if not in store (handles cross-window sync and late hydration)
+  useEffect(() => {
+    if (!planId) return;
+    if (plan) return; // Already in store
+    if (refreshAttempted) return; // Already tried refresh
+
+    const currentPlanId = planId;
+    logger.info(`[PlanView] Plan ${currentPlanId} not in store, attempting refresh from disk`);
+
+    async function refreshPlan() {
+      setLoading(true);
+      setRefreshAttempted(true);
+      try {
+        await planService.refreshById(currentPlanId);
+        const refreshedPlan = usePlanStore.getState().getPlan(currentPlanId);
+        if (!refreshedPlan) {
+          logger.info(`[PlanView] Plan ${currentPlanId} not found after refresh`);
+          setPlanNotFound(true);
+        }
+      } catch (err) {
+        logger.error(`[PlanView] Failed to refresh plan ${currentPlanId}:`, err);
+        setPlanNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    refreshPlan();
+  }, [planId, plan, refreshAttempted]);
 
   // Focus restoration on mount
   useEffect(() => {
@@ -58,15 +153,15 @@ export function PlanView({ planId }: PlanViewProps) {
 
     setProcessing(action);
     try {
-      if (action === "createThread") {
-        // TODO: Implement create thread from plan
-        logger.warn("[PlanView] Create thread not yet implemented");
-      } else if (action === "editPlan") {
-        // TODO: Implement edit plan
-        logger.warn("[PlanView] Edit plan not yet implemented");
-      } else if (action === "deletePlan") {
-        // TODO: Implement delete plan
-        logger.warn("[PlanView] Delete plan not yet implemented");
+      if (action === "archive") {
+        await planService.archive(planId);
+        await invoke("hide_control_panel");
+      } else if (action === "markUnread") {
+        await planService.markAsUnread(planId);
+        await invoke("hide_control_panel");
+      } else if (action === "respond") {
+        // Focus the message input
+        inputRef.current?.focus();
       } else if (action === "closePanel") {
         await invoke("hide_control_panel");
       }
@@ -75,11 +170,51 @@ export function PlanView({ planId }: PlanViewProps) {
     } finally {
       setProcessing(null);
     }
-  }, [isProcessing, setProcessing]);
+  }, [planId, isProcessing, setProcessing]);
 
-  // Placeholder for legacy action handler (not used for plans)
-  const handleLegacyAction = useCallback(async (_action: "markUnread" | "archive") => {
-    // No-op for plan view
+  // Legacy action handler - routes to handleQuickAction
+  const handleLegacyAction = useCallback(async (action: "markUnread" | "archive") => {
+    await handleQuickAction(action);
+  }, [handleQuickAction]);
+
+  // Handle message submission from ThreadInput - creates a new thread with plan context
+  const handleMessageSubmit = useCallback(async (userMessage: string) => {
+    if (!workingDirectory || !plan) {
+      logger.error("[PlanView] Cannot submit: missing workingDirectory or plan");
+      return;
+    }
+
+    // Prefix message with @ and the plan's relative path for context
+    const messageWithContext = `@${plan.relativePath} ${userMessage}`;
+
+    // Generate new thread ID
+    const threadId = crypto.randomUUID();
+
+    // Open control panel with the new thread
+    await invoke("open_control_panel", {
+      threadId,
+      taskId: threadId, // Use same ID for task
+      prompt: messageWithContext,
+    });
+
+    // Spawn agent with the new thread
+    await spawnSimpleAgent({
+      repoId: plan.repoId,
+      worktreeId: plan.worktreeId,
+      threadId,
+      prompt: messageWithContext,
+      sourcePath: workingDirectory,
+    });
+  }, [plan, workingDirectory]);
+
+  // Handle focus transfer from ThreadInput to quick actions panel
+  const handleNavigateToQuickActions = useCallback(() => {
+    quickActionsPanelRef.current?.focus();
+  }, []);
+
+  // Handle clicks on "respond" action - focus the input
+  const handleAutoSelectInput = useCallback(() => {
+    inputRef.current?.focus();
   }, []);
 
   // Global keyboard navigation for quick actions
@@ -87,6 +222,12 @@ export function PlanView({ planId }: PlanViewProps) {
     const actions = planDefaultActions;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if input is focused - let it handle its own keys
+      const activeElement = document.activeElement;
+      if (activeElement?.tagName === "TEXTAREA" || activeElement?.tagName === "INPUT") {
+        return;
+      }
+
       // Handle arrow keys
       if (e.key === "ArrowUp") {
         e.preventDefault();
@@ -98,22 +239,55 @@ export function PlanView({ planId }: PlanViewProps) {
         e.preventDefault();
         const selectedAction = actions[selectedIndex];
         if (selectedAction) {
-          handleQuickAction(selectedAction.key);
+          if (selectedAction.key === "respond") {
+            // Focus input instead of executing respond action
+            inputRef.current?.focus();
+          } else {
+            handleQuickAction(selectedAction.key);
+          }
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
         invoke("hide_control_panel");
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Any regular character typed auto-focuses input
+        // This enables "type to do something else" - user can just start typing
+        const respondIndex = actions.findIndex(a => a.key === "respond");
+        if (respondIndex !== -1) {
+          setSelectedIndex(respondIndex); // Visual feedback: highlight "respond"
+        }
+        inputRef.current?.focus(); // Focus captures the typed character
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIndex, navigateUp, navigateDown, handleQuickAction]);
+  }, [selectedIndex, navigateUp, navigateDown, handleQuickAction, setSelectedIndex]);
 
-  // Minimal error handling: just show "Plan not found"
-  if (!plan) {
+  // Loading state - show minimal UI while refreshing from disk
+  if (loading) {
     return (
-      <div className="flex flex-col h-screen text-surface-50 relative overflow-hidden">
+      <div
+        className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
+        onMouseDown={dragProps.onMouseDown}
+        onDoubleClick={dragProps.onDoubleClick}
+      >
+        <ControlPanelHeader view={{ type: "plan", planId }} />
+        <div className="flex items-center justify-center flex-1 text-surface-400">
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  // Plan not found after refresh attempt
+  if (!plan && planNotFound) {
+    return (
+      <div
+        className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
+        onMouseDown={dragProps.onMouseDown}
+        onDoubleClick={dragProps.onDoubleClick}
+      >
         <ControlPanelHeader view={{ type: "plan", planId }} />
         <div className="flex items-center justify-center flex-1 text-surface-400">
           Plan not found
@@ -122,16 +296,40 @@ export function PlanView({ planId }: PlanViewProps) {
     );
   }
 
+  // Plan being loaded from store (refresh in progress)
+  if (!plan) {
+    return (
+      <div
+        className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
+        onMouseDown={dragProps.onMouseDown}
+        onDoubleClick={dragProps.onDoubleClick}
+      >
+        <ControlPanelHeader view={{ type: "plan", planId }} />
+        <div className="flex-1" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-screen text-surface-50 relative overflow-hidden">
+    <div
+      className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
+      onMouseDown={dragProps.onMouseDown}
+      onDoubleClick={dragProps.onDoubleClick}
+    >
       <ControlPanelHeader view={{ type: "plan", planId }} />
 
       {/* Main content area */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
-        {content ? (
-          <MarkdownRenderer content={content} />
+      <div key={planId} className="flex-1 min-h-0 overflow-y-auto p-4">
+        {isContentLoading ? (
+          null  // Show blank during loading to avoid stale content flash
+        ) : isStale || content === null ? (
+          <StalePlanView plan={plan} />
+        ) : content.trim() === "" ? (
+          <div className="flex items-center justify-center h-full text-surface-400 text-sm">
+            This plan is empty
+          </div>
         ) : (
-          <div className="text-surface-400">Loading plan content...</div>
+          <MarkdownRenderer content={content} />
         )}
       </div>
 
@@ -142,17 +340,18 @@ export function PlanView({ planId }: PlanViewProps) {
         onAction={handleLegacyAction}
         isStreaming={false}
         onQuickAction={handleQuickAction}
+        onAutoSelectInput={handleAutoSelectInput}
       />
 
-      {/* Plan metadata footer */}
-      <div className="px-4 py-3 bg-surface-800 border-t border-surface-700 text-xs text-surface-400">
-        <div className="flex items-center gap-4">
-          {plan.createdAt && (
-            <span>Created: {new Date(plan.createdAt).toLocaleDateString()}</span>
-          )}
-          <span>{relatedThreads.length} related thread{relatedThreads.length !== 1 ? 's' : ''}</span>
-        </div>
-      </div>
+      {/* Message input */}
+      <ThreadInput
+        ref={inputRef}
+        onSubmit={handleMessageSubmit}
+        disabled={false}
+        workingDirectory={workingDirectory}
+        placeholder="Type a message to start a thread about this plan..."
+        onNavigateToQuickActions={handleNavigateToQuickActions}
+      />
     </div>
   );
 }

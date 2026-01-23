@@ -98,8 +98,9 @@ export const SearchInput = forwardRef<HTMLTextAreaElement, SearchInputProps>(
       }
 
       setIsExpanded((prev) => {
+        // Schedule callback outside render cycle to avoid setState-in-render warning
         if (prev !== shouldExpand) {
-          onExpandedChange?.(shouldExpand);
+          queueMicrotask(() => onExpandedChange?.(shouldExpand));
         }
         return shouldExpand;
       });

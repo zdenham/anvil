@@ -20,12 +20,17 @@ export function getThreadStatusVariant(thread: ThreadMetadata): StatusDotVariant
 }
 
 /**
- * Get the status variant for a plan based on read state and associated threads.
+ * Get the status variant for a plan based on read state, stale state, and associated threads.
  */
 export function getPlanStatusVariant(
   isRead: boolean,
-  hasRunningThread: boolean
+  hasRunningThread: boolean,
+  isStale?: boolean
 ): StatusDotVariant {
+  // Stale plans show warning status (file not found)
+  if (isStale) {
+    return "stale";
+  }
   if (hasRunningThread) {
     return "running";
   }

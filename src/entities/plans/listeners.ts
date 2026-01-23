@@ -7,11 +7,29 @@ import { logger } from "@/lib/logger-client";
  * Called once at app startup to wire up plan detection events.
  */
 export function setupPlanListeners(): void {
+  logger.info("[plans:listener] 📋 Registering plan listeners...");
+
+  // Handle plan detection from agent
   eventBus.on(EventName.PLAN_DETECTED, async ({ planId }) => {
-    logger.info(`[plans:listener] Plan detected: ${planId}`);
+    logger.info(`[plans:listener] 📋 PLAN_DETECTED handler called! planId=${planId}`);
     // Refresh plan from disk - agent already wrote metadata.json
-    await planService.refreshById(planId);
+    try {
+      await planService.refreshById(planId);
+      logger.info(`[plans:listener] 📋 Plan refreshed successfully: ${planId}`);
+    } catch (err) {
+      logger.error(`[plans:listener] 📋 Failed to refresh plan ${planId}:`, err);
+    }
   });
 
-  logger.info("[plans:listener] Plan listeners initialized");
+  // Handle plan updates (including mark as read) for cross-window sync
+  eventBus.on(EventName.PLAN_UPDATED, async ({ planId }) => {
+    logger.debug(`[plans:listener] 📋 PLAN_UPDATED received for: ${planId}`);
+    try {
+      await planService.refreshById(planId);
+    } catch (err) {
+      logger.error(`[plans:listener] 📋 Failed to refresh plan ${planId}:`, err);
+    }
+  });
+
+  logger.info("[plans:listener] 📋 Plan listeners initialized");
 }

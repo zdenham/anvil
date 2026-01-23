@@ -97,7 +97,9 @@ describe('Plan Detection - Live LLM', () => {
 
     let planMetadata: {
       id: string;
-      absolutePath: string;
+      repoId: string;
+      worktreeId: string;
+      relativePath: string;
       isRead: boolean;
       createdAt: number;
       updatedAt: number;
@@ -112,13 +114,17 @@ describe('Plan Detection - Live LLM', () => {
 
     console.log(`[LIVE TEST] Plan metadata:`, planMetadata);
 
-    // 8. Verify plan metadata structure
+    // 8. Verify plan metadata structure matches frontend schema
     expect(planMetadata.id).toBe(planId);
-    // absolutePath should end with plans/hello-world.md
-    expect(planMetadata.absolutePath).toContain('plans/hello-world.md');
+    expect(planMetadata.repoId).toBeDefined();
+    expect(planMetadata.worktreeId).toBeDefined();
+    // relativePath should be plans/hello-world.md
+    expect(planMetadata.relativePath).toBe('plans/hello-world.md');
     expect(planMetadata.isRead).toBe(false);
     expect(typeof planMetadata.createdAt).toBe('number');
     expect(typeof planMetadata.updatedAt).toBe('number');
+    // Verify absolutePath is NOT present (old schema)
+    expect((planMetadata as Record<string, unknown>).absolutePath).toBeUndefined();
 
     // 9. Verify the actual file was created in the repo
     const repoPath = harness.repoPath;
@@ -222,9 +228,12 @@ describe('Plan Detection - Live LLM', () => {
     const planMetadataPath = join(mortDir, 'plans', planId, 'metadata.json');
     const planMetadata = JSON.parse(readFileSync(planMetadataPath, 'utf-8'));
 
-    console.log(`[LIVE TEST] Nested plan absolutePath: ${planMetadata.absolutePath}`);
-    // absolutePath should contain the nested path under plans/
-    expect(planMetadata.absolutePath).toMatch(/plans\/.*\.md$/);
+    console.log(`[LIVE TEST] Nested plan relativePath: ${planMetadata.relativePath}`);
+    // relativePath should contain the nested path under plans/
+    expect(planMetadata.relativePath).toMatch(/^plans\/.*\.md$/);
+    // Verify repoId and worktreeId are present
+    expect(planMetadata.repoId).toBeDefined();
+    expect(planMetadata.worktreeId).toBeDefined();
 
   }, 120000);
 

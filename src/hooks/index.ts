@@ -33,3 +33,11 @@ export type { GitCommit } from "./use-git-commits";
 
 // Plan utilities
 export { usePlanContent } from "./use-plan-content";
+
+// Repository utilities
+export { useRepoNames } from "./use-repo-names";
+export type { RepoNameMap } from "./use-repo-names";
+
+// Window drag utilities
+export { useWindowDrag } from "./use-window-drag";
+export type { UseWindowDragOptions, UseWindowDragResult } from "./use-window-drag";

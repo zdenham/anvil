@@ -61,16 +61,16 @@ export async function resolvePlanPath(plan: PlanMetadata): Promise<string> {
     throw new Error(`Worktree not found: ${plan.worktreeId}`);
   }
 
-  const plansDirectory = settings.plansDirectory ?? 'plans/';
-  // Ensure plansDirectory doesn't have trailing slash for clean path joining
-  const cleanPlansDir = plansDirectory.replace(/\/$/, '');
-
-  return `${worktree.path}/${cleanPlansDir}/${plan.relativePath}`;
+  // relativePath is already relative to worktree root (e.g., "plans/hello-world.md")
+  // so we just join worktree.path with relativePath directly
+  return `${worktree.path}/${plan.relativePath}`;
 }
 
 /**
  * Resolve the absolute path for an archived (completed) plan.
- * The completed directory is typically `{basePath}/plans/completed/{relativePath}`.
+ * Transforms the relativePath from plans/ to plans/completed/.
+ *
+ * Example: "plans/hello-world.md" -> "{worktree}/plans/completed/hello-world.md"
  *
  * @throws Error if the repository or worktree cannot be found
  */
@@ -86,20 +86,29 @@ export async function resolveCompletedPlanPath(plan: PlanMetadata): Promise<stri
     throw new Error(`Worktree not found: ${plan.worktreeId}`);
   }
 
+  const plansDir = settings.plansDirectory ?? 'plans/';
   const completedDir = settings.completedDirectory ?? 'plans/completed/';
-  // Ensure completedDir doesn't have trailing slash for clean path joining
+
+  // Clean up trailing slashes
+  const cleanPlansDir = plansDir.replace(/\/$/, '');
   const cleanCompletedDir = completedDir.replace(/\/$/, '');
 
-  return `${worktree.path}/${cleanCompletedDir}/${plan.relativePath}`;
+  // relativePath is like "plans/hello-world.md", we need to replace "plans/" with "plans/completed/"
+  // Strip the plansDir prefix and use completedDir instead
+  let filename = plan.relativePath;
+  if (filename.startsWith(cleanPlansDir + '/')) {
+    filename = filename.slice(cleanPlansDir.length + 1);
+  }
+
+  return `${worktree.path}/${cleanCompletedDir}/${filename}`;
 }
 
 /**
- * Get the display name for a plan (filename without extension).
+ * Get the display name for a plan (filename from relative path).
  */
 export function getPlanDisplayName(plan: PlanMetadata): string {
   const parts = plan.relativePath.split('/');
-  const filename = parts[parts.length - 1];
-  return filename.replace(/\.md$/, '');
+  return parts[parts.length - 1];
 }
 
 /**

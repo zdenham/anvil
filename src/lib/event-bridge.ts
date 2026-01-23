@@ -182,9 +182,11 @@ async function registerTauriToMitt(
 ): Promise<UnlistenFn | null> {
   try {
     const unlisten = await listen(tauriEvent, (event) => {
-      // Always log spotlight-shown for debugging
+      // Always log spotlight-shown and open-control-panel for debugging
       if (tauriEvent === "spotlight-shown") {
         logger.info(`[event-bridge] 🔦 Received spotlight-shown event, forwarding to mitt`);
+      } else if (tauriEvent === "open-control-panel") {
+        logger.info(`[event-bridge] 📋 Received open-control-panel event, forwarding to mitt:`, event.payload);
       } else if (shouldDebugEvents()) {
         logger.debug(`[event-bridge] ${tauriEvent} → mitt ${mittEvent}`);
       }
@@ -273,6 +275,12 @@ export function setupOutgoingBridge(): void {
           threadId: p?.threadId,
           markdownLength: typeof p?.markdown === 'string' ? p.markdown.length : undefined,
           defaultResponse: p?.defaultResponse,
+        });
+      } else if (eventName === EventName.PLAN_DETECTED) {
+        const p = payload as Record<string, unknown>;
+        logger.log(`[event-bridge] 📋 OUTGOING plan:detected (#${outgoingEventCount}):`, {
+          planId: p?.planId,
+          source: sourceLabel,
         });
       } else {
         logger.log(`[event-bridge] OUTGOING: mitt "${eventName}" → Tauri "${tauriEventName}" (broadcast)`, payload);
@@ -406,6 +414,11 @@ export async function setupIncomingBridge(options: IncomingBridgeOptions = {}): 
                 threadId: payload?.threadId,
                 markdownLength: typeof payload?.markdown === 'string' ? payload.markdown.length : undefined,
                 defaultResponse: payload?.defaultResponse,
+                source: sourceLabel,
+              });
+            } else if (eventName === EventName.PLAN_DETECTED) {
+              logger.log(`[event-bridge] 📋 INCOMING plan:detected:`, {
+                planId: payload?.planId,
                 source: sourceLabel,
               });
             } else if (shouldDebugEvents()) {

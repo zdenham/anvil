@@ -3,13 +3,12 @@ import type { PlanMetadata } from "@/entities/plans/types";
 import type { InboxItem } from "./types";
 
 /**
- * Get the display name for a plan (filename without extension).
+ * Get the display name for a plan (filename from relative path).
  */
 export function getPlanDisplayName(plan: PlanMetadata): string {
   // Extract filename from path (works with both / and \ separators)
   const parts = plan.relativePath.split(/[/\\]/);
-  const filename = parts[parts.length - 1] || plan.relativePath;
-  return filename.replace(/\.md$/, "");
+  return parts[parts.length - 1] || plan.relativePath;
 }
 
 /**

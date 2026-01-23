@@ -5,11 +5,13 @@ import { ResultItem } from "./result-item";
 import { AppIcon } from "./app-icon";
 import { CalculatorIcon } from "./calculator-icon";
 import { MortLogo } from "../ui/mort-logo";
-import type { WorktreeState } from "@core/types/repositories";
+import type { RepoWorktree } from "@core/types/repositories";
 
 interface WorktreeInfo {
-  availableWorktrees: WorktreeState[];
+  repoWorktrees: RepoWorktree[];
   selectedWorktreeIndex: number;
+  /** Number of distinct repositories in the list */
+  repoCount: number;
 }
 
 interface ResultsTrayProps {
@@ -79,20 +81,29 @@ const getResultDisplay = (
     // Build subtitle based on worktree state
     let subtitle: React.ReactNode = "Ask Mort to help with this";
     if (worktreeInfo) {
-      const { availableWorktrees, selectedWorktreeIndex } = worktreeInfo;
-      const selectedWorktree = availableWorktrees[selectedWorktreeIndex];
-      if (selectedWorktree) {
+      const { repoWorktrees, selectedWorktreeIndex, repoCount } = worktreeInfo;
+      const selected = repoWorktrees[selectedWorktreeIndex];
+      if (selected) {
         // Show worktree name with icon and navigation hint if multiple worktrees exist
         const worktreeIcon = <GitBranch size={12} className="inline-block align-middle" />;
-        const hint = availableWorktrees.length > 1 ? " · ← → to change" : "";
+        const hint = repoWorktrees.length > 1 ? " · ← → to change" : "";
+        // Show repo context when multiple repos exist: "repo/worktree"
+        const displayName = repoCount > 1
+          ? `${selected.repoName}/${selected.worktree.name}`
+          : selected.worktree.name;
         subtitle = (
           <span className="inline-flex items-center gap-1">
             {worktreeIcon}
-            <span>{selectedWorktree.name}{hint}</span>
+            <span>{displayName}{hint}</span>
           </span>
         );
-      } else if (availableWorktrees.length === 0) {
-        subtitle = "No worktrees available - create one in Worktrees tab";
+      } else if (repoWorktrees.length === 0) {
+        // Distinguish between no repos configured vs no worktrees available
+        if (repoCount === 0) {
+          subtitle = "No repositories configured - add one in Settings";
+        } else {
+          subtitle = "No worktrees available - create one in Worktrees tab";
+        }
       }
     }
     return {

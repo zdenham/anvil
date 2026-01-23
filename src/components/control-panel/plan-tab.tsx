@@ -176,7 +176,7 @@ export function PlanTab({ planId }: PlanTabProps) {
       >
         <FileWarning className="w-12 h-12 mb-4" />
         <p>Plan file not found</p>
-        <p className="text-sm mt-2">plans/{plan.relativePath}</p>
+        <p className="text-sm mt-2">{plan.relativePath}</p>
       </div>
     );
   }
@@ -185,7 +185,7 @@ export function PlanTab({ planId }: PlanTabProps) {
   return (
     <div className="h-full overflow-auto p-4" data-testid="plan-content">
       <p className="text-sm text-muted-foreground mb-4">
-        plans/{plan.relativePath}
+        {plan.relativePath}
       </p>
       <MarkdownRenderer content={content} />
     </div>

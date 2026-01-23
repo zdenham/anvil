@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Rollback } from "@/lib/optimistic";
 import type { PlanMetadata } from "./types";
+import { eventBus, EventName } from "@/entities/events";
 
 interface PlanStoreState {
   // All plan metadata (always in memory, lightweight)
@@ -21,6 +22,10 @@ interface PlanStoreActions {
   getAll: () => PlanMetadata[];
   getPlan: (id: string) => PlanMetadata | undefined;
   getUnreadPlans: () => PlanMetadata[];
+  /** Get active (non-stale) plans */
+  getActivePlans: () => PlanMetadata[];
+  /** Get stale plans (file not found on last access) */
+  getStalePlans: () => PlanMetadata[];
 
   /** Repository and worktree filtering */
   getByRepository: (repoId: string) => PlanMetadata[];
@@ -68,7 +73,11 @@ export const usePlanStore = create<PlanStoreState & PlanStoreActions>(
 
     getPlan: (id) => get().plans[id],
 
-    getUnreadPlans: () => get()._plansArray.filter((p) => !p.isRead),
+    getUnreadPlans: () => get()._plansArray.filter((p) => !p.isRead && !p.stale),
+
+    getActivePlans: () => get()._plansArray.filter((p) => !p.stale),
+
+    getStalePlans: () => get()._plansArray.filter((p) => p.stale),
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Repository and Worktree Filtering
@@ -103,6 +112,9 @@ export const usePlanStore = create<PlanStoreState & PlanStoreActions>(
           _plansArray: Object.values(newPlans),
         };
       });
+
+      // Emit event for cross-window sync
+      eventBus.emit(EventName.PLAN_UPDATED, { planId: id });
     },
 
     markPlanAsUnread: (id) => {
@@ -117,6 +129,9 @@ export const usePlanStore = create<PlanStoreState & PlanStoreActions>(
           _plansArray: Object.values(newPlans),
         };
       });
+
+      // Emit event for cross-window sync
+      eventBus.emit(EventName.PLAN_UPDATED, { planId: id });
     },
 
     // ═══════════════════════════════════════════════════════════════════════════

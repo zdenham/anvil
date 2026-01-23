@@ -63,10 +63,10 @@ export function ArchiveButton({ onArchive }: ArchiveButtonProps) {
   return (
     <button
       ref={buttonRef}
-      className={`opacity-0 group-hover:opacity-100 p-1 transition-all ${
+      className={`p-1 transition-colors ${
         confirming
           ? "opacity-100 text-red-400 text-xs font-medium"
-          : "text-surface-500 hover:text-red-400"
+          : "opacity-0 group-hover:opacity-100 text-surface-500 hover:text-red-400"
       }`}
       onClick={handleClick}
       aria-label={confirming ? "Confirm archive" : "Archive"}

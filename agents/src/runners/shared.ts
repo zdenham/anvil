@@ -52,8 +52,10 @@ export function emitEvent(
   name: string,
   payload: Record<string, unknown>
 ): void {
-  logger.debug(`[shared] emitEvent: name="${name}" payload=${JSON.stringify(payload)}`);
-  console.log(JSON.stringify({ type: "event", name, payload }));
+  const jsonLine = JSON.stringify({ type: "event", name, payload });
+  logger.info(`[shared] 📤 emitEvent: name="${name}" payload=${JSON.stringify(payload)}`);
+  logger.info(`[shared] 📤 stdout JSON: ${jsonLine}`);
+  console.log(jsonLine);
 }
 
 /**
@@ -284,38 +286,49 @@ export async function runAgentLoop(
                 logger.info(`[PostToolUse] Recorded file change: ${operation} ${filePath}`);
 
                 // Detect plan files and create/update plan entity
-                // No longer requires repositoryName - just check if it's a plan path
+                // Requires repoId and worktreeId for proper plan creation
                 if (isPlanPath(filePath, context.workingDir)) {
-                  // Normalize to absolute path for storage
-                  const absolutePath = isAbsolute(filePath)
-                    ? filePath
-                    : resolve(context.workingDir, filePath);
+                  // Require repoId and worktreeId for plan creation
+                  if (!context.repoId || !context.worktreeId) {
+                    logger.warn(`[PostToolUse] Cannot create plan: missing repoId or worktreeId`);
+                  } else {
+                    // Normalize to absolute path for conversion
+                    const absolutePath = isAbsolute(filePath)
+                      ? filePath
+                      : resolve(context.workingDir, filePath);
 
-                  try {
-                    const { id: planId } = await persistence.ensurePlanExists(absolutePath);
-                    emitEvent(EventName.PLAN_DETECTED, { planId });
-                    logger.info(`[PostToolUse] Plan detected: ${absolutePath} -> ${planId}`);
-
-                    // Associate thread with plan by updating thread metadata
-                    const threadMetadataPath = join(context.threadPath, "metadata.json");
                     try {
-                      const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, "utf-8"));
-                      // Only associate if thread doesn't already have a plan
-                      if (!threadMetadata.planId) {
-                        threadMetadata.planId = planId;
-                        threadMetadata.updatedAt = Date.now();
-                        writeFileSync(threadMetadataPath, JSON.stringify(threadMetadata, null, 2));
-                        // Emit thread:updated so frontend refreshes
-                        emitEvent(EventName.THREAD_UPDATED, {
-                          threadId: context.threadId,
-                        });
-                        logger.info(`[PostToolUse] Associated thread ${context.threadId} with plan ${planId}`);
+                      const { id: planId } = await persistence.ensurePlanExists(
+                        context.repoId,
+                        context.worktreeId,
+                        absolutePath,
+                        context.workingDir
+                      );
+                      logger.info(`[PostToolUse] 📋 About to emit PLAN_DETECTED event: planId=${planId}`);
+                      emitEvent(EventName.PLAN_DETECTED, { planId });
+                      logger.info(`[PostToolUse] 📋 PLAN_DETECTED event emitted to stdout: ${filePath} -> ${planId}`);
+
+                      // Associate thread with plan by updating thread metadata
+                      const threadMetadataPath = join(context.threadPath, "metadata.json");
+                      try {
+                        const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, "utf-8"));
+                        // Only associate if thread doesn't already have a plan
+                        if (!threadMetadata.planId) {
+                          threadMetadata.planId = planId;
+                          threadMetadata.updatedAt = Date.now();
+                          writeFileSync(threadMetadataPath, JSON.stringify(threadMetadata, null, 2));
+                          // Emit thread:updated so frontend refreshes
+                          emitEvent(EventName.THREAD_UPDATED, {
+                            threadId: context.threadId,
+                          });
+                          logger.info(`[PostToolUse] Associated thread ${context.threadId} with plan ${planId}`);
+                        }
+                      } catch (metaErr) {
+                        logger.warn(`[PostToolUse] Failed to associate thread with plan: ${metaErr}`);
                       }
-                    } catch (metaErr) {
-                      logger.warn(`[PostToolUse] Failed to associate thread with plan: ${metaErr}`);
+                    } catch (err) {
+                      logger.warn(`[PostToolUse] Failed to create plan entity: ${err}`);
                     }
-                  } catch (err) {
-                    logger.warn(`[PostToolUse] Failed to create plan entity: ${err}`);
                   }
                 }
               }

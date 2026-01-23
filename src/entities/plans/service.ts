@@ -283,8 +283,61 @@ class PlanService {
   }
 
   /**
+   * Mark plan as stale (file not found).
+   * Called when getPlanContent() fails to read the file.
+   */
+  async markAsStale(id: string): Promise<void> {
+    const plan = usePlanStore.getState().getPlan(id);
+    if (!plan || plan.stale) return; // Already stale or doesn't exist
+
+    logger.debug(`[planService:markAsStale] Marking plan as stale: ${id}`);
+
+    const updates = { stale: true };
+    usePlanStore.getState()._applyUpdate(id, updates);
+
+    const updatedPlan = usePlanStore.getState().getPlan(id);
+    if (updatedPlan) {
+      await persistence.writeJson(
+        `${PLANS_DIRECTORY}/${id}/metadata.json`,
+        updatedPlan
+      );
+    }
+  }
+
+  /**
+   * Mark plan as valid (file exists).
+   * Called when getPlanContent() successfully reads the file.
+   * Clears stale flag and updates lastVerified timestamp.
+   */
+  async markAsValid(id: string): Promise<void> {
+    const plan = usePlanStore.getState().getPlan(id);
+    if (!plan) return;
+
+    // Only update if stale flag needs clearing or lastVerified needs refreshing
+    // Skip if not stale and was verified recently (within 5 minutes)
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    if (!plan.stale && plan.lastVerified && plan.lastVerified > fiveMinutesAgo) {
+      return;
+    }
+
+    logger.debug(`[planService:markAsValid] Marking plan as valid: ${id}`);
+
+    const updates = { stale: false, lastVerified: Date.now() };
+    usePlanStore.getState()._applyUpdate(id, updates);
+
+    const updatedPlan = usePlanStore.getState().getPlan(id);
+    if (updatedPlan) {
+      await persistence.writeJson(
+        `${PLANS_DIRECTORY}/${id}/metadata.json`,
+        updatedPlan
+      );
+    }
+  }
+
+  /**
    * Get plan content from the actual file.
    * Resolves the path using repoId + worktreeId + relativePath.
+   * Marks plan as stale if file not found, or clears stale flag if found.
    */
   async getPlanContent(planId: string): Promise<string | null> {
     const plan = usePlanStore.getState().getPlan(planId);
@@ -298,9 +351,16 @@ class PlanService {
       // Use filesystem-client directly for absolute paths
       const { FilesystemClient } = await import("@/lib/filesystem-client");
       const fs = new FilesystemClient();
-      return await fs.readFile(absolutePath);
+      const content = await fs.readFile(absolutePath);
+
+      // File exists - clear stale flag if it was set
+      await this.markAsValid(planId);
+
+      return content;
     } catch (err) {
       logger.warn(`[planService:getPlanContent] Failed to read plan content for ${planId}:`, err);
+      // File not found - mark as stale
+      await this.markAsStale(planId);
       return null;
     }
   }
@@ -308,6 +368,7 @@ class PlanService {
   /**
    * Refresh a single plan from disk by ID.
    * Used when the plan file may have been modified externally.
+   * Handles both new plans (create) and existing plans (update).
    */
   async refreshById(planId: string): Promise<void> {
     const metadataPath = `${PLANS_DIRECTORY}/${planId}/metadata.json`;
@@ -325,7 +386,14 @@ class PlanService {
     const raw = await persistence.readJson(metadataPath);
     const result = raw ? PlanMetadataSchema.safeParse(raw) : null;
     if (result?.success) {
-      usePlanStore.getState()._applyUpdate(planId, result.data);
+      const existingPlan = usePlanStore.getState().getPlan(planId);
+      if (existingPlan) {
+        // Plan exists - update it
+        usePlanStore.getState()._applyUpdate(planId, result.data);
+      } else {
+        // Plan doesn't exist in store - create it
+        usePlanStore.getState()._applyCreate(result.data);
+      }
     }
   }
 
@@ -380,13 +448,18 @@ class PlanService {
     const rollback = usePlanStore.getState()._applyDelete(planId);
 
     try {
-      // Step 1: Move markdown file to completed directory
+      // Step 1: Move markdown file to completed directory (if it exists)
       const { resolvePlanPath, resolveCompletedPlanPath } = await import("./utils");
       const sourcePath = await resolvePlanPath(plan);
       const destPath = await resolveCompletedPlanPath(plan);
 
-      await this.moveMarkdownFile(sourcePath, destPath);
-      logger.debug(`[planService:archive] Moved markdown file from ${sourcePath} to ${destPath}`);
+      try {
+        await this.moveMarkdownFile(sourcePath, destPath);
+        logger.debug(`[planService:archive] Moved markdown file from ${sourcePath} to ${destPath}`);
+      } catch (moveError) {
+        // If file doesn't exist, that's okay - just archive the metadata
+        logger.warn(`[planService:archive] Could not move markdown file (may have been deleted): ${moveError}`);
+      }
 
       // Step 2: Move metadata to archive with updated relativePath
       const metadataSourcePath = `${PLANS_DIRECTORY}/${planId}`;

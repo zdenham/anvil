@@ -34,6 +34,10 @@ export interface OrchestrationContext {
   threadId: string;
   /** Path to thread folder for state/metadata storage */
   threadPath: string;
+  /** Repository UUID - used for plan detection */
+  repoId?: string;
+  /** Worktree UUID - used for plan detection */
+  worktreeId?: string;
   /** Cleanup function to call on exit */
   cleanup?: () => void | Promise<void>;
   /** Permission mode for tool execution */

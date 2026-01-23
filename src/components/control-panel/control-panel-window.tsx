@@ -3,7 +3,6 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { useControlPanelParams } from "./use-control-panel-params";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
-import { usePlanStore } from "@/entities/plans/store";
 import {
   resumeSimpleAgent,
   submitToolResult,
@@ -15,57 +14,21 @@ import type { MessageListRef } from "@/components/thread/message-list";
 import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggested-actions-panel";
 import { ChangesTab } from "./changes-tab";
 import { PlanView } from "./plan-view";
-import { UnifiedInbox } from "../inbox/unified-inbox";
 import { logger } from "@/lib/logger-client";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
 import { useWorkingDirectory } from "@/hooks/use-working-directory";
-import { useThreadLastMessages } from "@/hooks/use-thread-last-messages";
+import { useWindowDrag } from "@/hooks/use-window-drag";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
-import { switchToThread, switchToPlan } from "@/lib/hotkey-service";
 import type { ControlPanelViewType } from "@/entities/events";
-import type { ThreadMetadata } from "@/entities/threads/types";
-import type { PlanMetadata } from "@/entities/plans/types";
 
 /** Map entity ThreadStatus to ThreadView's expected status type */
 type ViewStatus = "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
 
 /** Thread tab state - local to thread view only */
 type ThreadTab = "conversation" | "changes";
-
-/**
- * InboxView component for displaying the unified inbox in navigation mode.
- * Shows threads and plans in a single interleaved list.
- */
-function InboxView() {
-  const threads = useThreadStore((s) => s.getAllThreads());
-  const plans = usePlanStore((s) => s.getAll());
-  const threadLastMessages = useThreadLastMessages(threads);
-
-  const handleThreadSelect = (thread: ThreadMetadata) => {
-    switchToThread(thread.id);
-  };
-
-  const handlePlanSelect = (plan: PlanMetadata) => {
-    switchToPlan(plan.id);
-  };
-
-  return (
-    <div className="flex flex-col h-screen bg-surface-900">
-      <div className="flex-1 overflow-auto">
-        <UnifiedInbox
-          threads={threads}
-          plans={plans}
-          threadLastMessages={threadLastMessages}
-          onThreadSelect={handleThreadSelect}
-          onPlanSelect={handlePlanSelect}
-        />
-      </div>
-    </div>
-  );
-}
 
 export function ControlPanelWindow() {
   const params = useControlPanelParams();
@@ -94,10 +57,6 @@ export function ControlPanelWindow() {
     return <PlanView planId={view.planId} />;
   }
 
-  if (view.type === "inbox") {
-    return <InboxView />;
-  }
-
   // Thread view with local tab management
   return (
     <ControlPanelWindowContent
@@ -120,8 +79,15 @@ function ControlPanelWindowContent({
   threadId,
   prompt,
 }: ControlPanelWindowContentProps) {
-  const activeState = useThreadStore((s) => s.threadStates[threadId]);
-  const activeMetadata = useThreadStore((s) => s.threads[threadId]);
+  // Use useCallback to ensure Zustand creates a new subscription when threadId changes
+  // Without this, the selector closure captures the old threadId and doesn't re-evaluate
+  // See: plans/thread-display-stale-bug.md for full diagnosis
+  const activeState = useThreadStore(
+    useCallback((s) => s.threadStates[threadId], [threadId])
+  );
+  const activeMetadata = useThreadStore(
+    useCallback((s) => s.threads[threadId], [threadId])
+  );
   const isLoadingThreadState = useThreadStore((s) => s.activeThreadLoading);
 
   // Handle marking thread as read when viewed or completed
@@ -150,13 +116,8 @@ function ControlPanelWindowContent({
   const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
   const hasScrolledOnMount = useRef(false);
 
-  // Track window focus state for drag behavior:
-  // - When unfocused: click anywhere to drag (quick repositioning)
-  // - When focused: drag only from header, text selection enabled in content
-  const [isWindowFocused, setIsWindowFocused] = useState(() => document.hasFocus());
-
-  // Track dragging state to disable text selection during drag (prevents selection flashes)
-  const [isDragging, setIsDragging] = useState(false);
+  // Window drag behavior via reusable hook
+  const { dragProps } = useWindowDrag();
 
   // Local tab state for thread view only - two-way toggle between conversation and changes
   const [threadTab, setThreadTab] = useState<ThreadTab>("conversation");
@@ -313,20 +274,6 @@ function ControlPanelWindowContent({
     resetState();
   }, [threadId, resetState]);
 
-  // Track window focus state for focus-aware drag behavior
-  useEffect(() => {
-    const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, []);
-
   // Reset thread tab to conversation when navigating to a different thread
   useEffect(() => {
     setThreadTab("conversation");
@@ -430,11 +377,14 @@ function ControlPanelWindowContent({
 
   const handleSuggestedAction = useCallback(
     async (action: "markUnread" | "archive") => {
-      // TODO: Implement thread-based mark unread and archive
-      logger.warn(`[ControlPanelWindow] ${action} not yet implemented for threads`);
+      if (action === "archive") {
+        await threadService.archive(threadId);
+      } else if (action === "markUnread") {
+        await useThreadStore.getState().markThreadAsUnread(threadId);
+      }
       await invoke("hide_control_panel");
     },
-    []
+    [threadId]
   );
 
   const handleQuickAction = useCallback(async (action: ActionType) => {
@@ -547,61 +497,11 @@ function ControlPanelWindowContent({
     }
   }, []);
 
-  const handleWindowDrag = useCallback(async (e: React.MouseEvent) => {
-    // Only drag on primary (left) mouse button
-    if (e.button !== 0) return;
-
-    // Check if clicking on an interactive element - if so, don't start dragging
-    const target = e.target as HTMLElement;
-    const interactiveSelector = 'button, input, textarea, a, [role="button"], [contenteditable="true"]';
-    if (target.closest(interactiveSelector)) return;
-
-    // When focused, only allow dragging from the header area
-    // This enables text selection in the content area when the panel is focused
-    if (isWindowFocused) {
-      const isInHeader = target.closest('[data-drag-region="header"]');
-      if (!isInHeader) return; // Allow text selection in content
-    }
-
-    // Pin the panel - it stays pinned until explicitly hidden
-    // This allows users to position the panel and have it stay visible on blur
-    try {
-      await invoke("pin_control_panel");
-      logger.debug("[ControlPanelWindow] Panel pinned due to drag (will stay pinned until closed)");
-    } catch (err) {
-      logger.error("[ControlPanelWindow] Failed to pin panel for drag:", err);
-    }
-
-    // Set dragging state to disable text selection during drag
-    setIsDragging(true);
-
-    // Start window drag via Tauri API
-    getCurrentWindow().startDragging().catch((err) => {
-      console.error("[ControlPanelWindow] startDragging failed:", err);
-    });
-
-    // Listen for mouseup to know when drag ended
-    const handleMouseUp = () => {
-      window.removeEventListener('mouseup', handleMouseUp);
-      setIsDragging(false);
-    };
-
-    window.addEventListener('mouseup', handleMouseUp);
-  }, [isWindowFocused]);
-
   return (
     <div
-      className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${isDragging ? 'is-dragging' : ''}`}
-      onMouseDown={handleWindowDrag}
-      onDoubleClick={(e) => {
-        // Close panel on double-click, unless clicking on interactive elements
-        const target = e.target as HTMLElement;
-        const interactiveSelector = 'button, input, textarea, a, [role="button"], [contenteditable="true"]';
-        const isInteractive = target.closest(interactiveSelector);
-        if (!isInteractive) {
-          invoke("hide_control_panel");
-        }
-      }}
+      className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
+      onMouseDown={dragProps.onMouseDown}
+      onDoubleClick={dragProps.onDoubleClick}
     >
       <ControlPanelHeader
         view={{ type: "thread", threadId }}
@@ -614,6 +514,7 @@ function ControlPanelWindowContent({
       {threadTab === "conversation" && (
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <ThreadView
+            key={threadId}  // Force re-mount when switching threads to reset internal state
             ref={messageListRef}
             messages={messages}
             isStreaming={isStreaming}
