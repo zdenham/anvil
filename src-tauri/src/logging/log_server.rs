@@ -6,52 +6,17 @@
 
 use super::config::LogServerConfig;
 use serde::Serialize;
-use std::collections::HashMap;
 use std::sync::mpsc;
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use tracing_subscriber::Layer;
-use uuid::Uuid;
-
-/// Session ID generated once at app startup, shared across all log entries
-static SESSION_ID: OnceLock<String> = OnceLock::new();
-
-fn get_session_id() -> &'static str {
-    SESSION_ID.get_or_init(|| Uuid::new_v4().to_string())
-}
 
 /// Log row matching the backend server schema.
 /// Field names and types must match exactly for the server to process correctly.
 #[derive(Debug, Clone, Serialize)]
 pub struct LogRow {
-    // Core fields (always present)
-    #[serde(rename = "timestamp")]
     pub timestamp: i64, // DateTime64(3) as milliseconds since epoch
-    pub level: String,   // TRACE, DEBUG, INFO, WARN, ERROR
+    pub level: String,  // TRACE, DEBUG, INFO, WARN, ERROR
     pub message: String,
-    pub target: String, // Rust module path (e.g., "mort::clipboard")
-
-    // Instance identification (always present)
-    pub version: String,    // From CARGO_PKG_VERSION
-    pub session_id: String, // UUID generated on app start
-
-    // Build identification
-    pub app_suffix: String, // Build suffix (e.g., "dev", "" for production)
-
-    // Source context (optional)
-    pub source: Option<String>, // Window source (main, spotlight, task-panel)
-
-    // Domain context (optional)
-    pub task_id: Option<String>,
-    pub thread_id: Option<String>,
-    pub repo_name: Option<String>,
-    pub worktree_path: Option<String>,
-
-    // Operation metrics (optional)
-    pub duration_ms: Option<i64>,
-
-    // Extended data (optional)
-    pub data: Option<String>, // JSON blob for extra structured fields
 }
 
 /// Batch of logs to send to the server
@@ -246,27 +211,14 @@ where
         event: &tracing::Event<'_>,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        let mut visitor = LogVisitor::default();
+        let mut message = String::new();
+        let mut visitor = MessageVisitor(&mut message);
         event.record(&mut visitor);
-
-        // Extract extra_fields_as_json first before consuming other fields
-        let data = visitor.extra_fields_as_json();
 
         let row = LogRow {
             timestamp: chrono::Utc::now().timestamp_millis(),
             level: event.metadata().level().to_string(),
-            message: visitor.message.unwrap_or_default(),
-            target: event.metadata().target().to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            session_id: get_session_id().to_string(),
-            app_suffix: crate::build_info::APP_SUFFIX.to_string(),
-            source: visitor.source,
-            task_id: visitor.task_id,
-            thread_id: visitor.thread_id,
-            repo_name: visitor.repo_name,
-            worktree_path: visitor.worktree_path,
-            duration_ms: visitor.duration_ms,
-            data,
+            message,
         };
 
         // Non-blocking send - if channel is full, drop the log rather than blocking
@@ -278,76 +230,24 @@ where
     }
 }
 
-/// Visitor that extracts known fields and collects extras into a JSON blob
-#[derive(Default)]
-struct LogVisitor {
-    message: Option<String>,
-    source: Option<String>,
-    task_id: Option<String>,
-    thread_id: Option<String>,
-    repo_name: Option<String>,
-    worktree_path: Option<String>,
-    duration_ms: Option<i64>,
-    extra_fields: HashMap<String, serde_json::Value>,
-}
+/// Simple visitor that extracts only the message field
+struct MessageVisitor<'a>(&'a mut String);
 
-impl LogVisitor {
-    /// Converts extra fields to a JSON string, or None if empty
-    fn extra_fields_as_json(&self) -> Option<String> {
-        if self.extra_fields.is_empty() {
-            None
-        } else {
-            serde_json::to_string(&self.extra_fields).ok()
-        }
-    }
-
-    fn record_field(&mut self, name: &str, value: serde_json::Value) {
-        match name {
-            "message" => {
-                self.message = value.as_str().map(|s| {
-                    // Remove surrounding quotes if present (from debug formatting)
-                    let s = s.trim();
-                    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                        s[1..s.len() - 1].to_string()
-                    } else {
-                        s.to_string()
-                    }
-                });
-            }
-            "source" => self.source = value.as_str().map(String::from),
-            "task_id" => self.task_id = value.as_str().map(String::from),
-            "thread_id" => self.thread_id = value.as_str().map(String::from),
-            "repo_name" => self.repo_name = value.as_str().map(String::from),
-            "worktree_path" => self.worktree_path = value.as_str().map(String::from),
-            "duration_ms" => self.duration_ms = value.as_i64(),
-            _ => {
-                // Collect unknown fields into extra_fields
-                self.extra_fields.insert(name.to_string(), value);
-            }
-        }
-    }
-}
-
-impl tracing::field::Visit for LogVisitor {
+impl tracing::field::Visit for MessageVisitor<'_> {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-        let value_str = format!("{:?}", value);
-        self.record_field(field.name(), serde_json::Value::String(value_str));
+        if field.name() == "message" {
+            *self.0 = format!("{:?}", value);
+            // Remove surrounding quotes if present (from debug formatting)
+            if self.0.starts_with('"') && self.0.ends_with('"') && self.0.len() >= 2 {
+                *self.0 = self.0[1..self.0.len() - 1].to_string();
+            }
+        }
     }
 
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-        self.record_field(field.name(), serde_json::Value::String(value.to_string()));
-    }
-
-    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-        self.record_field(field.name(), serde_json::json!(value));
-    }
-
-    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-        self.record_field(field.name(), serde_json::json!(value));
-    }
-
-    fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
-        self.record_field(field.name(), serde_json::json!(value));
+        if field.name() == "message" {
+            *self.0 = value.to_string();
+        }
     }
 }
 
@@ -356,80 +256,39 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_log_visitor_extracts_known_fields() {
-        let mut visitor = LogVisitor::default();
+    fn test_log_row_serialization() {
+        let row = LogRow {
+            timestamp: 1234567890123,
+            level: "INFO".to_string(),
+            message: "test message".to_string(),
+        };
 
-        visitor.record_field("message", serde_json::Value::String("test message".into()));
-        visitor.record_field("source", serde_json::Value::String("spotlight".into()));
-        visitor.record_field("task_id", serde_json::Value::String("task-123".into()));
-        visitor.record_field(
-            "thread_id",
-            serde_json::Value::String("thread-456".into()),
-        );
-        visitor.record_field("repo_name", serde_json::Value::String("my-repo".into()));
-        visitor.record_field(
-            "worktree_path",
-            serde_json::Value::String("/path/to/worktree".into()),
-        );
-        visitor.record_field("duration_ms", serde_json::json!(1234));
-
-        assert_eq!(visitor.message, Some("test message".to_string()));
-        assert_eq!(visitor.source, Some("spotlight".to_string()));
-        assert_eq!(visitor.task_id, Some("task-123".to_string()));
-        assert_eq!(visitor.thread_id, Some("thread-456".to_string()));
-        assert_eq!(visitor.repo_name, Some("my-repo".to_string()));
-        assert_eq!(visitor.worktree_path, Some("/path/to/worktree".to_string()));
-        assert_eq!(visitor.duration_ms, Some(1234));
-        assert!(visitor.extra_fields.is_empty());
+        let json = serde_json::to_string(&row).unwrap();
+        assert!(json.contains("\"timestamp\":1234567890123"));
+        assert!(json.contains("\"level\":\"INFO\""));
+        assert!(json.contains("\"message\":\"test message\""));
     }
 
     #[test]
-    fn test_log_visitor_collects_extra_fields() {
-        let mut visitor = LogVisitor::default();
+    fn test_log_batch_serialization() {
+        let batch = LogBatch {
+            logs: vec![
+                LogRow {
+                    timestamp: 1234567890123,
+                    level: "INFO".to_string(),
+                    message: "message 1".to_string(),
+                },
+                LogRow {
+                    timestamp: 1234567890124,
+                    level: "ERROR".to_string(),
+                    message: "message 2".to_string(),
+                },
+            ],
+        };
 
-        visitor.record_field("message", serde_json::Value::String("test".into()));
-        visitor.record_field("custom_field", serde_json::Value::String("custom_value".into()));
-        visitor.record_field("another_field", serde_json::json!(42));
-
-        assert_eq!(visitor.extra_fields.len(), 2);
-        assert_eq!(
-            visitor.extra_fields.get("custom_field"),
-            Some(&serde_json::Value::String("custom_value".into()))
-        );
-        assert_eq!(
-            visitor.extra_fields.get("another_field"),
-            Some(&serde_json::json!(42))
-        );
-    }
-
-    #[test]
-    fn test_extra_fields_as_json_empty() {
-        let visitor = LogVisitor::default();
-        assert!(visitor.extra_fields_as_json().is_none());
-    }
-
-    #[test]
-    fn test_extra_fields_as_json_with_data() {
-        let mut visitor = LogVisitor::default();
-        visitor.record_field("custom", serde_json::Value::String("value".into()));
-
-        let json = visitor.extra_fields_as_json();
-        assert!(json.is_some());
-        let parsed: serde_json::Value = serde_json::from_str(&json.unwrap()).unwrap();
-        assert_eq!(parsed["custom"], "value");
-    }
-
-    #[test]
-    fn test_message_strips_quotes() {
-        let mut visitor = LogVisitor::default();
-        visitor.record_field("message", serde_json::Value::String("\"quoted message\"".into()));
-        assert_eq!(visitor.message, Some("quoted message".to_string()));
-    }
-
-    #[test]
-    fn test_session_id_is_consistent() {
-        let id1 = get_session_id();
-        let id2 = get_session_id();
-        assert_eq!(id1, id2);
+        let json = serde_json::to_string(&batch).unwrap();
+        assert!(json.contains("\"logs\":["));
+        assert!(json.contains("\"message 1\""));
+        assert!(json.contains("\"message 2\""));
     }
 }

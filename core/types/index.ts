@@ -36,3 +36,6 @@ export * from "./plans.js";
 
 // Relation types - shared between Node agent and Tauri frontend
 export * from "./relations.js";
+
+// Log types - shared between Tauri client and Node server
+export * from "./logs.js";

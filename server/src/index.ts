@@ -1,5 +1,11 @@
 import Fastify from 'fastify';
 import { createClient } from '@clickhouse/client';
+import {
+  LogBatchSchema,
+  type LogBatch,
+  type LogInsertResponse,
+  type LogErrorResponse,
+} from '../../core/types/logs.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -13,32 +19,22 @@ const clickhouse = createClient({
 
 const TABLE = process.env.CLICKHOUSE_TABLE ?? 'logs';
 
-interface LogRow {
-  timestamp: number; // milliseconds since epoch
-  level: string;
-  message: string;
-  target: string;
-  version: string;
-  session_id: string;
-  app_suffix: string;
-  source?: string;
-  task_id?: string;
-  thread_id?: string;
-  repo_name?: string;
-  worktree_path?: string;
-  duration_ms?: number;
-  data?: string; // JSON blob
-}
+fastify.post<{ Body: unknown }>('/logs', async (request, reply) => {
+  // Validate request body with Zod
+  const parseResult = LogBatchSchema.safeParse(request.body);
 
-interface LogBatch {
-  logs: LogRow[];
-}
+  if (!parseResult.success) {
+    reply.status(400);
+    return {
+      status: 'error',
+      message: `Invalid log batch: ${parseResult.error.message}`,
+    } satisfies LogErrorResponse;
+  }
 
-fastify.post<{ Body: LogBatch }>('/logs', async (request, reply) => {
-  const { logs } = request.body;
+  const { logs } = parseResult.data;
 
-  if (!logs || logs.length === 0) {
-    return { status: 'ok', inserted: 0 };
+  if (logs.length === 0) {
+    return { status: 'ok', inserted: 0 } satisfies LogInsertResponse;
   }
 
   try {
@@ -48,11 +44,11 @@ fastify.post<{ Body: LogBatch }>('/logs', async (request, reply) => {
       format: 'JSONEachRow',
     });
 
-    return { status: 'ok', inserted: logs.length };
+    return { status: 'ok', inserted: logs.length } satisfies LogInsertResponse;
   } catch (error) {
     request.log.error(error);
     reply.status(500);
-    return { status: 'error', message: String(error) };
+    return { status: 'error', message: String(error) } satisfies LogErrorResponse;
   }
 });
 

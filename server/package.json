@@ -3,13 +3,15 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node --env-file=.env dist/index.js",
+    "migrate": "tsx --env-file=.env src/migrate.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.0.0",
-    "fastify": "^5.0.0"
+    "fastify": "^5.0.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
