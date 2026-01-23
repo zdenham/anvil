@@ -167,7 +167,7 @@ function ThreadModeHeader({
           threads
         </button>
         <ChevronRight size={12} className="text-surface-500" />
-        <span className="text-surface-300 font-mono">{threadLabel}</span>
+        <span className="text-surface-300 truncate max-w-[300px]">{threadLabel}</span>
       </div>
       <div className="ml-auto flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()}>
         {isStreaming && (

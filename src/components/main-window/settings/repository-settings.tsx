@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Folder, Plus, Trash2, Loader2, Check, X, Pencil, AlertCircle, FolderOpen } from "lucide-react";
-import { open, confirm } from "@tauri-apps/plugin-dialog";
+import { Folder, Plus, Loader2, Check, AlertCircle, FolderOpen } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { SettingsSection } from "../settings-section";
 import { useRepoStore, repoService, type Repository } from "@/entities/repositories";
 import { worktreeService } from "@/entities/worktrees";
@@ -20,10 +20,6 @@ export function RepositorySettings() {
     loading: boolean;
     error: string | null;
   }>({ loading: false, error: null });
-
-  // Inline editing state
-  const [editingRepoId, setEditingRepoId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
 
   // Status for each repo
   const [repoStatuses, setRepoStatuses] = useState<Record<string, RepoStatus>>({});
@@ -103,41 +99,6 @@ export function RepositorySettings() {
     }
   };
 
-  const handleRemoveRepository = async (repoId: string) => {
-    // Show confirmation dialog
-    const confirmed = await confirm(
-      "Remove repository? This won't delete files on disk.",
-      { title: "Remove Repository", kind: "warning" }
-    );
-
-    if (confirmed) {
-      await repoService.remove(repoId);
-      await repoService.hydrate();
-    }
-  };
-
-  const handleStartEdit = (repo: Repository) => {
-    setEditingRepoId(repo.name);
-    setEditName(repo.name);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingRepoId(null);
-    setEditName("");
-  };
-
-  const handleSaveRename = async (repoId: string) => {
-    if (!editName.trim()) {
-      handleCancelEdit();
-      return;
-    }
-
-    await repoService.rename(repoId, editName.trim());
-    await repoService.hydrate();
-    setEditingRepoId(null);
-    setEditName("");
-  };
-
   const handleLocate = async (repoId: string) => {
     const selectedPath = await open({
       directory: true,
@@ -171,69 +132,16 @@ export function RepositorySettings() {
       <div className="space-y-2">
         {repositories.map((repo) => {
           const status = repoStatuses[repo.name];
-          const isEditing = editingRepoId === repo.name;
 
           return (
             <div
               key={repo.name}
               className="flex flex-col gap-2 py-3 px-3 bg-surface-800/50 rounded border border-surface-700/50"
             >
-              {/* Top row: name and actions */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <Folder size={16} className="text-surface-400 flex-shrink-0" />
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 flex-1">
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSaveRename(repo.name);
-                          if (e.key === "Escape") handleCancelEdit();
-                        }}
-                        className="flex-1 px-2 py-1 bg-surface-700 border border-surface-600 rounded text-sm text-surface-200 focus:outline-none focus:border-accent-500"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => handleSaveRename(repo.name)}
-                        className="text-green-400 hover:text-green-300 p-1"
-                        title="Save"
-                      >
-                        <Check size={14} />
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="text-surface-500 hover:text-surface-400 p-1"
-                        title="Cancel"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="font-medium text-surface-200 truncate">{repo.name}</span>
-                  )}
-                </div>
-
-                {/* Action buttons (only show when not editing) */}
-                {!isEditing && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => handleStartEdit(repo)}
-                      className="text-surface-500 hover:text-surface-300 p-1"
-                      title="Rename"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleRemoveRepository(repo.name)}
-                      className="text-surface-500 hover:text-red-400 p-1"
-                      title="Remove"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                )}
+              {/* Top row: name */}
+              <div className="flex items-center gap-2">
+                <Folder size={16} className="text-surface-400 flex-shrink-0" />
+                <span className="font-medium text-surface-200 truncate">{repo.name}</span>
               </div>
 
               {/* Bottom row: path and status badges */}

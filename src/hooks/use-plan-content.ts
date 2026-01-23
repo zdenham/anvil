@@ -34,8 +34,8 @@ export function usePlanContent(planId: string | null): PlanContentResult {
       return;
     }
 
-    // Reset state on planId change
-    setContent(null);
+    // Don't reset content to null - keep showing previous content until new is ready
+    // This prevents flash of blank content during transitions
     setIsLoading(true);
 
     // Load content (this also updates stale status in the store)

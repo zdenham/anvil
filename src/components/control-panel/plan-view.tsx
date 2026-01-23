@@ -38,10 +38,9 @@ export function PlanView({ planId }: PlanViewProps) {
   const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
   const inputRef = useRef<ThreadInputRef>(null);
 
-  // State for loading and refresh tracking (cross-window sync)
-  const [loading, setLoading] = useState(false);
-  const [refreshAttempted, setRefreshAttempted] = useState(false);
-  const [planNotFound, setPlanNotFound] = useState(false);
+  // State for refresh tracking (cross-window sync)
+  // 'pending' = haven't tried yet, 'found' = plan exists, 'not-found' = plan doesn't exist
+  const [refreshResult, setRefreshResult] = useState<'pending' | 'found' | 'not-found'>('pending');
 
   // Working directory for the plan's repository
   const [workingDirectory, setWorkingDirectory] = useState<string | undefined>(undefined);
@@ -70,8 +69,7 @@ export function PlanView({ planId }: PlanViewProps) {
 
   // Reset refresh state when planId changes
   useEffect(() => {
-    setPlanNotFound(false);
-    setRefreshAttempted(false);
+    setRefreshResult('pending');
   }, [planId]);
 
   // Resolve working directory from plan's repoId/worktreeId
@@ -113,32 +111,37 @@ export function PlanView({ planId }: PlanViewProps) {
   // Refresh plan from disk if not in store (handles cross-window sync and late hydration)
   useEffect(() => {
     if (!planId) return;
-    if (plan) return; // Already in store
-    if (refreshAttempted) return; // Already tried refresh
+
+    // Plan already in store - mark as found
+    if (plan) {
+      setRefreshResult('found');
+      return;
+    }
+
+    // Already resolved (either found or not-found)
+    if (refreshResult !== 'pending') return;
 
     const currentPlanId = planId;
     logger.info(`[PlanView] Plan ${currentPlanId} not in store, attempting refresh from disk`);
 
     async function refreshPlan() {
-      setLoading(true);
-      setRefreshAttempted(true);
       try {
         await planService.refreshById(currentPlanId);
         const refreshedPlan = usePlanStore.getState().getPlan(currentPlanId);
-        if (!refreshedPlan) {
+        if (refreshedPlan) {
+          setRefreshResult('found');
+        } else {
           logger.info(`[PlanView] Plan ${currentPlanId} not found after refresh`);
-          setPlanNotFound(true);
+          setRefreshResult('not-found');
         }
       } catch (err) {
         logger.error(`[PlanView] Failed to refresh plan ${currentPlanId}:`, err);
-        setPlanNotFound(true);
-      } finally {
-        setLoading(false);
+        setRefreshResult('not-found');
       }
     }
 
     refreshPlan();
-  }, [planId, plan, refreshAttempted]);
+  }, [planId, plan, refreshResult]);
 
   // Focus restoration on mount
   useEffect(() => {
@@ -264,24 +267,13 @@ export function PlanView({ planId }: PlanViewProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [selectedIndex, navigateUp, navigateDown, handleQuickAction, setSelectedIndex]);
 
-  // Loading state - show minimal UI while refreshing from disk
-  if (loading) {
-    return (
-      <div
-        className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
-        onMouseDown={dragProps.onMouseDown}
-        onDoubleClick={dragProps.onDoubleClick}
-      >
-        <ControlPanelHeader view={{ type: "plan", planId }} />
-        <div className="flex items-center justify-center flex-1 text-surface-400">
-          Loading...
-        </div>
-      </div>
-    );
+  // Still resolving whether plan exists - return null to avoid any flash
+  if (refreshResult === 'pending') {
+    return null;
   }
 
-  // Plan not found after refresh attempt
-  if (!plan && planNotFound) {
+  // Plan confirmed not found
+  if (refreshResult === 'not-found') {
     return (
       <div
         className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
@@ -296,18 +288,9 @@ export function PlanView({ planId }: PlanViewProps) {
     );
   }
 
-  // Plan being loaded from store (refresh in progress)
+  // Edge case: refresh says found but store subscription hasn't updated yet
   if (!plan) {
-    return (
-      <div
-        className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
-        onMouseDown={dragProps.onMouseDown}
-        onDoubleClick={dragProps.onDoubleClick}
-      >
-        <ControlPanelHeader view={{ type: "plan", planId }} />
-        <div className="flex-1" />
-      </div>
-    );
+    return null;
   }
 
   return (
