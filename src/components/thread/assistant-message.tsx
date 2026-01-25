@@ -6,6 +6,7 @@ import { TextBlock } from "./text-block";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolUseBlock } from "./tool-use-block";
 import { AskUserQuestionBlock } from "./ask-user-question-block";
+import { getSpecializedToolBlock } from "./tool-blocks";
 
 interface AssistantMessageProps {
   /** The full messages array (needed to look up tool results from next message) */
@@ -106,6 +107,22 @@ export function AssistantMessage({
                       status={state.status === "complete" ? "answered" : "pending"}
                       result={state.result}
                       onSubmit={(response) => onToolResponse?.(block.id, response)}
+                    />
+                  );
+                }
+
+                // Check for specialized tool block component
+                const SpecializedBlock = getSpecializedToolBlock(block.name);
+                if (SpecializedBlock) {
+                  return (
+                    <SpecializedBlock
+                      key={block.id}
+                      id={block.id}
+                      name={block.name}
+                      input={block.input as Record<string, unknown>}
+                      result={state.result}
+                      isError={state.isError}
+                      status={state.status}
                     />
                   );
                 }

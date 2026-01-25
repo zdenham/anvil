@@ -5,12 +5,12 @@ import { repoService } from "../../entities/repositories";
 import { bootstrapMortDirectory } from "../../lib/mort-bootstrap";
 import { logger } from "../../lib/logger-client";
 import { WelcomeStep } from "./steps/WelcomeStep";
-import { HotkeyStep } from "./steps/HotkeyStep";
 import { SpotlightStep } from "./steps/SpotlightStep";
 import { RepositoryStep } from "./steps/RepositoryStep";
 import { PermissionsStep } from "./steps/PermissionsStep";
+import { HotkeyRecorder } from "./HotkeyRecorder";
 
-type OnboardingStepName = 'welcome' | 'permissions' | 'hotkey' | 'spotlight' | 'repository';
+type OnboardingStepName = 'welcome' | 'permissions' | 'spotlight' | 'repository';
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -18,12 +18,14 @@ interface OnboardingFlowProps {
 
 export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const [currentStep, setCurrentStep] = useState<OnboardingStepName>('welcome');
-  const [hotkey, setHotkey] = useState("Command+Space"); // Pre-select Command+Space
+  const [hotkey, setHotkey] = useState("Command+Space"); // Default to Command+Space
   const [selectedRepository, setSelectedRepository] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessibilityGranted, setAccessibilityGranted] = useState(false);
   const [existingRepoName, setExistingRepoName] = useState<string | null>(null);
+  const [isEditingHotkey, setIsEditingHotkey] = useState(false);
+  const [pendingHotkey, setPendingHotkey] = useState("");
 
   // Handler for when accessibility access is granted
   const handleAccessibilityGranted = useCallback(() => {
@@ -55,6 +57,9 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   // Handle Enter key to advance
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle Enter if editing hotkey
+      if (isEditingHotkey) return;
+
       if (e.key === 'Enter') {
         // Check if we can proceed based on current step
         const canProceedNow = (() => {
@@ -63,8 +68,6 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
               return true;
             case 'permissions':
               return accessibilityGranted;
-            case 'hotkey':
-              return !!hotkey;
             case 'spotlight':
               return true;
             case 'repository':
@@ -78,10 +81,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
           // Call handleNext logic directly to avoid dependency issues
           const nextStep = (() => {
             if (currentStep === 'welcome') return 'permissions';
-            if (currentStep === 'permissions') return 'hotkey';
-            if (currentStep === 'hotkey') {
-              return hotkey === "Command+Space" ? 'spotlight' : 'repository';
-            }
+            if (currentStep === 'permissions') return 'spotlight';
             if (currentStep === 'spotlight') return 'repository';
             return null; // Final step
           })();
@@ -130,27 +130,18 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentStep, hotkey, selectedRepository, existingRepoName, isRegistering, onComplete]);
-
-  // Determine if Spotlight step should be shown
-  const shouldShowSpotlightStep = hotkey === "Command+Space";
+  }, [currentStep, hotkey, selectedRepository, existingRepoName, isRegistering, onComplete, isEditingHotkey]);
 
   const getNextStep = (): OnboardingStepName | null => {
     if (currentStep === 'welcome') return 'permissions';
-    if (currentStep === 'permissions') return 'hotkey';
-    if (currentStep === 'hotkey') {
-      return shouldShowSpotlightStep ? 'spotlight' : 'repository';
-    }
+    if (currentStep === 'permissions') return 'spotlight';
     if (currentStep === 'spotlight') return 'repository';
     return null; // Final step
   };
 
   const getPreviousStep = (): OnboardingStepName | null => {
-    if (currentStep === 'repository') {
-      return shouldShowSpotlightStep ? 'spotlight' : 'hotkey';
-    }
-    if (currentStep === 'spotlight') return 'hotkey';
-    if (currentStep === 'hotkey') return 'permissions';
+    if (currentStep === 'repository') return 'spotlight';
+    if (currentStep === 'spotlight') return 'permissions';
     if (currentStep === 'permissions') return 'welcome';
     return null; // First step
   };
@@ -159,6 +150,10 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     const nextStep = getNextStep();
 
     if (nextStep) {
+      // If on spotlight step proceeding with "It's disabled", ensure hotkey is Command+Space
+      if (currentStep === 'spotlight') {
+        setHotkey("Command+Space");
+      }
       setCurrentStep(nextStep);
       return;
     }
@@ -211,8 +206,6 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
         return true;
       case 'permissions':
         return accessibilityGranted;
-      case 'hotkey':
-        return !!hotkey;
       case 'spotlight':
         return true;
       case 'repository':
@@ -223,7 +216,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   };
 
   const getStepProgress = () => {
-    const totalSteps = shouldShowSpotlightStep ? 5 : 4;
+    const totalSteps = 4;
     let currentStepNumber = 1;
 
     switch (currentStep) {
@@ -233,19 +226,35 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       case 'permissions':
         currentStepNumber = 2;
         break;
-      case 'hotkey':
+      case 'spotlight':
         currentStepNumber = 3;
         break;
-      case 'spotlight':
-        currentStepNumber = 4;
-        break;
       case 'repository':
-        currentStepNumber = shouldShowSpotlightStep ? 5 : 4;
+        currentStepNumber = 4;
         break;
     }
 
     return { current: currentStepNumber, total: totalSteps };
   };
+
+  const handleStartHotkeyEdit = () => {
+    setPendingHotkey(hotkey);
+    setIsEditingHotkey(true);
+  };
+
+  const handleSaveHotkey = () => {
+    if (pendingHotkey) {
+      setHotkey(pendingHotkey);
+    }
+    setIsEditingHotkey(false);
+    setCurrentStep('repository');
+  };
+
+  const handleCancelHotkeyEdit = () => {
+    setPendingHotkey("");
+    setIsEditingHotkey(false);
+  };
+
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -256,13 +265,15 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
           <PermissionsStep
             onAccessibilityGranted={handleAccessibilityGranted}
             accessibilityGranted={accessibilityGranted}
-            onSkip={() => setCurrentStep('hotkey')}
+            onSkip={() => setCurrentStep('spotlight')}
           />
         );
-      case 'hotkey':
-        return <HotkeyStep hotkey={hotkey} onHotkeyChanged={setHotkey} />;
       case 'spotlight':
-        return <SpotlightStep />;
+        return (
+          <SpotlightStep
+            onChangeHotkey={handleStartHotkeyEdit}
+          />
+        );
       case 'repository':
         return (
           <RepositoryStep
@@ -283,15 +294,70 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     if (currentStep === 'repository') return "Complete Setup ↵";
     if (currentStep === 'welcome') return "Begin ↵";
     if (currentStep === 'permissions') return "Continue ↵";
-    if (currentStep === 'hotkey') {
-      return hotkey === "Command+Space" ? "Keep Default ↵" : "Change Hotkey ↵";
+    if (currentStep === 'spotlight') {
+      return hotkey === "Command+Space" ? "It's disabled ↵" : "Continue ↵";
     }
-    if (currentStep === 'spotlight') return "It's disabled ↵";
     return "Continue ↵";
   };
 
   const progress = getStepProgress();
   const isFirstStep = currentStep === 'welcome';
+
+  const handleKeepDefaultFromEditor = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setHotkey("Command+Space");
+    setPendingHotkey("");
+    setIsEditingHotkey(false);
+  };
+
+  // Hotkey change view replaces the main content but keeps header
+  const renderContent = () => {
+    if (isEditingHotkey) {
+      return (
+        <div className="pb-24">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-surface-100 font-mono">
+              Change Mort Hotkey
+            </h2>
+            <p className="text-surface-300">
+              Choose a keyboard shortcut to access Mort from anywhere.
+            </p>
+          </div>
+
+          <div className="mt-6">
+            <HotkeyRecorder
+              defaultHotkey={pendingHotkey}
+              onHotkeyChanged={setPendingHotkey}
+              autoFocus={true}
+            />
+          </div>
+
+          {/* Keep default link */}
+          <div className="flex justify-center mt-4">
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleKeepDefaultFromEditor}
+              className="text-xs text-surface-500 hover:text-surface-400 underline decoration-dotted underline-offset-4 transition-colors"
+            >
+              Keep Default ⌘ + Space (Recommended)
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="pb-24">
+        {renderStepContent()}
+        {error && (
+          <div className="mt-4 p-3 bg-red-900/20 border border-red-700 rounded-md">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen w-full bg-surface-900 p-6">
@@ -315,35 +381,40 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       </div>
 
       {/* Main content area */}
-      <div className="pb-24">
-        {renderStepContent()}
-        {error && (
-          <div className="mt-4 p-3 bg-red-900/20 border border-red-700 rounded-md">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
-      </div>
+      {renderContent()}
 
       {/* Fixed bottom buttons */}
       <div className="fixed bottom-6 left-6 z-10">
-        <Button
-          variant="ghost"
-          onClick={handleBack}
-          disabled={isFirstStep}
-          className={isFirstStep ? "invisible" : ""}
-        >
-          ← Back
-        </Button>
+        {isEditingHotkey ? (
+          <Button variant="ghost" onClick={handleCancelHotkeyEdit}>
+            ← Back
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            disabled={isFirstStep}
+            className={isFirstStep ? "invisible" : ""}
+          >
+            ← Back
+          </Button>
+        )}
       </div>
 
       <div className="fixed bottom-6 right-6 z-10">
-        <Button
-          variant="light"
-          onClick={handleNext}
-          disabled={!canProceed() || isRegistering}
-        >
-          {getButtonText()}
-        </Button>
+        {isEditingHotkey ? (
+          <Button variant="light" onClick={handleSaveHotkey} disabled={!pendingHotkey}>
+            Save Hotkey ↵
+          </Button>
+        ) : (
+          <Button
+            variant="light"
+            onClick={handleNext}
+            disabled={!canProceed() || isRegistering}
+          >
+            {getButtonText()}
+          </Button>
+        )}
       </div>
     </div>
   );

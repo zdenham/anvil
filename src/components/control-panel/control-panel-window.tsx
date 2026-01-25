@@ -509,9 +509,10 @@ function ControlPanelWindowContent({
   // Handle focus transfer from ThreadInput to quick actions panel
   const handleNavigateToQuickActions = useCallback(() => {
     logger.debug(`[ControlPanelWindow] handleNavigateToQuickActions called`);
-    // Focus the quick actions panel so keyboard nav works
-    // The document-level keydown listener will handle arrow keys
+    // Expand the quick actions panel if collapsed (user is navigating up)
+    // then focus it so keyboard nav works
     if (quickActionsPanelRef.current) {
+      quickActionsPanelRef.current.expand();
       quickActionsPanelRef.current.focus();
     }
   }, []);

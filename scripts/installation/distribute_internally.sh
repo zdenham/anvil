@@ -29,9 +29,6 @@ fi
 echo "Extracting..."
 unzip -o -q ~/Downloads/Mort.zip -d ~/Downloads/ -x "__MACOSX/*"
 
-echo "Removing quarantine..."
-xattr -d com.apple.quarantine ~/Downloads/Mort.app
-
 echo "Moving to Applications..."
 mv ~/Downloads/Mort.app /Applications/
 

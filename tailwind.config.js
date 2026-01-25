@@ -8,6 +8,15 @@ export default {
   ],
   theme: {
     extend: {
+      animation: {
+        shimmer: 'shimmer 2s ease-in-out infinite',
+      },
+      keyframes: {
+        shimmer: {
+          '0%, 100%': { opacity: '0.7' },
+          '50%': { opacity: '1' },
+        },
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['"Atkinson Hyperlegible Mono"', 'monospace'],

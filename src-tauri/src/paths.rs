@@ -87,11 +87,13 @@ pub fn run_login_shell_initialization() -> bool {
     tracing::info!(docs_access = docs_access, "Documents access check completed");
 
     // Log the command we're about to run
-    let shell_cmd = format!("{} -l -c \"echo $PATH\"", shell);
-    tracing::info!(command = %shell_cmd, "Executing login shell command to capture PATH");
+    // Use -i -l to source both .zprofile (login) and .zshrc (interactive)
+    // This ensures we capture PATH from version managers like nvm that initialize in .zshrc
+    let shell_cmd = format!("{} -i -l -c \"echo $PATH\"", shell);
+    tracing::info!(command = %shell_cmd, "Executing interactive login shell command to capture PATH");
 
     let start_time = std::time::Instant::now();
-    let result = Command::new(&shell).args(["-l", "-c", "echo $PATH"]).output();
+    let result = Command::new(&shell).args(["-i", "-l", "-c", "echo $PATH"]).output();
     let elapsed = start_time.elapsed();
 
     match result {

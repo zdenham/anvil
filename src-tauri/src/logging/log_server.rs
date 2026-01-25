@@ -37,7 +37,7 @@ const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 
 /// Maximum logs to buffer during connection issues (prevents unbounded memory growth)
-const MAX_RETRY_BUFFER: usize = 5_000;
+const MAX_BUFFER_SIZE: usize = 5_000;
 
 pub struct LogServerLayer {
     sender: mpsc::Sender<LogRow>,
@@ -63,52 +63,39 @@ impl LogServerLayer {
 
 /// Background worker that batches logs and sends them to the backend server.
 /// Uses std::sync::mpsc and blocking HTTP calls via ureq.
+///
+/// Single buffer design: logs accumulate in one buffer that only drains on successful flush.
+/// This naturally handles retries without needing a separate retry buffer.
 fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
-    let mut batch: Vec<LogRow> = Vec::with_capacity(BATCH_SIZE);
-    let mut retry_buffer: Vec<LogRow> = Vec::new();
-    let mut consecutive_failures: u32 = 0;
-    let mut last_flush = Instant::now();
+    let mut buffer: Vec<LogRow> = Vec::with_capacity(MAX_BUFFER_SIZE);
+    let mut last_flush_attempt = Instant::now();
 
     loop {
-        // Calculate remaining time until next scheduled flush
-        let elapsed = last_flush.elapsed();
-        let timeout = if elapsed >= FLUSH_INTERVAL {
-            Duration::from_millis(1) // Flush immediately
-        } else {
-            FLUSH_INTERVAL - elapsed
-        };
+        let timeout = FLUSH_INTERVAL.saturating_sub(last_flush_attempt.elapsed());
 
-        // Try to receive a log entry with timeout
         match receiver.recv_timeout(timeout) {
             Ok(row) => {
-                batch.push(row);
-                if batch.len() >= BATCH_SIZE {
-                    flush_with_retry(
-                        &config.url,
-                        &mut batch,
-                        &mut retry_buffer,
-                        &mut consecutive_failures,
-                    );
-                    last_flush = Instant::now();
+                // Drop oldest if at capacity
+                if buffer.len() >= MAX_BUFFER_SIZE {
+                    buffer.remove(0);
+                }
+                buffer.push(row);
+
+                // Flush if batch size reached
+                if buffer.len() >= BATCH_SIZE {
+                    try_flush(&config.url, &mut buffer);
+                    last_flush_attempt = Instant::now();
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                // Timeout - check if we need to flush
-                if !batch.is_empty() || !retry_buffer.is_empty() {
-                    flush_with_retry(
-                        &config.url,
-                        &mut batch,
-                        &mut retry_buffer,
-                        &mut consecutive_failures,
-                    );
-                    last_flush = Instant::now();
+                if !buffer.is_empty() {
+                    try_flush(&config.url, &mut buffer);
+                    last_flush_attempt = Instant::now();
                 }
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                // Channel closed - flush remaining logs and exit
-                if !batch.is_empty() {
-                    let _ = flush_batch(&config.url, &mut batch);
-                }
+                // Final flush on shutdown
+                let _ = flush_batch(&config.url, &mut buffer);
                 break;
             }
         }
@@ -116,40 +103,21 @@ fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
 }
 
 /// Attempts to flush with exponential backoff retry.
-/// On persistent failure, moves logs to retry buffer (with size limit).
-fn flush_with_retry(
-    url: &str,
-    batch: &mut Vec<LogRow>,
-    retry_buffer: &mut Vec<LogRow>,
-    consecutive_failures: &mut u32,
-) {
-    // First, try to flush any previously failed logs
-    if !retry_buffer.is_empty() {
-        let mut retry_batch: Vec<LogRow> = retry_buffer.drain(..).collect();
-        if flush_batch(url, &mut retry_batch).is_err() {
-            // Still failing, put back what we can
-            let space = MAX_RETRY_BUFFER.saturating_sub(retry_buffer.len());
-            retry_buffer.extend(retry_batch.into_iter().take(space));
-        } else {
-            *consecutive_failures = 0;
-        }
-    }
-
-    // Now flush the current batch
-    if batch.is_empty() {
-        return;
-    }
-
+/// On success, buffer is cleared. On failure, buffer is retained for next attempt.
+fn try_flush(url: &str, buffer: &mut Vec<LogRow>) {
     let mut delay = INITIAL_RETRY_DELAY;
+
     for attempt in 0..MAX_RETRIES {
-        match flush_batch(url, batch) {
+        // Clone the buffer contents for the attempt
+        let batch: Vec<LogRow> = buffer.clone();
+
+        match send_batch(url, &batch) {
             Ok(()) => {
-                *consecutive_failures = 0;
+                buffer.clear(); // Only clear on success
                 return;
             }
             Err(e) => {
                 if attempt < MAX_RETRIES - 1 {
-                    // Log retry attempt (to console only, not server to avoid loops)
                     eprintln!(
                         "Log server flush attempt {} failed: {}. Retrying in {:?}...",
                         attempt + 1,
@@ -163,36 +131,21 @@ fn flush_with_retry(
         }
     }
 
-    // All retries exhausted - move to retry buffer or drop if buffer full
-    *consecutive_failures += 1;
-    let space = MAX_RETRY_BUFFER.saturating_sub(retry_buffer.len());
-
-    if space > 0 {
-        retry_buffer.extend(batch.drain(..).take(space));
-        if *consecutive_failures == 1 {
-            eprintln!(
-                "Log server temporarily unavailable. Buffering logs (up to {} entries).",
-                MAX_RETRY_BUFFER
-            );
-        }
-    } else {
-        let dropped = batch.len();
-        batch.clear();
-        eprintln!(
-            "Log server retry buffer full. Dropped {} log entries.",
-            dropped
-        );
-    }
+    // All retries failed - buffer is retained for next attempt
+    eprintln!(
+        "Log server temporarily unavailable. {} logs buffered.",
+        buffer.len()
+    );
 }
 
-/// Performs the actual HTTP POST to the backend server using ureq.
-fn flush_batch(url: &str, batch: &mut Vec<LogRow>) -> Result<(), Box<dyn std::error::Error>> {
+/// Sends a batch of logs to the server (non-destructive, takes reference).
+fn send_batch(url: &str, batch: &[LogRow]) -> Result<(), Box<dyn std::error::Error>> {
     if batch.is_empty() {
         return Ok(());
     }
 
     let payload = LogBatch {
-        logs: batch.drain(..).collect(),
+        logs: batch.to_vec(),
     };
 
     ureq::post(url)
@@ -201,6 +154,27 @@ fn flush_batch(url: &str, batch: &mut Vec<LogRow>) -> Result<(), Box<dyn std::er
 
     Ok(())
 }
+
+/// Performs the actual HTTP POST to the backend server using ureq (drains buffer on success).
+fn flush_batch(url: &str, buffer: &mut Vec<LogRow>) -> Result<(), Box<dyn std::error::Error>> {
+    if buffer.is_empty() {
+        return Ok(());
+    }
+
+    let payload = LogBatch {
+        logs: buffer.clone(),
+    };
+
+    ureq::post(url)
+        .set("Content-Type", "application/json")
+        .send_json(&payload)?;
+
+    buffer.clear();
+    Ok(())
+}
+
+/// Modules to exclude from log uploads (HTTP client internals used for uploading logs)
+const EXCLUDED_MODULES: &[&str] = &["ureq", "rustls"];
 
 impl<S> Layer<S> for LogServerLayer
 where
@@ -211,6 +185,15 @@ where
         event: &tracing::Event<'_>,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
+        // Skip logs from HTTP client libraries to avoid meta-logging
+        if let Some(module) = event.metadata().module_path() {
+            for excluded in EXCLUDED_MODULES {
+                if module.starts_with(excluded) {
+                    return;
+                }
+            }
+        }
+
         let mut message = String::new();
         let mut visitor = MessageVisitor(&mut message);
         event.record(&mut visitor);

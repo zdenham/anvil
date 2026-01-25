@@ -6,6 +6,7 @@ import { useRepoStore, repoService, type Repository } from "@/entities/repositor
 import { worktreeService } from "@/entities/worktrees";
 import { threadService } from "@/entities/threads";
 import { persistence } from "@/lib/persistence";
+import { repoCommands } from "@/lib/tauri-commands";
 
 interface RepoStatus {
   worktreeCount: number;
@@ -107,12 +108,24 @@ export function RepositorySettings() {
     });
 
     if (selectedPath && typeof selectedPath === "string") {
+      // Validate that the selected path is a git repository
+      const validation = await repoCommands.validateRepository(selectedPath);
+      if (!validation.exists) {
+        setAddState({ loading: false, error: "Selected path does not exist" });
+        return;
+      }
+      if (!validation.is_git_repo) {
+        setAddState({ loading: false, error: "This folder is not a git repository. Please select a folder with git tracking." });
+        return;
+      }
+
       // Update the repository's source path
       const repo = repositoriesMap[repoId];
       if (repo) {
         // Use update to change the source path
         await repoService.update(repoId, { sourcePath: selectedPath });
         await repoService.hydrate();
+        setAddState({ loading: false, error: null }); // Clear any previous errors
       }
     }
   };

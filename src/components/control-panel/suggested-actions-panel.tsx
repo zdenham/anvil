@@ -1,6 +1,8 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
-import { Send } from "lucide-react";
+import { Send, ChevronUp, ChevronDown } from "lucide-react";
 import { useQuickActionsStore, getActionsForView, type ActionType } from "@/stores/quick-actions-store";
+import { useSettingsStore } from "@/entities/settings/store";
+import { settingsService } from "@/entities/settings/service";
 import type { ControlPanelViewType } from "@/entities/events";
 
 interface SuggestedActionsPanelProps {
@@ -18,6 +20,7 @@ interface SuggestedActionsPanelProps {
 
 export interface SuggestedActionsPanelRef {
   focus: () => void;
+  expand: () => void;
 }
 
 export const SuggestedActionsPanel = forwardRef<SuggestedActionsPanelRef, SuggestedActionsPanelProps>(function SuggestedActionsPanel({
@@ -32,10 +35,24 @@ export const SuggestedActionsPanel = forwardRef<SuggestedActionsPanelRef, Sugges
   const panelRef = useRef<HTMLDivElement>(null);
   const followUpInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Expose focus method to parent via ref
+  // Get collapsed state from settings
+  const isCollapsed = useSettingsStore((s) => s.workspace.quickActionsCollapsed ?? false);
+
+  const handleToggleCollapse = () => {
+    settingsService.set("quickActionsCollapsed", !isCollapsed);
+  };
+
+  const handleExpand = () => {
+    if (isCollapsed) {
+      settingsService.set("quickActionsCollapsed", false);
+    }
+  };
+
+  // Expose focus and expand methods to parent via ref
   useImperativeHandle(ref, () => ({
     focus: () => panelRef.current?.focus(),
-  }), []);
+    expand: handleExpand,
+  }), [isCollapsed]);
 
   // Get state from the store
   const {
@@ -90,6 +107,29 @@ export const SuggestedActionsPanel = forwardRef<SuggestedActionsPanelRef, Sugges
     return null;
   }
 
+  // Render collapsed state
+  if (isCollapsed) {
+    return (
+      <div
+        ref={panelRef}
+        className="px-4 py-2 bg-surface-800 border-t border-surface-700 outline-none"
+        tabIndex={-1}
+        data-quick-actions-panel
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-sm text-surface-400">Quick Actions</h3>
+          <button
+            onClick={handleToggleCollapse}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Expand quick actions"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={panelRef}
@@ -100,8 +140,15 @@ export const SuggestedActionsPanel = forwardRef<SuggestedActionsPanelRef, Sugges
       aria-activedescendant={`action-${selectedIndex}`}
       data-quick-actions-panel
     >
-      <div className="mb-2">
+      <div className="mb-2 flex items-center justify-between">
         <h3 className="font-bold text-sm text-surface-200">Quick Actions</h3>
+        <button
+          onClick={handleToggleCollapse}
+          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+          aria-label="Collapse quick actions"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Follow-up input when expanded */}

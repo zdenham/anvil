@@ -60,4 +60,6 @@ export interface TriggerSearchInputRef {
   setTriggerSelectedIndex: (index: number) => void;
   selectTriggerResult: (result: TriggerResult) => void;
   isTriggerLoading: () => boolean;
+  // Access to underlying element for CursorBoundary utilities
+  getElement: () => HTMLTextAreaElement | null;
 }

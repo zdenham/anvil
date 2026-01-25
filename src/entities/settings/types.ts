@@ -43,6 +43,12 @@ export const WorkspaceSettingsSchema = z.object({
    * "inline" - Embedded in thread view
    */
   permissionDisplayMode: PermissionDisplayModeSchema,
+
+  /**
+   * Whether the quick actions panel is collapsed.
+   * Persists across windows and sessions.
+   */
+  quickActionsCollapsed: z.boolean(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 
@@ -53,4 +59,5 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   workflowMode: "solo",
   permissionMode: "allow-all",
   permissionDisplayMode: "modal",
+  quickActionsCollapsed: false,
 };

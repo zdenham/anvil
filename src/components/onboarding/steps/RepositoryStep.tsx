@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "../../reusable/Button";
+import { repoService } from "@/entities/repositories";
 
 interface RepositoryStepProps {
   selectedRepository: string | null;
@@ -34,7 +35,13 @@ export const RepositoryStep = ({
         return;
       }
 
-      // TODO: Add validation to check if it's a valid git repository
+      // Validate that it's a git repository
+      const validation = await repoService.validateNewRepository(selectedPath);
+      if (!validation.valid) {
+        setError(validation.error ?? "Invalid repository");
+        return;
+      }
+
       onRepositorySelected(selectedPath);
     } catch (err) {
       setError(

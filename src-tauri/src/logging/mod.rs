@@ -11,7 +11,10 @@
 //! so we use a fallback path resolution that matches paths.rs logic.
 
 mod config;
-mod log_server;
+pub mod log_server;
+
+#[cfg(test)]
+mod tests;
 
 pub use config::LogServerConfig;
 pub use log_server::LogServerLayer;
@@ -306,13 +309,14 @@ pub fn initialize() {
     let _ = START_TIME.set(Instant::now());
 
     // Set up the console layer with colored, compact output
+    // Filter out noisy HTTP client logs (ureq, rustls) used for log uploading
     let console_layer = fmt::layer()
         .with_timer(UptimeTimer)
         .with_target(true)
         .with_level(true)
         .with_ansi(true)
         .compact()
-        .with_filter(EnvFilter::new("debug"));
+        .with_filter(EnvFilter::new("debug,ureq=off,rustls=off"));
 
     // Set up the JSON file layer
     let json_layer = match setup_json_layer() {
@@ -354,7 +358,7 @@ where
         .with_thread_ids(true)
         .with_target(true)
         .with_span_events(FmtSpan::CLOSE)
-        .with_filter(EnvFilter::new("debug")))
+        .with_filter(EnvFilter::new("debug,ureq=off,rustls=off")))
 }
 
 /// Logs a message from the web frontend.

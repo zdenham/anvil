@@ -30,6 +30,7 @@ import { openControlPanel, showMainWindow } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
 import { promptHistoryService } from "../../lib/prompt-history-service";
 import { loadSettings } from "../../lib/persistence";
+import { CursorBoundary } from "../../lib/cursor-boundary";
 
 /** Error types for thread creation */
 type ThreadCreationError =
@@ -401,6 +402,8 @@ interface SpotlightState {
   appSuffix: string;
   selectedWorktreeIndex: number;
   repoWorktrees: RepoWorktree[];  // Flat MRU list across all repositories
+  worktreeOverlayVisible: boolean;  // Whether overlay is currently shown
+  worktreeOverlayConfirming: boolean;  // Whether overlay is in "confirming" animation state
 }
 
 const INITIAL_STATE: SpotlightState = {
@@ -412,6 +415,8 @@ const INITIAL_STATE: SpotlightState = {
   appSuffix: "",
   selectedWorktreeIndex: 0,
   repoWorktrees: [],
+  worktreeOverlayVisible: false,
+  worktreeOverlayConfirming: false,
 };
 
 const INITIAL_TRIGGER_STATE: TriggerStateInfo = {
@@ -420,6 +425,82 @@ const INITIAL_TRIGGER_STATE: TriggerStateInfo = {
   selectedIndex: 0,
   isLoading: false,
 };
+
+/** Overlay component that shows current worktree when cycling with arrow keys */
+function WorktreeOverlay({
+  visible,
+  repoWorktrees,
+  selectedIndex,
+  isConfirming,
+}: {
+  visible: boolean;
+  repoWorktrees: RepoWorktree[];
+  selectedIndex: number;
+  isConfirming: boolean;
+}) {
+  if (!visible || repoWorktrees.length === 0) return null;
+
+  const selected = repoWorktrees[selectedIndex];
+  const hasMultipleRepos = new Set(repoWorktrees.map((w) => w.repoName)).size > 1;
+  const hasMultipleWorktrees = repoWorktrees.length > 1;
+
+  const worktreeLabel = hasMultipleRepos
+    ? `${selected.repoName} / ${selected.worktree.name}`
+    : selected.worktree.name;
+
+  return (
+    <div className={`absolute inset-0 z-50 pointer-events-none ${
+      isConfirming ? 'animate-pulse' : ''
+    }`}>
+      {/* Full-width container matching spotlight input dimensions */}
+      <div className="h-full flex items-center px-4">
+        <div className="flex-1 flex items-center justify-between gap-3">
+          {/* Left arrow indicator */}
+          <div className={`flex items-center justify-center w-8 h-8 rounded-md transition-opacity ${
+            hasMultipleWorktrees ? 'opacity-60' : 'opacity-0'
+          }`}>
+            <svg className="w-4 h-4 text-surface-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </div>
+
+          {/* Center content - selected worktree */}
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <span className="text-[9px] text-surface-600 mb-px">
+              switch worktree ↵
+            </span>
+            <span className="text-xs font-mono text-surface-400">
+              {worktreeLabel}
+            </span>
+            {hasMultipleWorktrees && (
+              <div className="flex items-center gap-1 mt-1">
+                {repoWorktrees.map((_, idx) => (
+                  <div
+                    key={idx}
+                    className={`w-1 h-1 rounded-full transition-colors ${
+                      idx === selectedIndex
+                        ? 'bg-surface-400'
+                        : 'bg-surface-700'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right arrow indicator */}
+          <div className={`flex items-center justify-center w-8 h-8 rounded-md transition-opacity ${
+            hasMultipleWorktrees ? 'opacity-60' : 'opacity-0'
+          }`}>
+            <svg className="w-4 h-4 text-surface-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Spotlight = () => {
   const [state, setState] = useState<SpotlightState>(INITIAL_STATE);
@@ -430,6 +511,8 @@ export const Spotlight = () => {
   const inputExpandedRef = useRef(false);
   // Track trigger state in a ref so async callbacks can check current trigger status
   const triggerStateRef = useRef<TriggerStateInfo>(INITIAL_TRIGGER_STATE);
+  // Timeout ref for auto-hiding worktree overlay
+  const overlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { query, results, selectedIndex, inputExpanded, appSuffix, selectedWorktreeIndex, repoWorktrees } = state;
 
@@ -501,9 +584,29 @@ export const Spotlight = () => {
   );
 
   const resetState = useCallback(() => {
+    // Clear overlay timeout on reset
+    if (overlayTimeoutRef.current) {
+      clearTimeout(overlayTimeoutRef.current);
+      overlayTimeoutRef.current = null;
+    }
     setState(INITIAL_STATE);
     resetHistory();
   }, [resetHistory]);
+
+  /** Dismisses the worktree overlay with a brief visual confirmation */
+  const dismissWorktreeOverlay = useCallback(() => {
+    // Clear any existing timeout
+    if (overlayTimeoutRef.current) {
+      clearTimeout(overlayTimeoutRef.current);
+      overlayTimeoutRef.current = null;
+    }
+    // Start the confirming animation (brief pulse)
+    setState((s) => ({ ...s, worktreeOverlayConfirming: true }));
+    // After brief animation, hide the overlay
+    setTimeout(() => {
+      setState((s) => ({ ...s, worktreeOverlayVisible: false, worktreeOverlayConfirming: false }));
+    }, 100);
+  }, []);
 
   const activateResult = useCallback(
     async (result: SpotlightResult) => {
@@ -957,14 +1060,31 @@ export const Spotlight = () => {
           }
           break;
         case "ArrowRight": {
+          const isQueryEmpty = query.trim() === "";
+
+          // Show overlay and cycle worktrees when query is empty
+          if (isQueryEmpty && repoWorktrees.length >= 1) {
+            e.preventDefault();
+            setState((s) => {
+              // First press just opens the overlay, subsequent presses cycle
+              const shouldCycle = s.worktreeOverlayVisible && s.repoWorktrees.length > 1;
+              return {
+                ...s,
+                worktreeOverlayVisible: true,
+                selectedWorktreeIndex: shouldCycle
+                  ? (s.selectedWorktreeIndex + 1) % s.repoWorktrees.length
+                  : s.selectedWorktreeIndex,
+              };
+            });
+            break;
+          }
+
           // Cycle forward through worktrees when on a thread result
           // Only cycle if cursor is at the very end AND no text is selected
           const currentResult = displayResults[selectedIndex];
           if (currentResult?.type === "thread" && repoWorktrees.length > 1) {
-            const cursorPos = inputRef.current?.getCursorPosition() ?? 0;
-            const inputLength = query.length;
-            // Check if cursor is at the end of the input
-            const isAtEnd = cursorPos === inputLength;
+            const element = inputRef.current?.getElement() ?? null;
+            const isAtEnd = CursorBoundary.isAtEnd(element);
 
             if (isAtEnd) {
               e.preventDefault();
@@ -978,6 +1098,27 @@ export const Spotlight = () => {
           break;
         }
         case "ArrowLeft": {
+          const isQueryEmptyLeft = query.trim() === "";
+
+          // Show overlay and cycle worktrees when query is empty
+          if (isQueryEmptyLeft && repoWorktrees.length >= 1) {
+            e.preventDefault();
+            setState((s) => {
+              // First press just opens the overlay, subsequent presses cycle
+              const shouldCycle = s.worktreeOverlayVisible && s.repoWorktrees.length > 1;
+              return {
+                ...s,
+                worktreeOverlayVisible: true,
+                selectedWorktreeIndex: shouldCycle
+                  ? (s.selectedWorktreeIndex > 0
+                      ? s.selectedWorktreeIndex - 1
+                      : s.repoWorktrees.length - 1)
+                  : s.selectedWorktreeIndex,
+              };
+            });
+            break;
+          }
+
           // Cycle back through worktrees when on a thread result
           // Only cycle if not on the first worktree
           const currentResultLeft = displayResults[selectedIndex];
@@ -999,6 +1140,11 @@ export const Spotlight = () => {
           // Only intercept if not holding Shift (Shift+Enter = newline in textarea)
           if (!e.shiftKey) {
             e.preventDefault();
+            // If worktree overlay is visible, Enter confirms the selection
+            if (state.worktreeOverlayVisible) {
+              dismissWorktreeOverlay();
+              break;
+            }
             if (displayResults.length > 0 && displayResults[selectedIndex]) {
               await activateResult(displayResults[selectedIndex]);
             }
@@ -1022,6 +1168,8 @@ export const Spotlight = () => {
     triggerState,
     repoWorktrees,
     selectedWorktreeIndex,
+    state.worktreeOverlayVisible,
+    dismissWorktreeOverlay,
   ]);
 
   // Handler for panel hidden - moved outside useEffect to avoid hook violations
@@ -1111,6 +1259,22 @@ export const Spotlight = () => {
     }
   }, [triggerState.isActive, triggerState.results.length, results.length, inputExpanded, resizeSpotlight]);
 
+  // Dismiss worktree overlay when user starts typing
+  useEffect(() => {
+    if (query.length > 0 && state.worktreeOverlayVisible && !state.worktreeOverlayConfirming) {
+      dismissWorktreeOverlay();
+    }
+  }, [query, state.worktreeOverlayVisible, state.worktreeOverlayConfirming, dismissWorktreeOverlay]);
+
+  // Cleanup overlay timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (overlayTimeoutRef.current) {
+        clearTimeout(overlayTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleExpandedChange = useCallback((expanded: boolean) => {
     // Just update state - resize is handled by the unified useEffect
     setState((prev) => ({ ...prev, inputExpanded: expanded }));
@@ -1133,7 +1297,7 @@ export const Spotlight = () => {
     .join(" ");
 
   return (
-    <div data-testid="spotlight" className={spotlightClasses}>
+    <div data-testid="spotlight" className={`${spotlightClasses} relative`}>
       <form onSubmit={handleSubmit}>
         <TriggerSearchInput
           ref={inputRef}
@@ -1171,6 +1335,12 @@ export const Spotlight = () => {
           selectedWorktreeIndex,
           repoCount: controllerRef.current.getRepositories().length,
         }}
+      />
+      <WorktreeOverlay
+        visible={state.worktreeOverlayVisible}
+        repoWorktrees={repoWorktrees}
+        selectedIndex={selectedWorktreeIndex}
+        isConfirming={state.worktreeOverlayConfirming}
       />
     </div>
   );

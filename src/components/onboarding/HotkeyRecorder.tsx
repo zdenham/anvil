@@ -25,6 +25,13 @@ const MODIFIER_DISPLAY: Record<Modifier, string> = {
   Meta: "⌘",
 };
 
+const MODIFIER_LABELS: Record<Modifier, string> = {
+  Shift: "shift",
+  Control: "control",
+  Alt: "option",
+  Meta: "command",
+};
+
 const DEFAULT_HOTKEY: Hotkey = { modifiers: new Set(["Meta"]), key: " " };
 
 const parseHotkey = (str: string): Hotkey => {
@@ -233,18 +240,20 @@ export const HotkeyRecorder = ({
 
         <div className="flex gap-2">
           {MODIFIERS.map((mod) => (
-            <kbd
-              key={mod}
-              data-testid={`modifier-${mod.toLowerCase()}`}
-              className={cn(
-                "px-3 py-1.5 rounded-md font-mono text-lg min-w-[2.5rem] text-center font-semibold transition-all duration-100 border",
-                displayModifiers.has(mod)
-                  ? "bg-surface-900 text-surface-100 shadow-md border-surface-500"
-                  : "bg-surface-600 text-surface-400 border-surface-500"
-              )}
-            >
-              {MODIFIER_DISPLAY[mod]}
-            </kbd>
+            <div key={mod} className="relative flex flex-col items-center">
+              <kbd
+                data-testid={`modifier-${mod.toLowerCase()}`}
+                className={cn(
+                  "px-3 py-1.5 rounded-md font-mono text-lg min-w-[2.5rem] text-center font-semibold transition-all duration-100 border",
+                  displayModifiers.has(mod)
+                    ? "bg-surface-900 text-surface-100 shadow-md border-surface-500"
+                    : "bg-surface-600 text-surface-400 border-surface-500"
+                )}
+              >
+                {MODIFIER_DISPLAY[mod]}
+              </kbd>
+              <span className="absolute -bottom-4 text-[9px] text-surface-500">{MODIFIER_LABELS[mod]}</span>
+            </div>
           ))}
         </div>
 

@@ -8,8 +8,10 @@
 import { useCallback } from "react";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
+import { useRelationStore } from "@/entities/relations/store";
 import { createUnifiedList } from "@/components/inbox/utils";
 import type { InboxItem } from "@/components/inbox/types";
+import type { ThreadMetadata } from "@/entities/threads/types";
 
 /** Cooldown period for recently marked unread items (60 seconds) */
 const MARKED_UNREAD_COOLDOWN_MS = 60 * 1000;
@@ -21,6 +23,14 @@ function isRecentlyMarkedUnread(item: InboxItem): boolean {
   const markedUnreadAt = item.data.markedUnreadAt;
   if (!markedUnreadAt) return false;
   return Date.now() - markedUnreadAt < MARKED_UNREAD_COOLDOWN_MS;
+}
+
+/**
+ * Check if a plan has any running threads associated with it.
+ */
+function hasRunningThread(planId: string, threads: Record<string, ThreadMetadata>): boolean {
+  const relations = useRelationStore.getState().getByPlan(planId);
+  return relations.some((rel) => threads[rel.threadId]?.status === "running");
 }
 
 export interface NavigationResult {
@@ -55,7 +65,9 @@ export function useUnifiedInboxNavigation(): UseUnifiedInboxNavigationReturn {
   const getNextUnreadItem = useCallback(
     (currentItem: { type: "thread" | "plan"; id: string }): NavigationResult | null => {
       // Get current state from stores
-      const threads = useThreadStore.getState().getAllThreads();
+      const threadStore = useThreadStore.getState();
+      const threads = threadStore.getAllThreads();
+      const threadsById = threadStore.threads;
       const plans = usePlanStore.getState().getActivePlans();
 
       // Create unified list sorted by updatedAt descending
@@ -82,11 +94,14 @@ export function useUnifiedInboxNavigation(): UseUnifiedInboxNavigationReturn {
         // Skip items recently marked as unread to prevent navigation cycles
         if (isRecentlyMarkedUnread(item)) continue;
 
-        if (item.type === "thread" && !item.data.isRead) {
+        if (item.type === "thread" && !item.data.isRead && item.data.status !== "running") {
           return { type: "thread", id: item.data.id };
         }
         if (item.type === "plan" && !item.data.isRead && !item.data.stale) {
-          return { type: "plan", id: item.data.id };
+          // Skip plans that have running threads
+          if (!hasRunningThread(item.data.id, threadsById)) {
+            return { type: "plan", id: item.data.id };
+          }
         }
       }
 
@@ -103,11 +118,14 @@ export function useUnifiedInboxNavigation(): UseUnifiedInboxNavigationReturn {
         // Skip items recently marked as unread to prevent navigation cycles
         if (isRecentlyMarkedUnread(item)) continue;
 
-        if (item.type === "thread" && !item.data.isRead) {
+        if (item.type === "thread" && !item.data.isRead && item.data.status !== "running") {
           return { type: "thread", id: item.data.id };
         }
         if (item.type === "plan" && !item.data.isRead && !item.data.stale) {
-          return { type: "plan", id: item.data.id };
+          // Skip plans that have running threads
+          if (!hasRunningThread(item.data.id, threadsById)) {
+            return { type: "plan", id: item.data.id };
+          }
         }
       }
 
@@ -118,7 +136,9 @@ export function useUnifiedInboxNavigation(): UseUnifiedInboxNavigationReturn {
   );
 
   const getFirstUnreadItem = useCallback((): NavigationResult | null => {
-    const threads = useThreadStore.getState().getAllThreads();
+    const threadStore = useThreadStore.getState();
+    const threads = threadStore.getAllThreads();
+    const threadsById = threadStore.threads;
     const plans = usePlanStore.getState().getActivePlans();
 
     const unifiedList = createUnifiedList(threads, plans, {});
@@ -127,11 +147,14 @@ export function useUnifiedInboxNavigation(): UseUnifiedInboxNavigationReturn {
       // Skip items recently marked as unread to prevent navigation cycles
       if (isRecentlyMarkedUnread(item)) continue;
 
-      if (item.type === "thread" && !item.data.isRead) {
+      if (item.type === "thread" && !item.data.isRead && item.data.status !== "running") {
         return { type: "thread", id: item.data.id };
       }
       if (item.type === "plan" && !item.data.isRead && !item.data.stale) {
-        return { type: "plan", id: item.data.id };
+        // Skip plans that have running threads
+        if (!hasRunningThread(item.data.id, threadsById)) {
+          return { type: "plan", id: item.data.id };
+        }
       }
     }
 

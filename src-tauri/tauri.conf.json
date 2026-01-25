@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Mort",
-  "version": "0.0.21",
-  "identifier": "com.getmort.app",
+  "version": "0.0.25",
+  "identifier": "com.mort.app",
   "build": {
     "beforeDevCommand": "vite",
     "devUrl": "http://localhost:1420",
@@ -35,6 +35,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "entitlements": "entitlements.plist"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

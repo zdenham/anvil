@@ -22,6 +22,7 @@ interface SettingsActions {
   getWorkflowMode: () => WorkflowMode;
   getPermissionMode: () => PermissionMode;
   getPermissionDisplayMode: () => PermissionDisplayMode;
+  getQuickActionsCollapsed: () => boolean;
 
   /** Optimistic apply methods - return rollback functions for use with optimistic() */
   _applyUpdate: (settings: WorkspaceSettings) => Rollback;
@@ -56,6 +57,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
     getWorkflowMode: () => get().workspace.workflowMode ?? "solo",
     getPermissionMode: () => get().workspace.permissionMode ?? "allow-all",
     getPermissionDisplayMode: () => get().workspace.permissionDisplayMode ?? "modal",
+    getQuickActionsCollapsed: () => get().workspace.quickActionsCollapsed ?? false,
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Optimistic Apply Methods

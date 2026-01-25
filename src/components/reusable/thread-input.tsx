@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { TriggerSearchInput, type TriggerStateInfo } from "./trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
+import { CursorBoundary } from "@/lib/cursor-boundary";
 
 interface ThreadInputProps {
   onSubmit: (prompt: string) => void;
@@ -38,19 +39,6 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
     }
   }, [value, disabled, onSubmit]);
 
-  // Helper to check if cursor is on the first line of the textarea
-  const isCursorOnFirstLine = useCallback((textarea: HTMLTextAreaElement): boolean => {
-    const cursorPos = textarea.selectionStart;
-    const textBeforeCursor = textarea.value.substring(0, cursorPos);
-    return !textBeforeCursor.includes('\n');
-  }, []);
-
-  // Helper to check if cursor is on the last line of the textarea
-  const isCursorOnLastLine = useCallback((textarea: HTMLTextAreaElement): boolean => {
-    const cursorPos = textarea.selectionStart;
-    const textAfterCursor = textarea.value.substring(cursorPos);
-    return !textAfterCursor.includes('\n');
-  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -86,10 +74,11 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           return;
         }
 
-        const onFirstLine = isCursorOnFirstLine(textarea);
-        const onLastLine = isCursorOnLastLine(textarea);
+        // Use visual row detection to account for word-wrap
+        const onTopRow = CursorBoundary.isOnTopRow(textarea);
+        const onBottomRow = CursorBoundary.isOnBottomRow(textarea);
 
-        if (e.key === "ArrowUp" && onFirstLine) {
+        if (e.key === "ArrowUp" && onTopRow) {
           // Transfer focus to quick actions panel safely
           if (onNavigateToQuickActions) {
             e.preventDefault();
@@ -101,7 +90,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           return;
         }
 
-        if (e.key === "ArrowDown" && onLastLine) {
+        if (e.key === "ArrowDown" && onBottomRow) {
           // Let the quick actions panel handle it (it will re-focus us if needed)
           return;
         }
@@ -115,7 +104,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       // Note: Arrow keys, Tab, plain Enter are handled by TriggerSearchInput
       // when trigger is active and dropdown is enabled
     },
-    [handleSubmit, triggerState?.isActive, value, isCursorOnFirstLine, isCursorOnLastLine, onNavigateToQuickActions]
+    [handleSubmit, triggerState?.isActive, value, onNavigateToQuickActions]
   );
 
   const handleTriggerStateChange = useCallback((state: TriggerStateInfo) => {

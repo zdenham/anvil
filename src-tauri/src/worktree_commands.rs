@@ -250,7 +250,7 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
                 id: Uuid::new_v4().to_string(),
                 path: git_wt.path.clone(),
                 name: final_name,
-                last_accessed_at: Some(now),
+                last_accessed_at: Some(0), // Not accessed through our tool yet
                 current_branch: git_wt.branch.clone(),
             });
         }

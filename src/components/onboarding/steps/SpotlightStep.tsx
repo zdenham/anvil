@@ -5,13 +5,15 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { logger } from "@/lib/logger-client";
 
-interface SpotlightStepProps {}
+interface SpotlightStepProps {
+  onChangeHotkey: () => void;
+}
 
 type DisableStatus = "idle" | "checking" | "disabling" | "success" | "error";
 
 const DISABLE_TIMEOUT_MS = 5000;
 
-export const SpotlightStep = ({}: SpotlightStepProps) => {
+export const SpotlightStep = ({ onChangeHotkey }: SpotlightStepProps) => {
   const [hasAccessibilityPermission, setHasAccessibilityPermission] = useState<
     boolean | null
   >(null);
@@ -119,7 +121,7 @@ export const SpotlightStep = ({}: SpotlightStepProps) => {
         return (
           <div className="space-y-3">
             <Button onClick={handleAutoDisable} variant="default">
-              Auto-disable Spotlight Shortcut
+              Auto-disable ⌘ + Space
             </Button>
             <p className="text-xs text-surface-500">
               Uses accessibility APIs to change settings automatically.
@@ -192,15 +194,15 @@ export const SpotlightStep = ({}: SpotlightStepProps) => {
     </div>
   );
 
+  // Default hotkey (Command+Space) - show Spotlight disable flow
   return (
     <div className="space-y-2">
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-surface-100 font-mono">
-          Disable MacOS Spotlight
+          Make Mort Your Spotlight
         </h2>
         <p className="text-surface-300">
-          ⌘ + Space conflicts with macOS Spotlight. We recommend disabling
-          Spotlight's shortcut — it's worth it.
+          Mort replaces macOS Spotlight with ⌘ + Space. To enable Mort, we must disable the macOS shortcut.
         </p>
       </div>
 
@@ -220,15 +222,26 @@ export const SpotlightStep = ({}: SpotlightStepProps) => {
         {showManualSteps ? renderManualSteps() : renderAutoDisableSection()}
       </div>
 
-      {/* Toggle link below card - only show if accessibility permission is granted */}
-      {status !== "success" && hasAccessibilityPermission && (
+      {/* Toggle link and change hotkey option */}
+      <div className="flex items-center justify-between pt-1">
+        {status !== "success" && hasAccessibilityPermission ? (
+          <button
+            onClick={() => setShowManualSteps(!showManualSteps)}
+            className="text-xs text-surface-500 hover:text-surface-400 underline decoration-dotted underline-offset-4 transition-colors"
+          >
+            {showManualSteps ? "Hide manual steps" : "Show manual steps"}
+          </button>
+        ) : (
+          <div />
+        )}
+
         <button
-          onClick={() => setShowManualSteps(!showManualSteps)}
+          onClick={onChangeHotkey}
           className="text-xs text-surface-500 hover:text-surface-400 underline decoration-dotted underline-offset-4 transition-colors"
         >
-          {showManualSteps ? "Hide manual steps" : "Show manual steps"}
+          Use alternate shortcut
         </button>
-      )}
+      </div>
     </div>
   );
 };

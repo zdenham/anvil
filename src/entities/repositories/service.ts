@@ -168,7 +168,7 @@ export const repoService = {
 
   /**
    * Validates a path before creating a new repository.
-   * Checks for duplicate paths and names, and verifies the path exists.
+   * Checks for duplicate paths and names, verifies the path exists, and ensures it's a git repository.
    */
   async validateNewRepository(path: string): Promise<{ valid: boolean; error?: string }> {
     const existing = this.getAll();
@@ -183,6 +183,11 @@ export const repoService = {
     // Check if path exists
     if (!(await persistence.absolutePathExists(path))) {
       return { valid: false, error: "Path does not exist" };
+    }
+
+    // Check if it's a git repository
+    if (!(await persistence.isGitRepo(path))) {
+      return { valid: false, error: "This folder is not a git repository. Please initialize git first or select a different folder." };
     }
 
     // Check for duplicate name/slug

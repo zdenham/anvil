@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc",
-    "start": "node --env-file=.env dist/index.js",
+    "start": "node dist/index.js",
     "migrate": "tsx --env-file=.env src/migrate.ts"
   },
   "dependencies": {
@@ -14,6 +14,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@flydotio/dockerfile": "^0.7.10",
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0"

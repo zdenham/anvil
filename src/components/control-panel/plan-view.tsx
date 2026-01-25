@@ -218,6 +218,9 @@ export function PlanView({ planId }: PlanViewProps) {
 
   // Handle focus transfer from ThreadInput to quick actions panel
   const handleNavigateToQuickActions = useCallback(() => {
+    // Expand the quick actions panel if collapsed (user is navigating up)
+    // then focus it so keyboard nav works
+    quickActionsPanelRef.current?.expand();
     quickActionsPanelRef.current?.focus();
   }, []);
 

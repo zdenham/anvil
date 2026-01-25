@@ -36,6 +36,9 @@ mod navigation_mode;
 #[cfg(target_os = "macos")]
 mod menu;
 
+#[cfg(target_os = "macos")]
+mod tray;
+
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -962,6 +965,14 @@ pub fn run() {
                     Err(e) => {
                         tracing::error!(error = %e, "Failed to build application menu");
                     }
+                }
+            }
+
+            // Initialize system tray icon (macOS only)
+            #[cfg(target_os = "macos")]
+            {
+                if let Err(e) = tray::init(app.handle()) {
+                    tracing::error!(error = %e, "[Tray] Failed to initialize system tray");
                 }
             }
 

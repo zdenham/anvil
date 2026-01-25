@@ -14,6 +14,7 @@ import type {
   TriggerSearchInputRef,
   TriggerResult,
 } from "@/lib/triggers/types";
+import { CursorBoundary } from "@/lib/cursor-boundary";
 
 // Trigger state passed to parent via callback
 export interface TriggerStateInfo {
@@ -106,10 +107,8 @@ export const TriggerSearchInput = forwardRef<
       setValue: (value: string) => {
         if (textareaRef.current) textareaRef.current.value = value;
       },
-      getCursorPosition: () => textareaRef.current?.selectionStart ?? 0,
-      setCursorPosition: (pos: number) => {
-        textareaRef.current?.setSelectionRange(pos, pos);
-      },
+      getCursorPosition: () => CursorBoundary.getPosition(textareaRef.current),
+      setCursorPosition: (pos: number) => CursorBoundary.setPosition(textareaRef.current, pos),
       closeTrigger,
       isTriggerActive: () => triggerState.isActive,
       // Methods for parent to render trigger results in its own UI
@@ -118,6 +117,8 @@ export const TriggerSearchInput = forwardRef<
       setTriggerSelectedIndex: setSelectedIndex,
       selectTriggerResult: handleSelectResult,
       isTriggerLoading: () => triggerState.isLoading,
+      // Access to underlying element for CursorBoundary utilities
+      getElement: () => textareaRef.current,
     }));
 
     const handleKeyDown = useCallback(

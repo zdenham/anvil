@@ -27,3 +27,6 @@ dist-ssr
 .wrangler
 
 .env
+
+# Secrets
+secrets/
