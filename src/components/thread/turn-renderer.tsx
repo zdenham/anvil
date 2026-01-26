@@ -19,6 +19,8 @@ interface TurnRendererProps {
   toolStates?: Record<string, ToolExecutionState>;
   /** Callback when user responds to a tool (e.g., AskUserQuestion) */
   onToolResponse?: (toolId: string, response: string) => void;
+  /** Thread ID for persisting expand state across virtualization */
+  threadId: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export function TurnRenderer({
   isStreaming = false,
   toolStates,
   onToolResponse,
+  threadId,
 }: TurnRendererProps) {
   // Skip rendering user turns that only contain tool_results
   // (tool results are displayed within the ToolUseBlock of the previous assistant turn)
@@ -56,6 +59,7 @@ export function TurnRenderer({
             isStreaming={isLast && isStreaming}
             toolStates={toolStates}
             onToolResponse={onToolResponse}
+            threadId={threadId}
           />
         </div>
       );

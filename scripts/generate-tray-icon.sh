@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ICONS_DIR="$PROJECT_ROOT/src-tauri/icons"
-SOURCE_ICON="$PROJECT_ROOT/icon-black.png"
+SOURCE_ICON="$PROJECT_ROOT/icon-cropped-thicker.png"
 
 echo "Generating tray icons from $SOURCE_ICON..."
 

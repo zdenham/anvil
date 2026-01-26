@@ -226,6 +226,9 @@ impl FormatTime for UptimeTimer {
 /// Custom tracing layer that captures logs and pushes them to the in-memory buffer
 struct BufferLayer;
 
+/// Targets to exclude from the buffer (HTTP client internals)
+const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls"];
+
 impl<S> tracing_subscriber::Layer<S> for BufferLayer
 where
     S: tracing::Subscriber,
@@ -235,6 +238,14 @@ where
         event: &tracing::Event<'_>,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
+        // Skip logs from HTTP client libraries to avoid noise
+        let target = event.metadata().target();
+        for excluded in EXCLUDED_TARGETS {
+            if target.starts_with(excluded) {
+                return;
+            }
+        }
+
         // Extract message from event
         let mut message = String::new();
         let mut visitor = MessageVisitor(&mut message);
@@ -329,8 +340,9 @@ pub fn initialize() {
 
     // Optional log server layer - only enabled if configured
     let log_server_layer = LogServerConfig::from_env().map(|config| {
-        eprintln!("Log server logging enabled: {}", config.url);
-        LogServerLayer::new(config)
+        let device_id = crate::config::get_device_id();
+        eprintln!("Log server logging enabled: {} (device: {})", config.url, device_id);
+        LogServerLayer::new(config, device_id)
     });
 
     // Initialize the subscriber with all layers

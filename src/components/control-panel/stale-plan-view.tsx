@@ -8,7 +8,7 @@
 import { AlertTriangle, Trash2 } from "lucide-react";
 import type { PlanMetadata } from "@/entities/plans/types";
 import { planService } from "@/entities/plans/service";
-import { invoke } from "@tauri-apps/api/core";
+import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
 import { logger } from "@/lib/logger-client";
 
 interface StalePlanViewProps {
@@ -23,14 +23,14 @@ export function StalePlanView({ plan }: StalePlanViewProps) {
   const handleDelete = async () => {
     try {
       await planService.delete(plan.id);
-      await invoke("hide_control_panel");
+      await closeCurrentPanelOrWindow();
     } catch (err) {
       logger.error("[StalePlanView] Failed to delete plan:", err);
     }
   };
 
   const handleDismiss = async () => {
-    await invoke("hide_control_panel");
+    await closeCurrentPanelOrWindow();
   };
 
   return (

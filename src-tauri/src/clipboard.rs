@@ -130,8 +130,8 @@ pub fn initialize(app: &AppHandle) {
                         }
                     }
                 }
-                Err(e) => {
-                    tracing::debug!(error = %e, "Clipboard get_text error");
+                Err(_) => {
+                    // Clipboard empty or contains non-text content - this is expected, don't log
                 }
             }
 

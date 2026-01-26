@@ -6,9 +6,12 @@ use crate::build_info;
 use crate::paths;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    #[serde(default = "generate_device_id")]
+    pub device_id: String,
     #[serde(default = "default_spotlight_hotkey")]
     pub spotlight_hotkey: String,
     #[serde(default = "default_clipboard_hotkey")]
@@ -21,9 +24,14 @@ pub struct AppConfig {
     pub control_panel_navigation_up_hotkey: String,
 }
 
+fn generate_device_id() -> String {
+    Uuid::new_v4().to_string()
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            device_id: generate_device_id(),
             spotlight_hotkey: default_spotlight_hotkey(),
             clipboard_hotkey: default_clipboard_hotkey(),
             onboarded: false,
@@ -71,7 +79,10 @@ pub fn load_config() -> AppConfig {
 
     if !config_path.exists() {
         tracing::debug!(path = %config_path.display(), "load_config: config file does not exist, using defaults");
-        return AppConfig::default();
+        let config = AppConfig::default();
+        // Persist the new config so device_id is saved
+        let _ = save_config(&config);
+        return config;
     }
 
     match fs::read_to_string(&config_path) {
@@ -85,6 +96,12 @@ pub fn load_config() -> AppConfig {
             match serde_json::from_str::<AppConfig>(&contents) {
                 Ok(config) => {
                     tracing::debug!("load_config: parsed config successfully");
+                    // Check if device_id was newly generated (wasn't in the file)
+                    // by checking if it's in the raw JSON
+                    if !contents.contains("device_id") {
+                        // Save config to persist the newly generated device_id
+                        let _ = save_config(&config);
+                    }
                     config
                 }
                 Err(e) => {
@@ -93,7 +110,9 @@ pub fn load_config() -> AppConfig {
                         raw_contents = %contents,
                         "load_config: failed to parse config, using defaults"
                     );
-                    AppConfig::default()
+                    let config = AppConfig::default();
+                    let _ = save_config(&config);
+                    config
                 }
             }
         }
@@ -103,7 +122,9 @@ pub fn load_config() -> AppConfig {
                 path = %config_path.display(),
                 "load_config: failed to read config file, using defaults"
             );
-            AppConfig::default()
+            let config = AppConfig::default();
+            let _ = save_config(&config);
+            config
         }
     }
 }
@@ -222,5 +243,10 @@ pub fn set_control_panel_navigation_up_hotkey(hotkey: &str) -> Result<(), String
     let mut config = load_config();
     config.control_panel_navigation_up_hotkey = hotkey.to_string();
     save_config(&config)
+}
+
+/// Gets the device ID (UUID generated on first run and persisted)
+pub fn get_device_id() -> String {
+    load_config().device_id
 }
 

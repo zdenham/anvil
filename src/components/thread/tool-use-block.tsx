@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -18,6 +17,7 @@ import { InlineDiffBlock } from "./inline-diff-block";
 import { useToolDiff } from "./use-tool-diff";
 import { ToolStatusIcon } from "./tool-status-icon";
 import type { ToolStatus } from "./tool-status-icon";
+import { useToolExpandStore } from "@/stores/tool-expand-store";
 
 interface ToolUseBlockProps {
   /** Unique tool use ID */
@@ -42,6 +42,8 @@ interface ToolUseBlockProps {
   onReject?: () => void;
   /** Whether this block is focused for keyboard navigation */
   isFocused?: boolean;
+  /** Thread ID for persisting expand state across virtualization */
+  threadId: string;
 }
 
 // Tool name to icon mapping
@@ -72,7 +74,7 @@ function getToolIconComponent(toolName: string) {
  * Renders inline diffs for Edit/Write tools when applicable.
  */
 export function ToolUseBlock({
-  id: _id,
+  id,
   name,
   input,
   result,
@@ -83,8 +85,12 @@ export function ToolUseBlock({
   onAccept,
   onReject,
   isFocused,
+  threadId,
 }: ToolUseBlockProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Use Zustand store for expand state to persist across virtualization remounts
+  const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
+  const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
+  const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
 
   const Icon = getToolIconComponent(name);
   const displayName = getToolDisplayName(name);
@@ -113,7 +119,7 @@ export function ToolUseBlock({
           : "border-zinc-700 bg-zinc-900/50"
       )}
       aria-label={`Tool: ${displayName}, status: ${status}`}
-      data-testid={`tool-use-${_id}`}
+      data-testid={`tool-use-${id}`}
       data-tool-status={status}
     >
       <summary

@@ -11,7 +11,10 @@
 
 import { useRef, useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { planService, usePlanStore } from "@/entities/plans";
+import { eventBus } from "@/entities/events";
+import { EventName } from "@core/types/events.js";
 import { useWindowDrag } from "@/hooks/use-window-drag";
 import { usePlanContent } from "@/hooks/use-plan-content";
 import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";
@@ -24,14 +27,18 @@ import { useQuickActionsStore, planDefaultActions, type ActionType } from "@/sto
 import { useRepoStore } from "@/entities/repositories";
 import { loadSettings } from "@/lib/persistence";
 import { spawnSimpleAgent } from "@/lib/agent-service";
+import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
 import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
 import { logger } from "@/lib/logger-client";
+import { cn } from "@/lib/utils";
 
 interface PlanViewProps {
   planId: string;
+  isStandaloneWindow?: boolean;
+  instanceId?: string | null;
 }
 
-export function PlanView({ planId }: PlanViewProps) {
+export function PlanView({ planId, isStandaloneWindow = false, instanceId }: PlanViewProps) {
   const plan = usePlanStore(
     useCallback((s) => s.getPlan(planId), [planId])
   );
@@ -47,7 +54,12 @@ export function PlanView({ planId }: PlanViewProps) {
   const [workingDirectory, setWorkingDirectory] = useState<string | undefined>(undefined);
 
   // Window drag behavior via reusable hook
-  const { dragProps } = useWindowDrag();
+  // Only use custom drag for NSPanel, standalone windows use native decorations
+  const { dragProps } = useWindowDrag({
+    pinCommand: isStandaloneWindow ? undefined : "pin_control_panel",
+    hideCommand: isStandaloneWindow ? undefined : "hide_control_panel",
+    enableDoubleClickClose: !isStandaloneWindow,
+  });
 
   // Mark plan as read when viewed
   useMarkPlanAsRead(planId);
@@ -155,6 +167,27 @@ export function PlanView({ planId }: PlanViewProps) {
     return () => clearTimeout(timer);
   }, [planId]);
 
+  // Listen for plan archive events to close standalone window when its plan is archived
+  useEffect(() => {
+    if (!isStandaloneWindow || !instanceId) return;
+
+    const handlePlanArchived = (payload: { planId: string; originInstanceId?: string | null }) => {
+      // Skip if we're the window that initiated the archive (we navigate instead of closing)
+      if (payload.originInstanceId === instanceId) return;
+
+      // Close if this window's plan was archived (from another window or main window)
+      if (payload.planId === planId) {
+        logger.info(`[PlanView] Plan ${planId} archived from another window, closing standalone window ${instanceId}`);
+        getCurrentWindow().close();
+      }
+    };
+
+    eventBus.on(EventName.PLAN_ARCHIVED, handlePlanArchived);
+    return () => {
+      eventBus.off(EventName.PLAN_ARCHIVED, handlePlanArchived);
+    };
+  }, [isStandaloneWindow, instanceId, planId]);
+
   const handleQuickAction = useCallback(async (action: ActionType) => {
     if (isProcessing) return;
 
@@ -163,7 +196,7 @@ export function PlanView({ planId }: PlanViewProps) {
 
     try {
       if (action === "archive") {
-        await planService.archive(planId);
+        await planService.archive(planId, instanceId);
         await navigateToNextItemOrFallback(currentItem, { actionType: "archive" });
       } else if (action === "markUnread") {
         await planService.markAsUnread(planId);
@@ -172,7 +205,7 @@ export function PlanView({ planId }: PlanViewProps) {
         // Focus the message input
         inputRef.current?.focus();
       } else if (action === "closePanel") {
-        await invoke("hide_control_panel");
+        await closeCurrentPanelOrWindow();
       }
     } catch (error) {
       logger.error(`[PlanView] Failed to handle quick action ${action}:`, error);
@@ -260,7 +293,7 @@ export function PlanView({ planId }: PlanViewProps) {
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
-        invoke("hide_control_panel");
+        closeCurrentPanelOrWindow();
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Any regular character typed auto-focuses input
         // This enables "type to do something else" - user can just start typing
@@ -285,11 +318,19 @@ export function PlanView({ planId }: PlanViewProps) {
   if (refreshResult === 'not-found') {
     return (
       <div
-        className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
-        onMouseDown={dragProps.onMouseDown}
-        onDoubleClick={dragProps.onDoubleClick}
+        className={cn(
+          "control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden",
+          !isStandaloneWindow && dragProps.className,
+          isStandaloneWindow && "standalone-window"
+        )}
+        onMouseDown={!isStandaloneWindow ? dragProps.onMouseDown : undefined}
+        onDoubleClick={!isStandaloneWindow ? dragProps.onDoubleClick : undefined}
       >
-        <ControlPanelHeader view={{ type: "plan", planId }} />
+        <ControlPanelHeader
+          view={{ type: "plan", planId }}
+          isStandaloneWindow={isStandaloneWindow}
+          instanceId={instanceId}
+        />
         <div className="flex items-center justify-center flex-1 text-surface-400">
           Plan not found
         </div>
@@ -304,46 +345,60 @@ export function PlanView({ planId }: PlanViewProps) {
 
   return (
     <div
-      className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
-      onMouseDown={dragProps.onMouseDown}
-      onDoubleClick={dragProps.onDoubleClick}
+      className={cn(
+        "control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden",
+        !isStandaloneWindow && dragProps.className,
+        isStandaloneWindow && "standalone-window"
+      )}
+      onMouseDown={!isStandaloneWindow ? dragProps.onMouseDown : undefined}
+      onDoubleClick={!isStandaloneWindow ? dragProps.onDoubleClick : undefined}
     >
-      <ControlPanelHeader view={{ type: "plan", planId }} />
+      <ControlPanelHeader
+        view={{ type: "plan", planId }}
+        isStandaloneWindow={isStandaloneWindow}
+        instanceId={instanceId}
+      />
 
       {/* Main content area */}
-      <div key={planId} className="flex-1 min-h-0 overflow-y-auto p-4">
-        {isContentLoading ? (
-          null  // Show blank during loading to avoid stale content flash
-        ) : isStale || content === null ? (
-          <StalePlanView plan={plan} />
-        ) : content.trim() === "" ? (
-          <div className="flex items-center justify-center h-full text-surface-400 text-sm">
-            This plan is empty
-          </div>
-        ) : (
-          <MarkdownRenderer content={content} />
-        )}
+      {/* Max width constraint centered for readability on wide screens */}
+      <div className="flex-1 min-h-0 overflow-y-auto w-full">
+        <div key={planId} className="w-full max-w-[900px] mx-auto p-4">
+          {isContentLoading ? (
+            null  // Show blank during loading to avoid stale content flash
+          ) : isStale || content === null ? (
+            <StalePlanView plan={plan} />
+          ) : content.trim() === "" ? (
+            <div className="flex items-center justify-center h-full text-surface-400 text-sm">
+              This plan is empty
+            </div>
+          ) : (
+            <MarkdownRenderer content={content} />
+          )}
+        </div>
       </div>
 
-      {/* Quick actions panel */}
-      <SuggestedActionsPanel
-        ref={quickActionsPanelRef}
-        view={{ type: "plan", planId }}
-        onAction={handleLegacyAction}
-        isStreaming={false}
-        onQuickAction={handleQuickAction}
-        onAutoSelectInput={handleAutoSelectInput}
-      />
+      {/* Quick actions and input */}
+      {/* Max width constraint centered for readability on wide screens */}
+      <div className="w-full max-w-[900px] mx-auto">
+        <SuggestedActionsPanel
+          ref={quickActionsPanelRef}
+          view={{ type: "plan", planId }}
+          onAction={handleLegacyAction}
+          isStreaming={false}
+          onQuickAction={handleQuickAction}
+          onAutoSelectInput={handleAutoSelectInput}
+        />
 
-      {/* Message input */}
-      <ThreadInput
-        ref={inputRef}
-        onSubmit={handleMessageSubmit}
-        disabled={false}
-        workingDirectory={workingDirectory}
-        placeholder="Type a message to start a thread about this plan..."
-        onNavigateToQuickActions={handleNavigateToQuickActions}
-      />
+        {/* Message input */}
+        <ThreadInput
+          ref={inputRef}
+          onSubmit={handleMessageSubmit}
+          disabled={false}
+          workingDirectory={workingDirectory}
+          placeholder="Type a message to start a thread about this plan..."
+          onNavigateToQuickActions={handleNavigateToQuickActions}
+        />
+      </div>
     </div>
   );
 }

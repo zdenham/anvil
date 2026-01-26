@@ -487,6 +487,30 @@ fn is_any_panel_visible(app: AppHandle) -> bool {
     panels::is_any_panel_visible(&app)
 }
 
+/// Pops out the control panel into a standalone WebviewWindow (unified for threads and plans)
+#[tauri::command]
+fn pop_out_control_panel(app: AppHandle, view: panels::ControlPanelView) -> Result<String, String> {
+    panels::pop_out_control_panel(app, view)
+}
+
+/// Closes a standalone control panel window
+#[tauri::command]
+fn close_control_panel_window(app: AppHandle, instance_id: String) -> Result<(), String> {
+    panels::close_control_panel_window(app, instance_id)
+}
+
+/// Gets data for a control panel window instance
+#[tauri::command]
+fn get_control_panel_window_data(instance_id: String) -> Result<panels::ControlPanelWindowInstance, String> {
+    panels::get_control_panel_window_data(instance_id)
+}
+
+/// Lists all open standalone control panel windows
+#[tauri::command]
+fn list_control_panel_window_instances() -> Vec<(String, panels::ControlPanelWindowInstance)> {
+    panels::list_control_panel_window_instances()
+}
+
 
 
 /// Restarts the application (dev mode only - for manual refresh)
@@ -674,7 +698,10 @@ fn get_accessibility_status() -> serde_json::Value {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logging first
+    // Initialize paths first (required by logging which reads device_id from config)
+    paths::initialize();
+
+    // Initialize logging (uses config::get_device_id() for log server)
     logging::initialize();
 
     let builder = tauri::Builder::default()
@@ -741,6 +768,15 @@ pub fn run() {
                     let _ = window.emit("navigate", tab);
                 }
             }
+
+            // Handle window menu items
+            if menu_id == "close_all_panel_windows" {
+                // Close all standalone control panel windows
+                let windows = panels::list_control_panel_windows();
+                for (instance_id, _) in windows {
+                    let _ = panels::close_control_panel_window(app.clone(), instance_id);
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             web_log,
@@ -780,6 +816,10 @@ pub fn run() {
             get_pending_error,
             get_pending_control_panel,
             is_any_panel_visible,
+            pop_out_control_panel,
+            close_control_panel_window,
+            get_control_panel_window_data,
+            list_control_panel_window_instances,
             restart_app,
             app_search::search_applications,
             app_search::open_application,
@@ -902,8 +942,8 @@ pub fn run() {
         .setup(|app| {
             use tauri::ActivationPolicy;
 
-            // Initialize paths first (before anything that might use them)
-            paths::initialize();
+            // NOTE: paths::initialize() is called in run() before logging::initialize()
+            // because logging needs to read device_id from config
 
             // NOTE: Shell initialization is deferred until first agent spawn via ensureShellInitialized()
             // in the frontend. This avoids triggering the Documents permission prompt before the UI

@@ -11,6 +11,8 @@ import { StatusAnnouncement } from "./status-announcement";
 type ThreadStatus = "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
 
 interface ThreadViewProps {
+  /** Thread ID for persisting expand state across virtualization */
+  threadId: string;
   /** Messages from the thread (SDK MessageParam format) */
   messages: MessageParam[];
   /** Whether the thread is streaming */
@@ -34,6 +36,7 @@ interface ThreadViewProps {
  * Messages are in SDK MessageParam format with { role, content }.
  */
 export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function ThreadView({
+  threadId,
   messages,
   isStreaming,
   status,
@@ -71,6 +74,7 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
 
       <MessageList
         ref={ref}
+        threadId={threadId}
         turns={turns}
         messages={messages}
         isStreaming={isStreaming}

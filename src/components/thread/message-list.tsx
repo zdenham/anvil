@@ -7,6 +7,8 @@ import { TurnRenderer } from "./turn-renderer";
 import { WorkingIndicator } from "./working-indicator";
 
 interface MessageListProps {
+  /** Thread ID for persisting expand state across virtualization */
+  threadId: string;
   /** Turns to render */
   turns: Turn[];
   /** Full messages array (needed for tool result lookup) */
@@ -30,6 +32,7 @@ export interface MessageListRef {
  * with automatic scroll anchoring during streaming.
  */
 export const MessageList = forwardRef<MessageListRef, MessageListProps>(function MessageList({
+  threadId,
   turns,
   messages,
   isStreaming = false,
@@ -61,7 +64,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   // Render individual turn
   const itemContent = useCallback(
     (index: number, turn: Turn) => (
-      <div className="px-4 py-3">
+      <div className="px-4 py-2">
         <TurnRenderer
           turn={turn}
           turnIndex={index}
@@ -70,10 +73,11 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
           isStreaming={isStreaming}
           toolStates={toolStates}
           onToolResponse={onToolResponse}
+          threadId={threadId}
         />
       </div>
     ),
-    [messages, turns.length, isStreaming, toolStates, onToolResponse]
+    [messages, turns.length, isStreaming, toolStates, onToolResponse, threadId]
   );
 
   // Footer component for working indicator (renders at end of virtualized list)

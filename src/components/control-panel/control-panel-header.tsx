@@ -3,9 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { cancelAgent } from "@/lib/agent-service";
-import { StopCircle, ChevronRight, X, GitCompare, MessageSquare } from "lucide-react";
+import { StopCircle, ChevronRight, X, GitCompare, MessageSquare, PictureInPicture2 } from "lucide-react";
 import type { ControlPanelViewType } from "@/entities/events";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
+import { logger } from "@/lib/logger-client";
 
 interface ControlPanelHeaderProps {
   view: ControlPanelViewType;
@@ -13,6 +14,9 @@ interface ControlPanelHeaderProps {
   threadTab?: "conversation" | "changes";
   onThreadTabChange?: (tab: "conversation" | "changes") => void;
   isStreaming?: boolean;
+  // Standalone window props
+  isStandaloneWindow?: boolean;
+  instanceId?: string | null;
 }
 
 /**
@@ -33,14 +37,28 @@ export function ControlPanelHeader({
   threadTab = "conversation",
   onThreadTabChange,
   isStreaming = false,
+  isStandaloneWindow = false,
+  instanceId,
 }: ControlPanelHeaderProps) {
   const handleClose = async () => {
-    await invoke("hide_control_panel");
+    if (isStandaloneWindow && instanceId) {
+      // Close standalone window
+      await invoke("close_control_panel_window", { instanceId });
+    } else {
+      // Hide NSPanel
+      await invoke("hide_control_panel");
+    }
   };
 
   // Render based on view type
   if (view.type === "plan") {
-    return <PlanModeHeader planId={view.planId} onClose={handleClose} />;
+    return (
+      <PlanModeHeader
+        planId={view.planId}
+        onClose={handleClose}
+        isStandaloneWindow={isStandaloneWindow}
+      />
+    );
   }
 
   // Thread mode header
@@ -51,6 +69,7 @@ export function ControlPanelHeader({
       onThreadTabChange={onThreadTabChange}
       isStreaming={isStreaming}
       onClose={handleClose}
+      isStandaloneWindow={isStandaloneWindow}
     />
   );
 }
@@ -62,15 +81,29 @@ export function ControlPanelHeader({
 function PlanModeHeader({
   planId,
   onClose,
+  isStandaloneWindow = false,
 }: {
   planId: string;
   onClose: () => void;
+  isStandaloneWindow?: boolean;
 }) {
   const plan = usePlanStore(
     useCallback((s) => s.getPlan(planId), [planId])
   );
   // Use the file name from relativePath, or truncated ID as fallback
   const planLabel = plan?.relativePath?.split('/').pop() ?? planId.slice(0, 8) + "...";
+
+  const handlePopOut = async () => {
+    try {
+      logger.info(`[control-panel-header] Popping out plan: ${planId}`);
+      const instanceId = await invoke<string>("pop_out_control_panel", {
+        view: { type: "plan", planId },
+      });
+      logger.info(`[control-panel-header] Pop-out successful, instanceId: ${instanceId}`);
+    } catch (err) {
+      logger.error(`[control-panel-header] Failed to pop out plan:`, err);
+    }
+  };
 
   return (
     <div
@@ -89,13 +122,27 @@ function PlanModeHeader({
         <span className="text-surface-300 truncate max-w-[200px]">{planLabel}</span>
       </div>
       <div className="ml-auto flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()}>
-        <button
-          onClick={onClose}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close panel (Escape)"
-        >
-          <X size={16} />
-        </button>
+        {/* Pop-out button - only show in NSPanel, not in standalone windows */}
+        {!isStandaloneWindow && (
+          <button
+            onClick={handlePopOut}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Pop out to window"
+            title="Pop out to window"
+          >
+            <PictureInPicture2 size={16} />
+          </button>
+        )}
+        {/* Close button - only show in NSPanel, standalone windows use native traffic lights */}
+        {!isStandaloneWindow && (
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close panel (Escape)"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -111,12 +158,14 @@ function ThreadModeHeader({
   onThreadTabChange,
   isStreaming,
   onClose,
+  isStandaloneWindow = false,
 }: {
   threadId: string;
   threadTab: "conversation" | "changes";
   onThreadTabChange?: (tab: "conversation" | "changes") => void;
   isStreaming: boolean;
   onClose: () => void;
+  isStandaloneWindow?: boolean;
 }) {
   const thread = useThreadStore(
     useCallback((s) => s.threads[threadId], [threadId])
@@ -126,6 +175,18 @@ function ThreadModeHeader({
     console.log(`[control-panel-header] Cancel button clicked for threadId=${threadId}`);
     const result = await cancelAgent(threadId);
     console.log(`[control-panel-header] cancelAgent returned: ${result}`);
+  };
+
+  const handlePopOut = async () => {
+    try {
+      logger.info(`[control-panel-header] Popping out thread: ${threadId}`);
+      const instanceId = await invoke<string>("pop_out_control_panel", {
+        view: { type: "thread", threadId },
+      });
+      logger.info(`[control-panel-header] Pop-out successful, instanceId: ${instanceId}`);
+    } catch (err) {
+      logger.error(`[control-panel-header] Failed to pop out:`, err);
+    }
   };
 
   const handleToggle = () => {
@@ -195,13 +256,27 @@ function ThreadModeHeader({
             )}
           </button>
         )}
-        <button
-          onClick={onClose}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close panel (Escape)"
-        >
-          <X size={16} />
-        </button>
+        {/* Pop-out button - only show in NSPanel, not in standalone windows */}
+        {!isStandaloneWindow && (
+          <button
+            onClick={handlePopOut}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Pop out to window"
+            title="Pop out to window"
+          >
+            <PictureInPicture2 size={16} />
+          </button>
+        )}
+        {/* Close button - only show in NSPanel, standalone windows use native traffic lights */}
+        {!isStandaloneWindow && (
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close panel (Escape)"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
     </div>
   );

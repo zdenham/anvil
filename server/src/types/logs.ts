@@ -8,6 +8,7 @@ export type LogLevel = z.infer<typeof LogLevelSchema>;
  */
 export const LogRowSchema = z.object({
   timestamp: z.number(), // DateTime64(3) as milliseconds since epoch
+  device_id: z.string(), // Unique device identifier for tracking
   level: LogLevelSchema,
   message: z.string(),
 });

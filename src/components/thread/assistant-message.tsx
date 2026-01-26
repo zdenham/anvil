@@ -1,4 +1,9 @@
-import type { MessageParam, ContentBlock } from "@anthropic-ai/sdk/resources/messages";
+import type {
+  MessageParam,
+  ContentBlock,
+  ServerToolUseBlock,
+  WebSearchToolResultBlock,
+} from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
 import { parseAskUserQuestionInput } from "@core/types/ask-user-question.js";
 import { logger } from "@/lib/logger-client";
@@ -19,6 +24,8 @@ interface AssistantMessageProps {
   toolStates?: Record<string, ToolExecutionState>;
   /** Callback when user responds to a tool (e.g., AskUserQuestion) */
   onToolResponse?: (toolId: string, response: string) => void;
+  /** Thread ID for persisting expand state across virtualization */
+  threadId: string;
 }
 
 /**
@@ -31,6 +38,7 @@ export function AssistantMessage({
   isStreaming = false,
   toolStates,
   onToolResponse,
+  threadId,
 }: AssistantMessageProps) {
   const message = messages[messageIndex];
   const content = (message.content as ContentBlock[]) ?? [];
@@ -40,7 +48,7 @@ export function AssistantMessage({
       <div className="flex gap-3">
 
         {/* Content */}
-        <div className="flex-1 min-w-0 space-y-3">
+        <div className="flex-1 min-w-0 space-y-1.5">
           {content.map((block, index) => {
             const isLastBlock = index === content.length - 1;
             const showCursor = isStreaming && isLastBlock;
@@ -64,16 +72,6 @@ export function AssistantMessage({
                 // Defensive: handle missing toolStates (old state files) or missing entry
                 const state = toolStates?.[block.id] ?? { status: "running" as const };
 
-                // DEBUG: Log tool state lookup to diagnose spinner bug
-                logger.info(`[AssistantMessage] Tool state lookup`, {
-                  toolId: block.id,
-                  toolName: block.name,
-                  hasToolStates: !!toolStates,
-                  toolStatesKeys: toolStates ? Object.keys(toolStates) : [],
-                  foundState: !!toolStates?.[block.id],
-                  resolvedStatus: state.status,
-                });
-
                 // Handle AskUserQuestion specially with interactive UI
                 if (block.name === "AskUserQuestion") {
                   const parsed = parseAskUserQuestionInput(block.input);
@@ -92,6 +90,7 @@ export function AssistantMessage({
                         result={state.result}
                         isError={state.isError}
                         status={state.status}
+                        threadId={threadId}
                       />
                     );
                   }
@@ -123,6 +122,7 @@ export function AssistantMessage({
                       result={state.result}
                       isError={state.isError}
                       status={state.status}
+                      threadId={threadId}
                     />
                   );
                 }
@@ -136,9 +136,71 @@ export function AssistantMessage({
                     result={state.result}
                     isError={state.isError}
                     status={state.status}
+                    threadId={threadId}
                   />
                 );
               }
+
+              // Handle server-side tool use (e.g., web_search)
+              // See: https://docs.anthropic.com/en/docs/build-with-claude/tool-use/web-search-tool
+              case "server_tool_use": {
+                const serverBlock = block as ServerToolUseBlock;
+
+                // Find the corresponding web_search_tool_result block in the content array
+                // Results come as a separate block with matching tool_use_id
+                const resultBlock = content.find(
+                  (b): b is WebSearchToolResultBlock =>
+                    b.type === "web_search_tool_result" &&
+                    (b as WebSearchToolResultBlock).tool_use_id === serverBlock.id
+                ) as WebSearchToolResultBlock | undefined;
+
+                // Determine status based on whether we have results
+                const hasResult = !!resultBlock;
+                const isError = resultBlock?.content &&
+                  !Array.isArray(resultBlock.content) &&
+                  (resultBlock.content as { type?: string }).type === "web_search_tool_result_error";
+
+                // Serialize the result content for the tool block
+                const resultString = resultBlock
+                  ? JSON.stringify(resultBlock.content)
+                  : undefined;
+
+                // Use the specialized WebSearchToolBlock
+                const SpecializedBlock = getSpecializedToolBlock(serverBlock.name);
+                if (SpecializedBlock) {
+                  return (
+                    <SpecializedBlock
+                      key={serverBlock.id}
+                      id={serverBlock.id}
+                      name={serverBlock.name}
+                      input={serverBlock.input as Record<string, unknown>}
+                      result={resultString}
+                      isError={isError}
+                      status={hasResult ? "complete" : "running"}
+                      threadId={threadId}
+                    />
+                  );
+                }
+
+                // Fallback to generic ToolUseBlock
+                return (
+                  <ToolUseBlock
+                    key={serverBlock.id}
+                    id={serverBlock.id}
+                    name={serverBlock.name}
+                    input={serverBlock.input as Record<string, unknown>}
+                    result={resultString}
+                    isError={isError}
+                    status={hasResult ? "complete" : "running"}
+                    threadId={threadId}
+                  />
+                );
+              }
+
+              // web_search_tool_result blocks are handled by the server_tool_use case above
+              // We skip them here to avoid duplicate rendering
+              case "web_search_tool_result":
+                return null;
 
               default:
                 return null;

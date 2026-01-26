@@ -1,8 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { UnlistenFn } from "@tauri-apps/api/event";
 import "./index.css";
 import { Spotlight } from "./components/spotlight/spotlight";
 import { WorkspaceSettingsProvider, GlobalErrorProvider } from "./contexts";
@@ -30,9 +28,11 @@ logger.log("[spotlight-main] Module loading...");
 // Initialize trigger system for @ file mentions
 initializeTriggers();
 
-// Module-level state for cleanup
-let bridgeCleanup: UnlistenFn[] = [];
-let cleanupRegistered = false;
+// NOTE: We no longer manually clean up bridge listeners on window close.
+// Tauri automatically cleans up event listeners when a window is destroyed.
+// Manual cleanup during onCloseRequested was causing a RefCell panic in
+// tauri-runtime-wry because unlisten calls during window close events
+// trigger re-entrant borrows of internal Tauri state.
 
 /**
  * Bootstrap sequence for spotlight window.
@@ -51,27 +51,12 @@ async function bootstrap() {
 
   // Incoming: receive all events including broadcasts
   // Echo prevention is handled by _source field in event-bridge
-  bridgeCleanup = await setupIncomingBridge();
+  await setupIncomingBridge();
   logger.log("[spotlight-main] Incoming bridge setup complete");
 
   // Entity listeners: react to events by updating stores
   setupEntityListeners();
   logger.log("[spotlight-main] Entity listeners setup complete");
-
-  // Register cleanup handler once
-  if (!cleanupRegistered) {
-    cleanupRegistered = true;
-    getCurrentWindow().onCloseRequested(async () => {
-      logger.log("[spotlight-main] Window closing - cleaning up bridge listeners");
-      for (const fn of bridgeCleanup) {
-        try {
-          fn();
-        } catch (error) {
-          logger.error("[spotlight-main] Cleanup error:", error);
-        }
-      }
-    });
-  }
 
   logger.log("[spotlight-main] Bootstrap complete");
 }

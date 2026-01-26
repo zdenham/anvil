@@ -78,7 +78,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 
     // Table components for GFM tables
     table: ({ children }: { children?: React.ReactNode }) => (
-      <div className="overflow-x-auto my-4">
+      <div className="overflow-x-auto my-2">
         <table className="min-w-full border-collapse text-sm">
           {children}
         </table>
@@ -96,12 +96,12 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       <tr className="hover:bg-zinc-800/30">{children}</tr>
     ),
     th: ({ children }: { children?: React.ReactNode }) => (
-      <th className="px-3 py-2 text-left font-medium text-zinc-300">
+      <th className="px-2 py-1.5 text-left font-medium text-zinc-300">
         {children}
       </th>
     ),
     td: ({ children }: { children?: React.ReactNode }) => (
-      <td className="px-3 py-2 text-zinc-400">{children}</td>
+      <td className="px-2 py-1.5 text-zinc-400">{children}</td>
     ),
   }), [isStreaming]);
 

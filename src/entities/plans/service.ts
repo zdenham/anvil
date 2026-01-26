@@ -437,8 +437,11 @@ class PlanService {
    *
    * Emits PLAN_ARCHIVED event so relation service can archive associated relations.
    * Uses optimistic update - removes from store immediately, rolls back on failure.
+   *
+   * @param planId - The plan ID to archive
+   * @param originInstanceId - Optional instance ID of the window that initiated the archive
    */
-  async archive(planId: string): Promise<void> {
+  async archive(planId: string, originInstanceId?: string | null): Promise<void> {
     const plan = this.get(planId);
     if (!plan) return;
 
@@ -478,7 +481,8 @@ class PlanService {
       await persistence.removeDir(metadataSourcePath);
 
       // Emit event so relation service can archive associated relations
-      eventBus.emit(EventName.PLAN_ARCHIVED, { planId });
+      // Include originInstanceId so standalone windows can close themselves
+      eventBus.emit(EventName.PLAN_ARCHIVED, { planId, originInstanceId });
 
       logger.info(`[planService:archive] Archived plan ${planId}`);
     } catch (error) {

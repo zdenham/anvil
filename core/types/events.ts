@@ -112,7 +112,7 @@ export interface EventPayloads {
   [EventName.THREAD_CREATED]: { threadId: string; repoId: string; worktreeId: string };
   [EventName.THREAD_UPDATED]: { threadId: string };
   [EventName.THREAD_STATUS_CHANGED]: { threadId: string; status: ThreadStatus };
-  [EventName.THREAD_ARCHIVED]: { threadId: string };
+  [EventName.THREAD_ARCHIVED]: { threadId: string; originInstanceId?: string | null };
   [EventName.THREAD_FILE_CREATED]: { threadId: string; filePath: string };
   [EventName.THREAD_FILE_MODIFIED]: { threadId: string; filePath: string };
 
@@ -169,7 +169,7 @@ export interface EventPayloads {
   [EventName.PLAN_DETECTED]: { planId: string };
   [EventName.PLAN_CREATED]: { planId: string; repoId: string };
   [EventName.PLAN_UPDATED]: { planId: string };
-  [EventName.PLAN_ARCHIVED]: { planId: string };
+  [EventName.PLAN_ARCHIVED]: { planId: string; originInstanceId?: string | null };
 
   // Relation events
   [EventName.RELATION_CREATED]: { planId: string; threadId: string; type: RelationType };

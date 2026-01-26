@@ -1,8 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { UnlistenFn } from "@tauri-apps/api/event";
 import { InboxListWindow } from "./components/inbox-list/InboxListWindow";
 import { hydrateEntities, setupEntityListeners } from "./entities";
 import { setupIncomingBridge, setupOutgoingBridge } from "./lib/event-bridge";
@@ -25,9 +23,11 @@ interface PathsInfo {
 
 logger.log("[inbox-list-main] Module loading...");
 
-// Module-level state for cleanup
-let bridgeCleanup: UnlistenFn[] = [];
-let cleanupRegistered = false;
+// NOTE: We no longer manually clean up bridge listeners on window close.
+// Tauri automatically cleans up event listeners when a window is destroyed.
+// Manual cleanup during onCloseRequested was causing a RefCell panic in
+// tauri-runtime-wry because unlisten calls during window close events
+// trigger re-entrant borrows of internal Tauri state.
 
 // Set data-app-suffix attribute on document root for CSS styling
 invoke<PathsInfo>("get_paths_info")
@@ -47,22 +47,7 @@ async function bootstrap() {
   setupOutgoingBridge();
 
   // Set up incoming bridge to receive events from other windows
-  bridgeCleanup = await setupIncomingBridge();
-
-  // Register cleanup handler once
-  if (!cleanupRegistered) {
-    cleanupRegistered = true;
-    getCurrentWindow().onCloseRequested(async () => {
-      logger.log("[inbox-list-main] Window closing - cleaning up bridge listeners");
-      for (const fn of bridgeCleanup) {
-        try {
-          fn();
-        } catch (error) {
-          logger.error("[inbox-list-main] Cleanup error:", error);
-        }
-      }
-    });
-  }
+  await setupIncomingBridge();
 
   // Hydrate entity stores from disk
   await hydrateEntities();

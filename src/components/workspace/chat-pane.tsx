@@ -98,6 +98,7 @@ export function ChatPane({
       <div className="flex-1 min-h-0 flex flex-col">
         {threadId ? (
           <ThreadView
+            threadId={threadId}
             messages={messages}
             isStreaming={isStreaming}
             status={status}

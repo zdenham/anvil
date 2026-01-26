@@ -22,7 +22,20 @@
         flex-direction: column;
         align-items: stretch;
       }
+      /* Standalone window dark background - applied immediately to prevent white flash */
+      html.standalone-window,
+      html.standalone-window body,
+      html.standalone-window #root {
+        background: rgba(30, 32, 30, 1) !important;
+      }
     </style>
+    <script>
+      // Detect standalone window from URL params and apply class immediately
+      // This prevents white flash before React mounts
+      if (new URLSearchParams(window.location.search).has('instanceId')) {
+        document.documentElement.classList.add('standalone-window');
+      }
+    </script>
   </head>
 
   <body>

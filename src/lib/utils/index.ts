@@ -44,3 +44,12 @@ export type {
 export function sanitizeTestId(path: string): string {
   return path.replace(/[^a-zA-Z0-9-]/g, "-");
 }
+
+// Path display utilities
+export {
+  initHomeDir,
+  getHomeDir,
+  toRelativePath,
+  toFileName,
+  toRelativePaths,
+} from "./path-display";

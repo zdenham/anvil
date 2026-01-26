@@ -9,12 +9,12 @@ export default {
   theme: {
     extend: {
       animation: {
-        shimmer: 'shimmer 2s ease-in-out infinite',
+        shimmer: 'shimmer 2.5s linear infinite',
       },
       keyframes: {
         shimmer: {
-          '0%, 100%': { opacity: '0.7' },
-          '50%': { opacity: '1' },
+          '0%': { backgroundPosition: '100% 0' },
+          '100%': { backgroundPosition: '-100% 0' },
         },
       },
       fontFamily: {
@@ -24,31 +24,77 @@ export default {
       typography: {
         DEFAULT: {
           css: {
+            // Compact heading sizes
             h1: {
-              fontSize: '1.25rem',
-              fontWeight: '600',
-              fontFamily: '"Atkinson Hyperlegible Mono", monospace',
-            },
-            h2: {
               fontSize: '1.125rem',
               fontWeight: '600',
               fontFamily: '"Atkinson Hyperlegible Mono", monospace',
+              marginTop: '1em',
+              marginBottom: '0.5em',
             },
-            h3: {
+            h2: {
               fontSize: '1rem',
               fontWeight: '600',
               fontFamily: '"Atkinson Hyperlegible Mono", monospace',
+              marginTop: '1em',
+              marginBottom: '0.5em',
+            },
+            h3: {
+              fontSize: '0.9375rem',
+              fontWeight: '600',
+              fontFamily: '"Atkinson Hyperlegible Mono", monospace',
+              marginTop: '0.75em',
+              marginBottom: '0.375em',
             },
             h4: {
               fontSize: '0.875rem',
               fontWeight: '600',
               fontFamily: '"Atkinson Hyperlegible Mono", monospace',
+              marginTop: '0.75em',
+              marginBottom: '0.25em',
             },
             h5: {
               fontFamily: '"Atkinson Hyperlegible Mono", monospace',
             },
             h6: {
               fontFamily: '"Atkinson Hyperlegible Mono", monospace',
+            },
+            // Compact paragraph and list spacing
+            p: {
+              marginTop: '0.5em',
+              marginBottom: '0.5em',
+              lineHeight: '1.5',
+            },
+            ul: {
+              marginTop: '0.5em',
+              marginBottom: '0.5em',
+              paddingLeft: '1.25em',
+            },
+            ol: {
+              marginTop: '0.5em',
+              marginBottom: '0.5em',
+              paddingLeft: '1.25em',
+            },
+            li: {
+              marginTop: '0.25em',
+              marginBottom: '0.25em',
+            },
+            'li > p': {
+              marginTop: '0.25em',
+              marginBottom: '0.25em',
+            },
+            // Compact blockquote spacing
+            blockquote: {
+              marginTop: '0.75em',
+              marginBottom: '0.75em',
+              paddingLeft: '0.75em',
+            },
+            // Remove excessive spacing at content boundaries
+            '> :first-child': {
+              marginTop: '0',
+            },
+            '> :last-child': {
+              marginBottom: '0',
             },
           },
         },

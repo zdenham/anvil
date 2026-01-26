@@ -62,6 +62,11 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&PredefinedMenuItem::minimize(app, Some("Minimize"))?)
         .item(&PredefinedMenuItem::maximize(app, Some("Zoom"))?)
         .separator()
+        .item(
+            &MenuItemBuilder::with_id("close_all_panel_windows", "Close All Thread Windows")
+                .build(app)?,
+        )
+        .separator()
         .item(&PredefinedMenuItem::close_window(app, Some("Close Window"))?)
         .build()?;
 

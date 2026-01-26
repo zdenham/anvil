@@ -42,11 +42,18 @@ html:has(.error-container) #root {
   background: transparent !important;
 }
 
-/* Control panel transparency */
-html:has(.control-panel-container),
-html:has(.control-panel-container) body,
-html:has(.control-panel-container) #root {
+/* Control panel transparency - only for NSPanel, not standalone windows */
+html:has(.control-panel-container:not(.standalone-window)),
+html:has(.control-panel-container:not(.standalone-window)) body,
+html:has(.control-panel-container:not(.standalone-window)) #root {
   background: transparent !important;
+}
+
+/* Standalone control panel windows - match spotlight background color */
+html:has(.control-panel-container.standalone-window),
+html:has(.control-panel-container.standalone-window) body,
+html:has(.control-panel-container.standalone-window) #root {
+  background: rgba(30, 32, 30, 1) !important;  /* Same as --spotlight-bg but fully opaque */
 }
 
 /* Clipboard panel transparency */
@@ -201,6 +208,12 @@ textarea {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Standalone window - solid background matching spotlight/quick actions */
+.control-panel-container.standalone-window {
+  background: rgba(30, 32, 30, 1); /* Same as --spotlight-bg but fully opaque */
+  border: none;
+}
+
 /* Header is always a drag zone, never selectable */
 [data-drag-region="header"] {
   user-select: none;
@@ -235,5 +248,21 @@ textarea {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+}
+
+/* Shimmer animation - left-to-right shiny effect */
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    #a1a1aa 0%,
+    #a1a1aa 40%,
+    #ffffff 50%,
+    #a1a1aa 60%,
+    #a1a1aa 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 

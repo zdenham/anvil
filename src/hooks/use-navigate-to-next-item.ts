@@ -6,10 +6,10 @@
  */
 
 import { useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useUnifiedInboxNavigation } from "./use-unified-inbox-navigation";
 import { useNavigationBannerStore } from "@/stores/navigation-banner-store";
 import { switchToThread, switchToPlan } from "@/lib/hotkey-service";
+import { closeAndShowInbox } from "@/lib/panel-navigation";
 import { logger } from "@/lib/logger-client";
 
 export type NavigationActionType = "archive" | "markUnread" | "nextItem";
@@ -110,11 +110,8 @@ export function useNavigateToNextItem(): UseNavigateToNextItemReturn {
         // Show "all caught up" banner
         showBanner(completionMessage, "All caught up");
 
-        // Hide control panel first
-        await invoke("hide_control_panel");
-
-        // Then show inbox panel
-        await invoke("open_inbox_list_panel");
+        // Close panel/window and show inbox
+        await closeAndShowInbox();
 
         return false;
       }

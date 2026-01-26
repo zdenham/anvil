@@ -14,8 +14,9 @@ use tracing_subscriber::Layer;
 /// Field names and types must match exactly for the server to process correctly.
 #[derive(Debug, Clone, Serialize)]
 pub struct LogRow {
-    pub timestamp: i64, // DateTime64(3) as milliseconds since epoch
-    pub level: String,  // TRACE, DEBUG, INFO, WARN, ERROR
+    pub timestamp: i64,    // DateTime64(3) as milliseconds since epoch
+    pub device_id: String, // Unique device identifier for tracking
+    pub level: String,     // TRACE, DEBUG, INFO, WARN, ERROR
     pub message: String,
 }
 
@@ -41,12 +42,13 @@ const MAX_BUFFER_SIZE: usize = 5_000;
 
 pub struct LogServerLayer {
     sender: mpsc::Sender<LogRow>,
+    device_id: String,
 }
 
 impl LogServerLayer {
     /// Creates a new LogServer layer with the given configuration.
     /// Spawns a background worker thread that handles batching and HTTP uploads.
-    pub fn new(config: LogServerConfig) -> Self {
+    pub fn new(config: LogServerConfig, device_id: String) -> Self {
         let (sender, receiver) = mpsc::channel::<LogRow>();
 
         // Spawn background worker thread using std::thread (no tokio needed)
@@ -57,7 +59,7 @@ impl LogServerLayer {
             })
             .expect("Failed to spawn log server client thread");
 
-        Self { sender }
+        Self { sender, device_id }
     }
 }
 
@@ -173,8 +175,10 @@ fn flush_batch(url: &str, buffer: &mut Vec<LogRow>) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
-/// Modules to exclude from log uploads (HTTP client internals used for uploading logs)
-const EXCLUDED_MODULES: &[&str] = &["ureq", "rustls"];
+/// Modules/targets to exclude from log uploads (HTTP client internals used for uploading logs)
+/// These are checked against both module_path() and target() since logs from the `log` crate
+/// compatibility layer may have the crate name in target rather than module_path.
+const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls"];
 
 impl<S> Layer<S> for LogServerLayer
 where
@@ -186,8 +190,15 @@ where
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
         // Skip logs from HTTP client libraries to avoid meta-logging
+        // Check both module_path and target since log-crate compatibility uses target
+        let target = event.metadata().target();
+        for excluded in EXCLUDED_TARGETS {
+            if target.starts_with(excluded) {
+                return;
+            }
+        }
         if let Some(module) = event.metadata().module_path() {
-            for excluded in EXCLUDED_MODULES {
+            for excluded in EXCLUDED_TARGETS {
                 if module.starts_with(excluded) {
                     return;
                 }
@@ -200,6 +211,7 @@ where
 
         let row = LogRow {
             timestamp: chrono::Utc::now().timestamp_millis(),
+            device_id: self.device_id.clone(),
             level: event.metadata().level().to_string(),
             message,
         };
@@ -242,12 +254,14 @@ mod tests {
     fn test_log_row_serialization() {
         let row = LogRow {
             timestamp: 1234567890123,
+            device_id: "test-device-id".to_string(),
             level: "INFO".to_string(),
             message: "test message".to_string(),
         };
 
         let json = serde_json::to_string(&row).unwrap();
         assert!(json.contains("\"timestamp\":1234567890123"));
+        assert!(json.contains("\"device_id\":\"test-device-id\""));
         assert!(json.contains("\"level\":\"INFO\""));
         assert!(json.contains("\"message\":\"test message\""));
     }
@@ -258,11 +272,13 @@ mod tests {
             logs: vec![
                 LogRow {
                     timestamp: 1234567890123,
+                    device_id: "device-1".to_string(),
                     level: "INFO".to_string(),
                     message: "message 1".to_string(),
                 },
                 LogRow {
                     timestamp: 1234567890124,
+                    device_id: "device-1".to_string(),
                     level: "ERROR".to_string(),
                     message: "message 2".to_string(),
                 },
@@ -273,5 +289,6 @@ mod tests {
         assert!(json.contains("\"logs\":["));
         assert!(json.contains("\"message 1\""));
         assert!(json.contains("\"message 2\""));
+        assert!(json.contains("\"device_id\":\"device-1\""));
     }
 }

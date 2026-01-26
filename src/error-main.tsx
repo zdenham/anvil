@@ -1,6 +1,4 @@
 import ReactDOM from "react-dom/client";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { UnlistenFn } from "@tauri-apps/api/event";
 import "./index.css";
 import { ErrorPanel } from "./components/error-panel";
 import { initWebErrorCapture } from "./lib/web-error-capture";
@@ -15,9 +13,11 @@ initWebErrorCapture("error");
 
 logger.log("[error-main] Module loading...");
 
-// Module-level state for cleanup
-let bridgeCleanup: UnlistenFn[] = [];
-let cleanupRegistered = false;
+// NOTE: We no longer manually clean up bridge listeners on window close.
+// Tauri automatically cleans up event listeners when a window is destroyed.
+// Manual cleanup during onCloseRequested was causing a RefCell panic in
+// tauri-runtime-wry because unlisten calls during window close events
+// trigger re-entrant borrows of internal Tauri state.
 
 /**
  * Bootstrap sequence for error window.
@@ -29,22 +29,7 @@ async function bootstrap() {
   // Outgoing bridge broadcasts events to other windows
   setupOutgoingBridge();
   // Incoming bridge receives events from other windows
-  bridgeCleanup = await setupIncomingBridge();
-
-  // Register cleanup handler once
-  if (!cleanupRegistered) {
-    cleanupRegistered = true;
-    getCurrentWindow().onCloseRequested(async () => {
-      logger.log("[error-main] Window closing - cleaning up bridge listeners");
-      for (const fn of bridgeCleanup) {
-        try {
-          fn();
-        } catch (error) {
-          logger.error("[error-main] Cleanup error:", error);
-        }
-      }
-    });
-  }
+  await setupIncomingBridge();
 
   logger.log("[error-main] Bootstrap complete");
 }

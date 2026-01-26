@@ -8,9 +8,13 @@ import { WorkspaceSettingsProvider, GlobalErrorProvider } from "./contexts";
 import { logger, setLogSource } from "./lib/logger-client";
 import { initWebErrorCapture } from "./lib/web-error-capture";
 import { setupOutgoingBridge, setupIncomingBridge } from "./lib/event-bridge";
+import { initHomeDir } from "./lib/utils/path-display";
 
 // Set log source before any logging occurs
 setLogSource("main");
+
+// Initialize home directory cache early for path display utilities
+initHomeDir();
 
 // Capture browser errors early, before anything else runs
 initWebErrorCapture("main");

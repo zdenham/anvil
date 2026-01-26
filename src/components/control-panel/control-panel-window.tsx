@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
+import { X } from "lucide-react";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { useControlPanelParams } from "./use-control-panel-params";
 import { useThreadStore } from "@/entities/threads/store";
@@ -27,7 +28,10 @@ import { NavigationBanner } from "./navigation-banner";
 import { QueuedMessagesBanner } from "./queued-messages-banner";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
-import type { ControlPanelViewType } from "@/entities/events";
+import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
+import { eventBus, type ControlPanelViewType } from "@/entities/events";
+import { EventName } from "@core/types/events.js";
+import type { WindowConfig } from "@/control-panel-main";
 
 /** Map entity ThreadStatus to ThreadView's expected status type */
 type ViewStatus = "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
@@ -35,14 +39,92 @@ type ViewStatus = "idle" | "loading" | "running" | "completed" | "error" | "canc
 /** Thread tab state - local to thread view only */
 type ThreadTab = "conversation" | "changes";
 
-export function ControlPanelWindow() {
-  const params = useControlPanelParams();
+interface LoadingViewProps {
+  message: string;
+  isStandaloneWindow?: boolean;
+  instanceId?: string | null;
+}
+
+/**
+ * Loading view that preserves drag and close behavior while params are loading.
+ */
+function LoadingView({ message, isStandaloneWindow = false, instanceId }: LoadingViewProps) {
+  // Window drag behavior via reusable hook
+  const { dragProps } = useWindowDrag({
+    pinCommand: isStandaloneWindow ? undefined : "pin_control_panel",
+    hideCommand: isStandaloneWindow && instanceId ? undefined : "hide_control_panel",
+    enableDoubleClickClose: !isStandaloneWindow,
+  });
+
+  const handleClose = useCallback(async () => {
+    if (isStandaloneWindow && instanceId) {
+      await invoke("close_control_panel_window", { instanceId });
+    } else {
+      await invoke("hide_control_panel");
+    }
+  }, [isStandaloneWindow, instanceId]);
+
+  // Handle Escape key to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleClose]);
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col h-screen bg-surface-900 text-surface-500 text-sm",
+        !isStandaloneWindow && dragProps.className
+      )}
+      onMouseDown={!isStandaloneWindow ? dragProps.onMouseDown : undefined}
+      onDoubleClick={!isStandaloneWindow ? dragProps.onDoubleClick : undefined}
+    >
+      {/* Header with close button */}
+      <div
+        className="flex items-center justify-end px-4 py-3 bg-surface-800 border-b border-surface-700"
+        data-drag-region="header"
+      >
+        {!isStandaloneWindow && (
+          <button
+            onClick={handleClose}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close panel (Escape)"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+      {/* Centered message */}
+      <div className="flex-1 flex items-center justify-center">
+        {message}
+      </div>
+    </div>
+  );
+}
+
+interface ControlPanelWindowProps {
+  /** Window configuration - determines if this is an NSPanel or standalone window */
+  windowConfig?: WindowConfig;
+}
+
+export function ControlPanelWindow({ windowConfig }: ControlPanelWindowProps) {
+  const params = useControlPanelParams(windowConfig);
+  // For loading state before params are available, derive from windowConfig directly
+  const isStandaloneWindowFromConfig = windowConfig?.type === "window";
 
   if (!params) {
     return (
-      <div className="flex items-center justify-center h-screen bg-surface-900 text-surface-500 text-sm">
-        Loading...
-      </div>
+      <LoadingView
+        message="Loading..."
+        isStandaloneWindow={isStandaloneWindowFromConfig}
+        instanceId={windowConfig?.instanceId}
+      />
     );
   }
 
@@ -51,15 +133,23 @@ export function ControlPanelWindow() {
 
   if (!view) {
     return (
-      <div className="flex items-center justify-center h-screen bg-surface-900 text-surface-500 text-sm">
-        No view specified
-      </div>
+      <LoadingView
+        message="No view specified"
+        isStandaloneWindow={params.isStandaloneWindow}
+        instanceId={params.instanceId}
+      />
     );
   }
 
   // Render based on view type
   if (view.type === "plan") {
-    return <PlanView planId={view.planId} />;
+    return (
+      <PlanView
+        planId={view.planId}
+        isStandaloneWindow={params.isStandaloneWindow}
+        instanceId={params.instanceId}
+      />
+    );
   }
 
   // Thread view with local tab management
@@ -67,6 +157,8 @@ export function ControlPanelWindow() {
     <ControlPanelWindowContent
       threadId={view.threadId}
       prompt={params.prompt}
+      isStandaloneWindow={params.isStandaloneWindow}
+      instanceId={params.instanceId}
     />
   );
 }
@@ -74,6 +166,8 @@ export function ControlPanelWindow() {
 interface ControlPanelWindowContentProps {
   threadId: string;
   prompt?: string;
+  isStandaloneWindow?: boolean;
+  instanceId?: string | null;
 }
 
 /**
@@ -83,6 +177,8 @@ interface ControlPanelWindowContentProps {
 function ControlPanelWindowContent({
   threadId,
   prompt,
+  isStandaloneWindow = false,
+  instanceId,
 }: ControlPanelWindowContentProps) {
   // Use useCallback to ensure Zustand creates a new subscription when threadId changes
   // Without this, the selector closure captures the old threadId and doesn't re-evaluate
@@ -122,7 +218,14 @@ function ControlPanelWindowContent({
   const hasScrolledOnMount = useRef(false);
 
   // Window drag behavior via reusable hook
-  const { dragProps } = useWindowDrag();
+  // Only use custom drag for NSPanel, standalone windows use native decorations
+  const { dragProps } = useWindowDrag({
+    pinCommand: isStandaloneWindow ? undefined : "pin_control_panel",
+    hideCommand: isStandaloneWindow && instanceId
+      ? undefined  // Standalone windows don't hide on double-click
+      : "hide_control_panel",
+    enableDoubleClickClose: !isStandaloneWindow,
+  });
 
   // Navigation hook for quick action next item
   const { navigateToNextItemOrFallback } = useNavigateToNextItem();
@@ -241,9 +344,12 @@ function ControlPanelWindowContent({
   // which updates the Zustand store directly. No local state or event
   // listener needed here - the store is the single source of truth.
 
-  // Pin panel when resized - panel stays pinned until explicitly hidden
-  // This allows users to position the panel and have it stay visible on blur
+  // Pin panel when resized - NSPanel specific behavior
+  // Standalone windows are already independent and don't need pinning
   useEffect(() => {
+    // Skip for standalone windows - pinning is only for NSPanel
+    if (isStandaloneWindow) return;
+
     const currentWindow = getCurrentWindow();
     let hasPinned = false;
 
@@ -266,7 +372,7 @@ function ControlPanelWindowContent({
     return () => {
       unlisten.then((unlistenFn) => unlistenFn());
     };
-  }, []);
+  }, [isStandaloneWindow]);
 
   // Reset scroll tracking when threadId changes (navigating to a different thread)
   useEffect(() => {
@@ -295,6 +401,27 @@ function ControlPanelWindowContent({
   useEffect(() => {
     setThreadTab("conversation");
   }, [threadId]);
+
+  // Listen for thread archive events to close standalone window when its thread is archived
+  useEffect(() => {
+    if (!isStandaloneWindow || !instanceId) return;
+
+    const handleThreadArchived = (payload: { threadId: string; originInstanceId?: string | null }) => {
+      // Skip if we're the window that initiated the archive (we navigate instead of closing)
+      if (payload.originInstanceId === instanceId) return;
+
+      // Close if this window's thread was archived (from another window or main window)
+      if (payload.threadId === threadId) {
+        logger.info(`[ControlPanelWindow] Thread ${threadId} archived from another window, closing standalone window ${instanceId}`);
+        getCurrentWindow().close();
+      }
+    };
+
+    eventBus.on(EventName.THREAD_ARCHIVED, handleThreadArchived);
+    return () => {
+      eventBus.off(EventName.THREAD_ARCHIVED, handleThreadArchived);
+    };
+  }, [isStandaloneWindow, instanceId, threadId]);
 
   // Focus restoration after thread navigation
   // This ensures keyboard navigation works after thread actions
@@ -403,13 +530,13 @@ function ControlPanelWindowContent({
         // Navigate to next unread item
         await navigateToNextItemOrFallback(currentItem, { actionType: "nextItem" });
       } else if (action === "closePanel") {
-        await invoke("hide_control_panel");
+        await closeCurrentPanelOrWindow();
       } else if (action === "followUp") {
         setShowFollowUpInput(true);
       } else if (action === "respond") {
         inputRef.current?.focus();
       } else if (action === "archive") {
-        await threadService.archive(threadId);
+        await threadService.archive(threadId, instanceId);
         await navigateToNextItemOrFallback(currentItem, { actionType: "archive" });
       } else if (action === "markUnread") {
         await useThreadStore.getState().markThreadAsUnread(threadId);
@@ -471,8 +598,8 @@ function ControlPanelWindowContent({
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
-        // Close the panel when pressing Escape
-        invoke("hide_control_panel");
+        // Close the panel/window when pressing Escape
+        closeCurrentPanelOrWindow();
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Any regular character typed - focus input and select respond option
         const respondIndex = actions.findIndex(a => a.key === "respond");
@@ -519,35 +646,42 @@ function ControlPanelWindowContent({
 
   return (
     <div
-      className={`control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden ${dragProps.className}`}
-      onMouseDown={dragProps.onMouseDown}
-      onDoubleClick={dragProps.onDoubleClick}
+      className={cn(
+        "control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden",
+        // NSPanel uses custom JS drag, standalone windows use native title bar
+        !isStandaloneWindow && dragProps.className,
+        isStandaloneWindow && "standalone-window"
+      )}
+      onMouseDown={!isStandaloneWindow ? dragProps.onMouseDown : undefined}
+      onDoubleClick={!isStandaloneWindow ? dragProps.onDoubleClick : undefined}
     >
       <ControlPanelHeader
         view={{ type: "thread", threadId }}
         threadTab={threadTab}
         onThreadTabChange={setThreadTab}
         isStreaming={isStreaming}
+        isStandaloneWindow={isStandaloneWindow}
+        instanceId={instanceId}
       />
 
       {/* Main content area - only one tab visible at a time */}
-      {threadTab === "conversation" && (
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          <ThreadView
-            key={threadId}  // Force re-mount when switching threads to reset internal state
-            ref={messageListRef}
-            messages={messages}
-            isStreaming={isStreaming}
-            status={viewStatus}
-            toolStates={toolStates}
-            onToolResponse={handleToolResponse}
-          />
-        </div>
-      )}
+      {/* Max width constraint centered for readability on wide screens */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full max-w-[900px] mx-auto">
+          {threadTab === "conversation" && (
+            <ThreadView
+              key={threadId}  // Force re-mount when switching threads to reset internal state
+              ref={messageListRef}
+              threadId={threadId}
+              messages={messages}
+              isStreaming={isStreaming}
+              status={viewStatus}
+              toolStates={toolStates}
+              onToolResponse={handleToolResponse}
+            />
+          )}
 
-      {threadTab === "changes" && (
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {activeMetadata && (
+          {threadTab === "changes" && activeMetadata && (
             <ChangesTab
               threadMetadata={activeMetadata}
               threadState={activeState}
@@ -555,33 +689,36 @@ function ControlPanelWindowContent({
             />
           )}
         </div>
-      )}
+      </div>
 
       {/* Quick actions and input - always visible */}
-      <SuggestedActionsPanel
-        ref={quickActionsPanelRef}
-        view={{ type: "thread", threadId }}
-        onAction={handleSuggestedAction}
-        onAutoSelectInput={handleAutoSelectInput}
-        isStreaming={isStreaming}
-        onSubmitFollowUp={handleSubmit}
-        onQuickAction={handleQuickAction}
-      />
-      {/* Queued messages banner - shows pending messages while agent is running */}
-      <QueuedMessagesBanner messages={queuedMessages} />
-      {/* Wrap input with visual indicator when in queue mode */}
-      <div className={cn(
-        "relative",
-        canQueueMessages && "ring-1 ring-amber-500/30 ring-inset"
-      )}>
-        <ThreadInput
-          ref={inputRef}
-          onSubmit={handleSubmit}
-          disabled={false}
-          workingDirectory={workingDirectory}
-          placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
-          onNavigateToQuickActions={handleNavigateToQuickActions}
+      {/* Max width constraint centered for readability on wide screens */}
+      <div className="w-full max-w-[900px] mx-auto">
+        <SuggestedActionsPanel
+          ref={quickActionsPanelRef}
+          view={{ type: "thread", threadId }}
+          onAction={handleSuggestedAction}
+          onAutoSelectInput={handleAutoSelectInput}
+          isStreaming={isStreaming}
+          onSubmitFollowUp={handleSubmit}
+          onQuickAction={handleQuickAction}
         />
+        {/* Queued messages banner - shows pending messages while agent is running */}
+        <QueuedMessagesBanner messages={queuedMessages} />
+        {/* Wrap input with visual indicator when in queue mode */}
+        <div className={cn(
+          "relative",
+          canQueueMessages && "ring-1 ring-amber-500/30 ring-inset"
+        )}>
+          <ThreadInput
+            ref={inputRef}
+            onSubmit={handleSubmit}
+            disabled={false}
+            workingDirectory={workingDirectory}
+            placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+            onNavigateToQuickActions={handleNavigateToQuickActions}
+          />
+        </div>
       </div>
 
       {/* <PermissionIndicator threadId={threadId} /> */}

@@ -604,8 +604,11 @@ export const threadService = {
    * Moves the thread folder from its current location to archive/threads/.
    * Emits THREAD_ARCHIVED event so relation service can archive associated relations.
    * Uses optimistic update - removes from store immediately, rolls back on failure.
+   *
+   * @param threadId - The thread ID to archive
+   * @param originInstanceId - Optional instance ID of the window that initiated the archive
    */
-  async archive(threadId: string): Promise<void> {
+  async archive(threadId: string, originInstanceId?: string | null): Promise<void> {
     const thread = this.get(threadId);
     if (!thread) return;
 
@@ -632,7 +635,8 @@ export const threadService = {
       await persistence.removeDir(sourcePath);
 
       // Emit event so relation service can archive associated relations
-      eventBus.emit(EventName.THREAD_ARCHIVED, { threadId });
+      // Include originInstanceId so standalone windows can close themselves
+      eventBus.emit(EventName.THREAD_ARCHIVED, { threadId, originInstanceId });
 
       logger.info(`[threadService.archive] Archived thread ${threadId}`);
     } catch (error) {

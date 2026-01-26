@@ -160,7 +160,7 @@ export const CodeBlock = memo(function CodeBlock({ code, language = "plaintext",
       )}
     >
       {/* Header bar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
+      <div className="flex items-center justify-between px-2 py-1.5 border-b border-zinc-800">
         <span className="text-xs text-zinc-400 font-mono">{language}</span>
         <CopyButton code={code} isCopied={isCopied} onCopy={handleCopy} />
       </div>
@@ -168,7 +168,7 @@ export const CodeBlock = memo(function CodeBlock({ code, language = "plaintext",
       {/* Code content */}
       <div
         className={cn(
-          "overflow-x-auto p-3 font-mono text-sm",
+          "overflow-x-auto p-2 font-mono text-sm",
           !isExpanded && isLongCode && "max-h-[400px] overflow-hidden"
         )}
       >
