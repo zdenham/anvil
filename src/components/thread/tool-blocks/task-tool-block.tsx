@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
-import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { StatusIcon } from "@/components/ui/status-icon";

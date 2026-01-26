@@ -10,13 +10,41 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use tauri::{
-    webview::Color, AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size,
+    webview::Color, AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, Url,
     WebviewUrl, WebviewWindowBuilder,
 };
+use tauri_plugin_opener::OpenerExt;
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
 };
 
+
+/// Checks if a navigation URL should be allowed in the webview.
+/// Blocks external http/https URLs and opens them in the system browser instead.
+fn is_allowed_navigation(url: &Url, app: &AppHandle) -> bool {
+    // Allow tauri:// protocol (internal app URLs in production)
+    if url.scheme() == "tauri" {
+        return true;
+    }
+
+    // Allow localhost (dev server)
+    if url.scheme() == "http" && url.host_str() == Some("localhost") {
+        return true;
+    }
+
+    // Block external http/https - open in system browser instead
+    if url.scheme() == "http" || url.scheme() == "https" {
+        tracing::info!("[Navigation] Opening external URL in system browser: {}", url);
+        let url_string = url.to_string();
+        if let Err(e) = app.opener().open_url(&url_string, None::<&str>) {
+            tracing::error!("[Navigation] Failed to open URL in browser: {}", e);
+        }
+        return false;
+    }
+
+    // Allow other schemes (file://, etc.) - they're typically safe
+    true
+}
 
 // Panel labels
 pub const SPOTLIGHT_LABEL: &str = "spotlight";
@@ -1235,6 +1263,7 @@ fn create_standalone_window(
         height
     );
 
+    let app_for_nav = app.clone();
     let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
         .title("") // No title - keeps window chrome minimal
         .inner_size(width, height)
@@ -1246,6 +1275,7 @@ fn create_standalone_window(
         .fullscreen(false)  // Start windowed, but allow fullscreen via green button
         .accept_first_mouse(true)
         .background_color(Color(0x1e, 0x20, 0x1e, 0xff)) // surface-800 to prevent white flash
+        .on_navigation(move |url| is_allowed_navigation(&url, &app_for_nav))
         .build()?;
 
     // Enable fullscreen button (green traffic light) and set native background color

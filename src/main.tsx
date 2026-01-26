@@ -26,20 +26,37 @@ setupIncomingBridge();
 
 // Plan listeners are now set up via setupEntityListeners() in App.tsx
 
-// Global handler to open external links in system browser
-document.addEventListener("click", (e) => {
-  const target = e.target as HTMLElement;
-  const anchor = target.closest("a");
-  if (!anchor) return;
+// Global handler to open external links in system browser (fallback)
+// Uses capture phase to intercept events before they reach targets
+document.addEventListener(
+  "click",
+  (e) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest("a");
+    if (!anchor) return;
 
-  const href = anchor.getAttribute("href");
-  if (href?.startsWith("http://") || href?.startsWith("https://")) {
-    e.preventDefault();
-    openUrl(href).catch((err) => {
-      logger.error("[main] Failed to open external URL:", err);
-    });
-  }
-});
+    const href = anchor.getAttribute("href");
+    if (!href) return;
+
+    // Check for external URLs using proper URL parsing
+    try {
+      const url = new URL(href, window.location.href);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        // Always prevent default for external links
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        openUrl(url.href).catch((err) => {
+          logger.error("[main] Failed to open external URL:", err);
+        });
+      }
+    } catch {
+      // Invalid URL, let it be handled normally
+    }
+  },
+  true // Use capture phase to intercept early
+);
 
 interface PathsInfo {
   data_dir: string;

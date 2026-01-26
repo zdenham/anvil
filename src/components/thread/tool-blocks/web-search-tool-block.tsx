@@ -217,7 +217,7 @@ function SearchResultCard({ result }: SearchResultCardProps) {
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-blue-400 hover:text-blue-300 hover:underline flex-1 min-w-0 break-words font-medium"
+          className="text-sm text-zinc-200 hover:text-white underline flex-1 min-w-0 break-words font-medium"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();

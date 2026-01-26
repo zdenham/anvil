@@ -39,10 +39,38 @@ mod menu;
 #[cfg(target_os = "macos")]
 mod tray;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Url};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_opener::OpenerExt;
 
 const MAIN_WINDOW_LABEL: &str = "main";
+
+/// Creates a navigation handler that blocks external URLs and opens them in the system browser.
+/// This is the primary defense against in-app navigation to external websites.
+fn is_allowed_navigation(url: &Url, app: &AppHandle) -> bool {
+    // Allow tauri:// protocol (internal app URLs in production)
+    if url.scheme() == "tauri" {
+        return true;
+    }
+
+    // Allow localhost (dev server)
+    if url.scheme() == "http" && url.host_str() == Some("localhost") {
+        return true;
+    }
+
+    // Block external http/https - open in system browser instead
+    if url.scheme() == "http" || url.scheme() == "https" {
+        tracing::info!("[Navigation] Opening external URL in system browser: {}", url);
+        let url_string = url.to_string();
+        if let Err(e) = app.opener().open_url(&url_string, None::<&str>) {
+            tracing::error!("[Navigation] Failed to open URL in browser: {}", e);
+        }
+        return false;
+    }
+
+    // Allow other schemes (file://, etc.) - they're typically safe
+    true
+}
 
 /// Enables the fullscreen button (green traffic light) on macOS for the given window
 #[cfg(target_os = "macos")]
@@ -309,6 +337,7 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
     } else {
         // Window was destroyed - recreate it
         tracing::info!("Main window not found, recreating...");
+        let app_for_nav = app.clone();
         let window = tauri::WebviewWindowBuilder::new(
             &app,
             MAIN_WINDOW_LABEL,
@@ -317,6 +346,7 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
         .title("Mort")
         .inner_size(600.0, 500.0)
         .resizable(true)
+        .on_navigation(move |url| is_allowed_navigation(&url, &app_for_nav))
         .build()
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to recreate main window");

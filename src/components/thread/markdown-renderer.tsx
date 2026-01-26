@@ -1,9 +1,11 @@
 import { memo, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "./code-block";
 import { InlineCode } from "./inline-code";
+import { logger } from "@/lib/logger-client";
 
 interface MarkdownRendererProps {
   content: string;
@@ -75,6 +77,41 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     },
     // Remove default pre wrapper since CodeBlock handles its own container
     pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+
+    // Custom link component to open external links in system browser
+    a: ({ href, children, ...props }: {
+      href?: string;
+      children?: React.ReactNode;
+    }) => {
+      const handleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (href) {
+          openUrl(href).catch((err) => {
+            logger.error("[MarkdownRenderer] Failed to open URL:", err);
+          });
+        }
+      };
+
+      // Only intercept http/https links
+      const isExternal = href?.startsWith("http://") || href?.startsWith("https://");
+
+      if (isExternal) {
+        return (
+          <a
+            href={href}
+            onClick={handleClick}
+            className="text-zinc-200 hover:text-white underline cursor-pointer"
+            {...props}
+          >
+            {children}
+          </a>
+        );
+      }
+
+      // For non-external links, render normally
+      return <a href={href} {...props}>{children}</a>;
+    },
 
     // Table components for GFM tables
     table: ({ children }: { children?: React.ReactNode }) => (
