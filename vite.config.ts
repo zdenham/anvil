@@ -34,7 +34,6 @@ export default defineConfig(async () => ({
         clipboard: resolve(__dirname, "clipboard.html"),
         error: resolve(__dirname, "error.html"),
         "control-panel": resolve(__dirname, "control-panel.html"),
-        "inbox-list": resolve(__dirname, "inbox-list.html"),
       },
     },
   },

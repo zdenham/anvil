@@ -30,8 +30,6 @@ mod shell;
 mod thread_commands;
 mod worktree_commands;
 
-#[cfg(target_os = "macos")]
-mod navigation_mode;
 
 #[cfg(target_os = "macos")]
 mod menu;
@@ -209,32 +207,6 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
         })
         .map_err(|e| format!("Failed to re-register clipboard hotkey: {:?}", e))?;
 
-    // Register control panel navigation hotkeys (macOS only)
-    #[cfg(target_os = "macos")]
-    {
-        let nav_down_hotkey = config::get_control_panel_navigation_down_hotkey();
-        if let Ok(nav_down_shortcut) = nav_down_hotkey.parse::<Shortcut>() {
-            app.global_shortcut()
-                .on_shortcut(nav_down_shortcut, move |_app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        navigation_mode::get_navigation_mode().on_hotkey_pressed(navigation_mode::NavigationDirection::Down);
-                    }
-                })
-                .map_err(|e| format!("Failed to register nav down hotkey: {:?}", e))?;
-        }
-
-        let nav_up_hotkey = config::get_control_panel_navigation_up_hotkey();
-        if let Ok(nav_up_shortcut) = nav_up_hotkey.parse::<Shortcut>() {
-            app.global_shortcut()
-                .on_shortcut(nav_up_shortcut, move |_app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        navigation_mode::get_navigation_mode().on_hotkey_pressed(navigation_mode::NavigationDirection::Up);
-                    }
-                })
-                .map_err(|e| format!("Failed to register nav up hotkey: {:?}", e))?;
-        }
-    }
-
     Ok(())
 }
 
@@ -275,30 +247,6 @@ fn save_clipboard_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
 #[tauri::command]
 fn get_saved_clipboard_hotkey() -> String {
     config::get_clipboard_hotkey()
-}
-
-/// Saves the control panel navigation down hotkey to config
-#[tauri::command]
-fn save_control_panel_navigation_down_hotkey(hotkey: String) -> Result<(), String> {
-    config::set_control_panel_navigation_down_hotkey(&hotkey)
-}
-
-/// Gets the saved control panel navigation down hotkey from config
-#[tauri::command]
-fn get_saved_control_panel_navigation_down_hotkey() -> String {
-    config::get_control_panel_navigation_down_hotkey()
-}
-
-/// Saves the control panel navigation up hotkey to config
-#[tauri::command]
-fn save_control_panel_navigation_up_hotkey(hotkey: String) -> Result<(), String> {
-    config::set_control_panel_navigation_up_hotkey(&hotkey)
-}
-
-/// Gets the saved control panel navigation up hotkey from config
-#[tauri::command]
-fn get_saved_control_panel_navigation_up_hotkey() -> String {
-    config::get_control_panel_navigation_up_hotkey()
 }
 
 /// Checks if the user has completed onboarding
@@ -491,36 +439,6 @@ fn snap_control_panel_position(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
     panels::is_panel_visible(&app, &panel_label)
-}
-
-/// Opens the inbox list panel for navigation mode
-#[tauri::command]
-fn open_inbox_list_panel(app: AppHandle) -> Result<(), String> {
-    panels::show_inbox_list_panel(&app)
-}
-
-/// Hides the inbox list panel
-#[tauri::command]
-fn hide_inbox_list_panel(app: AppHandle) -> Result<(), String> {
-    panels::hide_inbox_list_panel(&app)
-}
-
-/// Forces focus on the inbox list panel if it's visible
-#[tauri::command]
-fn focus_inbox_list_panel(app: AppHandle) -> Result<(), String> {
-    panels::focus_inbox_list_panel(&app)
-}
-
-/// Pins the inbox list panel (prevents hide on blur during drag/resize)
-#[tauri::command]
-fn pin_inbox_list_panel() {
-    panels::pin_inbox_list_panel()
-}
-
-/// Unpins the inbox list panel (allows hide on blur)
-#[tauri::command]
-fn unpin_inbox_list_panel() {
-    panels::unpin_inbox_list_panel()
 }
 
 /// Shows the error panel with the given message and optional stack trace
@@ -847,10 +765,6 @@ pub fn run() {
             get_saved_hotkey,
             save_clipboard_hotkey,
             get_saved_clipboard_hotkey,
-            save_control_panel_navigation_down_hotkey,
-            get_saved_control_panel_navigation_down_hotkey,
-            save_control_panel_navigation_up_hotkey,
-            get_saved_control_panel_navigation_up_hotkey,
             is_onboarded,
             complete_onboarding,
             show_main_window,
@@ -865,11 +779,6 @@ pub fn run() {
             unpin_control_panel,
             snap_control_panel_position,
             is_panel_visible,
-            open_inbox_list_panel,
-            hide_inbox_list_panel,
-            focus_inbox_list_panel,
-            pin_inbox_list_panel,
-            unpin_inbox_list_panel,
             show_spotlight,
             hide_spotlight,
             resize_spotlight,
@@ -986,13 +895,6 @@ pub fn run() {
             cgevent_test::stop_cgevent_test,
             #[cfg(target_os = "macos")]
             cgevent_test::is_cgevent_test_running,
-            // Navigation mode commands (macOS only)
-            #[cfg(target_os = "macos")]
-            navigation_mode::navigation_panel_blur,
-            #[cfg(target_os = "macos")]
-            navigation_mode::is_navigation_mode_active,
-            #[cfg(target_os = "macos")]
-            navigation_mode::get_navigation_state,
             // Shell environment commands
             initialize_shell_environment,
             is_shell_initialized,
@@ -1034,10 +936,6 @@ pub fn run() {
             // Initialize panels module with app handle for event callbacks
             panels::initialize(app.handle());
 
-            // Initialize navigation mode (macOS only)
-            #[cfg(target_os = "macos")]
-            navigation_mode::initialize(app.handle());
-
             // Create panels
             if let Err(e) = panels::create_spotlight_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create spotlight panel");
@@ -1051,10 +949,6 @@ pub fn run() {
             if let Err(e) = panels::create_control_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create control panel");
             }
-            if let Err(e) = panels::create_inbox_list_panel(app.handle()) {
-                tracing::error!(error = %e, "Failed to create inbox list panel");
-            }
-
             // Build and set the native macOS menu bar
             #[cfg(target_os = "macos")]
             {

@@ -20,10 +20,6 @@ export type { ActionState } from "./use-action-state";
 // Thread utilities
 export { useMarkThreadAsRead } from "./use-mark-thread-as-read";
 
-// Navigation mode
-export { useNavigationMode } from "./use-navigation-mode";
-export type { UseNavigationModeResult } from "./use-navigation-mode";
-
 // Git utilities
 export { useGitCommits } from "./use-git-commits";
 export type { GitCommit } from "./use-git-commits";

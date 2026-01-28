@@ -215,6 +215,7 @@ function ControlPanelWindowContent({
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
   const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const hasScrolledOnMount = useRef(false);
 
   // Window drag behavior via reusable hook
@@ -397,6 +398,11 @@ function ControlPanelWindowContent({
     resetState();
   }, [threadId, resetState]);
 
+  // Focus the container on mount so keyboard nav works immediately
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
+
   // Reset thread tab to conversation when navigating to a different thread
   useEffect(() => {
     setThreadTab("conversation");
@@ -481,8 +487,11 @@ function ControlPanelWindowContent({
       // We prefer the quick actions panel over input so arrow keys work immediately
       if (quickActionsPanelRef.current) {
         quickActionsPanelRef.current.focus();
+      } else if (containerRef.current) {
+        // Fallback to container for keyboard nav
+        containerRef.current.focus();
       } else {
-        // Fallback to input if panel ref not available
+        // Final fallback to input if refs not available
         inputRef.current?.focus();
       }
 
@@ -557,8 +566,11 @@ function ControlPanelWindowContent({
     [handleQuickAction]
   );
 
-  // Global keyboard navigation for quick actions
+  // Keyboard navigation for quick actions - scoped to control panel container
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
     const actions = isStreaming ? streamingActions : defaultActions;
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -568,6 +580,7 @@ function ControlPanelWindowContent({
           e.preventDefault();
           setShowFollowUpInput(false);
           setFollowUpValue("");
+          containerRef.current?.focus(); // Restore focus to container
         }
         return;
       }
@@ -610,8 +623,8 @@ function ControlPanelWindowContent({
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    container.addEventListener("keydown", handleKeyDown);
+    return () => container.removeEventListener("keydown", handleKeyDown);
   }, [selectedIndex, isStreaming, showFollowUpInput, navigateUp, navigateDown, setSelectedIndex, setShowFollowUpInput, setFollowUpValue, handleQuickAction]);
 
   const handleToolResponse = useCallback(async (toolId: string, response: string) => {
@@ -646,8 +659,10 @@ function ControlPanelWindowContent({
 
   return (
     <div
+      ref={containerRef}
+      tabIndex={-1}
       className={cn(
-        "control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden",
+        "control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden outline-none",
         // NSPanel uses custom JS drag, standalone windows use native title bar
         !isStandaloneWindow && dragProps.className,
         isStandaloneWindow && "standalone-window"
