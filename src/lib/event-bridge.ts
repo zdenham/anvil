@@ -81,7 +81,6 @@ const RUST_PANEL_EVENTS = [
   "open-control-panel",
   "clipboard-entry-added",
   "show-error",
-  "navigation-mode",
 ] as const;
 
 /**

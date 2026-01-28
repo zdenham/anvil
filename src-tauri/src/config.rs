@@ -18,10 +18,6 @@ pub struct AppConfig {
     pub clipboard_hotkey: String,
     #[serde(default)]
     pub onboarded: bool,
-    #[serde(default = "default_control_panel_navigation_down_hotkey")]
-    pub control_panel_navigation_down_hotkey: String,
-    #[serde(default = "default_control_panel_navigation_up_hotkey")]
-    pub control_panel_navigation_up_hotkey: String,
 }
 
 fn generate_device_id() -> String {
@@ -35,8 +31,6 @@ impl Default for AppConfig {
             spotlight_hotkey: default_spotlight_hotkey(),
             clipboard_hotkey: default_clipboard_hotkey(),
             onboarded: false,
-            control_panel_navigation_down_hotkey: default_control_panel_navigation_down_hotkey(),
-            control_panel_navigation_up_hotkey: default_control_panel_navigation_up_hotkey(),
         }
     }
 }
@@ -48,16 +42,6 @@ fn default_spotlight_hotkey() -> String {
 fn default_clipboard_hotkey() -> String {
     build_info::DEFAULT_CLIPBOARD_HOTKEY.to_string()
 }
-
-fn default_control_panel_navigation_down_hotkey() -> String {
-    "Alt+Down".to_string()
-}
-
-fn default_control_panel_navigation_up_hotkey() -> String {
-    "Alt+Up".to_string()
-}
-
-
 
 /// Initializes the config module (paths must be initialized first)
 pub fn initialize() {
@@ -208,40 +192,6 @@ pub fn get_clipboard_hotkey() -> String {
 pub fn set_clipboard_hotkey(hotkey: &str) -> Result<(), String> {
     let mut config = load_config();
     config.clipboard_hotkey = hotkey.to_string();
-    save_config(&config)
-}
-
-/// Gets the saved control panel navigation down hotkey, or the default if none is saved
-pub fn get_control_panel_navigation_down_hotkey() -> String {
-    let hotkey = load_config().control_panel_navigation_down_hotkey;
-    if hotkey.is_empty() {
-        default_control_panel_navigation_down_hotkey()
-    } else {
-        hotkey
-    }
-}
-
-/// Saves the control panel navigation down hotkey to config
-pub fn set_control_panel_navigation_down_hotkey(hotkey: &str) -> Result<(), String> {
-    let mut config = load_config();
-    config.control_panel_navigation_down_hotkey = hotkey.to_string();
-    save_config(&config)
-}
-
-/// Gets the saved control panel navigation up hotkey, or the default if none is saved
-pub fn get_control_panel_navigation_up_hotkey() -> String {
-    let hotkey = load_config().control_panel_navigation_up_hotkey;
-    if hotkey.is_empty() {
-        default_control_panel_navigation_up_hotkey()
-    } else {
-        hotkey
-    }
-}
-
-/// Saves the control panel navigation up hotkey to config
-pub fn set_control_panel_navigation_up_hotkey(hotkey: &str) -> Result<(), String> {
-    let mut config = load_config();
-    config.control_panel_navigation_up_hotkey = hotkey.to_string();
     save_config(&config)
 }
 

@@ -50,7 +50,6 @@ fn is_allowed_navigation(url: &Url, app: &AppHandle) -> bool {
 pub const SPOTLIGHT_LABEL: &str = "spotlight";
 pub const CLIPBOARD_LABEL: &str = "clipboard";
 pub const ERROR_LABEL: &str = "error";
-pub const INBOX_LIST_PANEL_LABEL: &str = "inbox-list-panel";
 
 // Window dimensions
 pub const SPOTLIGHT_WIDTH: f64 = 570.0;
@@ -62,8 +61,6 @@ pub const ERROR_WIDTH: f64 = 500.0;
 pub const ERROR_HEIGHT: f64 = 300.0;
 pub const CONTROL_PANEL_WIDTH: f64 = 650.0;
 pub const CONTROL_PANEL_HEIGHT: f64 = 750.0;
-pub const INBOX_LIST_PANEL_WIDTH: f64 = 650.0;
-pub const INBOX_LIST_PANEL_HEIGHT: f64 = 550.0;
 pub const RESULT_ITEM_HEIGHT: f64 = 56.0;
 pub const RESULT_ITEM_HEIGHT_COMPACT: f64 = 32.0;
 pub const MAX_VISIBLE_RESULTS: usize = 8;
@@ -167,14 +164,6 @@ tauri_panel! {
         }
     })
 
-    // Inbox list panel for navigation mode inbox display
-    panel!(InboxListPanel {
-        config: {
-            can_become_key_window: true,
-            is_floating_panel: true
-        }
-    })
-
     // Event handler for spotlight panel - hides on blur (resign key)
     panel_event!(SpotlightEventHandler {
         window_did_resign_key(notification: &NSNotification) -> ()
@@ -195,10 +184,6 @@ tauri_panel! {
         window_did_resign_key(notification: &NSNotification) -> ()
     })
 
-    // Event handler for inbox list panel - hides on blur (resign key)
-    panel_event!(InboxListPanelEventHandler {
-        window_did_resign_key(notification: &NSNotification) -> ()
-    })
 }
 
 /// Stores the app handle for use in event callbacks
@@ -759,39 +744,6 @@ fn get_pending_control_panel_mutex() -> &'static Mutex<Option<PendingControlPane
 // Inbox List Panel Pinned State (for drag behavior)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Global storage for inbox list panel pinned state
-/// When pinned, the panel won't hide on blur (used during drag/resize)
-static INBOX_LIST_PANEL_PINNED: OnceLock<Mutex<bool>> = OnceLock::new();
-
-fn get_inbox_list_panel_pinned_mutex() -> &'static Mutex<bool> {
-    INBOX_LIST_PANEL_PINNED.get_or_init(|| Mutex::new(false))
-}
-
-/// Pin the inbox list panel (prevents hide on blur)
-pub fn pin_inbox_list_panel() {
-    if let Ok(mut guard) = get_inbox_list_panel_pinned_mutex().lock() {
-        tracing::info!("[InboxListPanel] Pinning panel (preventing hide on blur)");
-        *guard = true;
-    }
-}
-
-/// Unpin the inbox list panel (allows hide on blur)
-pub fn unpin_inbox_list_panel() {
-    if let Ok(mut guard) = get_inbox_list_panel_pinned_mutex().lock() {
-        tracing::info!("[InboxListPanel] Unpinning panel (allowing hide on blur)");
-        *guard = false;
-    }
-}
-
-/// Check if inbox list panel is pinned
-pub fn is_inbox_list_panel_pinned() -> bool {
-    if let Ok(guard) = get_inbox_list_panel_pinned_mutex().lock() {
-        *guard
-    } else {
-        false
-    }
-}
-
 /// Store a pending control panel (called before showing panel)
 pub fn set_pending_control_panel(task: PendingControlPanel) {
     if let Ok(mut guard) = get_pending_control_panel_mutex().lock() {
@@ -1099,14 +1051,13 @@ pub fn snap_control_panel_position(app: &AppHandle) -> Result<(), String> {
 }
 
 /// Checks if any nspanel is currently visible
-/// Returns true if at least one of the panels (spotlight, clipboard, error, control-panel, inbox-list-panel) is visible
+/// Returns true if at least one of the panels (spotlight, clipboard, error, control-panel) is visible
 pub fn is_any_panel_visible(app: &AppHandle) -> bool {
     let panel_labels = [
         SPOTLIGHT_LABEL,
         CLIPBOARD_LABEL,
         ERROR_LABEL,
         CONTROL_PANEL_LABEL,
-        INBOX_LIST_PANEL_LABEL,
     ];
 
     for label in &panel_labels {
@@ -1409,148 +1360,3 @@ pub fn list_control_panel_window_instances() -> Vec<(String, ControlPanelWindowI
     list_control_panel_windows()
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Inbox List Panel (for navigation mode)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Creates the inbox list panel (hidden by default) - called once at startup
-pub fn create_inbox_list_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("[InboxListPanel] Creating inbox list panel at startup");
-
-    let monitor = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .ok_or("No primary monitor found")?;
-
-    let monitor_size = monitor.size();
-    let scale_factor = monitor.scale_factor();
-    let screen_width = monitor_size.width as f64 / scale_factor;
-    let screen_height = monitor_size.height as f64 / scale_factor;
-
-    // Calculate centered position
-    let x = (screen_width - INBOX_LIST_PANEL_WIDTH) / 2.0;
-    let y = (screen_height - INBOX_LIST_PANEL_HEIGHT) / 2.0;
-
-    let panel = PanelBuilder::<_, InboxListPanel>::new(app, INBOX_LIST_PANEL_LABEL)
-        .url(WebviewUrl::App("inbox-list.html".into()))
-        .size(Size::Logical(LogicalSize::new(
-            INBOX_LIST_PANEL_WIDTH,
-            INBOX_LIST_PANEL_HEIGHT,
-        )))
-        .position(Position::Logical(LogicalPosition::new(x, y)))
-        .level(PanelLevel::ScreenSaver)
-        .collection_behavior(
-            CollectionBehavior::new()
-                .move_to_active_space()
-                .full_screen_auxiliary(),
-        )
-        // Note: borderless() resets the mask, so resizable() must come after it
-        .style_mask(StyleMask::empty().borderless().resizable().nonactivating_panel())
-        .has_shadow(true)
-        .corner_radius(12.0)
-        .hides_on_deactivate(false)
-        .transparent(true)
-        .no_activate(true)
-        .with_window(|w| {
-            w.decorations(false)
-                .resizable(true)
-                .visible(false)
-                .transparent(true)
-                .title("inbox-list-panel")
-                // Allow first click on unfocused panel to pass through to webview
-                // This enables dragging without needing to focus the panel first
-                .accept_first_mouse(true)
-        })
-        .build()?;
-
-    // Disable macOS Tahoe window animations for snappy appearance
-    panel.as_panel().setAnimationBehavior(NSWindowAnimationBehavior::None);
-
-    // Set up event handler to hide panel when it loses focus (blur)
-    // BUT only if not pinned (pinned state is set during drag/resize operations)
-    let event_handler = InboxListPanelEventHandler::new();
-    event_handler.window_did_resign_key(|_notification| {
-        // Check if panel is pinned (during drag/resize)
-        if is_inbox_list_panel_pinned() {
-            tracing::info!("[InboxListPanel] Blur ignored - panel is pinned (drag/resize in progress)");
-            return;
-        }
-
-        if let Some(app) = APP_HANDLE.get() {
-            if let Ok(panel) = app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
-                tracing::info!("[InboxListPanel] Hiding panel on blur (not pinned)");
-                panel.hide();
-            }
-
-            // Also cancel navigation mode if active
-            crate::navigation_mode::get_navigation_mode().on_panel_blur();
-            // Emit event so frontend can reset state
-            let _ = app.emit("inbox-list-panel-hidden", ());
-        }
-    });
-    panel.set_event_handler(Some(event_handler.as_ref()));
-
-    // Ensure panel starts hidden
-    panel.hide();
-
-    tracing::info!("[InboxListPanel] Inbox list panel created (hidden)");
-    Ok(())
-}
-
-/// Shows the inbox list panel on the screen containing the mouse cursor
-pub fn show_inbox_list_panel(app: &AppHandle) -> Result<(), String> {
-    tracing::info!("[InboxListPanel] show_inbox_list_panel called");
-
-    match app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
-        Ok(panel) => {
-            // Reposition panel to center of the screen where the cursor is
-            let (x, y) = calculate_centered_panel_position_cocoa(app, INBOX_LIST_PANEL_WIDTH, INBOX_LIST_PANEL_HEIGHT);
-            panel
-                .as_panel()
-                .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
-
-            tracing::info!("[PanelFocus] show_inbox_list_panel: SHOWING inbox-list-panel");
-            panel.show_and_make_key();
-            tracing::info!("[PanelFocus] show_inbox_list_panel: inbox-list-panel now KEY");
-
-            // Emit event to notify frontend
-            let _ = app.emit("inbox-list-panel-shown", ());
-
-            Ok(())
-        }
-        Err(e) => {
-            tracing::error!("[InboxListPanel] Failed to get panel: {:?}", e);
-            Err(format!("Inbox list panel not available: {:?}", e))
-        }
-    }
-}
-
-/// Hides the inbox list panel
-pub fn hide_inbox_list_panel(app: &AppHandle) -> Result<(), String> {
-    tracing::info!("[InboxListPanel] hide_inbox_list_panel called");
-
-    if let Ok(panel) = app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
-        panel.hide();
-        // Clear pinned state when panel is explicitly hidden
-        unpin_inbox_list_panel();
-        // Emit event so frontend can reset state
-        let _ = app.emit_to(INBOX_LIST_PANEL_LABEL, "panel-hidden", ());
-        let _ = app.emit("inbox-list-panel-hidden", ());
-    }
-    Ok(())
-}
-
-/// Forces focus on the inbox list panel if it's visible
-pub fn focus_inbox_list_panel(app: &AppHandle) -> Result<(), String> {
-    if let Ok(panel) = app.get_webview_panel(INBOX_LIST_PANEL_LABEL) {
-        if panel.is_visible() {
-            tracing::info!("[PanelFocus] focus_inbox_list_panel: RE-FOCUSING inbox-list-panel");
-            panel.as_panel().makeKeyAndOrderFront(None);
-            tracing::info!("[PanelFocus] focus_inbox_list_panel: inbox-list-panel now KEY");
-        } else {
-            tracing::debug!("[PanelFocus] focus_inbox_list_panel: panel not visible, skipping");
-        }
-    }
-    Ok(())
-}

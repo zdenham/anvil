@@ -693,9 +693,9 @@ export const Spotlight = () => {
   }, []);
 
   const activateResult = useCallback(
-    async (result: SpotlightResult, options?: { shiftKey?: boolean }) => {
+    async (result: SpotlightResult, options?: { metaKey?: boolean }) => {
       const controller = controllerRef.current;
-      const useNSPanel = options?.shiftKey ?? false; // Shift+Enter = NSPanel, Enter = Main Window
+      const useNSPanel = options?.metaKey ?? false; // Cmd+Enter = NSPanel, Enter = Main Window
 
       // Handle file selection - insert file path at trigger position
       if (result.type === "file") {
@@ -1223,6 +1223,10 @@ export const Spotlight = () => {
           break;
         }
         case "Enter":
+          // Shift+Enter = insert newline (let default behavior happen)
+          if (e.shiftKey) {
+            break;
+          }
           e.preventDefault();
           // If worktree overlay is visible, Enter confirms the selection
           if (state.worktreeOverlayVisible) {
@@ -1230,10 +1234,10 @@ export const Spotlight = () => {
             break;
           }
           if (displayResults.length > 0 && displayResults[selectedIndex]) {
-            // Pass shiftKey to activateResult for routing:
-            // - Enter (no Shift) = open in main window
-            // - Shift+Enter = open in NSPanel (overlay window)
-            await activateResult(displayResults[selectedIndex], { shiftKey: e.shiftKey });
+            // Pass metaKey to activateResult for routing:
+            // - Enter (no Cmd) = open in main window
+            // - Cmd+Enter = open in NSPanel (overlay window)
+            await activateResult(displayResults[selectedIndex], { metaKey: e.metaKey });
           }
           break;
       }
