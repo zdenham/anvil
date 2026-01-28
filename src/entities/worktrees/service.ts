@@ -25,10 +25,13 @@ class WorktreeServiceClient {
   }
 
   /**
-   * Rename a worktree (metadata only, path stays the same).
+   * Rename a worktree (metadata and branch name, path stays the same).
+   * @param repoName - The repository name
+   * @param worktreeIdOrName - Either the worktree UUID or current name
+   * @param newName - The new name to assign
    */
-  async rename(repoName: string, oldName: string, newName: string): Promise<void> {
-    return invoke("worktree_rename", { repoName, oldName, newName });
+  async rename(repoName: string, worktreeIdOrName: string, newName: string): Promise<void> {
+    return invoke("worktree_rename", { repoName, oldName: worktreeIdOrName, newName });
   }
 
   /**

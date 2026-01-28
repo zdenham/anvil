@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from "fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync, readdirSync } from "fs";
 import { execFileSync } from "child_process";
 import { join } from "path";
 import { z } from "zod";
@@ -7,9 +7,11 @@ import { emitEvent, emitLog } from "./shared.js";
 import {
   ThreadMetadataBaseSchema,
 } from "@core/types/threads.js";
+import { RepositorySettingsSchema } from "@core/types/repositories.js";
 import { generateThreadName } from "../services/thread-naming-service.js";
 import { generateWorktreeName } from "../services/worktree-naming-service.js";
 import { events } from "../lib/events.js";
+import { NodeGitAdapter } from "@core/adapters/node/git-adapter.js";
 
 /**
  * Get the current HEAD commit hash.
@@ -38,6 +40,66 @@ function getCurrentBranch(cwd: string): string | undefined {
     }).trim();
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Check if a worktree has already been renamed by looking up repository settings from disk.
+ * Scans all repositories in mortDir/repositories/ to find the one matching repoId,
+ * then looks up the worktree by worktreeId to check its isRenamed flag.
+ *
+ * @returns true if the worktree has been renamed, false otherwise (including on any errors)
+ */
+function isWorktreeRenamed(mortDir: string, repoId: string, worktreeId: string): boolean {
+  try {
+    const reposDir = join(mortDir, "repositories");
+    if (!existsSync(reposDir)) {
+      return false;
+    }
+
+    // Scan all repository directories to find the one with matching repoId
+    const repoDirs = readdirSync(reposDir).filter(name => {
+      const stat = statSync(join(reposDir, name));
+      return stat.isDirectory();
+    });
+
+    for (const repoDir of repoDirs) {
+      const settingsPath = join(reposDir, repoDir, "settings.json");
+      if (!existsSync(settingsPath)) {
+        continue;
+      }
+
+      try {
+        const content = readFileSync(settingsPath, "utf-8");
+        const parsed = RepositorySettingsSchema.safeParse(JSON.parse(content));
+        if (!parsed.success) {
+          continue;
+        }
+
+        const settings = parsed.data;
+        if (settings.id !== repoId) {
+          continue;
+        }
+
+        // Found the right repository, now find the worktree
+        const worktree = settings.worktrees.find(w => w.id === worktreeId);
+        if (worktree) {
+          return worktree.isRenamed ?? false;
+        }
+
+        // Worktree not found in this repo
+        return false;
+      } catch {
+        // Skip repos with invalid settings
+        continue;
+      }
+    }
+
+    // No matching repository found
+    return false;
+  } catch (err) {
+    emitLog("WARN", `[worktree_rename] Failed to check isRenamed status: ${err}`);
+    return false;
   }
 }
 
@@ -101,6 +163,8 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
           config.historyFile = args[++i];
           break;
         // Ignore deprecated arguments for backwards compatibility
+        case "--worktree-renamed":
+          // Deprecated: now read from disk instead of CLI arg
         case "--agent":
         case "--agent-mode":
           i++; // Skip the value
@@ -287,9 +351,15 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
       this.initiateThreadNaming(threadId, prompt, threadPath);
 
       // Start worktree naming in parallel (fire and forget)
-      // TODO: Only trigger for first thread in worktree - need to track this
-      // For now, always trigger (frontend will handle deduplication/ignoring)
-      this.initiateWorktreeNaming(worktreeId, repoId, prompt);
+      // Only trigger if the worktree hasn't already been renamed from its initial animal name
+      // Read the isRenamed status from disk to check
+      const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
+      if (!alreadyRenamed) {
+        emitLog("INFO", `[worktree_rename] New thread created, worktree not yet renamed - initiating worktree naming for worktreeId=${worktreeId}`);
+        this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
+      } else {
+        emitLog("INFO", `[worktree_rename] Skipping worktree naming - worktree already renamed (worktreeId=${worktreeId})`);
+      }
     }
 
     // Return context with cwd as workingDir
@@ -414,29 +484,137 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
 
   /**
    * Initiate worktree naming in parallel (fire and forget).
-   * Generates a name using Claude Haiku and emits event for frontend.
+   * Generates a name using Claude Haiku, writes to disk, then emits event for UI refresh.
    * Only called for new threads (not resumes) and only for the first thread in a worktree.
    */
   private initiateWorktreeNaming(
     worktreeId: string,
     repoId: string,
-    prompt: string
+    prompt: string,
+    mortDir: string
   ): void {
+    emitLog("INFO", `[worktree_rename] initiateWorktreeNaming called: worktreeId=${worktreeId}, repoId=${repoId}, prompt="${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
+
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      emitLog("WARN", "[worktree-naming] No API key available, skipping name generation");
+      emitLog("WARN", "[worktree_rename] No API key available, skipping name generation");
       return;
     }
+    emitLog("INFO", "[worktree_rename] API key present, calling generateWorktreeName...");
 
     generateWorktreeName(prompt, apiKey)
       .then((name) => {
-        emitLog("INFO", `[worktree-naming] Generated name: "${name}"`);
-        // Emit event for frontend to handle the rename
+        emitLog("INFO", `[worktree_rename] generateWorktreeName resolved with name: "${name}"`);
+
+        // Write to disk FIRST (same pattern as thread naming)
+        try {
+          this.updateWorktreeNameOnDisk(mortDir, repoId, worktreeId, name);
+          emitLog("INFO", `[worktree_rename] Updated worktree name on disk: "${name}"`);
+        } catch (err) {
+          emitLog("ERROR", `[worktree_rename] Failed to write name to disk: ${err}`);
+          // Continue to emit event anyway - frontend listener can serve as backup
+        }
+
+        // Emit event for UI refresh
+        emitLog("INFO", `[worktree_rename] Emitting worktree:name:generated event for worktreeId=${worktreeId}, repoId=${repoId}, name="${name}"`);
         events.worktreeNameGenerated(worktreeId, repoId, name);
+        emitLog("INFO", `[worktree_rename] Event emitted successfully`);
       })
       .catch((error) => {
         // Log error but don't fail the main agent flow
-        emitLog("WARN", `[worktree-naming] Failed to generate name: ${error instanceof Error ? error.message : String(error)}`);
+        emitLog("WARN", `[worktree_rename] generateWorktreeName failed: ${error instanceof Error ? error.message : String(error)}`);
+        if (error instanceof Error && error.stack) {
+          emitLog("WARN", `[worktree_rename] Stack trace: ${error.stack}`);
+        }
       });
+  }
+
+  /**
+   * Update worktree name in repository settings on disk.
+   * Scans repositories to find the one with matching repoId,
+   * then updates the worktree's name, sets isRenamed=true,
+   * creates a branch with the new name, and checks it out.
+   */
+  private updateWorktreeNameOnDisk(
+    mortDir: string,
+    repoId: string,
+    worktreeId: string,
+    newName: string
+  ): void {
+    const reposDir = join(mortDir, "repositories");
+
+    if (!existsSync(reposDir)) {
+      throw new Error(`Repositories directory does not exist: ${reposDir}`);
+    }
+
+    // Find the repository settings file
+    const repoDirs = readdirSync(reposDir).filter(name => {
+      const stat = statSync(join(reposDir, name));
+      return stat.isDirectory();
+    });
+
+    for (const repoDir of repoDirs) {
+      const settingsPath = join(reposDir, repoDir, "settings.json");
+      if (!existsSync(settingsPath)) continue;
+
+      let content: string;
+      try {
+        content = readFileSync(settingsPath, "utf-8");
+      } catch {
+        continue;
+      }
+
+      const parsed = RepositorySettingsSchema.safeParse(JSON.parse(content));
+      if (!parsed.success) continue;
+
+      const settings = parsed.data;
+      if (settings.id !== repoId) continue;
+
+      // Found the right repo - update the worktree
+      const worktreeIndex = settings.worktrees.findIndex(w => w.id === worktreeId);
+      if (worktreeIndex === -1) {
+        throw new Error(`Worktree ${worktreeId} not found in repo ${repoId}`);
+      }
+
+      const worktreePath = settings.worktrees[worktreeIndex].path;
+
+      // Create and checkout the branch with the new name
+      let currentBranch: string | null = null;
+      try {
+        const gitAdapter = new NodeGitAdapter();
+
+        // Check if branch already exists
+        if (!gitAdapter.branchExists(worktreePath, newName)) {
+          gitAdapter.createBranch(worktreePath, newName);
+          emitLog("INFO", `[worktree_rename] Created branch: "${newName}"`);
+        } else {
+          emitLog("INFO", `[worktree_rename] Branch already exists: "${newName}"`);
+        }
+
+        // Checkout the branch
+        gitAdapter.checkoutBranch(worktreePath, newName);
+        emitLog("INFO", `[worktree_rename] Checked out branch: "${newName}"`);
+
+        currentBranch = newName;
+      } catch (err) {
+        emitLog("WARN", `[worktree_rename] Failed to create/checkout branch: ${err}`);
+        // Continue - branch creation is not critical, still update metadata
+      }
+
+      // Update worktree metadata including currentBranch if we successfully checked it out
+      settings.worktrees[worktreeIndex] = {
+        ...settings.worktrees[worktreeIndex],
+        name: newName,
+        isRenamed: true,
+        ...(currentBranch && { currentBranch }),
+      };
+      settings.lastUpdated = Date.now();
+
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+      emitLog("INFO", `[worktree_rename] Wrote updated settings to ${settingsPath}`);
+      return;
+    }
+
+    throw new Error(`Repository ${repoId} not found in ${reposDir}`);
   }
 }

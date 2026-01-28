@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, ChevronDown, Plus, MessageSquarePlus, FolderGit2, GitBranch, Archive, Pencil } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, MessageSquarePlus, FolderGit2, GitBranch, Archive, Pencil, ExternalLink, Loader2 } from "lucide-react";
+import { Command } from "@tauri-apps/plugin-shell";
+import { logger } from "@/lib/logger-client";
 import { worktreeService } from "@/entities/worktrees/service";
 import { cn } from "@/lib/utils";
 import type { RepoWorktreeSection as RepoWorktreeSectionType } from "@/stores/tree-menu/types";
@@ -23,6 +25,8 @@ interface RepoWorktreeSectionProps {
   onArchiveWorktree?: (repoId: string, worktreeId: string, worktreeName: string) => void;
   /** Called when tree menu needs to refresh (e.g., after rename) */
   onRefresh?: () => void;
+  /** Whether a worktree is being created for this repo (shows spinner) */
+  isCreatingWorktree?: boolean;
 }
 
 /**
@@ -41,6 +45,7 @@ export function RepoWorktreeSection({
   onNewRepo,
   onArchiveWorktree,
   onRefresh,
+  isCreatingWorktree,
 }: RepoWorktreeSectionProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -140,7 +145,7 @@ export function RepoWorktreeSection({
 
   const handleNewWorktree = () => {
     setShowMenu(false);
-    onNewWorktree?.(section.repoId);
+    onNewWorktree?.(section.repoName);
   };
 
   const handleNewRepo = () => {
@@ -164,7 +169,7 @@ export function RepoWorktreeSection({
 
   const handleContextNewWorktree = () => {
     setShowContextMenu(false);
-    onNewWorktree?.(section.repoId);
+    onNewWorktree?.(section.repoName);
   };
 
   const handleContextNewRepo = () => {
@@ -174,7 +179,31 @@ export function RepoWorktreeSection({
 
   const handleContextArchiveWorktree = () => {
     setShowContextMenu(false);
-    onArchiveWorktree?.(section.repoId, section.worktreeId, section.worktreeName);
+    onArchiveWorktree?.(section.repoName, section.worktreeId, section.worktreeName);
+  };
+
+  const openInCursor = async () => {
+    try {
+      logger.log(`[WorktreeRow] Opening worktree in Cursor`, {
+        name: section.worktreeName,
+        path: section.worktreePath,
+      });
+
+      const cmd = Command.create("open", ["-a", "Cursor", section.worktreePath], {});
+      await cmd.execute();
+      logger.log(`[WorktreeRow] Opened worktree "${section.worktreeName}" in Cursor`);
+    } catch (err) {
+      logger.error(`[WorktreeRow] Failed to open worktree in Cursor`, {
+        name: section.worktreeName,
+        path: section.worktreePath,
+        error: err,
+      });
+    }
+  };
+
+  const handleContextOpenInCursor = () => {
+    setShowContextMenu(false);
+    openInCursor();
   };
 
   // Rename handlers
@@ -304,10 +333,15 @@ export function RepoWorktreeSection({
               type="button"
               onClick={handlePlusClick}
               onDoubleClick={handlePlusDoubleClick}
-              className="flex items-center justify-center w-5 h-5 rounded text-surface-400 hover:text-surface-200 hover:bg-surface-700"
+              disabled={isCreatingWorktree}
+              className="flex items-center justify-center w-5 h-5 rounded text-surface-400 hover:text-surface-200 hover:bg-surface-700 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Add new thread, worktree, or repository (double-click for new thread)"
             >
-              <Plus size={12} />
+              {isCreatingWorktree ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Plus size={12} />
+              )}
             </button>
 
             {/* Popup menu - rendered in portal to escape overflow */}
@@ -371,6 +405,18 @@ export function RepoWorktreeSection({
           className="fixed z-50 bg-surface-900 border border-surface-700 rounded-lg shadow-lg p-1.5 min-w-[180px]"
           style={{ top: contextMenuPosition.top, left: contextMenuPosition.left }}
         >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleContextOpenInCursor();
+            }}
+            className="w-full px-2.5 py-1 text-left text-xs text-surface-200 hover:bg-surface-800 rounded flex items-center gap-2 whitespace-nowrap"
+          >
+            <ExternalLink size={11} className="flex-shrink-0" />
+            Open
+          </button>
+          <div className="h-px bg-surface-700 my-1" />
           {onNewThread && (
             <button
               type="button"

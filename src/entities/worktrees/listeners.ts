@@ -1,24 +1,23 @@
 import { EventName, EventPayloads } from "@core/types/events.js";
 import { eventBus } from "../events.js";
-import { worktreeService } from "./service.js";
 import { logger } from "@/lib/logger-client.js";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store.js";
 
 /**
  * Setup worktree event listeners.
  */
 export function setupWorktreeListeners(): void {
-  // Worktree name generated - rename the worktree when AI generates a name
+  // Worktree name generated - refresh UI when AI generates a name
+  // NOTE: The agent writes the name to disk directly before emitting this event.
+  // This listener just refreshes the UI by re-hydrating from disk.
   eventBus.on(EventName.WORKTREE_NAME_GENERATED, async ({ worktreeId, repoId, name }: EventPayloads[typeof EventName.WORKTREE_NAME_GENERATED]) => {
+    logger.info(`[WorktreeListener] Received worktree:name:generated event for "${worktreeId}" -> "${name}" in repo "${repoId}"`);
     try {
-      // The worktreeId is the current name (identifier) of the worktree
-      // The repoId is the repository name
-      // The name is the new generated name to assign
-      await worktreeService.rename(repoId, worktreeId, name);
-      logger.info(`[WorktreeListener] Renamed worktree "${worktreeId}" to "${name}" in repo "${repoId}"`);
+      // Refresh the UI by re-hydrating the lookup store from disk
+      await useRepoWorktreeLookupStore.getState().hydrate();
+      logger.info(`[WorktreeListener] UI refreshed for worktree "${worktreeId}" renamed to "${name}"`);
     } catch (error) {
-      // Non-blocking - log and continue
-      // This could fail if the worktree was deleted before rename, or due to name conflicts
-      logger.error(`[WorktreeListener] Failed to rename worktree "${worktreeId}" to "${name}":`, error);
+      logger.error(`[WorktreeListener] Failed to refresh UI after worktree rename:`, error);
     }
   });
 }

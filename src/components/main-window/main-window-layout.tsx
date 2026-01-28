@@ -16,7 +16,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { TreeMenu, TreePanelHeader } from "@/components/tree-menu";
@@ -27,6 +27,7 @@ import { MainWindowProvider } from "./main-window-context";
 import { contentPanesService, setupContentPanesListeners } from "@/stores/content-panes";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { layoutService } from "@/stores/layout/service";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { threadService } from "@/entities/threads/service";
 import { repoService } from "@/entities/repositories";
 import { worktreeService } from "@/entities/worktrees";
@@ -34,6 +35,7 @@ import { logger } from "@/lib/logger-client";
 import { generateUniqueWorktreeName } from "@/lib/random-name";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { useFullscreen } from "@/hooks/use-fullscreen";
+import { useTreeData } from "@/hooks/use-tree-data";
 import type { ContentPaneView } from "@/components/content-pane/types";
 
 // Valid navigation targets from macOS menu
@@ -51,10 +53,21 @@ export function MainWindowLayout() {
   const listenersInitialized = useRef(false);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Tree Data (for Command+N new thread in most recent worktree)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const treeSections = useTreeData();
+
+  // Store ref to treeSections for use in keyboard handler (avoids stale closure)
+  const treeSectionsRef = useRef(treeSections);
+  treeSectionsRef.current = treeSections;
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Command Palette State
   // ═══════════════════════════════════════════════════════════════════════════
 
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [creatingWorktreeForRepo, setCreatingWorktreeForRepo] = useState<string | null>(null);
 
   // Listen for Command+P / Ctrl+P to open command palette
   useEffect(() => {
@@ -62,6 +75,43 @@ export function MainWindowLayout() {
       if ((e.metaKey || e.ctrlKey) && e.key === "p") {
         e.preventDefault();
         setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Listen for Command+N / Ctrl+N to create new thread in most recent worktree
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+
+        // Get most recently used worktree (first section, sorted by recency)
+        const sections = treeSectionsRef.current;
+        if (sections.length === 0) {
+          logger.warn("[MainWindowLayout] Command+N: No worktrees available");
+          return;
+        }
+
+        const mostRecent = sections[0];
+        logger.info(`[MainWindowLayout] Command+N: Creating new thread in most recent worktree "${mostRecent.worktreeName}"`);
+
+        try {
+          const thread = await threadService.create({
+            repoId: mostRecent.repoId,
+            worktreeId: mostRecent.worktreeId,
+            prompt: "",
+          });
+
+          await contentPanesService.setActivePaneView({ type: "thread", threadId: thread.id, autoFocus: true });
+          await treeMenuService.hydrate();
+
+          logger.info(`[MainWindowLayout] Command+N: Created new thread ${thread.id}`);
+        } catch (err) {
+          logger.error(`[MainWindowLayout] Command+N: Failed to create thread:`, err);
+        }
       }
     };
 
@@ -209,23 +259,31 @@ export function MainWindowLayout() {
     }
   }, []);
 
-  const handleNewWorktree = useCallback(async (repoId: string) => {
-    logger.info(`[MainWindowLayout] New worktree requested for repo ${repoId}`);
+  const handleNewWorktree = useCallback(async (repoName: string) => {
+    logger.info(`[MainWindowLayout] New worktree requested for repo ${repoName}`);
+    setCreatingWorktreeForRepo(repoName);
 
     try {
       // Sync existing worktrees to get current names
-      const existingWorktrees = await worktreeService.sync(repoId);
+      const existingWorktrees = await worktreeService.sync(repoName);
       const existingNames = new Set(existingWorktrees.map(w => w.name));
 
       // Generate unique random name
       const worktreeName = generateUniqueWorktreeName(existingNames);
       logger.info(`[MainWindowLayout] Auto-generated worktree name: "${worktreeName}"`);
 
-      await worktreeService.create(repoId, worktreeName);
+      await worktreeService.create(repoName, worktreeName);
+
+      // Re-sync worktrees to ensure new worktree is in settings, then refresh lookup store
+      await worktreeService.sync(repoName);
+      await useRepoWorktreeLookupStore.getState().hydrate();
+
       await treeMenuService.hydrate();
-      logger.info(`[MainWindowLayout] Created worktree "${worktreeName}" in ${repoId}`);
+      logger.info(`[MainWindowLayout] Created worktree "${worktreeName}" in ${repoName}`);
     } catch (error) {
       logger.error(`[MainWindowLayout] Failed to create worktree:`, error);
+    } finally {
+      setCreatingWorktreeForRepo(null);
     }
   }, []);
 
@@ -248,6 +306,12 @@ export function MainWindowLayout() {
 
         await repoService.createFromFolder(selectedPath);
         await repoService.hydrate();
+
+        // Sync worktrees for all repos and refresh lookup store
+        const repos = repoService.getAll();
+        await Promise.all(repos.map((repo) => worktreeService.sync(repo.name)));
+        await useRepoWorktreeLookupStore.getState().hydrate();
+
         await treeMenuService.hydrate();
         logger.info(`[MainWindowLayout] Added repository from ${selectedPath}`);
       }
@@ -256,8 +320,8 @@ export function MainWindowLayout() {
     }
   }, []);
 
-  const handleArchiveWorktree = useCallback(async (repoId: string, worktreeId: string, worktreeName: string) => {
-    logger.info(`[MainWindowLayout] Archive worktree requested: ${worktreeName} (${worktreeId}) in repo ${repoId}`);
+  const handleArchiveWorktree = useCallback(async (repoName: string, worktreeId: string, worktreeName: string) => {
+    logger.info(`[MainWindowLayout] Archive worktree requested: ${worktreeName} (${worktreeId}) in repo ${repoName}`);
 
     // Get threads in this worktree to show count in confirmation
     const threads = threadService.getByWorktree(worktreeId);
@@ -268,7 +332,12 @@ export function MainWindowLayout() {
       ? `Archive worktree "${worktreeName}" and its ${threadCount} thread${threadCount === 1 ? "" : "s"}?`
       : `Archive worktree "${worktreeName}"?`;
 
-    if (!window.confirm(message)) {
+    const confirmed = await confirm(message, {
+      title: "Archive Worktree",
+      kind: "warning",
+    });
+
+    if (!confirmed) {
       logger.info(`[MainWindowLayout] Archive worktree cancelled`);
       return;
     }
@@ -281,7 +350,11 @@ export function MainWindowLayout() {
       }
 
       // Delete the worktree
-      await worktreeService.delete(repoId, worktreeName);
+      await worktreeService.delete(repoName, worktreeName);
+
+      // Sync worktrees and refresh lookup store
+      await worktreeService.sync(repoName);
+      await useRepoWorktreeLookupStore.getState().hydrate();
 
       // Refresh tree menu
       await treeMenuService.hydrate();
@@ -317,6 +390,7 @@ export function MainWindowLayout() {
             onNewWorktree={handleNewWorktree}
             onNewRepo={handleNewRepo}
             onArchiveWorktree={handleArchiveWorktree}
+            creatingWorktreeForRepo={creatingWorktreeForRepo}
             className="flex-1 min-h-0"
           />
           <div className="px-3 py-2 border-t border-surface-800">

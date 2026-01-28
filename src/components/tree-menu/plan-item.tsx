@@ -87,6 +87,7 @@ export function PlanItem({
           "group flex items-center gap-1.5 py-0.5 px-2 pl-8 cursor-pointer",
           "text-[13px] leading-[22px]",
           "transition-colors duration-75",
+          "outline-none",
           isSelected
             ? "bg-accent-500/20 text-surface-100"
             : "text-surface-300 hover:bg-surface-800/50"

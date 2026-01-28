@@ -16,7 +16,6 @@
 import { useCallback } from "react";
 import {
   StopCircle,
-  ChevronRight,
   X,
   GitCompare,
   MessageSquare,
@@ -26,6 +25,8 @@ import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
+import { Breadcrumb } from "./breadcrumb";
+import { useBreadcrumbContext } from "./use-breadcrumb-context";
 import type { ContentPaneHeaderProps } from "./types";
 
 function getStatusVariant(
@@ -87,26 +88,24 @@ function PlanHeader({
 }) {
   const plan = usePlanStore(useCallback((s) => s.getPlan(planId), [planId]));
   const isMainWindow = useIsMainWindow();
+  const { repoName, worktreeName } = useBreadcrumbContext(
+    plan?.repoId,
+    plan?.worktreeId
+  );
 
   // Use the file name from relativePath, or truncated ID as fallback
   const planLabel =
     plan?.relativePath?.split("/").pop() ?? planId.slice(0, 8) + "...";
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-1.5 text-xs">
-        <button
-          onClick={onClose}
-          className="text-surface-400 hover:text-surface-200 focus:outline-none focus:text-surface-200 transition-colors"
-        >
-          plans
-        </button>
-        <ChevronRight size={12} className="text-surface-500" />
-        <span className="text-surface-300 truncate max-w-[200px]">
-          {planLabel}
-        </span>
-      </div>
+    <div className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+      <Breadcrumb
+        repoName={repoName}
+        worktreeName={worktreeName}
+        category="plans"
+        itemLabel={planLabel}
+        onCategoryClick={onClose}
+      />
 
       <div className="ml-auto flex items-center gap-2">
         {/* Pop-out button - only show in panel windows, not main window */}
@@ -156,6 +155,10 @@ function ThreadHeader({
     useCallback((s) => s.threads[threadId], [threadId])
   );
   const isMainWindow = useIsMainWindow();
+  const { repoName, worktreeName } = useBreadcrumbContext(
+    thread?.repoId,
+    thread?.worktreeId
+  );
 
   // Cancel agent via service (service encapsulates communication)
   const handleCancel = useCallback(async () => {
@@ -196,23 +199,17 @@ function ThreadHeader({
   })();
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+    <div className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
       {/* Status dot */}
       <StatusDot variant={getStatusVariant(isStreaming, thread?.isRead)} />
 
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-1.5 text-xs">
-        <button
-          onClick={onClose}
-          className="text-surface-400 hover:text-surface-200 focus:outline-none focus:text-surface-200 transition-colors"
-        >
-          threads
-        </button>
-        <ChevronRight size={12} className="text-surface-500" />
-        <span className="text-surface-300 truncate max-w-[300px]">
-          {threadLabel}
-        </span>
-      </div>
+      <Breadcrumb
+        repoName={repoName}
+        worktreeName={worktreeName}
+        category="threads"
+        itemLabel={threadLabel}
+        onCategoryClick={onClose}
+      />
 
       <div className="ml-auto flex items-center gap-2">
         {isStreaming && (

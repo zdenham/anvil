@@ -4,6 +4,9 @@ import { MortLogo } from "@/components/ui/mort-logo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { threadService } from "@/entities/threads/service";
 import { planService } from "@/entities/plans/service";
+import { repoService } from "@/entities/repositories";
+import { worktreeService } from "@/entities/worktrees";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { logger } from "@/lib/logger-client";
 
 interface TreePanelHeaderProps {
@@ -31,6 +34,14 @@ export function TreePanelHeader({
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
+      // Sync worktrees for all repositories to pick up any external changes
+      const repos = repoService.getAll();
+      await Promise.all(repos.map((repo) => worktreeService.sync(repo.name)));
+
+      // Refresh the lookup store with updated worktree data
+      await useRepoWorktreeLookupStore.getState().hydrate();
+
+      // Refresh threads and plans
       await Promise.all([threadService.hydrate(), planService.hydrate()]);
     } catch (err) {
       logger.error("[TreePanelHeader] Refresh failed:", err);

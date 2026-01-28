@@ -13,6 +13,8 @@ pub struct WorktreeState {
     pub name: String,
     pub last_accessed_at: Option<u64>,
     pub current_branch: Option<String>,
+    #[serde(default)]
+    pub is_renamed: bool,
 }
 
 /// Create a new named worktree.
@@ -63,6 +65,7 @@ pub async fn worktree_create(repo_name: String, name: String) -> Result<Worktree
         name,
         last_accessed_at: Some(now_millis()),
         current_branch: None,
+        is_renamed: false,
     };
 
     // Update settings
@@ -127,13 +130,25 @@ pub async fn worktree_delete(repo_name: String, name: String) -> Result<(), Stri
     Ok(())
 }
 
-/// Rename a worktree (metadata only - path stays the same).
+/// Rename a worktree (metadata and branch name - path stays the same).
+/// The worktree_id_or_name parameter can be either:
+/// - A worktree UUID (for auto-rename from agent)
+/// - A worktree name (for manual rename from context menu)
 #[tauri::command]
 pub async fn worktree_rename(
     repo_name: String,
-    old_name: String,
+    old_name: String, // Actually worktree_id_or_name - kept as old_name for API compatibility
     new_name: String,
 ) -> Result<(), String> {
+    let worktree_id_or_name = old_name; // Rename for clarity
+
+    tracing::info!(
+        repo_name = %repo_name,
+        worktree_id_or_name = %worktree_id_or_name,
+        new_name = %new_name,
+        "[worktree_rename] Starting rename operation"
+    );
+
     // Validate new name format
     if !new_name
         .chars()
@@ -149,22 +164,88 @@ pub async fn worktree_rename(
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
 
-    // Check new name doesn't exist
-    if worktrees.iter().any(|w| w.name == new_name) {
+    // Find the worktree - try by ID first, then by name
+    let worktree_index = worktrees
+        .iter()
+        .position(|w| w.id == worktree_id_or_name)
+        .or_else(|| worktrees.iter().position(|w| w.name == worktree_id_or_name))
+        .ok_or_else(|| {
+            tracing::error!(
+                worktree_id_or_name = %worktree_id_or_name,
+                "[worktree_rename] Worktree not found by ID or name"
+            );
+            format!("Worktree \"{}\" not found", worktree_id_or_name)
+        })?;
+
+    let worktree = &worktrees[worktree_index];
+    tracing::info!(
+        worktree_id = %worktree.id,
+        worktree_name = %worktree.name,
+        "[worktree_rename] Found worktree"
+    );
+
+    // Skip if already renamed to this name
+    if worktree.name == new_name {
+        tracing::info!("[worktree_rename] Worktree already has this name, skipping");
+        return Ok(());
+    }
+
+    // Check new name doesn't already exist (excluding current worktree)
+    if worktrees
+        .iter()
+        .any(|w| w.name == new_name && w.id != worktrees[worktree_index].id)
+    {
         return Err(format!("Worktree \"{}\" already exists", new_name));
     }
 
-    // Find and rename
-    let worktree = worktrees
-        .iter_mut()
-        .find(|w| w.name == old_name)
-        .ok_or(format!("Worktree \"{}\" not found", old_name))?;
+    let old_branch_name = worktrees[worktree_index].name.clone();
+    let worktree_path = worktrees[worktree_index].path.clone();
 
-    worktree.name = new_name;
+    // Update metadata
+    worktrees[worktree_index].name = new_name.clone();
+    worktrees[worktree_index].is_renamed = true;
 
-    // Update settings
     settings["worktrees"] = serde_json::to_value(&worktrees).map_err(|e| e.to_string())?;
     save_settings(&repo_name, &settings)?;
+
+    tracing::info!(
+        old_name = %old_branch_name,
+        new_name = %new_name,
+        "[worktree_rename] Updated settings.json"
+    );
+
+    // Rename the git branch
+    rename_branch(&worktree_path, &old_branch_name, &new_name)?;
+
+    tracing::info!("[worktree_rename] Rename operation completed successfully");
+    Ok(())
+}
+
+/// Rename a git branch in the worktree
+fn rename_branch(worktree_path: &str, old_name: &str, new_name: &str) -> Result<(), String> {
+    tracing::info!(
+        worktree_path = %worktree_path,
+        old_name = %old_name,
+        new_name = %new_name,
+        "[worktree_rename] Renaming git branch"
+    );
+
+    let output = std::process::Command::new("git")
+        .args(["branch", "-m", old_name, new_name])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        // Log but don't fail - branch might already have different name or be checked out
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::warn!(
+            stderr = %stderr,
+            "[worktree_rename] Failed to rename branch (non-fatal)"
+        );
+    } else {
+        tracing::info!("[worktree_rename] Git branch renamed successfully");
+    }
 
     Ok(())
 }
@@ -252,6 +333,7 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
                 name: final_name,
                 last_accessed_at: Some(0), // Not accessed through our tool yet
                 current_branch: git_wt.branch.clone(),
+                is_renamed: false,
             });
         }
     }

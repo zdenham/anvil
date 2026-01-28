@@ -15,11 +15,13 @@ interface TreeMenuProps {
   /** Called when user wants to create a new thread in a worktree */
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   /** Called when user wants to create a new worktree in a repo */
-  onNewWorktree?: (repoId: string) => void;
+  onNewWorktree?: (repoName: string) => void;
   /** Called when user wants to add a new repository */
   onNewRepo?: () => void;
   /** Called when user wants to archive a worktree */
-  onArchiveWorktree?: (repoId: string, worktreeId: string, worktreeName: string) => void;
+  onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
+  /** Name of repo currently having a worktree created (for spinner) */
+  creatingWorktreeForRepo?: string | null;
   className?: string;
 }
 
@@ -29,7 +31,7 @@ interface TreeMenuProps {
  * Supports keyboard navigation: ArrowUp/Down, ArrowLeft/Right, Enter/Space, Home/End.
  * Uses ARIA tree pattern for accessibility.
  */
-export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, onArchiveWorktree, className }: TreeMenuProps) {
+export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, className }: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sections = useTreeData();
   const selectedItemId = useTreeMenuStore((state) => state.selectedItemId);
@@ -227,6 +229,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, 
           onNewRepo={onNewRepo}
           onArchiveWorktree={onArchiveWorktree}
           onRefresh={handleRefreshTreeMenu}
+          isCreatingWorktree={creatingWorktreeForRepo === section.repoName}
         />
       ))}
     </div>

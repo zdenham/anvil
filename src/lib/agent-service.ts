@@ -200,6 +200,7 @@ function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
     case EventName.THREAD_STATUS_CHANGED:
     case EventName.WORKTREE_ALLOCATED:
     case EventName.WORKTREE_RELEASED:
+    case EventName.WORKTREE_NAME_GENERATED:
     case EventName.ACTION_REQUESTED:
     case EventName.AGENT_CANCELLED:
     case EventName.THREAD_NAME_GENERATED:

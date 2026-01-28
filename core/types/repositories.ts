@@ -37,6 +37,8 @@ export const WorktreeStateSchema = z.object({
   lastAccessedAt: z.number().optional(),
   /** Currently checked out branch, or null */
   currentBranch: z.string().nullable().optional(),
+  /** Whether this worktree has been renamed from its initial animal name */
+  isRenamed: z.boolean().optional(),
 });
 export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
 
