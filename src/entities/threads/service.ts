@@ -136,8 +136,25 @@ export const threadService = {
     const raw = await persistence.readJson(`${path}/metadata.json`);
     const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
     if (result?.success) {
-      const metadata = result.data;
-      useThreadStore.getState()._applyUpdate(threadId, metadata);
+      const diskMetadata = result.data;
+      const existingThread = useThreadStore.getState().threads[threadId];
+
+      // If existing thread was optimistic, preserve the prompt if disk doesn't have it
+      // This prevents flash-to-empty-state when disk refresh races with optimistic creation
+      if (existingThread?._isOptimistic) {
+        const optimisticPrompt = existingThread.turns[0]?.prompt;
+        const diskHasPrompt = diskMetadata.turns[0]?.prompt;
+
+        if (optimisticPrompt && !diskHasPrompt) {
+          // Merge: use disk metadata but preserve optimistic prompt
+          diskMetadata.turns = existingThread.turns;
+        }
+
+        // Clear the optimistic flag since we now have disk confirmation
+        delete diskMetadata._isOptimistic;
+      }
+
+      useThreadStore.getState()._applyUpdate(threadId, diskMetadata);
     }
   },
 
@@ -446,8 +463,20 @@ export const threadService = {
    * Creates an optimistic thread in the store without writing to disk.
    * Used for immediate UI feedback before the real thread is created.
    * The thread will be overwritten when disk refresh occurs.
+   *
+   * @param params.id - Thread UUID
+   * @param params.repoId - Repository UUID
+   * @param params.worktreeId - Worktree UUID
+   * @param params.status - Initial status
+   * @param params.prompt - Optional first message prompt (for immediate display)
    */
-  createOptimistic(params: { id: string; repoId: string; worktreeId: string; status: ThreadStatus }): void {
+  createOptimistic(params: {
+    id: string;
+    repoId: string;
+    worktreeId: string;
+    status: ThreadStatus;
+    prompt?: string;
+  }): void {
     const now = Date.now();
     const optimisticThread: ThreadMetadata = {
       id: params.id,
@@ -456,9 +485,24 @@ export const threadService = {
       status: params.status,
       createdAt: now,
       updatedAt: now,
-      isRead: false, // Optimistic threads are unread until user views them
-      turns: [],
+      isRead: true, // New threads start as read (user just created it)
+      _isOptimistic: true, // Mark as optimistic until disk confirmation
+      turns: params.prompt
+        ? [{
+            index: 0,
+            prompt: params.prompt,
+            startedAt: now,
+            completedAt: null,
+          }]
+        : [],
     };
+
+    logger.info(`[threadService.createOptimistic] Creating optimistic thread:`, {
+      threadId: params.id,
+      repoId: params.repoId,
+      worktreeId: params.worktreeId,
+      hasPrompt: !!params.prompt,
+    });
 
     useThreadStore.getState()._applyCreate(optimisticThread);
   },

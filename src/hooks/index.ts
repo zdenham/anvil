@@ -20,9 +20,6 @@ export type { ActionState } from "./use-action-state";
 // Thread utilities
 export { useMarkThreadAsRead } from "./use-mark-thread-as-read";
 
-// Panel utilities
-export { usePanelVisibility } from "./use-panel-visibility";
-
 // Navigation mode
 export { useNavigationMode } from "./use-navigation-mode";
 export type { UseNavigationModeResult } from "./use-navigation-mode";
@@ -42,8 +39,22 @@ export type { RepoNameMap } from "./use-repo-names";
 export { useWindowDrag } from "./use-window-drag";
 export type { UseWindowDragOptions, UseWindowDragResult } from "./use-window-drag";
 
+// Fullscreen detection
+export { useFullscreen } from "./use-fullscreen";
+
 // Inbox navigation utilities
 export { useUnifiedInboxNavigation } from "./use-unified-inbox-navigation";
 export type { NavigationResult, UseUnifiedInboxNavigationReturn } from "./use-unified-inbox-navigation";
 export { useNavigateToNextItem } from "./use-navigate-to-next-item";
 export type { NavigationActionType, UseNavigateToNextItemReturn } from "./use-navigate-to-next-item";
+export { useContextAwareNavigation } from "./use-context-aware-navigation";
+
+// Tree data utilities
+export {
+  useTreeData,
+  useTreeSections,
+  useSelectedTreeItem,
+  useSectionItems,
+  useExpandedSections,
+  buildTreeFromEntities,
+} from "./use-tree-data";

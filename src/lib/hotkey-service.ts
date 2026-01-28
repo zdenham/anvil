@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { logger } from "./logger-client";
 import type { ControlPanelViewType } from "@/entities/events";
+import type { ContentPaneView } from "@/components/content-pane/types";
 
 /**
  * Registers a global hotkey with Tauri (temporary, not saved)
@@ -88,6 +89,28 @@ export const hideMainWindow = async (): Promise<void> => {
 };
 
 /**
+ * Shows the main window and sets a specific content pane view.
+ * Used for spotlight → main window navigation (Enter without Shift modifier).
+ *
+ * @param view - The ContentPaneView to display (thread, plan, settings, logs, or empty)
+ */
+export const showMainWindowWithView = async (view: ContentPaneView): Promise<void> => {
+  const startTime = Date.now();
+  const threadId = view.type === "thread" ? view.threadId : undefined;
+  logger.info("[hotkey-service:TIMING] showMainWindowWithView START", {
+    view,
+    threadId,
+    timestamp: new Date(startTime).toISOString(),
+  });
+  await invoke("show_main_window_with_view", { view });
+  logger.info("[hotkey-service:TIMING] showMainWindowWithView COMPLETE (invoke returned)", {
+    threadId,
+    elapsedMs: Date.now() - startTime,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+/**
  * Opens the control panel and displays a specific task.
  * If prompt is provided, shows optimistic UI with the prompt text before task loads.
  */
@@ -117,6 +140,7 @@ export const completeOnboarding = async (): Promise<void> => {
 /**
  * Saves the control panel navigation down hotkey to backend config and registers it
  * @param hotkey - The hotkey string to save and register (e.g., "Shift+Down", "Command+J")
+ * @deprecated Use Command+P command palette instead. Will be removed in future version.
  */
 export const saveControlPanelNavigationDownHotkey = async (hotkey: string): Promise<void> => {
   logger.debug(`[hotkey-service] Saving control panel navigation down hotkey: "${hotkey}"`);
@@ -131,6 +155,7 @@ export const saveControlPanelNavigationDownHotkey = async (hotkey: string): Prom
 
 /**
  * Gets the saved control panel navigation down hotkey from backend config
+ * @deprecated Use Command+P command palette instead. Will be removed in future version.
  */
 export const getSavedControlPanelNavigationDownHotkey = async (): Promise<string> => {
   const hotkey = await invoke<string>("get_saved_control_panel_navigation_down_hotkey");
@@ -141,6 +166,7 @@ export const getSavedControlPanelNavigationDownHotkey = async (): Promise<string
 /**
  * Saves the control panel navigation up hotkey to backend config and registers it
  * @param hotkey - The hotkey string to save and register (e.g., "Shift+Up", "Command+K")
+ * @deprecated Use Command+P command palette instead. Will be removed in future version.
  */
 export const saveControlPanelNavigationUpHotkey = async (hotkey: string): Promise<void> => {
   logger.debug(`[hotkey-service] Saving control panel navigation up hotkey: "${hotkey}"`);
@@ -155,6 +181,7 @@ export const saveControlPanelNavigationUpHotkey = async (hotkey: string): Promis
 
 /**
  * Gets the saved control panel navigation up hotkey from backend config
+ * @deprecated Use Command+P command palette instead. Will be removed in future version.
  */
 export const getSavedControlPanelNavigationUpHotkey = async (): Promise<string> => {
   const hotkey = await invoke<string>("get_saved_control_panel_navigation_up_hotkey");

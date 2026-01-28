@@ -10,7 +10,7 @@ import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { useRelationStore } from "@/entities/relations/store";
 import { createUnifiedList } from "@/components/inbox/utils";
-import type { InboxItem } from "@/components/inbox/types";
+import type { InboxItem } from "@/types/navigation";
 import type { ThreadMetadata } from "@/entities/threads/types";
 
 /** Cooldown period for recently marked unread items (60 seconds) */

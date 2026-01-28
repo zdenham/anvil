@@ -1,15 +1,7 @@
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
-import type { InboxItem } from "./types";
-
-/**
- * Get the display name for a plan (filename from relative path).
- */
-export function getPlanDisplayName(plan: PlanMetadata): string {
-  // Extract filename from path (works with both / and \ separators)
-  const parts = plan.relativePath.split(/[/\\]/);
-  return parts[parts.length - 1] || plan.relativePath;
-}
+import type { InboxItem } from "@/types/navigation";
+import { getPlanDisplayName } from "@/entities/plans/utils";
 
 /**
  * Combine threads and plans into a single sorted list.

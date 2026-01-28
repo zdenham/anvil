@@ -85,18 +85,20 @@ describe("Tool State Rendering", () => {
           messageIndex={toolUseMessageIndex}
           isStreaming={false}
           toolStates={completedToolStates}
+          threadId="test-thread"
         />
       );
 
       // Get the tool block and check its status
-      const toolBlock = screen.getByTestId(`tool-use-${toolUseId}`);
+      // Note: Edit tools use specialized EditToolBlock with different test ID format
+      const toolBlock = screen.getByTestId(`edit-tool-${toolUseId}`);
       expect(toolBlock).toBeInTheDocument();
 
       // KEY ASSERTION: Status should be "complete", not "running"
       expect(toolBlock).toHaveAttribute("data-tool-status", "complete");
 
-      // Check for visual indicator via screen reader text
-      expect(within(toolBlock).getByText("Completed")).toBeInTheDocument();
+      // Check for visual indicator via screen reader text (EditToolBlock uses different text)
+      expect(within(toolBlock).getByText("Edit completed successfully")).toBeInTheDocument();
     });
 
     it("renders tool as error when toolStates shows error", () => {
@@ -115,12 +117,13 @@ describe("Tool State Rendering", () => {
           messageIndex={toolUseMessageIndex}
           isStreaming={false}
           toolStates={errorToolStates}
+          threadId="test-thread"
         />
       );
 
-      const toolBlock = screen.getByTestId(`tool-use-${toolUseId}`);
+      const toolBlock = screen.getByTestId(`edit-tool-${toolUseId}`);
       expect(toolBlock).toHaveAttribute("data-tool-status", "error");
-      expect(within(toolBlock).getByText("Failed")).toBeInTheDocument();
+      expect(within(toolBlock).getByText("Edit failed")).toBeInTheDocument();
     });
   });
 
@@ -142,16 +145,17 @@ describe("Tool State Rendering", () => {
           messages={messagesWithToolUse}
           messageIndex={toolUseMessageIndex}
           isStreaming={false}
+          threadId="test-thread"
           // NOTE: toolStates NOT passed - this is the bug scenario
         />
       );
 
-      const toolBlock = screen.getByTestId(`tool-use-${toolUseId}`);
+      const toolBlock = screen.getByTestId(`edit-tool-${toolUseId}`);
 
       // This documents the CURRENT (buggy) behavior:
       // Tool defaults to "running" when toolStates is missing
       expect(toolBlock).toHaveAttribute("data-tool-status", "running");
-      expect(within(toolBlock).getByText("In progress")).toBeInTheDocument();
+      expect(within(toolBlock).getByText("Edit in progress")).toBeInTheDocument();
     });
   });
 
@@ -191,15 +195,16 @@ describe("Tool State Rendering", () => {
           messageIndex={1} // Index of the assistant message with tools
           isStreaming={false}
           toolStates={mixedToolStates}
+          threadId="test-thread"
         />
       );
 
-      // First tool: complete
-      const firstTool = screen.getByTestId(`tool-use-${toolUseId}`);
+      // First tool: complete (Edit tools use edit-tool-${id} test ID format)
+      const firstTool = screen.getByTestId(`edit-tool-${toolUseId}`);
       expect(firstTool).toHaveAttribute("data-tool-status", "complete");
 
       // Second tool: error
-      const secondTool = screen.getByTestId(`tool-use-${secondToolId}`);
+      const secondTool = screen.getByTestId(`edit-tool-${secondToolId}`);
       expect(secondTool).toHaveAttribute("data-tool-status", "error");
     });
   });

@@ -22,11 +22,12 @@ import { useSpotlightHistory } from "./use-spotlight-history";
 import { CalculatorService } from "../../lib/calculator-service";
 import { TriggerSearchInput, type TriggerStateInfo } from "../reusable/trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
-import { repoService, type Repository, eventBus } from "../../entities";
+import { repoService, type Repository, eventBus, threadService } from "../../entities";
 import { worktreeService } from "../../entities/worktrees";
+import { EventName } from "@core/types/events.js";
 import type { RepoWorktree } from "@core/types/repositories";
 import { spawnSimpleAgent } from "../../lib/agent-service";
-import { openControlPanel, showMainWindow } from "../../lib/hotkey-service";
+import { openControlPanel, showMainWindow, showMainWindowWithView } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
 import { promptHistoryService } from "../../lib/prompt-history-service";
 import { loadSettings } from "../../lib/persistence";
@@ -205,17 +206,27 @@ export class SpotlightController {
    * Creates a simple thread that runs directly in the source repository or worktree.
    * No worktree allocation, no branch management - just direct execution.
    *
-   * Note: Thread metadata is created by the simple-runner process, not here.
-   * This follows the "Agent Process Architecture" principle from agents.md.
+   * Uses optimistic UI pattern for instant feedback:
+   * 1. Create thread metadata in store immediately (optimistic)
+   * 2. Broadcast THREAD_CREATED so all windows have the thread
+   * 3. Show the window (thread will be in store already)
+   * 4. Spawn agent in background (non-blocking)
    *
    * @param content - The thread prompt/description
    * @param repo - The repository to work in
    * @param worktreePath - Optional worktree path. If provided, agent runs there instead of source repo.
+   * @param options.useNSPanel - If true, opens in NSPanel (Shift+Enter). If false, opens in main window (Enter).
    */
-  async createSimpleThread(content: string, repo: Repository, worktreePath?: string): Promise<void> {
+  async createSimpleThread(
+    content: string,
+    repo: Repository,
+    worktreePath?: string,
+    options?: { useNSPanel?: boolean }
+  ): Promise<void> {
+    const useNSPanel = options?.useNSPanel ?? true; // Default to NSPanel for backward compatibility
     const startTime = Date.now();
     logger.info("═══════════════════════════════════════════════════════════════");
-    logger.info("[spotlight:createSimpleThread] START");
+    logger.info("[spotlight:createSimpleThread] START (optimistic UI)");
     logger.info("═══════════════════════════════════════════════════════════════");
     logger.info("[spotlight:createSimpleThread] Input parameters:", {
       repoName: repo.name,
@@ -298,34 +309,103 @@ export class SpotlightController {
       worktreeId,
     });
 
-    // Touch worktree to update lastAccessedAt (for MRU sorting)
-    logger.info("[spotlight:createSimpleThread] Touching worktree for MRU...");
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Optimistic UI - Create thread in store and broadcast IMMEDIATELY
+    // This ensures all windows have the thread before we show any UI
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const optimisticStart = Date.now();
+    logger.info("[spotlight:createSimpleThread] [OPTIMISTIC] Creating thread in store with first message...", {
+      threadId,
+      timestamp: new Date(optimisticStart).toISOString(),
+    });
+    threadService.createOptimistic({
+      id: threadId,
+      repoId: settings.id,
+      worktreeId,
+      status: "running", // Mark as running since agent will start immediately
+      prompt: content,   // Include first message for immediate display
+    });
+    logger.info(`[spotlight:createSimpleThread] [OPTIMISTIC] Thread ${threadId} created in local store`, {
+      elapsedMs: Date.now() - optimisticStart,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Broadcast optimistic create to ALL windows so they have the thread before UI opens
+    // This is critical for cross-window thread creation (spotlight -> main window)
+    // THREAD_CREATED will fire later once the agent writes to disk, overwriting this
+    const broadcastStart = Date.now();
+    logger.info("[spotlight:createSimpleThread] [OPTIMISTIC] Broadcasting THREAD_OPTIMISTIC_CREATED event...", {
+      threadId,
+      timestamp: new Date(broadcastStart).toISOString(),
+    });
+    eventBus.emit(EventName.THREAD_OPTIMISTIC_CREATED, {
+      threadId,
+      repoId: settings.id,
+      worktreeId,
+      prompt: content,
+      status: "running",
+    });
+    logger.info("[spotlight:createSimpleThread] [OPTIMISTIC] THREAD_OPTIMISTIC_CREATED event broadcasted", {
+      threadId,
+      elapsedMs: Date.now() - broadcastStart,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Touch worktree to update lastAccessedAt (for MRU sorting) - non-blocking
     worktreeService.touch(repo.name, workingDir).catch((err) => {
       logger.warn("[spotlight:createSimpleThread] Failed to touch worktree (non-fatal):", err);
     });
 
-    // Open control panel immediately (optimistic UI)
-    // Window shows prompt while agent starts up
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 2: Show Window - Thread is already in store, so no loading state
+    // ═══════════════════════════════════════════════════════════════════════════
+
     logger.info("[spotlight:createSimpleThread] ───────────────────────────────────────────────────────────────");
-    logger.info("[spotlight:createSimpleThread] Calling openControlPanel...");
-    const openControlPanelStart = Date.now();
+    const openPanelStart = Date.now();
+    logger.info(`[spotlight:createSimpleThread] Routing to ${useNSPanel ? "NSPanel" : "Main Window"}...`, {
+      threadId,
+      timestamp: new Date(openPanelStart).toISOString(),
+      elapsedSinceStart: openPanelStart - startTime,
+    });
     try {
-      await openControlPanel(threadId, taskId, content);
-      logger.info(`[spotlight:createSimpleThread] openControlPanel completed in ${Date.now() - openControlPanelStart}ms`);
-    } catch (controlPanelError) {
-      logger.error("[spotlight:createSimpleThread] openControlPanel FAILED:", {
-        error: controlPanelError,
-        errorMessage: controlPanelError instanceof Error ? controlPanelError.message : String(controlPanelError),
+      if (useNSPanel) {
+        await openControlPanel(threadId, taskId, content);
+        logger.info(`[spotlight:createSimpleThread] openControlPanel completed`, {
+          threadId,
+          elapsedMs: Date.now() - openPanelStart,
+          totalElapsedMs: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        // Open in main window content pane
+        await showMainWindowWithView({ type: "thread", threadId });
+        logger.info(`[spotlight:createSimpleThread] showMainWindowWithView completed`, {
+          threadId,
+          elapsedMs: Date.now() - openPanelStart,
+          totalElapsedMs: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (panelError) {
+      logger.error("[spotlight:createSimpleThread] Panel open FAILED:", {
+        error: panelError,
+        errorMessage: panelError instanceof Error ? panelError.message : String(panelError),
         threadId,
         taskId,
+        useNSPanel,
       });
-      throw controlPanelError;
+      throw panelError;
     }
 
-    // Spawn simple agent (no orchestration)
-    // The runner creates thread metadata and thread data on disk
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 3: Spawn Agent - Non-blocking, runs in background
+    // The runner will update thread metadata on disk, which will be picked up
+    // by listeners when THREAD_UPDATED events arrive
+    // ═══════════════════════════════════════════════════════════════════════════
+
     logger.info("[spotlight:createSimpleThread] ───────────────────────────────────────────────────────────────");
-    logger.info("[spotlight:createSimpleThread] Calling spawnSimpleAgent...");
+    logger.info("[spotlight:createSimpleThread] Spawning agent in background (non-blocking)...");
     logger.info("[spotlight:createSimpleThread] spawnSimpleAgent parameters:", {
       repoId: settings.id,
       worktreeId,
@@ -334,31 +414,35 @@ export class SpotlightController {
       sourcePath: workingDir,
     });
 
+    // Don't await - spawn in background for instant UI feedback
     const spawnStart = Date.now();
-    try {
-      await spawnSimpleAgent({
-        repoId: settings.id,     // UUID from settings
-        worktreeId,              // UUID from worktree
-        threadId,
-        prompt: content,
-        sourcePath: workingDir,
+    spawnSimpleAgent({
+      repoId: settings.id,     // UUID from settings
+      worktreeId,              // UUID from worktree
+      threadId,
+      prompt: content,
+      sourcePath: workingDir,
+    })
+      .then(() => {
+        logger.info(`[spotlight:createSimpleThread] spawnSimpleAgent completed in ${Date.now() - spawnStart}ms`);
+      })
+      .catch((spawnError) => {
+        logger.error("[spotlight:createSimpleThread] spawnSimpleAgent FAILED:", {
+          error: spawnError,
+          errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
+          errorStack: spawnError instanceof Error ? spawnError.stack : undefined,
+          threadId,
+          workingDir,
+          elapsed: `${Date.now() - spawnStart}ms`,
+        });
+        // Note: Error handling for spawn failures should show an error in the thread panel
+        // The optimistic thread will remain in the store with "running" status until
+        // the next disk refresh replaces it or it times out
       });
-      logger.info(`[spotlight:createSimpleThread] spawnSimpleAgent completed in ${Date.now() - spawnStart}ms`);
-    } catch (spawnError) {
-      logger.error("[spotlight:createSimpleThread] spawnSimpleAgent FAILED:", {
-        error: spawnError,
-        errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
-        errorStack: spawnError instanceof Error ? spawnError.stack : undefined,
-        threadId,
-        workingDir,
-        elapsed: `${Date.now() - spawnStart}ms`,
-      });
-      throw spawnError;
-    }
 
     const totalElapsed = Date.now() - startTime;
     logger.info("═══════════════════════════════════════════════════════════════");
-    logger.info(`[spotlight:createSimpleThread] SUCCESS - total time: ${totalElapsed}ms`);
+    logger.info(`[spotlight:createSimpleThread] SUCCESS (UI shown) - total time: ${totalElapsed}ms`);
     logger.info("═══════════════════════════════════════════════════════════════");
   }
 
@@ -609,8 +693,9 @@ export const Spotlight = () => {
   }, []);
 
   const activateResult = useCallback(
-    async (result: SpotlightResult) => {
+    async (result: SpotlightResult, options?: { shiftKey?: boolean }) => {
       const controller = controllerRef.current;
+      const useNSPanel = options?.shiftKey ?? false; // Shift+Enter = NSPanel, Enter = Main Window
 
       // Handle file selection - insert file path at trigger position
       if (result.type === "file") {
@@ -731,8 +816,9 @@ export const Spotlight = () => {
         };
 
         // Run in selected worktree
+        // Route based on modifier: Enter = main window, Shift+Enter = NSPanel
         controller
-          .createSimpleThread(result.data.query, selectedRepo, selectedWorktree.path)
+          .createSimpleThread(result.data.query, selectedRepo, selectedWorktree.path, { useNSPanel })
           .catch(handleThreadError);
 
         // Hide spotlight immediately - thread window is already showing
@@ -1137,17 +1223,17 @@ export const Spotlight = () => {
           break;
         }
         case "Enter":
-          // Only intercept if not holding Shift (Shift+Enter = newline in textarea)
-          if (!e.shiftKey) {
-            e.preventDefault();
-            // If worktree overlay is visible, Enter confirms the selection
-            if (state.worktreeOverlayVisible) {
-              dismissWorktreeOverlay();
-              break;
-            }
-            if (displayResults.length > 0 && displayResults[selectedIndex]) {
-              await activateResult(displayResults[selectedIndex]);
-            }
+          e.preventDefault();
+          // If worktree overlay is visible, Enter confirms the selection
+          if (state.worktreeOverlayVisible) {
+            dismissWorktreeOverlay();
+            break;
+          }
+          if (displayResults.length > 0 && displayResults[selectedIndex]) {
+            // Pass shiftKey to activateResult for routing:
+            // - Enter (no Shift) = open in main window
+            // - Shift+Enter = open in NSPanel (overlay window)
+            await activateResult(displayResults[selectedIndex], { shiftKey: e.shiftKey });
           }
           break;
       }

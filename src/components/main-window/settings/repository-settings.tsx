@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Folder, Plus, Loader2, Check, AlertCircle, FolderOpen } from "lucide-react";
+import { Folder, Check, AlertCircle, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { SettingsSection } from "../settings-section";
 import { useRepoStore, repoService, type Repository } from "@/entities/repositories";
@@ -17,10 +17,7 @@ interface RepoStatus {
 export function RepositorySettings() {
   const repositoriesMap = useRepoStore((state) => state.repositories);
   const repositories = Object.values(repositoriesMap);
-  const [addState, setAddState] = useState<{
-    loading: boolean;
-    error: string | null;
-  }>({ loading: false, error: null });
+  const [locateError, setLocateError] = useState<string | null>(null);
 
   // Status for each repo
   const [repoStatuses, setRepoStatuses] = useState<Record<string, RepoStatus>>({});
@@ -66,41 +63,8 @@ export function RepositorySettings() {
     return { worktreeCount, activeThreads, pathValid };
   };
 
-  const handleAddRepository = async () => {
-    setAddState({ loading: true, error: null });
-
-    try {
-      const selectedPath = await open({
-        directory: true,
-        multiple: false,
-        title: "Select Repository Folder",
-      });
-
-      if (selectedPath && typeof selectedPath === "string") {
-        // Validate before creating
-        const validation = await repoService.validateNewRepository(selectedPath);
-        if (!validation.valid) {
-          setAddState({ loading: false, error: validation.error ?? "Validation failed" });
-          return;
-        }
-
-        await repoService.createFromFolder(selectedPath);
-        await repoService.hydrate();
-        setAddState({ loading: false, error: null });
-      } else {
-        // User cancelled the dialog
-        setAddState({ loading: false, error: null });
-      }
-    } catch (error) {
-      console.error("Failed to add repository:", error);
-      setAddState({
-        loading: false,
-        error: error instanceof Error ? error.message : "Failed to add repository",
-      });
-    }
-  };
-
   const handleLocate = async (repoId: string) => {
+    setLocateError(null);
     const selectedPath = await open({
       directory: true,
       multiple: false,
@@ -111,11 +75,11 @@ export function RepositorySettings() {
       // Validate that the selected path is a git repository
       const validation = await repoCommands.validateRepository(selectedPath);
       if (!validation.exists) {
-        setAddState({ loading: false, error: "Selected path does not exist" });
+        setLocateError("Selected path does not exist");
         return;
       }
       if (!validation.is_git_repo) {
-        setAddState({ loading: false, error: "This folder is not a git repository. Please select a folder with git tracking." });
+        setLocateError("This folder is not a git repository. Please select a folder with git tracking.");
         return;
       }
 
@@ -125,7 +89,6 @@ export function RepositorySettings() {
         // Use update to change the source path
         await repoService.update(repoId, { sourcePath: selectedPath });
         await repoService.hydrate();
-        setAddState({ loading: false, error: null }); // Clear any previous errors
       }
     }
   };
@@ -218,32 +181,13 @@ export function RepositorySettings() {
           );
         })}
         {repositories.length === 0 && (
-          <p className="text-sm text-surface-500 py-2">No repositories connected</p>
+          <p className="text-sm text-surface-500 py-2">No repositories connected. Use the + button in the side panel to add one.</p>
         )}
-        {addState.error && (
+        {locateError && (
           <div className="py-2 px-3 bg-red-900/20 border border-red-800 rounded text-red-400 text-sm">
-            {addState.error}
+            {locateError}
           </div>
         )}
-        <button
-          onClick={handleAddRepository}
-          disabled={addState.loading}
-          className="w-full py-2 px-3 border border-dashed border-surface-700
-                    rounded text-surface-500 hover:text-surface-400 hover:border-surface-600
-                    flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {addState.loading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Adding...
-            </>
-          ) : (
-            <>
-              <Plus size={16} />
-              Add Repository
-            </>
-          )}
-        </button>
       </div>
     </SettingsSection>
   );

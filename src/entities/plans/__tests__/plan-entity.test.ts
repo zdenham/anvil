@@ -551,12 +551,12 @@ describe("PlanService.ensurePlanExists", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("getPlanDisplayName", () => {
-  it("should return filename without .md extension", () => {
+  it("should return filename with extension preserved", () => {
     const plan = createPlanMetadata({ relativePath: "auth.md" });
 
     const result = getPlanDisplayName(plan);
 
-    expect(result).toBe("auth");
+    expect(result).toBe("auth.md");
   });
 
   it("should handle nested paths and return only filename", () => {
@@ -564,7 +564,7 @@ describe("getPlanDisplayName", () => {
 
     const result = getPlanDisplayName(plan);
 
-    expect(result).toBe("login");
+    expect(result).toBe("login.md");
   });
 
   it("should preserve filename if no .md extension", () => {

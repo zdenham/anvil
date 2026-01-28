@@ -3,13 +3,19 @@
  *
  * Wraps navigation logic with panel management and banner display.
  * Handles both client-side switching and fallback to inbox panel.
+ *
+ * Uses context-aware navigation to route correctly based on rendering context:
+ * - Main window: Updates the content pane directly
+ * - Control panel: Routes through Rust panel commands
  */
 
 import { useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useUnifiedInboxNavigation } from "./use-unified-inbox-navigation";
+import { useContextAwareNavigation } from "./use-context-aware-navigation";
 import { useNavigationBannerStore } from "@/stores/navigation-banner-store";
-import { switchToThread, switchToPlan } from "@/lib/hotkey-service";
-import { closeAndShowInbox } from "@/lib/panel-navigation";
+import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
+import { contentPanesService } from "@/stores/content-panes/service";
 import { logger } from "@/lib/logger-client";
 
 export type NavigationActionType = "archive" | "markUnread" | "nextItem";
@@ -56,6 +62,7 @@ function getCompletionMessage(
  */
 export function useNavigateToNextItem(): UseNavigateToNextItemReturn {
   const { getNextUnreadItem } = useUnifiedInboxNavigation();
+  const { navigateToThread, navigateToPlan, isMainWindow } = useContextAwareNavigation();
   const showBanner = useNavigationBannerStore((s) => s.showBanner);
 
   const navigateToNextItemOrFallback = useCallback(
@@ -83,40 +90,51 @@ export function useNavigateToNextItem(): UseNavigateToNextItemReturn {
           from: currentItem,
           to: nextItem,
           actionType,
+          isMainWindow,
         });
 
         // Show banner before navigation so it appears during transition
         showBanner(completionMessage, "Next unread focused");
 
-        // Navigate to next item via Rust (crosses window boundary properly)
+        // Navigate to next item using context-aware navigation
+        // Main window: updates content pane directly
+        // Control panel: routes through Rust panel commands
         if (nextItem.type === "thread") {
-          await switchToThread(nextItem.id);
+          await navigateToThread(nextItem.id);
         } else {
-          await switchToPlan(nextItem.id);
+          await navigateToPlan(nextItem.id);
         }
 
         return true;
       } else {
-        // No more unread items (or only current item is unread) - fall back to inbox panel
+        // No more unread items (or only current item is unread)
         const completionMessage = getCompletionMessage(actionType, currentItem.type);
 
-        logger.info(`[useNavigateToNextItem] No more unread items, showing inbox`, {
+        logger.info(`[useNavigateToNextItem] No more unread items`, {
           currentItem,
           nextItem,
           isSameItem,
           actionType,
+          isMainWindow,
         });
 
         // Show "all caught up" banner
         showBanner(completionMessage, "All caught up");
 
-        // Close panel/window and show inbox
-        await closeAndShowInbox();
+        if (isMainWindow) {
+          // In main window: show empty state in the content pane
+          // Stay in main window, just clear the view
+          await contentPanesService.setActivePaneView({ type: "empty" });
+        } else {
+          // In control panel: close panel/window and focus main window
+          await closeCurrentPanelOrWindow();
+          await invoke("show_main_window");
+        }
 
         return false;
       }
     },
-    [getNextUnreadItem, showBanner]
+    [getNextUnreadItem, navigateToThread, navigateToPlan, isMainWindow, showBanner]
   );
 
   return {

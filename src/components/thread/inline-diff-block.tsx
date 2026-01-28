@@ -163,7 +163,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
       <div
         role="table"
         aria-label="Diff content"
-        className="bg-surface-900/50"
+        className="bg-surface-900/50 overflow-x-auto"
       >
         <div role="rowgroup">
           {renderItems.map((item) => {

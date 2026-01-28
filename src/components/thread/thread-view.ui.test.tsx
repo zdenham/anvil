@@ -27,6 +27,7 @@ describe("ThreadView UI", () => {
     it("renders loading spinner when status is loading", () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={[]}
           isStreaming={false}
           status="loading"
@@ -42,27 +43,31 @@ describe("ThreadView UI", () => {
     it("renders empty state when idle with no messages", () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={[]}
           isStreaming={false}
           status="idle"
         />
       );
 
+      // Empty state now renders blank (no text) to avoid jarring flash when switching threads
       expect(screen.getByTestId(testIds.emptyState)).toBeInTheDocument();
-      expect(screen.getByText("No messages yet")).toBeInTheDocument();
+      expect(screen.getByRole("status", { name: "Loading thread content" })).toBeInTheDocument();
     });
 
     it("renders waiting state when streaming with no messages", () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={[]}
           isStreaming={true}
           status="running"
         />
       );
 
+      // Empty state now renders blank (no text) to avoid jarring flash when switching threads
       expect(screen.getByTestId(testIds.emptyState)).toBeInTheDocument();
-      expect(screen.getByText("Waiting for response...")).toBeInTheDocument();
+      expect(screen.getByRole("status", { name: "Loading thread content" })).toBeInTheDocument();
     });
   });
 
@@ -70,6 +75,7 @@ describe("ThreadView UI", () => {
     it("renders error state when status is error with no messages", () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={[]}
           isStreaming={false}
           status="error"
@@ -87,6 +93,7 @@ describe("ThreadView UI", () => {
 
       render(
         <ThreadView
+          threadId="test-thread"
           messages={[]}
           isStreaming={false}
           status="error"
@@ -112,6 +119,7 @@ describe("ThreadView UI", () => {
     it("renders thread panel with messages", async () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={messages}
           isStreaming={false}
           status="running"
@@ -126,6 +134,7 @@ describe("ThreadView UI", () => {
     it("renders message list container", async () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={messages}
           isStreaming={false}
           status="running"
@@ -140,6 +149,7 @@ describe("ThreadView UI", () => {
     it("renders error banner during streaming error", async () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={messages}
           isStreaming={false}
           status="error"
@@ -159,6 +169,7 @@ describe("ThreadView UI", () => {
     it("has proper ARIA labels for loading state", () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={[]}
           isStreaming={false}
           status="loading"
@@ -171,6 +182,7 @@ describe("ThreadView UI", () => {
     it("has proper role for error state", () => {
       render(
         <ThreadView
+          threadId="test-thread"
           messages={[]}
           isStreaming={false}
           status="error"
@@ -187,6 +199,7 @@ describe("ThreadView UI", () => {
 
       render(
         <ThreadView
+          threadId="test-thread"
           messages={messages}
           isStreaming={false}
           status="running"

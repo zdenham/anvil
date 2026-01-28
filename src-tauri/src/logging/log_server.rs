@@ -178,7 +178,41 @@ fn flush_batch(url: &str, buffer: &mut Vec<LogRow>) -> Result<(), Box<dyn std::e
 /// Modules/targets to exclude from log uploads (HTTP client internals used for uploading logs)
 /// These are checked against both module_path() and target() since logs from the `log` crate
 /// compatibility layer may have the crate name in target rather than module_path.
-const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls"];
+const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log"];
+
+/// Message patterns to exclude from uploads (HTTP client internals that come through log crate)
+/// These are checked as prefixes against the log message content.
+const EXCLUDED_MESSAGE_PREFIXES: &[&str] = &[
+    // TLS/HTTP client noise (ureq, rustls)
+    "connecting to mort-server",
+    "Resuming session",
+    "Sending ClientHello",
+    "We got ServerHello",
+    "Using ciphersuite",
+    "Not resuming",
+    "Resuming using PSK",
+    "EarlyData rejected",
+    "Dropping CCS",
+    "TLS1.3 encrypted extensions",
+    "ALPN protocol is",
+    "Server cert is",
+    "created stream:",
+    "sending request POST",
+    "writing prelude:",
+    "Chunked body in response",
+    "response 200 to POST",
+    "dropping stream:",
+];
+
+/// Message substrings to exclude (checked via contains() for patterns that appear mid-message)
+const EXCLUDED_MESSAGE_SUBSTRINGS: &[&str] = &[
+    // Frontend timing logs - very noisy during development
+    ":TIMING]",
+    // Persistence debug logs
+    "[persistence.ensureDir]",
+    "[persistence.writeJson]",
+    "[persistence.exists]",
+];
 
 impl<S> Layer<S> for LogServerLayer
 where
@@ -208,6 +242,18 @@ where
         let mut message = String::new();
         let mut visitor = MessageVisitor(&mut message);
         event.record(&mut visitor);
+
+        // Skip logs with noisy message content (e.g., TLS handshake details from log crate)
+        for prefix in EXCLUDED_MESSAGE_PREFIXES {
+            if message.starts_with(prefix) {
+                return;
+            }
+        }
+        for substring in EXCLUDED_MESSAGE_SUBSTRINGS {
+            if message.contains(substring) {
+                return;
+            }
+        }
 
         let row = LogRow {
             timestamp: chrono::Utc::now().timestamp_millis(),

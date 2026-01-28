@@ -192,10 +192,10 @@ function ControlPanelWindowContent({
   const isLoadingThreadState = useThreadStore((s) => s.activeThreadLoading);
 
   // Handle marking thread as read when viewed or completed
+  // Only marks as read when this thread is the active thread (panel-hidden clears activeThreadId)
   useMarkThreadAsRead(threadId, {
     markOnView: true,
-    markOnComplete: true, // Re-enabled with control-panel check to prevent Spotlight interference
-    requiredPanel: "control-panel", // Only mark as read when control-panel is visible
+    markOnComplete: true,
   });
 
   // Quick actions store for keyboard navigation

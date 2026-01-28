@@ -227,7 +227,41 @@ impl FormatTime for UptimeTimer {
 struct BufferLayer;
 
 /// Targets to exclude from the buffer (HTTP client internals)
-const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls"];
+const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log"];
+
+/// Message patterns to exclude from the buffer (HTTP client internals that come through log crate)
+/// These are checked as prefixes against the log message content.
+const EXCLUDED_MESSAGE_PREFIXES: &[&str] = &[
+    // TLS/HTTP client noise (ureq, rustls)
+    "connecting to mort-server",
+    "Resuming session",
+    "Sending ClientHello",
+    "We got ServerHello",
+    "Using ciphersuite",
+    "Not resuming",
+    "Resuming using PSK",
+    "EarlyData rejected",
+    "Dropping CCS",
+    "TLS1.3 encrypted extensions",
+    "ALPN protocol is",
+    "Server cert is",
+    "created stream:",
+    "sending request POST",
+    "writing prelude:",
+    "Chunked body in response",
+    "response 200 to POST",
+    "dropping stream:",
+];
+
+/// Message substrings to exclude (checked via contains() for patterns that appear mid-message)
+const EXCLUDED_MESSAGE_SUBSTRINGS: &[&str] = &[
+    // Frontend timing logs - very noisy during development
+    ":TIMING]",
+    // Persistence debug logs
+    "[persistence.ensureDir]",
+    "[persistence.writeJson]",
+    "[persistence.exists]",
+];
 
 impl<S> tracing_subscriber::Layer<S> for BufferLayer
 where
@@ -250,6 +284,18 @@ where
         let mut message = String::new();
         let mut visitor = MessageVisitor(&mut message);
         event.record(&mut visitor);
+
+        // Skip logs with noisy message content (e.g., TLS handshake details from log crate)
+        for prefix in EXCLUDED_MESSAGE_PREFIXES {
+            if message.starts_with(prefix) {
+                return;
+            }
+        }
+        for substring in EXCLUDED_MESSAGE_SUBSTRINGS {
+            if message.contains(substring) {
+                return;
+            }
+        }
 
         let log = LogEvent {
             timestamp: chrono::Utc::now().to_rfc3339(),

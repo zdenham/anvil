@@ -21,7 +21,7 @@ export function StatusDot({ variant, className, ...props }: StatusDotProps) {
   return (
     <span
       className={cn(
-        "w-2 h-2 rounded-full flex-shrink-0",
+        "w-1.5 h-1.5 rounded-full flex-shrink-0",
         variant === "running" && "status-dot-running",
         variant === "unread" && "bg-blue-500",
         variant === "read" && "bg-zinc-400",

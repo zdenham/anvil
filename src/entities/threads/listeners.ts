@@ -8,6 +8,44 @@ import { logger } from "@/lib/logger-client.js";
  * Setup thread event listeners.
  */
 export function setupThreadListeners(): void {
+  // Optimistic thread creation - creates placeholder in store for immediate UI feedback
+  // Will be overwritten by THREAD_CREATED when disk version is available
+  eventBus.on(EventName.THREAD_OPTIMISTIC_CREATED, ({ threadId, repoId, worktreeId, prompt, status }: EventPayloads[typeof EventName.THREAD_OPTIMISTIC_CREATED]) => {
+    const eventReceivedAt = Date.now();
+    try {
+      const existingThread = useThreadStore.getState().threads[threadId];
+      if (existingThread) {
+        logger.info(`[ThreadListener:TIMING] Thread ${threadId} already in store, skipping optimistic create`, {
+          threadId,
+          timestamp: new Date(eventReceivedAt).toISOString(),
+        });
+        return;
+      }
+
+      logger.info(`[ThreadListener:TIMING] Creating optimistic thread ${threadId}`, {
+        threadId,
+        hasPrompt: !!prompt,
+        promptLength: prompt?.length ?? 0,
+        timestamp: new Date(eventReceivedAt).toISOString(),
+      });
+      threadService.createOptimistic({
+        id: threadId,
+        repoId,
+        worktreeId,
+        status,
+        prompt,
+      });
+      logger.info(`[ThreadListener:TIMING] Optimistic thread ${threadId} created in store`, {
+        threadId,
+        elapsedMs: Date.now() - eventReceivedAt,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (e) {
+      logger.error(`[ThreadListener] Failed to create optimistic thread ${threadId}:`, e);
+    }
+  });
+
+  // Thread created on disk - refresh from disk (overwrites any optimistic version)
   eventBus.on(EventName.THREAD_CREATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_CREATED]) => {
     try {
       await threadService.refreshById(threadId);
@@ -90,6 +128,26 @@ export function setupThreadListeners(): void {
       }
     } catch (e) {
       logger.error(`[ThreadListener] Failed to handle thread archive ${threadId}:`, e);
+    }
+  });
+
+  // Thread name generated - refresh thread metadata to show new name
+  eventBus.on(EventName.THREAD_NAME_GENERATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_NAME_GENERATED]) => {
+    try {
+      await threadService.refreshById(threadId);
+      logger.info(`[ThreadListener] Refreshed thread ${threadId} after name generated`);
+    } catch (e) {
+      logger.error(`[ThreadListener] Failed to refresh thread after name generated ${threadId}:`, e);
+    }
+  });
+
+  // Panel hidden - clear active thread to prevent marking threads as read when panel is not visible
+  // This allows useMarkThreadAsRead to simply check if the thread is active rather than polling panel visibility
+  eventBus.on("panel-hidden", () => {
+    const store = useThreadStore.getState();
+    if (store.activeThreadId) {
+      logger.info(`[ThreadListener] Panel hidden, clearing active thread: ${store.activeThreadId}`);
+      store.setActiveThread(null);
     }
   });
 }

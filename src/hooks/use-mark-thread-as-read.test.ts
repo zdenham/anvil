@@ -20,12 +20,6 @@ vi.mock("@/entities/threads/service", () => ({
   },
 }));
 
-// Mock the panel visibility hook to return true by default
-vi.mock("./use-panel-visibility", () => ({
-  usePanelVisibility: vi.fn(() => true),
-  useSpecificPanelVisibility: vi.fn(() => true),
-}));
-
 describe("useMarkThreadAsRead", () => {
   const mockThreadId = "test-thread-id";
 
@@ -62,10 +56,11 @@ describe("useMarkThreadAsRead", () => {
       turns: [],
     };
 
-    // Add thread to store
+    // Add thread to store and set it as active
     useThreadStore.setState({
       threads: { [mockThreadId]: readThread },
       _threadsArray: [readThread],
+      activeThreadId: mockThreadId,
     });
 
     // Spy on the store's markThreadAsRead function
@@ -95,10 +90,11 @@ describe("useMarkThreadAsRead", () => {
       turns: [],
     };
 
-    // Add thread to store
+    // Add thread to store and set it as active
     useThreadStore.setState({
       threads: { [mockThreadId]: unreadThread },
       _threadsArray: [unreadThread],
+      activeThreadId: mockThreadId,
     });
 
     // Spy on the store's markThreadAsRead function
@@ -135,10 +131,11 @@ describe("useMarkThreadAsRead", () => {
       turns: [],
     };
 
-    // Add thread to store
+    // Add thread to store and set it as active
     useThreadStore.setState({
       threads: { [mockThreadId]: unreadThread },
       _threadsArray: [unreadThread],
+      activeThreadId: mockThreadId,
     });
 
     // Spy on the store's markThreadAsRead function and simulate state update
@@ -198,10 +195,11 @@ describe("useMarkThreadAsRead", () => {
       turns: [],
     };
 
-    // Add thread to store
+    // Add thread to store and set it as active
     useThreadStore.setState({
       threads: { [mockThreadId]: unreadCompletedThread },
       _threadsArray: [unreadCompletedThread],
+      activeThreadId: mockThreadId,
     });
 
     // Spy on the store's markThreadAsRead function
@@ -238,10 +236,11 @@ describe("useMarkThreadAsRead", () => {
       turns: [],
     };
 
-    // Add thread to store
+    // Add thread to store and set it as active
     useThreadStore.setState({
       threads: { [mockThreadId]: readCompletedThread },
       _threadsArray: [readCompletedThread],
+      activeThreadId: mockThreadId,
     });
 
     // Spy on the store's markThreadAsRead function
@@ -274,7 +273,10 @@ describe("useMarkThreadAsRead", () => {
   });
 
   it("should not mark as read when thread does not exist in store", () => {
-    // Don't add any threads to store
+    // Don't add any threads to store, but set activeThreadId
+    useThreadStore.setState({
+      activeThreadId: "non-existent-thread",
+    });
 
     // Spy on the store's markThreadAsRead function
     const markThreadAsReadSpy = vi.spyOn(useThreadStore.getState(), "markThreadAsRead");
@@ -290,11 +292,7 @@ describe("useMarkThreadAsRead", () => {
     expect(markThreadAsReadSpy).not.toHaveBeenCalled();
   });
 
-  it("should not mark as read when no panel is visible", async () => {
-    const { usePanelVisibility } = await import("./use-panel-visibility");
-    // Mock panel visibility to return false
-    vi.mocked(usePanelVisibility).mockReturnValue(false);
-
+  it("should not mark as read when thread is not the active thread", () => {
     // Create a thread that's not marked as read
     const unreadThread: ThreadMetadata = {
       id: mockThreadId,
@@ -307,10 +305,11 @@ describe("useMarkThreadAsRead", () => {
       turns: [],
     };
 
-    // Add thread to store
+    // Add thread to store but set a different thread as active
     useThreadStore.setState({
       threads: { [mockThreadId]: unreadThread },
       _threadsArray: [unreadThread],
+      activeThreadId: "different-thread-id", // Not the thread we're testing
     });
 
     // Spy on the store's markThreadAsRead function
@@ -323,7 +322,47 @@ describe("useMarkThreadAsRead", () => {
       })
     );
 
-    // Should NOT call markThreadAsRead because no panel is visible
+    // Advance timer by 1 second
+    vi.advanceTimersByTime(1000);
+
+    // Should NOT call markThreadAsRead because thread is not active
+    expect(markThreadAsReadSpy).not.toHaveBeenCalled();
+  });
+
+  it("should not mark as read when activeThreadId is null", () => {
+    // Create a thread that's not marked as read
+    const unreadThread: ThreadMetadata = {
+      id: mockThreadId,
+      repoId: "repo-1",
+      worktreeId: "worktree-1",
+      status: "idle",
+      isRead: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      turns: [],
+    };
+
+    // Add thread to store but don't set any active thread
+    useThreadStore.setState({
+      threads: { [mockThreadId]: unreadThread },
+      _threadsArray: [unreadThread],
+      activeThreadId: null, // No active thread
+    });
+
+    // Spy on the store's markThreadAsRead function
+    const markThreadAsReadSpy = vi.spyOn(useThreadStore.getState(), "markThreadAsRead");
+
+    renderHook(() =>
+      useMarkThreadAsRead(mockThreadId, {
+        markOnView: true,
+        markOnComplete: false,
+      })
+    );
+
+    // Advance timer by 1 second
+    vi.advanceTimersByTime(1000);
+
+    // Should NOT call markThreadAsRead because no thread is active (panel hidden)
     expect(markThreadAsReadSpy).not.toHaveBeenCalled();
   });
 });

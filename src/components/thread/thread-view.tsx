@@ -1,4 +1,4 @@
-import { useMemo, forwardRef } from "react";
+import { useMemo, forwardRef, useRef } from "react";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
 import { groupMessagesIntoTurns } from "@/lib/utils/turn-grouping";
@@ -7,6 +7,7 @@ import { LoadingState } from "./loading-state";
 import { EmptyState } from "./empty-state";
 import { ErrorState } from "./error-state";
 import { StatusAnnouncement } from "./status-announcement";
+import { logger } from "@/lib/logger-client";
 
 type ThreadStatus = "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
 
@@ -35,6 +36,9 @@ interface ThreadViewProps {
  * Handles state rendering (loading/empty/error) and message display.
  * Messages are in SDK MessageParam format with { role, content }.
  */
+// Track mount times for timing analysis
+const threadViewMountTimes = new Map<string, number>();
+
 export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function ThreadView({
   threadId,
   messages,
@@ -45,23 +49,79 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
   toolStates,
   onToolResponse,
 }, ref) {
+  const mountTimeRef = useRef<number>(Date.now());
+  const hasLoggedMount = useRef(false);
+
+  // Log on first render (synchronous)
+  if (!hasLoggedMount.current) {
+    const now = Date.now();
+    mountTimeRef.current = now;
+    threadViewMountTimes.set(threadId, now);
+    logger.info(`[ThreadView:TIMING] FIRST RENDER`, {
+      threadId,
+      messageCount: messages.length,
+      status,
+      isStreaming,
+      renderTime: now,
+      timestamp: new Date(now).toISOString(),
+    });
+    hasLoggedMount.current = true;
+  }
+
   // Group messages into turns
-  const turns = useMemo(() => groupMessagesIntoTurns(messages), [messages]);
+  const turns = useMemo(() => {
+    const now = Date.now();
+    const mountTime = threadViewMountTimes.get(threadId) ?? mountTimeRef.current;
+    const result = groupMessagesIntoTurns(messages);
+    logger.info(`[ThreadView:TIMING] turns useMemo completed`, {
+      threadId,
+      messageCount: messages.length,
+      turnCount: result.length,
+      elapsedSinceMount: now - mountTime,
+      timestamp: new Date(now).toISOString(),
+    });
+    return result;
+  }, [messages, threadId]);
 
   // Loading state
   if (status === "loading") {
+    logger.info(`[ThreadView:TIMING] Rendering LoadingState`, { threadId, status });
     return <LoadingState />;
   }
 
   // Error state with no messages
   if (status === "error" && messages.length === 0) {
+    logger.info(`[ThreadView:TIMING] Rendering ErrorState`, { threadId, status, error });
     return <ErrorState error={error} onRetry={onRetry} />;
   }
 
   // Empty/idle state
   if (status === "idle" || messages.length === 0) {
+    const now = Date.now();
+    const mountTime = threadViewMountTimes.get(threadId) ?? mountTimeRef.current;
+    logger.info(`[ThreadView:TIMING] Rendering EmptyState`, {
+      threadId,
+      status,
+      messageCount: messages.length,
+      isStreaming,
+      elapsedSinceMount: now - mountTime,
+      timestamp: new Date(now).toISOString(),
+    });
     return <EmptyState isRunning={isStreaming} />;
   }
+
+  // Log that we're about to render the MessageList with messages
+  const now = Date.now();
+  const mountTime = threadViewMountTimes.get(threadId) ?? mountTimeRef.current;
+  logger.info(`[ThreadView:TIMING] Rendering MessageList with messages`, {
+    threadId,
+    messageCount: messages.length,
+    turnCount: turns.length,
+    status,
+    isStreaming,
+    elapsedSinceMount: now - mountTime,
+    timestamp: new Date(now).toISOString(),
+  });
 
   return (
     <div

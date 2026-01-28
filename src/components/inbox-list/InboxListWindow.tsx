@@ -8,8 +8,7 @@ import { eventBus, type NavigationModeEvent } from "@/entities/events";
 import { switchToThread, switchToPlan } from "@/lib/hotkey-service";
 import { logger } from "@/lib/logger-client";
 import { createUnifiedList } from "@/components/inbox/utils";
-import { InboxItemRow } from "@/components/inbox/inbox-item";
-import { StatusLegend } from "@/components/ui/status-legend";
+import { InboxItemRow } from "./inbox-item-row";
 import { threadService } from "@/entities/threads/service";
 import { planService } from "@/entities/plans/service";
 import { useWindowDrag } from "@/hooks/use-window-drag";
@@ -268,8 +267,7 @@ export function InboxListWindow() {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-surface-700 text-xs text-surface-500">
-            <StatusLegend />
+          <div className="flex items-center justify-end px-4 py-2 border-t border-surface-700 text-xs text-surface-500">
             <span>Release Alt to open, Escape to cancel</span>
           </div>
         </>

@@ -97,7 +97,7 @@ export const AnnotatedLineRow = memo(function AnnotatedLineRow({
       <span
         role="cell"
         className={`
-          flex-1 px-2 whitespace-pre overflow-x-auto
+          flex-1 px-2 whitespace-pre
           ${line.tokens ? "" : getContentColor(line.type)}
         `}
       >

@@ -46,6 +46,7 @@ export type AgentThreadStatus = z.infer<typeof AgentThreadStatusSchema>;
  */
 export const EventName = {
   // Thread lifecycle
+  THREAD_OPTIMISTIC_CREATED: "thread:optimistic-created",
   THREAD_CREATED: "thread:created",
   THREAD_UPDATED: "thread:updated",
   THREAD_STATUS_CHANGED: "thread:status-changed",
@@ -64,6 +65,7 @@ export const EventName = {
   // Orchestration
   WORKTREE_ALLOCATED: "worktree:allocated",
   WORKTREE_RELEASED: "worktree:released",
+  WORKTREE_NAME_GENERATED: "worktree:name:generated",
 
   // Repository
   REPOSITORY_CREATED: "repository:created",
@@ -95,6 +97,9 @@ export const EventName = {
 
   // User events
   USER_MESSAGE_SENT: "user:message-sent",
+
+  // Thread naming
+  THREAD_NAME_GENERATED: "thread:name:generated",
 } as const;
 
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
@@ -109,6 +114,7 @@ export type EventNameType = (typeof EventName)[keyof typeof EventName];
  */
 export interface EventPayloads {
   // Thread events
+  [EventName.THREAD_OPTIMISTIC_CREATED]: { threadId: string; repoId: string; worktreeId: string; prompt: string; status: ThreadStatus };
   [EventName.THREAD_CREATED]: { threadId: string; repoId: string; worktreeId: string };
   [EventName.THREAD_UPDATED]: { threadId: string };
   [EventName.THREAD_STATUS_CHANGED]: { threadId: string; status: ThreadStatus };
@@ -127,6 +133,13 @@ export interface EventPayloads {
   // Orchestration events
   [EventName.WORKTREE_ALLOCATED]: { worktree: WorktreeStatePayload; mergeBase: string };
   [EventName.WORKTREE_RELEASED]: { threadId: string };
+
+  // Worktree naming
+  [EventName.WORKTREE_NAME_GENERATED]: {
+    worktreeId: string;
+    repoId: string;
+    name: string;
+  };
 
   // Repository events
   [EventName.REPOSITORY_CREATED]: { name: string };
@@ -177,6 +190,9 @@ export interface EventPayloads {
 
   // User events
   [EventName.USER_MESSAGE_SENT]: { threadId: string; message: string };
+
+  // Thread naming
+  [EventName.THREAD_NAME_GENERATED]: { threadId: string; name: string };
 }
 
 // ============================================================================
@@ -253,6 +269,7 @@ export type ThreadState = z.infer<typeof ThreadStateSchema>;
  * Schema for event names.
  */
 export const EventNameSchema = z.enum([
+  EventName.THREAD_OPTIMISTIC_CREATED,
   EventName.THREAD_CREATED,
   EventName.THREAD_UPDATED,
   EventName.THREAD_STATUS_CHANGED,
@@ -267,6 +284,7 @@ export const EventNameSchema = z.enum([
   EventName.AGENT_CANCELLED,
   EventName.WORKTREE_ALLOCATED,
   EventName.WORKTREE_RELEASED,
+  EventName.WORKTREE_NAME_GENERATED,
   EventName.REPOSITORY_CREATED,
   EventName.REPOSITORY_UPDATED,
   EventName.REPOSITORY_DELETED,
@@ -282,6 +300,7 @@ export const EventNameSchema = z.enum([
   EventName.RELATION_CREATED,
   EventName.RELATION_UPDATED,
   EventName.USER_MESSAGE_SENT,
+  EventName.THREAD_NAME_GENERATED,
 ]);
 
 /**

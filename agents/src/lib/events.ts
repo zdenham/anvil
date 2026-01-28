@@ -44,10 +44,16 @@ export const events = {
   threadStatusChanged: (threadId: string, status: ThreadStatus) =>
     emitEvent(EventName.THREAD_STATUS_CHANGED, { threadId, status }),
 
+  threadNameGenerated: (threadId: string, name: string) =>
+    emitEvent(EventName.THREAD_NAME_GENERATED, { threadId, name }),
+
   // Orchestration events
   worktreeAllocated: (worktree: WorktreeStatePayload, mergeBase: string) =>
     emitEvent(EventName.WORKTREE_ALLOCATED, { worktree, mergeBase }),
 
   worktreeReleased: (threadId: string) =>
     emitEvent(EventName.WORKTREE_RELEASED, { threadId }),
+
+  worktreeNameGenerated: (worktreeId: string, repoId: string, name: string) =>
+    emitEvent(EventName.WORKTREE_NAME_GENERATED, { worktreeId, repoId, name }),
 };

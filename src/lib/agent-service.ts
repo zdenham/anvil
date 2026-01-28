@@ -18,6 +18,9 @@ import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
 // Cache the shell PATH to avoid repeated Tauri calls
 let cachedShellPath: string | null = null;
 
+// Track warmup status to avoid duplicate calls
+let warmupPromise: Promise<void> | null = null;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // HMR-Resistant Process Tracking
 // ═══════════════════════════════════════════════════════════════════════════
@@ -114,6 +117,46 @@ async function ensureShellInitialized(): Promise<void> {
 }
 
 /**
+ * Pre-warms the agent environment at app startup.
+ * Call this early in the app lifecycle to ensure shell is initialized
+ * before the user creates their first thread.
+ *
+ * This eliminates the 100-500ms delay on first thread creation that
+ * comes from shell initialization (capturing user's PATH for nvm/fnm/volta).
+ *
+ * Safe to call multiple times - subsequent calls return immediately.
+ */
+export async function warmupAgentEnvironment(): Promise<void> {
+  // Return existing promise if warmup is in progress or completed
+  if (warmupPromise) {
+    return warmupPromise;
+  }
+
+  warmupPromise = (async () => {
+    const startTime = Date.now();
+    logger.info("[agent-service] warmupAgentEnvironment: Starting...");
+
+    try {
+      // Pre-initialize shell environment (the main bottleneck on first run)
+      await ensureShellInitialized();
+
+      // Pre-resolve runner paths (minor optimization)
+      await getRunnerPaths();
+
+      const elapsed = Date.now() - startTime;
+      logger.info(`[agent-service] warmupAgentEnvironment: Completed in ${elapsed}ms`);
+    } catch (error) {
+      const elapsed = Date.now() - startTime;
+      logger.warn(`[agent-service] warmupAgentEnvironment: Failed after ${elapsed}ms:`, error);
+      // Don't rethrow - warmup failure shouldn't block app startup
+      // The shell will be initialized lazily on first thread creation
+    }
+  })();
+
+  return warmupPromise;
+}
+
+/**
  * Resolves paths for the agent runner.
  * Shared between orchestrated and simple agents.
  */
@@ -159,6 +202,7 @@ function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
     case EventName.WORKTREE_RELEASED:
     case EventName.ACTION_REQUESTED:
     case EventName.AGENT_CANCELLED:
+    case EventName.THREAD_NAME_GENERATED:
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       eventBus.emit(name as any, payload as any);
       break;

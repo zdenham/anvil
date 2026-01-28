@@ -64,7 +64,7 @@ export function HighlightedLine({
       </span>
 
       {/* Line content */}
-      <code className="flex-1 px-2 whitespace-pre overflow-x-auto">
+      <code className="flex-1 px-2 whitespace-pre">
         {tokens.length === 0 ? (
           // Empty line - render a space to maintain height
           <span>&nbsp;</span>

@@ -143,7 +143,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   }), [isStreaming]);
 
   return (
-    <div className={cn("prose prose-invert prose-sm max-w-none", className)}>
+    <div className={cn("prose prose-invert prose-sm prose-p:leading-relaxed max-w-none", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>

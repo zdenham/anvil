@@ -7,6 +7,9 @@ import { emitEvent, emitLog } from "./shared.js";
 import {
   ThreadMetadataBaseSchema,
 } from "@core/types/threads.js";
+import { generateThreadName } from "../services/thread-naming-service.js";
+import { generateWorktreeName } from "../services/worktree-naming-service.js";
+import { events } from "../lib/events.js";
 
 /**
  * Get the current HEAD commit hash.
@@ -279,6 +282,14 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         repoId,
         worktreeId,
       });
+
+      // Start thread naming in parallel (fire and forget)
+      this.initiateThreadNaming(threadId, prompt, threadPath);
+
+      // Start worktree naming in parallel (fire and forget)
+      // TODO: Only trigger for first thread in worktree - need to track this
+      // For now, always trigger (frontend will handle deduplication/ignoring)
+      this.initiateWorktreeNaming(worktreeId, repoId, prompt);
     }
 
     // Return context with cwd as workingDir
@@ -352,5 +363,80 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         `Failed during cleanup: ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  /**
+   * Initiate thread naming in parallel (fire and forget).
+   * Generates a name using Claude Haiku and updates thread metadata.
+   */
+  private initiateThreadNaming(
+    threadId: string,
+    prompt: string,
+    threadPath: string
+  ): void {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      emitLog("WARN", "[thread-naming] No API key available, skipping name generation");
+      return;
+    }
+
+    generateThreadName(prompt, apiKey)
+      .then(async (name) => {
+        // Update thread metadata with name
+        const threadMetadataPath = join(threadPath, "metadata.json");
+        if (existsSync(threadMetadataPath)) {
+          try {
+            const existingContent = readFileSync(threadMetadataPath, "utf-8");
+            const parseResult = SimpleThreadMetadataSchema.safeParse(JSON.parse(existingContent));
+
+            if (parseResult.success) {
+              const updated = {
+                ...parseResult.data,
+                name,
+                updatedAt: Date.now(),
+              };
+              writeFileSync(threadMetadataPath, JSON.stringify(updated, null, 2));
+              emitLog("INFO", `[thread-naming] Generated name: "${name}"`);
+            }
+          } catch (err) {
+            emitLog("ERROR", `[thread-naming] Failed to update metadata: ${err}`);
+          }
+        }
+
+        // Broadcast event for UI
+        events.threadNameGenerated(threadId, name);
+      })
+      .catch((error) => {
+        // Log error but don't fail the main agent flow
+        emitLog("WARN", `[thread-naming] Failed to generate name: ${error instanceof Error ? error.message : String(error)}`);
+      });
+  }
+
+  /**
+   * Initiate worktree naming in parallel (fire and forget).
+   * Generates a name using Claude Haiku and emits event for frontend.
+   * Only called for new threads (not resumes) and only for the first thread in a worktree.
+   */
+  private initiateWorktreeNaming(
+    worktreeId: string,
+    repoId: string,
+    prompt: string
+  ): void {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      emitLog("WARN", "[worktree-naming] No API key available, skipping name generation");
+      return;
+    }
+
+    generateWorktreeName(prompt, apiKey)
+      .then((name) => {
+        emitLog("INFO", `[worktree-naming] Generated name: "${name}"`);
+        // Emit event for frontend to handle the rename
+        events.worktreeNameGenerated(worktreeId, repoId, name);
+      })
+      .catch((error) => {
+        // Log error but don't fail the main agent flow
+        emitLog("WARN", `[worktree-naming] Failed to generate name: ${error instanceof Error ? error.message : String(error)}`);
+      });
   }
 }

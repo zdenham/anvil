@@ -8,7 +8,7 @@ use tauri::{
 /// Menu structure:
 /// - Mort: About, Services, Hide/Show, Quit
 /// - Edit: Undo, Redo, Cut, Copy, Paste, Select All
-/// - View: Tasks, Worktrees, Settings (Cmd+,), Logs
+/// - View: Settings (Cmd+,), Logs
 /// - Window: Minimize, Zoom, Close
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     // App menu (Mort)
@@ -38,14 +38,6 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
     // View menu with navigation items
     let view_menu = SubmenuBuilder::new(app, "View")
-        .item(
-            &MenuItemBuilder::with_id("nav_tasks", "Tasks")
-                .build(app)?,
-        )
-        .item(
-            &MenuItemBuilder::with_id("nav_worktrees", "Worktrees")
-                .build(app)?,
-        )
         .item(
             &MenuItemBuilder::with_id("nav_settings", "Settings")
                 .accelerator("CmdOrCtrl+,")

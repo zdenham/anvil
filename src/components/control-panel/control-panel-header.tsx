@@ -7,6 +7,7 @@ import { StopCircle, ChevronRight, X, GitCompare, MessageSquare, PictureInPictur
 import type { ControlPanelViewType } from "@/entities/events";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import { logger } from "@/lib/logger-client";
+import { showMainWindowWithView } from "@/lib/hotkey-service";
 
 interface ControlPanelHeaderProps {
   view: ControlPanelViewType;
@@ -93,15 +94,18 @@ function PlanModeHeader({
   // Use the file name from relativePath, or truncated ID as fallback
   const planLabel = plan?.relativePath?.split('/').pop() ?? planId.slice(0, 8) + "...";
 
-  const handlePopOut = async () => {
+  const handleOpenInMainWindow = async () => {
     try {
-      logger.info(`[control-panel-header] Popping out plan: ${planId}`);
-      const instanceId = await invoke<string>("pop_out_control_panel", {
-        view: { type: "plan", planId },
-      });
-      logger.info(`[control-panel-header] Pop-out successful, instanceId: ${instanceId}`);
+      logger.info(`[control-panel-header] Opening plan in main window: ${planId}`);
+      // Open in main window content pane
+      await showMainWindowWithView({ type: "plan", planId });
+      // Hide the NSPanel
+      await invoke("hide_control_panel");
+      // Focus the main window
+      await invoke("show_main_window");
+      logger.info(`[control-panel-header] Plan opened in main window successfully`);
     } catch (err) {
-      logger.error(`[control-panel-header] Failed to pop out plan:`, err);
+      logger.error(`[control-panel-header] Failed to open plan in main window:`, err);
     }
   };
 
@@ -122,13 +126,13 @@ function PlanModeHeader({
         <span className="text-surface-300 truncate max-w-[200px]">{planLabel}</span>
       </div>
       <div className="ml-auto flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()}>
-        {/* Pop-out button - only show in NSPanel, not in standalone windows */}
+        {/* Open in main window button - only show in NSPanel, not in standalone windows */}
         {!isStandaloneWindow && (
           <button
-            onClick={handlePopOut}
+            onClick={handleOpenInMainWindow}
             className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Pop out to window"
-            title="Pop out to window"
+            aria-label="Open in main window"
+            title="Open in main window"
           >
             <PictureInPicture2 size={16} />
           </button>
@@ -177,15 +181,18 @@ function ThreadModeHeader({
     console.log(`[control-panel-header] cancelAgent returned: ${result}`);
   };
 
-  const handlePopOut = async () => {
+  const handleOpenInMainWindow = async () => {
     try {
-      logger.info(`[control-panel-header] Popping out thread: ${threadId}`);
-      const instanceId = await invoke<string>("pop_out_control_panel", {
-        view: { type: "thread", threadId },
-      });
-      logger.info(`[control-panel-header] Pop-out successful, instanceId: ${instanceId}`);
+      logger.info(`[control-panel-header] Opening thread in main window: ${threadId}`);
+      // Open in main window content pane
+      await showMainWindowWithView({ type: "thread", threadId });
+      // Hide the NSPanel
+      await invoke("hide_control_panel");
+      // Focus the main window
+      await invoke("show_main_window");
+      logger.info(`[control-panel-header] Thread opened in main window successfully`);
     } catch (err) {
-      logger.error(`[control-panel-header] Failed to pop out:`, err);
+      logger.error(`[control-panel-header] Failed to open thread in main window:`, err);
     }
   };
 
@@ -234,10 +241,10 @@ function ThreadModeHeader({
         {isStreaming && (
           <button
             onClick={handleCancel}
-            className="px-2 py-1 rounded bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors flex items-center gap-1.5 text-xs"
+            className="px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors flex items-center gap-1 text-xs"
             aria-label="Cancel agent"
           >
-            <StopCircle size={14} />
+            <StopCircle size={12} />
             Cancel
           </button>
         )}
@@ -256,13 +263,13 @@ function ThreadModeHeader({
             )}
           </button>
         )}
-        {/* Pop-out button - only show in NSPanel, not in standalone windows */}
+        {/* Open in main window button - only show in NSPanel, not in standalone windows */}
         {!isStandaloneWindow && (
           <button
-            onClick={handlePopOut}
+            onClick={handleOpenInMainWindow}
             className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Pop out to window"
-            title="Pop out to window"
+            aria-label="Open in main window"
+            title="Open in main window"
           >
             <PictureInPicture2 size={16} />
           </button>

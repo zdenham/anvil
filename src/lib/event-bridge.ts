@@ -22,6 +22,7 @@ const BROADCAST_EVENTS = [
   EventName.AGENT_CANCELLED,
 
   // Thread lifecycle
+  EventName.THREAD_OPTIMISTIC_CREATED,
   EventName.THREAD_CREATED,
   EventName.THREAD_UPDATED,
   EventName.THREAD_STATUS_CHANGED,
@@ -32,6 +33,7 @@ const BROADCAST_EVENTS = [
   // Orchestration
   EventName.WORKTREE_ALLOCATED,
   EventName.WORKTREE_RELEASED,
+  EventName.WORKTREE_NAME_GENERATED,
 
   // User interaction
   EventName.ACTION_REQUESTED,
@@ -63,6 +65,9 @@ const BROADCAST_EVENTS = [
 
   // User events
   EventName.USER_MESSAGE_SENT,
+
+  // Thread naming
+  EventName.THREAD_NAME_GENERATED,
 ] as const;
 
 /**

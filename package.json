@@ -1,7 +1,7 @@
 {
   "name": "mort",
   "private": true,
-  "version": "v0.0.27",
+  "version": "v0.0.28",
   "type": "module",
   "scripts": {
     "orb": "tsx observability/orb/index.ts",
@@ -52,6 +52,7 @@
     "shiki": "^3.20.0",
     "streamdown": "^1.6.10",
     "tailwind-merge": "^3.4.0",
+    "unique-names-generator": "^4.7.1",
     "zod": "^4.3.5",
     "zustand": "^5.0.9"
   },

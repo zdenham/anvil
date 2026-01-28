@@ -369,6 +369,42 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Shows the main window and sets its content pane view.
+/// Used for spotlight → main window navigation (Enter without Shift).
+#[tauri::command]
+fn show_main_window_with_view(app: AppHandle, view: serde_json::Value) -> Result<(), String> {
+    use tauri::ActivationPolicy;
+
+    tracing::info!("[MainWindow] show_main_window_with_view called: {:?}", view);
+
+    // Temporarily set activation policy to Regular so the app can come to front
+    let _ = app.set_activation_policy(ActivationPolicy::Regular);
+
+    // Get the main window
+    let window = app.get_webview_window(MAIN_WINDOW_LABEL)
+        .ok_or("Main window not found")?;
+
+    // Show and focus the main window
+    window.show().map_err(|e| {
+        tracing::error!(error = %e, "Failed to show main window");
+        e.to_string()
+    })?;
+    window.set_focus().map_err(|e| {
+        tracing::error!(error = %e, "Failed to focus main window");
+        e.to_string()
+    })?;
+
+    // Emit event TO main window specifically to set the content pane view
+    window.emit("set-content-pane-view", &view)
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to emit set-content-pane-view event");
+            e.to_string()
+        })?;
+
+    tracing::info!("[MainWindow] Main window shown with view");
+    Ok(())
+}
+
 /// Hides the main settings/onboarding window
 #[tauri::command]
 fn hide_main_window(app: AppHandle) -> Result<(), String> {
@@ -763,13 +799,8 @@ pub fn run() {
                         "Window resized"
                     );
                 }
-                tauri::WindowEvent::Moved(pos) => {
-                    throttle_debug!("window_moved", 500,
-                        window = %window.label(),
-                        x = %pos.x,
-                        y = %pos.y,
-                        "Window moved"
-                    );
+                tauri::WindowEvent::Moved(_) => {
+                    // Intentionally not logging - too noisy
                 }
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // Intercept close requests for the main window - hide instead of destroy
@@ -823,6 +854,7 @@ pub fn run() {
             is_onboarded,
             complete_onboarding,
             show_main_window,
+            show_main_window_with_view,
             hide_main_window,
             open_control_panel,
             show_control_panel,

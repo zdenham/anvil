@@ -37,8 +37,10 @@ export const ThreadMetadataBaseSchema = z.object({
   isRead: z.boolean().optional(),
   markedUnreadAt: z.number().optional(), // Timestamp when marked unread (for navigation cooldown)
   pid: z.number().nullable().optional(),
+  name: z.string().optional(),           // Auto-generated thread name (max 30 chars)
   createdAt: z.number(),               // Unix milliseconds
   updatedAt: z.number(),               // Unix milliseconds
+  _isOptimistic: z.boolean().optional(), // Internal flag - true if optimistic thread not yet confirmed from disk
 });
 
 /**
@@ -83,6 +85,7 @@ export interface UpdateThreadInput {
   isRead?: boolean;
   pid?: number | null;
   changedFilePaths?: string[];
+  name?: string;
 }
 
 /**

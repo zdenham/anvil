@@ -112,7 +112,7 @@ export const SuggestedActionsPanel = forwardRef<SuggestedActionsPanelRef, Sugges
     return (
       <div
         ref={panelRef}
-        className="px-4 py-2 bg-surface-800 border-t border-surface-700 outline-none"
+        className="px-4 py-2 bg-surface-900 border-t border-dashed border-surface-700 outline-none"
         tabIndex={-1}
         data-quick-actions-panel
       >
@@ -133,7 +133,7 @@ export const SuggestedActionsPanel = forwardRef<SuggestedActionsPanelRef, Sugges
   return (
     <div
       ref={panelRef}
-      className="px-4 py-3 bg-surface-800 border-t border-surface-700 outline-none"
+      className="px-4 py-3 bg-surface-900 border-t border-dashed border-surface-700 outline-none"
       tabIndex={-1}
       role="listbox"
       aria-label="Quick actions"

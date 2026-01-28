@@ -37,6 +37,14 @@ export * from "./plans/types";
 export { useRelationStore, relationService, useRelatedPlans, useRelatedThreads, useRelatedThreadsIncludingArchived } from "./relations";
 export type { PlanThreadRelation, RelationType } from "./relations";
 
+// Tree Menu
+export { useTreeMenuStore } from "@/stores/tree-menu/store";
+export { treeMenuService } from "@/stores/tree-menu/service";
+export * from "@/stores/tree-menu/types";
+
+// Repo/Worktree Lookup
+export { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // App-level hydration & event listeners
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -51,6 +59,10 @@ import { setupRepositoryListeners } from "./repositories/listeners";
 import { setupPermissionListeners } from "./permissions/listeners";
 import { setupPlanListeners } from "./plans/listeners";
 import { setupRelationListeners } from "./relations/listeners";
+import { setupTreeMenuListeners } from "@/stores/tree-menu/listeners";
+import { setupWorktreeListeners } from "./worktrees/listeners";
+import { treeMenuService } from "@/stores/tree-menu/service";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 
 /**
  * Hydrates all entity stores from disk.
@@ -60,6 +72,7 @@ export async function hydrateEntities(): Promise<void> {
   logger.log("[entities:hydrate] Starting entity hydration...");
 
   try {
+    // First, hydrate the core entities in parallel
     await Promise.all([
       threadService.hydrate(),
       repoService.hydrate(),
@@ -67,6 +80,17 @@ export async function hydrateEntities(): Promise<void> {
       planService.hydrate(),
       relationService.hydrate(),
     ]);
+    logger.log("[entities:hydrate] Core entities hydrated successfully");
+
+    // After repositories are hydrated, build the repo/worktree lookup cache
+    // This must happen after repoService.hydrate() since it reads repo settings
+    await useRepoWorktreeLookupStore.getState().hydrate();
+    logger.log("[entities:hydrate] Repo/worktree lookup hydrated");
+
+    // Then hydrate tree menu UI state
+    await treeMenuService.hydrate();
+    logger.log("[entities:hydrate] Tree menu state hydrated");
+
     logger.log("[entities:hydrate] All entities hydrated successfully");
   } catch (error) {
     logger.error("[entities:hydrate] Hydration failed!", error);
@@ -85,5 +109,7 @@ export function setupEntityListeners(): void {
   setupPermissionListeners();
   setupPlanListeners();
   setupRelationListeners();
+  setupTreeMenuListeners();
+  setupWorktreeListeners();
   logger.log("[entities:listeners] All entity listeners initialized");
 }

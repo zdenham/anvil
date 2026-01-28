@@ -1,10 +1,12 @@
-import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo } from "react";
+import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo, useEffect } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { Turn } from "@/lib/utils/turn-grouping";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
+import { cn } from "@/lib/utils";
 import { TurnRenderer } from "./turn-renderer";
 import { WorkingIndicator } from "./working-indicator";
+import { logger } from "@/lib/logger-client";
 
 interface MessageListProps {
   /** Thread ID for persisting expand state across virtualization */
@@ -31,6 +33,9 @@ export interface MessageListRef {
  * Uses react-virtuoso for efficient rendering of variable-height items
  * with automatic scroll anchoring during streaming.
  */
+// Track mount times for timing analysis
+const messageListMountTimes = new Map<string, number>();
+
 export const MessageList = forwardRef<MessageListRef, MessageListProps>(function MessageList({
   threadId,
   turns,
@@ -41,6 +46,40 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
 }, ref) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const mountTimeRef = useRef<number>(Date.now());
+  const hasLoggedMount = useRef(false);
+  const hasLoggedFirstRender = useRef(false);
+
+  // Log on first render (synchronous)
+  if (!hasLoggedMount.current) {
+    const now = Date.now();
+    mountTimeRef.current = now;
+    messageListMountTimes.set(threadId, now);
+    logger.info(`[MessageList:TIMING] FIRST RENDER`, {
+      threadId,
+      turnCount: turns.length,
+      messageCount: messages.length,
+      isStreaming,
+      renderTime: now,
+      timestamp: new Date(now).toISOString(),
+    });
+    hasLoggedMount.current = true;
+  }
+
+  // Log after first DOM paint using useEffect
+  useEffect(() => {
+    if (!hasLoggedFirstRender.current && turns.length > 0) {
+      const now = Date.now();
+      const mountTime = messageListMountTimes.get(threadId) ?? mountTimeRef.current;
+      logger.info(`[MessageList:TIMING] useEffect after render (DOM committed)`, {
+        threadId,
+        turnCount: turns.length,
+        elapsedSinceMount: now - mountTime,
+        timestamp: new Date(now).toISOString(),
+      });
+      hasLoggedFirstRender.current = true;
+    }
+  }, [turns.length, threadId]);
 
   // Show working indicator when streaming but no assistant content yet
   const showWorkingIndicator = useMemo(() => {
@@ -63,20 +102,33 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
 
   // Render individual turn
   const itemContent = useCallback(
-    (index: number, turn: Turn) => (
-      <div className="px-4 py-2">
-        <TurnRenderer
-          turn={turn}
-          turnIndex={index}
-          messages={messages}
-          isLast={index === turns.length - 1}
-          isStreaming={isStreaming}
-          toolStates={toolStates}
-          onToolResponse={onToolResponse}
-          threadId={threadId}
-        />
-      </div>
-    ),
+    (index: number, turn: Turn) => {
+      // Only log the first turn render for timing purposes (avoid log spam)
+      if (index === 0) {
+        const now = Date.now();
+        const mountTime = messageListMountTimes.get(threadId) ?? mountTimeRef.current;
+        logger.info(`[MessageList:TIMING] itemContent callback for turn 0`, {
+          threadId,
+          turnType: turn.type,
+          elapsedSinceMount: now - mountTime,
+          timestamp: new Date(now).toISOString(),
+        });
+      }
+      return (
+        <div className={cn("px-4 py-2", index === 0 && "pt-12")}>
+          <TurnRenderer
+            turn={turn}
+            turnIndex={index}
+            messages={messages}
+            isLast={index === turns.length - 1}
+            isStreaming={isStreaming}
+            toolStates={toolStates}
+            onToolResponse={onToolResponse}
+            threadId={threadId}
+          />
+        </div>
+      );
+    },
     [messages, turns.length, isStreaming, toolStates, onToolResponse, threadId]
   );
 
@@ -100,7 +152,6 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         itemContent={itemContent}
         components={{ Footer }}
         followOutput={isStreaming && isAtBottom ? "smooth" : false}
-        alignToBottom
         atBottomStateChange={setIsAtBottom}
         atBottomThreshold={50}
         style={{ height: "100%" }}
