@@ -86,7 +86,7 @@ const getResultDisplay = (
       if (selected) {
         // Show worktree name with icon and navigation hint if multiple worktrees exist
         const worktreeIcon = <GitBranch size={12} className="inline-block align-middle" />;
-        const hint = repoWorktrees.length > 1 ? " · ← → to change" : "";
+        const hint = repoWorktrees.length > 1 ? " · Tab to change" : "";
         // Always show repo/worktree format
         const displayName = `${selected.repoName} / ${selected.worktree.name}`;
         subtitle = (

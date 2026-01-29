@@ -33,6 +33,8 @@ export const WorktreeStateSchema = z.object({
   path: z.string(),
   /** Name of the worktree */
   name: z.string(),
+  /** Creation timestamp (ms since epoch). Defaults to lastAccessedAt for migration. */
+  createdAt: z.number().optional(),
   /** Last access timestamp */
   lastAccessedAt: z.number().optional(),
   /** Currently checked out branch, or null */
