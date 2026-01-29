@@ -104,6 +104,66 @@ function isWorktreeRenamed(mortDir: string, repoId: string, worktreeId: string):
 }
 
 /**
+ * Check if a worktree is the main worktree (sourcePath == worktree path).
+ * The main worktree is the original repository directory and should not be renamed.
+ *
+ * @returns true if this is the main worktree, false otherwise (including on any errors)
+ */
+function isMainWorktree(mortDir: string, repoId: string, worktreeId: string): boolean {
+  try {
+    const reposDir = join(mortDir, "repositories");
+    if (!existsSync(reposDir)) {
+      return false;
+    }
+
+    // Scan all repository directories to find the one with matching repoId
+    const repoDirs = readdirSync(reposDir).filter(name => {
+      const stat = statSync(join(reposDir, name));
+      return stat.isDirectory();
+    });
+
+    for (const repoDir of repoDirs) {
+      const settingsPath = join(reposDir, repoDir, "settings.json");
+      if (!existsSync(settingsPath)) {
+        continue;
+      }
+
+      try {
+        const content = readFileSync(settingsPath, "utf-8");
+        const parsed = RepositorySettingsSchema.safeParse(JSON.parse(content));
+        if (!parsed.success) {
+          continue;
+        }
+
+        const settings = parsed.data;
+        if (settings.id !== repoId) {
+          continue;
+        }
+
+        // Found the right repository, now find the worktree
+        const worktree = settings.worktrees.find(w => w.id === worktreeId);
+        if (worktree) {
+          // Compare worktree path with repository sourcePath
+          // Normalize paths for comparison (resolve symlinks, trailing slashes)
+          const normalizedWorktreePath = worktree.path.replace(/\/$/, '');
+          const normalizedSourcePath = settings.sourcePath.replace(/\/$/, '');
+          return normalizedWorktreePath === normalizedSourcePath;
+        }
+
+        return false;
+      } catch {
+        continue;
+      }
+    }
+
+    return false;
+  } catch (err) {
+    emitLog("WARN", `[worktree_rename] Failed to check isMainWorktree: ${err}`);
+    return false;
+  }
+}
+
+/**
  * Schema for simple thread metadata.
  * Uses ThreadMetadataBaseSchema with default for isRead.
  */
@@ -352,9 +412,13 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
 
       // Start worktree naming in parallel (fire and forget)
       // Only trigger if the worktree hasn't already been renamed from its initial animal name
-      // Read the isRenamed status from disk to check
+      // and this is not the main worktree (which should never be renamed)
       const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
-      if (!alreadyRenamed) {
+      const mainWorktree = isMainWorktree(mortDir, repoId, worktreeId);
+
+      if (mainWorktree) {
+        emitLog("INFO", `[worktree_rename] Skipping worktree naming - this is the main worktree (worktreeId=${worktreeId})`);
+      } else if (!alreadyRenamed) {
         emitLog("INFO", `[worktree_rename] New thread created, worktree not yet renamed - initiating worktree naming for worktreeId=${worktreeId}`);
         this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
       } else {

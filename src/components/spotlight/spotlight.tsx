@@ -31,7 +31,6 @@ import { openControlPanel, showMainWindow, showMainWindowWithView } from "../../
 import { logger } from "../../lib/logger-client";
 import { promptHistoryService } from "../../lib/prompt-history-service";
 import { loadSettings } from "../../lib/persistence";
-import { CursorBoundary } from "../../lib/cursor-boundary";
 
 /** Error types for thread creation */
 type ThreadCreationError =
@@ -1105,6 +1104,30 @@ export const Spotlight = () => {
         case "Escape":
           await controller.hideSpotlight();
           break;
+        case "Tab": {
+          // Tab cycles worktrees when multiple are available (works with or without query)
+          if (repoWorktrees.length > 1) {
+            e.preventDefault();
+            if (e.shiftKey) {
+              // Shift+Tab = cycle backward
+              setState((prev) => ({
+                ...prev,
+                selectedWorktreeIndex:
+                  prev.selectedWorktreeIndex > 0
+                    ? prev.selectedWorktreeIndex - 1
+                    : prev.repoWorktrees.length - 1,
+              }));
+            } else {
+              // Tab = cycle forward
+              setState((prev) => ({
+                ...prev,
+                selectedWorktreeIndex:
+                  (prev.selectedWorktreeIndex + 1) % prev.repoWorktrees.length,
+              }));
+            }
+          }
+          break;
+        }
         case "ArrowDown":
           // Check if in history mode first
           if (isInHistoryMode) {
@@ -1146,9 +1169,8 @@ export const Spotlight = () => {
           }
           break;
         case "ArrowRight": {
+          // Show overlay and cycle worktrees only when query is empty
           const isQueryEmpty = query.trim() === "";
-
-          // Show overlay and cycle worktrees when query is empty
           if (isQueryEmpty && repoWorktrees.length >= 1) {
             e.preventDefault();
             setState((s) => {
@@ -1162,31 +1184,13 @@ export const Spotlight = () => {
                   : s.selectedWorktreeIndex,
               };
             });
-            break;
           }
-
-          // Cycle forward through worktrees when on a thread result
-          // Only cycle if cursor is at the very end AND no text is selected
-          const currentResult = displayResults[selectedIndex];
-          if (currentResult?.type === "thread" && repoWorktrees.length > 1) {
-            const element = inputRef.current?.getElement() ?? null;
-            const isAtEnd = CursorBoundary.isAtEnd(element);
-
-            if (isAtEnd) {
-              e.preventDefault();
-              setState((prev) => ({
-                ...prev,
-                selectedWorktreeIndex: (prev.selectedWorktreeIndex + 1) % prev.repoWorktrees.length,
-              }));
-            }
-            // Otherwise: let default behavior happen (cursor moves right)
-          }
+          // When query is non-empty, let default behavior happen (cursor moves right)
           break;
         }
         case "ArrowLeft": {
+          // Show overlay and cycle worktrees only when query is empty
           const isQueryEmptyLeft = query.trim() === "";
-
-          // Show overlay and cycle worktrees when query is empty
           if (isQueryEmptyLeft && repoWorktrees.length >= 1) {
             e.preventDefault();
             setState((s) => {
@@ -1202,24 +1206,8 @@ export const Spotlight = () => {
                   : s.selectedWorktreeIndex,
               };
             });
-            break;
           }
-
-          // Cycle back through worktrees when on a thread result
-          // Only cycle if not on the first worktree
-          const currentResultLeft = displayResults[selectedIndex];
-          if (currentResultLeft?.type === "thread" && repoWorktrees.length > 1) {
-            const notOnFirstWorktree = selectedWorktreeIndex > 0;
-
-            if (notOnFirstWorktree) {
-              e.preventDefault();
-              setState((prev) => ({
-                ...prev,
-                selectedWorktreeIndex: prev.selectedWorktreeIndex - 1,
-              }));
-            }
-            // Otherwise (on first worktree): let default behavior happen (cursor moves left)
-          }
+          // When query is non-empty, let default behavior happen (cursor moves left)
           break;
         }
         case "Enter":

@@ -18,6 +18,9 @@ pub struct AppConfig {
     pub clipboard_hotkey: String,
     #[serde(default)]
     pub onboarded: bool,
+    /// Current migration version (0 = no migrations run yet)
+    #[serde(default)]
+    pub migration_version: u32,
 }
 
 fn generate_device_id() -> String {
@@ -31,6 +34,7 @@ impl Default for AppConfig {
             spotlight_hotkey: default_spotlight_hotkey(),
             clipboard_hotkey: default_clipboard_hotkey(),
             onboarded: false,
+            migration_version: 0,
         }
     }
 }
@@ -198,5 +202,17 @@ pub fn set_clipboard_hotkey(hotkey: &str) -> Result<(), String> {
 /// Gets the device ID (UUID generated on first run and persisted)
 pub fn get_device_id() -> String {
     load_config().device_id
+}
+
+/// Gets the current migration version
+pub fn get_migration_version() -> u32 {
+    load_config().migration_version
+}
+
+/// Sets the migration version
+pub fn set_migration_version(version: u32) -> Result<(), String> {
+    let mut config = load_config();
+    config.migration_version = version;
+    save_config(&config)
 }
 

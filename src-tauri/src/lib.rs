@@ -21,6 +21,7 @@ mod filesystem;
 mod git_commands;
 mod icons;
 mod logging;
+mod migrations;
 mod mort_commands;
 mod panels;
 mod paths;
@@ -932,6 +933,9 @@ pub fn run() {
 
             // Initialize config module (uses consolidated .mort/settings/ directory)
             config::initialize();
+
+            // Run data migrations
+            migrations::run_migrations();
 
             // Initialize panels module with app handle for event callbacks
             panels::initialize(app.handle());

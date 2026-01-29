@@ -35,11 +35,13 @@ export class WorktreeService {
       const worktreePath = `${this.mortDir}/repositories/${repoName}/${name}`;
       this.git.createWorktree(settings.sourcePath, worktreePath);
 
+      const now = Date.now();
       const worktree: WorktreeState = {
         id: crypto.randomUUID(),
         path: worktreePath,
         name,
-        lastAccessedAt: Date.now(),
+        createdAt: now,
+        lastAccessedAt: now,
         currentBranch: null,
       };
 
@@ -100,13 +102,16 @@ export class WorktreeService {
   }
 
   /**
-   * List all worktrees, sorted by most recently accessed.
+   * List all worktrees, sorted by creation date (most recent first).
    */
   list(repoName: string): WorktreeState[] {
     const settings = this.settingsService.load(repoName);
-    return [...settings.worktrees].sort(
-      (a, b) => (b.lastAccessedAt ?? 0) - (a.lastAccessedAt ?? 0)
-    );
+    return [...settings.worktrees].sort((a, b) => {
+      // Use createdAt, falling back to lastAccessedAt for migration
+      const aTime = a.createdAt ?? a.lastAccessedAt ?? 0;
+      const bTime = b.createdAt ?? b.lastAccessedAt ?? 0;
+      return bTime - aTime;
+    });
   }
 
   /**

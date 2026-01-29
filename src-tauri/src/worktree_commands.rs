@@ -11,6 +11,7 @@ pub struct WorktreeState {
     pub id: String,
     pub path: String,
     pub name: String,
+    pub created_at: Option<u64>,
     pub last_accessed_at: Option<u64>,
     pub current_branch: Option<String>,
     #[serde(default)]
@@ -59,11 +60,13 @@ pub async fn worktree_create(repo_name: String, name: String) -> Result<Worktree
     git_commands::git_create_worktree(source_path, worktree_path.clone(), String::new()).await?;
 
     // Create worktree state
+    let now = now_millis();
     let worktree = WorktreeState {
         id: Uuid::new_v4().to_string(),
         path: worktree_path,
         name,
-        last_accessed_at: Some(now_millis()),
+        created_at: Some(now),
+        last_accessed_at: Some(now),
         current_branch: None,
         is_renamed: false,
     };
@@ -331,7 +334,8 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
                 id: Uuid::new_v4().to_string(),
                 path: git_wt.path.clone(),
                 name: final_name,
-                last_accessed_at: Some(0), // Not accessed through our tool yet
+                created_at: Some(now),
+                last_accessed_at: Some(now),
                 current_branch: git_wt.branch.clone(),
                 is_renamed: false,
             });
@@ -353,11 +357,12 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
     settings["lastUpdated"] = serde_json::json!(now);
     save_settings(&repo_name, &settings)?;
 
-    // Sort by lastAccessedAt (most recent first) before returning
+    // Sort by createdAt descending (most recent first)
+    // Fall back to lastAccessedAt for worktrees that don't have createdAt yet
     existing_worktrees.sort_by(|a, b| {
-        b.last_accessed_at
-            .unwrap_or(0)
-            .cmp(&a.last_accessed_at.unwrap_or(0))
+        let a_time = a.created_at.or(a.last_accessed_at).unwrap_or(0);
+        let b_time = b.created_at.or(b.last_accessed_at).unwrap_or(0);
+        b_time.cmp(&a_time)
     });
 
     Ok(existing_worktrees)
