@@ -7,7 +7,7 @@ import {
   getPlanPreviewContent,
   type PreviewableItem,
 } from "@/lib/preview-content";
-import { contentPanesService } from "@/stores/content-panes";
+import { navigationService } from "@/stores/navigation-service";
 import { cn } from "@/lib/utils";
 
 interface CommandPaletteProps {
@@ -112,19 +112,13 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     }
   }, [selectedIndex]);
 
-  // Navigate to selected item (updates content pane within main window)
+  // Navigate to selected item (updates content pane and tree selection)
   const navigateToItem = useCallback(
     async (item: PreviewableItem) => {
       if (item.type === "thread") {
-        await contentPanesService.setActivePaneView({
-          type: "thread",
-          threadId: item.id,
-        });
+        await navigationService.navigateToThread(item.id);
       } else {
-        await contentPanesService.setActivePaneView({
-          type: "plan",
-          planId: item.id,
-        });
+        await navigationService.navigateToPlan(item.id);
       }
       onClose();
     },

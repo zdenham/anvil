@@ -47,7 +47,7 @@ export function buildTreeFromEntities(
     worktreeName: string;
     worktreePath: string;
     items: TreeItemNode[];
-    latestUpdate: number;
+    earliestCreated: number;
   }>();
 
   // Helper to get or create section
@@ -61,7 +61,7 @@ export function buildTreeFromEntities(
         worktreeName: getWorktreeName(repoId, worktreeId),
         worktreePath: getWorktreePath(repoId, worktreeId),
         items: [],
-        latestUpdate: 0,
+        earliestCreated: Infinity,
       });
     }
     return sectionMap.get(sectionId)!;
@@ -90,8 +90,8 @@ export function buildTreeFromEntities(
       sectionId,
     });
 
-    if (thread.updatedAt > section.latestUpdate) {
-      section.latestUpdate = thread.updatedAt;
+    if (thread.createdAt < section.earliestCreated) {
+      section.earliestCreated = thread.createdAt;
     }
   }
 
@@ -119,8 +119,8 @@ export function buildTreeFromEntities(
       sectionId,
     });
 
-    if (plan.updatedAt > section.latestUpdate) {
-      section.latestUpdate = plan.updatedAt;
+    if (plan.createdAt < section.earliestCreated) {
+      section.earliestCreated = plan.createdAt;
     }
   }
 
@@ -143,11 +143,13 @@ export function buildTreeFromEntities(
     });
   }
 
-  // Sort sections by most recent item update
+  // Sort sections by earliest item creation (descending - newest worktrees first)
+  // This provides stable ordering that doesn't change when new threads are added
   sections.sort((a, b) => {
-    const aLatest = sectionMap.get(a.id)?.latestUpdate ?? 0;
-    const bLatest = sectionMap.get(b.id)?.latestUpdate ?? 0;
-    return bLatest - aLatest;
+    const aEarliest = sectionMap.get(a.id)?.earliestCreated ?? Infinity;
+    const bEarliest = sectionMap.get(b.id)?.earliestCreated ?? Infinity;
+    // Descending: worktrees you started using more recently appear first
+    return bEarliest - aEarliest;
   });
 
   return sections;

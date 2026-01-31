@@ -362,7 +362,7 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
       {/* Main content area */}
       {/* Max width constraint centered for readability on wide screens */}
       <div className="flex-1 min-h-0 overflow-y-auto w-full">
-        <div key={planId} className="w-full max-w-[900px] mx-auto p-4">
+        <div key={planId} className="w-full max-w-[900px] mx-auto p-4 pt-8">
           {isContentLoading ? (
             null  // Show blank during loading to avoid stale content flash
           ) : isStale || content === null ? (

@@ -94,7 +94,7 @@ export function ThreadItem({
         )}
       >
         <StatusDot variant={item.status} className="flex-shrink-0" />
-        <span className="truncate flex-1">{item.title}</span>
+        <span className="truncate flex-1" title={item.title}>{item.title}</span>
         {/* Archive button - fixed height to prevent layout shift */}
         <button
           ref={buttonRef}

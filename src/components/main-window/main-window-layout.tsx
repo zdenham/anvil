@@ -26,6 +26,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { MainWindowProvider } from "./main-window-context";
 import { contentPanesService, setupContentPanesListeners } from "@/stores/content-panes";
 import { treeMenuService } from "@/stores/tree-menu/service";
+import { navigationService } from "@/stores/navigation-service";
 import { layoutService } from "@/stores/layout/service";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { threadService } from "@/entities/threads/service";
@@ -105,8 +106,8 @@ export function MainWindowLayout() {
             prompt: "",
           });
 
-          await contentPanesService.setActivePaneView({ type: "thread", threadId: thread.id, autoFocus: true });
           await treeMenuService.hydrate();
+          await navigationService.navigateToThread(thread.id, { autoFocus: true });
 
           logger.info(`[MainWindowLayout] Command+N: Created new thread ${thread.id}`);
         } catch (err) {
@@ -170,9 +171,9 @@ export function MainWindowLayout() {
         timestamp: new Date(eventReceivedAt).toISOString(),
       });
 
-      // Update the active pane's view
-      await contentPanesService.setActivePaneView(view);
-      logger.info(`[MainWindowLayout:TIMING] setActivePaneView completed`, {
+      // Update both tree selection and content pane via navigation service
+      await navigationService.navigateToView(view);
+      logger.info(`[MainWindowLayout:TIMING] navigateToView completed`, {
         viewType: view.type,
         threadId,
         elapsedMs: Date.now() - eventReceivedAt,
@@ -194,9 +195,9 @@ export function MainWindowLayout() {
       const target = event.payload as NavTarget;
       if (VALID_NAV_TARGETS.includes(target)) {
         if (target === "settings") {
-          await contentPanesService.setActivePaneView({ type: "settings" });
+          await navigationService.navigateToView({ type: "settings" });
         } else if (target === "logs") {
-          await contentPanesService.setActivePaneView({ type: "logs" });
+          await navigationService.navigateToView({ type: "logs" });
         }
         logger.debug(`[MainWindowLayout] Navigated to ${target}`);
       }
@@ -215,9 +216,9 @@ export function MainWindowLayout() {
     logger.info(`[MainWindowLayout] Item selected: ${itemType} ${itemId}`);
 
     if (itemType === "thread") {
-      await contentPanesService.setActivePaneView({ type: "thread", threadId: itemId });
+      await navigationService.navigateToThread(itemId);
     } else {
-      await contentPanesService.setActivePaneView({ type: "plan", planId: itemId });
+      await navigationService.navigateToPlan(itemId);
     }
   }, []);
 
@@ -226,11 +227,11 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleSettingsClick = useCallback(async () => {
-    await contentPanesService.setActivePaneView({ type: "settings" });
+    await navigationService.navigateToView({ type: "settings" });
   }, []);
 
   const handleLogsClick = useCallback(async () => {
-    await contentPanesService.setActivePaneView({ type: "logs" });
+    await navigationService.navigateToView({ type: "logs" });
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -247,11 +248,9 @@ export function MainWindowLayout() {
         prompt: "", // Empty prompt - user will fill it in
       });
 
-      // Open the new thread in the content pane with auto-focus
-      await contentPanesService.setActivePaneView({ type: "thread", threadId: thread.id, autoFocus: true });
-
-      // Refresh tree menu to show new thread
+      // Refresh tree menu to show new thread, then navigate to it
       await treeMenuService.hydrate();
+      await navigationService.navigateToThread(thread.id, { autoFocus: true });
 
       logger.info(`[MainWindowLayout] Created new thread ${thread.id}`);
     } catch (err) {

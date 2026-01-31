@@ -115,7 +115,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         });
       }
       return (
-        <div className={cn("px-4 py-2", index === 0 && "pt-12")}>
+        <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", index === 0 && "pt-12")}>
           <TurnRenderer
             turn={turn}
             turnIndex={index}
@@ -135,7 +135,11 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   // Footer component for working indicator (renders at end of virtualized list)
   const Footer = useCallback(() => {
     if (!showWorkingIndicator) return null;
-    return <WorkingIndicator />;
+    return (
+      <div className="w-full max-w-[900px] mx-auto">
+        <WorkingIndicator />
+      </div>
+    );
   }, [showWorkingIndicator]);
 
   return (

@@ -1,14 +1,22 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 
-const SYSTEM_PROMPT = `You are a thread naming assistant. Generate a concise, descriptive name for a conversation thread based on the user's initial message.
+const SYSTEM_PROMPT = `You are a thread naming assistant. Generate a short name for a conversation thread based on the user's initial message.
 
 Rules:
 - Maximum 30 characters
-- Be descriptive but brief
-- Use title case
+- Use the user's actual words as much as possible - don't abstract or summarize
+- Extract the most distinctive/memorable phrase from their message
+- Keep their original phrasing and word choice
+- Lowercase is fine, match the user's style
 - No quotes or special characters
-- Focus on the main topic or action requested
+- If the message is a question, preserve key question words
+- Prefer specific details over generic descriptions
+
+Examples:
+- "Can you help me fix the login bug?" → "fix the login bug"
+- "What's the best way to implement caching?" → "implement caching"
+- "I need to refactor the auth system" → "refactor the auth system"
 
 Respond with ONLY the thread name, nothing else.`;
 

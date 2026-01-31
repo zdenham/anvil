@@ -499,18 +499,16 @@ export function ThreadContent({
     <div className="flex flex-col h-full text-surface-50 relative overflow-hidden">
       {/* ThreadView takes remaining space */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full max-w-[900px] mx-auto">
-          <ThreadView
-            key={threadId}
-            ref={messageListRef}
-            threadId={threadId}
-            messages={messages}
-            isStreaming={isStreaming}
-            status={viewStatus}
-            toolStates={toolStates}
-            onToolResponse={handleToolResponse}
-          />
-        </div>
+        <ThreadView
+          key={threadId}
+          ref={messageListRef}
+          threadId={threadId}
+          messages={messages}
+          isStreaming={isStreaming}
+          status={viewStatus}
+          toolStates={toolStates}
+          onToolResponse={handleToolResponse}
+        />
       </div>
 
       {/* Quick actions and input pinned to bottom */}

@@ -13,7 +13,7 @@
  */
 
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
-import { contentPanesService } from "@/stores/content-panes/service";
+import { navigationService } from "@/stores/navigation-service";
 import { showControlPanelWithView } from "@/lib/hotkey-service";
 import type { ContentPaneView } from "@/components/content-pane/types";
 
@@ -22,12 +22,12 @@ export function useContextAwareNavigation() {
 
   /**
    * Navigate to a thread view.
-   * In main window: updates the content pane.
+   * In main window: updates the content pane and tree selection.
    * In panel: shows the control panel with the thread.
    */
   const navigateToThread = async (threadId: string) => {
     if (isMainWindow) {
-      await contentPanesService.setActivePaneView({ type: "thread", threadId });
+      await navigationService.navigateToThread(threadId);
     } else {
       await showControlPanelWithView({ type: "thread", threadId });
     }
@@ -35,12 +35,12 @@ export function useContextAwareNavigation() {
 
   /**
    * Navigate to a plan view.
-   * In main window: updates the content pane.
+   * In main window: updates the content pane and tree selection.
    * In panel: shows the control panel with the plan.
    */
   const navigateToPlan = async (planId: string) => {
     if (isMainWindow) {
-      await contentPanesService.setActivePaneView({ type: "plan", planId });
+      await navigationService.navigateToPlan(planId);
     } else {
       await showControlPanelWithView({ type: "plan", planId });
     }
@@ -48,12 +48,12 @@ export function useContextAwareNavigation() {
 
   /**
    * Navigate to any ContentPaneView.
-   * In main window: updates the content pane.
+   * In main window: updates the content pane and tree selection.
    * In panel: only supports thread/plan views (shows control panel).
    */
   const navigateToView = async (view: ContentPaneView) => {
     if (isMainWindow) {
-      await contentPanesService.setActivePaneView(view);
+      await navigationService.navigateToView(view);
     } else {
       // Control panel only supports thread and plan views
       if (view.type === "thread" || view.type === "plan") {
