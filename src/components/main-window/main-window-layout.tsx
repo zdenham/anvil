@@ -37,6 +37,8 @@ import { generateUniqueWorktreeName } from "@/lib/random-name";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { useTreeData } from "@/hooks/use-tree-data";
+import { useTreeMenuStore } from "@/stores/tree-menu/store";
+import { planService } from "@/entities/plans";
 import type { ContentPaneView } from "@/components/content-pane/types";
 
 // Valid navigation targets from macOS menu
@@ -83,26 +85,63 @@ export function MainWindowLayout() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Listen for Command+N / Ctrl+N to create new thread in most recent worktree
+  // Listen for Command+N / Ctrl+N to create new thread
+  // Priority: 1) Selected thread/plan's worktree, 2) Most recent worktree
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "n") {
         e.preventDefault();
 
-        // Get most recently used worktree (first section, sorted by recency)
-        const sections = treeSectionsRef.current;
-        if (sections.length === 0) {
-          logger.warn("[MainWindowLayout] Command+N: No worktrees available");
-          return;
+        let repoId: string | undefined;
+        let worktreeId: string | undefined;
+        let worktreeName: string | undefined;
+
+        // 1. Check if a thread or plan is currently selected
+        const selectedItemId = useTreeMenuStore.getState().selectedItemId;
+        if (selectedItemId) {
+          // Try thread first
+          const selectedThread = threadService.get(selectedItemId);
+          if (selectedThread) {
+            repoId = selectedThread.repoId;
+            worktreeId = selectedThread.worktreeId;
+            const section = treeSectionsRef.current.find(
+              s => s.repoId === repoId && s.worktreeId === worktreeId
+            );
+            worktreeName = section?.worktreeName ?? "unknown";
+            logger.info(`[MainWindowLayout] Command+N: Creating new thread in selected thread's worktree "${worktreeName}"`);
+          } else {
+            // Try plan
+            const selectedPlan = planService.get(selectedItemId);
+            if (selectedPlan) {
+              repoId = selectedPlan.repoId;
+              worktreeId = selectedPlan.worktreeId;
+              const section = treeSectionsRef.current.find(
+                s => s.repoId === repoId && s.worktreeId === worktreeId
+              );
+              worktreeName = section?.worktreeName ?? "unknown";
+              logger.info(`[MainWindowLayout] Command+N: Creating new thread in selected plan's worktree "${worktreeName}"`);
+            }
+          }
         }
 
-        const mostRecent = sections[0];
-        logger.info(`[MainWindowLayout] Command+N: Creating new thread in most recent worktree "${mostRecent.worktreeName}"`);
+        // 2. Fallback to most recently used worktree
+        if (!repoId || !worktreeId) {
+          const sections = treeSectionsRef.current;
+          if (sections.length === 0) {
+            logger.warn("[MainWindowLayout] Command+N: No worktrees available");
+            return;
+          }
+          const mostRecent = sections[0];
+          repoId = mostRecent.repoId;
+          worktreeId = mostRecent.worktreeId;
+          worktreeName = mostRecent.worktreeName;
+          logger.info(`[MainWindowLayout] Command+N: Creating new thread in most recent worktree "${worktreeName}"`);
+        }
 
         try {
           const thread = await threadService.create({
-            repoId: mostRecent.repoId,
-            worktreeId: mostRecent.worktreeId,
+            repoId,
+            worktreeId,
             prompt: "",
           });
 
