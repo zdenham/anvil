@@ -9,6 +9,109 @@ import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
 import type { RepoWorktreeSection, TreeItemNode } from "@/stores/tree-menu/types";
 
+/**
+ * Get display title for a plan.
+ * For readme.md files, use the parent directory name.
+ */
+function getPlanTitle(plan: PlanMetadata): string {
+  const parts = plan.relativePath.split('/');
+  const filename = parts[parts.length - 1];
+
+  // For readme.md, use directory name as title
+  if (filename.toLowerCase() === 'readme.md' && parts.length > 1) {
+    return parts[parts.length - 2];
+  }
+
+  // Otherwise use filename without extension
+  return filename.replace(/\.md$/, '');
+}
+
+/**
+ * Build tree items for a section, handling nested plans.
+ * Returns a flat list with depth info for rendering.
+ */
+function buildSectionItems(
+  threads: ThreadMetadata[],
+  plans: PlanMetadata[],
+  sectionId: string,
+  expandedSections: Record<string, boolean>,
+  runningThreadIds: Set<string>
+): TreeItemNode[] {
+  const items: TreeItemNode[] = [];
+
+  // Add threads (always depth 0, never folders)
+  for (const thread of threads) {
+    items.push({
+      type: "thread",
+      id: thread.id,
+      title: thread.name ?? "New Thread",
+      status: getThreadStatusVariant(thread),
+      updatedAt: thread.updatedAt,
+      createdAt: thread.createdAt,
+      sectionId,
+      depth: 0,
+      isFolder: false,
+      isExpanded: false,
+    });
+  }
+
+  // Group plans by parent
+  const childrenMap = new Map<string | undefined, PlanMetadata[]>();
+  for (const plan of plans) {
+    const siblings = childrenMap.get(plan.parentId) || [];
+    siblings.push(plan);
+    childrenMap.set(plan.parentId, siblings);
+  }
+
+  // Recursively add plans with depth
+  function addPlanAndChildren(plan: PlanMetadata, depth: number) {
+    const children = childrenMap.get(plan.id) || [];
+    const isFolder = children.length > 0;
+    // Use "plan:planId" key convention for folder expand state
+    const isExpanded = expandedSections[`plan:${plan.id}`] ?? true; // Default expanded
+
+    // Determine if any thread related to this plan is running
+    const relations = relationService.getByPlan(plan.id);
+    const relatedThreadIds = relations.map((r) => r.threadId);
+    const hasRunningThread = relatedThreadIds.some((id) => runningThreadIds.has(id));
+
+    items.push({
+      type: "plan",
+      id: plan.id,
+      title: getPlanTitle(plan),
+      status: getPlanStatusVariant(plan.isRead, hasRunningThread, plan.stale),
+      updatedAt: plan.updatedAt,
+      createdAt: plan.createdAt,
+      sectionId,
+      depth,
+      isFolder,
+      isExpanded,
+      parentId: plan.parentId,
+    });
+
+    // Only add children if expanded
+    if (isFolder && isExpanded) {
+      const sorted = [...children].sort((a, b) =>
+        a.relativePath.localeCompare(b.relativePath)
+      );
+      for (const child of sorted) {
+        addPlanAndChildren(child, depth + 1);
+      }
+    }
+  }
+
+  // Add root plans (no parentId)
+  const rootPlans = childrenMap.get(undefined) || [];
+  const sortedRoots = [...rootPlans].sort((a, b) =>
+    a.relativePath.localeCompare(b.relativePath)
+  );
+  for (const plan of sortedRoots) {
+    addPlanAndChildren(plan, 0);
+  }
+
+  return items;
+}
+
 interface RepoWithWorktrees {
   repoId: string;
   repoName: string;
@@ -18,7 +121,7 @@ interface RepoWithWorktrees {
 /**
  * Builds tree structure from entity stores.
  * Groups threads and plans by their repo/worktree association.
- * Sorts items within each section by createdAt descending (newest first).
+ * Handles nested plans via buildSectionItems.
  *
  * @param threads - All threads from store
  * @param plans - All plans from store
@@ -39,106 +142,105 @@ export function buildTreeFromEntities(
   getWorktreeName: (repoId: string, worktreeId: string) => string,
   getWorktreePath: (repoId: string, worktreeId: string) => string
 ): RepoWorktreeSection[] {
-  // Group items by "repoId:worktreeId"
-  const sectionMap = new Map<string, {
+  // Group threads and plans by "repoId:worktreeId"
+  const threadsBySection = new Map<string, ThreadMetadata[]>();
+  const plansBySection = new Map<string, PlanMetadata[]>();
+  const sectionInfo = new Map<string, {
     repoId: string;
     worktreeId: string;
     repoName: string;
     worktreeName: string;
     worktreePath: string;
-    items: TreeItemNode[];
     earliestCreated: number;
   }>();
 
-  // Helper to get or create section
-  const getSection = (repoId: string, worktreeId: string) => {
+  // Helper to ensure section exists
+  const ensureSection = (repoId: string, worktreeId: string) => {
     const sectionId = `${repoId}:${worktreeId}`;
-    if (!sectionMap.has(sectionId)) {
-      sectionMap.set(sectionId, {
+    if (!sectionInfo.has(sectionId)) {
+      sectionInfo.set(sectionId, {
         repoId,
         worktreeId,
         repoName: getRepoName(repoId),
         worktreeName: getWorktreeName(repoId, worktreeId),
         worktreePath: getWorktreePath(repoId, worktreeId),
-        items: [],
         earliestCreated: Infinity,
       });
+      threadsBySection.set(sectionId, []);
+      plansBySection.set(sectionId, []);
     }
-    return sectionMap.get(sectionId)!;
+    return sectionId;
   };
 
   // First, create sections for ALL known repos/worktrees (even empty ones)
   for (const repo of allRepos) {
     for (const wt of repo.worktrees) {
-      getSection(repo.repoId, wt.worktreeId);
+      ensureSection(repo.repoId, wt.worktreeId);
     }
   }
 
-  // Process threads
+  // Group threads by section
   for (const thread of threads) {
-    const status = getThreadStatusVariant(thread);
-    const section = getSection(thread.repoId, thread.worktreeId);
-    const sectionId = `${thread.repoId}:${thread.worktreeId}`;
+    const sectionId = ensureSection(thread.repoId, thread.worktreeId);
+    threadsBySection.get(sectionId)!.push(thread);
 
-    section.items.push({
-      type: "thread",
-      id: thread.id,
-      title: thread.name ?? "New Thread",
-      status,
-      updatedAt: thread.updatedAt,
-      createdAt: thread.createdAt,
-      sectionId,
-    });
-
-    if (thread.createdAt < section.earliestCreated) {
-      section.earliestCreated = thread.createdAt;
+    const info = sectionInfo.get(sectionId)!;
+    if (thread.createdAt < info.earliestCreated) {
+      info.earliestCreated = thread.createdAt;
     }
   }
 
-  // Process plans
+  // Group plans by section
   for (const plan of plans) {
-    // Determine if any thread related to this plan is running
-    const relations = relationService.getByPlan(plan.id);
-    const relatedThreadIds = relations.map((r) => r.threadId);
-    const hasRunningThread = relatedThreadIds.some((id) => runningThreadIds.has(id));
+    const sectionId = ensureSection(plan.repoId, plan.worktreeId);
+    plansBySection.get(sectionId)!.push(plan);
 
-    const status = getPlanStatusVariant(plan.isRead, hasRunningThread, plan.stale);
-    const section = getSection(plan.repoId, plan.worktreeId);
-    const sectionId = `${plan.repoId}:${plan.worktreeId}`;
-
-    // Extract filename from relativePath
-    const filename = plan.relativePath.split("/").pop() ?? plan.relativePath;
-
-    section.items.push({
-      type: "plan",
-      id: plan.id,
-      title: filename,
-      status,
-      updatedAt: plan.updatedAt,
-      createdAt: plan.createdAt,
-      sectionId,
-    });
-
-    if (plan.createdAt < section.earliestCreated) {
-      section.earliestCreated = plan.createdAt;
+    const info = sectionInfo.get(sectionId)!;
+    if (plan.createdAt < info.earliestCreated) {
+      info.earliestCreated = plan.createdAt;
     }
   }
 
-  // Convert to array and sort
+  // Build sections using the new buildSectionItems helper
   const sections: RepoWorktreeSection[] = [];
-  for (const [sectionId, data] of sectionMap) {
+  for (const [sectionId, info] of sectionInfo) {
+    const sectionThreads = threadsBySection.get(sectionId) || [];
+    const sectionPlans = plansBySection.get(sectionId) || [];
+
+    // Use buildSectionItems for proper nested plan handling
+    const items = buildSectionItems(
+      sectionThreads,
+      sectionPlans,
+      sectionId,
+      expandedSections,
+      runningThreadIds
+    );
+
     // Sort items by createdAt descending (most recent first)
-    data.items.sort((a, b) => b.createdAt - a.createdAt);
+    // Note: For nested items, we sort only at the top level - child items are sorted alphabetically
+    items.sort((a, b) => {
+      // Only sort items at the same depth level
+      if (a.depth !== b.depth) {
+        // Keep depth order (children come after parents)
+        return 0;
+      }
+      // For top-level items, sort by createdAt descending
+      if (a.depth === 0) {
+        return b.createdAt - a.createdAt;
+      }
+      // Nested items keep their alphabetical order from buildSectionItems
+      return 0;
+    });
 
     sections.push({
       type: "repo-worktree",
       id: sectionId,
-      repoName: data.repoName,
-      worktreeName: data.worktreeName,
-      repoId: data.repoId,
-      worktreeId: data.worktreeId,
-      worktreePath: data.worktreePath,
-      items: data.items,
+      repoName: info.repoName,
+      worktreeName: info.worktreeName,
+      repoId: info.repoId,
+      worktreeId: info.worktreeId,
+      worktreePath: info.worktreePath,
+      items,
       isExpanded: expandedSections[sectionId] ?? true, // Default to expanded
     });
   }
@@ -146,8 +248,8 @@ export function buildTreeFromEntities(
   // Sort sections by earliest item creation (descending - newest worktrees first)
   // This provides stable ordering that doesn't change when new threads are added
   sections.sort((a, b) => {
-    const aEarliest = sectionMap.get(a.id)?.earliestCreated ?? Infinity;
-    const bEarliest = sectionMap.get(b.id)?.earliestCreated ?? Infinity;
+    const aEarliest = sectionInfo.get(a.id)?.earliestCreated ?? Infinity;
+    const bEarliest = sectionInfo.get(b.id)?.earliestCreated ?? Infinity;
     // Descending: worktrees you started using more recently appear first
     return bEarliest - aEarliest;
   });

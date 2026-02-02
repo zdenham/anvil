@@ -18,6 +18,7 @@ export const PlanMetadataSchema = z.object({
   worktreeId: z.string().uuid(),       // Required - main repo is also a worktree
   relativePath: z.string(),            // Path relative to repo's plans directory
   parentId: z.string().uuid().optional(), // For nested plans
+  isFolder: z.boolean().optional(),    // True if this plan has children (is a "folder" plan)
   isRead: z.boolean().default(false),
   markedUnreadAt: z.number().optional(), // Timestamp when marked unread (for navigation cooldown)
   stale: z.boolean().optional(),       // True if file was not found on last access
@@ -41,4 +42,5 @@ export interface CreatePlanInput {
 export interface UpdatePlanInput {
   isRead?: boolean;
   parentId?: string;
+  isFolder?: boolean;
 }

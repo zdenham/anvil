@@ -32,5 +32,5 @@ In `agents/src/agent-types/simple.ts`, use `composePrompt()` to append the secti
 
 ## Checklist
 
-- [ ] Add `PLAN_CONVENTIONS` to `shared-prompts.ts`
-- [ ] Include in simple agent via `composePrompt()`
+- [x] Add `PLAN_CONVENTIONS` to `shared-prompts.ts`
+- [x] Include in simple agent via `composePrompt()`

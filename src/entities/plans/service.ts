@@ -99,24 +99,64 @@ class PlanService {
   }
 
   /**
+   * Find a plan by relative path with case-insensitive filename matching.
+   * Used for readme.md detection to handle README.md, Readme.md, etc.
+   */
+  findByRelativePathCaseInsensitive(repoId: string, relativePath: string): PlanMetadata | undefined {
+    const dir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+    const filename = relativePath.substring(relativePath.lastIndexOf('/') + 1).toLowerCase();
+
+    return this.getByRepository(repoId).find(plan => {
+      const planDir = plan.relativePath.substring(0, plan.relativePath.lastIndexOf('/'));
+      const planFilename = plan.relativePath.substring(plan.relativePath.lastIndexOf('/') + 1).toLowerCase();
+      return planDir === dir && planFilename === filename;
+    });
+  }
+
+  /**
    * Detect parent plan from file structure.
-   * A plan's parent is the plan file in the immediate parent directory.
+   * Supports arbitrary nesting depth.
    *
-   * Example: plans/auth/login.md -> parent is plans/auth.md (if it exists)
+   * Examples:
+   * - plans/auth/login.md -> parent: plans/auth/readme.md (if exists, case-insensitive)
+   *                       -> fallback: plans/auth.md (sibling file pattern)
+   * - plans/auth/oauth/google.md -> parent: plans/auth/oauth/readme.md (if exists, case-insensitive)
+   *                              -> fallback: plans/auth/oauth.md (if exists)
    */
   detectParentPlan(relativePath: string, repoId: string): string | undefined {
     const parts = relativePath.split('/');
-    if (parts.length <= 1) return undefined;
+    const filename = parts[parts.length - 1];
 
-    // Check for parent directory plan (e.g., "auth.md" for "auth/login.md")
-    const parentDir = parts.slice(0, -1).join('/');
-    const parentPlanPath = parentDir + '.md';
+    // readme.md files have no parent within their own directory
+    // Their parent would be at the next level up
+    if (filename.toLowerCase() === 'readme.md') {
+      if (parts.length <= 2) return undefined; // Just "plans/readme.md"
+      // Look for parent at directory level above
+      const parentDir = parts.slice(0, -2).join('/');
+      const readmeParent = this.findByRelativePathCaseInsensitive(repoId, `${parentDir}/readme.md`);
+      if (readmeParent) return readmeParent.id;
+      const siblingParent = this.findByRelativePath(repoId, parts.slice(0, -2).join('/') + '.md');
+      if (siblingParent) return siblingParent.id;
+      return undefined;
+    }
 
-    const parentPlan = usePlanStore.getState()
-      .getByRepository(repoId)
-      .find((p) => p.relativePath === parentPlanPath);
+    if (parts.length <= 1) return undefined; // Just "file.md" with no directory
 
-    return parentPlan?.id;
+    // Walk up the tree looking for nearest ancestor
+    for (let i = parts.length - 2; i >= 0; i--) {
+      const ancestorDir = parts.slice(0, i + 1).join('/');
+
+      // Pattern 1: Look for readme.md in this directory (case-insensitive)
+      const readmeParent = this.findByRelativePathCaseInsensitive(repoId, `${ancestorDir}/readme.md`);
+      if (readmeParent && readmeParent.relativePath !== relativePath) return readmeParent.id;
+
+      // Pattern 2: Look for sibling .md file (e.g., plans/auth.md for plans/auth/*)
+      const siblingPath = ancestorDir + '.md';
+      const siblingParent = this.findByRelativePath(repoId, siblingPath);
+      if (siblingParent) return siblingParent.id;
+    }
+
+    return undefined;
   }
 
   /**
@@ -177,6 +217,9 @@ class PlanService {
         plan
       );
       logger.debug(`[planService:create] Successfully persisted plan: ${plan.id}`);
+
+      // Emit event for listeners (triggers parent folder status updates)
+      eventBus.emit(EventName.PLAN_CREATED, { planId: plan.id, repoId: plan.repoId });
     } catch (err) {
       logger.error(`[planService:create] Failed to persist plan, rolling back:`, err);
       rollback();
@@ -428,9 +471,12 @@ class PlanService {
   }
 
   /**
-   * Archives a plan.
+   * Archives a plan and its descendants (if it has children).
    *
-   * Two-step process:
+   * For folder plans (plans with children), this automatically archives
+   * all descendant plans first in reverse order (deepest children first).
+   *
+   * Two-step process for each plan:
    * 1. Moves the markdown file from repo `plans/` to `plans/completed/`
    * 2. Moves the metadata from `~/.mort/plans/{id}` to `~/.mort/archive/plans/{id}`
    *    and updates relativePath to reflect the new location.
@@ -445,7 +491,27 @@ class PlanService {
     const plan = this.get(planId);
     if (!plan) return;
 
-    logger.debug(`[planService:archive] Archiving plan: ${planId}`);
+    // If this plan has children, use cascading archive
+    const children = usePlanStore.getState().getChildren(planId);
+    if (children.length > 0) {
+      logger.debug(`[planService:archive] Plan ${planId} has ${children.length} children, using cascading archive`);
+      await this.archiveWithDescendants(planId, originInstanceId);
+      return;
+    }
+
+    // Archive single plan
+    await this._archiveSingle(planId, originInstanceId);
+  }
+
+  /**
+   * Internal method to archive a single plan without checking for children.
+   * Used by archiveWithDescendants to avoid infinite recursion.
+   */
+  private async _archiveSingle(planId: string, originInstanceId?: string | null): Promise<void> {
+    const plan = this.get(planId);
+    if (!plan) return;
+
+    logger.debug(`[planService:_archiveSingle] Archiving plan: ${planId}`);
 
     // Optimistically remove from store
     const rollback = usePlanStore.getState()._applyDelete(planId);
@@ -458,10 +524,10 @@ class PlanService {
 
       try {
         await this.moveMarkdownFile(sourcePath, destPath);
-        logger.debug(`[planService:archive] Moved markdown file from ${sourcePath} to ${destPath}`);
+        logger.debug(`[planService:_archiveSingle] Moved markdown file from ${sourcePath} to ${destPath}`);
       } catch (moveError) {
         // If file doesn't exist, that's okay - just archive the metadata
-        logger.warn(`[planService:archive] Could not move markdown file (may have been deleted): ${moveError}`);
+        logger.warn(`[planService:_archiveSingle] Could not move markdown file (may have been deleted): ${moveError}`);
       }
 
       // Step 2: Move metadata to archive with updated relativePath
@@ -484,10 +550,10 @@ class PlanService {
       // Include originInstanceId so standalone windows can close themselves
       eventBus.emit(EventName.PLAN_ARCHIVED, { planId, originInstanceId });
 
-      logger.info(`[planService:archive] Archived plan ${planId}`);
+      logger.info(`[planService:_archiveSingle] Archived plan ${planId}`);
     } catch (error) {
       rollback();
-      logger.error(`[planService:archive] Failed to archive plan ${planId}:`, error);
+      logger.error(`[planService:_archiveSingle] Failed to archive plan ${planId}:`, error);
       throw error;
     }
   }
@@ -525,6 +591,109 @@ class PlanService {
     }
 
     return plans;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Folder Status Methods
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Check if a plan acts as a folder (has children).
+   */
+  isFolder(planId: string): boolean {
+    return usePlanStore.getState().getChildren(planId).length > 0;
+  }
+
+  /**
+   * Recalculate and persist isFolder status for a plan.
+   */
+  async updateFolderStatus(planId: string): Promise<void> {
+    const hasChildren = this.isFolder(planId);
+    const plan = this.get(planId);
+    if (plan && plan.isFolder !== hasChildren) {
+      await this.update(planId, { isFolder: hasChildren, isRead: plan.isRead });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Parent Relationship Refresh Methods
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Refresh parent relationships for all plans in a repo.
+   * Called on startup, file changes, and worktree switch.
+   */
+  async refreshParentRelationships(repoId: string): Promise<void> {
+    logger.debug(`[planService:refreshParentRelationships] Refreshing parent relationships for repo: ${repoId}`);
+    const plans = this.getByRepository(repoId);
+
+    for (const plan of plans) {
+      const detectedParentId = this.detectParentPlan(plan.relativePath, repoId);
+      if (plan.parentId !== detectedParentId) {
+        await this.update(plan.id, { parentId: detectedParentId, isRead: plan.isRead });
+      }
+    }
+
+    // Update folder status for all plans that might have children
+    for (const plan of plans) {
+      await this.updateFolderStatus(plan.id);
+    }
+
+    logger.debug(`[planService:refreshParentRelationships] Completed for repo: ${repoId}`);
+  }
+
+  /**
+   * Refresh parent for a single plan (after file change).
+   */
+  async refreshSinglePlanParent(planId: string): Promise<void> {
+    const plan = this.get(planId);
+    if (!plan) return;
+
+    const oldParentId = plan.parentId;
+    const detectedParentId = this.detectParentPlan(plan.relativePath, plan.repoId);
+
+    if (plan.parentId !== detectedParentId) {
+      await this.update(planId, { parentId: detectedParentId, isRead: plan.isRead });
+    }
+
+    // Also update the old and new parent's folder status
+    if (oldParentId) await this.updateFolderStatus(oldParentId);
+    if (detectedParentId) await this.updateFolderStatus(detectedParentId);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Cascading Archive Methods
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get all descendant plans (children, grandchildren, etc.)
+   */
+  getDescendants(planId: string): PlanMetadata[] {
+    const children = usePlanStore.getState().getChildren(planId);
+    const descendants: PlanMetadata[] = [];
+
+    for (const child of children) {
+      descendants.push(child);
+      descendants.push(...this.getDescendants(child.id));
+    }
+
+    return descendants;
+  }
+
+  /**
+   * Archive a plan and all its descendants.
+   * Uses _archiveSingle internally to avoid infinite recursion.
+   */
+  async archiveWithDescendants(planId: string, originInstanceId?: string | null): Promise<void> {
+    const descendants = this.getDescendants(planId);
+
+    // Archive in reverse order (deepest children first)
+    for (const descendant of descendants.reverse()) {
+      await this._archiveSingle(descendant.id, originInstanceId);
+    }
+
+    // Archive the parent last
+    await this._archiveSingle(planId, originInstanceId);
   }
 
 }

@@ -176,9 +176,9 @@ No new service methods needed - the existing `toggleSection`, `expandSection`, `
 
 ## Checklist
 
-- [ ] Add `depth`, `isFolder`, `isExpanded`, `parentId` to TreeItemNode type
-- [ ] Update `buildTreeFromEntities()` to use `buildSectionItems()` helper
-- [ ] Implement `getPlanTitle()` for readme.md directory naming
-- [ ] Use `"plan:planId"` key convention for expand state in `expandedSections`
-- [ ] Ensure tree rebuilds when expand state changes (already reactive via `expandedSections`)
-- [ ] Add folder toggle click handler using existing `treeMenuService.toggleSection()`
+- [x] Add `depth`, `isFolder`, `isExpanded`, `parentId` to TreeItemNode type
+- [x] Update `buildTreeFromEntities()` to use `buildSectionItems()` helper
+- [x] Implement `getPlanTitle()` for readme.md directory naming
+- [x] Use `"plan:planId"` key convention for expand state in `expandedSections`
+- [x] Ensure tree rebuilds when expand state changes (already reactive via `expandedSections`)
+- [x] Add folder toggle click handler using existing `treeMenuService.toggleSection()`

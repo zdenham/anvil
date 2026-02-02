@@ -465,6 +465,237 @@ describe("PlanService.detectParentPlan", () => {
 
     expect(result).toBe("features-auth-plan-id");
   });
+
+  it("should detect parent from readme.md pattern (case-insensitive)", () => {
+    // Add auth/README.md as the folder readme
+    const authReadmePlan = createPlanMetadata({
+      id: "auth-readme-plan-id",
+      repoId: repoId1,
+      worktreeId,
+      relativePath: "auth/README.md",
+    });
+    usePlanStore.getState()._applyCreate(authReadmePlan);
+
+    const result = planService.detectParentPlan("auth/login.md", repoId1);
+
+    // Should prefer the readme in the same directory over sibling file
+    expect(result).toBe("auth-readme-plan-id");
+  });
+
+  it("should fall back to sibling file when no readme exists", () => {
+    // auth.md exists but auth/readme.md does not
+    const result = planService.detectParentPlan("auth/login.md", repoId1);
+
+    expect(result).toBe("auth-plan-id");
+  });
+
+  it("should return undefined for top-level readme.md (no parent above)", () => {
+    // Add auth/readme.md
+    const authReadmePlan = createPlanMetadata({
+      id: "auth-readme-plan-id",
+      repoId: repoId1,
+      worktreeId,
+      relativePath: "auth/readme.md",
+    });
+    usePlanStore.getState()._applyCreate(authReadmePlan);
+
+    // auth/readme.md is at the first nesting level, so it has no parent
+    // (looking for parent at directory level above would mean root, which has no readme)
+    const result = planService.detectParentPlan("auth/readme.md", repoId1);
+
+    expect(result).toBeUndefined();
+  });
+
+  it("should handle nested readme.md parent detection", () => {
+    // Add features/readme.md
+    const featuresReadmePlan = createPlanMetadata({
+      id: "features-readme-plan-id",
+      repoId: repoId1,
+      worktreeId,
+      relativePath: "features/readme.md",
+    });
+    // Add features/auth/readme.md
+    const featuresAuthReadmePlan = createPlanMetadata({
+      id: "features-auth-readme-plan-id",
+      repoId: repoId1,
+      worktreeId,
+      relativePath: "features/auth/readme.md",
+    });
+    usePlanStore.getState()._applyCreate(featuresReadmePlan);
+    usePlanStore.getState()._applyCreate(featuresAuthReadmePlan);
+
+    // features/auth/readme.md should have features/readme.md as parent
+    const result = planService.detectParentPlan("features/auth/readme.md", repoId1);
+
+    expect(result).toBe("features-readme-plan-id");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4b. Plan Service findByRelativePathCaseInsensitive Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("PlanService.findByRelativePathCaseInsensitive", () => {
+  const repoId = "550e8400-e29b-41d4-a716-446655440001";
+  const worktreeId = "550e8400-e29b-41d4-a716-446655440011";
+
+  beforeEach(() => {
+    usePlanStore.setState({
+      plans: {},
+      _plansArray: [],
+      _hydrated: false,
+    });
+
+    // Add plans with various readme.md casings
+    const readmePlan = createPlanMetadata({
+      id: "readme-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth/README.md",
+    });
+    usePlanStore.getState()._applyCreate(readmePlan);
+  });
+
+  it("should find README.md when searching for readme.md", () => {
+    const result = planService.findByRelativePathCaseInsensitive(repoId, "auth/readme.md");
+
+    expect(result).toBeDefined();
+    expect(result?.id).toBe("readme-plan-id");
+  });
+
+  it("should find README.md when searching for Readme.md", () => {
+    const result = planService.findByRelativePathCaseInsensitive(repoId, "auth/Readme.md");
+
+    expect(result).toBeDefined();
+    expect(result?.id).toBe("readme-plan-id");
+  });
+
+  it("should match exact path case for directory", () => {
+    // Should NOT find if directory case is different
+    const result = planService.findByRelativePathCaseInsensitive(repoId, "AUTH/readme.md");
+
+    // Directory comparison is case-sensitive, only filename is case-insensitive
+    expect(result).toBeUndefined();
+  });
+
+  it("should return undefined for non-existent paths", () => {
+    const result = planService.findByRelativePathCaseInsensitive(repoId, "nonexistent/readme.md");
+
+    expect(result).toBeUndefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4c. Plan Service Folder Status and Descendants Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("PlanService.isFolder and getDescendants", () => {
+  const repoId = "550e8400-e29b-41d4-a716-446655440001";
+  const worktreeId = "550e8400-e29b-41d4-a716-446655440011";
+
+  beforeEach(() => {
+    usePlanStore.setState({
+      plans: {},
+      _plansArray: [],
+      _hydrated: false,
+    });
+
+    // Create hierarchy:
+    // - root.md (id: root-id)
+    //   - child1.md (id: child1-id, parent: root-id)
+    //   - child2.md (id: child2-id, parent: root-id)
+    //     - grandchild.md (id: grandchild-id, parent: child2-id)
+    // - standalone.md (id: standalone-id, no parent)
+    const rootPlan = createPlanMetadata({
+      id: "root-id",
+      repoId,
+      worktreeId,
+      relativePath: "root.md",
+    });
+    const child1Plan = createPlanMetadata({
+      id: "child1-id",
+      repoId,
+      worktreeId,
+      relativePath: "root/child1.md",
+      parentId: "root-id",
+    });
+    const child2Plan = createPlanMetadata({
+      id: "child2-id",
+      repoId,
+      worktreeId,
+      relativePath: "root/child2.md",
+      parentId: "root-id",
+    });
+    const grandchildPlan = createPlanMetadata({
+      id: "grandchild-id",
+      repoId,
+      worktreeId,
+      relativePath: "root/child2/grandchild.md",
+      parentId: "child2-id",
+    });
+    const standalonePlan = createPlanMetadata({
+      id: "standalone-id",
+      repoId,
+      worktreeId,
+      relativePath: "standalone.md",
+    });
+
+    usePlanStore.getState().hydrate({
+      "root-id": rootPlan,
+      "child1-id": child1Plan,
+      "child2-id": child2Plan,
+      "grandchild-id": grandchildPlan,
+      "standalone-id": standalonePlan,
+    });
+  });
+
+  describe("isFolder", () => {
+    it("should return true for plans with children", () => {
+      expect(planService.isFolder("root-id")).toBe(true);
+      expect(planService.isFolder("child2-id")).toBe(true);
+    });
+
+    it("should return false for plans without children", () => {
+      expect(planService.isFolder("child1-id")).toBe(false);
+      expect(planService.isFolder("grandchild-id")).toBe(false);
+      expect(planService.isFolder("standalone-id")).toBe(false);
+    });
+
+    it("should return false for non-existent plans", () => {
+      expect(planService.isFolder("nonexistent-id")).toBe(false);
+    });
+  });
+
+  describe("getDescendants", () => {
+    it("should return all descendants of a plan", () => {
+      const descendants = planService.getDescendants("root-id");
+
+      expect(descendants).toHaveLength(3);
+      const ids = descendants.map(d => d.id);
+      expect(ids).toContain("child1-id");
+      expect(ids).toContain("child2-id");
+      expect(ids).toContain("grandchild-id");
+    });
+
+    it("should return empty array for plans without children", () => {
+      const descendants = planService.getDescendants("standalone-id");
+
+      expect(descendants).toEqual([]);
+    });
+
+    it("should return only direct children and their descendants", () => {
+      const descendants = planService.getDescendants("child2-id");
+
+      expect(descendants).toHaveLength(1);
+      expect(descendants[0].id).toBe("grandchild-id");
+    });
+
+    it("should return empty array for non-existent plans", () => {
+      const descendants = planService.getDescendants("nonexistent-id");
+
+      expect(descendants).toEqual([]);
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

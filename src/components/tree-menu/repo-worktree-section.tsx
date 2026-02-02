@@ -491,28 +491,34 @@ export function RepoWorktreeSection({
         document.body
       )}
 
-      {/* Child items when expanded */}
-      {section.isExpanded && (
-        <div role="group" aria-label="Items">
-          {section.items.map((item) =>
-            item.type === "thread" ? (
-              <ThreadItem
-                key={item.id}
-                item={item}
-                isSelected={selectedItemId === item.id}
-                onSelect={onItemSelect}
-              />
-            ) : (
-              <PlanItem
-                key={item.id}
-                item={item}
-                isSelected={selectedItemId === item.id}
-                onSelect={onItemSelect}
-              />
-            )
-          )}
-        </div>
-      )}
+      {/* Child items when expanded - with animation */}
+      <div
+        role="group"
+        aria-label="Items"
+        className={`tree-children ${section.isExpanded ? 'expanded' : 'collapsed'}`}
+      >
+        {section.items.map((item, index) =>
+          item.type === "thread" ? (
+            <ThreadItem
+              key={item.id}
+              item={item}
+              isSelected={selectedItemId === item.id}
+              onSelect={onItemSelect}
+              itemIndex={index}
+              allItems={section.items}
+            />
+          ) : (
+            <PlanItem
+              key={item.id}
+              item={item}
+              isSelected={selectedItemId === item.id}
+              onSelect={onItemSelect}
+              itemIndex={index}
+              allItems={section.items}
+            />
+          )
+        )}
+      </div>
     </div>
   );
 }

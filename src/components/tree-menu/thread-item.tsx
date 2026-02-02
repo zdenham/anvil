@@ -5,12 +5,28 @@ import { StatusDot } from "@/components/ui/status-dot";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
+import { treeMenuService } from "@/stores/tree-menu/service";
+import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+
+/**
+ * Focus a tree item by its index using data attribute.
+ */
+function focusTreeItem(index: number) {
+  const element = document.querySelector(
+    `[data-tree-item-index="${index}"]`
+  ) as HTMLElement;
+  element?.focus();
+}
 
 interface ThreadItemProps {
   item: TreeItemNode;
   isSelected: boolean;
   onSelect: (itemId: string, itemType: "thread" | "plan") => void;
   tabIndex?: number;
+  /** Index in the flat list for keyboard navigation */
+  itemIndex?: number;
+  /** All items in the section for keyboard nav */
+  allItems?: TreeItemNode[];
 }
 
 /**
@@ -24,6 +40,8 @@ export function ThreadItem({
   isSelected,
   onSelect,
   tabIndex = -1,
+  itemIndex = 0,
+  allItems = [],
 }: ThreadItemProps) {
   const [confirming, setConfirming] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -68,31 +86,65 @@ export function ThreadItem({
     onSelect(item.id, "thread");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onSelect(item.id, "thread");
+  const handleKeyDown = useCallback(async (e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        onSelect(item.id, "thread");
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        if (allItems.length > 0 && itemIndex > 0) {
+          const prevItem = allItems[itemIndex - 1];
+          focusTreeItem(itemIndex - 1);
+          await treeMenuService.setSelectedItem(prevItem.id);
+          onSelect(prevItem.id, prevItem.type);
+        }
+        break;
+
+      case "ArrowDown":
+        e.preventDefault();
+        if (allItems.length > 0 && itemIndex < allItems.length - 1) {
+          const nextItem = allItems[itemIndex + 1];
+          focusTreeItem(itemIndex + 1);
+          await treeMenuService.setSelectedItem(nextItem.id);
+          onSelect(nextItem.id, nextItem.type);
+        }
+        break;
+
+      // ArrowLeft/Right have no effect on threads (they don't have children)
     }
-  };
+  }, [item.id, itemIndex, allItems, onSelect]);
+
+  // Calculate indentation based on depth using shared constants
+  // Threads are always depth 0, but this keeps alignment consistent with plans
+  const indentPx = INDENT_BASE + (item.depth * INDENT_STEP);
 
   return (
     <ItemPreviewTooltip itemId={item.id} itemType="thread">
       <div
         role="treeitem"
         aria-selected={isSelected}
+        aria-level={item.depth + 1}
+        data-tree-item-index={itemIndex}
         tabIndex={tabIndex}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
+        style={{ paddingLeft: `${indentPx}px` }}
         className={cn(
-          "group flex items-center gap-1.5 py-0.5 px-2 pl-8 cursor-pointer",
+          "group flex items-center gap-1.5 py-0.5 px-2 cursor-pointer",
           "text-[13px] leading-[22px]",
           "transition-colors duration-75",
-          "outline-none",
+          "outline-none focus:bg-accent-500/10",
           isSelected
             ? "bg-accent-500/20 text-surface-100"
             : "text-surface-300 hover:bg-surface-800/50"
         )}
       >
+        {/* Spacer to align with plan folder chevrons */}
+        <span className="flex-shrink-0 w-[16px]" />
         <StatusDot variant={item.status} className="flex-shrink-0" />
         <span className="truncate flex-1" title={item.title}>{item.title}</span>
         {/* Archive button - fixed height to prevent layout shift */}

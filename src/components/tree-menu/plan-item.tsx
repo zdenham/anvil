@@ -1,16 +1,32 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2 } from "lucide-react";
+import { Archive, Loader2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot } from "@/components/ui/status-dot";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { planService } from "@/entities/plans/service";
+import { treeMenuService } from "@/stores/tree-menu/service";
+import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+
+/**
+ * Focus a tree item by its index using data attribute.
+ */
+function focusTreeItem(index: number) {
+  const element = document.querySelector(
+    `[data-tree-item-index="${index}"]`
+  ) as HTMLElement;
+  element?.focus();
+}
 
 interface PlanItemProps {
   item: TreeItemNode;
   isSelected: boolean;
   onSelect: (itemId: string, itemType: "thread" | "plan") => void;
   tabIndex?: number;
+  /** Index in the flat list for keyboard navigation */
+  itemIndex?: number;
+  /** All items in the section for keyboard nav */
+  allItems?: TreeItemNode[];
 }
 
 /**
@@ -24,6 +40,8 @@ export function PlanItem({
   isSelected,
   onSelect,
   tabIndex = -1,
+  itemIndex = 0,
+  allItems = [],
 }: PlanItemProps) {
   const [confirming, setConfirming] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -68,31 +86,124 @@ export function PlanItem({
     onSelect(item.id, "plan");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onSelect(item.id, "plan");
+  const handleKeyDown = useCallback(async (e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        onSelect(item.id, "plan");
+        break;
+
+      case "ArrowRight":
+        // Expand folder or move to first child
+        if (item.isFolder) {
+          if (!item.isExpanded) {
+            e.preventDefault();
+            await treeMenuService.expandSection(`plan:${item.id}`);
+          } else if (allItems.length > 0) {
+            // Move to first child (next item with greater depth)
+            e.preventDefault();
+            const nextIndex = itemIndex + 1;
+            if (nextIndex < allItems.length && allItems[nextIndex].depth > item.depth) {
+              const nextItem = allItems[nextIndex];
+              focusTreeItem(nextIndex);
+              await treeMenuService.setSelectedItem(nextItem.id);
+              onSelect(nextItem.id, nextItem.type);
+            }
+          }
+        }
+        break;
+
+      case "ArrowLeft":
+        e.preventDefault();
+        if (item.isFolder && item.isExpanded) {
+          // Collapse the folder
+          await treeMenuService.collapseSection(`plan:${item.id}`);
+        } else if (item.parentId && allItems.length > 0) {
+          // Move to parent
+          const parentIndex = allItems.findIndex((i) => i.id === item.parentId);
+          if (parentIndex >= 0) {
+            const parentItem = allItems[parentIndex];
+            focusTreeItem(parentIndex);
+            await treeMenuService.setSelectedItem(parentItem.id);
+            onSelect(parentItem.id, parentItem.type);
+          }
+        }
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        if (allItems.length > 0 && itemIndex > 0) {
+          const prevItem = allItems[itemIndex - 1];
+          focusTreeItem(itemIndex - 1);
+          await treeMenuService.setSelectedItem(prevItem.id);
+          onSelect(prevItem.id, prevItem.type);
+        }
+        break;
+
+      case "ArrowDown":
+        e.preventDefault();
+        if (allItems.length > 0 && itemIndex < allItems.length - 1) {
+          const nextItem = allItems[itemIndex + 1];
+          focusTreeItem(itemIndex + 1);
+          await treeMenuService.setSelectedItem(nextItem.id);
+          onSelect(nextItem.id, nextItem.type);
+        }
+        break;
     }
-  };
+  }, [item, itemIndex, allItems, onSelect]);
+
+  const handleFolderToggle = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Use "plan:planId" key convention for folder expand state
+    await treeMenuService.toggleSection(`plan:${item.id}`);
+  }, [item.id]);
+
+  // Calculate indentation based on depth using shared constants
+  const indentPx = INDENT_BASE + (item.depth * INDENT_STEP);
 
   return (
     <ItemPreviewTooltip itemId={item.id} itemType="plan">
       <div
         role="treeitem"
         aria-selected={isSelected}
+        aria-expanded={item.isFolder ? item.isExpanded : undefined}
+        aria-level={item.depth + 1}
+        data-tree-item-index={itemIndex}
         tabIndex={tabIndex}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
+        style={{ paddingLeft: `${indentPx}px` }}
         className={cn(
-          "group flex items-center gap-1.5 py-0.5 px-2 pl-8 cursor-pointer",
+          "group flex items-center gap-1.5 py-0.5 px-2 cursor-pointer",
           "text-[13px] leading-[22px]",
           "transition-colors duration-75",
-          "outline-none",
+          "outline-none focus:bg-accent-500/10",
           isSelected
             ? "bg-accent-500/20 text-surface-100"
             : "text-surface-300 hover:bg-surface-800/50"
         )}
       >
+        {/* Folder toggle chevron - only for folders, with rotation animation */}
+        {item.isFolder ? (
+          <button
+            type="button"
+            className="flex-shrink-0 p-0.5 rounded hover:bg-surface-700 text-surface-400"
+            onClick={handleFolderToggle}
+            aria-label={item.isExpanded ? "Collapse folder" : "Expand folder"}
+          >
+            <ChevronRight
+              size={12}
+              className={cn(
+                "tree-chevron transition-transform duration-150",
+                item.isExpanded && "rotate-90"
+              )}
+            />
+          </button>
+        ) : (
+          // Spacer for non-folders to align with folders
+          <span className="flex-shrink-0 w-[16px]" />
+        )}
         <StatusDot variant={item.status} className="flex-shrink-0" />
         <span className="truncate flex-1">{item.title}</span>
         {/* Archive button - fixed height to prevent layout shift */}

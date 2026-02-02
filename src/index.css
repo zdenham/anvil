@@ -266,3 +266,28 @@ textarea {
   color: transparent;
 }
 
+/* Tree menu expand/collapse animations */
+.tree-children {
+  overflow: hidden;
+  transition: max-height 150ms ease-out, opacity 150ms ease-out;
+}
+
+.tree-children.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.tree-children.expanded {
+  max-height: 2000px; /* Large enough for content */
+  opacity: 1;
+}
+
+/* Chevron rotation animation */
+.tree-chevron {
+  transition: transform 150ms ease-out;
+}
+
+.tree-chevron.expanded {
+  transform: rotate(90deg);
+}
+

@@ -38,6 +38,13 @@ export const EXPLORATION_TOOLS = `## Exploration Tools
 - **Grep**: Search file contents by regex
 - **Bash**: Shell commands for git and other operations`;
 
+export const PLAN_CONVENTIONS = `## Plan File Conventions
+
+- Folder-based plans: use \`readme.md\` as parent, siblings as children
+- Single-file plans: place directly in \`plans/\` directory
+- Naming: kebab-case (e.g., \`user-auth.md\`)
+- Create parent plans before children`;
+
 /**
  * Helper to compose prompt sections with proper spacing.
  */

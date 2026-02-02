@@ -82,6 +82,16 @@ export async function hydrateEntities(): Promise<void> {
     ]);
     logger.log("[entities:hydrate] Core entities hydrated successfully");
 
+    // After plans are hydrated, refresh parent relationships for all repos
+    // This ensures the isFolder and parentId fields are up-to-date
+    // Get unique repoIds from existing plans since repos don't directly expose their UUIDs
+    const allPlans = planService.getAll();
+    const repoIds = [...new Set(allPlans.map(p => p.repoId))];
+    for (const repoId of repoIds) {
+      await planService.refreshParentRelationships(repoId);
+    }
+    logger.log("[entities:hydrate] Plan parent relationships refreshed");
+
     // After repositories are hydrated, build the repo/worktree lookup cache
     // This must happen after repoService.hydrate() since it reads repo settings
     await useRepoWorktreeLookupStore.getState().hydrate();

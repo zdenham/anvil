@@ -57,6 +57,14 @@ export interface TreeItemNode {
   createdAt: number;
   /** Parent section identifier */
   sectionId: string;
+  /** Indentation level (0 = root) - for nested plans */
+  depth: number;
+  /** Has children - for nested plans */
+  isFolder: boolean;
+  /** If folder, is it expanded? */
+  isExpanded: boolean;
+  /** Parent plan ID - for nested plans */
+  parentId?: string;
 }
 
 /**
