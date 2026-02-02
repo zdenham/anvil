@@ -2,7 +2,7 @@
 
 ## Overview
 
-Update the agent system prompt to guide proper plan file organization when creating nested plans.
+Add a brief prompt section for plan file organization conventions.
 
 **Dependencies**: None
 **Parallel with**: 01-data-layer, 02-tree-state
@@ -11,74 +11,26 @@ Update the agent system prompt to guide proper plan file organization when creat
 
 ## Implementation
 
-### 1. Locate System Prompt
+### 1. Add to shared-prompts.ts
 
-Find the agent system prompt definition. Likely locations:
-- `agents/src/prompts/simple-agent.ts`
-- `src/agents/prompts.ts`
-- Similar path containing system prompt templates
+In `agents/src/agent-types/shared-prompts.ts`, add:
 
-### 2. Add Plan Conventions Section
+```typescript
+export const PLAN_CONVENTIONS = `## Plan File Conventions
 
-Add the following section to the agent system prompt:
-
-```markdown
-## Plan File Conventions
-
-When creating or organizing plan files:
-
-1. **Folder-based plans**: When a plan needs to be broken down into multiple files, create a folder structure:
-   - Use `readme.md` as the main/overview plan in the folder
-   - Child plans go in the same folder alongside the readme.md
-   - Example structure:
-     ```
-     plans/
-       auth/
-         readme.md      <- Main auth plan (parent)
-         login.md       <- Child plan
-         oauth.md       <- Child plan
-     ```
-
-2. **Single-file plans**: For simpler plans that don't need breakdown:
-   - Place directly in the plans directory: `plans/my-feature.md`
-
-3. **Nesting deeper**: For complex features with sub-features:
-   ```
-   plans/
-     auth/
-       readme.md           <- Main auth plan
-       login/
-         readme.md         <- Main login plan (child of auth)
-         password-reset.md <- Child of login
-       oauth/
-         readme.md         <- Main oauth plan (child of auth)
-         google.md         <- Child of oauth
-   ```
-
-4. **Naming**: Use kebab-case for plan filenames (e.g., `user-authentication.md`)
-
-5. **Creating nested plans**: When creating a nested plan structure, create parent plans first:
-   - ✅ First create `plans/auth/readme.md`, then `plans/auth/login.md`
-   - ❌ Don't create `plans/auth/login.md` without a parent plan existing
-
-   If you need to create a deeply nested plan, create the hierarchy top-down:
-   1. `plans/auth/readme.md` (main auth plan)
-   2. `plans/auth/oauth/readme.md` (oauth sub-plan)
-   3. `plans/auth/oauth/google.md` (specific implementation)
+- Folder-based plans: use \`readme.md\` as parent, siblings as children
+- Single-file plans: place directly in \`plans/\` directory
+- Naming: kebab-case (e.g., \`user-auth.md\`)
+- Create parent plans before children`;
 ```
 
-### 3. Integration Points
+### 2. Include in simple agent
 
-Ensure the prompt section is included in:
-- Plan creation context (when agent is asked to create a plan)
-- Plan editing context (when agent modifies plan structure)
-- General agent system prompt (for awareness during all interactions)
+In `agents/src/agent-types/simple.ts`, use `composePrompt()` to append the section to the agent's `appendedPrompt`.
 
 ---
 
 ## Checklist
 
-- [ ] Locate agent system prompt file
-- [ ] Add "Plan File Conventions" section to prompt
-- [ ] Verify prompt is loaded in relevant agent contexts
-- [ ] Test that agent follows conventions when creating nested plans
+- [ ] Add `PLAN_CONVENTIONS` to `shared-prompts.ts`
+- [ ] Include in simple agent via `composePrompt()`

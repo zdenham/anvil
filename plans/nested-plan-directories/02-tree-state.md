@@ -34,213 +34,108 @@ export interface TreeItemNode {
 }
 ```
 
-### 2. Folder Expand State Store
+### 2. Reuse Existing expandedSections Store
 
-**`src/stores/tree-menu/store.ts`**
+**Key Insight**: We already have `expandedSections: Record<string, boolean>` in the tree-menu store that handles worktree section expansion. Rather than creating a separate `expandedFoldersByWorktree` state, we extend the existing pattern.
 
-Add per-worktree folder expand state:
+**ID Convention** for `expandedSections` keys:
+- Worktree sections: `"repoId:worktreeId"` (existing)
+- Plan folders: `"plan:planId"` (new)
 
-```typescript
-interface TreeMenuState {
-  // ... existing state
-  expandedFoldersByWorktree: Record<string, Set<string>>; // worktreeId -> Set of expanded plan IDs
-}
+This reuses the existing:
+- Store state (`expandedSections`)
+- Service methods (`toggleSection`, `expandSection`, `collapseSection`)
+- Persistence layer (disk-based, not localStorage)
+- Optimistic update pattern
 
-interface TreeMenuActions {
-  // ... existing actions
-  toggleFolder: (worktreeId: string, planId: string) => void;
-  expandFolder: (worktreeId: string, planId: string) => void;
-  collapseFolder: (worktreeId: string, planId: string) => void;
-  getExpandedFolders: (worktreeId: string) => Set<string>;
-  isExpanded: (worktreeId: string, planId: string) => boolean;
-}
-
-// Implementation
-export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>()(
-  persist(
-    (set, get) => ({
-      expandedFoldersByWorktree: {},
-
-      toggleFolder: (worktreeId, planId) => {
-        set((state) => {
-          const expanded = new Set(state.expandedFoldersByWorktree[worktreeId] || []);
-          if (expanded.has(planId)) {
-            expanded.delete(planId);
-          } else {
-            expanded.add(planId);
-          }
-          return {
-            expandedFoldersByWorktree: {
-              ...state.expandedFoldersByWorktree,
-              [worktreeId]: expanded,
-            },
-          };
-        });
-      },
-
-      expandFolder: (worktreeId, planId) => {
-        set((state) => {
-          const expanded = new Set(state.expandedFoldersByWorktree[worktreeId] || []);
-          expanded.add(planId);
-          return {
-            expandedFoldersByWorktree: {
-              ...state.expandedFoldersByWorktree,
-              [worktreeId]: expanded,
-            },
-          };
-        });
-      },
-
-      collapseFolder: (worktreeId, planId) => {
-        set((state) => {
-          const expanded = new Set(state.expandedFoldersByWorktree[worktreeId] || []);
-          expanded.delete(planId);
-          return {
-            expandedFoldersByWorktree: {
-              ...state.expandedFoldersByWorktree,
-              [worktreeId]: expanded,
-            },
-          };
-        });
-      },
-
-      getExpandedFolders: (worktreeId) => {
-        return get().expandedFoldersByWorktree[worktreeId] || new Set();
-      },
-
-      isExpanded: (worktreeId, planId) => {
-        return get().getExpandedFolders(worktreeId).has(planId);
-      },
-    }),
-    {
-      name: 'tree-menu-storage',
-      partialize: (state) => ({
-        expandedFoldersByWorktree: state.expandedFoldersByWorktree,
-      }),
-      // Custom serializer for Set objects
-      storage: {
-        getItem: (name) => {
-          const str = localStorage.getItem(name);
-          if (!str) return null;
-          const parsed = JSON.parse(str);
-          // Convert arrays back to Sets
-          if (parsed.state?.expandedFoldersByWorktree) {
-            for (const key of Object.keys(parsed.state.expandedFoldersByWorktree)) {
-              parsed.state.expandedFoldersByWorktree[key] = new Set(
-                parsed.state.expandedFoldersByWorktree[key]
-              );
-            }
-          }
-          return parsed;
-        },
-        setItem: (name, value) => {
-          // Convert Sets to arrays for JSON serialization
-          const toStore = { ...value };
-          if (toStore.state?.expandedFoldersByWorktree) {
-            const converted: Record<string, string[]> = {};
-            for (const [key, val] of Object.entries(toStore.state.expandedFoldersByWorktree)) {
-              converted[key] = Array.from(val as Set<string>);
-            }
-            toStore.state.expandedFoldersByWorktree = converted;
-          }
-          localStorage.setItem(name, JSON.stringify(toStore));
-        },
-        removeItem: (name) => localStorage.removeItem(name),
-      },
-    }
-  )
-);
-```
+**No store changes needed!** The existing `expandedSections` already supports arbitrary string keys.
 
 ### 3. Tree Building Enhancement
 
 **`src/hooks/use-tree-data.ts`**
 
-Update to build hierarchical tree structure:
+Update `buildTreeFromEntities` to handle nested plans:
 
 ```typescript
-interface TreeBuildContext {
-  plans: PlanMetadata[];
-  childrenMap: Map<string, PlanMetadata[]>;
-  expandedFolders: Set<string>;
-  worktreeId: string;
-}
-
 /**
- * Build a flat list of TreeItemNodes with proper depth for rendering.
- * Only includes children of expanded folders.
+ * Build tree items for a section, handling nested plans.
+ * Returns a flat list with depth info for rendering.
  */
-function buildPlanTree(
+function buildSectionItems(
+  threads: ThreadMetadata[],
   plans: PlanMetadata[],
-  worktreeId: string,
-  expandedFolders: Set<string>
+  sectionId: string,
+  expandedSections: Record<string, boolean>,
+  runningThreadIds: Set<string>
 ): TreeItemNode[] {
-  // Group children by parent
-  const childrenMap = new Map<string, PlanMetadata[]>();
-  const rootPlans: PlanMetadata[] = [];
+  const items: TreeItemNode[] = [];
 
-  for (const plan of plans) {
-    if (plan.parentId) {
-      const siblings = childrenMap.get(plan.parentId) || [];
-      siblings.push(plan);
-      childrenMap.set(plan.parentId, siblings);
-    } else {
-      rootPlans.push(plan);
-    }
+  // Add threads (always depth 0, never folders)
+  for (const thread of threads) {
+    items.push({
+      type: "thread",
+      id: thread.id,
+      title: thread.name ?? "New Thread",
+      status: getThreadStatusVariant(thread),
+      updatedAt: thread.updatedAt,
+      createdAt: thread.createdAt,
+      sectionId,
+      depth: 0,
+      isFolder: false,
+      isExpanded: false,
+    });
   }
 
-  const context: TreeBuildContext = {
-    plans,
-    childrenMap,
-    expandedFolders,
-    worktreeId,
-  };
+  // Group plans by parent
+  const childrenMap = new Map<string | undefined, PlanMetadata[]>();
+  for (const plan of plans) {
+    const siblings = childrenMap.get(plan.parentId) || [];
+    siblings.push(plan);
+    childrenMap.set(plan.parentId, siblings);
+  }
 
-  // Build flat list with depth info
-  const result: TreeItemNode[] = [];
-
-  function addNodeAndChildren(plan: PlanMetadata, depth: number) {
+  // Recursively add plans with depth
+  function addPlanAndChildren(plan: PlanMetadata, depth: number) {
     const children = childrenMap.get(plan.id) || [];
     const isFolder = children.length > 0;
-    const isExpanded = expandedFolders.has(plan.id);
+    // Use "plan:planId" key convention for folder expand state
+    const isExpanded = expandedSections[`plan:${plan.id}`] ?? true; // Default expanded
 
-    result.push({
-      type: 'plan',
+    items.push({
+      type: "plan",
       id: plan.id,
       title: getPlanTitle(plan),
-      status: getPlanStatus(plan),
+      status: getPlanStatus(plan, runningThreadIds),
       updatedAt: plan.updatedAt,
       createdAt: plan.createdAt,
-      sectionId: worktreeId,
+      sectionId,
       depth,
       isFolder,
       isExpanded,
       parentId: plan.parentId,
     });
 
-    // Only add children if this folder is expanded
+    // Only add children if expanded
     if (isFolder && isExpanded) {
-      // Sort children by title or creation date
-      const sortedChildren = [...children].sort((a, b) =>
+      const sorted = [...children].sort((a, b) =>
         a.relativePath.localeCompare(b.relativePath)
       );
-
-      for (const child of sortedChildren) {
-        addNodeAndChildren(child, depth + 1);
+      for (const child of sorted) {
+        addPlanAndChildren(child, depth + 1);
       }
     }
   }
 
-  // Sort root plans
+  // Add root plans (no parentId)
+  const rootPlans = childrenMap.get(undefined) || [];
   const sortedRoots = [...rootPlans].sort((a, b) =>
     a.relativePath.localeCompare(b.relativePath)
   );
-
   for (const plan of sortedRoots) {
-    addNodeAndChildren(plan, 0);
+    addPlanAndChildren(plan, 0);
   }
 
-  return result;
+  return items;
 }
 
 /**
@@ -261,38 +156,29 @@ function getPlanTitle(plan: PlanMetadata): string {
 }
 ```
 
-### 4. Hook Integration
+### 4. Toggle Folder Action
 
-**`src/hooks/use-tree-data.ts`**
-
-Update the hook to use the new tree building:
+Use the existing service for toggling folder expansion:
 
 ```typescript
-export function useTreeData(worktreeId: string) {
-  const plans = usePlanStore((state) => state.getByWorktree(worktreeId));
-  const expandedFolders = useTreeMenuStore((state) =>
-    state.getExpandedFolders(worktreeId)
-  );
+// In component click handler:
+import { treeMenuService } from "@/stores/tree-menu/service";
 
-  const treeItems = useMemo(
-    () => buildPlanTree(plans, worktreeId, expandedFolders),
-    [plans, worktreeId, expandedFolders]
-  );
-
-  return treeItems;
-}
+const handleFolderClick = (planId: string) => {
+  // Uses existing service - just with "plan:" prefixed key
+  treeMenuService.toggleSection(`plan:${planId}`);
+};
 ```
+
+No new service methods needed - the existing `toggleSection`, `expandSection`, `collapseSection` all work with any string key.
 
 ---
 
 ## Checklist
 
 - [ ] Add `depth`, `isFolder`, `isExpanded`, `parentId` to TreeItemNode type
-- [ ] Add `expandedFoldersByWorktree` state to tree-menu store
-- [ ] Implement `toggleFolder`, `expandFolder`, `collapseFolder` actions
-- [ ] Implement `getExpandedFolders`, `isExpanded` selectors
-- [ ] Add persistence with Set serialization for expand state
-- [ ] Update `buildPlanTree()` to create hierarchical flat list
+- [ ] Update `buildTreeFromEntities()` to use `buildSectionItems()` helper
 - [ ] Implement `getPlanTitle()` for readme.md directory naming
-- [ ] Update `useTreeData` hook to use new tree building
-- [ ] Ensure tree rebuilds when expand state changes
+- [ ] Use `"plan:planId"` key convention for expand state in `expandedSections`
+- [ ] Ensure tree rebuilds when expand state changes (already reactive via `expandedSections`)
+- [ ] Add folder toggle click handler using existing `treeMenuService.toggleSection()`
