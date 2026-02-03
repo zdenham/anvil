@@ -134,7 +134,7 @@ export function ThreadItem({
         onKeyDown={handleKeyDown}
         style={{ paddingLeft: `${indentPx}px` }}
         className={cn(
-          "group flex items-center gap-1.5 py-0.5 px-2 cursor-pointer",
+          "group flex items-center gap-1.5 py-0.5 pr-1 cursor-pointer",
           "text-[13px] leading-[22px]",
           "transition-colors duration-75",
           "outline-none focus:bg-accent-500/10",
@@ -143,9 +143,9 @@ export function ThreadItem({
             : "text-surface-300 hover:bg-surface-800/50"
         )}
       >
-        {/* Spacer to align with plan folder chevrons */}
-        <span className="flex-shrink-0 w-[16px]" />
-        <StatusDot variant={item.status} className="flex-shrink-0" />
+        <span className="flex-shrink-0 w-3 flex items-center justify-center">
+          <StatusDot variant={item.status} />
+        </span>
         <span className="truncate flex-1" title={item.title}>{item.title}</span>
         {/* Archive button - fixed height to prevent layout shift */}
         <button

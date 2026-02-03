@@ -111,7 +111,7 @@ function PlanModeHeader({
 
   return (
     <div
-      className="group flex items-center gap-3 px-4 py-3 bg-surface-800 border-b border-surface-700"
+      className="group flex items-center gap-3 px-4 pt-[100px] pb-3 bg-surface-800 border-b border-surface-700"
       data-drag-region="header"
     >
       {/* Breadcrumbs */}

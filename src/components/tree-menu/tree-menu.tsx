@@ -214,7 +214,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, 
       aria-label="Threads and Plans"
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className={`flex-1 overflow-auto focus:outline-none ${className ?? ""}`}
+      className={`flex-1 overflow-auto focus:outline-none pl-2 ${className ?? ""}`}
     >
       {sections.map((section, index) => (
         <RepoWorktreeSection

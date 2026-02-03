@@ -5,8 +5,8 @@ import type { TreeItemNode } from "@/stores/tree-menu/types";
 /**
  * Indentation constants for tree items.
  */
-export const INDENT_BASE = 32; // px - base padding for all items
-export const INDENT_STEP = 12; // px per depth level
+export const INDENT_BASE = 8; // px - base indentation for top-level items
+export const INDENT_STEP = 8; // px per depth level for nested items
 
 /**
  * Calculate indent style for a tree item based on depth.

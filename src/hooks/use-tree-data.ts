@@ -29,6 +29,10 @@ function getPlanTitle(plan: PlanMetadata): string {
 /**
  * Build tree items for a section, handling nested plans.
  * Returns a flat list with depth info for rendering.
+ *
+ * Key insight: We must sort top-level items (threads + root plans) by createdAt
+ * BEFORE building the tree. This ensures children are added immediately after
+ * their parent, maintaining correct visual nesting.
  */
 function buildSectionItems(
   threads: ThreadMetadata[],
@@ -39,22 +43,6 @@ function buildSectionItems(
 ): TreeItemNode[] {
   const items: TreeItemNode[] = [];
 
-  // Add threads (always depth 0, never folders)
-  for (const thread of threads) {
-    items.push({
-      type: "thread",
-      id: thread.id,
-      title: thread.name ?? "New Thread",
-      status: getThreadStatusVariant(thread),
-      updatedAt: thread.updatedAt,
-      createdAt: thread.createdAt,
-      sectionId,
-      depth: 0,
-      isFolder: false,
-      isExpanded: false,
-    });
-  }
-
   // Group plans by parent
   const childrenMap = new Map<string | undefined, PlanMetadata[]>();
   for (const plan of plans) {
@@ -62,6 +50,20 @@ function buildSectionItems(
     siblings.push(plan);
     childrenMap.set(plan.parentId, siblings);
   }
+
+  // Build thread nodes
+  const threadNodes: TreeItemNode[] = threads.map((thread) => ({
+    type: "thread" as const,
+    id: thread.id,
+    title: thread.name ?? "New Thread",
+    status: getThreadStatusVariant(thread),
+    updatedAt: thread.updatedAt,
+    createdAt: thread.createdAt,
+    sectionId,
+    depth: 0,
+    isFolder: false,
+    isExpanded: false,
+  }));
 
   // Recursively add plans with depth
   function addPlanAndChildren(plan: PlanMetadata, depth: number) {
@@ -100,13 +102,32 @@ function buildSectionItems(
     }
   }
 
-  // Add root plans (no parentId)
+  // Get root plans (no parentId)
   const rootPlans = childrenMap.get(undefined) || [];
-  const sortedRoots = [...rootPlans].sort((a, b) =>
-    a.relativePath.localeCompare(b.relativePath)
-  );
-  for (const plan of sortedRoots) {
-    addPlanAndChildren(plan, 0);
+
+  // Create a unified list of top-level items for sorting
+  interface TopLevelItem {
+    type: "thread" | "root-plan";
+    createdAt: number;
+    node?: TreeItemNode; // For threads
+    plan?: PlanMetadata; // For plans
+  }
+
+  const topLevel: TopLevelItem[] = [
+    ...threadNodes.map((node) => ({ type: "thread" as const, createdAt: node.createdAt, node })),
+    ...rootPlans.map((plan) => ({ type: "root-plan" as const, createdAt: plan.createdAt, plan })),
+  ];
+
+  // Sort top-level items by createdAt descending (newest first)
+  topLevel.sort((a, b) => b.createdAt - a.createdAt);
+
+  // Add items in sorted order - plans recursively add their children immediately after
+  for (const item of topLevel) {
+    if (item.type === "thread" && item.node) {
+      items.push(item.node);
+    } else if (item.type === "root-plan" && item.plan) {
+      addPlanAndChildren(item.plan, 0);
+    }
   }
 
   return items;
@@ -208,6 +229,8 @@ export function buildTreeFromEntities(
     const sectionPlans = plansBySection.get(sectionId) || [];
 
     // Use buildSectionItems for proper nested plan handling
+    // Note: buildSectionItems already sorts top-level items by createdAt descending
+    // and ensures children immediately follow their parents
     const items = buildSectionItems(
       sectionThreads,
       sectionPlans,
@@ -215,22 +238,6 @@ export function buildTreeFromEntities(
       expandedSections,
       runningThreadIds
     );
-
-    // Sort items by createdAt descending (most recent first)
-    // Note: For nested items, we sort only at the top level - child items are sorted alphabetically
-    items.sort((a, b) => {
-      // Only sort items at the same depth level
-      if (a.depth !== b.depth) {
-        // Keep depth order (children come after parents)
-        return 0;
-      }
-      // For top-level items, sort by createdAt descending
-      if (a.depth === 0) {
-        return b.createdAt - a.createdAt;
-      }
-      // Nested items keep their alphabetical order from buildSectionItems
-      return 0;
-    });
 
     sections.push({
       type: "repo-worktree",

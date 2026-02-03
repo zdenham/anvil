@@ -22,7 +22,7 @@ export function UserMessage({ turn }: UserMessageProps) {
     <article
       role="article"
       aria-label="Your message"
-      className="flex justify-end"
+      className="flex justify-end my-3"
     >
       <div
         className={cn(

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { RepoWorktreeSection as RepoWorktreeSectionType } from "@/stores/tree-menu/types";
 import { ThreadItem } from "./thread-item";
 import { PlanItem } from "./plan-item";
+import { INDENT_STEP } from "./use-tree-keyboard-nav";
 
 interface RepoWorktreeSectionProps {
   section: RepoWorktreeSectionType;
@@ -275,7 +276,7 @@ export function RepoWorktreeSection({
         aria-expanded={section.isExpanded}
         tabIndex={-1}
         className={cn(
-          "group flex items-center gap-2 px-2 py-2.5 cursor-pointer select-none",
+          "group flex items-center gap-1.5 pr-1 py-2.5 cursor-pointer select-none",
           !showDivider && "pt-3.5", // Extra top padding for first section
           "text-[13px] font-semibold text-surface-200",
           "transition-colors duration-75"
@@ -284,10 +285,10 @@ export function RepoWorktreeSection({
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
       >
-        {/* Toggle icon */}
+        {/* Toggle icon - same width as item chevrons/dots */}
         <button
           type="button"
-          className="flex-shrink-0 p-0.5 rounded hover:bg-surface-700 text-surface-400"
+          className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"
           onClick={(e) => {
             e.stopPropagation();
             onToggle(section.id);

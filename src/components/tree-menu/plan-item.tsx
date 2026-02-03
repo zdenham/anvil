@@ -82,8 +82,13 @@ export function PlanItem({
     }
   };
 
-  const handleClick = () => {
+  const handleClick = async () => {
     onSelect(item.id, "plan");
+    // For folders: clicking the row expands (but doesn't collapse)
+    // Only the chevron can collapse
+    if (item.isFolder && !item.isExpanded) {
+      await treeMenuService.expandSection(`plan:${item.id}`);
+    }
   };
 
   const handleKeyDown = useCallback(async (e: React.KeyboardEvent) => {
@@ -175,7 +180,7 @@ export function PlanItem({
         onKeyDown={handleKeyDown}
         style={{ paddingLeft: `${indentPx}px` }}
         className={cn(
-          "group flex items-center gap-1.5 py-0.5 px-2 cursor-pointer",
+          "group flex items-center gap-1.5 py-0.5 pr-1 cursor-pointer",
           "text-[13px] leading-[22px]",
           "transition-colors duration-75",
           "outline-none focus:bg-accent-500/10",
@@ -184,11 +189,11 @@ export function PlanItem({
             : "text-surface-300 hover:bg-surface-800/50"
         )}
       >
-        {/* Folder toggle chevron - only for folders, with rotation animation */}
+        {/* Folder toggle chevron or status dot - both use same fixed width */}
         {item.isFolder ? (
           <button
             type="button"
-            className="flex-shrink-0 p-0.5 rounded hover:bg-surface-700 text-surface-400"
+            className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"
             onClick={handleFolderToggle}
             aria-label={item.isExpanded ? "Collapse folder" : "Expand folder"}
           >
@@ -201,10 +206,10 @@ export function PlanItem({
             />
           </button>
         ) : (
-          // Spacer for non-folders to align with folders
-          <span className="flex-shrink-0 w-[16px]" />
+          <span className="flex-shrink-0 w-3 flex items-center justify-center">
+            <StatusDot variant={item.status} />
+          </span>
         )}
-        <StatusDot variant={item.status} className="flex-shrink-0" />
         <span className="truncate flex-1">{item.title}</span>
         {/* Archive button - fixed height to prevent layout shift */}
         <button
