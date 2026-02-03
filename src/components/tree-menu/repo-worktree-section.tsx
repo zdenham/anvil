@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import type { RepoWorktreeSection as RepoWorktreeSectionType } from "@/stores/tree-menu/types";
 import { ThreadItem } from "./thread-item";
 import { PlanItem } from "./plan-item";
-import { INDENT_STEP } from "./use-tree-keyboard-nav";
 
 interface RepoWorktreeSectionProps {
   section: RepoWorktreeSectionType;
