@@ -186,7 +186,7 @@ export function PlanItem({
           "outline-none focus:bg-accent-500/10",
           isSelected
             ? "bg-accent-500/20 text-surface-100"
-            : "text-surface-300 hover:bg-surface-800/50"
+            : "text-surface-300 hover:bg-accent-500/10"
         )}
       >
         {/* Folder toggle chevron or status dot - both use same fixed width */}

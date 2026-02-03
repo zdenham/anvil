@@ -1,8 +1,37 @@
-# Claude Code Skills Integration for Mort
+# Claude Code Skills & Commands Integration for Mort
 
 ## Overview
 
-This document outlines how to integrate Claude Code skills and commands into mort, enabling users to define custom skills that extend agent capabilities.
+This document outlines how to integrate **both Claude Code skills AND legacy commands** into mort, enabling users to define custom capabilities that extend agent functionality.
+
+**Important**: Mort will support BOTH formats:
+- **Skills** (modern) - Directory-based with `SKILL.md` and bundled files
+- **Commands** (legacy) - Single `.md` files, simpler but less powerful
+
+## Skill & Command Sources Summary
+
+**Mort will discover and load from ALL of the following locations:**
+
+### Skills (Modern Format)
+| Priority | Location | Path | Description |
+|----------|----------|------|-------------|
+| 1 | Repo-level Skills | `<repo>/.claude/skills/<name>/SKILL.md` | Project-specific, shared with team |
+| 2 | Mort Personal Skills | `~/.mort/skills/<name>/SKILL.md` | **Mort-specific** personal skills |
+| 3 | Claude Personal Skills | `~/.claude/skills/<name>/SKILL.md` | Standard Claude Code personal skills |
+
+### Commands (Legacy Format)
+| Priority | Location | Path | Description |
+|----------|----------|------|-------------|
+| 4 | Repo-level Commands | `<repo>/.claude/commands/<name>.md` | Project-specific legacy commands |
+| 5 | Personal Commands | `~/.claude/commands/<name>.md` | Personal legacy commands |
+
+This means users can:
+- Use standard Claude Code skills they've already created
+- Use existing legacy commands without migration
+- Create mort-specific skills in `~/.mort/skills/` for workflows unique to mort
+- Share project skills/commands via the repo's `.claude/` directory
+
+---
 
 ## What Are Claude Code Skills?
 
@@ -14,22 +43,45 @@ Skills are modular, filesystem-based resources that extend Claude's capabilities
 - **Progressive disclosure**: Only metadata loads at startup; full content loads when triggered
 - **Support bundled files**: Can include scripts, templates, examples, and reference documentation
 
-### Skills vs Commands (Legacy)
+### Skills vs Commands (Legacy) - Both Supported!
 
-| Feature | Skills | Commands (Legacy) |
-|---------|--------|-------------------|
+| Feature | Skills (Modern) | Commands (Legacy) |
+|---------|-----------------|-------------------|
 | Location | `.claude/skills/<name>/SKILL.md` | `.claude/commands/<name>.md` |
-| Bundled files | Yes (full directory) | No (single file) |
-| Model invocation | Configurable | Always available |
+| Structure | Directory with multiple files | Single `.md` file |
+| Bundled files | Yes (scripts, templates, examples) | No |
+| Model invocation | Configurable via frontmatter | Always available |
 | Format | YAML frontmatter + Markdown | YAML frontmatter + Markdown |
+| Invocation | `/skill-name` | `/command-name` |
 
-Both create slash commands (e.g., `/review`). Skills are the modern, recommended approach.
+**Both formats create slash commands** (e.g., `/review`). Skills are the modern, recommended approach, but **mort will fully support both** to ensure backwards compatibility and ease of migration.
+
+#### Command Format Example
+
+```markdown
+# ~/.claude/commands/test.md
+---
+description: Run the test suite
+---
+Run all tests using the project's test runner. Report any failures.
+```
+
+#### Skill Format Example
+
+```markdown
+# ~/.claude/skills/review/SKILL.md
+---
+description: Review code changes
+argument_hint: "[file or PR number]"
+---
+Review the specified code for issues, best practices, and potential bugs.
+```
 
 ---
 
 ## Directory Configuration
 
-### Standard Skill Locations (Priority Order)
+### Standard Claude Code Skill Locations (Priority Order)
 
 | Priority | Location | Path | Scope |
 |----------|----------|------|-------|
@@ -37,6 +89,19 @@ Both create slash commands (e.g., `/review`). Skills are the modern, recommended
 | 2 | Personal | `~/.claude/skills/<skill-name>/SKILL.md` | All user projects |
 | 3 | Project | `.claude/skills/<skill-name>/SKILL.md` | Single project |
 | 4 | Plugin | `<plugin>/skills/<skill-name>/SKILL.md` | Where plugin enabled |
+
+### Mort-Specific Skill Locations
+
+In addition to the standard Claude Code locations, **mort will also support its own skills directory**:
+
+| Priority | Location | Path | Scope |
+|----------|----------|------|-------|
+| 1 | Mort Personal | `~/.mort/skills/<skill-name>/SKILL.md` | All mort projects |
+| 2 | Repo | `<repo>/.claude/skills/<skill-name>/SKILL.md` | Single repository |
+
+**Why both?**
+- `~/.claude/skills/` - Standard Claude Code skills that work across all Claude tools
+- `~/.mort/skills/` - Mort-specific skills (e.g., UI automation, mort-specific workflows)
 
 ### Command Locations
 
@@ -140,15 +205,16 @@ This approach:
 
 **Note**: The `Skill` tool is already included with the `claude_code` preset, so no additional tool configuration is needed.
 
-**Option 2: Custom Skill Loading**
+**Option 2: Custom Skill Loading (Required for Mort-Specific Skills)**
 
-If we need more control (e.g., mort-specific skill locations):
+Since mort has its own skills directory (`~/.mort/skills/`), we need custom skill loading in addition to SDK-native support:
 
-1. **Skill Discovery** - Scan directories for `SKILL.md` files:
+1. **Skill Discovery** - Scan all skill directories for `SKILL.md` files:
    ```typescript
    const skillPaths = [
-     path.join(os.homedir(), '.claude/skills'),
-     path.join(repoPath, '.claude/skills'),
+     path.join(os.homedir(), '.mort/skills'),   // Mort-specific personal skills
+     path.join(os.homedir(), '.claude/skills'), // Standard Claude Code personal skills
+     path.join(repoPath, '.claude/skills'),     // Repo-level skills
    ];
    ```
 
@@ -198,12 +264,20 @@ Create `src/lib/triggers/handlers/command-handler.ts`:
 import type { TriggerConfig, TriggerHandler, TriggerResult, TriggerContext } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 
+// Unified interface for both modern skills and legacy commands
 interface SkillMetadata {
   name: string;
   description: string;
   argumentHint?: string;
-  source: "personal" | "project" | "command";
+  // Source indicates origin AND whether it's a skill or command:
+  // - "mort" = Mort-specific skill (~/.mort/skills/)
+  // - "personal" = Personal skill (~/.claude/skills/)
+  // - "project" = Repo-level skill (<repo>/.claude/skills/)
+  // - "personal_command" = Personal legacy command (~/.claude/commands/)
+  // - "project_command" = Repo-level legacy command (<repo>/.claude/commands/)
+  source: "mort" | "personal" | "project" | "personal_command" | "project_command";
   path: string;
+  isLegacyCommand: boolean;  // true for commands, false for skills
 }
 
 class CommandTriggerHandler implements TriggerHandler {
@@ -251,6 +325,12 @@ class CommandTriggerHandler implements TriggerHandler {
       return this.cachedSkills.get(cacheKey)!;
     }
 
+    // Discovers skills from ALL locations:
+    // 1. ~/.mort/skills/ (mort-specific personal skills)
+    // 2. ~/.claude/skills/ (standard Claude Code personal skills)
+    // 3. <repo>/.claude/skills/ (repo-level skills)
+    // 4. ~/.claude/commands/ (legacy personal commands)
+    // 5. <repo>/.claude/commands/ (legacy repo commands)
     const skills = await invoke<SkillMetadata[]>("discover_skills", {
       repoPath: rootPath
     });
@@ -261,9 +341,11 @@ class CommandTriggerHandler implements TriggerHandler {
 
   private getIconForSource(source: string): string {
     switch (source) {
-      case "personal": return "user";
-      case "project": return "folder";
-      case "command": return "terminal";
+      case "mort": return "mort";                 // Mort-specific skill (~/.mort/skills/)
+      case "personal": return "user";             // Claude Code personal skill (~/.claude/skills/)
+      case "project": return "folder";            // Repo-level skill (.claude/skills/)
+      case "personal_command": return "terminal"; // Personal legacy command (~/.claude/commands/)
+      case "project_command": return "folder-terminal"; // Repo legacy command (.claude/commands/)
       default: return "command";
     }
   }
@@ -309,53 +391,72 @@ Add to `src-tauri/src/lib.rs` (or a new `skills.rs` module):
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// Unified metadata for both skills and legacy commands
+/// The `source` field indicates the origin AND type:
+/// - "mort" = Mort-specific skill from ~/.mort/skills/
+/// - "personal" = Claude Code skill from ~/.claude/skills/
+/// - "project" = Repo-level skill from <repo>/.claude/skills/
+/// - "personal_command" = Legacy command from ~/.claude/commands/
+/// - "project_command" = Legacy command from <repo>/.claude/commands/
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillMetadata {
     pub name: String,
     pub description: String,
     pub argument_hint: Option<String>,
-    pub source: String,  // "personal", "project", or "command"
+    pub source: String,
     pub path: String,
+    pub is_legacy_command: bool,  // true for .claude/commands/, false for skills
 }
 
 #[tauri::command]
 pub async fn discover_skills(repo_path: String) -> Result<Vec<SkillMetadata>, String> {
     let mut skills = Vec::new();
-
-    // 1. Personal skills: ~/.claude/skills/
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
+
+    // 1. Mort-specific personal skills: ~/.mort/skills/
+    let mort_skills = home.join(".mort/skills");
+    if mort_skills.exists() {
+        skills.extend(scan_skills_directory(&mort_skills, "mort")?);
+    }
+
+    // 2. Standard Claude Code personal skills: ~/.claude/skills/
     let personal_skills = home.join(".claude/skills");
     if personal_skills.exists() {
         skills.extend(scan_skills_directory(&personal_skills, "personal")?);
     }
 
-    // 2. Personal commands: ~/.claude/commands/
+    // 3. Personal commands (LEGACY FORMAT): ~/.claude/commands/
+    // These are single .md files, NOT directories with SKILL.md
     let personal_commands = home.join(".claude/commands");
     if personal_commands.exists() {
-        skills.extend(scan_commands_directory(&personal_commands, "personal")?);
+        skills.extend(scan_commands_directory(&personal_commands, "personal_command")?);
     }
 
-    // 3. Project skills: <repo>/.claude/skills/
+    // 4. Repo-level skills: <repo>/.claude/skills/
     if !repo_path.is_empty() {
         let project_skills = Path::new(&repo_path).join(".claude/skills");
         if project_skills.exists() {
             skills.extend(scan_skills_directory(&project_skills, "project")?);
         }
 
-        // 4. Project commands: <repo>/.claude/commands/
+        // 5. Repo-level commands (LEGACY FORMAT): <repo>/.claude/commands/
+        // These are single .md files, NOT directories with SKILL.md
         let project_commands = Path::new(&repo_path).join(".claude/commands");
         if project_commands.exists() {
-            skills.extend(scan_commands_directory(&project_commands, "project")?);
+            skills.extend(scan_commands_directory(&project_commands, "project_command")?);
         }
     }
 
-    // Sort: project first, then personal, then alphabetically
+    // Sort priority: repo-level > mort > personal, skills before commands, then alphabetically
     skills.sort_by(|a, b| {
         let source_order = |s: &str| match s {
-            "project" => 0,
-            "personal" => 1,
-            _ => 2,
+            "project" => 0,           // Repo-level skills (highest priority)
+            "project_command" => 1,   // Repo-level legacy commands
+            "mort" => 2,              // Mort-specific personal skills
+            "personal" => 3,          // Standard Claude Code personal skills
+            "personal_command" => 4,  // Personal legacy commands (lowest priority)
+            _ => 5,
         };
         source_order(&a.source)
             .cmp(&source_order(&b.source))
@@ -405,6 +506,8 @@ fn scan_commands_directory(dir: &Path, source: &str) -> Result<Vec<SkillMetadata
     Ok(commands)
 }
 
+/// Parse modern skill files (.claude/skills/<name>/SKILL.md)
+/// These are directories containing SKILL.md and potentially other bundled files
 fn parse_skill_frontmatter(path: &Path, source: &str) -> Result<SkillMetadata, String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read file: {}", e))?;
@@ -434,9 +537,12 @@ fn parse_skill_frontmatter(path: &Path, source: &str) -> Result<SkillMetadata, S
         argument_hint: frontmatter.get("argument-hint").cloned(),
         source: source.to_string(),
         path: path.to_string_lossy().to_string(),
+        is_legacy_command: false,
     })
 }
 
+/// Parse legacy command files (.claude/commands/*.md)
+/// These are single markdown files with YAML frontmatter
 fn parse_command_frontmatter(path: &Path, source: &str) -> Result<SkillMetadata, String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read file: {}", e))?;
@@ -456,8 +562,9 @@ fn parse_command_frontmatter(path: &Path, source: &str) -> Result<SkillMetadata,
         name,
         description: frontmatter.get("description").cloned().unwrap_or_default(),
         argument_hint: frontmatter.get("argument-hint").cloned(),
-        source: "command".to_string(),
+        source: source.to_string(),  // "personal_command" or "project_command"
         path: path.to_string_lossy().to_string(),
+        is_legacy_command: true,
     })
 }
 
@@ -496,11 +603,13 @@ The `TriggerDropdown` component already supports icons. Add skill-specific icons
 // In trigger-dropdown.tsx or a shared icon utility
 const getIconForType = (icon: string) => {
   switch (icon) {
-    case "user": return <UserIcon />;      // Personal skill
-    case "folder": return <FolderIcon />;  // Project skill
-    case "terminal": return <TerminalIcon />; // Command
-    case "command": return <CommandIcon />; // Generic
-    default: return getFileIcon(icon);     // Fall back to file extension icons
+    case "mort": return <MortIcon />;            // Mort-specific skill (~/.mort/skills/)
+    case "user": return <UserIcon />;            // Personal skill (~/.claude/skills/)
+    case "folder": return <FolderIcon />;        // Repo-level skill (.claude/skills/)
+    case "terminal": return <TerminalIcon />;    // Personal legacy command (~/.claude/commands/)
+    case "folder-terminal": return <FolderTerminalIcon />; // Repo legacy command
+    case "command": return <CommandIcon />;      // Generic fallback
+    default: return getFileIcon(icon);           // Fall back to file extension icons
   }
 };
 ```
@@ -510,10 +619,12 @@ const getIconForType = (icon: string) => {
 When user types `/` in the input:
 
 1. **Immediate dropdown** appears (minQueryLength: 0)
-2. **Shows all available skills/commands** grouped by source:
-   - Project skills first (from `.claude/skills/`)
-   - Personal skills (from `~/.claude/skills/`)
-   - Commands (from `.claude/commands/`)
+2. **Shows all available skills AND commands** grouped by source (in priority order):
+   - Repo-level skills (from `<repo>/.claude/skills/`)
+   - Repo-level legacy commands (from `<repo>/.claude/commands/`)
+   - Mort-specific personal skills (from `~/.mort/skills/`)
+   - Standard Claude Code personal skills (from `~/.claude/skills/`)
+   - Personal legacy commands (from `~/.claude/commands/`)
 3. **Filter as user types** - `/rev` filters to `/review`, `/review-changes`, etc.
 4. **Arrow key navigation** with visual highlighting
 5. **Enter/Tab selection** inserts `/skill-name ` with trailing space for arguments
@@ -526,16 +637,24 @@ When user types `/` in the input:
 ┌─────────────────────────────────────────┐
 │ /                                       │
 ├─────────────────────────────────────────┤
-│ 📁 /review-changes                      │  ← Project skill
+│ 📁 /review-changes                      │  ← Repo SKILL (.claude/skills/)
 │    Review staged git changes            │
 │                                         │
-│ 👤 /quick-commit                        │  ← Personal skill
+│ 📂 /build                               │  ← Repo COMMAND (.claude/commands/)
+│    Run project build                    │
+│                                         │
+│ 🔮 /mort-workflow                       │  ← Mort skill (~/.mort/skills/)
+│    Custom mort automation               │
+│                                         │
+│ 👤 /quick-commit                        │  ← Personal SKILL (~/.claude/skills/)
 │    Create commit with auto message      │
 │                                         │
-│ 💻 /test                                │  ← Command
+│ 💻 /test                                │  ← Personal COMMAND (~/.claude/commands/)
 │    Run project tests                    │
 └─────────────────────────────────────────┘
 ```
+
+Note: Both skills and commands appear in the same dropdown, but skills are the modern format (directory-based) while commands are the legacy format (single file).
 
 ##### 2.7 Caching Strategy
 
@@ -546,19 +665,26 @@ When user types `/` in the input:
   - Manual refresh action
 - Keep cache for 5 minutes max to avoid stale data
 
-#### Phase 3: Mort-Specific Skills (Future)
+#### Phase 3: Mort-Specific Skills Enhancement (Future)
 
-1. **Custom skill location**: `~/.mort/skills/` for mort-specific skills
+The `~/.mort/skills/` directory is already supported in Phase 2. This phase adds additional mort-specific enhancements:
 
-2. **Built-in skills**: Ship default skills with mort (e.g., `/mort-commit`, `/mort-review`)
+1. **Built-in skills**: Ship default skills with mort (e.g., `/mort-commit`, `/mort-review`)
+   - These would be bundled in the app and copied to `~/.mort/skills/` on first run
 
-3. **Skill management UI**: Install/enable/disable skills from settings
+2. **Skill management UI**: Install/enable/disable skills from settings
+   - Toggle visibility of skills from different sources
+   - Quick-create new skills from templates
+
+3. **Mort skill templates**: Provide starter templates for common mort workflows
 
 ---
 
-## Example: Creating a Skill
+## Examples: Creating Skills and Commands
 
-### Project-Level Skill
+Both formats are fully supported. Use skills (modern) for new work, but existing commands continue to work.
+
+### Project-Level Skill (Modern Format)
 
 Create `.claude/skills/review-changes/SKILL.md` in a repository:
 
@@ -596,7 +722,7 @@ For each file with issues:
 - **Suggestion**: How to improve
 ```
 
-### Personal Skill
+### Personal Skill (Modern Format)
 
 Create `~/.claude/skills/quick-commit/SKILL.md`:
 
@@ -617,6 +743,36 @@ Generate a commit message and create a commit for staged changes.
 3. Run `git commit -m "generated message"`
 4. Report the commit hash
 ```
+
+### Legacy Command (Still Supported!)
+
+Create `~/.claude/commands/test.md` (single file, not a directory):
+
+```markdown
+---
+description: Run the project test suite and report results
+---
+
+Run the test suite for this project. Detect the test framework being used
+(jest, vitest, pytest, etc.) and run the appropriate command.
+
+Report:
+1. Total tests run
+2. Passed/failed counts
+3. Any error messages for failed tests
+```
+
+Or a repo-level command at `<repo>/.claude/commands/build.md`:
+
+```markdown
+---
+description: Build the project for production
+---
+
+Run the production build command for this project. Handle any errors gracefully.
+```
+
+**Note**: Legacy commands work identically to skills but are simpler (single file vs directory). They cannot bundle additional files like scripts or templates.
 
 ---
 
@@ -660,8 +816,15 @@ CommandTriggerHandler.search(query, context)
      │  Calls Rust backend via invoke()
      ▼
 Tauri: discover_skills(repo_path)
-     │  Scans ~/.claude/skills/, .claude/skills/, .claude/commands/
-     │  Parses SKILL.md frontmatter
+     │  Scans ALL skill AND command locations:
+     │  SKILLS (modern - directories with SKILL.md):
+     │  - ~/.mort/skills/<name>/SKILL.md     (mort-specific personal)
+     │  - ~/.claude/skills/<name>/SKILL.md   (standard personal)
+     │  - <repo>/.claude/skills/<name>/SKILL.md (repo-level)
+     │  COMMANDS (legacy - single .md files):
+     │  - ~/.claude/commands/<name>.md       (personal legacy)
+     │  - <repo>/.claude/commands/<name>.md  (repo-level legacy)
+     │  Parses YAML frontmatter from both formats
      ▼
 Returns SkillMetadata[]
      │

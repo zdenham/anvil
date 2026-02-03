@@ -140,7 +140,7 @@ export function ThreadItem({
           "outline-none focus:bg-accent-500/10",
           isSelected
             ? "bg-accent-500/20 text-surface-100"
-            : "text-surface-300 hover:bg-surface-800/50"
+            : "text-surface-300 hover:bg-accent-500/10"
         )}
       >
         <span className="flex-shrink-0 w-3 flex items-center justify-center">
