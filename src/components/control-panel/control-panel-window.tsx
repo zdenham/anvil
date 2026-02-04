@@ -26,6 +26,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
 import { QueuedMessagesBanner } from "./queued-messages-banner";
+import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
 import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
@@ -718,6 +719,8 @@ function ControlPanelWindowContent({
           onSubmitFollowUp={handleSubmit}
           onQuickAction={handleQuickAction}
         />
+        {/* SDK Quick Actions Panel */}
+        <QuickActionsPanel contextType="thread" />
         {/* Queued messages banner - shows pending messages while agent is running */}
         <QueuedMessagesBanner messages={queuedMessages} />
         {/* Wrap input with visual indicator when in queue mode */}

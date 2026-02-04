@@ -82,6 +82,27 @@ type LocalEvents = {
 
   // Window API events (synthetic, from bridge)
   "window:focus-changed": WindowFocusChangedPayload;
+
+  // Quick Actions events (registry/manifest changes)
+  "quick-actions:registry-changed": void;
+  "quick-actions:manifest-changed": void;
+
+  // SDK write operation events (DD #24, #33)
+  // The SDK emits events through stdout, Mort handles the actual disk write
+  "sdk:thread:archive": { threadId: string };
+  "sdk:thread:unarchive": { threadId: string };
+  "sdk:thread:markRead": { threadId: string };
+  "sdk:thread:markUnread": { threadId: string };
+  "sdk:thread:delete": { threadId: string };
+  "sdk:plan:archive": { planId: string };
+  "sdk:plan:unarchive": { planId: string };
+  "sdk:plan:markRead": { planId: string };
+  "sdk:plan:markUnread": { planId: string };
+  "sdk:plan:delete": { planId: string };
+
+  // SDK navigation events
+  "sdk:navigate": { route: string };
+  "sdk:navigateToNextUnread": void;
 };
 
 // ============================================================================

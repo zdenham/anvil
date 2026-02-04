@@ -37,6 +37,7 @@ import { generateUniqueWorktreeName } from "@/lib/random-name";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { useTreeData } from "@/hooks/use-tree-data";
+import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
 import type { ContentPaneView } from "@/components/content-pane/types";
@@ -51,6 +52,12 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const isFullscreen = useFullscreen();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Quick Action Hotkeys (Cmd+0-9)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  useQuickActionHotkeys();
 
   // Track whether listeners have been initialized (prevents duplicate registration)
   const listenersInitialized = useRef(false);

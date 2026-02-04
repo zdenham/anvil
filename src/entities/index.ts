@@ -45,6 +45,15 @@ export * from "@/stores/tree-menu/types";
 // Repo/Worktree Lookup
 export { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 
+// Quick Actions
+export { useQuickActionsStore } from "./quick-actions/store";
+export { quickActionService } from "./quick-actions/service";
+export type * from "./quick-actions/types";
+
+// Drafts
+export { useDraftsStore, draftService } from "./drafts";
+export type { DraftsFile } from "./drafts";
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // App-level hydration & event listeners
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -63,6 +72,9 @@ import { setupTreeMenuListeners } from "@/stores/tree-menu/listeners";
 import { setupWorktreeListeners } from "./worktrees/listeners";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { quickActionService } from "./quick-actions/service";
+import { setupQuickActionListeners } from "./quick-actions/listeners";
+import { draftService } from "./drafts/service";
 
 /**
  * Hydrates all entity stores from disk.
@@ -101,6 +113,14 @@ export async function hydrateEntities(): Promise<void> {
     await treeMenuService.hydrate();
     logger.log("[entities:hydrate] Tree menu state hydrated");
 
+    // Hydrate quick actions (from manifest + registry)
+    await quickActionService.hydrate();
+    logger.log("[entities:hydrate] Quick actions hydrated");
+
+    // Hydrate drafts (input persistence)
+    await draftService.hydrate();
+    logger.log("[entities:hydrate] Drafts hydrated");
+
     logger.log("[entities:hydrate] All entities hydrated successfully");
   } catch (error) {
     logger.error("[entities:hydrate] Hydration failed!", error);
@@ -121,5 +141,6 @@ export function setupEntityListeners(): void {
   setupRelationListeners();
   setupTreeMenuListeners();
   setupWorktreeListeners();
+  setupQuickActionListeners();
   logger.log("[entities:listeners] All entity listeners initialized");
 }

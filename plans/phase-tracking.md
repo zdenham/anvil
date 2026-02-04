@@ -2,168 +2,262 @@
 
 ## Overview
 
-Parse GitHub markdown todo lists as "phases" and display progress (e.g., "5/7 phases done") in the sidebar and content pane. This provides visual feedback on plan completion status.
+Parse GitHub markdown todo lists as "phases" and display progress (e.g., "5/7") in the sidebar tree. This provides visual feedback on plan completion status.
+
+**Key Decisions:**
+- Phases are defined within a delimited `## Phases` section (strict match, case-insensitive)
+- "Phase" and "task" are synonymous - both represent things that need to be done
+- Display format: `[completed]/[total]` prepended to plan name, or `✓` when fully complete
+- Plans without a `## Phases` section show no phase indicator (not forced)
+- **Architecture**: Agent process parses phases on file write, persists to metadata on disk, emits events to frontend
+- **No client-side parsing**: Frontend reads phase data from plan metadata store only
+- **Existing plans**: No backfill - only future plans written by agent will have phase tracking
+- **External edits**: Not detected in v1 - phases only update when agent modifies the file
+- **Types**: `PhaseInfo` defined in `core/types/plans.ts`, imported by agents
+
+---
+
+## Architecture
+
+### Data Flow
+
+```
+Plan file written (by agent or external)
+    ↓
+Agent PostToolUse hook detects plan file change
+    ↓
+Agent reads file content, parses ## Phases section
+    ↓
+Agent updates ~/.mort/plans/{id}/metadata.json with phaseInfo
+    ↓
+Agent emits plan:detected event (existing) or plan:phases-updated event (new)
+    ↓
+Frontend receives event, refreshes plan metadata from disk
+    ↓
+Tree menu reads phaseInfo from plan store, displays count
+```
+
+### Why Agent-Side Parsing?
+
+1. **Single source of truth**: Phase data stored on disk, consistent across windows
+2. **Performance**: No content fetching/parsing in frontend render path
+3. **Scalability**: Tree can display many plans without loading content
+4. **Consistency**: Same parsing logic for all plan updates
 
 ---
 
 ## Implementation
 
-### 1. Phase Parsing
+### 1. Phase Parsing (Agent-Side)
 
-**`src/entities/plans/phase-parser.ts`** (new file)
-
-Parse GitHub markdown todo lists as phases:
+**`agents/src/lib/phase-parser.ts`** (new file)
 
 ```typescript
-interface Phase {
-  text: string;
-  completed: boolean;
-  lineNumber: number;
-}
-
-interface PhaseInfo {
-  phases: Phase[];
-  completed: number;
-  total: number;
-}
+import { PhaseInfo } from "@mort/types";
 
 /**
- * Parse markdown content for GitHub-style todo lists.
+ * Parse markdown content for GitHub-style todo lists within a ## Phases section.
  *
  * Supported formats:
  * - [ ] Uncompleted phase
  * - [x] Completed phase
  * - [X] Completed phase (uppercase)
  *
- * Only parses top-level todos (not nested under other list items).
+ * Only parses todos within a delimited "## Phases" section.
+ * The section ends at the next heading (##) or horizontal rule (---).
  */
-export function parsePhases(markdown: string): PhaseInfo {
-  const phases: Phase[] = [];
+export function parsePhases(markdown: string): PhaseInfo | null {
   const lines = markdown.split('\n');
 
+  const phaseSectionPattern = /^##\s+Phases\s*$/i;
+  const sectionEndPattern = /^(##\s|---)/;
   const todoPattern = /^(\s*)- \[([ xX])\] (.+)$/;
 
+  let inPhasesSection = false;
+  let phaseSectionStart = -1;
+  let completed = 0;
+  let total = 0;
+
   for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(todoPattern);
-    if (match) {
-      const [, indent, checked, text] = match;
-      // Only count top-level todos (no indentation or 0-2 spaces)
-      if (indent.length <= 2) {
-        phases.push({
-          text: text.trim(),
-          completed: checked.toLowerCase() === 'x',
-          lineNumber: i + 1,
-        });
+    const line = lines[i];
+
+    if (phaseSectionPattern.test(line)) {
+      inPhasesSection = true;
+      phaseSectionStart = i;
+      continue;
+    }
+
+    if (inPhasesSection && i > phaseSectionStart && sectionEndPattern.test(line)) {
+      break;
+    }
+
+    if (inPhasesSection) {
+      const match = line.match(todoPattern);
+      if (match) {
+        const [, indent, checked] = match;
+        if (indent.length <= 2) {
+          total++;
+          if (checked.toLowerCase() === 'x') {
+            completed++;
+          }
+        }
       }
     }
   }
 
-  return {
-    phases,
-    completed: phases.filter(p => p.completed).length,
-    total: phases.length,
-  };
+  // Return null if no Phases section found
+  if (!inPhasesSection) {
+    return null;
+  }
+
+  return { completed, total };
 }
 ```
 
-### 2. Phase Data Strategy
+### 2. Plan Metadata Schema Update
 
-**Option A: Compute on demand** (recommended for v1)
-- Parse phases when plan content is loaded
-- Store in React state/context, not persisted
-- Re-parse when content changes
-
-**Option B: Persist to metadata** (for v2 if performance needed)
-- Add `phaseInfo: { completed: number, total: number }` to PlanMetadata
-- Update on plan content save
-
-**Recommended: Option A for simplicity**
-
-### 3. Phase Hook
-
-**`src/entities/plans/hooks/use-plan-phases.ts`** (new file)
+**`core/types/plans.ts`** - Add phaseInfo to PlanMetadata:
 
 ```typescript
-import { usePlanContent } from './use-plan-content';
-import { parsePhases, PhaseInfo } from '../phase-parser';
-
-export function usePlanPhases(planId: string): PhaseInfo | null {
-  const content = usePlanContent(planId);
-
-  return useMemo(() => {
-    if (!content) return null;
-    return parsePhases(content);
-  }, [content]);
-}
-```
-
-### 4. Phase Progress Display
-
-**`src/components/tree-menu/phase-badge.tsx`** (new file)
-
-```typescript
-interface PhaseBadgeProps {
+export interface PhaseInfo {
   completed: number;
   total: number;
-  className?: string;
 }
 
-export function PhaseBadge({ completed, total, className }: PhaseBadgeProps) {
-  if (total === 0) return null;
+export interface PlanMetadata {
+  id: string;
+  repoId: string;
+  worktreeId: string;
+  relativePath: string;
+  parentId?: string;
+  isFolder?: boolean;
+  isRead: boolean;
+  markedUnreadAt?: number;
+  stale?: boolean;
+  lastVerified?: number;
+  createdAt: number;
+  updatedAt: number;
+  phaseInfo?: PhaseInfo;  // NEW: null/undefined means no ## Phases section
+}
+```
 
-  const isComplete = completed === total;
+### 3. Agent Hook Integration
+
+**`agents/src/runners/shared.ts`** - Update PostToolUse hook to parse phases:
+
+In the existing plan detection block (after `isPlanPath()` check):
+
+```typescript
+import { parsePhases } from "../lib/phase-parser.js";
+import { readFileSync } from "fs";
+
+// Inside PostToolUse hook, after detecting a plan file:
+if (isPlanPath(filePath, context.workingDir)) {
+  // Read file content to parse phases
+  const absolutePath = isAbsolute(filePath)
+    ? filePath
+    : join(context.workingDir, filePath);
+
+  let phaseInfo: PhaseInfo | null = null;
+  try {
+    const content = readFileSync(absolutePath, 'utf-8');
+    phaseInfo = parsePhases(content);
+  } catch (err) {
+    // File read error - phaseInfo stays null
+  }
+
+  // Update ensurePlanExists to accept phaseInfo
+  const planId = await persistence.ensurePlanExists({
+    repoId,
+    worktreeId,
+    relativePath,
+    phaseInfo,  // NEW
+  });
+
+  emitEvent(EventName.PLAN_DETECTED, { planId });
+}
+```
+
+### 4. Persistence Layer Update
+
+**`agents/src/core/persistence.ts`** - Update plan persistence to handle phaseInfo:
+
+```typescript
+abstract ensurePlanExists(params: {
+  repoId: string;
+  worktreeId: string;
+  relativePath: string;
+  phaseInfo?: PhaseInfo | null;  // NEW
+}): Promise<string>;
+```
+
+**`agents/src/lib/persistence-node.ts`** - Implementation:
+
+```typescript
+async ensurePlanExists({ repoId, worktreeId, relativePath, phaseInfo }) {
+  const existing = await this.findPlanByPath(repoId, relativePath);
+
+  if (existing) {
+    // Update existing plan with new phaseInfo
+    const updated = {
+      ...existing,
+      phaseInfo: phaseInfo ?? undefined,  // Convert null to undefined for JSON
+      updatedAt: Date.now(),
+    };
+    await this.writePlanMetadata(existing.id, updated);
+    return existing.id;
+  }
+
+  // Create new plan with phaseInfo
+  return this.createPlan({ repoId, worktreeId, relativePath, phaseInfo });
+}
+```
+
+### 5. Frontend Store Update
+
+**`src/entities/plans/store.ts`** - Ensure store type includes phaseInfo:
+
+The store already uses `PlanMetadata` type from `core/types/plans.ts`, so adding `phaseInfo` to the type will automatically flow through.
+
+### 6. Tree Menu Display
+
+**`src/hooks/use-tree-data.ts`** or plan item component - Display phase count:
+
+```typescript
+// In plan item rendering:
+function PlanTreeItem({ plan }: { plan: PlanMetadata }) {
+  const getPhaseDisplay = (phaseInfo: PhaseInfo | undefined) => {
+    if (!phaseInfo) return null;
+
+    const { completed, total } = phaseInfo;
+    const isComplete = completed === total && total > 0;
+
+    if (isComplete) {
+      return <span className="text-green-500">✓</span>;
+    }
+
+    return (
+      <span className="text-surface-500 font-mono text-xs">
+        {completed}/{total}
+      </span>
+    );
+  };
 
   return (
-    <span className={cn(
-      "text-[10px] font-medium px-1.5 rounded",
-      isComplete
-        ? "bg-green-500/20 text-green-400"
-        : "bg-surface-700 text-surface-400",
-      className
-    )}>
-      {completed}/{total}
+    <span>
+      {getPhaseDisplay(plan.phaseInfo)}
+      {plan.phaseInfo && ' '}
+      {plan.name}
     </span>
   );
 }
 ```
 
-### 5. Phase List in Content Pane
-
-When viewing a plan, show phase progress in the header or as a sidebar:
-
-**`src/components/content-pane/plan-phases-panel.tsx`** (new file)
-
-```typescript
-interface PlanPhasesPanelProps {
-  phases: Phase[];
-  onPhaseClick?: (lineNumber: number) => void;
-}
-
-export function PlanPhasesPanel({ phases, onPhaseClick }: PlanPhasesPanelProps) {
-  return (
-    <div className="border-l border-surface-700 p-3 w-48">
-      <h3 className="text-xs font-semibold text-surface-400 mb-2">Phases</h3>
-      <ul className="space-y-1">
-        {phases.map((phase, i) => (
-          <li
-            key={i}
-            className="flex items-center gap-2 text-xs cursor-pointer hover:bg-surface-800 rounded px-1 py-0.5"
-            onClick={() => onPhaseClick?.(phase.lineNumber)}
-          >
-            {phase.completed ? (
-              <CheckCircle size={12} className="text-green-400" />
-            ) : (
-              <Circle size={12} className="text-surface-500" />
-            )}
-            <span className={phase.completed ? "line-through text-surface-500" : ""}>
-              {phase.text}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+Example tree rendering:
+```
+├── 3/7 authentication.md
+├── 0/4 session-management.md
+└── ✓ oauth-integration.md
 ```
 
 ---
@@ -185,15 +279,19 @@ When creating or updating plan files in the \`plans/\` directory, follow these c
 - Create a parent plan file matching directory name: \`plans/feature-name.md\` for \`plans/feature-name/\`
 
 ### Phase Tracking
-- Use GitHub-style todo lists to define phases/milestones:
+- Define phases within a dedicated \`## Phases\` section (required for detection)
+- The section must be delimited by the next \`##\` heading or \`---\` horizontal rule
+- Use GitHub-style todo lists:
   \`\`\`markdown
   ## Phases
 
-  - [ ] Phase 1: Research and design
-  - [ ] Phase 2: Implement core functionality
-  - [ ] Phase 3: Add tests
-  - [ ] Phase 4: Documentation
-  - [x] Phase 5: Code review (completed)
+  - [ ] Research and design
+  - [ ] Implement core functionality
+  - [ ] Add tests
+  - [ ] Documentation
+  - [x] Code review (completed)
+
+  ---
   \`\`\`
 - Mark phases complete with \`[x]\` as work progresses
 - Keep phases at the top level (not nested under other list items)
@@ -240,16 +338,16 @@ Request human review when you need input or approval.`,
 
 ---
 
-## Implementation Phases
+## Phases
 
-- [ ] Create `phase-parser.ts` with `parsePhases()` function
-- [ ] Create `use-plan-phases.ts` hook
-- [ ] Create `PhaseBadge` component
-- [ ] Add phase badge to existing `PlanItem` component
-- [ ] Add `PlanPhasesPanel` to content pane
+- [ ] Add `PhaseInfo` type to `core/types/plans.ts`
+- [ ] Create `agents/src/lib/phase-parser.ts` with `parsePhases()` function
+- [ ] Update `agents/src/core/persistence.ts` abstract interface for phaseInfo
+- [ ] Update `agents/src/lib/persistence-node.ts` to persist phaseInfo
+- [ ] Update `agents/src/runners/shared.ts` PostToolUse hook to parse and persist phases
+- [ ] Update tree menu component to display phase count inline
 - [ ] Add `PLAN_CONVENTIONS` to shared prompts
-- [ ] Update simple agent config to include conventions
-- [ ] Test that agents follow conventions
+- [ ] Update agent configs to include conventions
 
 ---
 
@@ -257,17 +355,22 @@ Request human review when you need input or approval.`,
 
 ### Unit Tests
 - `parsePhases()` with various markdown formats
-- Empty content, no todos, all completed, none completed
+- No `## Phases` section returns null
+- Empty Phases section returns `{ completed: 0, total: 0 }`
+- All completed, none completed, mixed
 - Nested todos (should be ignored)
 - Mixed case `[x]` vs `[X]`
+- Section delimiters: `---` and `## Other Section`
 
 ### Integration Tests
-- Mark phases complete, verify badge updates
-- Plan content changes, verify phase count updates
+- Agent writes plan file → phases detected and persisted
+- Plan metadata.json includes phaseInfo
+- Frontend receives event and displays updated count
 
 ### Manual Testing
-- Verify phase badges update as content changes
-- Click phase in panel, verify scroll to line
+- Create plan with phases, verify count appears in tree
+- Mark phase complete, verify count updates after save
+- Plan without `## Phases` section shows no count
 
 ---
 
@@ -276,3 +379,5 @@ Request human review when you need input or approval.`,
 1. **Phase completion from UI** - Click to toggle phase completion
 2. **Progress rollup** - Parent shows aggregate child progress
 3. **Plan templates** - Pre-defined phase structures for common tasks
+4. **External file changes** - File watcher for changes made outside agent (VS Code, etc.)
+5. **Backfill existing plans** - Migration to parse phases for pre-existing plan files

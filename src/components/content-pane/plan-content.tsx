@@ -38,6 +38,7 @@ import { useContextAwareNavigation } from "@/hooks/use-context-aware-navigation"
 import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";
 import { usePlanContent } from "@/entities/plans/hooks/use-plan-content";
 import { logger } from "@/lib/logger-client";
+import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
 import type { PlanContentProps } from "./types";
 
 export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
@@ -363,6 +364,9 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
           onQuickAction={handleQuickAction}
           onAutoSelectInput={handleAutoSelectInput}
         />
+
+        {/* SDK Quick Actions Panel */}
+        <QuickActionsPanel contextType="plan" />
 
         {/* Message input */}
         <ThreadInput

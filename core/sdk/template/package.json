@@ -1,0 +1,14 @@
+{
+  "name": "mort-quick-actions",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsx build.ts",
+    "watch": "tsx build.ts --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

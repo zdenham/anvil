@@ -22,8 +22,8 @@ function getPlanTitle(plan: PlanMetadata): string {
     return parts[parts.length - 2];
   }
 
-  // Otherwise use filename without extension
-  return filename.replace(/\.md$/, '');
+  // Use filename with extension for individual markdown plans
+  return filename;
 }
 
 /**

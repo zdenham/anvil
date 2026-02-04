@@ -23,6 +23,175 @@ Integrate a terminal UI into Mort using **direct `portable-pty` integration** wi
 
 ---
 
+## Key Decisions
+
+1. **Content Pane Infrastructure**: Main window refactor is complete. `ContentPaneView` types are in place.
+
+2. **Event System**: Terminal events use the existing event bridge (`src/entities/events.ts`) with a `terminal:` namespace. Events:
+   - `terminal:output` - PTY output data
+   - `terminal:exit` - Process exited
+   - `terminal:created` - New terminal session
+   - `terminal:killed` - Terminal archived/killed
+
+3. **Session Lifecycle**:
+   - Closing a content pane does NOT kill the terminal - it persists in background
+   - Terminals appear in left sidebar menu for reconnection
+   - "Archive" button (like other content panes) kills the PTY process
+   - Each terminal is its own content pane (VS Code style)
+
+4. **Working Directory**: Defaults to the worktree root from which the terminal was opened.
+
+5. **UI Entry Point**: "New Terminal" option in the repo/worktree context menu (the plus dropdown on each worktree item), NOT in the header. This is alongside "New Thread" etc.
+
+6. **Terminal Display in Sidebar**: Show last executed command with overflow ellipsis (e.g., "npm run dev..." or "git status..."). Falls back to shell name if no command yet.
+
+7. **Exited Terminal Behavior**: Stay in sidebar with visual indicator (dimmed/badge), remain viewable with scrollback history. User must explicitly archive to remove.
+
+8. **Sidebar Organization**: Terminals appear mixed with threads/plans under their respective worktree, NOT in a separate "Terminals" section. Scoped to worktrees.
+
+9. **Content Pane Controls**: Both "close" (hides pane, keeps terminal alive) and "archive" (kills PTY) buttons in content pane header.
+
+---
+
+## Terminal Session Entity (`src/entities/terminal-sessions/`)
+
+Following the existing entity pattern (threads, plans, worktrees), terminal sessions need their own entity layer.
+
+### Schema (`src/entities/terminal-sessions/schema.ts`)
+
+```typescript
+import { z } from "zod";
+
+export const TerminalSessionSchema = z.object({
+  id: z.string(),
+  worktreeId: z.string(),
+  worktreePath: z.string(),
+  lastCommand: z.string().optional(),  // For sidebar display
+  createdAt: z.string().datetime(),
+  isAlive: z.boolean(),
+  isArchived: z.boolean(),
+});
+
+export type TerminalSession = z.infer<typeof TerminalSessionSchema>;
+```
+
+### Service (`src/entities/terminal-sessions/service.ts`)
+
+```typescript
+import { invoke } from "@tauri-apps/api/core";
+import { eventBus } from "@/entities/events";
+import type { TerminalSession } from "./schema";
+
+class TerminalSessionService {
+  private sessions: Map<string, TerminalSession> = new Map();
+
+  async create(worktreeId: string, worktreePath: string): Promise<TerminalSession> {
+    const numericId = await invoke<number>("spawn_terminal", {
+      cols: 80,
+      rows: 24,
+      cwd: worktreePath,
+    });
+
+    const session: TerminalSession = {
+      id: String(numericId),
+      worktreeId,
+      worktreePath,
+      lastCommand: undefined,
+      createdAt: new Date().toISOString(),
+      isAlive: true,
+      isArchived: false,
+    };
+
+    this.sessions.set(session.id, session);
+    eventBus.emit("terminal:created", session);
+    return session;
+  }
+
+  async archive(id: string): Promise<void> {
+    await invoke("kill_terminal", { id: parseInt(id) });
+    const session = this.sessions.get(id);
+    if (session) {
+      session.isArchived = true;
+      session.isAlive = false;
+      this.sessions.delete(id);
+      eventBus.emit("terminal:archived", { id });
+    }
+  }
+
+  get(id: string): TerminalSession | undefined {
+    return this.sessions.get(id);
+  }
+
+  getByWorktree(worktreeId: string): TerminalSession[] {
+    return Array.from(this.sessions.values())
+      .filter(s => s.worktreeId === worktreeId && !s.isArchived);
+  }
+
+  getAll(): TerminalSession[] {
+    return Array.from(this.sessions.values()).filter(s => !s.isArchived);
+  }
+
+  updateLastCommand(id: string, command: string): void {
+    const session = this.sessions.get(id);
+    if (session) {
+      session.lastCommand = command;
+      eventBus.emit("terminal:updated", { id, lastCommand: command });
+    }
+  }
+
+  markExited(id: string): void {
+    const session = this.sessions.get(id);
+    if (session) {
+      session.isAlive = false;
+      eventBus.emit("terminal:exited", { id });
+    }
+  }
+}
+
+export const terminalSessionService = new TerminalSessionService();
+```
+
+### Hook (`src/entities/terminal-sessions/use-terminal-sessions.ts`)
+
+```typescript
+import { useSyncExternalStore } from "react";
+import { terminalSessionService } from "./service";
+import { eventBus } from "@/entities/events";
+
+export function useTerminalSessions(worktreeId?: string) {
+  return useSyncExternalStore(
+    (callback) => {
+      eventBus.on("terminal:created", callback);
+      eventBus.on("terminal:archived", callback);
+      eventBus.on("terminal:exited", callback);
+      eventBus.on("terminal:updated", callback);
+      return () => {
+        eventBus.off("terminal:created", callback);
+        eventBus.off("terminal:archived", callback);
+        eventBus.off("terminal:exited", callback);
+        eventBus.off("terminal:updated", callback);
+      };
+    },
+    () => worktreeId
+      ? terminalSessionService.getByWorktree(worktreeId)
+      : terminalSessionService.getAll()
+  );
+}
+```
+
+### Events (add to `src/entities/events.ts`)
+
+```typescript
+// Terminal namespace events
+"terminal:created": TerminalSession;
+"terminal:archived": { id: string };
+"terminal:exited": { id: string };
+"terminal:updated": { id: string; lastCommand: string };
+"terminal:output": { id: number; data: number[] };
+```
+
+---
+
 ## Backend Implementation
 
 ### PTY Manager (`src-tauri/src/terminal.rs`)
@@ -39,6 +208,7 @@ pub struct TerminalSession {
     pub child: Box<dyn Child + Send + Sync>,
     pub reader: Box<dyn Read + Send>,
     pub writer: Box<dyn Write + Send>,
+    pub cwd: String,  // Track original working directory for display
 }
 
 pub struct TerminalManager {
@@ -63,7 +233,7 @@ pub async fn spawn_terminal(
     app: AppHandle,
     cols: u16,
     rows: u16,
-    cwd: Option<String>,
+    cwd: String,  // Required - always the worktree root
 ) -> Result<u32, String> {
     let pty_system = native_pty_system();
     let pair = pty_system.openpty(PtySize {
@@ -76,10 +246,7 @@ pub async fn spawn_terminal(
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     let mut cmd = CommandBuilder::new(&shell);
     cmd.arg("-l"); // Login shell
-
-    if let Some(dir) = cwd {
-        cmd.cwd(dir);
-    }
+    cmd.cwd(&cwd);
 
     cmd.env("TERM", "xterm-256color");
     cmd.env("HOME", std::env::var("HOME").unwrap_or_default());
@@ -93,7 +260,7 @@ pub async fn spawn_terminal(
     let id = manager.next_id;
     manager.next_id += 1;
 
-    // Spawn reader thread to emit output events
+    // Spawn reader thread to emit output events via event bridge
     let app_clone = app.clone();
     let mut reader_clone = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     std::thread::spawn(move || {
@@ -101,11 +268,15 @@ pub async fn spawn_terminal(
         loop {
             match reader_clone.read(&mut buf) {
                 Ok(0) => {
-                    app_clone.emit(&format!("terminal:exit:{}", id), ()).ok();
+                    // Emit via event bridge namespace
+                    app_clone.emit("terminal:exit", serde_json::json!({ "id": id })).ok();
                     break;
                 }
                 Ok(n) => {
-                    app_clone.emit(&format!("terminal:output:{}", id), &buf[..n]).ok();
+                    app_clone.emit("terminal:output", serde_json::json!({
+                        "id": id,
+                        "data": &buf[..n]
+                    })).ok();
                 }
                 Err(_) => break,
             }
@@ -117,7 +288,14 @@ pub async fn spawn_terminal(
         child,
         reader,
         writer,
+        cwd: cwd.clone(),
     });
+
+    // Emit terminal:created event for sidebar to pick up
+    app.emit("terminal:created", serde_json::json!({
+        "id": id,
+        "cwd": cwd
+    })).ok();
 
     Ok(id)
 }
@@ -155,11 +333,14 @@ pub async fn resize_terminal(
 #[tauri::command]
 pub async fn kill_terminal(
     state: tauri::State<'_, TerminalState>,
+    app: AppHandle,
     id: u32,
 ) -> Result<(), String> {
     let mut manager = state.lock().unwrap();
     if let Some(mut session) = manager.sessions.remove(&id) {
         session.child.kill().ok();
+        // Emit terminal:killed event for sidebar to update
+        app.emit("terminal:killed", serde_json::json!({ "id": id })).ok();
     }
     Ok(())
 }
@@ -317,66 +498,6 @@ export function TerminalContent({ terminalId, onClose }: TerminalContentProps) {
 }
 ```
 
-### Terminal Store (`src/stores/terminal-store.ts`)
-
-```typescript
-import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
-
-interface TerminalSession {
-  id: string;
-  title: string;
-  cwd: string;
-  createdAt: Date;
-  isAlive: boolean;
-}
-
-interface TerminalStore {
-  terminals: Record<string, TerminalSession>;
-  createTerminal: (cwd?: string) => Promise<string>;
-  closeTerminal: (id: string) => Promise<void>;
-  getTerminal: (id: string) => TerminalSession | undefined;
-}
-
-export const useTerminalStore = create<TerminalStore>((set, get) => ({
-  terminals: {},
-
-  createTerminal: async (cwd?: string) => {
-    const numericId = await invoke<number>("spawn_terminal", {
-      cols: 80,
-      rows: 24,
-      cwd,
-    });
-    const id = String(numericId);
-
-    set((state) => ({
-      terminals: {
-        ...state.terminals,
-        [id]: {
-          id,
-          title: "zsh",
-          cwd: cwd || process.env.HOME || "/",
-          createdAt: new Date(),
-          isAlive: true,
-        },
-      },
-    }));
-
-    return id;
-  },
-
-  closeTerminal: async (id: string) => {
-    await invoke("kill_terminal", { id: parseInt(id) });
-    set((state) => {
-      const { [id]: _, ...rest } = state.terminals;
-      return { terminals: rest };
-    });
-  },
-
-  getTerminal: (id: string) => get().terminals[id],
-}));
-```
-
 ---
 
 ## Content Pane Integration
@@ -407,30 +528,38 @@ export type ContentPaneView =
 3. Register terminal commands in `src-tauri/src/lib.rs`
 4. Test spawn/write/resize/kill cycle
 
-### Phase 2: Frontend Terminal Pane
+### Phase 2: Terminal Session Entity
+1. Create `src/entities/terminal-sessions/` following existing entity patterns
+2. Implement schema, service, and React hook
+3. Add terminal events to `src/entities/events.ts`
+4. Wire up Tauri event listeners for backend events
+
+### Phase 3: Frontend Terminal Pane
 1. Add xterm.js packages to package.json
-2. Create `src/components/content-pane/terminal-content.tsx` (see Frontend Implementation above)
-3. Create `src/stores/terminal-store.ts` for session state
-4. Update `ContentPaneView` type to include terminal
-5. Update `ContentPane` component to render `TerminalContent`
+2. Create `src/components/content-pane/terminal-content.tsx`
+3. Update `ContentPaneView` type to include terminal
+4. Update `ContentPane` component to render `TerminalContent`
+5. Add both "close" and "archive" buttons to terminal pane header
 
-### Phase 3: UI Integration
-1. Add terminal icon button to `TreePanelHeader`
-2. Wire button to create terminal + open content pane
-3. Handle terminal exit (show message, restart option)
+### Phase 4: UI Integration (Worktree Menu)
+1. Add "New Terminal" option to worktree context menu (plus dropdown)
+2. Terminal opens in the worktree path from which it was triggered
+3. Handle terminal exit (show "[Process exited]" message in pane)
 
-### Phase 4: Polish (Optional)
+### Phase 5: Tree Menu / Sidebar Integration (Required)
+1. Create `terminal-tree-item.tsx` component for sidebar
+2. Display terminals under their respective worktree (mixed with threads/plans)
+3. Show last command with ellipsis overflow as the item label
+4. Visual indicator for exited terminals (dimmed)
+5. Click to open/focus content pane
+6. Archive button kills PTY and removes from list
+
+### Phase 6: Polish
 1. Debounced resize handling
 2. Copy/paste keyboard shortcuts (Cmd+C/V)
 3. Basic theming (match Mort dark theme)
-4. Custom working directory (open in repo root)
 
-### Phase 5: Tree Menu Integration (Optional)
-1. Add "Terminals" section showing active sessions
-2. Click to focus terminal pane
-3. Right-click to rename/kill
-
-### Phase 6: Advanced (Optional)
+### Phase 7: Advanced (Optional)
 1. Session persistence across app restart
 2. macOS Terminal.app preference import
 3. Split terminal panes
@@ -455,11 +584,17 @@ pnpm add @xterm/xterm @xterm/addon-fit @xterm/addon-webgl @xterm/addon-search
 ## File Structure
 
 ```
+src/entities/terminal-sessions/
+├── index.ts                    # NEW - Entity exports
+├── schema.ts                   # NEW - Zod schema
+├── service.ts                  # NEW - Session management
+├── use-terminal-sessions.ts    # NEW - React hook
+
 src/components/content-pane/
 ├── terminal-content.tsx        # NEW - xterm.js wrapper
 
-src/stores/
-├── terminal-store.ts           # NEW - Terminal session state
+src/components/tree-menu/
+├── terminal-tree-item.tsx      # NEW - Sidebar terminal item
 
 src-tauri/src/
 ├── terminal.rs                 # NEW - PTY management

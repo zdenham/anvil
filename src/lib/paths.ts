@@ -1,0 +1,84 @@
+/**
+ * Path utilities for Mort application resources and directories.
+ *
+ * Provides helpers for resolving:
+ * - Quick actions template directory (bundled with app)
+ * - Quick actions project directory (~/.mort/quick-actions)
+ * - SDK runner script (bundled with app)
+ * - SDK types file (bundled with app)
+ */
+
+import { resolveResource } from '@tauri-apps/api/path';
+import { FilesystemClient } from './filesystem-client';
+
+const fs = new FilesystemClient();
+
+/**
+ * Gets the path to the quick actions template directory.
+ * In production, this is bundled with the app.
+ * In development, it's in the source tree.
+ */
+export async function getQuickActionsTemplatePath(): Promise<string> {
+  const isDev = import.meta.env.DEV;
+
+  if (isDev) {
+    // Development: use source directory
+    return `${__PROJECT_ROOT__}/core/sdk/template`;
+  }
+
+  // Production: resolve from bundled resources
+  const resourceDir = await resolveResource('quick-actions-template');
+  return resourceDir;
+}
+
+/**
+ * Gets the path to the user's quick actions project.
+ * Located at ~/.mort/quick-actions (or ~/.mort-dev/quick-actions in dev).
+ */
+export async function getQuickActionsProjectPath(): Promise<string> {
+  const mortDir = await fs.getDataDir();
+  return fs.joinPath(mortDir, 'quick-actions');
+}
+
+/**
+ * Gets the path to the SDK runner script.
+ * The runner executes user actions with the SDK injected at runtime (per DD #4).
+ */
+export async function getRunnerPath(): Promise<string> {
+  const isDev = import.meta.env.DEV;
+
+  if (isDev) {
+    // Development: use source directory (TypeScript file, run with tsx)
+    return `${__PROJECT_ROOT__}/core/sdk/runner.ts`;
+  }
+
+  // Production: resolve from bundled resources (compiled JS)
+  const runnerPath = await resolveResource('sdk-runner.js');
+  return runnerPath;
+}
+
+/**
+ * Gets the path to the SDK types.d.ts file.
+ * Per DD #4 and DD #22, this is the only SDK file shipped to user projects.
+ * The actual SDK implementation is injected at runtime by the runner.
+ */
+export async function getSdkTypesPath(): Promise<string> {
+  const isDev = import.meta.env.DEV;
+
+  if (isDev) {
+    // Development: use the dist/index.d.ts from the SDK
+    return `${__PROJECT_ROOT__}/core/sdk/dist/index.d.ts`;
+  }
+
+  // Production: resolve from bundled resources
+  const typesPath = await resolveResource('sdk-types.d.ts');
+  return typesPath;
+}
+
+/**
+ * Gets the .mort data directory path.
+ * This is a convenience export that delegates to FilesystemClient.
+ */
+export async function getMortDir(): Promise<string> {
+  return fs.getDataDir();
+}

@@ -39,3 +39,6 @@ export * from "./relations.js";
 
 // Log types - shared between Tauri client and Node server
 export * from "./logs.js";
+
+// Quick action types - shared between Tauri client and Node server
+export * from "./quick-actions.js";

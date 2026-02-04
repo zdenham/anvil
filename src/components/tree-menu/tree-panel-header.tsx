@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
-import { Cog, RefreshCw, ScrollText, Terminal } from "lucide-react";
+import { RefreshCw, Terminal } from "lucide-react";
 import { MortLogo } from "@/components/ui/mort-logo";
 import { Tooltip } from "@/components/ui/tooltip";
+import { MenuDropdown } from "./menu-dropdown";
 import { threadService } from "@/entities/threads/service";
 import { planService } from "@/entities/plans/service";
 import { repoService } from "@/entities/repositories";
@@ -65,22 +66,6 @@ export function TreePanelHeader({
             <RefreshCw size={12} className={isRefreshing ? "animate-spin" : ""} />
           </button>
         </Tooltip>
-        <Tooltip content="Settings" side="bottom">
-          <button
-            onClick={onSettingsClick}
-            className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-800 text-surface-400 hover:text-surface-200 transition-colors"
-          >
-            <Cog size={12} />
-          </button>
-        </Tooltip>
-        <Tooltip content="Logs" side="bottom">
-          <button
-            onClick={onLogsClick}
-            className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-800 text-surface-400 hover:text-surface-200 transition-colors"
-          >
-            <ScrollText size={12} />
-          </button>
-        </Tooltip>
         {onTerminalClick && (
           <Tooltip content="Terminal" side="bottom">
             <button
@@ -91,6 +76,7 @@ export function TreePanelHeader({
             </button>
           </Tooltip>
         )}
+        <MenuDropdown onSettingsClick={onSettingsClick} onLogsClick={onLogsClick} />
       </div>
     </div>
   );

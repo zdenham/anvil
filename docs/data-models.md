@@ -2,69 +2,24 @@
 
 This document describes the core data models in Mort. All persistent data is stored in the `~/.mort/` directory.
 
-## Task
-
-The primary construct in Mort. A task represents something the user needs to accomplish.
-
-**Storage**: `~/.mort/tasks/{slug}/`
-
-**Structure**:
-```
-{slug}/
-  metadata.json    # TaskMetadata
-  content.md       # User-authored description/notes
-  threads/         # Thread directories (see Thread section)
-```
-
-**Properties**:
-- `id`: Unique identifier (format: `task-{timestamp}-{random}`)
-- `slug`: URL-safe identifier, slugified from title
-- `title`: Human-readable name
-- `description`: Optional description
-- `branchName`: Git branch name (`task/{slug}`)
-- `type`: `"work"` | `"investigate"`
-- `status`: Phase the task is in (see below)
-- `subtasks`: Array of inline checkbox items (`{ id, title, completed }`)
-- `parentId`: Reference to parent task (for nested subtasks), or `null`
-- `tags`: Array of tag strings
-- `sortOrder`: Numeric order for display
-- `repositoryName`: Which repository this task operates on
-- `pendingReview`: Review request from agent, or `null`
-- `reviewApproved`: Whether review has been approved
-- `prUrl`: Pull request URL when PR has been created
-- `createdAt`, `updatedAt`: Timestamps (milliseconds)
-
-**TaskStatus values**:
-- `draft` - Created at spotlight, not yet committed
-- `backlog` - Ideas, not yet prioritized
-- `todo` - Prioritized, ready to work on
-- `in-progress` - Agent actively working
-- `in-review` - Work done, under review
-- `done` - Merged and complete
-- `cancelled` - Abandoned
-
-**Key characteristics**:
-- Most permanent construct - tasks persist across sessions
-- Context is scoped to a task and its subtasks
-- Threads are stored within the task directory
-
-**Implementation**: `core/types/tasks.ts` (types), `src/entities/tasks/` (service)
-
 ## Thread
 
-A user's interaction with an agent. Threads are persisted within their parent task.
+A user's interaction with an agent. Threads are the primary interaction model.
 
-**Storage**: `~/.mort/tasks/{task-slug}/threads/{agentType}-{threadId}/metadata.json`
+**Storage**: `~/.mort/threads/{threadId}/metadata.json`
 
 **Properties**:
 - `id`: UUID identifying the thread
-- `taskId`: Parent task ID (required - every thread belongs to a task)
-- `agentType`: Type of agent (`"entrypoint"` | `"execution"` | `"review"` | `"merge"` | `"research"`)
-- `workingDirectory`: Absolute path to working directory
+- `repoId`: Repository UUID this thread belongs to
+- `worktreeId`: Worktree UUID where work happens
 - `status`: Thread state (see below)
 - `turns`: Array of conversation turns
-- `git`: Optional git info (`{ branch, commitHash? }`)
-- `ttlMs`: Optional time-to-live
+- `git`: Optional git info (`{ branch, initialCommitHash?, commitHash? }`)
+- `changedFilePaths`: Array of files modified by this thread
+- `isRead`: Whether thread has been viewed
+- `markedUnreadAt`: Timestamp when marked unread (for navigation cooldown)
+- `pid`: Process ID when running, or `null`
+- `name`: Auto-generated thread name (max 30 chars)
 - `createdAt`, `updatedAt`: Timestamps (milliseconds)
 
 **ThreadStatus values**:
@@ -73,6 +28,7 @@ A user's interaction with an agent. Threads are persisted within their parent ta
 - `completed` - Finished successfully
 - `error` - Terminated with error
 - `paused` - Temporarily suspended
+- `cancelled` - Abandoned
 
 **ThreadTurn**:
 - `index`: Turn number
@@ -83,35 +39,76 @@ A user's interaction with an agent. Threads are persisted within their parent ta
 - `costUsd`: Optional cost in USD
 
 **Key characteristics**:
-- Threads live within their parent task directory
-- Multiple threads can exist per task (different agent types)
-- Thread folder name format: `{agentType}-{uuid}`
+- Threads are top-level entities, not nested under tasks
+- Each thread is scoped to a repository and worktree
+- Thread folder name is simply the UUID
 
-**Implementation**: `src/entities/threads/types.ts` (types), `src/entities/threads/` (service)
+**Implementation**: `core/types/threads.ts` (types), `src/entities/threads/` (service)
+
+## Plan
+
+A markdown file representing work to be done. Plans live in the repository and are tracked by Mort.
+
+**Storage**: `~/.mort/plans/{planId}/metadata.json`
+
+**Properties**:
+- `id`: UUID identifying the plan
+- `repoId`: Repository UUID this plan belongs to
+- `worktreeId`: Worktree UUID where the plan file lives
+- `relativePath`: Path relative to repo's plans directory
+- `parentId`: For nested plans, the parent plan UUID
+- `isFolder`: True if this plan has children (is a "folder" plan)
+- `isRead`: Whether plan has been viewed
+- `markedUnreadAt`: Timestamp when marked unread (for navigation cooldown)
+- `stale`: True if file was not found on last access
+- `lastVerified`: Timestamp of last successful file access
+- `createdAt`, `updatedAt`: Timestamps (milliseconds)
+
+**Key characteristics**:
+- Plans are markdown files stored in the repository (not ~/.mort)
+- Mort tracks metadata about plans separately
+- Supports nested plans (folder structure with parent/child relationships)
+
+**Implementation**: `core/types/plans.ts` (types), `src/entities/plans/` (service)
+
+## Plan-Thread Relation
+
+Tracks the relationship between plans and threads.
+
+**Storage**: `~/.mort/plan-thread-edges/{planId}-{threadId}.json`
+
+**Properties**:
+- `planId`: Plan UUID
+- `threadId`: Thread UUID
+- `type`: Relation type (see below)
+- `archived`: Set true when thread or plan is archived
+- `createdAt`, `updatedAt`: Timestamps (milliseconds)
+
+**RelationType values** (in precedence order):
+- `created` - Thread created this plan file (highest)
+- `modified` - Thread modified this plan file
+- `mentioned` - Thread referenced this plan (lowest)
+
+**Implementation**: `core/types/relations.ts` (types), `src/entities/relations/` (service)
 
 ## Repository
 
 A code repository the user works in.
 
-**Storage**: `~/.mort/repositories/{repo-slug}/`
-
-**Structure**:
-```
-{repo-slug}/
-  settings.json         # RepositorySettings
-  {repo-slug}-1/        # Worktree/version 1
-  {repo-slug}-2/        # Worktree/version 2
-  ...
-```
+**Storage**: `~/.mort/repositories/{repo-slug}/settings.json`
 
 **RepositorySettings properties**:
+- `id`: UUID for repository identification
 - `schemaVersion`: Schema version for migrations (currently `1`)
 - `name`: Repository name
 - `originalUrl`: Git remote URL if cloned, or `null`
 - `sourcePath`: Path to source repository
 - `useWorktrees`: Whether worktrees are enabled
+- `defaultBranch`: Default branch name (e.g., `"main"`)
 - `worktrees`: Array of `WorktreeState` (see Worktree section)
 - `threadBranches`: Record of thread ID → `ThreadBranchInfo`
+- `plansDirectory`: Directory where plan files are stored (relative to repo root)
+- `completedDirectory`: Directory for completed/archived plans
 - `createdAt`: Timestamp when repo was added
 - `lastUpdated`: Last modification timestamp
 
@@ -123,56 +120,52 @@ A code repository the user works in.
 - `createdAt`: Timestamp of branch creation
 
 **Key characteristics**:
-- Contains multiple worktrees/versions for parallel work
-- Git repos use worktrees (fast, space-efficient)
-- Task branch info is tracked per repository
+- Contains multiple worktrees for parallel work
+- Git worktrees share the object database (fast, space-efficient)
+- Thread branch info is tracked per repository
 
-**Implementation**: `src/entities/repositories/types.ts` (types), `src/entities/repositories/` (service)
+**Implementation**: `core/types/repositories.ts` (types), `src/entities/repositories/` (service)
 
 ## Worktree
 
 A specific git worktree within a repository. Provides isolated working directories.
 
-**Storage**: Lives within repository directory as `{repo-slug}-N/`
+**Storage**: Lives within repository directory, tracked in `settings.json`
 
 **WorktreeState properties**:
+- `id`: UUID for worktree identification
 - `path`: Absolute path to the worktree directory
-- `version`: Numeric identifier (1, 2, 3...)
+- `name`: Name of the worktree
+- `createdAt`: Creation timestamp
+- `lastAccessedAt`: Last access timestamp
 - `currentBranch`: Currently checked out branch, or `null`
-- `claim`: Active `WorktreeClaim`, or `null` if available
-
-**WorktreeClaim** (when a thread is using a worktree):
-- `threadId`: The thread ID holding the claim
-- `taskId`: The task this thread belongs to (or `null` during routing)
-- `claimedAt`: Timestamp when claim was made
+- `isRenamed`: Whether this worktree has been renamed from its initial name
 
 **Key characteristics**:
-- Finite pool - worktrees can be rotated between tasks
-- Claims track which thread is actively using a worktree
+- Worktrees are pooled per repository
 - Git worktrees share the object database (fast to create, space-efficient)
-- Worktrees can be reclaimed from idle tasks for active work
+- Threads reference worktrees by UUID
 
 ## Relationships
 
 ```
 Repository (1) ─── contains ───> (*) Worktree
      │
-     ├── tracks threadBranches (thread ID → branch info)
-     │
-     └── worktrees can be claimed by threads
+     └── tracks threadBranches (thread ID → branch info)
 
-Task (1) ─── contains ───> (*) Thread
-  │                              │
-  │                              └── claims (0..1) ───> Worktree
+Thread (*) ─── references ───> (1) Repository
+   │
+   └── references ───> (1) Worktree
+
+Plan (*) ─── references ───> (1) Repository
   │
-  ├── has (*) ───> Subtask (inline checkboxes)
-  │
-  └── has branch info stored in Repository.threadBranches
+  └── references ───> (1) Worktree
+
+Plan (*) ─── PlanThreadRelation ───> (*) Thread
 ```
 
 **Lifecycle notes**:
-- Tasks are permanent until explicitly deleted
-- Threads live within their parent task directory
-- Worktrees are pooled and claimed by threads as needed
-- A worktree can be reclaimed from an idle thread for active work
-- Branch info (merge base, base branch) is tracked per task in the repository settings
+- Threads are top-level entities scoped to a repository/worktree
+- Plans track markdown files in the repository
+- Plan-Thread relations track how threads interact with plans
+- Branch info (merge base, base branch) is tracked per thread in the repository settings

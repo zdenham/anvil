@@ -37,6 +37,7 @@ import {
   type SuggestedActionsPanelRef,
 } from "./suggested-actions-panel";
 import { QueuedMessagesBanner } from "./queued-messages-banner";
+import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
 import { logger } from "@/lib/logger-client";
 import { cn } from "@/lib/utils";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
@@ -522,6 +523,9 @@ export function ThreadContent({
           onSubmitFollowUp={handleSubmit}
           onQuickAction={handleQuickAction}
         />
+
+        {/* SDK Quick Actions Panel */}
+        <QuickActionsPanel contextType="thread" />
 
         {/* Queued messages banner */}
         <QueuedMessagesBanner messages={queuedMessages} />
