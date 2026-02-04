@@ -15,13 +15,13 @@
  */
 
 import { FilesystemClient, type DirEntry } from './filesystem-client';
-import { getMortDir, getQuickActionsTemplatePath, getSdkTypesPath } from './paths';
+import { getMortDir, getQuickActionsTemplatePath, getSdkTypesPath, getQuickActionsProjectPath } from './paths';
 import { logger } from './logger-client';
 import { checkNodeAvailable as checkNode, type NodeAvailability } from './node-detection';
 
 const fs = new FilesystemClient();
 
-const SDK_VERSION = '1.1.0'; // Bump version to trigger migration
+const SDK_VERSION = '1.0.0';
 const QUICK_ACTIONS_DIR = 'quick-actions';
 const TYPES_FILE = 'sdk.d.ts';
 const MORT_TYPES_DIR = '.mort'; // Types directory name (safe from pnpm install)
@@ -90,10 +90,8 @@ export async function initializeQuickActionsProject(): Promise<InitResult> {
     // Project exists - check if SDK types need updating
     const currentVersion = await readSdkVersion(projectPath);
 
-    // Fix: Also update if version is missing (types were deleted or never existed)
     if (!currentVersion || needsUpdate(currentVersion, SDK_VERSION)) {
       await updateSdkTypes(projectPath);
-      await updateTsConfig(projectPath); // Ensure tsconfig has paths
       logger.info('Updated quick actions SDK types', {
         from: currentVersion ?? 'missing',
         to: SDK_VERSION,
@@ -119,27 +117,26 @@ async function copyTemplate(projectPath: string): Promise<void> {
 
   // Create project directory structure
   await fs.mkdir(projectPath);
-  const sdkDir = fs.joinPath(projectPath, 'node_modules', '@mort', 'sdk');
-  await fs.mkdir(sdkDir);
 
-  // Copy template files (excluding node_modules - we only ship types.d.ts)
+  // Create .mort directory for SDK types (safe from pnpm install)
+  const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
+  await fs.mkdir(mortTypesDir);
+
+  // Copy template files (excluding node_modules - user will run pnpm install)
   await copyDirExcluding(templatePath, projectPath, ['node_modules', 'dist']);
 
-  // Copy only the types.d.ts file (DD #4 and #22)
-  // User projects never import real SDK code, only type definitions
-  const typesDestPath = fs.joinPath(sdkDir, TYPES_FILE);
+  // Copy SDK types to .mort directory (DD #4 and #22)
+  const typesDestPath = fs.joinPath(mortTypesDir, TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
-  // Create a minimal package.json for the SDK types
-  const sdkPackageJson = {
-    name: '@mort/sdk',
+  // Create SDK version file for tracking
+  const versionFile = {
     version: SDK_VERSION,
-    types: TYPES_FILE,
-    description: 'Type definitions for Mort Quick Actions SDK',
+    updatedAt: new Date().toISOString(),
   };
   await fs.writeJsonFile(
-    fs.joinPath(sdkDir, 'package.json'),
-    sdkPackageJson
+    fs.joinPath(mortTypesDir, 'version.json'),
+    versionFile
   );
 }
 
@@ -174,10 +171,12 @@ async function copyDirExcluding(
 
 async function readSdkVersion(projectPath: string): Promise<string | null> {
   try {
-    // Read version from the minimal package.json we create for SDK types
-    const pkgPath = fs.joinPath(projectPath, 'node_modules', '@mort', 'sdk', 'package.json');
-    const pkg = await fs.readJsonFile<{ version?: string }>(pkgPath);
-    return pkg.version ?? null;
+    const versionPath = fs.joinPath(projectPath, MORT_TYPES_DIR, 'version.json');
+    if (await fs.exists(versionPath)) {
+      const data = await fs.readJsonFile<{ version?: string }>(versionPath);
+      return data.version ?? null;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -199,32 +198,45 @@ export function needsUpdate(current: string, target: string): boolean {
 }
 
 /**
- * Update only the SDK types.d.ts file (DD #4 and #22).
+ * Update only the SDK types file (DD #4 and #22).
  * User's actions and other project files are preserved.
  * The actual SDK implementation is injected at runtime by Mort's runner.
  */
 async function updateSdkTypes(projectPath: string): Promise<void> {
   const sdkTypesPath = await getSdkTypesPath();
-  const sdkDir = fs.joinPath(projectPath, 'node_modules', '@mort', 'sdk');
+  const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
 
-  // Ensure SDK directory exists
-  await fs.mkdir(sdkDir);
+  // Ensure .mort directory exists
+  await fs.mkdir(mortTypesDir);
 
-  // Update types.d.ts
-  const typesDestPath = fs.joinPath(sdkDir, TYPES_FILE);
+  // Update sdk.d.ts
+  const typesDestPath = fs.joinPath(mortTypesDir, TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
-  // Update package.json with new version
-  const sdkPackageJson = {
-    name: '@mort/sdk',
+  // Update version file
+  const versionFile = {
     version: SDK_VERSION,
-    types: TYPES_FILE,
-    description: 'Type definitions for Mort Quick Actions SDK',
+    updatedAt: new Date().toISOString(),
   };
   await fs.writeJsonFile(
-    fs.joinPath(sdkDir, 'package.json'),
-    sdkPackageJson
+    fs.joinPath(mortTypesDir, 'version.json'),
+    versionFile
   );
+}
 
-  // Note: User's build.ts and other project files are preserved
+/**
+ * Verify SDK types are present and recover if missing.
+ * Call this before discovering quick actions.
+ */
+export async function ensureSdkTypesPresent(): Promise<boolean> {
+  const projectPath = await getQuickActionsProjectPath();
+  const typesPath = fs.joinPath(projectPath, MORT_TYPES_DIR, TYPES_FILE);
+
+  if (!await fs.exists(typesPath)) {
+    logger.warn('SDK types missing, attempting recovery');
+    await updateSdkTypes(projectPath);
+    return true; // Recovered
+  }
+
+  return false; // Already present
 }
