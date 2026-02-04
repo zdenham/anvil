@@ -203,6 +203,28 @@ export interface GitAdapter {
    * @returns Branch name or null if detached
    */
   getCurrentBranch(worktreePath: string): string | null;
+
+  /**
+   * List all local branches in the repository.
+   * @param repoPath - Path to the repository
+   * @returns Array of branch names
+   */
+  listBranches(repoPath: string): string[];
+
+  /**
+   * Get the diff between a base commit and HEAD.
+   * @param repoPath - Path to the repository
+   * @param baseCommit - The base commit to diff from
+   * @returns The diff as a string
+   */
+  getDiff(repoPath: string, baseCommit: string): string;
+
+  /**
+   * Get the HEAD commit hash.
+   * @param repoPath - Path to the repository
+   * @returns The full commit SHA of HEAD
+   */
+  getHeadCommit(repoPath: string): string;
 }
 
 // =============================================================================

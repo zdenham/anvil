@@ -50,7 +50,7 @@
       "../agents/package.json",
       "../agents/dist/**/*",
       "../agents/node_modules/@anthropic-ai/**/*",
-      "../quick-actions-template/**/*",
+      "../core/sdk/template/**/*",
       "../sdk-runner.js",
       "../sdk-types.d.ts"
     ]

@@ -1,10 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import {
   QuickActionContextSchema,
+  QuickActionManifestEntrySchema,
   QuickActionManifestSchema,
   QuickActionMetadataSchema,
   QuickActionsRegistrySchema,
   QuickActionOverrideSchema,
+  type QuickActionContext,
+  type QuickActionManifestEntry,
+  type QuickActionManifest,
+  type QuickActionMetadata,
+  type QuickActionsRegistry,
+  type QuickActionOverride,
+  type UpdateQuickActionInput,
+  type ResolvedQuickAction,
 } from '../quick-actions';
 
 describe('QuickActionContextSchema', () => {
@@ -18,6 +27,39 @@ describe('QuickActionContextSchema', () => {
   it('rejects invalid contexts', () => {
     expect(() => QuickActionContextSchema.parse('invalid')).toThrow();
     expect(() => QuickActionContextSchema.parse('settings')).toThrow();
+  });
+});
+
+describe('QuickActionManifestEntrySchema', () => {
+  it('accepts valid entry with all fields', () => {
+    const entry = {
+      slug: 'archive-and-next',
+      title: 'Archive & Next',
+      description: 'Archives current thread',
+      entryPoint: 'actions/archive-and-next.js',
+      contexts: ['thread'],
+    };
+    expect(() => QuickActionManifestEntrySchema.parse(entry)).not.toThrow();
+  });
+
+  it('accepts entry without optional description', () => {
+    const entry = {
+      slug: 'archive',
+      title: 'Archive',
+      entryPoint: 'actions/archive.js',
+      contexts: ['thread', 'plan'],
+    };
+    expect(() => QuickActionManifestEntrySchema.parse(entry)).not.toThrow();
+  });
+
+  it('rejects entry with invalid context', () => {
+    const entry = {
+      slug: 'test',
+      title: 'Test',
+      entryPoint: 'test.js',
+      contexts: ['invalid-context'],
+    };
+    expect(() => QuickActionManifestEntrySchema.parse(entry)).toThrow();
   });
 });
 
@@ -47,6 +89,11 @@ describe('QuickActionManifestSchema', () => {
   it('rejects manifest missing required fields', () => {
     expect(() => QuickActionManifestSchema.parse({})).toThrow();
     expect(() => QuickActionManifestSchema.parse({ version: 1 })).toThrow();
+  });
+
+  it('validates sdkVersion field is present (design decision #13)', () => {
+    const manifest = { version: 1, actions: [] };
+    expect(() => QuickActionManifestSchema.parse(manifest)).toThrow();
   });
 });
 
@@ -180,5 +227,60 @@ describe('QuickActionOverrideSchema', () => {
     expect(() => QuickActionOverrideSchema.parse({ hotkey: 9 })).not.toThrow();
     expect(() => QuickActionOverrideSchema.parse({ hotkey: -1 })).toThrow();
     expect(() => QuickActionOverrideSchema.parse({ hotkey: 10 })).toThrow();
+  });
+});
+
+describe('Type exports', () => {
+  it('exports all required types', () => {
+    // Type-level checks - these verify the types are correctly exported
+    // If any of these fail to compile, the test file itself won't run
+    const contextCheck: QuickActionContext = 'thread';
+    const manifestEntryCheck: QuickActionManifestEntry = {
+      slug: 'test',
+      title: 'Test',
+      entryPoint: 'test.js',
+      contexts: ['all'],
+    };
+    const manifestCheck: QuickActionManifest = {
+      version: 1,
+      sdkVersion: '1.0.0',
+      actions: [],
+    };
+    const metadataCheck: QuickActionMetadata = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      slug: 'test',
+      title: 'Test',
+      entryPoint: 'test.js',
+      projectPath: '/path',
+      contexts: ['all'],
+      order: 0,
+      enabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const registryCheck: QuickActionsRegistry = {
+      actionOverrides: {},
+      slugToId: {},
+    };
+    const overrideCheck: QuickActionOverride = {};
+    const updateInputCheck: UpdateQuickActionInput = {};
+    const resolvedCheck: ResolvedQuickAction = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      slug: 'test',
+      title: 'Test',
+      entryPoint: 'test.js',
+      projectPath: '/path',
+      contexts: ['all'],
+    };
+
+    // Runtime assertion to make the test meaningful
+    expect(contextCheck).toBe('thread');
+    expect(manifestEntryCheck.slug).toBe('test');
+    expect(manifestCheck.version).toBe(1);
+    expect(metadataCheck.id).toBeDefined();
+    expect(registryCheck.actionOverrides).toBeDefined();
+    expect(overrideCheck).toBeDefined();
+    expect(updateInputCheck).toBeDefined();
+    expect(resolvedCheck.id).toBeDefined();
   });
 });

@@ -122,6 +122,19 @@ export class NodeGitAdapter implements GitAdapter {
     }
   }
 
+  listBranches(repoPath: string): string[] {
+    const output = this.exec(['branch', '--format=%(refname:short)'], repoPath);
+    return output.split('\n').filter(Boolean);
+  }
+
+  getDiff(repoPath: string, baseCommit: string): string {
+    return this.exec(['diff', `${baseCommit}..HEAD`], repoPath);
+  }
+
+  getHeadCommit(repoPath: string): string {
+    return this.exec(['rev-parse', 'HEAD'], repoPath);
+  }
+
   /**
    * Parse git worktree list --porcelain output.
    * Format: worktree <path>\nHEAD <sha>\nbranch <ref>\n\n

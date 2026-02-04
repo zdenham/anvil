@@ -21,9 +21,10 @@ import { checkNodeAvailable as checkNode, type NodeAvailability } from './node-d
 
 const fs = new FilesystemClient();
 
-const SDK_VERSION = '1.0.0';
+const SDK_VERSION = '1.1.0'; // Bump version to trigger migration
 const QUICK_ACTIONS_DIR = 'quick-actions';
-const TYPES_FILE = 'types.d.ts';
+const TYPES_FILE = 'sdk.d.ts';
+const MORT_TYPES_DIR = '.mort'; // Types directory name (safe from pnpm install)
 
 export interface InitResult {
   created: boolean;
@@ -88,10 +89,13 @@ export async function initializeQuickActionsProject(): Promise<InitResult> {
 
     // Project exists - check if SDK types need updating
     const currentVersion = await readSdkVersion(projectPath);
-    if (currentVersion && needsUpdate(currentVersion, SDK_VERSION)) {
+
+    // Fix: Also update if version is missing (types were deleted or never existed)
+    if (!currentVersion || needsUpdate(currentVersion, SDK_VERSION)) {
       await updateSdkTypes(projectPath);
+      await updateTsConfig(projectPath); // Ensure tsconfig has paths
       logger.info('Updated quick actions SDK types', {
-        from: currentVersion,
+        from: currentVersion ?? 'missing',
         to: SDK_VERSION,
       });
       return { created: false, updated: true };

@@ -28,6 +28,6 @@
     }
   },
   "include": ["src", "core"],
-  "exclude": ["**/*.test.ts", "**/*.test.tsx"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "core/sdk/template", "core/sdk/template/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

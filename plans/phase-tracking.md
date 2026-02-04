@@ -53,7 +53,7 @@ Tree menu reads phaseInfo from plan store, displays count
 **`agents/src/lib/phase-parser.ts`** (new file)
 
 ```typescript
-import { PhaseInfo } from "@mort/types";
+import type { PhaseInfo } from "@core/types/plans.js";
 
 /**
  * Parse markdown content for GitHub-style todo lists within a ## Phases section.
@@ -106,6 +106,7 @@ export function parsePhases(markdown: string): PhaseInfo | null {
   }
 
   // Return null if no Phases section found
+  // Return { completed: 0, total: 0 } if section exists but is empty
   if (!inPhasesSection) {
     return null;
   }
@@ -180,38 +181,65 @@ if (isPlanPath(filePath, context.workingDir)) {
 
 ### 4. Persistence Layer Update
 
-**`agents/src/core/persistence.ts`** - Update plan persistence to handle phaseInfo:
+**`agents/src/core/persistence.ts`** - Update `ensurePlanExists` signature to accept phaseInfo:
 
+Current signature (positional args):
 ```typescript
-abstract ensurePlanExists(params: {
-  repoId: string;
-  worktreeId: string;
-  relativePath: string;
-  phaseInfo?: PhaseInfo | null;  // NEW
-}): Promise<string>;
+async ensurePlanExists(
+  repoId: string,
+  worktreeId: string,
+  absolutePath: string,
+  workingDir: string
+): Promise<{ id: string; isNew: boolean }>
 ```
 
-**`agents/src/lib/persistence-node.ts`** - Implementation:
+Updated signature (add phaseInfo parameter):
+```typescript
+async ensurePlanExists(
+  repoId: string,
+  worktreeId: string,
+  absolutePath: string,
+  workingDir: string,
+  phaseInfo?: PhaseInfo | null  // NEW
+): Promise<{ id: string; isNew: boolean }>
+```
+
+Update the implementation to pass phaseInfo to both `updatePlan` (for existing) and `createPlan` (for new):
 
 ```typescript
-async ensurePlanExists({ repoId, worktreeId, relativePath, phaseInfo }) {
-  const existing = await this.findPlanByPath(repoId, relativePath);
+async ensurePlanExists(
+  repoId: string,
+  worktreeId: string,
+  absolutePath: string,
+  workingDir: string,
+  phaseInfo?: PhaseInfo | null
+): Promise<{ id: string; isNew: boolean }> {
+  const relativePath = isAbsolute(absolutePath)
+    ? this.toRelativePath(absolutePath, workingDir)
+    : absolutePath;
 
+  const existing = await this.findPlanByPath(repoId, relativePath);
   if (existing) {
-    // Update existing plan with new phaseInfo
-    const updated = {
-      ...existing,
-      phaseInfo: phaseInfo ?? undefined,  // Convert null to undefined for JSON
-      updatedAt: Date.now(),
-    };
-    await this.writePlanMetadata(existing.id, updated);
-    return existing.id;
+    // Update with new phaseInfo (convert null to undefined for clean JSON)
+    await this.updatePlan(existing.id, {
+      isRead: false,
+      phaseInfo: phaseInfo ?? undefined,
+    });
+    return { id: existing.id, isNew: false };
   }
 
   // Create new plan with phaseInfo
-  return this.createPlan({ repoId, worktreeId, relativePath, phaseInfo });
+  const plan = await this.createPlan({
+    repoId,
+    worktreeId,
+    relativePath,
+    phaseInfo: phaseInfo ?? undefined,
+  });
+  return { id: plan.id, isNew: true };
 }
 ```
+
+Also update `createPlan` input type to accept optional phaseInfo.
 
 ### 5. Frontend Store Update
 
@@ -221,36 +249,35 @@ The store already uses `PlanMetadata` type from `core/types/plans.ts`, so adding
 
 ### 6. Tree Menu Display
 
-**`src/hooks/use-tree-data.ts`** or plan item component - Display phase count:
+**`src/components/tree-menu/plan-item.tsx`** - Add phase display to existing component:
+
+The `PlanItem` component receives `item: TreeItemNode`. The `TreeItemNode` type will need to include
+`phaseInfo` from the plan metadata. Update the title rendering (line 213) to prepend phase display:
 
 ```typescript
-// In plan item rendering:
-function PlanTreeItem({ plan }: { plan: PlanMetadata }) {
-  const getPhaseDisplay = (phaseInfo: PhaseInfo | undefined) => {
-    if (!phaseInfo) return null;
+// Helper function for phase display
+function getPhaseDisplay(phaseInfo: PhaseInfo | undefined) {
+  if (!phaseInfo) return null;
 
-    const { completed, total } = phaseInfo;
-    const isComplete = completed === total && total > 0;
+  const { completed, total } = phaseInfo;
+  const isComplete = completed === total && total > 0;
 
-    if (isComplete) {
-      return <span className="text-green-500">✓</span>;
-    }
-
-    return (
-      <span className="text-surface-500 font-mono text-xs">
-        {completed}/{total}
-      </span>
-    );
-  };
+  if (isComplete) {
+    return <span className="text-green-500 mr-1">✓</span>;
+  }
 
   return (
-    <span>
-      {getPhaseDisplay(plan.phaseInfo)}
-      {plan.phaseInfo && ' '}
-      {plan.name}
+    <span className="text-surface-500 font-mono text-xs mr-1">
+      {completed}/{total}
     </span>
   );
 }
+
+// In the JSX (around line 213):
+<span className="truncate flex-1">
+  {getPhaseDisplay(item.phaseInfo)}
+  {item.title}
+</span>
 ```
 
 Example tree rendering:
@@ -346,8 +373,8 @@ Request human review when you need input or approval.`,
 - [ ] Update `agents/src/lib/persistence-node.ts` to persist phaseInfo
 - [ ] Update `agents/src/runners/shared.ts` PostToolUse hook to parse and persist phases
 - [ ] Update tree menu component to display phase count inline
-- [ ] Add `PLAN_CONVENTIONS` to shared prompts
-- [ ] Update agent configs to include conventions
+- [ ] Add `PLAN_CONVENTIONS` to `agents/src/agent-types/shared-prompts.ts`
+- [ ] Update `simple` agent config to include conventions (only agent that modifies plans)
 
 ---
 
@@ -356,7 +383,7 @@ Request human review when you need input or approval.`,
 ### Unit Tests
 - `parsePhases()` with various markdown formats
 - No `## Phases` section returns null
-- Empty Phases section returns `{ completed: 0, total: 0 }`
+- Empty Phases section (header but no todos) returns `{ completed: 0, total: 0 }` → displays "0/0"
 - All completed, none completed, mixed
 - Nested todos (should be ignored)
 - Mixed case `[x]` vs `[X]`

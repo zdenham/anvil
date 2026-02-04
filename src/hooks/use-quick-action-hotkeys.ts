@@ -59,7 +59,8 @@ export function useQuickActionHotkeys() {
         if (
           target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
-          target.isContentEditable
+          target.isContentEditable ||
+          target.contentEditable === 'true'
         ) {
           return;
         }

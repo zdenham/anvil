@@ -3,10 +3,25 @@ import * as path from 'path';
 import type { PlanService, PlanInfo } from '../../types.js';
 import type { EmitEvent } from '../index.js';
 
+/**
+ * Internal plan index entry with worktreePath for file access.
+ * The worktreePath is needed to resolve the plan content file path.
+ */
+interface PlansIndexEntry {
+  id: string;
+  repoId: string;
+  worktreeId: string;
+  worktreePath: string;  // Needed to resolve plan content path
+  relativePath: string;
+  isRead: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export function createPlanService(mortDir: string, emitEvent: EmitEvent): PlanService {
   const plansIndexPath = path.join(mortDir, 'plans-index.json');
 
-  async function readPlansIndex(): Promise<Record<string, PlanInfo>> {
+  async function readPlansIndex(): Promise<Record<string, PlansIndexEntry>> {
     try {
       const content = await fs.readFile(plansIndexPath, 'utf-8');
       return JSON.parse(content);
@@ -15,15 +30,28 @@ export function createPlanService(mortDir: string, emitEvent: EmitEvent): PlanSe
     }
   }
 
+  function toPlanInfo(entry: PlansIndexEntry): PlanInfo {
+    return {
+      id: entry.id,
+      repoId: entry.repoId,
+      worktreeId: entry.worktreeId,
+      relativePath: entry.relativePath,
+      isRead: entry.isRead,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    };
+  }
+
   return {
     async get(planId: string): Promise<PlanInfo | null> {
       const index = await readPlansIndex();
-      return index[planId] ?? null;
+      const entry = index[planId];
+      return entry ? toPlanInfo(entry) : null;
     },
 
     async list(): Promise<PlanInfo[]> {
       const index = await readPlansIndex();
-      return Object.values(index);
+      return Object.values(index).map(toPlanInfo);
     },
 
     async getByRepo(repoId: string): Promise<PlanInfo[]> {
@@ -32,12 +60,15 @@ export function createPlanService(mortDir: string, emitEvent: EmitEvent): PlanSe
     },
 
     async readContent(planId: string): Promise<string> {
-      const plan = await this.get(planId);
-      if (!plan) throw new Error(`Plan not found: ${planId}`);
+      const index = await readPlansIndex();
+      const entry = index[planId];
+      if (!entry) {
+        throw new Error(`Plan not found: ${planId}`);
+      }
 
-      // Plan content is stored in the repository at relativePath
-      // This requires knowing the worktree path - may need adjustment
-      throw new Error('readContent requires worktree path - not yet implemented');
+      // Plan content is stored in the worktree at relativePath
+      const planPath = path.join(entry.worktreePath, entry.relativePath);
+      return fs.readFile(planPath, 'utf-8');
     },
 
     async archive(planId: string): Promise<void> {

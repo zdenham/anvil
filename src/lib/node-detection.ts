@@ -26,11 +26,15 @@ export async function checkNodeAvailable(): Promise<NodeAvailability> {
     if (output.code === 0) {
       return { available: true, version: output.stdout.trim() };
     }
-    return { available: false, error: 'Node.js command failed' };
+    return {
+      available: false,
+      error: 'Node.js command failed. Please install Node.js from https://nodejs.org/',
+    };
   } catch {
     return {
       available: false,
-      error: 'Node.js not found. Please install Node.js to use quick actions.',
+      error:
+        'Node.js is not installed or not in PATH. Quick actions require Node.js to run. Please install Node.js from https://nodejs.org/',
     };
   }
 }

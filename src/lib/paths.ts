@@ -27,7 +27,8 @@ export async function getQuickActionsTemplatePath(): Promise<string> {
   }
 
   // Production: resolve from bundled resources
-  const resourceDir = await resolveResource('quick-actions-template');
+  // The _up_ prefix navigates from src-tauri to the project root
+  const resourceDir = await resolveResource('_up_/core/sdk/template');
   return resourceDir;
 }
 

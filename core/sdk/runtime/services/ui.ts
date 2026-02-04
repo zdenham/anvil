@@ -32,7 +32,7 @@ export function createUIService(emitEvent: EmitEvent): UIService {
     },
 
     async showToast(message: string, type?: 'info' | 'success' | 'error'): Promise<void> {
-      emitEvent('ui:toast', { message, type });
+      emitEvent('ui:toast', { message, type: type ?? 'info' });
     },
 
     async closePanel(): Promise<void> {

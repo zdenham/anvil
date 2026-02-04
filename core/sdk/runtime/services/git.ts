@@ -1,61 +1,40 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import type { GitService } from '../../types.js';
+import { NodeGitAdapter } from '../../../adapters/node/git-adapter.js';
 
-const execAsync = promisify(exec);
-
+/**
+ * Creates a GitService that wraps NodeGitAdapter with async interface.
+ *
+ * Design notes:
+ * - Delegates to NodeGitAdapter for all git operations (DRY)
+ * - NodeGitAdapter uses spawnSync with array args (prevents command injection)
+ * - Wraps synchronous adapter methods in Promises for SDK's async API
+ */
 export function createGitService(): GitService {
+  const adapter = new NodeGitAdapter();
+
   return {
     async getCurrentBranch(worktreePath: string): Promise<string | null> {
-      try {
-        const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: worktreePath });
-        const branch = stdout.trim();
-        return branch === 'HEAD' ? null : branch;
-      } catch {
-        return null;
-      }
+      return adapter.getCurrentBranch(worktreePath);
     },
 
     async getDefaultBranch(repoPath: string): Promise<string> {
-      try {
-        const { stdout } = await execAsync(
-          'git symbolic-ref refs/remotes/origin/HEAD --short',
-          { cwd: repoPath }
-        );
-        return stdout.trim().replace('origin/', '');
-      } catch {
-        // Fallback: check if main or master exists
-        try {
-          await execAsync('git rev-parse --verify main', { cwd: repoPath });
-          return 'main';
-        } catch {
-          return 'master';
-        }
-      }
+      return adapter.getDefaultBranch(repoPath);
     },
 
     async getHeadCommit(repoPath: string): Promise<string> {
-      const { stdout } = await execAsync('git rev-parse HEAD', { cwd: repoPath });
-      return stdout.trim();
+      return adapter.getHeadCommit(repoPath);
     },
 
     async branchExists(repoPath: string, branch: string): Promise<boolean> {
-      try {
-        await execAsync(`git rev-parse --verify ${branch}`, { cwd: repoPath });
-        return true;
-      } catch {
-        return false;
-      }
+      return adapter.branchExists(repoPath, branch);
     },
 
     async listBranches(repoPath: string): Promise<string[]> {
-      const { stdout } = await execAsync('git branch --format="%(refname:short)"', { cwd: repoPath });
-      return stdout.trim().split('\n').filter(Boolean);
+      return adapter.listBranches(repoPath);
     },
 
     async getDiff(repoPath: string, baseCommit: string): Promise<string> {
-      const { stdout } = await execAsync(`git diff ${baseCommit}..HEAD`, { cwd: repoPath });
-      return stdout;
+      return adapter.getDiff(repoPath, baseCommit);
     },
   };
 }

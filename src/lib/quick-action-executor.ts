@@ -22,6 +22,7 @@ import { threadService } from '@/entities/threads/service.js';
 import { useThreadStore } from '@/entities/threads/store.js';
 import { planService } from '@/entities/plans/service.js';
 import { treeMenuService } from '@/stores/tree-menu/service.js';
+import { useInputStore } from '@/stores/input-store.js';
 import { toast } from '@/lib/toast.js';
 import { logger } from '@/lib/logger-client.js';
 import { FilesystemClient } from '@/lib/filesystem-client.js';
@@ -255,18 +256,16 @@ async function handleSDKEvent(event: SDKEvent): Promise<void> {
 
     // UI operations - handled locally (no disk persistence needed)
     case 'ui:setInput':
-      // Input store operations would be handled here
-      // For now, log - will be connected when input store is available
-      logger.info('[quick-action-executor] ui:setInput:', event.payload);
+      useInputStore.getState().setContent(event.payload);
       break;
     case 'ui:appendInput':
-      logger.info('[quick-action-executor] ui:appendInput:', event.payload);
+      useInputStore.getState().appendContent(event.payload);
       break;
     case 'ui:clearInput':
-      logger.info('[quick-action-executor] ui:clearInput');
+      useInputStore.getState().clearContent();
       break;
     case 'ui:focusInput':
-      logger.info('[quick-action-executor] ui:focusInput');
+      useInputStore.getState().requestFocus();
       break;
     case 'ui:navigate':
       await handleNavigation(event.payload);

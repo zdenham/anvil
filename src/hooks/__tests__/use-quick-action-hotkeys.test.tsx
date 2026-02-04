@@ -7,9 +7,12 @@ import { useModalStore } from '@/stores/modal-store.js';
 
 // Mock the executor hook
 const executeMock = vi.fn();
+let mockIsExecuting = false;
 vi.mock('@/hooks/use-quick-action-executor.js', () => ({
   useQuickActionExecutor: () => ({
-    isExecuting: false,
+    get isExecuting() {
+      return mockIsExecuting;
+    },
     execute: executeMock,
   }),
 }));
@@ -17,6 +20,7 @@ vi.mock('@/hooks/use-quick-action-executor.js', () => ({
 describe('useQuickActionHotkeys', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsExecuting = false;
 
     // Setup test actions
     useQuickActionsStore.setState({
@@ -164,6 +168,69 @@ describe('useQuickActionHotkeys', () => {
       panes: {},
       activePaneId: null,
     });
+
+    renderHook(() => useQuickActionHotkeys());
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true }));
+    expect(executeMock).not.toHaveBeenCalled();
+  });
+
+  it('does NOT trigger hotkeys when focus is in input field', () => {
+    renderHook(() => useQuickActionHotkeys());
+
+    // Create and focus an input element
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    // Dispatch event with input as target
+    const event = new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true });
+    input.dispatchEvent(event);
+
+    expect(executeMock).not.toHaveBeenCalled();
+
+    // Cleanup
+    document.body.removeChild(input);
+  });
+
+  it('does NOT trigger hotkeys when focus is in textarea field', () => {
+    renderHook(() => useQuickActionHotkeys());
+
+    // Create and focus a textarea element
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    textarea.focus();
+
+    // Dispatch event with textarea as target
+    const event = new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true });
+    textarea.dispatchEvent(event);
+
+    expect(executeMock).not.toHaveBeenCalled();
+
+    // Cleanup
+    document.body.removeChild(textarea);
+  });
+
+  it('does NOT trigger hotkeys when focus is in contentEditable element', () => {
+    renderHook(() => useQuickActionHotkeys());
+
+    // Create and focus a contentEditable element
+    const div = document.createElement('div');
+    div.contentEditable = 'true';
+    document.body.appendChild(div);
+    div.focus();
+
+    // Dispatch event with div as target
+    const event = new KeyboardEvent('keydown', { key: '1', metaKey: true, bubbles: true });
+    div.dispatchEvent(event);
+
+    expect(executeMock).not.toHaveBeenCalled();
+
+    // Cleanup
+    document.body.removeChild(div);
+  });
+
+  it('does NOT trigger hotkeys when isExecuting is true (DD #18)', () => {
+    mockIsExecuting = true;
 
     renderHook(() => useQuickActionHotkeys());
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true }));
