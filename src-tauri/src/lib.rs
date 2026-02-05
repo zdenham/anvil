@@ -21,7 +21,6 @@ mod filesystem;
 mod git_commands;
 mod icons;
 mod logging;
-mod migrations;
 mod mort_commands;
 mod panels;
 mod paths;
@@ -99,6 +98,78 @@ fn enable_fullscreen_button(window: &tauri::WebviewWindow) {
 #[cfg(not(target_os = "macos"))]
 fn enable_fullscreen_button(_window: &tauri::WebviewWindow) {
     // No-op on non-macOS platforms
+}
+
+/// Run TypeScript migrations by spawning Node.js process.
+/// Returns Ok(()) on success, Err on failure (but failures should not block app startup).
+fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
+    use std::process::Command;
+    use tauri::Manager;
+
+    let data_dir = paths::data_dir();
+
+    // Resolve paths from bundled resources
+    // In development, use source paths; in production, use bundled resources
+    let is_dev = cfg!(debug_assertions);
+
+    let (runner_path, template_dir, sdk_types_path) = if is_dev {
+        // Development: use source directories
+        // Get the project root (parent of src-tauri)
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let project_root = std::path::Path::new(manifest_dir).parent().unwrap();
+
+        (
+            project_root.join("migrations/dist/runner.js"),
+            project_root.join("core/sdk/template"),
+            project_root.join("core/sdk/dist/index.d.ts"),
+        )
+    } else {
+        // Production: resolve from bundled resources
+        let runner = app.path()
+            .resolve("_up_/migrations/dist/runner.js", tauri::path::BaseDirectory::Resource)
+            .map_err(|e| format!("Failed to resolve migration runner: {}", e))?;
+        let template = app.path()
+            .resolve("_up_/core/sdk/template", tauri::path::BaseDirectory::Resource)
+            .map_err(|e| format!("Failed to resolve SDK template: {}", e))?;
+        let types = app.path()
+            .resolve("sdk-types.d.ts", tauri::path::BaseDirectory::Resource)
+            .map_err(|e| format!("Failed to resolve SDK types: {}", e))?;
+
+        (runner, template, types)
+    };
+
+    tracing::info!(
+        runner = %runner_path.display(),
+        template = %template_dir.display(),
+        types = %sdk_types_path.display(),
+        data_dir = %data_dir.display(),
+        is_dev = is_dev,
+        "Running TypeScript migrations"
+    );
+
+    // Check if runner exists
+    if !runner_path.exists() {
+        return Err(format!("Migration runner not found at: {}", runner_path.display()));
+    }
+
+    let output = Command::new("node")
+        .arg(&runner_path)
+        .env("MORT_DATA_DIR", data_dir)
+        .env("MORT_TEMPLATE_DIR", &template_dir)
+        .env("MORT_SDK_TYPES_PATH", &sdk_types_path)
+        .env("PATH", paths::shell_path())
+        .output()
+        .map_err(|e| format!("Failed to spawn migration runner: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(stderr = %stderr, "Migration runner failed");
+        return Err(format!("Migration failed: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    tracing::info!(stdout = %stdout, "TypeScript migrations complete");
+    Ok(())
 }
 
 /// Ensures essential .mort directories exist synchronously
@@ -934,8 +1005,11 @@ pub fn run() {
             // Initialize config module (uses consolidated .mort/settings/ directory)
             config::initialize();
 
-            // Run data migrations
-            migrations::run_migrations();
+            // Run TypeScript migrations (spawns Node.js process)
+            if let Err(e) = run_ts_migrations(app) {
+                // Log error but don't block app startup (graceful degradation)
+                tracing::warn!(error = %e, "TypeScript migrations failed (non-fatal)");
+            }
 
             // Initialize panels module with app handle for event callbacks
             panels::initialize(app.handle());

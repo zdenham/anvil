@@ -1,12 +1,38 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2, ChevronRight } from "lucide-react";
+import { Archive, Loader2, ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot } from "@/components/ui/status-dot";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
+import type { PhaseInfo } from "@/entities/plans/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { planService } from "@/entities/plans/service";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+
+/**
+ * Renders phase progress indicator for plans with a ## Phases section.
+ * Shows "✓" when all phases complete, otherwise "completed/total".
+ */
+function PhaseDisplay({ phaseInfo }: { phaseInfo: PhaseInfo | undefined }) {
+  if (!phaseInfo) return null;
+
+  const { completed, total } = phaseInfo;
+  const isComplete = completed === total && total > 0;
+
+  if (isComplete) {
+    return (
+      <span className="text-surface-500 inline-flex items-center ml-1.5 translate-y-[1px]">
+        <Check size={12} strokeWidth={2.5} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-surface-500 ml-1.5">
+      {completed}/{total}
+    </span>
+  );
+}
 
 /**
  * Focus a tree item by its index using data attribute.
@@ -210,7 +236,10 @@ export function PlanItem({
             <StatusDot variant={item.status} />
           </span>
         )}
-        <span className="truncate flex-1">{item.title}</span>
+        <span className="truncate flex-1 flex items-baseline">
+          {item.title}
+          <PhaseDisplay phaseInfo={item.phaseInfo} />
+        </span>
         {/* Archive button - fixed height to prevent layout shift */}
         <button
           ref={buttonRef}

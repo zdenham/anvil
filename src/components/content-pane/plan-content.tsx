@@ -20,20 +20,10 @@ import { useRef, useCallback, useEffect, useState } from "react";
 import { planService, usePlanStore } from "@/entities/plans";
 import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
 import { StalePlanView } from "@/components/control-panel/stale-plan-view";
-import {
-  SuggestedActionsPanel,
-  type SuggestedActionsPanelRef,
-} from "./suggested-actions-panel";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
-import {
-  useQuickActionsStore,
-  planDefaultActions,
-  type ActionType,
-} from "@/stores/quick-actions-store";
 import { useRepoStore } from "@/entities/repositories";
 import { loadSettings } from "@/lib/persistence";
 import { spawnSimpleAgent } from "@/lib/agent-service";
-import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
 import { useContextAwareNavigation } from "@/hooks/use-context-aware-navigation";
 import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";
 import { usePlanContent } from "@/entities/plans/hooks/use-plan-content";
@@ -46,7 +36,6 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
   void _onPopOut;
   const plan = usePlanStore(useCallback((s) => s.getPlan(planId), [planId]));
   const { content, isLoading: isContentLoading, isStale } = usePlanContent(planId);
-  const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
   const inputRef = useRef<ThreadInputRef>(null);
 
   // State for refresh tracking (cross-window sync)
@@ -62,27 +51,8 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
   // Mark plan as read when viewed
   useMarkPlanAsRead(planId);
 
-  // Quick actions store for keyboard navigation
-  const {
-    selectedIndex,
-    isProcessing,
-    setProcessing,
-    setSelectedIndex,
-    resetState,
-    navigateUp,
-    navigateDown,
-  } = useQuickActionsStore();
-
-  // Navigation hook for quick action next item
-  const { navigateToNextItemOrFallback } = useNavigateToNextItem();
-
   // Context-aware navigation (main window vs control panel)
   const { navigateToThread } = useContextAwareNavigation();
-
-  // Reset quick actions state when planId changes
-  useEffect(() => {
-    resetState();
-  }, [planId, resetState]);
 
   // Reset refresh state when planId changes
   useEffect(() => {
@@ -175,60 +145,6 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
     refreshPlan();
   }, [planId, plan, refreshResult]);
 
-  // Focus restoration on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      quickActionsPanelRef.current?.focus();
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [planId]);
-
-  const handleQuickAction = useCallback(
-    async (action: ActionType) => {
-      if (isProcessing) return;
-
-      setProcessing(action);
-      const currentItem = { type: "plan" as const, id: planId };
-
-      try {
-        if (action === "archive") {
-          await planService.archive(planId, null);
-          await navigateToNextItemOrFallback(currentItem, {
-            actionType: "archive",
-          });
-        } else if (action === "markUnread") {
-          await planService.markAsUnread(planId);
-          await navigateToNextItemOrFallback(currentItem, {
-            actionType: "markUnread",
-          });
-        } else if (action === "respond") {
-          // Focus the message input
-          inputRef.current?.focus();
-        } else if (action === "closePanel") {
-          // In content pane context, "close panel" is a no-op
-          // Parent handles this via onClose prop
-          logger.info("[PlanContent] closePanel action - no-op in content pane");
-        }
-      } catch (error) {
-        logger.error(
-          `[PlanContent] Failed to handle quick action ${action}:`,
-          error
-        );
-      } finally {
-        setProcessing(null);
-      }
-    },
-    [planId, isProcessing, setProcessing, navigateToNextItemOrFallback]
-  );
-
-  // Legacy action handler - routes to handleQuickAction
-  const handleLegacyAction = useCallback(
-    async (action: "markUnread" | "archive") => {
-      await handleQuickAction(action);
-    },
-    [handleQuickAction]
-  );
-
   // Handle message submission from ThreadInput - creates a new thread with plan context
   const handleMessageSubmit = useCallback(
     async (userMessage: string) => {
@@ -260,62 +176,6 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
     [plan, workingDirectory, navigateToThread]
   );
 
-  // Handle focus transfer from ThreadInput to quick actions panel
-  const handleNavigateToQuickActions = useCallback(() => {
-    quickActionsPanelRef.current?.expand();
-    quickActionsPanelRef.current?.focus();
-  }, []);
-
-  // Handle clicks on "respond" action - focus the input
-  const handleAutoSelectInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  // Global keyboard navigation for quick actions
-  useEffect(() => {
-    const actions = planDefaultActions;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip if input is focused - let it handle its own keys
-      const activeElement = document.activeElement;
-      if (
-        activeElement?.tagName === "TEXTAREA" ||
-        activeElement?.tagName === "INPUT"
-      ) {
-        return;
-      }
-
-      // Handle arrow keys
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        navigateUp(actions.length);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        navigateDown(actions.length);
-      } else if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        const selectedAction = actions[selectedIndex];
-        if (selectedAction) {
-          if (selectedAction.key === "respond") {
-            inputRef.current?.focus();
-          } else {
-            handleQuickAction(selectedAction.key);
-          }
-        }
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // Any regular character typed auto-focuses input
-        const respondIndex = actions.findIndex((a) => a.key === "respond");
-        if (respondIndex !== -1) {
-          setSelectedIndex(respondIndex);
-        }
-        inputRef.current?.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIndex, navigateUp, navigateDown, handleQuickAction, setSelectedIndex]);
-
   // Still resolving whether plan exists - return null to avoid any flash
   if (refreshResult === "pending") {
     return null;
@@ -324,7 +184,7 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
   // Plan confirmed not found
   if (refreshResult === "not-found") {
     return (
-      <div className="flex flex-col h-full text-surface-50 relative overflow-hidden">
+      <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
         <div className="flex items-center justify-center flex-1 text-surface-400">
           Plan not found
         </div>
@@ -338,7 +198,7 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
   }
 
   return (
-    <div className="flex flex-col h-full text-surface-50 relative overflow-hidden">
+    <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
       {/* Main content area */}
       <div className="flex-1 min-h-0 overflow-y-auto w-full pt-8">
         <div key={planId} className="w-full max-w-[900px] mx-auto p-4">
@@ -356,16 +216,6 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
 
       {/* Quick actions and input */}
       <div className="flex-shrink-0 w-full max-w-[900px] mx-auto">
-        <SuggestedActionsPanel
-          ref={quickActionsPanelRef}
-          view={{ type: "plan", planId }}
-          onAction={handleLegacyAction}
-          isStreaming={false}
-          onQuickAction={handleQuickAction}
-          onAutoSelectInput={handleAutoSelectInput}
-        />
-
-        {/* SDK Quick Actions Panel */}
         <QuickActionsPanel contextType="plan" />
 
         {/* Message input */}
@@ -375,7 +225,6 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
           disabled={false}
           workingDirectory={workingDirectory}
           placeholder="Type a message to start a thread about this plan..."
-          onNavigateToQuickActions={handleNavigateToQuickActions}
         />
       </div>
     </div>

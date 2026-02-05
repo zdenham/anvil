@@ -49,8 +49,9 @@ export async function getRunnerPath(): Promise<string> {
   const isDev = import.meta.env.DEV;
 
   if (isDev) {
-    // Development: use source directory (TypeScript file, run with tsx)
-    return `${__PROJECT_ROOT__}/core/sdk/runner.ts`;
+    // Development: use built sdk-runner.js at project root
+    // Build it with: cd core/sdk && pnpm build
+    return `${__PROJECT_ROOT__}/sdk-runner.js`;
   }
 
   // Production: resolve from bundled resources (compiled JS)

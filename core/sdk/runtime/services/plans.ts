@@ -74,5 +74,9 @@ export function createPlanService(mortDir: string, emitEvent: EmitEvent): PlanSe
     async archive(planId: string): Promise<void> {
       emitEvent('plan:archive', { planId });
     },
+
+    async markUnread(planId: string): Promise<void> {
+      emitEvent('plan:markUnread', { planId });
+    },
   };
 }

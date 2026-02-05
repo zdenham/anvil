@@ -1,10 +1,13 @@
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useThreadStore } from "@/entities/threads/store";
+import { useChildThreadToolCount } from "@/hooks/use-child-thread-tool-count";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
+import { SubAgentReferenceBlock } from "./sub-agent-reference-block";
 import { GitBranch } from "lucide-react";
 import type { ToolBlockProps } from "./index";
 
@@ -90,6 +93,9 @@ function formatUsageStats(usage: ParsedTaskResult["usage"]): string[] {
 /**
  * Specialized block for rendering Task (subagent) tool calls.
  * Displays task description, result text, and usage stats in a collapsible format.
+ *
+ * If a child thread exists for this Task tool use, renders a compact
+ * SubAgentReferenceBlock instead of the full tool block.
  */
 export function TaskToolBlock({
   id,
@@ -102,6 +108,27 @@ export function TaskToolBlock({
   isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  // Check if this Task created a sub-agent thread
+  const childThread = useThreadStore((state) =>
+    state.getChildThreadByParentToolUseId(id)
+  );
+
+  // Get tool call count for child thread (only used if child exists)
+  const toolCallCount = useChildThreadToolCount(childThread?.id ?? "");
+
+  // If a child thread exists, render the reference block instead
+  if (childThread) {
+    return (
+      <SubAgentReferenceBlock
+        toolUseId={id}
+        childThreadId={childThread.id}
+        name={childThread.name ?? "Sub-agent"}
+        status={childThread.status}
+        toolCallCount={toolCallCount}
+      />
+    );
+  }
+
   // Expand state from store
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { relative, isAbsolute } from "path";
 import { realpathSync } from "fs";
+import type { PhaseInfo } from "@core/types/plans.js";
 
 const PLANS_DIR = "plans";
 const RELATIONS_DIR = "plan-thread-edges";
@@ -47,6 +48,7 @@ interface PlanMetadata {
   isRead: boolean;
   createdAt: number;
   updatedAt: number;
+  phaseInfo?: PhaseInfo;
 }
 
 /**
@@ -98,7 +100,8 @@ export abstract class MortPersistence {
     repoId: string,
     worktreeId: string,
     absolutePath: string,
-    workingDir: string
+    workingDir: string,
+    phaseInfo?: PhaseInfo | null
   ): Promise<{ id: string; isNew: boolean }> {
     // Convert absolutePath to relativePath
     const relativePath = isAbsolute(absolutePath)
@@ -108,13 +111,21 @@ export abstract class MortPersistence {
     // Find existing plan by repoId + relativePath
     const existing = await this.findPlanByPath(repoId, relativePath);
     if (existing) {
-      // Mark as unread (content was updated)
-      await this.updatePlan(existing.id, { isRead: false });
+      // Mark as unread (content was updated), and update phaseInfo
+      await this.updatePlan(existing.id, {
+        isRead: false,
+        phaseInfo: phaseInfo ?? undefined,
+      });
       return { id: existing.id, isNew: false };
     }
 
-    // Create new plan
-    const plan = await this.createPlan({ repoId, worktreeId, relativePath });
+    // Create new plan with phaseInfo
+    const plan = await this.createPlan({
+      repoId,
+      worktreeId,
+      relativePath,
+      phaseInfo: phaseInfo ?? undefined,
+    });
     return { id: plan.id, isNew: true };
   }
 
@@ -125,6 +136,7 @@ export abstract class MortPersistence {
     repoId: string;
     worktreeId: string;
     relativePath: string;
+    phaseInfo?: PhaseInfo;
   }): Promise<PlanMetadata> {
     const now = Date.now();
     const id = crypto.randomUUID();
@@ -137,6 +149,7 @@ export abstract class MortPersistence {
       isRead: false,
       createdAt: now,
       updatedAt: now,
+      ...(input.phaseInfo && { phaseInfo: input.phaseInfo }),
     };
 
     await this.mkdir(`${PLANS_DIR}/${id}`);
@@ -147,7 +160,7 @@ export abstract class MortPersistence {
   /**
    * Update plan metadata.
    */
-  async updatePlan(id: string, updates: { isRead?: boolean }): Promise<void> {
+  async updatePlan(id: string, updates: { isRead?: boolean; phaseInfo?: PhaseInfo }): Promise<void> {
     const plan = await this.getPlan(id);
     if (!plan) return;
 

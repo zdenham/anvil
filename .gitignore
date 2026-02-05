@@ -30,3 +30,8 @@ dist-ssr
 
 # Secrets
 secrets/
+
+# SDK build outputs
+sdk-runner.js
+sdk-runner.js.map
+sdk-types.d.ts

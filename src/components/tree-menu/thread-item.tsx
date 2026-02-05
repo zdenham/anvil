@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2 } from "lucide-react";
+import { Archive, Loader2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot } from "@/components/ui/status-dot";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
@@ -82,9 +82,20 @@ export function ThreadItem({
     }
   };
 
-  const handleClick = () => {
+  const handleClick = async () => {
     onSelect(item.id, "thread");
+    // For folders: clicking the row expands (but doesn't collapse)
+    // Only the chevron can collapse
+    if (item.isFolder && !item.isExpanded) {
+      await treeMenuService.expandSection(`thread:${item.id}`);
+    }
   };
+
+  const handleFolderToggle = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Use "thread:threadId" key convention for folder expand state
+    await treeMenuService.toggleSection(`thread:${item.id}`);
+  }, [item.id]);
 
   const handleKeyDown = useCallback(async (e: React.KeyboardEvent) => {
     switch (e.key) {
@@ -92,6 +103,43 @@ export function ThreadItem({
       case " ":
         e.preventDefault();
         onSelect(item.id, "thread");
+        break;
+
+      case "ArrowRight":
+        // Expand folder or move to first child
+        if (item.isFolder) {
+          if (!item.isExpanded) {
+            e.preventDefault();
+            await treeMenuService.expandSection(`thread:${item.id}`);
+          } else if (allItems.length > 0) {
+            // Move to first child (next item with greater depth)
+            e.preventDefault();
+            const nextIndex = itemIndex + 1;
+            if (nextIndex < allItems.length && allItems[nextIndex].depth > item.depth) {
+              const nextItem = allItems[nextIndex];
+              focusTreeItem(nextIndex);
+              await treeMenuService.setSelectedItem(nextItem.id);
+              onSelect(nextItem.id, nextItem.type);
+            }
+          }
+        }
+        break;
+
+      case "ArrowLeft":
+        e.preventDefault();
+        if (item.isFolder && item.isExpanded) {
+          // Collapse the folder
+          await treeMenuService.collapseSection(`thread:${item.id}`);
+        } else if (item.parentId && allItems.length > 0) {
+          // Move to parent
+          const parentIndex = allItems.findIndex((i) => i.id === item.parentId);
+          if (parentIndex >= 0) {
+            const parentItem = allItems[parentIndex];
+            focusTreeItem(parentIndex);
+            await treeMenuService.setSelectedItem(parentItem.id);
+            onSelect(parentItem.id, parentItem.type);
+          }
+        }
         break;
 
       case "ArrowUp":
@@ -113,10 +161,8 @@ export function ThreadItem({
           onSelect(nextItem.id, nextItem.type);
         }
         break;
-
-      // ArrowLeft/Right have no effect on threads (they don't have children)
     }
-  }, [item.id, itemIndex, allItems, onSelect]);
+  }, [item, itemIndex, allItems, onSelect]);
 
   // Calculate indentation based on depth using shared constants
   // Threads are always depth 0, but this keeps alignment consistent with plans
@@ -127,6 +173,7 @@ export function ThreadItem({
       <div
         role="treeitem"
         aria-selected={isSelected}
+        aria-expanded={item.isFolder ? item.isExpanded : undefined}
         aria-level={item.depth + 1}
         data-tree-item-index={itemIndex}
         tabIndex={tabIndex}
@@ -143,10 +190,30 @@ export function ThreadItem({
             : "text-surface-300 hover:bg-accent-500/10"
         )}
       >
-        <span className="flex-shrink-0 w-3 flex items-center justify-center">
-          <StatusDot variant={item.status} />
+        {/* Folder toggle chevron or status dot - both use same fixed width */}
+        {item.isFolder ? (
+          <button
+            type="button"
+            className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"
+            onClick={handleFolderToggle}
+            aria-label={item.isExpanded ? "Collapse folder" : "Expand folder"}
+          >
+            <ChevronRight
+              size={12}
+              className={cn(
+                "tree-chevron transition-transform duration-150",
+                item.isExpanded && "rotate-90"
+              )}
+            />
+          </button>
+        ) : (
+          <span className="flex-shrink-0 w-3 flex items-center justify-center">
+            <StatusDot variant={item.status} />
+          </span>
+        )}
+        <span className="truncate flex-1" title={item.title}>
+          {item.title}
         </span>
-        <span className="truncate flex-1" title={item.title}>{item.title}</span>
         {/* Archive button - fixed height to prevent layout shift */}
         <button
           ref={buttonRef}

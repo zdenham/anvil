@@ -118,11 +118,6 @@ describe("ThreadMetadataSchema", () => {
       expect(baseSchemaKeys).not.toContain("taskId");
     });
 
-    it("does NOT include agentType in the schema", () => {
-      const baseSchemaKeys = Object.keys(ThreadMetadataBaseSchema.shape);
-      expect(baseSchemaKeys).not.toContain("agentType");
-    });
-
     it("does NOT include workingDirectory in the schema", () => {
       const baseSchemaKeys = Object.keys(ThreadMetadataBaseSchema.shape);
       expect(baseSchemaKeys).not.toContain("workingDirectory");
@@ -132,7 +127,6 @@ describe("ThreadMetadataSchema", () => {
       const withLegacyFields = {
         ...createValidMetadata(),
         taskId: "legacy-task-id",
-        agentType: "execution",
         workingDirectory: "/some/path",
         planId: "some-plan-id",
       };
@@ -145,9 +139,114 @@ describe("ThreadMetadataSchema", () => {
         // TypeScript type should not have these fields
         const data = result.data as any;
         expect(data.taskId).toBeUndefined();
-        expect(data.agentType).toBeUndefined();
         expect(data.workingDirectory).toBeUndefined();
         expect(data.planId).toBeUndefined();
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sub-agent Field Tests
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("sub-agent fields", () => {
+    it("accepts parentThreadId as a valid UUID", () => {
+      const valid = {
+        ...createValidMetadata(),
+        parentThreadId: "550e8400-e29b-41d4-a716-446655440003",
+      };
+
+      const result = ThreadMetadataSchema.safeParse(valid);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.parentThreadId).toBe("550e8400-e29b-41d4-a716-446655440003");
+      }
+    });
+
+    it("rejects parentThreadId if not a valid UUID", () => {
+      const invalid = {
+        ...createValidMetadata(),
+        parentThreadId: "not-a-uuid",
+      };
+
+      const result = ThreadMetadataSchema.safeParse(invalid);
+
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts parentToolUseId string", () => {
+      const valid = {
+        ...createValidMetadata(),
+        parentToolUseId: "toolu_01ABC123",
+      };
+
+      const result = ThreadMetadataSchema.safeParse(valid);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.parentToolUseId).toBe("toolu_01ABC123");
+      }
+    });
+
+    it("accepts agentType string", () => {
+      const valid = {
+        ...createValidMetadata(),
+        agentType: "Explore",
+      };
+
+      const result = ThreadMetadataSchema.safeParse(valid);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.agentType).toBe("Explore");
+      }
+    });
+
+    it("accepts all sub-agent fields together", () => {
+      const valid = {
+        ...createValidMetadata(),
+        parentThreadId: "550e8400-e29b-41d4-a716-446655440003",
+        parentToolUseId: "toolu_01ABC123",
+        agentType: "Plan",
+      };
+
+      const result = ThreadMetadataSchema.safeParse(valid);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.parentThreadId).toBe("550e8400-e29b-41d4-a716-446655440003");
+        expect(result.data.parentToolUseId).toBe("toolu_01ABC123");
+        expect(result.data.agentType).toBe("Plan");
+      }
+    });
+
+    it("treats thread as sub-agent when parentThreadId is present", () => {
+      const valid = {
+        ...createValidMetadata(),
+        parentThreadId: "550e8400-e29b-41d4-a716-446655440003",
+      };
+
+      const result = ThreadMetadataSchema.safeParse(valid);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Sub-agent detection: presence of parentThreadId
+        const isSubAgent = result.data.parentThreadId !== undefined;
+        expect(isSubAgent).toBe(true);
+      }
+    });
+
+    it("treats thread as regular thread when parentThreadId is absent", () => {
+      const valid = createValidMetadata();
+
+      const result = ThreadMetadataSchema.safeParse(valid);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Regular thread: no parentThreadId
+        const isSubAgent = result.data.parentThreadId !== undefined;
+        expect(isSubAgent).toBe(false);
       }
     });
   });

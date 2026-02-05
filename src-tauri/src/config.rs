@@ -204,15 +204,6 @@ pub fn get_device_id() -> String {
     load_config().device_id
 }
 
-/// Gets the current migration version
-pub fn get_migration_version() -> u32 {
-    load_config().migration_version
-}
-
-/// Sets the migration version
-pub fn set_migration_version(version: u32) -> Result<(), String> {
-    let mut config = load_config();
-    config.migration_version = version;
-    save_config(&config)
-}
+// Note: get_migration_version() and set_migration_version() were removed.
+// Migration version is now managed by the TypeScript migration runner.
 

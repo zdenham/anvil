@@ -20,6 +20,10 @@ if [ "$PRESET" != "prod" ] && [ -n "$PRESET" ]; then
   export TAURI_ARGS="--config src-tauri/tauri.conf.${PRESET}.json"
 fi
 
+# Build SDK runner (similar to how agents are built)
+echo "Building SDK runner..."
+pnpm build:sdk
+
 if [ "$MORT_DISABLE_HMR" = "true" ]; then
   echo "  MORT_DISABLE_HMR=true (manual refresh mode)"
   pnpm dev:run:no-hmr

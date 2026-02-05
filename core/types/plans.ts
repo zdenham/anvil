@@ -6,6 +6,17 @@ import { z } from 'zod';
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
+ * Phase tracking info for plans with a ## Phases section.
+ * Parsed from GitHub-style todo lists: - [ ] uncompleted, - [x] completed
+ */
+export const PhaseInfoSchema = z.object({
+  completed: z.number(),
+  total: z.number(),
+});
+
+export type PhaseInfo = z.infer<typeof PhaseInfoSchema>;
+
+/**
  * Schema for plan metadata persisted to disk.
  * Validated when loading from JSON files.
  *
@@ -25,6 +36,7 @@ export const PlanMetadataSchema = z.object({
   lastVerified: z.number().optional(), // Timestamp of last successful file access
   createdAt: z.number(),               // Unix milliseconds
   updatedAt: z.number(),               // Unix milliseconds
+  phaseInfo: PhaseInfoSchema.optional(), // Phase tracking - null/undefined means no ## Phases section
 });
 
 /** Plan metadata persisted to disk */
@@ -36,6 +48,7 @@ export interface CreatePlanInput {
   worktreeId: string;
   relativePath: string;
   parentId?: string;
+  phaseInfo?: PhaseInfo;
 }
 
 /** Input for updating a plan */
@@ -43,4 +56,5 @@ export interface UpdatePlanInput {
   isRead?: boolean;
   parentId?: string;
   isFolder?: boolean;
+  phaseInfo?: PhaseInfo;
 }

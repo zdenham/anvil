@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { StatusDotVariant } from "@/components/ui/status-dot";
+import type { PhaseInfo } from "@/entities/plans/types";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Persisted State - Zod schema for disk validation
@@ -57,14 +58,20 @@ export interface TreeItemNode {
   createdAt: number;
   /** Parent section identifier */
   sectionId: string;
-  /** Indentation level (0 = root) - for nested plans */
+  /** Indentation level (0 = root) - for nested plans and sub-agent threads */
   depth: number;
-  /** Has children - for nested plans */
+  /** Has children - for nested plans and threads with sub-agents */
   isFolder: boolean;
   /** If folder, is it expanded? */
   isExpanded: boolean;
   /** Parent plan ID - for nested plans */
   parentId?: string;
+  /** Phase tracking info - only present for plans with ## Phases section */
+  phaseInfo?: PhaseInfo;
+  /** Sub-agent indicator (for threads only) - true if thread has a parent */
+  isSubAgent?: boolean;
+  /** Agent type (for threads only) - e.g., "Explore", "Plan", etc. */
+  agentType?: string;
 }
 
 /**

@@ -76,7 +76,7 @@ export interface QuickActionExecutionContext {
  *
  * @example
  * ```typescript
- * export default defineAction({
+ * export default {
  *   id: 'my-action',
  *   title: 'My Action',
  *   contexts: ['thread'],
@@ -84,7 +84,7 @@ export interface QuickActionExecutionContext {
  *     const branch = await sdk.git.getCurrentBranch(context.worktree!.path);
  *     sdk.log.info('Current branch:', { branch });
  *   }
- * });
+ * } satisfies QuickActionDefinition;
  * ```
  */
 export interface MortSDK {
@@ -281,6 +281,13 @@ export interface PlanService {
    * @param planId - The plan ID to archive
    */
   archive(planId: string): Promise<void>;
+
+  /**
+   * Mark a plan as unread.
+   * This emits an event to Mort which handles the state update.
+   * @param planId - The plan ID to mark as unread
+   */
+  markUnread(planId: string): Promise<void>;
 }
 
 /**
@@ -417,7 +424,7 @@ export type QuickActionFn = (
 
 /**
  * The definition of a quick action.
- * This is the structure that quick action files export using defineAction().
+ * This is the structure that quick action files export.
  *
  * @remarks
  * The `contexts` array can include 'all' as a shorthand for ['thread', 'plan', 'empty'].
@@ -426,7 +433,7 @@ export type QuickActionFn = (
  *
  * @example
  * ```typescript
- * export default defineAction({
+ * export default {
  *   id: 'archive-and-next',
  *   title: 'Archive & Next',
  *   description: 'Archive the current thread and navigate to the next unread',
@@ -435,7 +442,7 @@ export type QuickActionFn = (
  *     await sdk.threads.archive(context.threadId!);
  *     await sdk.ui.navigateToNextUnread();
  *   }
- * });
+ * } satisfies QuickActionDefinition;
  * ```
  */
 export interface QuickActionDefinition {
@@ -464,27 +471,3 @@ export interface QuickActionDefinition {
   execute: QuickActionFn;
 }
 
-/**
- * Helper function to define a quick action with full type safety.
- * Use this when exporting your quick action definition.
- *
- * @param def - The quick action definition
- * @returns The same definition, typed as QuickActionDefinition
- *
- * @example
- * ```typescript
- * import { defineAction } from '@mort/sdk';
- *
- * export default defineAction({
- *   id: 'hello-world',
- *   title: 'Hello World',
- *   contexts: ['all'],
- *   execute: (context, sdk) => {
- *     sdk.ui.showToast('Hello, World!', 'info');
- *   }
- * });
- * ```
- */
-export function defineAction(def: QuickActionDefinition): QuickActionDefinition {
-  return def;
-}

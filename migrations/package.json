@@ -1,0 +1,13 @@
+{
+  "name": "@mort/migrations",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.2"
+  }
+}

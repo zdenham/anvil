@@ -10,6 +10,7 @@ Rules:
 - Keep their original phrasing and word choice
 - Lowercase is fine, match the user's style
 - No quotes or special characters
+- Use natural spaces, not kebab-case
 - If the message is a question, preserve key question words
 - Prefer specific details over generic descriptions
 

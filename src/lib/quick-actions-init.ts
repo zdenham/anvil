@@ -24,7 +24,7 @@ const fs = new FilesystemClient();
 const SDK_VERSION = '1.0.0';
 const QUICK_ACTIONS_DIR = 'quick-actions';
 const TYPES_FILE = 'sdk.d.ts';
-const MORT_TYPES_DIR = '.mort'; // Types directory name (safe from pnpm install)
+const MORT_TYPES_DIR = 'mort-types'; // Types directory name (safe from pnpm install)
 
 export interface InitResult {
   created: boolean;
@@ -118,14 +118,14 @@ async function copyTemplate(projectPath: string): Promise<void> {
   // Create project directory structure
   await fs.mkdir(projectPath);
 
-  // Create .mort directory for SDK types (safe from pnpm install)
+  // Create mort-types directory for SDK types (safe from pnpm install)
   const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
   await fs.mkdir(mortTypesDir);
 
   // Copy template files (excluding node_modules - user will run pnpm install)
   await copyDirExcluding(templatePath, projectPath, ['node_modules', 'dist']);
 
-  // Copy SDK types to .mort directory (DD #4 and #22)
+  // Copy SDK types to mort-types directory (DD #4 and #22)
   const typesDestPath = fs.joinPath(mortTypesDir, TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
@@ -206,7 +206,7 @@ async function updateSdkTypes(projectPath: string): Promise<void> {
   const sdkTypesPath = await getSdkTypesPath();
   const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
 
-  // Ensure .mort directory exists
+  // Ensure mort-types directory exists
   await fs.mkdir(mortTypesDir);
 
   // Update sdk.d.ts

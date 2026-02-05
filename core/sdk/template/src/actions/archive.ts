@@ -1,6 +1,4 @@
-import { defineAction } from '@mort/sdk';
-
-export default defineAction({
+export default {
   id: 'archive',
   title: 'Archive',
   description: 'Complete and file away',
@@ -15,4 +13,4 @@ export default defineAction({
       sdk.log.info('Archived plan', { planId: context.planId });
     }
   },
-});
+} satisfies QuickActionDefinition;

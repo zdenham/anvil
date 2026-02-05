@@ -27,12 +27,15 @@ function getPlanTitle(plan: PlanMetadata): string {
 }
 
 /**
- * Build tree items for a section, handling nested plans.
+ * Build tree items for a section, handling nested plans and sub-agent threads.
  * Returns a flat list with depth info for rendering.
  *
  * Key insight: We must sort top-level items (threads + root plans) by createdAt
  * BEFORE building the tree. This ensures children are added immediately after
  * their parent, maintaining correct visual nesting.
+ *
+ * Sub-agent threads are nested under their parent thread and only appear there
+ * (not in date sections independently).
  */
 function buildSectionItems(
   threads: ThreadMetadata[],
@@ -44,30 +47,62 @@ function buildSectionItems(
   const items: TreeItemNode[] = [];
 
   // Group plans by parent
-  const childrenMap = new Map<string | undefined, PlanMetadata[]>();
+  const planChildrenMap = new Map<string | undefined, PlanMetadata[]>();
   for (const plan of plans) {
-    const siblings = childrenMap.get(plan.parentId) || [];
+    const siblings = planChildrenMap.get(plan.parentId) || [];
     siblings.push(plan);
-    childrenMap.set(plan.parentId, siblings);
+    planChildrenMap.set(plan.parentId, siblings);
   }
 
-  // Build thread nodes
-  const threadNodes: TreeItemNode[] = threads.map((thread) => ({
-    type: "thread" as const,
-    id: thread.id,
-    title: thread.name ?? "New Thread",
-    status: getThreadStatusVariant(thread),
-    updatedAt: thread.updatedAt,
-    createdAt: thread.createdAt,
-    sectionId,
-    depth: 0,
-    isFolder: false,
-    isExpanded: false,
-  }));
+  // Separate root threads from sub-agent threads
+  const rootThreads = threads.filter(t => !t.parentThreadId);
+  const childThreadsMap = new Map<string, ThreadMetadata[]>();
+
+  for (const thread of threads) {
+    if (thread.parentThreadId) {
+      const siblings = childThreadsMap.get(thread.parentThreadId) || [];
+      siblings.push(thread);
+      childThreadsMap.set(thread.parentThreadId, siblings);
+    }
+  }
+
+  // Recursively add thread and its sub-agent children
+  function addThreadAndChildren(thread: ThreadMetadata, depth: number) {
+    const children = childThreadsMap.get(thread.id) || [];
+    const isFolder = children.length > 0;
+    // Use "thread:threadId" key convention for folder expand state
+    const isExpanded = expandedSections[`thread:${thread.id}`] ?? true; // Default expanded
+
+    items.push({
+      type: "thread" as const,
+      id: thread.id,
+      title: thread.name ?? "New Thread",
+      status: getThreadStatusVariant(thread),
+      updatedAt: thread.updatedAt,
+      createdAt: thread.createdAt,
+      sectionId,
+      depth,
+      isFolder,
+      isExpanded,
+      parentId: thread.parentThreadId,
+      // Sub-agent indicator
+      isSubAgent: !!thread.parentThreadId,
+      agentType: thread.agentType,
+    });
+
+    // Only add children if expanded
+    if (isFolder && isExpanded) {
+      // Sort children by createdAt ascending (oldest first, so execution order)
+      const sorted = [...children].sort((a, b) => a.createdAt - b.createdAt);
+      for (const child of sorted) {
+        addThreadAndChildren(child, depth + 1);
+      }
+    }
+  }
 
   // Recursively add plans with depth
   function addPlanAndChildren(plan: PlanMetadata, depth: number) {
-    const children = childrenMap.get(plan.id) || [];
+    const children = planChildrenMap.get(plan.id) || [];
     const isFolder = children.length > 0;
     // Use "plan:planId" key convention for folder expand state
     const isExpanded = expandedSections[`plan:${plan.id}`] ?? true; // Default expanded
@@ -89,6 +124,7 @@ function buildSectionItems(
       isFolder,
       isExpanded,
       parentId: plan.parentId,
+      phaseInfo: plan.phaseInfo,
     });
 
     // Only add children if expanded
@@ -103,28 +139,28 @@ function buildSectionItems(
   }
 
   // Get root plans (no parentId)
-  const rootPlans = childrenMap.get(undefined) || [];
+  const rootPlans = planChildrenMap.get(undefined) || [];
 
   // Create a unified list of top-level items for sorting
   interface TopLevelItem {
     type: "thread" | "root-plan";
     createdAt: number;
-    node?: TreeItemNode; // For threads
+    thread?: ThreadMetadata; // For threads
     plan?: PlanMetadata; // For plans
   }
 
   const topLevel: TopLevelItem[] = [
-    ...threadNodes.map((node) => ({ type: "thread" as const, createdAt: node.createdAt, node })),
+    ...rootThreads.map((thread) => ({ type: "thread" as const, createdAt: thread.createdAt, thread })),
     ...rootPlans.map((plan) => ({ type: "root-plan" as const, createdAt: plan.createdAt, plan })),
   ];
 
   // Sort top-level items by createdAt descending (newest first)
   topLevel.sort((a, b) => b.createdAt - a.createdAt);
 
-  // Add items in sorted order - plans recursively add their children immediately after
+  // Add items in sorted order - threads/plans recursively add their children immediately after
   for (const item of topLevel) {
-    if (item.type === "thread" && item.node) {
-      items.push(item.node);
+    if (item.type === "thread" && item.thread) {
+      addThreadAndChildren(item.thread, 0);
     } else if (item.type === "root-plan" && item.plan) {
       addPlanAndChildren(item.plan, 0);
     }

@@ -23,7 +23,6 @@ for (const file of actionFiles) {
     bundle: true,
     platform: 'node',
     format: 'esm',
-    external: ['@mort/sdk'],  // SDK injected at runtime
     sourcemap: false,
   });
   console.log(`  ✓ ${file}`);

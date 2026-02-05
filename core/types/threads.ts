@@ -41,6 +41,11 @@ export const ThreadMetadataBaseSchema = z.object({
   createdAt: z.number(),               // Unix milliseconds
   updatedAt: z.number(),               // Unix milliseconds
   _isOptimistic: z.boolean().optional(), // Internal flag - true if optimistic thread not yet confirmed from disk
+
+  // Sub-agent fields (only present for sub-agent threads)
+  parentThreadId: z.string().uuid().optional(),   // Parent thread ID (presence implies sub-agent)
+  parentToolUseId: z.string().optional(),         // Task tool_use ID that spawned this
+  agentType: z.string().optional(),               // "Explore", "Plan", "general-purpose", etc.
 });
 
 /**

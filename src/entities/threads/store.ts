@@ -42,6 +42,7 @@ interface ThreadStoreActions {
   getRunningThreads: () => ThreadMetadata[];
   getThreadsByRepo: (repoId: string) => ThreadMetadata[];
   getThreadsByWorktree: (worktreeId: string) => ThreadMetadata[];
+  getChildThreadByParentToolUseId: (parentToolUseId: string) => ThreadMetadata | undefined;
 
   /** Active thread management */
   setActiveThread: (threadId: string | null) => void;
@@ -100,6 +101,8 @@ export const useThreadStore = create<
     get()._threadsArray.filter((c) => c.repoId === repoId),
   getThreadsByWorktree: (worktreeId) =>
     get()._threadsArray.filter((c) => c.worktreeId === worktreeId),
+  getChildThreadByParentToolUseId: (parentToolUseId) =>
+    get()._threadsArray.find((c) => c.parentToolUseId === parentToolUseId),
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Active Thread Management

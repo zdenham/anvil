@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useQuickActionsStore } from '@/entities/quick-actions/store.js';
@@ -9,7 +9,11 @@ import { Button } from '@/components/reusable/Button.js';
 import { toast } from '@/lib/toast.js';
 
 export function QuickActionsSettings() {
-  const actions = useQuickActionsStore((s) => s.getAll());
+  const actionsRecord = useQuickActionsStore((s) => s.actions);
+  const actions = useMemo(
+    () => Object.values(actionsRecord).sort((a, b) => a.order - b.order),
+    [actionsRecord]
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
 
@@ -87,16 +91,22 @@ export function QuickActionsSettings() {
       </div>
 
       {actions.length === 0 ? (
-        <div className="text-center py-8 text-surface-400">
-          <p>No actions found.</p>
-          <p className="text-sm mt-1">
-            Add actions to <code>~/.mort/quick-actions/src/actions/</code>
-          </p>
+        <div className="text-sm text-surface-400">
+          No actions found. Add actions to <code className="text-accent-400">~/.mort/quick-actions/src/actions/</code>
         </div>
       ) : (
         <DndContext collisionDetection={closestCenter} onDragEnd={handleReorder}>
           <SortableContext items={actions.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
+            {/* Header row */}
+            <div className="flex items-center gap-3 py-1 px-2 text-xs text-surface-500 border-b border-surface-700 mb-1">
+              <div className="w-[14px] flex-shrink-0" /> {/* Drag handle spacer */}
+              <span className="flex-1 min-w-0">Action</span>
+              <span className="flex-shrink-0">Contexts</span>
+              <span className="w-10 flex-shrink-0 text-center">Key</span>
+              <span className="w-[18px] flex-shrink-0" /> {/* Toggle spacer */}
+              <span className="w-[14px] flex-shrink-0" /> {/* Edit spacer */}
+            </div>
+            <div className="space-y-0.5">
               {actions.map((action) => (
                 <QuickActionListItem
                   key={action.id}

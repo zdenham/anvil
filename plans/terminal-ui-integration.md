@@ -51,6 +51,36 @@ Integrate a terminal UI into Mort using **direct `portable-pty` integration** wi
 
 9. **Content Pane Controls**: Both "close" (hides pane, keeps terminal alive) and "archive" (kills PTY) buttons in content pane header.
 
+10. **Last Command Detection**: Hook into `~/.zsh_history` to get the last executed command for sidebar display. Poll or watch the file for changes.
+
+11. **Terminal Output Buffering**: Store last N lines of output (configurable, e.g., 5000 lines) so users can see scrollback when reopening a closed pane.
+
+12. **Initial Terminal Size**: Use "fit to container" approach - measure container dimensions before spawning, or spawn then immediately resize on mount.
+
+13. **Worktree Deletion**: Automatically kill any terminals associated with a removed worktree.
+
+14. **Error Handling**: Spawn failures show an error state in the content pane (not toast). User sees the error where they expected the terminal.
+
+15. **Zsh History Scope**: Accept that history may show commands from other sessions - simpler approach, history is shared anyway.
+
+16. **Multiple Terminals Same Worktree**: No special differentiation needed - last command display is sufficient.
+
+17. **Terminal Theming**: Hardcoded to match Mort's dark theme (not configurable initially).
+
+18. **Keyboard Focus**: Terminal receives focus when pane opens and on click. No keyboard capture when focused elsewhere.
+
+19. **Copy/Paste**: macOS only - Cmd+V pastes. Standard Cmd+C copies selection (xterm.js default behavior).
+
+20. **Shell Support**: Only zsh history integration for v1. Other shells (bash, fish) fall back to showing shell name. Can expand later.
+
+21. **Terminal Icon**: Use Lucide `Terminal` icon for sidebar items (consistent with existing header button).
+
+22. **Sidebar Sorting**: Same as threads/plans - sorted by `createdAt` (newest first).
+
+23. **App Quit Behavior**: Kill all terminal PTY processes on quit (clean exit, no orphaned processes).
+
+24. **Accessibility**: Defer to later phase. xterm.js has built-in accessibility features we can enable later.
+
 ---
 
 ## Terminal Session Entity (`src/entities/terminal-sessions/`)
@@ -66,13 +96,16 @@ export const TerminalSessionSchema = z.object({
   id: z.string(),
   worktreeId: z.string(),
   worktreePath: z.string(),
-  lastCommand: z.string().optional(),  // For sidebar display
+  lastCommand: z.string().optional(),  // For sidebar display (from zsh_history)
   createdAt: z.string().datetime(),
   isAlive: z.boolean(),
   isArchived: z.boolean(),
 });
 
 export type TerminalSession = z.infer<typeof TerminalSessionSchema>;
+
+// Output buffer stored separately (not in schema - runtime only)
+export const OUTPUT_BUFFER_MAX_LINES = 5000;
 ```
 
 ### Service (`src/entities/terminal-sessions/service.ts`)
@@ -84,6 +117,7 @@ import type { TerminalSession } from "./schema";
 
 class TerminalSessionService {
   private sessions: Map<string, TerminalSession> = new Map();
+  private outputBuffers: Map<string, string[]> = new Map();  // Stores last N lines per terminal
 
   async create(worktreeId: string, worktreePath: string): Promise<TerminalSession> {
     const numericId = await invoke<number>("spawn_terminal", {
@@ -145,6 +179,28 @@ class TerminalSessionService {
       session.isAlive = false;
       eventBus.emit("terminal:exited", { id });
     }
+  }
+
+  // Output buffer management
+  appendOutput(id: string, data: string): void {
+    let buffer = this.outputBuffers.get(id) || [];
+    const lines = data.split('\n');
+    buffer.push(...lines);
+    // Keep only last N lines
+    if (buffer.length > OUTPUT_BUFFER_MAX_LINES) {
+      buffer = buffer.slice(-OUTPUT_BUFFER_MAX_LINES);
+    }
+    this.outputBuffers.set(id, buffer);
+  }
+
+  getOutputBuffer(id: string): string[] {
+    return this.outputBuffers.get(id) || [];
+  }
+
+  // Kill terminals when worktree is removed
+  async archiveByWorktree(worktreeId: string): Promise<void> {
+    const terminals = this.getByWorktree(worktreeId);
+    await Promise.all(terminals.map(t => this.archive(t.id)));
   }
 }
 

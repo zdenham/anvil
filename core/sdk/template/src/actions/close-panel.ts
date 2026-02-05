@@ -1,6 +1,4 @@
-import { defineAction } from '@mort/sdk';
-
-export default defineAction({
+export default {
   id: 'close-panel',
   title: 'Close',
   description: 'Close current panel',
@@ -10,4 +8,4 @@ export default defineAction({
     await sdk.ui.closePanel();
     sdk.log.info('Closed panel');
   },
-});
+} satisfies QuickActionDefinition;

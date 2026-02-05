@@ -11,9 +11,7 @@ This directory contains your custom quick actions for Mort.
 ## Writing an Action
 
 ```typescript
-import { defineAction } from '@mort/sdk';
-
-export default defineAction({
+export default {
   id: 'my-action',           // Unique identifier (slug)
   title: 'My Action',        // Display name
   description: 'Optional description',
@@ -26,8 +24,10 @@ export default defineAction({
 
     await sdk.ui.showToast('Hello!', 'success');
   },
-});
+} satisfies QuickActionDefinition;
 ```
+
+Types are ambient (globally available) - no imports needed. The `satisfies` keyword provides full type checking.
 
 ## Available SDK Services
 

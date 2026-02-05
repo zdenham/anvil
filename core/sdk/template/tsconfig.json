@@ -8,12 +8,8 @@
     "skipLibCheck": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "declaration": false,
-    "baseUrl": ".",
-    "paths": {
-      "@mort/sdk": ["./.mort/sdk.d.ts"]
-    }
+    "declaration": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "mort-types/**/*"],
   "exclude": ["node_modules", "dist"]
 }

@@ -644,8 +644,27 @@ export const threadService = {
   },
 
   /**
+   * Gets all descendant thread IDs for a given thread (recursive).
+   * Finds all threads where parentThreadId matches the given threadId,
+   * then recursively finds their children.
+   */
+  getDescendantThreadIds(threadId: string): string[] {
+    const allThreads = this.getAll();
+    const children = allThreads.filter(t => t.parentThreadId === threadId);
+    const descendants: string[] = [];
+
+    for (const child of children) {
+      descendants.push(child.id);
+      descendants.push(...this.getDescendantThreadIds(child.id));
+    }
+
+    return descendants;
+  },
+
+  /**
    * Archives a thread.
    * Moves the thread folder from its current location to archive/threads/.
+   * Cascades to all descendant threads (children, grandchildren, etc.).
    * Emits THREAD_ARCHIVED event so relation service can archive associated relations.
    * Uses optimistic update - removes from store immediately, rolls back on failure.
    *
@@ -656,35 +675,55 @@ export const threadService = {
     const thread = this.get(threadId);
     if (!thread) return;
 
-    const sourcePath = await findThreadPath(threadId);
-    if (!sourcePath) return;
+    // Get all descendant threads for cascaded archival
+    const descendantIds = this.getDescendantThreadIds(threadId);
+    const allThreadIds = [threadId, ...descendantIds];
 
-    const archivePath = `${ARCHIVE_THREADS_DIR}/${threadId}`;
+    logger.info(`[threadService.archive] Archiving thread ${threadId} with ${descendantIds.length} descendants`);
 
-    // Optimistically remove from store
-    const rollback = useThreadStore.getState()._applyDelete(threadId);
+    // Collect all rollbacks for potential failure recovery
+    const rollbacks: Array<() => void> = [];
+
     try {
       // Ensure archive directory exists
       await persistence.ensureDir(ARCHIVE_THREADS_DIR);
 
-      // Copy metadata and state to archive
-      const metadata = await persistence.readJson(`${sourcePath}/metadata.json`);
-      const state = await persistence.readJson(`${sourcePath}/state.json`);
+      // Archive each thread (parent + all descendants)
+      for (const id of allThreadIds) {
+        const sourcePath = await findThreadPath(id);
+        if (!sourcePath) {
+          logger.warn(`[threadService.archive] Thread ${id} not found on disk, skipping`);
+          continue;
+        }
 
-      await persistence.ensureDir(archivePath);
-      if (metadata) await persistence.writeJson(`${archivePath}/metadata.json`, metadata);
-      if (state) await persistence.writeJson(`${archivePath}/state.json`, state);
+        const archivePath = `${ARCHIVE_THREADS_DIR}/${id}`;
 
-      // Remove original directory
-      await persistence.removeDir(sourcePath);
+        // Optimistically remove from store
+        const rollback = useThreadStore.getState()._applyDelete(id);
+        rollbacks.push(rollback);
 
-      // Emit event so relation service can archive associated relations
-      // Include originInstanceId so standalone windows can close themselves
-      eventBus.emit(EventName.THREAD_ARCHIVED, { threadId, originInstanceId });
+        // Copy metadata and state to archive
+        const metadata = await persistence.readJson(`${sourcePath}/metadata.json`);
+        const state = await persistence.readJson(`${sourcePath}/state.json`);
 
-      logger.info(`[threadService.archive] Archived thread ${threadId}`);
+        await persistence.ensureDir(archivePath);
+        if (metadata) await persistence.writeJson(`${archivePath}/metadata.json`, metadata);
+        if (state) await persistence.writeJson(`${archivePath}/state.json`, state);
+
+        // Remove original directory
+        await persistence.removeDir(sourcePath);
+
+        // Emit event so relation service can archive associated relations
+        // Include originInstanceId so standalone windows can close themselves
+        eventBus.emit(EventName.THREAD_ARCHIVED, { threadId: id, originInstanceId });
+
+        logger.info(`[threadService.archive] Archived thread ${id}`);
+      }
     } catch (error) {
-      rollback();
+      // Roll back all optimistic deletes on failure
+      for (const rollback of rollbacks) {
+        rollback();
+      }
       throw error;
     }
   },

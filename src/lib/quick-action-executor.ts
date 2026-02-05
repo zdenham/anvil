@@ -21,11 +21,12 @@ import type { ResolvedQuickAction } from '@/entities/quick-actions/types.js';
 import { threadService } from '@/entities/threads/service.js';
 import { useThreadStore } from '@/entities/threads/store.js';
 import { planService } from '@/entities/plans/service.js';
-import { treeMenuService } from '@/stores/tree-menu/service.js';
+import { navigationService } from '@/stores/navigation-service.js';
 import { useInputStore } from '@/stores/input-store.js';
 import { toast } from '@/lib/toast.js';
 import { logger } from '@/lib/logger-client.js';
 import { FilesystemClient } from '@/lib/filesystem-client.js';
+import { getRunnerPath } from '@/lib/paths.js';
 
 const ACTION_TIMEOUT_MS = 30_000; // 30 seconds
 const fs = new FilesystemClient();
@@ -111,6 +112,10 @@ const SDKEventSchema = z.discriminatedUnion('event', [
     payload: z.object({ planId: z.string() }),
   }),
   z.object({
+    event: z.literal('plan:markUnread'),
+    payload: z.object({ planId: z.string() }),
+  }),
+  z.object({
     event: z.literal('log'),
     payload: z.object({
       level: z.enum(['info', 'warn', 'error', 'debug']),
@@ -142,8 +147,8 @@ export async function executeQuickAction(
   // Resolve path to the built JS file
   const actionJsPath = fs.joinPath(action.projectPath, 'dist', action.entryPoint);
 
-  // Get the runner path - it's bundled with the quick actions project
-  const runnerPath = fs.joinPath(action.projectPath, 'dist', 'runner.js');
+  // Get the runner path - bundled with app, resolved via paths.ts
+  const runnerPath = await getRunnerPath();
 
   logger.info('[quick-action-executor] Executing action', {
     actionId: action.id,
@@ -182,7 +187,7 @@ export async function executeQuickAction(
   // Capture stderr for error reporting
   command.stderr.on('data', (line: string) => {
     errorOutput += line + '\n';
-    logger.warn('[quick-action-executor] stderr:', line);
+    logger.error('[quick-action-executor] stderr:', line);
   });
 
   // Execute with timeout
@@ -192,7 +197,7 @@ export async function executeQuickAction(
         logger.info('[quick-action-executor] Action completed successfully');
         resolve({ success: true });
       } else {
-        logger.warn('[quick-action-executor] Action failed with code:', data.code);
+        logger.error('[quick-action-executor] Action failed with code:', data.code);
         resolve({
           success: false,
           error: { message: errorOutput || 'Action failed', stack: errorOutput },
@@ -225,7 +230,7 @@ export async function executeQuickAction(
 
   // Kill process if it timed out
   if (result.timedOut) {
-    logger.warn('[quick-action-executor] Killing timed out process');
+    logger.error('[quick-action-executor] Killing timed out process');
     await child.kill();
   }
 
@@ -235,8 +240,9 @@ export async function executeQuickAction(
 /**
  * Handle an SDK event received from the child process.
  * Routes events to appropriate services and stores.
+ * Exported for testing.
  */
-async function handleSDKEvent(event: SDKEvent): Promise<void> {
+export async function handleSDKEvent(event: SDKEvent): Promise<void> {
   logger.debug('[quick-action-executor] Handling SDK event:', event.event);
 
   switch (event.event) {
@@ -252,6 +258,9 @@ async function handleSDKEvent(event: SDKEvent): Promise<void> {
       break;
     case 'plan:archive':
       await planService.archive(event.payload.planId);
+      break;
+    case 'plan:markUnread':
+      await planService.markAsUnread(event.payload.planId);
       break;
 
     // UI operations - handled locally (no disk persistence needed)
@@ -274,7 +283,8 @@ async function handleSDKEvent(event: SDKEvent): Promise<void> {
       toast[event.payload.type ?? 'info'](event.payload.message);
       break;
     case 'ui:closePanel':
-      await treeMenuService.setSelectedItem(null);
+      // Use navigationService to clear BOTH tree selection AND content pane
+      await navigationService.navigateToView({ type: 'empty' });
       break;
 
     // Logging - route to main logger
@@ -294,28 +304,33 @@ async function handleSDKEvent(event: SDKEvent): Promise<void> {
 
 /**
  * Handle navigation events from the SDK.
+ * Uses navigationService to ensure both tree selection AND content pane are updated.
  */
 async function handleNavigation(payload: { type: string; id?: string }): Promise<void> {
   logger.info('[quick-action-executor] Navigation:', payload);
 
   switch (payload.type) {
     case 'thread':
-      if (payload.id) await treeMenuService.setSelectedItem(payload.id);
+      if (payload.id) await navigationService.navigateToThread(payload.id);
       break;
     case 'plan':
-      if (payload.id) await treeMenuService.setSelectedItem(payload.id);
+      if (payload.id) await navigationService.navigateToPlan(payload.id);
       break;
     case 'nextUnread':
       const nextItem = await findNextUnreadItem();
       if (nextItem) {
-        await treeMenuService.setSelectedItem(nextItem.id);
+        if (nextItem.type === 'thread') {
+          await navigationService.navigateToThread(nextItem.id);
+        } else {
+          await navigationService.navigateToPlan(nextItem.id);
+        }
       } else {
         // Navigate to empty state if no unread items (DD #29)
-        await treeMenuService.setSelectedItem(null);
+        await navigationService.navigateToView({ type: 'empty' });
       }
       break;
     case 'empty':
-      await treeMenuService.setSelectedItem(null);
+      await navigationService.navigateToView({ type: 'empty' });
       break;
   }
 }

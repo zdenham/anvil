@@ -3,10 +3,15 @@ import {
   type PostToolUseHookInput,
   type PostToolUseFailureHookInput,
   type SDKUserMessage,
+  type SubagentStartHookInput,
+  type SubagentStopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { relative, isAbsolute, join, resolve } from "path";
-import { readFileSync, writeFileSync, realpathSync } from "fs";
+import { readFileSync, writeFileSync, realpathSync, mkdirSync, existsSync } from "fs";
+import crypto from "crypto";
+import { parsePhases } from "../lib/phase-parser.js";
+import type { PhaseInfo } from "@core/types/plans.js";
 import type { RunnerConfig, OrchestrationContext } from "./types.js";
 import type { AgentConfig } from "../agent-types/index.js";
 import {
@@ -28,10 +33,30 @@ import {
 } from "../context.js";
 import { logger } from "../lib/logger.js";
 import { isMockModeEnabled, mockQuery } from "../testing/mock-query.js";
+import { generateThreadName } from "../services/thread-naming-service.js";
 import {
   createStdinMessageStream,
   type StdinMessageStream,
 } from "./stdin-message-stream.js";
+
+// ============================================================================
+// Sub-agent Tracking
+// ============================================================================
+
+/**
+ * In-memory mapping from SDK agent_id to child thread ID.
+ * The SDK's agent_id equals the parent_tool_use_id on messages from that subagent.
+ * Cleared on process exit.
+ */
+const agentIdToChildThreadId = new Map<string, string>();
+
+/**
+ * Get the child thread ID for a given agent_id (which equals parent_tool_use_id).
+ * Used by MessageHandler to route sub-agent messages.
+ */
+export function getChildThreadId(agentId: string): string | undefined {
+  return agentIdToChildThreadId.get(agentId);
+}
 
 /**
  * Emit log message to stdout as JSON line.
@@ -377,12 +402,25 @@ export async function runAgentLoop(
                       ? filePath
                       : resolve(context.workingDir, filePath);
 
+                    // Parse phases from plan file content
+                    let phaseInfo: PhaseInfo | null = null;
+                    try {
+                      const content = readFileSync(absolutePath, 'utf-8');
+                      phaseInfo = parsePhases(content);
+                      if (phaseInfo) {
+                        logger.info(`[PostToolUse] 📋 Parsed phases: ${phaseInfo.completed}/${phaseInfo.total}`);
+                      }
+                    } catch (parseErr) {
+                      logger.warn(`[PostToolUse] Failed to parse phases: ${parseErr}`);
+                    }
+
                     try {
                       const { id: planId, isNew } = await persistence.ensurePlanExists(
                         context.repoId,
                         context.worktreeId,
                         absolutePath,
-                        context.workingDir
+                        context.workingDir,
+                        phaseInfo
                       );
                       logger.info(`[PostToolUse] 📋 About to emit PLAN_DETECTED event: planId=${planId}`);
                       emitEvent(EventName.PLAN_DETECTED, { planId });
@@ -462,6 +500,151 @@ export async function runAgentLoop(
         ],
       },
     ],
+    SubagentStart: [
+      {
+        hooks: [
+          async (hookInput: unknown) => {
+            const input = hookInput as SubagentStartHookInput;
+
+            // Skip if we don't have required context for thread creation
+            if (!context.repoId || !context.worktreeId) {
+              logger.warn(`[SubagentStart] Cannot create sub-agent thread: missing repoId or worktreeId`);
+              return { continue: true };
+            }
+
+            const childThreadId = crypto.randomUUID();
+            const agentId = input.agent_id;
+            const agentType = input.agent_type;
+
+            // Create child thread directory and metadata
+            const childThreadPath = join(config.mortDir, "threads", childThreadId);
+            const now = Date.now();
+
+            // Initial name is "{agentType}: <pending>" - will be renamed via thread-naming-service
+            const initialName = `${agentType}: <pending>`;
+
+            const childMetadata = {
+              id: childThreadId,
+              repoId: context.repoId,
+              worktreeId: context.worktreeId,
+              status: "running",
+              turns: [{
+                index: 0,
+                prompt: `Sub-agent: ${agentType}`,
+                startedAt: now,
+                completedAt: null,
+              }],
+              isRead: true,
+              name: initialName,
+              createdAt: now,
+              updatedAt: now,
+              // Sub-agent specific fields
+              parentThreadId: context.threadId,
+              parentToolUseId: agentId, // agent_id is the tool_use_id of the Task tool
+              agentType: agentType,
+            };
+
+            // Create thread directory and write metadata
+            try {
+              mkdirSync(childThreadPath, { recursive: true });
+              writeFileSync(
+                join(childThreadPath, "metadata.json"),
+                JSON.stringify(childMetadata, null, 2)
+              );
+              logger.info(`[SubagentStart] Created sub-agent thread: ${childThreadId} (parent: ${context.threadId})`);
+
+              // Store mapping for message routing (agent_id -> childThreadId)
+              agentIdToChildThreadId.set(agentId, childThreadId);
+
+              // Emit THREAD_CREATED event
+              emitEvent(EventName.THREAD_CREATED, {
+                threadId: childThreadId,
+                repoId: context.repoId,
+                worktreeId: context.worktreeId,
+              });
+
+              // Fire-and-forget: Request name via thread-naming-service
+              // The initial prompt is the agent type, but we use a descriptive prompt
+              const apiKey = process.env.ANTHROPIC_API_KEY;
+              if (apiKey) {
+                generateThreadName(`Sub-agent task: ${agentType}`, apiKey)
+                  .then((generatedName) => {
+                    // Update metadata with generated name
+                    try {
+                      const metadataPath = join(childThreadPath, "metadata.json");
+                      if (existsSync(metadataPath)) {
+                        const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+                        metadata.name = generatedName;
+                        metadata.updatedAt = Date.now();
+                        writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+                        // Emit name generated event
+                        emitEvent(EventName.THREAD_NAME_GENERATED, {
+                          threadId: childThreadId,
+                          name: generatedName,
+                        });
+                        logger.info(`[SubagentStart] Generated name for sub-agent: ${generatedName}`);
+                      }
+                    } catch (err) {
+                      logger.warn(`[SubagentStart] Failed to update name: ${err}`);
+                    }
+                  })
+                  .catch((err) => {
+                    logger.warn(`[SubagentStart] Failed to generate name: ${err}`);
+                  });
+              }
+            } catch (err) {
+              logger.error(`[SubagentStart] Failed to create sub-agent thread: ${err}`);
+            }
+
+            return { continue: true };
+          },
+        ],
+      },
+    ],
+    SubagentStop: [
+      {
+        hooks: [
+          async (hookInput: unknown) => {
+            const input = hookInput as SubagentStopHookInput;
+            const agentId = input.agent_id;
+
+            const childThreadId = agentIdToChildThreadId.get(agentId);
+            if (childThreadId) {
+              // Update child thread status to idle (completed)
+              const metadataPath = join(config.mortDir, "threads", childThreadId, "metadata.json");
+              try {
+                if (existsSync(metadataPath)) {
+                  const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+                  metadata.status = "completed";
+                  metadata.updatedAt = Date.now();
+                  // Mark the turn as completed
+                  if (metadata.turns && metadata.turns.length > 0) {
+                    metadata.turns[metadata.turns.length - 1].completedAt = Date.now();
+                  }
+                  writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+                  logger.info(`[SubagentStop] Marked sub-agent thread as completed: ${childThreadId}`);
+
+                  // Emit THREAD_STATUS_CHANGED event
+                  emitEvent(EventName.THREAD_STATUS_CHANGED, {
+                    threadId: childThreadId,
+                    status: "completed",
+                  });
+                }
+              } catch (err) {
+                logger.warn(`[SubagentStop] Failed to update sub-agent status: ${err}`);
+              }
+
+              // Clean up mapping
+              agentIdToChildThreadId.delete(agentId);
+            } else {
+              logger.warn(`[SubagentStop] No mapping found for agent_id: ${agentId}`);
+            }
+
+            return { continue: true };
+          },
+        ],
+      },
+    ],
     ...(options.stopHook && {
       Stop: [{ hooks: [options.stopHook] }],
     }),
@@ -532,7 +715,8 @@ export async function runAgentLoop(
       });
 
   // Process messages with dedicated handler
-  const handler = new MessageHandler();
+  // Pass mortDir for sub-agent message routing
+  const handler = new MessageHandler(config.mortDir);
 
   try {
     for await (const message of result) {

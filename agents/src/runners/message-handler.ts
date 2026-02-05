@@ -14,6 +14,10 @@ import {
   setSessionId,
 } from "../output.js";
 import { logger, stdout } from "../lib/logger.js";
+import { getChildThreadId } from "./shared.js";
+import { join } from "path";
+import { readFileSync, writeFileSync, existsSync } from "fs";
+import type { ThreadState } from "@core/types/events.js";
 
 /**
  * MessageHandler processes SDK messages and updates thread state.
@@ -26,12 +30,35 @@ import { logger, stdout } from "../lib/logger.js";
  * to the async iterator, so we can't reliably track file changes here.
  */
 export class MessageHandler {
+  private mortDir: string | null = null;
+
+  // In-memory state cache for child threads (childThreadId -> state)
+  private childThreadStates = new Map<string, ThreadState>();
+
+  /**
+   * Create a MessageHandler.
+   * @param mortDir - Optional path to mort directory for sub-agent state routing
+   */
+  constructor(mortDir?: string) {
+    this.mortDir = mortDir ?? null;
+  }
 
   /**
    * Process a single SDK message.
    * Returns true if processing should continue.
    */
   async handle(message: SDKMessage): Promise<boolean> {
+    // Check if this message belongs to a sub-agent
+    const parentToolUseId = this.getParentToolUseId(message);
+    if (parentToolUseId && this.mortDir) {
+      const childThreadId = getChildThreadId(parentToolUseId);
+      if (childThreadId) {
+        // Route to child thread's state
+        return this.handleForChildThread(childThreadId, message);
+      }
+    }
+
+    // Normal parent thread handling
     switch (message.type) {
       case "system":
         return this.handleSystem(message);
@@ -225,5 +252,145 @@ export class MessageHandler {
     }
 
     return false;
+  }
+
+  // ============================================================================
+  // Sub-agent Message Routing
+  // ============================================================================
+
+  /**
+   * Extract parent_tool_use_id from an SDK message.
+   * Returns null if not a sub-agent message.
+   */
+  private getParentToolUseId(message: SDKMessage): string | null {
+    if (message.type === "assistant" || message.type === "user") {
+      const parentId = (message as SDKAssistantMessage | SDKUserMessage).parent_tool_use_id;
+      return parentId ?? null;
+    }
+    if (message.type === "tool_progress") {
+      const parentId = (message as SDKToolProgressMessage).parent_tool_use_id;
+      return parentId ?? null;
+    }
+    return null;
+  }
+
+  /**
+   * Get or initialize state for a child thread.
+   */
+  private getChildThreadState(childThreadId: string): ThreadState {
+    // Check in-memory cache first
+    let state = this.childThreadStates.get(childThreadId);
+    if (state) return state;
+
+    // Try to load from disk
+    const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
+    if (existsSync(statePath)) {
+      try {
+        state = JSON.parse(readFileSync(statePath, "utf-8")) as ThreadState;
+        this.childThreadStates.set(childThreadId, state);
+        return state;
+      } catch {
+        // Fall through to create new state
+      }
+    }
+
+    // Initialize new state for child thread
+    state = {
+      messages: [],
+      fileChanges: [],
+      workingDirectory: "", // Will be set from parent context if needed
+      status: "running",
+      timestamp: Date.now(),
+      toolStates: {},
+    };
+    this.childThreadStates.set(childThreadId, state);
+    return state;
+  }
+
+  /**
+   * Write child thread state to disk and emit event.
+   */
+  private async emitChildThreadState(childThreadId: string, state: ThreadState): Promise<void> {
+    state.timestamp = Date.now();
+    const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
+    writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+    // Emit state event for UI updates
+    stdout({ type: "state", state, threadId: childThreadId });
+  }
+
+  /**
+   * Handle a message for a child (sub-agent) thread.
+   * Routes the message to the child's state file instead of parent's.
+   */
+  private async handleForChildThread(childThreadId: string, message: SDKMessage): Promise<boolean> {
+    const state = this.getChildThreadState(childThreadId);
+
+    switch (message.type) {
+      case "assistant": {
+        const msg = message as SDKAssistantMessage;
+        const blockTypes = msg.message.content.map(b => b.type);
+        logger.debug(
+          `[MessageHandler] handleForChildThread(${childThreadId}): assistant blocks=[${blockTypes.join(",")}]`
+        );
+
+        // Mark tool_use blocks as running
+        for (const block of msg.message.content) {
+          if (block.type === "tool_use") {
+            state.toolStates[block.id] = { status: "running", toolName: block.name };
+          }
+        }
+
+        // Append message
+        state.messages.push({
+          role: "assistant",
+          content: msg.message.content as Parameters<typeof appendAssistantMessage>[0]["content"],
+        });
+
+        await this.emitChildThreadState(childThreadId, state);
+        return true;
+      }
+
+      case "user": {
+        const msg = message as SDKUserMessage;
+        // Tool result handling for child thread
+        if (msg.parent_tool_use_id) {
+          const toolUseId = msg.parent_tool_use_id;
+          // Note: For sub-agent messages, parent_tool_use_id is set, but this might be
+          // a nested tool result within the sub-agent
+          const result = this.extractToolResult(msg);
+          const isError = this.detectToolError(msg);
+
+          const existingState = state.toolStates[toolUseId];
+          state.toolStates[toolUseId] = {
+            status: isError ? "error" : "complete",
+            result,
+            isError,
+            toolName: existingState?.toolName,
+          };
+
+          logger.debug(
+            `[MessageHandler] handleForChildThread(${childThreadId}): tool_result toolUseId=${toolUseId}`
+          );
+        }
+        await this.emitChildThreadState(childThreadId, state);
+        return true;
+      }
+
+      case "tool_progress": {
+        // Just log, no state change needed
+        const msg = message as SDKToolProgressMessage;
+        logger.debug(
+          `[MessageHandler] handleForChildThread(${childThreadId}): tool ${msg.tool_name} running`
+        );
+        return true;
+      }
+
+      default:
+        logger.debug(
+          `[MessageHandler] handleForChildThread(${childThreadId}): ignoring ${message.type}`
+        );
+        return true;
+    }
   }
 }

@@ -22,15 +22,14 @@ import { useSpotlightHistory } from "./use-spotlight-history";
 import { CalculatorService } from "../../lib/calculator-service";
 import { TriggerSearchInput, type TriggerStateInfo } from "../reusable/trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
-import { repoService, type Repository, eventBus, threadService } from "../../entities";
+import { repoService, type Repository, eventBus } from "../../entities";
 import { worktreeService } from "../../entities/worktrees";
-import { EventName } from "@core/types/events.js";
 import type { RepoWorktree } from "@core/types/repositories";
-import { spawnSimpleAgent } from "../../lib/agent-service";
 import { openControlPanel, showMainWindow, showMainWindowWithView } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
 import { promptHistoryService } from "../../lib/prompt-history-service";
 import { loadSettings } from "../../lib/persistence";
+import { createThread } from "../../lib/thread-creation-service";
 
 /** Error types for thread creation */
 type ThreadCreationError =
@@ -205,11 +204,8 @@ export class SpotlightController {
    * Creates a simple thread that runs directly in the source repository or worktree.
    * No worktree allocation, no branch management - just direct execution.
    *
-   * Uses optimistic UI pattern for instant feedback:
-   * 1. Create thread metadata in store immediately (optimistic)
-   * 2. Broadcast THREAD_CREATED so all windows have the thread
-   * 3. Show the window (thread will be in store already)
-   * 4. Spawn agent in background (non-blocking)
+   * Uses the shared thread creation service for optimistic UI and agent spawning,
+   * then handles spotlight-specific window routing.
    *
    * @param content - The thread prompt/description
    * @param repo - The repository to work in
@@ -224,225 +220,70 @@ export class SpotlightController {
   ): Promise<void> {
     const useNSPanel = options?.useNSPanel ?? true; // Default to NSPanel for backward compatibility
     const startTime = Date.now();
-    logger.info("═══════════════════════════════════════════════════════════════");
-    logger.info("[spotlight:createSimpleThread] START (optimistic UI)");
-    logger.info("═══════════════════════════════════════════════════════════════");
-    logger.info("[spotlight:createSimpleThread] Input parameters:", {
+    logger.info("[spotlight:createSimpleThread] START", {
       repoName: repo.name,
-      repoSourcePath: repo.sourcePath,
       worktreePath: worktreePath ?? "NOT PROVIDED",
       contentLength: content.length,
-      contentPreview: content.substring(0, 100),
+      useNSPanel,
     });
 
     // Determine working directory: worktree path if provided, otherwise source repo
     const workingDir = worktreePath ?? repo.sourcePath;
-    logger.info(`[spotlight:createSimpleThread] Resolved workingDir: ${workingDir}`);
 
     if (!workingDir) {
       const error: ThreadCreationError = { type: "no_repositories" };
-      logger.error(
-        `[spotlight:createSimpleThread] CRITICAL: Repository ${repo.name} has no sourcePath and no worktree provided`
-      );
-      logger.error("[spotlight:createSimpleThread] repo object:", JSON.stringify(repo, null, 2));
+      logger.error("[spotlight:createSimpleThread] No working directory", { repoName: repo.name });
       throw error;
     }
 
     // Lookup repository settings to get the UUID
     const slug = repo.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    logger.info(`[spotlight:createSimpleThread] Loading settings for slug: ${slug}`);
-
-    let settings;
-    try {
-      settings = await loadSettings(slug);
-      logger.info(`[spotlight:createSimpleThread] Settings loaded:`, {
-        settingsId: settings.id,
-        worktreesCount: settings.worktrees?.length ?? 0,
-      });
-    } catch (settingsError) {
-      logger.error("[spotlight:createSimpleThread] Failed to load settings:", {
-        slug,
-        error: settingsError,
-        errorMessage: settingsError instanceof Error ? settingsError.message : String(settingsError),
-      });
-      throw settingsError;
-    }
+    const settings = await loadSettings(slug);
 
     // Determine worktree ID - either from selected worktree or use main worktree
     let worktreeId: string;
     if (worktreePath) {
-      // Find worktree by path
-      logger.info(`[spotlight:createSimpleThread] Looking for worktree with path: ${worktreePath}`);
       const worktree = settings.worktrees.find(w => w.path === worktreePath);
       if (!worktree) {
-        logger.error("[spotlight:createSimpleThread] Worktree not found for path:", {
-          worktreePath,
-          availableWorktrees: settings.worktrees.map(w => ({ name: w.name, path: w.path, id: w.id })),
-        });
         throw new Error(`Worktree not found for path: ${worktreePath}`);
       }
       worktreeId = worktree.id;
-      logger.info(`[spotlight:createSimpleThread] Found worktree: name=${worktree.name}, id=${worktreeId}`);
     } else {
-      // Use main worktree (first in list, or create if missing)
-      logger.info("[spotlight:createSimpleThread] No worktreePath provided, looking for 'main' worktree");
       const mainWorktree = settings.worktrees.find(w => w.name === 'main');
       if (!mainWorktree) {
-        logger.error("[spotlight:createSimpleThread] Main worktree not found:", {
-          repoName: repo.name,
-          availableWorktrees: settings.worktrees.map(w => ({ name: w.name, path: w.path, id: w.id })),
-        });
         throw new Error(`Main worktree not found for repository: ${repo.name}`);
       }
       worktreeId = mainWorktree.id;
-      logger.info(`[spotlight:createSimpleThread] Using main worktree: id=${worktreeId}, path=${mainWorktree.path}`);
     }
 
-    const taskId = crypto.randomUUID();
-    const threadId = crypto.randomUUID();
-
-    logger.info("[spotlight:createSimpleThread] Generated IDs:", {
-      taskId,
-      threadId,
-      repoId: settings.id,
-      worktreeId,
-    });
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PHASE 1: Optimistic UI - Create thread in store and broadcast IMMEDIATELY
-    // This ensures all windows have the thread before we show any UI
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    const optimisticStart = Date.now();
-    logger.info("[spotlight:createSimpleThread] [OPTIMISTIC] Creating thread in store with first message...", {
-      threadId,
-      timestamp: new Date(optimisticStart).toISOString(),
-    });
-    threadService.createOptimistic({
-      id: threadId,
-      repoId: settings.id,
-      worktreeId,
-      status: "running", // Mark as running since agent will start immediately
-      prompt: content,   // Include first message for immediate display
-    });
-    logger.info(`[spotlight:createSimpleThread] [OPTIMISTIC] Thread ${threadId} created in local store`, {
-      elapsedMs: Date.now() - optimisticStart,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Broadcast optimistic create to ALL windows so they have the thread before UI opens
-    // This is critical for cross-window thread creation (spotlight -> main window)
-    // THREAD_CREATED will fire later once the agent writes to disk, overwriting this
-    const broadcastStart = Date.now();
-    logger.info("[spotlight:createSimpleThread] [OPTIMISTIC] Broadcasting THREAD_OPTIMISTIC_CREATED event...", {
-      threadId,
-      timestamp: new Date(broadcastStart).toISOString(),
-    });
-    eventBus.emit(EventName.THREAD_OPTIMISTIC_CREATED, {
-      threadId,
-      repoId: settings.id,
-      worktreeId,
+    // Use the shared thread creation service for optimistic UI + agent spawn
+    const { threadId, taskId } = await createThread({
       prompt: content,
-      status: "running",
-    });
-    logger.info("[spotlight:createSimpleThread] [OPTIMISTIC] THREAD_OPTIMISTIC_CREATED event broadcasted", {
-      threadId,
-      elapsedMs: Date.now() - broadcastStart,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Touch worktree to update lastAccessedAt (for MRU sorting) - non-blocking
-    worktreeService.touch(repo.name, workingDir).catch((err) => {
-      logger.warn("[spotlight:createSimpleThread] Failed to touch worktree (non-fatal):", err);
+      repoId: settings.id,
+      worktreeId,
+      worktreePath: workingDir,
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // PHASE 2: Show Window - Thread is already in store, so no loading state
+    // Spotlight-specific: Route to appropriate window
     // ═══════════════════════════════════════════════════════════════════════════
 
-    logger.info("[spotlight:createSimpleThread] ───────────────────────────────────────────────────────────────");
-    const openPanelStart = Date.now();
-    logger.info(`[spotlight:createSimpleThread] Routing to ${useNSPanel ? "NSPanel" : "Main Window"}...`, {
+    logger.info("[spotlight:createSimpleThread] Routing to window", {
       threadId,
-      timestamp: new Date(openPanelStart).toISOString(),
-      elapsedSinceStart: openPanelStart - startTime,
+      useNSPanel,
+      elapsedMs: Date.now() - startTime,
     });
-    try {
-      if (useNSPanel) {
-        await openControlPanel(threadId, taskId, content);
-        logger.info(`[spotlight:createSimpleThread] openControlPanel completed`, {
-          threadId,
-          elapsedMs: Date.now() - openPanelStart,
-          totalElapsedMs: Date.now() - startTime,
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        // Open in main window content pane
-        await showMainWindowWithView({ type: "thread", threadId });
-        logger.info(`[spotlight:createSimpleThread] showMainWindowWithView completed`, {
-          threadId,
-          elapsedMs: Date.now() - openPanelStart,
-          totalElapsedMs: Date.now() - startTime,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    } catch (panelError) {
-      logger.error("[spotlight:createSimpleThread] Panel open FAILED:", {
-        error: panelError,
-        errorMessage: panelError instanceof Error ? panelError.message : String(panelError),
-        threadId,
-        taskId,
-        useNSPanel,
-      });
-      throw panelError;
+
+    if (useNSPanel) {
+      await openControlPanel(threadId, taskId, content);
+    } else {
+      await showMainWindowWithView({ type: "thread", threadId });
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PHASE 3: Spawn Agent - Non-blocking, runs in background
-    // The runner will update thread metadata on disk, which will be picked up
-    // by listeners when THREAD_UPDATED events arrive
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    logger.info("[spotlight:createSimpleThread] ───────────────────────────────────────────────────────────────");
-    logger.info("[spotlight:createSimpleThread] Spawning agent in background (non-blocking)...");
-    logger.info("[spotlight:createSimpleThread] spawnSimpleAgent parameters:", {
-      repoId: settings.id,
-      worktreeId,
+    logger.info("[spotlight:createSimpleThread] SUCCESS", {
       threadId,
-      promptLength: content.length,
-      sourcePath: workingDir,
+      totalElapsedMs: Date.now() - startTime,
     });
-
-    // Don't await - spawn in background for instant UI feedback
-    const spawnStart = Date.now();
-    spawnSimpleAgent({
-      repoId: settings.id,     // UUID from settings
-      worktreeId,              // UUID from worktree
-      threadId,
-      prompt: content,
-      sourcePath: workingDir,
-    })
-      .then(() => {
-        logger.info(`[spotlight:createSimpleThread] spawnSimpleAgent completed in ${Date.now() - spawnStart}ms`);
-      })
-      .catch((spawnError) => {
-        logger.error("[spotlight:createSimpleThread] spawnSimpleAgent FAILED:", {
-          error: spawnError,
-          errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
-          errorStack: spawnError instanceof Error ? spawnError.stack : undefined,
-          threadId,
-          workingDir,
-          elapsed: `${Date.now() - spawnStart}ms`,
-        });
-        // Note: Error handling for spawn failures should show an error in the thread panel
-        // The optimistic thread will remain in the store with "running" status until
-        // the next disk refresh replaces it or it times out
-      });
-
-    const totalElapsed = Date.now() - startTime;
-    logger.info("═══════════════════════════════════════════════════════════════");
-    logger.info(`[spotlight:createSimpleThread] SUCCESS (UI shown) - total time: ${totalElapsed}ms`);
-    logger.info("═══════════════════════════════════════════════════════════════");
   }
 
   /**

@@ -8,6 +8,28 @@ This document outlines how to integrate **both Claude Code skills AND legacy com
 - **Skills** (modern) - Directory-based with `SKILL.md` and bundled files
 - **Commands** (legacy) - Single `.md` files, simpler but less powerful
 
+## Design Decision: System Prompt Injection (Not SDK-Native)
+
+Rather than using the SDK's `settingSources` approach (which injects skill metadata into the system prompt for all conversations), Mort uses a **system prompt append** strategy:
+
+1. **Custom Discovery** - TypeScript service scans skill directories (including `~/.mort/skills/`)
+2. **Discovery Timing** - Skills are discovered at app startup, then refreshed when user types `/`
+3. **On-Demand Injection** - Skill content is appended to the system prompt only when explicitly invoked with `/skill-name`
+4. **Display Message Preserved** - The original `/skill-name args` message is stored and displayed in UI
+5. **Agent Awareness** - The system prompt explicitly instructs the agent to follow the injected skill
+
+**Why this approach?**
+
+| Aspect | SDK-Native (`settingSources`) | System Prompt Append |
+|--------|------------------------------|----------------------|
+| Token cost | Metadata always in system prompt | Zero cost when skills unused |
+| Auto-invocation | Claude can auto-invoke skills | Explicit `/` invocation only |
+| Custom paths | Limited to SDK's paths | Full control (`~/.mort/skills/`) |
+| Thread persistence | N/A | Display message stored, skill injected per-run only |
+| Complexity | Simple (1-line config) | More implementation work |
+
+Since Mort users explicitly invoke skills via `/` and we need custom paths, system prompt append is the better fit.
+
 ## Skill & Command Sources Summary
 
 **Mort will discover and load from ALL of the following locations:**
@@ -163,214 +185,541 @@ Instructions for Claude to follow when this skill is invoked.
 
 ## Integration Strategy for Mort
 
-### Current State
+### Architecture Overview
 
-Mort already uses the Claude Agent SDK with the `claude_code` preset:
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              SKILL WORKFLOW                                      │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+App starts
+        │
+        ▼
+┌───────────────────────────────────┐
+│ skillsService.discover()         │
+│ Scans:                           │
+│  • <repo>/.claude/skills/*/...   │
+│  • <repo>/.claude/commands/*.md  │
+│  • ~/.mort/skills/*/SKILL.md     │
+│  • ~/.claude/skills/*/SKILL.md   │
+│  • ~/.claude/commands/*.md       │
+└───────────────┬───────────────────┘
+                │ Hydrates store
+                ▼
+User types "/" in input
+        │
+        ▼
+┌───────────────────────────────────┐
+│ skillsService.discover() refresh │
+│ (ensures fresh skill list)       │
+└───────────────┬───────────────────┘
+                │ Returns SkillMetadata[]
+                ▼
+┌───────────────────────────────────┐
+│ Dropdown shows available skills  │
+│ User selects "/review-pr"        │
+└───────────────┬───────────────────┘
+                │
+                ▼
+User types: "/review-pr 123 check for security issues"
+                │
+                ▼
+┌───────────────────────────────────┐
+│ Frontend detects "/review-pr"    │
+│ Reads full SKILL.md content      │
+│ Substitutes $ARGUMENTS           │
+└───────────────┬───────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    WHAT GETS SENT TO AGENT                      │
+│                                                                 │
+│  SYSTEM PROMPT (appended):                                      │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │ <skill-instruction>                                       │  │
+│  │ The user has invoked a skill. You MUST follow the        │  │
+│  │ instructions in the <skill> block below. This skill was  │  │
+│  │ loaded from outside your standard skill directories and  │  │
+│  │ was explicitly requested by the user.                     │  │
+│  │                                                           │  │
+│  │ <skill name="review-pr" source="personal">               │  │
+│  │ # Review PR                                               │  │
+│  │                                                           │  │
+│  │ Review the pull request for code quality, bugs, and      │  │
+│  │ security issues.                                          │  │
+│  │                                                           │  │
+│  │ ## Steps                                                  │  │
+│  │ 1. Fetch PR diff with `gh pr diff 123`                   │  │
+│  │ 2. Analyze each file for issues                          │  │
+│  │ ...                                                       │  │
+│  │ </skill>                                                  │  │
+│  │ </skill-instruction>                                      │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  USER MESSAGE (display version):                                │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │ /review-pr 123 check for security issues                 │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    WHAT USER SEES IN UI                         │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │ ┌──────────────────┐                                      │  │
+│  │ │ ⚡ /review-pr    │  ← Skill chip (expandable)           │  │
+│  │ └──────────────────┘                                      │  │
+│  │ 123 check for security issues                             │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌───────────────────────────────────┐
+│ Agent receives skill in system   │
+│ prompt, follows instructions     │
+│ Returns response                 │
+└───────────────────────────────────┘
+```
+
+### Implementation Phases
+
+#### Phase 1: Skill Discovery (Rust Backend)
+
+Add `discover_skills` Tauri command that scans all skill/command locations and returns metadata for the dropdown UI.
+
+#### Phase 2: Slash Command UI
+
+Add `/` trigger handler that shows the dropdown and allows selection. This follows the existing trigger pattern used for `@` search and spotlight tray:
+- `/` triggers dropdown anywhere in message (not just at start)
+- Dropdown reuses existing trigger infrastructure and styling
+- Skills searchable by name and description
+
+#### Phase 3: System Prompt Injection
+
+When user submits a message starting with `/skill-name`:
+1. Parse all skill invocations from the message (supports multiple skills)
+2. Read the full skill content from disk for each skill
+3. Substitute `$ARGUMENTS` with the provided args
+4. Wrap each in `<skill-instruction>` with explicit agent instructions and `<skill>` tags
+5. Append all skill instructions to system prompt (not user message)
+6. Send original message as the user message (for display and persistence)
+
+**Multi-skill support**: Users can invoke multiple skills in a single message. Each skill gets its own `<skill-instruction>` block appended to the system prompt.
+
+**Per-run injection**: Skills are only injected into the system prompt for the current agent run. Thread reload does not re-inject skills - they apply only to the turn they were invoked.
+
+#### Phase 4: UI Display
+
+In the message renderer, regex match `<skill>` tags and render as collapsed chips instead of raw content.
+
+---
+
+## Detailed Implementation
+
+### Phase 1: Skills Entity & Discovery Service
+
+Skills follow the same entity pattern as quick-actions: types, store, service, with discovery via TypeScript using the FS adapter.
+
+#### 1.1 Types (`src/entities/skills/types.ts`)
 
 ```typescript
-// agents/src/agent-types/simple.ts
-export const simple: AgentConfig = {
-  name: "simple",
-  tools: { type: "preset", preset: "claude_code" },
-  // ...
+export interface SkillMetadata {
+  id: string;                    // Stable UUID
+  name: string;                  // Display name (from frontmatter or directory name)
+  slug: string;                  // Directory/file name for lookups
+  description: string;
+  source: SkillSource;
+  path: string;                  // Full path to SKILL.md or command.md
+  isLegacyCommand: boolean;
+  userInvocable: boolean;        // From frontmatter, default true
+  disableModelInvocation: boolean; // From frontmatter, default false
+}
+
+export type SkillSource =
+  | 'project'           // <repo>/.claude/skills/
+  | 'project_command'   // <repo>/.claude/commands/
+  | 'mort'              // ~/.mort/skills/
+  | 'personal'          // ~/.claude/skills/
+  | 'personal_command'; // ~/.claude/commands/
+
+export interface SkillContent {
+  content: string;      // Markdown content (frontmatter stripped)
+  source: SkillSource;
+}
+
+export interface SkillFrontmatter {
+  name?: string;
+  description?: string;
+  'user-invocable'?: boolean;
+  'disable-model-invocation'?: boolean;
+}
+```
+
+#### 1.2 Store (`src/entities/skills/store.ts`)
+
+```typescript
+import { create } from 'zustand';
+import type { SkillMetadata, SkillSource } from './types';
+
+interface SkillsState {
+  skills: Record<string, SkillMetadata>;  // Keyed by ID
+  _hydrated: boolean;
+  _lastDiscoveryPath: string | null;      // Track which repo we discovered for
+
+  // Selectors
+  getSkill: (id: string) => SkillMetadata | undefined;
+  getBySlug: (slug: string) => SkillMetadata | undefined;
+  getAll: () => SkillMetadata[];
+  getForSource: (source: SkillSource) => SkillMetadata[];
+  search: (query: string) => SkillMetadata[];
+
+  // Mutations
+  hydrate: (skills: Record<string, SkillMetadata>, repoPath: string) => void;
+  _setHydrated: (hydrated: boolean) => void;
+}
+
+export const useSkillsStore = create<SkillsState>((set, get) => ({
+  skills: {},
+  _hydrated: false,
+  _lastDiscoveryPath: null,
+
+  getSkill: (id) => get().skills[id],
+
+  getBySlug: (slug) => {
+    return Object.values(get().skills).find(s => s.slug === slug);
+  },
+
+  getAll: () => {
+    // Sort by source priority, then name
+    const order: Record<SkillSource, number> = {
+      project: 0,
+      project_command: 1,
+      mort: 2,
+      personal: 3,
+      personal_command: 4,
+    };
+    return Object.values(get().skills)
+      .filter(s => s.userInvocable)
+      .sort((a, b) => order[a.source] - order[b.source] || a.name.localeCompare(b.name));
+  },
+
+  getForSource: (source) => {
+    return Object.values(get().skills)
+      .filter(s => s.source === source && s.userInvocable);
+  },
+
+  search: (query) => {
+    const q = query.toLowerCase();
+    return get().getAll().filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.description.toLowerCase().includes(q)
+    );
+  },
+
+  hydrate: (skills, repoPath) => set({
+    skills,
+    _hydrated: true,
+    _lastDiscoveryPath: repoPath
+  }),
+
+  _setHydrated: (hydrated) => set({ _hydrated: hydrated }),
+}));
+```
+
+#### 1.3 Service (`src/entities/skills/service.ts`)
+
+```typescript
+import { useSkillsStore } from './store';
+import type { SkillMetadata, SkillSource, SkillContent, SkillFrontmatter } from './types';
+import { FilesystemClient } from '@/lib/filesystem-client';
+import { logger } from '@/lib/logger-client';
+
+const fs = new FilesystemClient();
+
+// Skill directory configurations
+interface SkillLocation {
+  getPath: (repoPath: string, homeDir: string) => string;
+  source: SkillSource;
+  isLegacy: boolean;
+}
+
+const SKILL_LOCATIONS: SkillLocation[] = [
+  // Priority order: project > mort > personal
+  {
+    getPath: (repo) => `${repo}/.claude/skills`,
+    source: 'project',
+    isLegacy: false,
+  },
+  {
+    getPath: (repo) => `${repo}/.claude/commands`,
+    source: 'project_command',
+    isLegacy: true,
+  },
+  {
+    getPath: (_, home) => `${home}/.mort/skills`,
+    source: 'mort',
+    isLegacy: false,
+  },
+  {
+    getPath: (_, home) => `${home}/.claude/skills`,
+    source: 'personal',
+    isLegacy: false,
+  },
+  {
+    getPath: (_, home) => `${home}/.claude/commands`,
+    source: 'personal_command',
+    isLegacy: true,
+  },
+];
+
+function parseFrontmatter(content: string): { frontmatter: SkillFrontmatter; body: string } {
+  if (!content.startsWith('---')) {
+    return { frontmatter: {}, body: content };
+  }
+
+  const endIndex = content.indexOf('---', 3);
+  if (endIndex === -1) {
+    return { frontmatter: {}, body: content };
+  }
+
+  const yamlContent = content.slice(3, endIndex).trim();
+  const body = content.slice(endIndex + 3).trim();
+
+  // Simple YAML parsing for key: value pairs
+  const frontmatter: SkillFrontmatter = {};
+  for (const line of yamlContent.split('\n')) {
+    const match = line.match(/^([^:]+):\s*(.*)$/);
+    if (match) {
+      const [, key, value] = match;
+      const cleanKey = key.trim();
+      const cleanValue = value.trim().replace(/^["']|["']$/g, '');
+
+      if (cleanKey === 'name') frontmatter.name = cleanValue;
+      else if (cleanKey === 'description') frontmatter.description = cleanValue;
+      else if (cleanKey === 'user-invocable') frontmatter['user-invocable'] = cleanValue !== 'false';
+      else if (cleanKey === 'disable-model-invocation') frontmatter['disable-model-invocation'] = cleanValue === 'true';
+    }
+  }
+
+  return { frontmatter, body };
+}
+
+export const skillsService = {
+  /**
+   * Discover and hydrate skills from all locations
+   */
+  async discover(repoPath: string): Promise<void> {
+    logger.log('[skillsService:discover] Starting skill discovery...');
+
+    const pathsInfo = await fs.getPathsInfo();
+    const homeDir = pathsInfo.home_dir;
+
+    const skills: Record<string, SkillMetadata> = {};
+    const slugToId: Record<string, string> = {};
+
+    for (const location of SKILL_LOCATIONS) {
+      const dirPath = location.getPath(repoPath, homeDir);
+
+      if (!await fs.exists(dirPath)) {
+        continue;
+      }
+
+      try {
+        const entries = await fs.listDir(dirPath);
+
+        for (const entry of entries) {
+          let skillPath: string;
+          let slug: string;
+
+          if (location.isLegacy) {
+            // Legacy: single .md files
+            if (!entry.isFile || !entry.name.endsWith('.md')) continue;
+            skillPath = entry.path;
+            slug = entry.name.replace(/\.md$/, '').toLowerCase();  // Normalize to lowercase
+          } else {
+            // Modern: directories with SKILL.md
+            if (!entry.isDirectory) continue;
+            skillPath = await fs.joinPath(entry.path, 'SKILL.md');
+            if (!await fs.exists(skillPath)) continue;
+            slug = entry.name.toLowerCase();  // Normalize to lowercase
+          }
+
+          // Skip if we already have this slug from a higher-priority source
+          if (slugToId[slug]) continue;
+
+          try {
+            const content = await fs.readFile(skillPath);
+            const { frontmatter } = parseFrontmatter(content);
+
+            // Skip non-user-invocable skills
+            if (frontmatter['user-invocable'] === false) continue;
+
+            const id = crypto.randomUUID();
+            slugToId[slug] = id;
+
+            skills[id] = {
+              id,
+              slug,
+              name: frontmatter.name || slug,
+              description: frontmatter.description || '',
+              source: location.source,
+              path: skillPath,
+              isLegacyCommand: location.isLegacy,
+              userInvocable: frontmatter['user-invocable'] !== false,
+              disableModelInvocation: frontmatter['disable-model-invocation'] === true,
+            };
+          } catch (err) {
+            logger.warn(`[skillsService:discover] Failed to parse ${skillPath}:`, err);
+          }
+        }
+      } catch (err) {
+        logger.warn(`[skillsService:discover] Failed to read ${dirPath}:`, err);
+      }
+    }
+
+    logger.log(`[skillsService:discover] Found ${Object.keys(skills).length} skills`);
+    useSkillsStore.getState().hydrate(skills, repoPath);
+  },
+
+  /**
+   * Get skill by slug
+   */
+  getBySlug(slug: string): SkillMetadata | undefined {
+    return useSkillsStore.getState().getBySlug(slug);
+  },
+
+  /**
+   * Get all skills (filtered for user-invocable)
+   */
+  getAll(): SkillMetadata[] {
+    return useSkillsStore.getState().getAll();
+  },
+
+  /**
+   * Search skills by query
+   */
+  search(query: string): SkillMetadata[] {
+    return useSkillsStore.getState().search(query);
+  },
+
+  /**
+   * Read full skill content by slug
+   */
+  async readContent(slug: string): Promise<SkillContent | null> {
+    const skill = this.getBySlug(slug);
+    if (!skill) return null;
+
+    try {
+      const content = await fs.readFile(skill.path);
+      const { body } = parseFrontmatter(content);
+
+      return {
+        content: body,
+        source: skill.source,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Check if discovery is needed (repo changed)
+   */
+  needsRediscovery(repoPath: string): boolean {
+    const state = useSkillsStore.getState();
+    return !state._hydrated || state._lastDiscoveryPath !== repoPath;
+  },
 };
 ```
 
-The SDK **already supports skills** when configured correctly.
-
-### Implementation Approach
-
-**Option 1: SDK-Native Integration (Recommended)**
-
-The Claude Agent SDK (currently using `^0.1.0`) automatically loads skills when `settingSources` is configured:
+#### 1.4 Index (`src/entities/skills/index.ts`)
 
 ```typescript
-// agents/src/runners/shared.ts - modify the query() call (around line 512)
-query({
-  prompt,
-  options: {
-    cwd: context.workingDir,
-    settingSources: ["user", "project"],  // <-- Enable skill loading
-    // ... existing options
-  }
-})
+export * from './types';
+export { useSkillsStore } from './store';
+export { skillsService } from './service';
 ```
 
-This approach:
-- ✅ Zero custom code for skill discovery/parsing
-- ✅ Automatic skill metadata loading
-- ✅ Claude handles `/skill` invocation natively
-- ✅ Skills appear in system prompt automatically
-- ✅ Follows the standard exactly
+### Phase 2: Slash Command UI
 
-**Note**: The `Skill` tool is already included with the `claude_code` preset, so no additional tool configuration is needed.
-
-**Option 2: Custom Skill Loading (Required for Mort-Specific Skills)**
-
-Since mort has its own skills directory (`~/.mort/skills/`), we need custom skill loading in addition to SDK-native support:
-
-1. **Skill Discovery** - Scan all skill directories for `SKILL.md` files:
-   ```typescript
-   const skillPaths = [
-     path.join(os.homedir(), '.mort/skills'),   // Mort-specific personal skills
-     path.join(os.homedir(), '.claude/skills'), // Standard Claude Code personal skills
-     path.join(repoPath, '.claude/skills'),     // Repo-level skills
-   ];
-   ```
-
-2. **Parse SKILL.md** - Extract frontmatter and content:
-   ```typescript
-   import matter from 'gray-matter';
-   const { data: frontmatter, content } = matter(skillMd);
-   ```
-
-3. **Inject into System Prompt** - Add skill descriptions to agent context
-
-4. **Handle Invocation** - Detect `/skill-name` in user input, load full skill content
-
-### Recommended Implementation Steps
-
-#### Phase 1: Enable SDK-Native Skills (Minimal Effort)
-
-1. **Modify `agents/src/runners/shared.ts`** (line ~514, inside `query()` options):
-   ```typescript
-   // Current code (around line 512-531):
-   query({
-     prompt,
-     options: {
-       cwd: context.workingDir,
-       additionalDirectories: [config.mortDir],
-       // ... other options
-
-       // ADD THIS LINE:
-       settingSources: ["user", "project"],
-     },
-   });
-   ```
-
-2. **That's it!** The `claude_code` preset already includes the `Skill` tool.
-
-3. **Test**: Create a test skill in `~/.claude/skills/test-skill/SKILL.md` and verify it's available in agent conversations.
-
-#### Phase 2: Slash Command UI (User Experience)
-
-This phase adds the `/` trigger dropdown for discovering and selecting skills/commands, following the existing `@` file trigger pattern.
-
-##### 2.1 Create Command/Skill Trigger Handler
-
-Create `src/lib/triggers/handlers/command-handler.ts`:
+Uses the **existing trigger system** (same as `@` file mentions). Create `src/lib/triggers/handlers/skill-handler.ts`:
 
 ```typescript
 import type { TriggerConfig, TriggerHandler, TriggerResult, TriggerContext } from "../types";
-import { invoke } from "@tauri-apps/api/core";
+import { skillsService } from "@/entities/skills";
+import type { SkillSource } from "@/entities/skills";
 
-// Unified interface for both modern skills and legacy commands
-interface SkillMetadata {
-  name: string;
-  description: string;
-  argumentHint?: string;
-  // Source indicates origin AND whether it's a skill or command:
-  // - "mort" = Mort-specific skill (~/.mort/skills/)
-  // - "personal" = Personal skill (~/.claude/skills/)
-  // - "project" = Repo-level skill (<repo>/.claude/skills/)
-  // - "personal_command" = Personal legacy command (~/.claude/commands/)
-  // - "project_command" = Repo-level legacy command (<repo>/.claude/commands/)
-  source: "mort" | "personal" | "project" | "personal_command" | "project_command";
-  path: string;
-  isLegacyCommand: boolean;  // true for commands, false for skills
-}
-
-class CommandTriggerHandler implements TriggerHandler {
+/**
+ * Skill trigger handler for "/" - follows same pattern as FileTriggerHandler for "@"
+ * See: src/lib/triggers/handlers/file-handler.ts
+ */
+class SkillTriggerHandler implements TriggerHandler {
   readonly config: TriggerConfig = {
     char: "/",
-    name: "Command",
+    name: "Skill",
     placeholder: "Search skills and commands...",
-    minQueryLength: 0, // Show all skills immediately on "/"
+    minQueryLength: 0,
   };
-
-  private cachedSkills: Map<string, SkillMetadata[]> = new Map();
 
   async search(
     query: string,
     context: TriggerContext,
-    signal?: AbortSignal
+    _signal?: AbortSignal
   ): Promise<TriggerResult[]> {
-    // Get skills for this repository (with caching)
-    const skills = await this.getSkills(context.rootPath, signal);
+    if (!context.rootPath) {
+      return [];
+    }
 
-    // Filter by query
-    const filtered = query
-      ? skills.filter(s =>
-          s.name.toLowerCase().includes(query.toLowerCase()) ||
-          s.description?.toLowerCase().includes(query.toLowerCase())
-        )
-      : skills;
+    // Refresh skills on each "/" trigger (ensures fresh list)
+    await skillsService.discover(context.rootPath);
 
-    // Convert to TriggerResult format
-    return filtered.map(skill => ({
-      id: `${skill.source}:${skill.name}`,
-      label: `/${skill.name}`,
+    const skills = query
+      ? skillsService.search(query)
+      : skillsService.getAll();
+
+    return skills.map(skill => ({
+      id: skill.id,
+      label: `/${skill.slug}`,
       description: skill.description || "",
       icon: this.getIconForSource(skill.source),
-      insertText: `/${skill.name}${skill.argumentHint ? " " : ""}`,
-      metadata: { argumentHint: skill.argumentHint },
+      insertText: `/${skill.slug} `,
+      // Subtle source label displayed in dropdown (e.g., "Personal", "Project")
+      secondaryLabel: this.getSourceLabel(skill.source),
     }));
   }
 
-  private async getSkills(rootPath: string, signal?: AbortSignal): Promise<SkillMetadata[]> {
-    const cacheKey = rootPath || "__global__";
-
-    // Return cached if available (invalidate periodically or on focus)
-    if (this.cachedSkills.has(cacheKey)) {
-      return this.cachedSkills.get(cacheKey)!;
-    }
-
-    // Discovers skills from ALL locations:
-    // 1. ~/.mort/skills/ (mort-specific personal skills)
-    // 2. ~/.claude/skills/ (standard Claude Code personal skills)
-    // 3. <repo>/.claude/skills/ (repo-level skills)
-    // 4. ~/.claude/commands/ (legacy personal commands)
-    // 5. <repo>/.claude/commands/ (legacy repo commands)
-    const skills = await invoke<SkillMetadata[]>("discover_skills", {
-      repoPath: rootPath
-    });
-
-    this.cachedSkills.set(cacheKey, skills);
-    return skills;
-  }
-
-  private getIconForSource(source: string): string {
+  private getIconForSource(source: SkillSource): string {
     switch (source) {
-      case "mort": return "mort";                 // Mort-specific skill (~/.mort/skills/)
-      case "personal": return "user";             // Claude Code personal skill (~/.claude/skills/)
-      case "project": return "folder";            // Repo-level skill (.claude/skills/)
-      case "personal_command": return "terminal"; // Personal legacy command (~/.claude/commands/)
-      case "project_command": return "folder-terminal"; // Repo legacy command (.claude/commands/)
+      case "mort": return "mort";
+      case "personal": return "user";
+      case "project": return "folder";
+      case "personal_command": return "terminal";
+      case "project_command": return "folder-terminal";
       default: return "command";
     }
   }
 
-  // Clear cache when skills might have changed
-  invalidateCache(rootPath?: string) {
-    if (rootPath) {
-      this.cachedSkills.delete(rootPath);
-    } else {
-      this.cachedSkills.clear();
+  private getSourceLabel(source: SkillSource): string {
+    switch (source) {
+      case "mort": return "Mort";
+      case "personal": return "Personal";
+      case "project": return "Project";
+      case "personal_command": return "Personal";
+      case "project_command": return "Project";
+      default: return "";
     }
   }
 }
 
-export const commandTriggerHandler = new CommandTriggerHandler();
+export const skillTriggerHandler = new SkillTriggerHandler();
 ```
 
-##### 2.2 Register the Handler
-
-Update `src/lib/triggers/index.ts`:
+Register in `src/lib/triggers/index.ts` (alongside existing FileTriggerHandler):
 
 ```typescript
 import { triggerRegistry } from "./registry";
-import { fileTriggerHandler } from "./handlers/file-handler";
-import { commandTriggerHandler } from "./handlers/command-handler";
+import { FileTriggerHandler } from "./handlers/file-handler";
+import { SkillTriggerHandler } from "./handlers/skill-handler";
 
 let initialized = false;
 
@@ -378,305 +727,479 @@ export function initializeTriggers(): void {
   if (initialized) return;
   initialized = true;
 
-  triggerRegistry.register(fileTriggerHandler);
-  triggerRegistry.register(commandTriggerHandler); // NEW
+  triggerRegistry.register(new FileTriggerHandler());
+  triggerRegistry.register(new SkillTriggerHandler());  // ADD THIS
 }
 ```
 
-##### 2.3 Add Rust Backend Command
+**Note**: The existing `TriggerRegistry`, `useTriggerAutocomplete` hook, `TriggerSearchInput`, and `TriggerDropdown` components handle all the UI behavior automatically. The "/" trigger will:
+- Activate anywhere in the message (same word-boundary detection as "@")
+- Support escape sequence "//" for literal "/"
+- Debounce searches (150ms)
+- Handle keyboard navigation (arrow keys, Enter, Tab, Escape)
 
-Add to `src-tauri/src/lib.rs` (or a new `skills.rs` module):
+**DRY principle**: The word-boundary detection logic in `useTriggerAutocomplete` already handles:
+- Scanning backwards from cursor to find trigger character
+- Checking if at word boundary (start of input or after whitespace)
+- Detecting escape sequences (double trigger char)
+- Preventing false positives in URLs and file paths
 
-```rust
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+This same logic applies to "/" automatically - no need to duplicate.
 
-/// Unified metadata for both skills and legacy commands
-/// The `source` field indicates the origin AND type:
-/// - "mort" = Mort-specific skill from ~/.mort/skills/
-/// - "personal" = Claude Code skill from ~/.claude/skills/
-/// - "project" = Repo-level skill from <repo>/.claude/skills/
-/// - "personal_command" = Legacy command from ~/.claude/commands/
-/// - "project_command" = Legacy command from <repo>/.claude/commands/
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillMetadata {
-    pub name: String,
-    pub description: String,
-    pub argument_hint: Option<String>,
-    pub source: String,
-    pub path: String,
-    pub is_legacy_command: bool,  // true for .claude/commands/, false for skills
-}
+### Phase 3: System Prompt Injection
 
-#[tauri::command]
-pub async fn discover_skills(repo_path: String) -> Result<Vec<SkillMetadata>, String> {
-    let mut skills = Vec::new();
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+**Important**: Skill parsing and system prompt injection happens at the **agent level**, not the frontend. This allows skills to be read from both UI and agent processes using the adapter pattern.
 
-    // 1. Mort-specific personal skills: ~/.mort/skills/
-    let mort_skills = home.join(".mort/skills");
-    if mort_skills.exists() {
-        skills.extend(scan_skills_directory(&mort_skills, "mort")?);
-    }
+#### 3.1 Skills Adapter Interface
 
-    // 2. Standard Claude Code personal skills: ~/.claude/skills/
-    let personal_skills = home.join(".claude/skills");
-    if personal_skills.exists() {
-        skills.extend(scan_skills_directory(&personal_skills, "personal")?);
-    }
-
-    // 3. Personal commands (LEGACY FORMAT): ~/.claude/commands/
-    // These are single .md files, NOT directories with SKILL.md
-    let personal_commands = home.join(".claude/commands");
-    if personal_commands.exists() {
-        skills.extend(scan_commands_directory(&personal_commands, "personal_command")?);
-    }
-
-    // 4. Repo-level skills: <repo>/.claude/skills/
-    if !repo_path.is_empty() {
-        let project_skills = Path::new(&repo_path).join(".claude/skills");
-        if project_skills.exists() {
-            skills.extend(scan_skills_directory(&project_skills, "project")?);
-        }
-
-        // 5. Repo-level commands (LEGACY FORMAT): <repo>/.claude/commands/
-        // These are single .md files, NOT directories with SKILL.md
-        let project_commands = Path::new(&repo_path).join(".claude/commands");
-        if project_commands.exists() {
-            skills.extend(scan_commands_directory(&project_commands, "project_command")?);
-        }
-    }
-
-    // Sort priority: repo-level > mort > personal, skills before commands, then alphabetically
-    skills.sort_by(|a, b| {
-        let source_order = |s: &str| match s {
-            "project" => 0,           // Repo-level skills (highest priority)
-            "project_command" => 1,   // Repo-level legacy commands
-            "mort" => 2,              // Mort-specific personal skills
-            "personal" => 3,          // Standard Claude Code personal skills
-            "personal_command" => 4,  // Personal legacy commands (lowest priority)
-            _ => 5,
-        };
-        source_order(&a.source)
-            .cmp(&source_order(&b.source))
-            .then_with(|| a.name.cmp(&b.name))
-    });
-
-    Ok(skills)
-}
-
-fn scan_skills_directory(dir: &Path, source: &str) -> Result<Vec<SkillMetadata>, String> {
-    let mut skills = Vec::new();
-
-    let entries = std::fs::read_dir(dir)
-        .map_err(|e| format!("Failed to read directory: {}", e))?;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let skill_file = path.join("SKILL.md");
-            if skill_file.exists() {
-                if let Ok(metadata) = parse_skill_frontmatter(&skill_file, source) {
-                    // Only include user-invocable skills
-                    skills.push(metadata);
-                }
-            }
-        }
-    }
-
-    Ok(skills)
-}
-
-fn scan_commands_directory(dir: &Path, source: &str) -> Result<Vec<SkillMetadata>, String> {
-    let mut commands = Vec::new();
-
-    let entries = std::fs::read_dir(dir)
-        .map_err(|e| format!("Failed to read directory: {}", e))?;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "md") {
-            if let Ok(metadata) = parse_command_frontmatter(&path, source) {
-                commands.push(metadata);
-            }
-        }
-    }
-
-    Ok(commands)
-}
-
-/// Parse modern skill files (.claude/skills/<name>/SKILL.md)
-/// These are directories containing SKILL.md and potentially other bundled files
-fn parse_skill_frontmatter(path: &Path, source: &str) -> Result<SkillMetadata, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
-
-    // Extract YAML frontmatter between --- markers
-    let frontmatter = extract_frontmatter(&content)?;
-
-    // Parse frontmatter (simple key: value parsing)
-    let name = frontmatter.get("name")
-        .cloned()
-        .unwrap_or_else(|| {
-            path.parent()
-                .and_then(|p| p.file_name())
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown")
-                .to_string()
-        });
-
-    // Skip if user-invocable is explicitly false
-    if frontmatter.get("user-invocable").map_or(false, |v| v == "false") {
-        return Err("Skill is not user-invocable".into());
-    }
-
-    Ok(SkillMetadata {
-        name,
-        description: frontmatter.get("description").cloned().unwrap_or_default(),
-        argument_hint: frontmatter.get("argument-hint").cloned(),
-        source: source.to_string(),
-        path: path.to_string_lossy().to_string(),
-        is_legacy_command: false,
-    })
-}
-
-/// Parse legacy command files (.claude/commands/*.md)
-/// These are single markdown files with YAML frontmatter
-fn parse_command_frontmatter(path: &Path, source: &str) -> Result<SkillMetadata, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
-
-    let frontmatter = extract_frontmatter(&content)?;
-
-    let name = frontmatter.get("name")
-        .cloned()
-        .unwrap_or_else(|| {
-            path.file_stem()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown")
-                .to_string()
-        });
-
-    Ok(SkillMetadata {
-        name,
-        description: frontmatter.get("description").cloned().unwrap_or_default(),
-        argument_hint: frontmatter.get("argument-hint").cloned(),
-        source: source.to_string(),  // "personal_command" or "project_command"
-        path: path.to_string_lossy().to_string(),
-        is_legacy_command: true,
-    })
-}
-
-fn extract_frontmatter(content: &str) -> Result<std::collections::HashMap<String, String>, String> {
-    let mut map = std::collections::HashMap::new();
-
-    if !content.starts_with("---") {
-        return Ok(map);
-    }
-
-    let end = content[3..].find("---").map(|i| i + 3);
-    let yaml = match end {
-        Some(i) => &content[3..i],
-        None => return Ok(map),
-    };
-
-    for line in yaml.lines() {
-        if let Some((key, value)) = line.split_once(':') {
-            let key = key.trim().to_string();
-            let value = value.trim().trim_matches('"').trim_matches('\'').to_string();
-            if !key.is_empty() && !value.is_empty() {
-                map.insert(key, value);
-            }
-        }
-    }
-
-    Ok(map)
-}
-```
-
-##### 2.4 Update Dropdown Icons
-
-The `TriggerDropdown` component already supports icons. Add skill-specific icons to the icon mapping:
+Following the existing adapter pattern (see `docs/patterns/adapters.md`), define the interface in `core/adapters/types.ts`:
 
 ```typescript
-// In trigger-dropdown.tsx or a shared icon utility
-const getIconForType = (icon: string) => {
-  switch (icon) {
-    case "mort": return <MortIcon />;            // Mort-specific skill (~/.mort/skills/)
-    case "user": return <UserIcon />;            // Personal skill (~/.claude/skills/)
-    case "folder": return <FolderIcon />;        // Repo-level skill (.claude/skills/)
-    case "terminal": return <TerminalIcon />;    // Personal legacy command (~/.claude/commands/)
-    case "folder-terminal": return <FolderTerminalIcon />; // Repo legacy command
-    case "command": return <CommandIcon />;      // Generic fallback
-    default: return getFileIcon(icon);           // Fall back to file extension icons
+// Add to existing types.ts
+
+export interface SkillsAdapter {
+  /**
+   * Discover all skills from configured locations.
+   * @param repoPath - The repository path for project-level skills
+   * @param homeDir - The user's home directory for personal skills
+   */
+  discover(repoPath: string, homeDir: string): Promise<SkillMetadata[]>;
+
+  /**
+   * Read full content of a skill by its path.
+   * @param skillPath - Absolute path to SKILL.md or command.md
+   */
+  readContent(skillPath: string): Promise<string | null>;
+
+  /**
+   * Check if a path exists.
+   */
+  exists(path: string): Promise<boolean>;
+
+  /**
+   * List directory contents.
+   */
+  listDir(path: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>>;
+
+  /**
+   * Join path segments.
+   */
+  joinPath(...segments: string[]): string;
+}
+```
+
+#### 3.2 Node.js Adapter Implementation
+
+Create `core/adapters/node/skills-adapter.ts`:
+
+```typescript
+import * as fs from "fs";
+import * as path from "path";
+import type { SkillsAdapter } from "../types";
+
+export class NodeSkillsAdapter implements SkillsAdapter {
+  async discover(repoPath: string, homeDir: string): Promise<SkillMetadata[]> {
+    // Implementation uses fs.readdirSync, fs.readFileSync
+    // Same logic as skillsService but with Node fs
   }
-};
+
+  async readContent(skillPath: string): Promise<string | null> {
+    try {
+      return fs.readFileSync(skillPath, "utf-8");
+    } catch {
+      return null;
+    }
+  }
+
+  async exists(p: string): Promise<boolean> {
+    return fs.existsSync(p);
+  }
+
+  async listDir(p: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> {
+    const entries = fs.readdirSync(p, { withFileTypes: true });
+    return entries.map(e => ({
+      name: e.name,
+      path: path.join(p, e.name),
+      isDirectory: e.isDirectory(),
+    }));
+  }
+
+  joinPath(...segments: string[]): string {
+    return path.join(...segments);
+  }
+}
 ```
 
-##### 2.5 User Experience Flow
+#### 3.3 Tauri Adapter Implementation
 
-When user types `/` in the input:
+Create `src/adapters/tauri-skills-adapter.ts`:
 
-1. **Immediate dropdown** appears (minQueryLength: 0)
-2. **Shows all available skills AND commands** grouped by source (in priority order):
-   - Repo-level skills (from `<repo>/.claude/skills/`)
-   - Repo-level legacy commands (from `<repo>/.claude/commands/`)
-   - Mort-specific personal skills (from `~/.mort/skills/`)
-   - Standard Claude Code personal skills (from `~/.claude/skills/`)
-   - Personal legacy commands (from `~/.claude/commands/`)
-3. **Filter as user types** - `/rev` filters to `/review`, `/review-changes`, etc.
-4. **Arrow key navigation** with visual highlighting
-5. **Enter/Tab selection** inserts `/skill-name ` with trailing space for arguments
-6. **Argument hint** shown in description (e.g., "[issue-number]")
-7. **Escape** closes dropdown
+```typescript
+import { FilesystemClient } from "@/lib/filesystem-client";
+import type { SkillsAdapter } from "@core/adapters/types";
 
-##### 2.6 Visual Design
+export class TauriSkillsAdapter implements SkillsAdapter {
+  private fs = new FilesystemClient();
 
-```
-┌─────────────────────────────────────────┐
-│ /                                       │
-├─────────────────────────────────────────┤
-│ 📁 /review-changes                      │  ← Repo SKILL (.claude/skills/)
-│    Review staged git changes            │
-│                                         │
-│ 📂 /build                               │  ← Repo COMMAND (.claude/commands/)
-│    Run project build                    │
-│                                         │
-│ 🔮 /mort-workflow                       │  ← Mort skill (~/.mort/skills/)
-│    Custom mort automation               │
-│                                         │
-│ 👤 /quick-commit                        │  ← Personal SKILL (~/.claude/skills/)
-│    Create commit with auto message      │
-│                                         │
-│ 💻 /test                                │  ← Personal COMMAND (~/.claude/commands/)
-│    Run project tests                    │
-└─────────────────────────────────────────┘
+  async readContent(skillPath: string): Promise<string | null> {
+    try {
+      return await this.fs.readFile(skillPath);
+    } catch {
+      return null;
+    }
+  }
+
+  async exists(p: string): Promise<boolean> {
+    return await this.fs.exists(p);
+  }
+
+  async listDir(p: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> {
+    return await this.fs.listDir(p);
+  }
+
+  joinPath(...segments: string[]): string {
+    return segments.join("/"); // Tauri uses forward slashes
+  }
+}
 ```
 
-Note: Both skills and commands appear in the same dropdown, but skills are the modern format (directory-based) while commands are the legacy format (single file).
+#### 3.4 Skill Injection Logic
 
-##### 2.7 Caching Strategy
+Create shared skill processing in `agents/src/lib/skills/inject-skill.ts`:
 
-- Cache skill metadata per repository path
-- Invalidate cache on:
-  - Window focus (user may have edited files externally)
-  - Settings panel changes
-  - Manual refresh action
-- Keep cache for 5 minutes max to avoid stale data
+```typescript
+import type { SkillSource, SkillContent } from "./types";
 
-#### Phase 3: Mort-Specific Skills Enhancement (Future)
+export interface SkillMatch {
+  skillSlug: string;
+  args: string;
+  fullMatch: string;
+}
 
-The `~/.mort/skills/` directory is already supported in Phase 2. This phase adds additional mort-specific enhancements:
+export interface SkillInjection {
+  displayMessage: string;           // Original message (stored in thread, shown in UI)
+  userMessage: string;              // What goes in user message (same as display)
+  systemPromptAppend: string | null; // What gets appended to system prompt
+  skills: Array<{ slug: string; source: SkillSource }>; // All skills found
+}
+
+// Matches /skill-name or /skill-name args
+// Uses same word-boundary detection as @ trigger (see use-trigger-autocomplete.ts)
+// Only matches when / is at word boundary (start of input, after whitespace, or after newline)
+const SKILL_PATTERN = /(?:^|(?<=\s))\/([a-z0-9_-]+)(?:\s+([^\n]*))?/gim;
+
+/**
+ * Extract all skill invocations from a message.
+ * Supports multiple skills per message.
+ */
+export function extractSkillMatches(message: string): SkillMatch[] {
+  const matches: SkillMatch[] = [];
+  let match: RegExpExecArray | null;
+
+  // Reset regex state
+  SKILL_PATTERN.lastIndex = 0;
+
+  while ((match = SKILL_PATTERN.exec(message)) !== null) {
+    matches.push({
+      skillSlug: match[1].toLowerCase(),  // Normalize to lowercase
+      args: (match[2] || "").trim(),
+      fullMatch: match[0],
+    });
+  }
+
+  return matches;
+}
+
+/**
+ * Build system prompt content for a single skill.
+ */
+export function buildSkillInstruction(
+  skillSlug: string,
+  source: SkillSource,
+  content: string,
+  args: string
+): string {
+  // Substitute $ARGUMENTS in skill content
+  const processedContent = content.replace(/\$ARGUMENTS/g, args);
+
+  return `<skill-instruction>
+The user has invoked a skill. You MUST follow the instructions in the <skill> block below. This skill was loaded from outside your standard skill directories and was explicitly requested by the user.
+
+<skill name="${skillSlug}" source="${source}">
+${processedContent}
+</skill>
+</skill-instruction>`;
+}
+
+/**
+ * Process a message and build skill injections.
+ * Called by the agent runner, not the frontend.
+ *
+ * @param message - The user's message
+ * @param readSkillContent - Adapter function to read skill content (works in UI or agent)
+ */
+export async function processMessageWithSkills(
+  message: string,
+  readSkillContent: (slug: string) => Promise<SkillContent | null>
+): Promise<SkillInjection> {
+  const skillMatches = extractSkillMatches(message);
+
+  if (skillMatches.length === 0) {
+    return {
+      displayMessage: message,
+      userMessage: message,
+      systemPromptAppend: null,
+      skills: [],
+    };
+  }
+
+  const skillInstructions: string[] = [];
+  const foundSkills: Array<{ slug: string; source: SkillSource }> = [];
+
+  for (const match of skillMatches) {
+    const skillContent = await readSkillContent(match.skillSlug);
+
+    if (!skillContent) {
+      // Skill not found, skip it
+      continue;
+    }
+
+    foundSkills.push({ slug: match.skillSlug, source: skillContent.source });
+
+    const instruction = buildSkillInstruction(
+      match.skillSlug,
+      skillContent.source,
+      skillContent.content,
+      match.args
+    );
+
+    skillInstructions.push(instruction);
+  }
+
+  return {
+    displayMessage: message,
+    userMessage: message,
+    systemPromptAppend: skillInstructions.length > 0
+      ? skillInstructions.join("\n\n")
+      : null,
+    skills: foundSkills,
+  };
+}
+```
+
+#### 3.5 Integration with Agent Runner
+
+In `agents/src/runners/shared.ts`, modify `runAgentLoop()` to process skills before building the system prompt:
+
+```typescript
+// In runAgentLoop(), after receiving user message but before building system prompt:
+
+import { processMessageWithSkills } from "../lib/skills/inject-skill";
+import { NodeSkillsAdapter } from "@core/adapters/node/skills-adapter";
+
+// ... existing code ...
+
+// Process skill invocations in the user message
+const skillsAdapter = new NodeSkillsAdapter();
+const skillInjection = await processMessageWithSkills(
+  userMessage,
+  async (slug) => {
+    // Read skill content using adapter
+    const skill = await findSkillBySlug(slug, skillsAdapter, context.workingDir, os.homedir());
+    if (!skill) return null;
+    const content = await skillsAdapter.readContent(skill.path);
+    if (!content) return null;
+    const { body } = parseFrontmatter(content);
+    return { content: body, source: skill.source };
+  }
+);
+
+// Build system prompt with skill injection appended
+const baseSystemPrompt = buildSystemPrompt(agentConfig, { ... });
+const systemPrompt = skillInjection.systemPromptAppend
+  ? `${baseSystemPrompt}\n\n${skillInjection.systemPromptAppend}`
+  : baseSystemPrompt;
+
+// Pass to SDK query() with existing append mechanism
+query({
+  prompt: skillInjection.userMessage,  // Original message unchanged
+  options: {
+    systemPrompt: {
+      type: "preset",
+      preset: "claude_code",
+      append: systemPrompt,  // Now includes skill instructions
+    },
+    // ... rest of options
+  },
+});
+```
+
+**Key points:**
+- Skills are read fresh from disk on each invocation (no caching)
+- The existing `systemPrompt.append` mechanism is used
+- Skill injection only affects the current turn, not persisted in thread
+- Empty skill content (frontmatter-only files) still gets injected with empty `<skill>` block - this allows commands that are just a description to work
+- Slug names are normalized to lowercase during discovery and matching
+
+### Phase 4: UI Display
+
+Since we store the original display message (e.g., `/review-pr 123 check for security issues`), the UI parses the skill invocation pattern to render it nicely. Supports multiple skills per message.
+
+Create `src/lib/skills/parse-skill-display.ts`:
+
+```typescript
+import { extractSkillMatches, type SkillMatch } from "@/agents/lib/skills/inject-skill";
+
+interface ParsedSkillMessage {
+  skills: SkillMatch[];  // All skills found in message
+  remainingText: string; // Text after removing skill invocations
+}
+
+export function parseSkillsFromDisplayMessage(message: string): ParsedSkillMessage {
+  const skills = extractSkillMatches(message);
+
+  // Remove skill invocations from message to get remaining text
+  let remainingText = message;
+  for (const skill of skills) {
+    remainingText = remainingText.replace(skill.fullMatch, "").trim();
+  }
+
+  return { skills, remainingText };
+}
+```
+
+Update `src/components/thread/user-message.tsx` to render skill chips:
+
+```tsx
+import { parseSkillsFromDisplayMessage } from "@/lib/skills/parse-skill-display";
+import { useSkillsStore } from "@/entities/skills";
+
+function UserMessage({ message }: { message: ThreadMessage }) {
+  const { skills, remainingText } = parseSkillsFromDisplayMessage(message.content);
+
+  return (
+    <div className="user-message">
+      {skills.map((skill, idx) => (
+        <SkillChip
+          key={`${skill.skillSlug}-${idx}`}
+          slug={skill.skillSlug}
+          args={skill.args}
+        />
+      ))}
+      {remainingText && <p>{remainingText}</p>}
+    </div>
+  );
+}
+
+function SkillChip({ slug, args }: {
+  slug: string;
+  args: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [content, setContent] = useState<string | null>(null);
+  const [isStale, setIsStale] = useState(false);
+
+  const skill = useSkillsStore(state => state.getBySlug(slug));
+  const source = skill?.source;
+
+  const sourceIcon = {
+    mort: "🔮",
+    personal: "👤",
+    project: "📁",
+    personal_command: "💻",
+    project_command: "📂",
+  }[source || ""] || "⚡";
+
+  const handleExpand = async () => {
+    if (!expanded && !content) {
+      // Lazy load skill content on first expand
+      const skillContent = await skillsService.readContent(slug);
+      if (skillContent) {
+        setContent(skillContent.content);
+      } else {
+        // Skill file no longer exists - mark as stale
+        setIsStale(true);
+        setContent(null);
+      }
+    }
+    setExpanded(!expanded);
+  };
+
+  return (
+    <div className={cn("skill-chip", isStale && "skill-chip--stale")}>
+      <button onClick={handleExpand}>
+        {sourceIcon} /{slug}
+        {args && <span className="skill-args">{args}</span>}
+        {isStale && <span className="skill-stale-badge">stale</span>}
+        <ChevronIcon direction={expanded ? "down" : "right"} />
+      </button>
+      {expanded && (
+        isStale ? (
+          <div className="skill-stale-message">
+            This skill is no longer available. The file may have been moved or deleted.
+          </div>
+        ) : (
+          <pre className="skill-content">{content}</pre>
+        )
+      )}
+    </div>
+  );
+}
+```
+
+**Stale skill handling**: Similar to how plans handle moved files, if a skill file has been deleted or moved since the message was sent:
+- The chip displays with a "stale" indicator
+- Expanding shows "This skill is no longer available" message
+- The chip remains functional for historical context
+
+### Phase 5: Settings UI
+
+Add skills list to settings, following existing patterns:
+
+```tsx
+// src/components/settings/skills-settings.tsx
+
+function SkillsSettings() {
+  const skills = useSkillsStore(state => state.getAll());
+
+  return (
+    <SettingsSection title="Skills">
+      <p className="settings-description">
+        Skills extend agent capabilities. Create skills in ~/.mort/skills/ or ~/.claude/skills/
+      </p>
+
+      {skills.length === 0 ? (
+        <EmptyState message="No skills found" />
+      ) : (
+        <div className="skills-list">
+          {skills.map(skill => (
+            <SkillListItem key={skill.id} skill={skill} />
+          ))}
+        </div>
+      )}
+    </SettingsSection>
+  );
+}
+
+function SkillListItem({ skill }: { skill: SkillMetadata }) {
+  return (
+    <div className="skill-list-item">
+      <div className="skill-info">
+        <span className="skill-name">/{skill.slug}</span>
+        <span className="skill-source-badge">{skill.source}</span>
+      </div>
+      <p className="skill-description">{skill.description}</p>
+      <span className="skill-path">{skill.path}</span>
+    </div>
+  );
+}
+```
+
+### Phase 6: Future Enhancements
 
 1. **Built-in skills**: Ship default skills with mort (e.g., `/mort-commit`, `/mort-review`)
-   - These would be bundled in the app and copied to `~/.mort/skills/` on first run
-
-2. **Skill management UI**: Install/enable/disable skills from settings
-   - Toggle visibility of skills from different sources
-   - Quick-create new skills from templates
-
-3. **Mort skill templates**: Provide starter templates for common mort workflows
+2. **Skill templates**: Provide starter templates for common workflows
+3. **Skill enable/disable**: Toggle individual skills on/off from settings
 
 ---
 
@@ -778,109 +1301,277 @@ Run the production build command for this project. Handle any errors gracefully.
 
 ## Key Files to Modify
 
-### Phase 1 (Backend Integration)
+### Phase 1: Skills Entity
 
 | File | Purpose | Changes |
 |------|---------|---------|
-| `agents/src/runners/shared.ts` | Agent execution loop | Add `settingSources: ["user", "project"]` to query options |
+| `src/entities/skills/types.ts` | **NEW** | SkillMetadata, SkillSource, SkillContent types |
+| `src/entities/skills/store.ts` | **NEW** | Zustand store for skill state |
+| `src/entities/skills/service.ts` | **NEW** | Discovery and content reading via FS adapter |
+| `src/entities/skills/index.ts` | **NEW** | Public exports |
+| `src/entities/index.ts` | Entity exports | Add skills export |
 
-**Minimal backend: 1 line change** in `shared.ts`.
-
-### Phase 2 (UI Integration)
+### Phase 2: Slash Command UI
 
 | File | Purpose | Changes |
 |------|---------|---------|
-| `src/lib/triggers/handlers/command-handler.ts` | **NEW** | Skill/command trigger handler for `/` |
-| `src/lib/triggers/index.ts` | Trigger initialization | Register command handler |
-| `src/lib/triggers/types.ts` | Type definitions | Add `SkillMetadata` type if needed |
-| `src-tauri/src/lib.rs` | Tauri commands | Add `discover_skills` command |
-| `src-tauri/src/skills.rs` | **NEW** (optional) | Skill discovery logic (can be in lib.rs) |
-| `src/components/reusable/trigger-dropdown.tsx` | Dropdown UI | Add icons for skill sources |
+| `src/lib/triggers/handlers/skill-handler.ts` | **NEW** | Skill trigger handler for `/` |
+| `src/lib/triggers/index.ts` | Trigger initialization | Register skill handler |
+| `src/components/reusable/trigger-dropdown.tsx` | Dropdown UI | Add `secondaryLabel` display for source |
+| `src/components/reusable/thread-input.tsx` | Input placeholder | Update to "Type a message, @ to mention files, / for skills..." |
 
-### Architecture Overview
+### Phase 3: System Prompt Injection (Agent-Level)
+
+| File | Purpose | Changes |
+|------|---------|---------|
+| `core/adapters/types.ts` | Adapter interfaces | Add `SkillsAdapter` interface |
+| `core/adapters/node/skills-adapter.ts` | **NEW** | Node.js skills adapter (uses `fs` module) |
+| `src/adapters/tauri-skills-adapter.ts` | **NEW** | Tauri skills adapter (uses `FilesystemClient`) |
+| `agents/src/lib/skills/inject-skill.ts` | **NEW** | Shared skill parsing and injection logic |
+| `agents/src/lib/skills/types.ts` | **NEW** | SkillContent, SkillMatch types |
+| `agents/src/runners/shared.ts` | Agent runner | Call `processMessageWithSkills()`, use existing `systemPrompt.append` |
+
+### Phase 4: UI Display
+
+| File | Purpose | Changes |
+|------|---------|---------|
+| `src/lib/skills/parse-skill-display.ts` | **NEW** | Parse skill invocations from display messages (uses shared `extractSkillMatches`) |
+| `src/components/thread/user-message.tsx` | User message display | Render skill indicators for `/skill` messages |
+| `src/components/thread/skill-indicator.tsx` | **NEW** | Expandable skill indicator with stale state handling |
+
+### Phase 5: Settings UI
+
+| File | Purpose | Changes |
+|------|---------|---------|
+| `src/components/settings/skills-settings.tsx` | **NEW** | Skills list in settings panel |
+| `src/components/settings/skill-list-item.tsx` | **NEW** | Individual skill row with name, source, description |
+| `src/components/settings/index.tsx` | Settings routes | Add Skills section |
+
+### Architecture Overview: Complete Flow
 
 ```
-User types "/"
-     │
-     ▼
-TriggerSearchInput.handleChange()
-     │
-     ▼
-useTriggerAutocomplete.analyzeInput()
-     │  Detects "/" trigger character
-     ▼
-triggerRegistry.getHandler("/")
-     │  Returns CommandTriggerHandler
-     ▼
-CommandTriggerHandler.search(query, context)
-     │  Calls Rust backend via invoke()
-     ▼
-Tauri: discover_skills(repo_path)
-     │  Scans ALL skill AND command locations:
-     │  SKILLS (modern - directories with SKILL.md):
-     │  - ~/.mort/skills/<name>/SKILL.md     (mort-specific personal)
-     │  - ~/.claude/skills/<name>/SKILL.md   (standard personal)
-     │  - <repo>/.claude/skills/<name>/SKILL.md (repo-level)
-     │  COMMANDS (legacy - single .md files):
-     │  - ~/.claude/commands/<name>.md       (personal legacy)
-     │  - <repo>/.claude/commands/<name>.md  (repo-level legacy)
-     │  Parses YAML frontmatter from both formats
-     ▼
-Returns SkillMetadata[]
-     │
-     ▼
-TriggerDropdown renders results
-     │  User navigates with ↑↓, selects with Enter/Tab
-     ▼
-selectResult() inserts "/skill-name "
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           PHASE 1 & 2: DISCOVERY & SELECTION                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+App startup
+        │
+        ▼
+skillsService.discover(repoPath)
+        │  Scans directories:
+        │  - <repo>/.claude/skills/*/SKILL.md  (project)
+        │  - <repo>/.claude/commands/*.md      (project_command)
+        │  - ~/.mort/skills/*/SKILL.md         (mort)
+        │  - ~/.claude/skills/*/SKILL.md       (personal)
+        │  - ~/.claude/commands/*.md           (personal_command)
+        ▼
+Hydrates useSkillsStore with SkillMetadata[]
+
+        ...later...
+
+User types "/" in input
+        │
+        ▼
+skillsService.discover() (refresh)
+        │
+        ▼
+TriggerDropdown shows available skills
+        │  User selects "/review-pr"
+        ▼
+Input now contains: "/review-pr 123 check for security issues"
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           PHASE 3: SYSTEM PROMPT INJECTION                       │
+│                              (happens at agent level)                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+User presses Enter to submit
+        │
+        ▼
+Frontend sends message to agent runner
+        │
+        ▼
+Agent runner: processMessageWithSkills(message, readSkillContentAdapter)
+        │
+        ├─ extractSkillMatches() finds all /skill invocations
+        │  (supports multiple: /review-pr 123 \n /summarize)
+        │
+        ├─ For each skill match:
+        │   ├─ readSkillContentAdapter(slug) → reads from disk
+        │   └─ buildSkillInstruction() → creates <skill-instruction> block
+        │
+        └─ Returns SkillInjection:
+            {
+              displayMessage: "/review-pr 123...",
+              userMessage: "/review-pr 123...",
+              systemPromptAppend: "<skill-instruction>...</skill-instruction>",
+              skills: [{ slug: "review-pr", source: "personal" }]
+            }
+        │
+        ▼
+Agent runner uses EXISTING systemPrompt.append mechanism (see shared.ts:527-547)
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  WHAT AGENT RECEIVES:                                                           │
+│                                                                                 │
+│  System Prompt (with appended skills):                                          │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │ [base system prompt...]                                                   │  │
+│  │                                                                           │  │
+│  │ <skill-instruction>                                                       │  │
+│  │ The user has invoked a skill. You MUST follow the instructions in the    │  │
+│  │ <skill> block below. This skill was loaded from outside your standard    │  │
+│  │ skill directories and was explicitly requested by the user.               │  │
+│  │                                                                           │  │
+│  │ <skill name="review-pr" source="personal">                               │  │
+│  │ # Review PR                                                               │  │
+│  │ Review the pull request for code quality, bugs, and security issues.     │  │
+│  │ ## Steps                                                                  │  │
+│  │ 1. Fetch PR diff with `gh pr diff 123 check for security issues`         │  │
+│  │ 2. Analyze each file...                                                   │  │
+│  │ </skill>                                                                  │  │
+│  │ </skill-instruction>                                                      │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                 │
+│  User Message (unchanged):                                                      │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │ /review-pr 123 check for security issues                                 │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+Store displayMessage in thread (skill NOT re-injected on thread reload)
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           PHASE 4: UI DISPLAY                                    │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+When rendering user message in thread:
+        │
+        ▼
+parseSkillFromDisplayMessage(storedMessage)
+        │
+        ├─ Regex match: /review-pr 123 check for security issues
+        │
+        └─ Extract: { skillSlug: "review-pr", userArgs: "123 check for security issues" }
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  ┌──────────────────────┐                                                       │
+│  │ 👤 /review-pr    ▶   │  ← Chip (click to expand, lazy-loads skill content)   │
+│  └──────────────────────┘                                                       │
+│  123 check for security issues                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Testing Plan
 
-### Phase 1: Backend Integration
+### Phase 1: Skill Discovery
 
-1. **Create test skill** at `~/.claude/skills/test/SKILL.md`
-2. **Run mort agent** and type `/test` in a message
-3. **Verify Claude receives skill** - check that the agent recognizes and executes the skill
+1. **Create test skills**
+   - `~/.mort/skills/test-mort/SKILL.md`
+   - `~/.claude/skills/test-personal/SKILL.md`
+   - `<repo>/.claude/skills/test-project/SKILL.md`
+   - `~/.claude/commands/test-command.md`
 
-### Phase 2: UI Integration
+2. **Test discovery**
+   - Call `skillsService.discover()` with repo path
+   - Verify all skills returned with correct `source` values
+   - Verify priority ordering (project > mort > personal)
 
-1. **Test dropdown appearance**
-   - Type `/` in thread input
-   - Verify dropdown appears immediately
-   - Verify skills are listed with correct grouping (project first, then personal)
+3. **Test malformed skills**
+   - Create skill with invalid YAML frontmatter
+   - Verify skill is skipped during discovery (not in results)
+   - Verify warning logged: `[skillsService:discover] Failed to parse <path>`
 
-2. **Test filtering**
-   - Type `/rev` and verify only matching skills appear
-   - Verify fuzzy matching works on both name and description
+### Phase 2: Slash Command UI
 
-3. **Test keyboard navigation**
-   - Arrow up/down moves selection
-   - Enter/Tab inserts selected skill
+1. **Test dropdown trigger** (same word-boundary rules as `@` trigger)
+   - Type `/` at start of input → dropdown appears
+   - Type `/` mid-message after space (e.g., "Please /") → dropdown appears
+   - Type `/` after newline → dropdown appears
+   - Type `//` → literal `/` inserted, no dropdown (escape sequence)
+   - Type `@src/components/foo.tsx` → NO dropdown (/ in file path, no word boundary)
+   - Type `http://example.com` → NO dropdown (/ not at word boundary)
+
+2. **Test dropdown content**
+   - Skills shown with icons for source type
+   - Subtle source label displayed (e.g., "Personal", "Project")
+   - Filter works on name and description
+
+3. **Test selection**
+   - Arrow keys navigate
+   - Enter/Tab inserts `/skill-name `
    - Escape closes dropdown
 
-4. **Test insertion behavior**
-   - Selected skill inserts as `/skill-name `
-   - Cursor positioned after trailing space
-   - Argument hint shown for skills that accept arguments
+### Phase 3: System Prompt Injection
 
-5. **Test caching**
-   - Second `/` press returns results faster (cached)
-   - Window focus invalidates cache
-   - New skills appear after cache invalidation
+1. **Test single skill injection**
+   - Submit `/test-skill some args`
+   - Verify system prompt receives `<skill-instruction>` with skill content
+   - Verify user message remains as `/test-skill some args`
+   - Verify `$ARGUMENTS` substituted correctly in system prompt
 
-6. **Test project vs personal**
-   - Create skill with same name in both locations
-   - Verify project skill appears first
-   - Verify both are shown (not deduplicated)
+2. **Test multi-skill injection**
+   - Submit `/review-pr 123\n/summarize`
+   - Verify system prompt receives TWO `<skill-instruction>` blocks
+   - Verify each skill has correct `$ARGUMENTS`
 
-7. **Test edge cases**
-   - Empty skills directory (no errors)
-   - Malformed SKILL.md (graceful skip)
-   - `user-invocable: false` skills are hidden
-   - Very long descriptions are truncated
+3. **Test edge cases**
+   - Skill not found → message sent as-is, no system prompt append
+   - No arguments (`/review-pr` with no space) → valid invocation, `$ARGUMENTS` becomes empty string
+   - Skill with no `$ARGUMENTS` placeholder → content unchanged
+   - Mixed found/not-found skills → only found skills get injected
+   - Empty skill content (frontmatter only) → still injected with empty `<skill>` block
+   - Uppercase skill directory (`~/.claude/skills/MySkill/`) → normalized to `/myskill`
+   - Skill in file path (`@src/components/foo.tsx`) → NOT treated as skill invocation
+
+4. **Test per-run behavior**
+   - Send message with skill → skill injected
+   - Send follow-up message without skill → NO skill in system prompt
+   - Reload thread → skills NOT re-injected (only applies to original turn)
+
+### Phase 4: UI Display
+
+1. **Test skill chip rendering**
+   - User message starting with `/skill-name` shows chip
+   - Click expands to lazy-load and show skill content from disk
+   - User args appear below chip
+
+2. **Test source icons**
+   - Correct icon for each source type
+   - Tooltip shows full source path
+
+3. **Test persistence behavior**
+   - Reload thread → skill chip still renders from stored `/skill-name args`
+   - Expanding chip reads current skill file (may differ from original if skill updated)
+
+4. **Test stale skill handling**
+   - Delete a skill file after sending a message with it
+   - Reload thread → chip shows with "stale" indicator
+   - Expand chip → shows "skill no longer available" message
+
+5. **Test multi-skill display**
+   - Message with multiple skills → renders multiple indicators
+   - Each indicator independently expandable
+   - Remaining text (after skill invocations) displayed below indicators
+
+### Phase 5: Settings UI
+
+1. **Test skills list**
+   - Settings → Skills shows all discovered skills
+   - Each skill shows: name, source badge, description, path
+   - Empty state when no skills found
+
+2. **Test skill sources**
+   - Project skills show "Project" badge
+   - Personal skills show "Personal" badge
+   - Mort skills show "Mort" badge
 
 ---
 

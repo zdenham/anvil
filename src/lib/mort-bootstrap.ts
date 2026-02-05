@@ -16,6 +16,9 @@ export interface MortStores {
  * Bootstraps the .mort directory structure in Documents.
  * Creates all necessary directories and returns initialized store clients.
  *
+ * Note: Migrations (including quick-actions project initialization) are now
+ * handled by Rust during app startup via the TypeScript migration runner.
+ *
  * Directory structure:
  * ~/.mort/
  * ├── threads/{threadId}/         - Active threads

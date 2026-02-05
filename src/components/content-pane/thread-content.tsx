@@ -21,6 +21,7 @@
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
 import {
@@ -29,27 +30,15 @@ import {
   submitToolResult,
   sendQueuedMessage,
 } from "@/lib/agent-service";
-import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
+import { type ThreadInputRef } from "@/components/reusable/thread-input";
+import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
-import {
-  SuggestedActionsPanel,
-  type SuggestedActionsPanelRef,
-} from "./suggested-actions-panel";
-import { QueuedMessagesBanner } from "./queued-messages-banner";
-import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
 import { logger } from "@/lib/logger-client";
-import { cn } from "@/lib/utils";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
 import { useWorkingDirectory } from "@/hooks/use-working-directory";
-import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
-import {
-  useQuickActionsStore,
-  defaultActions,
-  streamingActions,
-  type ActionType,
-} from "@/stores/quick-actions-store";
 import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
+import { navigationService } from "@/stores/navigation-service";
 import type { ThreadContentProps } from "./types";
 
 /** Map entity ThreadStatus to ThreadView's expected status type */
@@ -60,6 +49,44 @@ type ViewStatus =
   | "completed"
   | "error"
   | "cancelled";
+
+/**
+ * Breadcrumb navigation for sub-agent threads.
+ * Shows: "< Parent Name > Current Name" with click-to-navigate.
+ */
+function SubAgentBreadcrumb({
+  parentThreadId,
+  currentName,
+}: {
+  parentThreadId: string;
+  currentName?: string;
+}) {
+  const parentThread = useThreadStore(
+    useCallback((s) => s.threads[parentThreadId], [parentThreadId])
+  );
+
+  const handleParentClick = useCallback(() => {
+    navigationService.navigateToThread(parentThreadId);
+  }, [parentThreadId]);
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-surface-400 mb-4 px-2">
+      <button
+        onClick={handleParentClick}
+        className="flex items-center gap-1 hover:text-surface-200 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        <span className="truncate max-w-[200px]">
+          {parentThread?.name ?? "Parent Thread"}
+        </span>
+      </button>
+      <ChevronRight className="h-4 w-4 text-surface-500" />
+      <span className="truncate max-w-[200px]">
+        {currentName ?? "Sub-agent"}
+      </span>
+    </div>
+  );
+}
 
 // Track component mount times for timing analysis
 const componentMountTimes = new Map<string, number>();
@@ -120,27 +147,9 @@ export function ThreadContent({
     markOnComplete: true,
   });
 
-  // Quick actions store for keyboard navigation
-  const {
-    selectedIndex,
-    showFollowUpInput,
-    isProcessing,
-    setSelectedIndex,
-    setShowFollowUpInput,
-    setFollowUpValue,
-    setProcessing,
-    resetState,
-    navigateUp,
-    navigateDown,
-  } = useQuickActionsStore();
-
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
-  const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
   const hasScrolledOnMount = useRef(false);
-
-  // Navigation hook for quick action next item
-  const { navigateToNextItemOrFallback } = useNavigateToNextItem();
 
   // Toast state for "coming soon" messages
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -178,6 +187,9 @@ export function ThreadContent({
 
   // Derive working directory from thread's worktreeId via repo settings
   const workingDirectory = useWorkingDirectory(activeMetadata);
+
+  // Detect sub-agent threads (read-only mode)
+  const isSubAgent = !!activeMetadata?.parentThreadId;
 
   // Derive status to handle optimistic state
   // If we have optimistic messages but no real state, treat as "running"
@@ -336,134 +348,6 @@ export function ThreadContent({
     }
   }, [messages.length > 0]);
 
-  // Reset quick actions state when threadId changes
-  useEffect(() => {
-    resetState();
-  }, [threadId, resetState]);
-
-  // Reset selectedIndex when streaming state changes (actions array changes)
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [isStreaming, setSelectedIndex]);
-
-  const handleQuickAction = useCallback(
-    async (action: ActionType) => {
-      if (isProcessing) return;
-
-      setProcessing(action);
-      const currentItem = { type: "thread" as const, id: threadId };
-
-      try {
-        if (action === "nextItem") {
-          await navigateToNextItemOrFallback(currentItem, {
-            actionType: "nextItem",
-          });
-        } else if (action === "closePanel") {
-          // In content pane context, "close panel" means clearing the pane
-          // This would be handled by parent via onClose prop
-          // For now, just log
-          logger.info("[ThreadContent] closePanel action - no-op in content pane");
-        } else if (action === "followUp") {
-          setShowFollowUpInput(true);
-        } else if (action === "respond") {
-          inputRef.current?.focus();
-        } else if (action === "archive") {
-          await threadService.archive(threadId, null);
-          await navigateToNextItemOrFallback(currentItem, {
-            actionType: "archive",
-          });
-        } else if (action === "markUnread") {
-          await useThreadStore.getState().markThreadAsUnread(threadId);
-          await navigateToNextItemOrFallback(currentItem, {
-            actionType: "markUnread",
-          });
-        }
-      } catch (error) {
-        logger.error(
-          `[ThreadContent] Failed to handle quick action ${action}:`,
-          error
-        );
-      } finally {
-        setProcessing(null);
-      }
-    },
-    [
-      isProcessing,
-      setProcessing,
-      setShowFollowUpInput,
-      threadId,
-      navigateToNextItemOrFallback,
-    ]
-  );
-
-  // Legacy handler for SuggestedActionsPanel onAction prop
-  const handleSuggestedAction = useCallback(
-    async (action: "markUnread" | "archive") => {
-      await handleQuickAction(action);
-    },
-    [handleQuickAction]
-  );
-
-  // Global keyboard navigation for quick actions
-  useEffect(() => {
-    const actions = isStreaming ? streamingActions : defaultActions;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle keyboard if follow-up input is active
-      if (showFollowUpInput) {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          setShowFollowUpInput(false);
-          setFollowUpValue("");
-        }
-        return;
-      }
-
-      // Handle arrow keys
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        navigateUp(actions.length);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        if (selectedIndex === actions.length - 1) {
-          inputRef.current?.focus();
-        } else {
-          navigateDown(actions.length);
-        }
-      } else if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        const selectedAction = actions[selectedIndex];
-        if (selectedAction) {
-          if (selectedAction.key === "respond") {
-            inputRef.current?.focus();
-          } else {
-            handleQuickAction(selectedAction.key);
-          }
-        }
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // Any regular character typed - focus input and select respond option
-        const respondIndex = actions.findIndex((a) => a.key === "respond");
-        if (respondIndex !== -1) {
-          setSelectedIndex(respondIndex);
-        }
-        inputRef.current?.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [
-    selectedIndex,
-    isStreaming,
-    showFollowUpInput,
-    navigateUp,
-    navigateDown,
-    setSelectedIndex,
-    setShowFollowUpInput,
-    setFollowUpValue,
-    handleQuickAction,
-  ]);
-
   const handleToolResponse = useCallback(
     async (toolId: string, response: string) => {
       if (!workingDirectory) {
@@ -484,20 +368,16 @@ export function ThreadContent({
     [threadId, workingDirectory]
   );
 
-  const handleAutoSelectInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  // Handle focus transfer from ThreadInput to quick actions panel
-  const handleNavigateToQuickActions = useCallback(() => {
-    if (quickActionsPanelRef.current) {
-      quickActionsPanelRef.current.expand();
-      quickActionsPanelRef.current.focus();
-    }
-  }, []);
-
   return (
-    <div className="flex flex-col h-full text-surface-50 relative overflow-hidden">
+    <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
+      {/* Breadcrumb for sub-agent threads */}
+      {isSubAgent && activeMetadata?.parentThreadId && (
+        <SubAgentBreadcrumb
+          parentThreadId={activeMetadata.parentThreadId}
+          currentName={activeMetadata?.name}
+        />
+      )}
+
       {/* ThreadView takes remaining space */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
         <ThreadView
@@ -512,43 +392,18 @@ export function ThreadContent({
         />
       </div>
 
-      {/* Quick actions and input pinned to bottom */}
-      <div className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-4">
-        <SuggestedActionsPanel
-          ref={quickActionsPanelRef}
-          view={{ type: "thread", threadId }}
-          onAction={handleSuggestedAction}
-          onAutoSelectInput={handleAutoSelectInput}
-          isStreaming={isStreaming}
-          onSubmitFollowUp={handleSubmit}
-          onQuickAction={handleQuickAction}
+      {/* Quick actions and input pinned to bottom - hidden for sub-agent threads (read-only) */}
+      {!isSubAgent && (
+        <ThreadInputSection
+          ref={inputRef}
+          onSubmit={handleSubmit}
+          workingDirectory={workingDirectory}
+          contextType={messages.length === 0 ? "empty" : "thread"}
+          placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+          queuedMessages={queuedMessages}
+          canQueue={canQueueMessages}
         />
-
-        {/* SDK Quick Actions Panel */}
-        <QuickActionsPanel contextType="thread" />
-
-        {/* Queued messages banner */}
-        <QueuedMessagesBanner messages={queuedMessages} />
-
-        {/* Input with visual indicator when in queue mode */}
-        <div
-          className={cn(
-            "relative",
-            canQueueMessages && "ring-1 ring-amber-500/30 ring-inset"
-          )}
-        >
-          <ThreadInput
-            ref={inputRef}
-            onSubmit={handleSubmit}
-            disabled={false}
-            workingDirectory={workingDirectory}
-            placeholder={
-              canQueueMessages ? "Queue a follow-up message..." : undefined
-            }
-            onNavigateToQuickActions={handleNavigateToQuickActions}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Toast for temporary messages */}
       {toastMessage && (

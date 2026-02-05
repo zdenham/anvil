@@ -32,31 +32,30 @@ const QuickActionExecutionContextSchema = z.object({
 });
 
 /**
- * Creates a timeout promise that rejects after the specified duration.
- * Used with Promise.race() to enforce action timeout (DD #25).
- */
-function createTimeoutPromise(ms: number): Promise<never> {
-  return new Promise((_, reject) => {
-    setTimeout(() => {
-      reject(new Error(`Action timed out after ${ms / 1000} seconds`));
-    }, ms);
-  });
-}
-
-/**
  * Wraps action execution with a timeout using Promise.race().
  * If the action doesn't complete within ACTION_TIMEOUT_MS, the promise rejects.
- * Note: This doesn't kill the action's async operations, but the process will exit
- * with an error, and Mort (the parent process) should kill this Node process.
+ * Properly clears the timeout when the action completes to allow process exit.
  */
 async function executeWithTimeout<T>(
   actionPromise: Promise<T>,
   timeoutMs: number = ACTION_TIMEOUT_MS
 ): Promise<T> {
-  return Promise.race([
-    actionPromise,
-    createTimeoutPromise(timeoutMs),
-  ]);
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Action timed out after ${timeoutMs / 1000} seconds`));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([actionPromise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (err) {
+    clearTimeout(timeoutId!);
+    throw err;
+  }
 }
 
 const { values } = parseArgs({
@@ -97,8 +96,9 @@ async function main() {
 
 main().catch((err) => {
   // Emit error event with specific handling for timeout errors
+  // Use console.log (stdout) so error events are captured alongside other events
   const isTimeout = err.message?.includes('timed out');
-  console.error(JSON.stringify({
+  console.log(JSON.stringify({
     event: 'error',
     payload: {
       message: err.message,
