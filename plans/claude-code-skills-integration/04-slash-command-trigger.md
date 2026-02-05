@@ -15,6 +15,7 @@ Implement the `/` trigger handler for the skill dropdown. Uses the existing trig
 
 ## Dependencies
 
+- **01-types-foundation** - Needs `SOURCE_ICONS`, `SOURCE_LABELS` from shared utilities
 - **03-skills-service** - Needs `skillsService.discover()` and `skillsService.search()`
 
 ---
@@ -39,10 +40,13 @@ Create `src/lib/triggers/handlers/skill-handler.ts`:
 ```typescript
 import type { TriggerConfig, TriggerHandler, TriggerResult, TriggerContext } from "../types";
 import { skillsService } from "@/entities/skills";
-import type { SkillSource } from "@/entities/skills";
+import { SOURCE_ICONS, SOURCE_LABELS } from "@core/skills";
 
 /**
  * Skill trigger handler for "/" - follows same pattern as FileTriggerHandler for "@"
+ *
+ * Uses shared constants from @core/skills for icons and labels to ensure
+ * consistency across the UI (dropdown, chips, settings).
  */
 class SkillTriggerHandler implements TriggerHandler {
   readonly config: TriggerConfig = {
@@ -72,32 +76,10 @@ class SkillTriggerHandler implements TriggerHandler {
       id: skill.id,
       label: `/${skill.slug}`,
       description: skill.description || "",
-      icon: this.getIconForSource(skill.source),
+      icon: SOURCE_ICONS[skill.source],         // Lucide icon name from shared constants
       insertText: `/${skill.slug} `,
-      secondaryLabel: this.getSourceLabel(skill.source),
+      secondaryLabel: SOURCE_LABELS[skill.source], // Display label from shared constants
     }));
-  }
-
-  private getIconForSource(source: SkillSource): string {
-    switch (source) {
-      case "mort": return "sparkles";       // Mort-specific
-      case "personal": return "user";        // Personal skills
-      case "project": return "folder";       // Project skills
-      case "personal_command": return "terminal";
-      case "project_command": return "folder-code";
-      default: return "zap";
-    }
-  }
-
-  private getSourceLabel(source: SkillSource): string {
-    switch (source) {
-      case "mort": return "Mort";
-      case "personal": return "Personal";
-      case "project": return "Project";
-      case "personal_command": return "Personal";
-      case "project_command": return "Project";
-      default: return "";
-    }
   }
 }
 

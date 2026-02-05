@@ -72,6 +72,11 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
       // Handle arrow keys for history navigation
       if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !triggerState?.isActive) {
+        // Skip history navigation if Command key is pressed (let default cursor behavior happen)
+        if (e.metaKey) {
+          return;
+        }
+
         const isEmpty = value.trim() === "";
         const textarea = e.target as HTMLTextAreaElement;
 

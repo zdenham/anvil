@@ -254,6 +254,33 @@ export class MessageHandler {
     return false;
   }
 
+  /**
+   * Extract the tool_use_id from a tool_result block in the message content.
+   * This is needed for sub-agent messages where parent_tool_use_id is the Task tool's ID,
+   * not the actual tool's ID.
+   */
+  private extractToolUseIdFromResult(msg: SDKUserMessage): string | null {
+    const messageParam = msg.message;
+    if (!messageParam) return null;
+
+    const content = messageParam.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (
+          typeof block === "object" &&
+          block !== null &&
+          "type" in block &&
+          block.type === "tool_result" &&
+          "tool_use_id" in block
+        ) {
+          return block.tool_use_id as string;
+        }
+      }
+    }
+
+    return null;
+  }
+
   // ============================================================================
   // Sub-agent Message Routing
   // ============================================================================
@@ -354,10 +381,11 @@ export class MessageHandler {
       case "user": {
         const msg = message as SDKUserMessage;
         // Tool result handling for child thread
-        if (msg.parent_tool_use_id) {
-          const toolUseId = msg.parent_tool_use_id;
-          // Note: For sub-agent messages, parent_tool_use_id is set, but this might be
-          // a nested tool result within the sub-agent
+        // For sub-agent messages:
+        // - msg.parent_tool_use_id = Task tool's ID (identifies the sub-agent)
+        // - The actual tool's tool_use_id is in the tool_result block within msg.message.content
+        const toolUseId = this.extractToolUseIdFromResult(msg);
+        if (toolUseId) {
           const result = this.extractToolResult(msg);
           const isError = this.detectToolError(msg);
 

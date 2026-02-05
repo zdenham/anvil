@@ -1,12 +1,30 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Archive, Loader2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StatusDot } from "@/components/ui/status-dot";
+import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+
+/**
+ * Get text color class based on item status.
+ * Returns empty string for selected items (selection state takes precedence).
+ * Running state uses shimmer animation, others use surface-400.
+ */
+function getTextColorClass(status: StatusDotVariant, isSelected: boolean): string {
+  if (isSelected) return "";
+  switch (status) {
+    case "running":
+      return "animate-shimmer";
+    case "unread":
+      return "text-surface-100";
+    case "read":
+    default:
+      return "text-surface-400";
+  }
+}
 
 /**
  * Focus a tree item by its index using data attribute.
@@ -211,7 +229,10 @@ export function ThreadItem({
             <StatusDot variant={item.status} />
           </span>
         )}
-        <span className="truncate flex-1" title={item.title}>
+        <span
+          className={cn("truncate flex-1", getTextColorClass(item.status, isSelected))}
+          title={item.title}
+        >
           {item.title}
         </span>
         {/* Archive button - fixed height to prevent layout shift */}

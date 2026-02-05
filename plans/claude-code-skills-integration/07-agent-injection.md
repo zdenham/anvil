@@ -15,9 +15,12 @@ Implement system prompt injection at the agent level. When a user message contai
 
 ## Dependencies
 
-- **01-types-foundation** - Needs adapter interfaces and skill types
+- **01-types-foundation** - Needs:
+  - Adapter interfaces (`SkillsAdapter` from `@core/adapters/types`)
+  - Skill types (`SkillSource`, `SkillReference`, `SkillMetadata`, etc. from `@core/types/skills`)
+  - Shared utilities (`extractSkillMatches`, `stripFrontmatter` from `@core/skills`)
 
-**Note**: This plan can run in parallel with 02, 03, 04, 05, 06 since it only needs the types from 01.
+**Note**: This plan can run in parallel with 02, 03, 04, 05, 06 since it only needs the types and utilities from 01.
 
 ---
 
@@ -26,60 +29,25 @@ Implement system prompt injection at the agent level. When a user message contai
 | File | Action |
 |------|--------|
 | `core/adapters/node/skills-adapter.ts` | **CREATE** |
-| `agents/src/lib/skills/types.ts` | **CREATE** |
 | `agents/src/lib/skills/inject-skill.ts` | **CREATE** |
 | `agents/src/lib/skills/index.ts` | **CREATE** |
 | `agents/src/runners/shared.ts` | **MODIFY** - Integrate skill injection |
+
+> **Note**: Types are NOT defined here. All types are imported from `@core/types/skills` (defined canonically in plan 01). This ensures proper dependency direction where `agents` depends on `core`, not the other way around.
 
 ---
 
 ## Implementation
 
-### 1. Shared Types for Agent
-
-Create `agents/src/lib/skills/types.ts`:
-
-```typescript
-export type SkillSource =
-  | 'project'
-  | 'project_command'
-  | 'mort'
-  | 'personal'
-  | 'personal_command';
-
-export interface SkillContent {
-  content: string;
-  source: SkillSource;
-}
-
-export interface SkillMatch {
-  skillSlug: string;
-  args: string;
-  fullMatch: string;
-}
-
-export interface SkillInjection {
-  displayMessage: string;           // Original message (stored in thread, shown in UI)
-  userMessage: string;              // What goes in user message (same as display)
-  systemPromptAppend: string | null; // What gets appended to system prompt
-  skills: Array<{ slug: string; source: SkillSource }>;
-}
-
-export interface SkillMetadata {
-  slug: string;
-  path: string;
-  source: SkillSource;
-}
-```
-
-### 2. Node.js Skills Adapter
+### 1. Node.js Skills Adapter
 
 Create `core/adapters/node/skills-adapter.ts`:
 
 ```typescript
 import * as fs from "fs";
 import * as path from "path";
-import type { SkillSource, SkillMetadata } from "../../../agents/src/lib/skills/types";
+import type { SkillSource, SkillReference, SkillMetadata } from "@core/types/skills";
+import type { SkillsAdapter } from "@core/adapters/types";
 
 interface SkillLocation {
   getPath: (repoPath: string, homeDir: string) => string;
@@ -87,6 +55,10 @@ interface SkillLocation {
   isLegacy: boolean;
 }
 
+import { SOURCE_PRIORITY } from "@core/skills";
+
+// SKILL_LOCATIONS order MUST match SOURCE_PRIORITY from @core/skills/constants
+// This ensures consistent priority ordering across frontend and agent.
 const SKILL_LOCATIONS: SkillLocation[] = [
   { getPath: (repo) => path.join(repo, ".claude", "skills"), source: "project", isLegacy: false },
   { getPath: (repo) => path.join(repo, ".claude", "commands"), source: "project_command", isLegacy: true },
@@ -95,12 +67,49 @@ const SKILL_LOCATIONS: SkillLocation[] = [
   { getPath: (_, home) => path.join(home, ".claude", "commands"), source: "personal_command", isLegacy: true },
 ];
 
-export class NodeSkillsAdapter {
+// Runtime verification that SKILL_LOCATIONS order matches SOURCE_PRIORITY
+if (process.env.NODE_ENV !== 'production') {
+  const locationSources = SKILL_LOCATIONS.map(l => l.source);
+  const mismatch = locationSources.some((s, i) => s !== SOURCE_PRIORITY[i]);
+  if (mismatch) {
+    console.warn('[NodeSkillsAdapter] SKILL_LOCATIONS order does not match SOURCE_PRIORITY');
+  }
+}
+
+/**
+ * Node.js implementation of SkillsAdapter.
+ *
+ * This adapter implements the SkillsAdapter interface for use in the agent runner.
+ * It uses synchronous fs operations internally but exposes async methods for
+ * interface consistency.
+ *
+ * Primary use case: `findBySlug()` for skill injection in agent runner.
+ * The `discover()` method is implemented for interface compliance but the frontend
+ * service (plan 03) uses its own implementation with FilesystemClient.
+ */
+export class NodeSkillsAdapter implements SkillsAdapter {
+  /**
+   * Discover all skills from configured locations.
+   * Note: The frontend service (plan 03) uses FilesystemClient for this.
+   * This implementation is provided for interface compliance.
+   */
+  async discover(_repoPath: string, _homeDir: string): Promise<SkillMetadata[]> {
+    // This adapter is primarily used for findBySlug in the agent.
+    // Full discovery with metadata parsing is handled by the frontend service.
+    // Throwing here to make it clear this shouldn't be used.
+    throw new Error(
+      "NodeSkillsAdapter.discover() is not implemented. " +
+      "Use the frontend skillsService.discover() for full discovery."
+    );
+  }
+
   /**
    * Find a skill by slug across all locations.
    * Returns first match (respects priority order).
+   * Note: Uses SkillReference (subset of SkillMetadata) since only slug, path, and source
+   * are needed for agent injection.
    */
-  findBySlug(slug: string, repoPath: string, homeDir: string): SkillMetadata | null {
+  async findBySlug(slug: string, repoPath: string, homeDir: string): Promise<SkillReference | null> {
     const normalizedSlug = slug.toLowerCase();
 
     for (const location of SKILL_LOCATIONS) {
@@ -138,61 +147,56 @@ export class NodeSkillsAdapter {
   /**
    * Read skill content from disk.
    */
-  readContent(skillPath: string): string | null {
+  async readContent(skillPath: string): Promise<string | null> {
     try {
       return fs.readFileSync(skillPath, "utf-8");
     } catch {
       return null;
     }
   }
+
+  /**
+   * Check if a path exists.
+   */
+  async exists(filePath: string): Promise<boolean> {
+    return fs.existsSync(filePath);
+  }
+
+  /**
+   * List directory contents.
+   */
+  async listDir(dirPath: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> {
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      return entries.map(entry => ({
+        name: entry.name,
+        path: path.join(dirPath, entry.name),
+        isDirectory: entry.isDirectory(),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Join path segments.
+   */
+  joinPath(...segments: string[]): string {
+    return path.join(...segments);
+  }
 }
 ```
 
-### 3. Skill Injection Logic
+### 2. Skill Injection Logic
 
 Create `agents/src/lib/skills/inject-skill.ts`:
 
 ```typescript
-import type { SkillSource, SkillContent, SkillMatch, SkillInjection } from "./types";
+import type { SkillSource, SkillContent, SkillInjection } from "@core/types/skills";
+import { extractSkillMatches, stripFrontmatter } from "@core/skills";
 
-// Matches /skill-name or /skill-name args at word boundary
-const SKILL_PATTERN = /(?:^|(?<=\s))\/([a-z0-9_-]+)(?:\s+([^\n]*))?/gim;
-
-/**
- * Extract all skill invocations from a message.
- */
-export function extractSkillMatches(message: string): SkillMatch[] {
-  const matches: SkillMatch[] = [];
-  let match: RegExpExecArray | null;
-
-  SKILL_PATTERN.lastIndex = 0;
-
-  while ((match = SKILL_PATTERN.exec(message)) !== null) {
-    matches.push({
-      skillSlug: match[1].toLowerCase(),
-      args: (match[2] || "").trim(),
-      fullMatch: match[0],
-    });
-  }
-
-  return matches;
-}
-
-/**
- * Parse YAML frontmatter from skill content.
- */
-function parseFrontmatter(content: string): { body: string } {
-  if (!content.startsWith("---")) {
-    return { body: content };
-  }
-
-  const endIndex = content.indexOf("---", 3);
-  if (endIndex === -1) {
-    return { body: content };
-  }
-
-  return { body: content.slice(endIndex + 3).trim() };
-}
+// Re-export extractSkillMatches for convenience
+export { extractSkillMatches };
 
 /**
  * Build system prompt content for a single skill.
@@ -268,22 +272,32 @@ export async function processMessageWithSkills(
 }
 ```
 
-### 4. Index Export
+### 3. Index Export
 
 Create `agents/src/lib/skills/index.ts`:
 
 ```typescript
-export * from "./types";
+// Re-export types from core for convenience
+export type {
+  SkillSource,
+  SkillContent,
+  SkillMatch,
+  SkillInjection,
+  SkillReference,
+} from "@core/types/skills";
+
+// Export skill processing functions
 export { extractSkillMatches, buildSkillInstruction, processMessageWithSkills } from "./inject-skill";
 ```
 
-### 5. Agent Runner Integration
+### 4. Agent Runner Integration
 
 Update `agents/src/runners/shared.ts`:
 
 ```typescript
 import * as os from "os";
 import { processMessageWithSkills } from "../lib/skills";
+import { stripFrontmatter } from "@core/skills";
 import { NodeSkillsAdapter } from "@core/adapters/node/skills-adapter";
 
 // In runAgentLoop(), after receiving user message:
@@ -293,14 +307,14 @@ const skillsAdapter = new NodeSkillsAdapter();
 const skillInjection = await processMessageWithSkills(
   userMessage,
   async (slug) => {
-    const skill = skillsAdapter.findBySlug(slug, context.workingDir, os.homedir());
+    const skill = await skillsAdapter.findBySlug(slug, context.workingDir, os.homedir());
     if (!skill) return null;
 
-    const rawContent = skillsAdapter.readContent(skill.path);
+    const rawContent = await skillsAdapter.readContent(skill.path);
     if (!rawContent) return null;
 
-    // Strip frontmatter
-    const { body } = parseFrontmatter(rawContent);
+    // Strip frontmatter using shared utility from core
+    const body = stripFrontmatter(rawContent);
 
     return {
       content: body,

@@ -3,11 +3,11 @@
  *
  * Displays a compact reference to a child sub-agent thread within the parent thread.
  * Shows running status, tool call count, and allows navigation to the child thread.
+ * Styled to match other tool blocks with shimmer effect and two-line layout.
  */
 
-import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { StatusDot } from "@/components/ui/status-dot";
+import { ArrowRight, GitBranch } from "lucide-react";
+import { ShimmerText } from "@/components/ui/shimmer-text";
 import { useContextAwareNavigation } from "@/hooks/use-context-aware-navigation";
 import type { ThreadStatus } from "@/entities/threads/types";
 
@@ -45,40 +45,53 @@ export function SubAgentReferenceBlock({
 
   return (
     <div
-      className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-md border",
-        "bg-zinc-800/30 hover:bg-zinc-800/50 cursor-pointer transition-colors",
-        "border-zinc-700/50"
-      )}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      role="button"
-      tabIndex={0}
-      aria-label={`Sub-agent: ${name}, ${isRunning ? "running" : "completed"}${toolCallCount > 0 ? `, ${toolCallCount} tool calls` : ""}`}
+      className="group py-0.5"
+      aria-label={`Task agent: ${name}, ${isRunning ? "running" : "completed"}${toolCallCount > 0 ? `, ${toolCallCount} tool calls` : ""}`}
       data-testid={`sub-agent-reference-${childThreadId}`}
     >
-      {/* Flashing indicator while running */}
-      <StatusDot
-        variant={isRunning ? "running" : "read"}
-        data-testid="sub-agent-status-dot"
-      />
+      {/* Clickable area */}
+      <div
+        className="cursor-pointer select-none"
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+      >
+        {/* Line 1: "Task agent" or "Running task agent" with open button */}
+        <div className="flex items-center gap-2">
+          <ShimmerText
+            isShimmering={isRunning}
+            className="text-sm text-zinc-200 truncate min-w-0"
+          >
+            {isRunning ? "Running task agent" : "Task agent"}
+          </ShimmerText>
 
-      {/* Thread name */}
-      <span className="flex-1 truncate text-sm text-zinc-200">
-        {name || "Sub-agent"}
-      </span>
+          {/* Right side: tool count and open button */}
+          <span className="flex items-center gap-2 shrink-0 ml-auto">
+            {toolCallCount > 0 && (
+              <span className="text-xs text-zinc-500">
+                {toolCallCount} tool {toolCallCount === 1 ? "call" : "calls"}
+              </span>
+            )}
+            <span className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200">
+              Open
+              <ArrowRight className="w-3 h-3" />
+            </span>
+          </span>
+        </div>
 
-      {/* Tool call count (only show if > 0) */}
-      {toolCallCount > 0 && (
-        <span className="text-xs text-zinc-500 shrink-0">
-          {toolCallCount} tool {toolCallCount === 1 ? "call" : "calls"}
-        </span>
-      )}
+        {/* Line 2: Icon + task name/description */}
+        <div className="flex items-center gap-1 mt-0.5">
+          <GitBranch className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+          <span className="text-xs text-zinc-500 truncate">
+            {name || "Sub-agent"}
+          </span>
+        </div>
+      </div>
 
-      {/* Open button */}
-      <span className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 shrink-0">
-        Open
-        <ArrowRight className="w-3 h-3" />
+      {/* Screen reader status */}
+      <span className="sr-only">
+        {isRunning ? "Task agent running" : "Task agent completed"}
       </span>
     </div>
   );

@@ -116,24 +116,6 @@ export function TaskToolBlock({
   // Get tool call count for child thread (only used if child exists)
   const toolCallCount = useChildThreadToolCount(childThread?.id ?? "");
 
-  // If a child thread exists, render the reference block instead
-  if (childThread) {
-    return (
-      <SubAgentReferenceBlock
-        toolUseId={id}
-        childThreadId={childThread.id}
-        name={childThread.name ?? "Sub-agent"}
-        status={childThread.status}
-        toolCallCount={toolCallCount}
-      />
-    );
-  }
-
-  // Expand state from store
-  const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
-  const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
-  const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
-
   // Parse input
   const taskInput = input as { description?: string; prompt?: string };
   const description = taskInput.description || taskInput.prompt || "Run task";
@@ -148,13 +130,31 @@ export function TaskToolBlock({
   const hasResult = resultText.length > 0;
   const isLongOutput = resultText.split('\n').length > LINE_COLLAPSE_THRESHOLD;
 
-  // Output expand state
+  // Expand state from store - must be called unconditionally (before any returns)
+  const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
+  const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
+  const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
+
+  // Output expand state - must be called unconditionally (before any returns)
   const defaultOutputExpanded = !isLongOutput;
   const isOutputExpanded = useToolExpandStore((state) =>
     state.isOutputExpanded(threadId, id, defaultOutputExpanded)
   );
   const setOutputExpanded = useToolExpandStore((state) => state.setOutputExpanded);
   const setIsOutputExpanded = (expanded: boolean) => setOutputExpanded(threadId, id, expanded);
+
+  // If a child thread exists, render the reference block instead
+  if (childThread) {
+    return (
+      <SubAgentReferenceBlock
+        toolUseId={id}
+        childThreadId={childThread.id}
+        name={childThread.name ?? "Sub-agent"}
+        status={childThread.status}
+        toolCallCount={toolCallCount}
+      />
+    );
+  }
 
   return (
     <div

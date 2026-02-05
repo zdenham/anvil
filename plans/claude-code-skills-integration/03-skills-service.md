@@ -4,6 +4,16 @@
 
 Create the skills discovery service that scans all skill/command locations and hydrates the store. Uses the FilesystemClient adapter for Tauri compatibility.
 
+> **Architecture Note**: This service is a high-level frontend service that:
+> - Uses `FilesystemClient` (Tauri-compatible adapter) for filesystem operations
+> - Hydrates the Zustand store with discovered skills
+> - Provides convenience methods (`getBySlug`, `search`, etc.) that read from the store
+>
+> It does NOT implement the `SkillsAdapter` interface directly. The `SkillsAdapter` interface
+> (defined in plan 01) is for lower-level filesystem adapters. The service's `discover()` method
+> signature differs from the interface because it retrieves `homeDir` from `FilesystemClient.getPathsInfo()`
+> internally (Tauri provides this via IPC).
+
 ## Phases
 
 - [ ] Implement frontmatter parser
@@ -16,7 +26,7 @@ Create the skills discovery service that scans all skill/command locations and h
 
 ## Dependencies
 
-- **01-types-foundation** - Needs all types
+- **01-types-foundation** - Needs all types and shared utilities (`parseFrontmatter`, `SOURCE_PRIORITY`)
 - **02-skills-store** - Needs `useSkillsStore`
 
 ---
@@ -38,13 +48,15 @@ Create `src/entities/skills/service.ts`:
 
 ```typescript
 import { useSkillsStore } from './store';
-import type { SkillMetadata, SkillSource, SkillContent, SkillFrontmatter } from './types';
+import type { SkillMetadata, SkillSource, SkillContent } from './types';
+import { parseFrontmatter, SOURCE_PRIORITY } from '@core/skills';
 import { FilesystemClient } from '@/lib/filesystem-client';
 import { logger } from '@/lib/logger-client';
 
 const fs = new FilesystemClient();
 
 // Skill directory configurations
+// NOTE: Order matches SOURCE_PRIORITY from @core/skills/constants
 interface SkillLocation {
   getPath: (repoPath: string, homeDir: string) => string;
   source: SkillSource;
@@ -52,7 +64,7 @@ interface SkillLocation {
 }
 
 const SKILL_LOCATIONS: SkillLocation[] = [
-  // Priority order: project > mort > personal
+  // Priority order matches SOURCE_PRIORITY: project > project_command > mort > personal > personal_command
   {
     getPath: (repo) => `${repo}/.claude/skills`,
     source: 'project',
@@ -80,64 +92,13 @@ const SKILL_LOCATIONS: SkillLocation[] = [
   },
 ];
 
-/**
- * Parse YAML frontmatter from skill content.
- * Simple parser - handles key: value pairs only.
- */
-function parseFrontmatter(content: string): { frontmatter: SkillFrontmatter; body: string } {
-  if (!content.startsWith('---')) {
-    return { frontmatter: {}, body: content };
+// Verify SKILL_LOCATIONS order matches SOURCE_PRIORITY at module load time
+if (process.env.NODE_ENV !== 'production') {
+  const locationSources = SKILL_LOCATIONS.map(l => l.source);
+  const mismatch = locationSources.some((s, i) => s !== SOURCE_PRIORITY[i]);
+  if (mismatch) {
+    console.warn('[skills-service] SKILL_LOCATIONS order does not match SOURCE_PRIORITY');
   }
-
-  const endIndex = content.indexOf('---', 3);
-  if (endIndex === -1) {
-    return { frontmatter: {}, body: content };
-  }
-
-  const yamlContent = content.slice(3, endIndex).trim();
-  const body = content.slice(endIndex + 3).trim();
-
-  const frontmatter: SkillFrontmatter = {};
-  for (const line of yamlContent.split('\n')) {
-    const match = line.match(/^([^:]+):\s*(.*)$/);
-    if (match) {
-      const [, key, value] = match;
-      const cleanKey = key.trim();
-      const cleanValue = value.trim().replace(/^["']|["']$/g, '');
-
-      switch (cleanKey) {
-        case 'name':
-          frontmatter.name = cleanValue;
-          break;
-        case 'description':
-          frontmatter.description = cleanValue;
-          break;
-        case 'user-invocable':
-          frontmatter['user-invocable'] = cleanValue !== 'false';
-          break;
-        case 'disable-model-invocation':
-          frontmatter['disable-model-invocation'] = cleanValue === 'true';
-          break;
-        case 'argument-hint':
-          frontmatter['argument-hint'] = cleanValue;
-          break;
-        case 'allowed-tools':
-          frontmatter['allowed-tools'] = cleanValue;
-          break;
-        case 'model':
-          frontmatter.model = cleanValue;
-          break;
-        case 'context':
-          if (cleanValue === 'fork') frontmatter.context = 'fork';
-          break;
-        case 'agent':
-          frontmatter.agent = cleanValue;
-          break;
-      }
-    }
-  }
-
-  return { frontmatter, body };
 }
 
 export const skillsService = {

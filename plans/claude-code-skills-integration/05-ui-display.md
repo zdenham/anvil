@@ -15,6 +15,7 @@ Render skill invocations as expandable chips in user messages. Supports multiple
 
 ## Dependencies
 
+- **01-types-foundation** - Needs `extractSkillMatches`, `SOURCE_ICONS` from shared utilities
 - **03-skills-service** - Needs `skillsService.readContent()`
 
 ---
@@ -36,44 +37,22 @@ Render skill invocations as expandable chips in user messages. Supports multiple
 Create `src/lib/skills/parse-skill-display.ts`:
 
 ```typescript
-export interface SkillMatch {
-  skillSlug: string;
-  args: string;
-  fullMatch: string;
-}
+import { extractSkillMatches } from "@core/skills";
+import type { SkillMatch } from "@core/skills";
+
+// Re-export for convenience
+export type { SkillMatch };
 
 export interface ParsedSkillMessage {
   skills: SkillMatch[];
   remainingText: string;
 }
 
-// Matches /skill-name or /skill-name args
-// Only at word boundary (start, after whitespace, after newline)
-const SKILL_PATTERN = /(?:^|(?<=\s))\/([a-z0-9_-]+)(?:\s+([^\n]*))?/gim;
-
-/**
- * Extract all skill invocations from a message.
- */
-export function extractSkillMatches(message: string): SkillMatch[] {
-  const matches: SkillMatch[] = [];
-  let match: RegExpExecArray | null;
-
-  // Reset regex state
-  SKILL_PATTERN.lastIndex = 0;
-
-  while ((match = SKILL_PATTERN.exec(message)) !== null) {
-    matches.push({
-      skillSlug: match[1].toLowerCase(),
-      args: (match[2] || "").trim(),
-      fullMatch: match[0],
-    });
-  }
-
-  return matches;
-}
-
 /**
  * Parse skills from a display message for UI rendering.
+ *
+ * Uses `extractSkillMatches` from @core/skills (shared with agent injection)
+ * to ensure consistent parsing across frontend and backend.
  */
 export function parseSkillsFromDisplayMessage(message: string): ParsedSkillMessage {
   const skills = extractSkillMatches(message);
@@ -95,22 +74,32 @@ Create `src/components/thread/skill-chip.tsx`:
 ```tsx
 import { useState } from "react";
 import { ChevronRight, ChevronDown, AlertCircle } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
 import { skillsService, useSkillsStore } from "@/entities/skills";
-import type { SkillSource } from "@/entities/skills";
+import { SOURCE_ICONS } from "@core/skills";
 
 interface SkillChipProps {
   slug: string;
   args: string;
 }
 
-const SOURCE_ICONS: Record<SkillSource, string> = {
-  mort: "✨",
-  personal: "👤",
-  project: "📁",
-  personal_command: "💻",
-  project_command: "📂",
-};
+/**
+ * Dynamically render a Lucide icon by name.
+ * Falls back to Zap icon if the icon name is not found.
+ */
+function SourceIcon({ name, className }: { name: string; className?: string }) {
+  // Convert kebab-case to PascalCase for Lucide component lookup
+  const pascalName = name
+    .split("-")
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+
+  const IconComponent = (LucideIcons as Record<string, React.ComponentType<{ className?: string }>>)[pascalName]
+    || LucideIcons.Zap;
+
+  return <IconComponent className={className} />;
+}
 
 export function SkillChip({ slug, args }: SkillChipProps) {
   const [expanded, setExpanded] = useState(false);
@@ -120,7 +109,8 @@ export function SkillChip({ slug, args }: SkillChipProps) {
 
   const skill = useSkillsStore(state => state.getBySlug(slug));
   const source = skill?.source;
-  const sourceIcon = source ? SOURCE_ICONS[source] : "⚡";
+  // Use Lucide icon name from shared constants
+  const iconName = source ? SOURCE_ICONS[source] : "zap";
 
   const handleExpand = async () => {
     if (!expanded && content === null && !isStale) {
@@ -150,7 +140,7 @@ export function SkillChip({ slug, args }: SkillChipProps) {
         onClick={handleExpand}
         className="flex items-center gap-2 px-3 py-1.5 w-full text-left hover:bg-muted/50 rounded-md transition-colors"
       >
-        <span className="text-sm">{sourceIcon}</span>
+        <SourceIcon name={iconName} className="w-4 h-4" />
         <span className="font-mono text-sm font-medium">/{slug}</span>
         {args && (
           <span className="text-muted-foreground text-sm truncate max-w-[200px]">
@@ -196,36 +186,68 @@ export function SkillChip({ slug, args }: SkillChipProps) {
 
 Update `src/components/thread/user-message.tsx`:
 
+**Note:** The actual component uses `Turn` from `turn-grouping.ts`, not `ThreadMessage`. The `getUserTurnPrompt(turn)` utility extracts user text content from turns, handling both string content and array content (with `text` and `tool_result` blocks).
+
 ```tsx
+import { cn } from "@/lib/utils";
+import type { Turn } from "@/lib/utils/turn-grouping";
+import { getUserTurnPrompt } from "@/lib/utils/turn-grouping";
 import { parseSkillsFromDisplayMessage } from "@/lib/skills/parse-skill-display";
 import { SkillChip } from "./skill-chip";
 
-function UserMessage({ message }: { message: ThreadMessage }) {
-  const { skills, remainingText } = parseSkillsFromDisplayMessage(message.content);
+interface UserMessageProps {
+  /** The user turn containing the message */
+  turn: Turn;
+}
+
+/**
+ * Right-aligned user message bubble.
+ */
+export function UserMessage({ turn }: UserMessageProps) {
+  // getUserTurnPrompt handles both string content and array content
+  // (with text blocks and tool_result blocks) - returns just the text portion
+  const content = getUserTurnPrompt(turn);
+
+  // Don't render empty user messages (e.g., tool-result-only turns)
+  if (!content) {
+    return null;
+  }
+
+  // Parse skill invocations from the text content
+  const { skills, remainingText } = parseSkillsFromDisplayMessage(content);
 
   return (
-    <div className="user-message">
-      {/* Render skill chips first */}
-      {skills.length > 0 && (
-        <div className="skill-chips mb-2">
-          {skills.map((skill, idx) => (
-            <SkillChip
-              key={`${skill.skillSlug}-${idx}`}
-              slug={skill.skillSlug}
-              args={skill.args}
-            />
-          ))}
-        </div>
-      )}
+    <article
+      role="article"
+      aria-label="Your message"
+      className="flex justify-end my-3"
+    >
+      <div
+        className={cn(
+          "max-w-[80%] px-4 py-3 rounded-2xl",
+          "bg-accent-600 text-accent-900",
+          "shadow-sm"
+        )}
+      >
+        {/* Render skill chips first */}
+        {skills.length > 0 && (
+          <div className="skill-chips mb-2">
+            {skills.map((skill, idx) => (
+              <SkillChip
+                key={`${skill.skillSlug}-${idx}`}
+                slug={skill.skillSlug}
+                args={skill.args}
+              />
+            ))}
+          </div>
+        )}
 
-      {/* Render remaining text */}
-      {remainingText && (
-        <div className="message-content">
-          {/* existing content rendering */}
-          {remainingText}
-        </div>
-      )}
-    </div>
+        {/* Render remaining text */}
+        {remainingText && (
+          <p className="whitespace-pre-wrap break-words">{remainingText}</p>
+        )}
+      </div>
+    </article>
   );
 }
 ```

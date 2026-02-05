@@ -14,6 +14,7 @@ Add a Skills section to the settings panel showing all discovered skills with th
 
 ## Dependencies
 
+- **01-types-foundation** - Needs `SOURCE_BADGE_STYLES` from shared utilities
 - **03-skills-service** - Needs `skillsService.getAll()`
 
 ---
@@ -36,22 +37,19 @@ Create `src/components/settings/skill-list-item.tsx`:
 
 ```tsx
 import { cn } from "@/lib/utils";
-import type { SkillMetadata, SkillSource } from "@/entities/skills";
+import type { SkillMetadata } from "@/entities/skills";
+import { SOURCE_BADGE_STYLES } from "@core/skills";
 
 interface SkillListItemProps {
   skill: SkillMetadata;
 }
 
-const SOURCE_BADGES: Record<SkillSource, { label: string; className: string }> = {
-  project: { label: "Project", className: "bg-blue-500/10 text-blue-600" },
-  project_command: { label: "Project", className: "bg-blue-500/10 text-blue-600" },
-  mort: { label: "Mort", className: "bg-purple-500/10 text-purple-600" },
-  personal: { label: "Personal", className: "bg-green-500/10 text-green-600" },
-  personal_command: { label: "Personal", className: "bg-green-500/10 text-green-600" },
-};
-
+/**
+ * Displays a single skill in the settings list.
+ * Uses SOURCE_BADGE_STYLES from @core/skills for consistent badge styling.
+ */
 export function SkillListItem({ skill }: SkillListItemProps) {
-  const badge = SOURCE_BADGES[skill.source];
+  const badge = SOURCE_BADGE_STYLES[skill.source];
 
   return (
     <div className="flex flex-col gap-1 py-3 border-b last:border-b-0">

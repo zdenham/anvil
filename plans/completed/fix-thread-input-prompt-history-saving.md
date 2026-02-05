@@ -22,10 +22,10 @@ Create a shared helper function that saves prompts to history, then use it from 
 
 ## Phases
 
-- [ ] Create shared prompt submission helper
-- [ ] Integrate with thread content
-- [ ] Disable history cycling when Command key is pressed or user types
-- [ ] Verify spotlight still works correctly
+- [x] Create shared prompt submission helper
+- [x] Integrate with thread content
+- [x] Disable history cycling when Command key is pressed or user types
+- [x] Verify spotlight still works correctly
 
 ## Implementation
 

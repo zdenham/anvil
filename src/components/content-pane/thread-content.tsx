@@ -21,7 +21,7 @@
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
 import {
@@ -35,6 +35,7 @@ import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
 import { logger } from "@/lib/logger-client";
+import { savePromptToHistory } from "@/lib/prompt-history-helpers";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
 import { useWorkingDirectory } from "@/hooks/use-working-directory";
 import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
@@ -51,15 +52,13 @@ type ViewStatus =
   | "cancelled";
 
 /**
- * Breadcrumb navigation for sub-agent threads.
- * Shows: "< Parent Name > Current Name" with click-to-navigate.
+ * Back button for sub-agent threads.
+ * Shows at the bottom to navigate back to parent thread.
  */
-function SubAgentBreadcrumb({
+function BackToParentButton({
   parentThreadId,
-  currentName,
 }: {
   parentThreadId: string;
-  currentName?: string;
 }) {
   const parentThread = useThreadStore(
     useCallback((s) => s.threads[parentThreadId], [parentThreadId])
@@ -70,20 +69,14 @@ function SubAgentBreadcrumb({
   }, [parentThreadId]);
 
   return (
-    <div className="flex items-center gap-2 text-sm text-surface-400 mb-4 px-2">
+    <div className="py-3 px-2">
       <button
         onClick={handleParentClick}
-        className="flex items-center gap-1 hover:text-surface-200 transition-colors"
+        className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
-        <span className="truncate max-w-[200px]">
-          {parentThread?.name ?? "Parent Thread"}
-        </span>
+        <span>Back to {parentThread?.name ?? "parent thread"}</span>
       </button>
-      <ChevronRight className="h-4 w-4 text-surface-500" />
-      <span className="truncate max-w-[200px]">
-        {currentName ?? "Sub-agent"}
-      </span>
     </div>
   );
 }
@@ -272,6 +265,9 @@ export function ThreadContent({
         return;
       }
 
+      // Save to history (fire and forget - don't block on this)
+      savePromptToHistory(userPrompt, threadId);
+
       // Queue message if agent is currently running
       if (canQueueMessages) {
         try {
@@ -370,14 +366,6 @@ export function ThreadContent({
 
   return (
     <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
-      {/* Breadcrumb for sub-agent threads */}
-      {isSubAgent && activeMetadata?.parentThreadId && (
-        <SubAgentBreadcrumb
-          parentThreadId={activeMetadata.parentThreadId}
-          currentName={activeMetadata?.name}
-        />
-      )}
-
       {/* ThreadView takes remaining space */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
         <ThreadView
@@ -391,6 +379,11 @@ export function ThreadContent({
           onToolResponse={handleToolResponse}
         />
       </div>
+
+      {/* Back to parent button for sub-agent threads */}
+      {isSubAgent && activeMetadata?.parentThreadId && (
+        <BackToParentButton parentThreadId={activeMetadata.parentThreadId} />
+      )}
 
       {/* Quick actions and input pinned to bottom - hidden for sub-agent threads (read-only) */}
       {!isSubAgent && (

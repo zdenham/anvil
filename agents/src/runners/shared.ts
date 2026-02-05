@@ -1,10 +1,9 @@
 import {
   query,
+  type PreToolUseHookInput,
   type PostToolUseHookInput,
   type PostToolUseFailureHookInput,
   type SDKUserMessage,
-  type SubagentStartHookInput,
-  type SubagentStopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { relative, isAbsolute, join, resolve } from "path";
@@ -44,18 +43,36 @@ import {
 // ============================================================================
 
 /**
- * In-memory mapping from SDK agent_id to child thread ID.
- * The SDK's agent_id equals the parent_tool_use_id on messages from that subagent.
+ * In-memory mapping from full tool_use_id to child thread ID.
+ * The Task tool's tool_use_id (e.g., "toolu_01ABC...") is used for:
+ * - MESSAGE ROUTING: SDK messages use full tool_use_id as parent_tool_use_id
+ * - FRONTEND LOOKUP: TaskToolBlock uses tool_use_id to find child thread
+ *
+ * This is the ONLY map needed - we eliminated agentIdToChildThreadId,
+ * agentIdToToolUseId, and pendingTaskQueue by moving thread creation
+ * to PreToolUse:Task (which has the full tool_use_id available).
+ *
  * Cleared on process exit.
  */
-const agentIdToChildThreadId = new Map<string, string>();
+const toolUseIdToChildThreadId = new Map<string, string>();
 
 /**
- * Get the child thread ID for a given agent_id (which equals parent_tool_use_id).
+ * Get the child thread ID for a given parent_tool_use_id from SDK messages.
  * Used by MessageHandler to route sub-agent messages.
+ *
+ * SDK messages use the full tool_use_id format (e.g., "toolu_01ABC...") as parent_tool_use_id.
+ * This is set in PreToolUse:Task when the thread is created.
  */
-export function getChildThreadId(agentId: string): string | undefined {
-  return agentIdToChildThreadId.get(agentId);
+export function getChildThreadId(parentToolUseId: string): string | undefined {
+  return toolUseIdToChildThreadId.get(parentToolUseId);
+}
+
+/**
+ * Get the child thread ID for a given full tool_use_id.
+ * Used by frontend (TaskToolBlock) to find child thread for SubAgentReferenceBlock rendering.
+ */
+export function getChildThreadIdByToolUseId(toolUseId: string): string | undefined {
+  return toolUseIdToChildThreadId.get(toolUseId);
 }
 
 /**
@@ -353,11 +370,142 @@ export async function runAgentLoop(
 
   // Build hooks for state tracking and side effects
   const hooks = {
+    PreToolUse: [
+      {
+        matcher: "Task",
+        hooks: [
+          async (hookInput: unknown) => {
+            const input = hookInput as PreToolUseHookInput;
+            const taskInput = input.tool_input as { prompt?: string; subagent_type?: string };
+
+            // === DEBUG: Pretty print PreToolUse:Task hook ===
+            console.log(`\n${"#".repeat(60)}`);
+            console.log(`[HOOK] PreToolUse:Task`);
+            console.log(`${"#".repeat(60)}`);
+            console.log(`RAW INPUT:`);
+            console.log(JSON.stringify(input, null, 2));
+            console.log(`toolUseIdToChildThreadId size before: ${toolUseIdToChildThreadId.size}`);
+            console.log(`${"#".repeat(60)}\n`);
+            // === END DEBUG ===
+
+            // Skip if missing required context for thread creation
+            if (!context.repoId || !context.worktreeId) {
+              logger.warn(`[PreToolUse:Task] Cannot create sub-agent thread: missing repoId or worktreeId`);
+              return { continue: true };
+            }
+
+            const childThreadId = crypto.randomUUID();
+            const toolUseId = input.tool_use_id;
+            const agentType = taskInput.subagent_type ?? "general-purpose";
+            const taskPrompt = taskInput.prompt ?? `Sub-agent: ${agentType}`;
+
+            // Create child thread directory and metadata
+            const childThreadPath = join(config.mortDir, "threads", childThreadId);
+            const now = Date.now();
+
+            const childMetadata = {
+              id: childThreadId,
+              repoId: context.repoId,
+              worktreeId: context.worktreeId,
+              status: "running",
+              turns: [{
+                index: 0,
+                prompt: taskPrompt,
+                startedAt: now,
+                completedAt: null,
+              }],
+              isRead: true,
+              name: `${agentType}: <pending>`,
+              createdAt: now,
+              updatedAt: now,
+              parentThreadId: context.threadId,
+              parentToolUseId: toolUseId,  // Full toolu_01ABC... format
+              agentType: agentType,
+            };
+
+            try {
+              mkdirSync(childThreadPath, { recursive: true });
+              writeFileSync(
+                join(childThreadPath, "metadata.json"),
+                JSON.stringify(childMetadata, null, 2)
+              );
+
+              // Create initial state.json with the user message (the task prompt)
+              const initialState = {
+                messages: [
+                  {
+                    role: "user",
+                    content: [{ type: "text", text: taskPrompt }],
+                  },
+                ],
+                fileChanges: [],
+                workingDirectory: context.workingDir,
+                status: "running",
+                timestamp: now,
+                toolStates: {},
+              };
+              writeFileSync(
+                join(childThreadPath, "state.json"),
+                JSON.stringify(initialState, null, 2)
+              );
+
+              // Map toolUseId → childThreadId (the ONLY map we need)
+              toolUseIdToChildThreadId.set(toolUseId, childThreadId);
+
+              // Emit THREAD_CREATED event
+              emitEvent(EventName.THREAD_CREATED, {
+                threadId: childThreadId,
+                repoId: context.repoId,
+                worktreeId: context.worktreeId,
+              });
+
+              logger.info(`[PreToolUse:Task] Created child thread: ${childThreadId} for toolUseId: ${toolUseId}`);
+
+              // Fire-and-forget: generate thread name
+              const apiKey = process.env.ANTHROPIC_API_KEY;
+              if (apiKey) {
+                generateThreadName(taskPrompt, apiKey)
+                  .then((generatedName) => {
+                    const metadataPath = join(childThreadPath, "metadata.json");
+                    if (existsSync(metadataPath)) {
+                      const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+                      metadata.name = generatedName;
+                      metadata.updatedAt = Date.now();
+                      writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+                      emitEvent(EventName.THREAD_NAME_GENERATED, {
+                        threadId: childThreadId,
+                        name: generatedName,
+                      });
+                      logger.info(`[PreToolUse:Task] Generated name for thread ${childThreadId}: ${generatedName}`);
+                    }
+                  })
+                  .catch((err) => {
+                    logger.warn(`[PreToolUse:Task] Failed to generate name: ${err}`);
+                  });
+              }
+            } catch (err) {
+              logger.error(`[PreToolUse:Task] Failed to create child thread: ${err}`);
+            }
+
+            return { continue: true };
+          },
+        ],
+      },
+    ],
     PostToolUse: [
       {
         hooks: [
           async (hookInput: unknown) => {
             const input = hookInput as PostToolUseHookInput;
+
+            // === DEBUG: Pretty print PostToolUse hook ===
+            console.log(`\n${"#".repeat(60)}`);
+            console.log(`[HOOK] PostToolUse`);
+            console.log(`${"#".repeat(60)}`);
+            console.log(`RAW INPUT:`);
+            console.log(JSON.stringify(input, null, 2));
+            console.log(`${"#".repeat(60)}\n`);
+            // === END DEBUG ===
 
             // Mark tool as complete in state
             const toolResponse =
@@ -477,6 +625,101 @@ export async function runAgentLoop(
               options.onFileChange(input.tool_name);
             }
 
+            // Handle Task tool completion: mark thread completed, add response to state.json
+            if (input.tool_name === "Task") {
+              try {
+                const toolUseId = input.tool_use_id;
+                const childThreadId = toolUseIdToChildThreadId.get(toolUseId);
+
+                if (!childThreadId) {
+                  logger.warn(`[PostToolUse:Task] No child thread for toolUseId: ${toolUseId}`);
+                  return { continue: true };
+                }
+
+                const taskResponse = typeof input.tool_response === "string"
+                  ? JSON.parse(input.tool_response)
+                  : input.tool_response;
+
+                const childThreadPath = join(config.mortDir, "threads", childThreadId);
+                const metadataPath = join(childThreadPath, "metadata.json");
+                const statePath = join(childThreadPath, "state.json");
+
+                // === Update metadata.json ===
+                if (existsSync(metadataPath)) {
+                  const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+
+                  metadata.status = "completed";
+
+                  if (metadata.turns?.length > 0) {
+                    const lastTurn = metadata.turns[metadata.turns.length - 1];
+                    lastTurn.completedAt = Date.now();
+
+                    const textContent = taskResponse.content?.find(
+                      (c: { type: string }) => c.type === "text"
+                    );
+                    lastTurn.response = textContent?.text ?? JSON.stringify(taskResponse.content);
+                  }
+
+                  metadata.updatedAt = Date.now();
+                  writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+                  logger.info(`[PostToolUse:Task] Updated metadata for thread ${childThreadId}`);
+                }
+
+                // === Append final response to state.json ===
+                // The SDK returns the final response as the tool result, not as a separate
+                // assistant message event. Append it so the child thread shows the complete conversation.
+                if (taskResponse.content && Array.isArray(taskResponse.content)) {
+                  interface ThreadState {
+                    messages: Array<{ role: string; content: unknown }>;
+                    fileChanges: unknown[];
+                    workingDirectory: string;
+                    status: string;
+                    timestamp: number;
+                    toolStates: Record<string, unknown>;
+                  }
+
+                  let state: ThreadState;
+
+                  if (existsSync(statePath)) {
+                    state = JSON.parse(readFileSync(statePath, "utf-8")) as ThreadState;
+                  } else {
+                    state = {
+                      messages: [],
+                      fileChanges: [],
+                      workingDirectory: context.workingDir,
+                      status: "running",
+                      timestamp: Date.now(),
+                      toolStates: {},
+                    };
+                  }
+
+                  state.messages.push({
+                    role: "assistant",
+                    content: taskResponse.content,
+                  });
+
+                  state.status = "complete";
+                  state.timestamp = Date.now();
+
+                  writeFileSync(statePath, JSON.stringify(state, null, 2));
+                  logger.info(`[PostToolUse:Task] Appended final response to state.json`);
+                }
+
+                // Emit THREAD_STATUS_CHANGED
+                emitEvent(EventName.THREAD_STATUS_CHANGED, {
+                  threadId: childThreadId,
+                  status: "completed",
+                });
+
+                // Cleanup the map
+                toolUseIdToChildThreadId.delete(toolUseId);
+                logger.info(`[PostToolUse:Task] Completed thread ${childThreadId}, cleaned up mapping`);
+
+              } catch (err) {
+                logger.warn(`[PostToolUse:Task] Failed to update child thread: ${err}`);
+              }
+            }
+
             return { continue: true };
           },
         ],
@@ -487,6 +730,15 @@ export async function runAgentLoop(
         hooks: [
           async (hookInput: unknown) => {
             const input = hookInput as PostToolUseFailureHookInput;
+
+            // === DEBUG: Pretty print PostToolUseFailure hook ===
+            console.log(`\n${"#".repeat(60)}`);
+            console.log(`[HOOK] PostToolUseFailure`);
+            console.log(`${"#".repeat(60)}`);
+            console.log(`RAW INPUT:`);
+            console.log(JSON.stringify(input, null, 2));
+            console.log(`${"#".repeat(60)}\n`);
+            // === END DEBUG ===
 
             // Mark tool as error in state
             await markToolComplete(input.tool_use_id, input.error, true);
@@ -500,151 +752,9 @@ export async function runAgentLoop(
         ],
       },
     ],
-    SubagentStart: [
-      {
-        hooks: [
-          async (hookInput: unknown) => {
-            const input = hookInput as SubagentStartHookInput;
-
-            // Skip if we don't have required context for thread creation
-            if (!context.repoId || !context.worktreeId) {
-              logger.warn(`[SubagentStart] Cannot create sub-agent thread: missing repoId or worktreeId`);
-              return { continue: true };
-            }
-
-            const childThreadId = crypto.randomUUID();
-            const agentId = input.agent_id;
-            const agentType = input.agent_type;
-
-            // Create child thread directory and metadata
-            const childThreadPath = join(config.mortDir, "threads", childThreadId);
-            const now = Date.now();
-
-            // Initial name is "{agentType}: <pending>" - will be renamed via thread-naming-service
-            const initialName = `${agentType}: <pending>`;
-
-            const childMetadata = {
-              id: childThreadId,
-              repoId: context.repoId,
-              worktreeId: context.worktreeId,
-              status: "running",
-              turns: [{
-                index: 0,
-                prompt: `Sub-agent: ${agentType}`,
-                startedAt: now,
-                completedAt: null,
-              }],
-              isRead: true,
-              name: initialName,
-              createdAt: now,
-              updatedAt: now,
-              // Sub-agent specific fields
-              parentThreadId: context.threadId,
-              parentToolUseId: agentId, // agent_id is the tool_use_id of the Task tool
-              agentType: agentType,
-            };
-
-            // Create thread directory and write metadata
-            try {
-              mkdirSync(childThreadPath, { recursive: true });
-              writeFileSync(
-                join(childThreadPath, "metadata.json"),
-                JSON.stringify(childMetadata, null, 2)
-              );
-              logger.info(`[SubagentStart] Created sub-agent thread: ${childThreadId} (parent: ${context.threadId})`);
-
-              // Store mapping for message routing (agent_id -> childThreadId)
-              agentIdToChildThreadId.set(agentId, childThreadId);
-
-              // Emit THREAD_CREATED event
-              emitEvent(EventName.THREAD_CREATED, {
-                threadId: childThreadId,
-                repoId: context.repoId,
-                worktreeId: context.worktreeId,
-              });
-
-              // Fire-and-forget: Request name via thread-naming-service
-              // The initial prompt is the agent type, but we use a descriptive prompt
-              const apiKey = process.env.ANTHROPIC_API_KEY;
-              if (apiKey) {
-                generateThreadName(`Sub-agent task: ${agentType}`, apiKey)
-                  .then((generatedName) => {
-                    // Update metadata with generated name
-                    try {
-                      const metadataPath = join(childThreadPath, "metadata.json");
-                      if (existsSync(metadataPath)) {
-                        const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
-                        metadata.name = generatedName;
-                        metadata.updatedAt = Date.now();
-                        writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-                        // Emit name generated event
-                        emitEvent(EventName.THREAD_NAME_GENERATED, {
-                          threadId: childThreadId,
-                          name: generatedName,
-                        });
-                        logger.info(`[SubagentStart] Generated name for sub-agent: ${generatedName}`);
-                      }
-                    } catch (err) {
-                      logger.warn(`[SubagentStart] Failed to update name: ${err}`);
-                    }
-                  })
-                  .catch((err) => {
-                    logger.warn(`[SubagentStart] Failed to generate name: ${err}`);
-                  });
-              }
-            } catch (err) {
-              logger.error(`[SubagentStart] Failed to create sub-agent thread: ${err}`);
-            }
-
-            return { continue: true };
-          },
-        ],
-      },
-    ],
-    SubagentStop: [
-      {
-        hooks: [
-          async (hookInput: unknown) => {
-            const input = hookInput as SubagentStopHookInput;
-            const agentId = input.agent_id;
-
-            const childThreadId = agentIdToChildThreadId.get(agentId);
-            if (childThreadId) {
-              // Update child thread status to idle (completed)
-              const metadataPath = join(config.mortDir, "threads", childThreadId, "metadata.json");
-              try {
-                if (existsSync(metadataPath)) {
-                  const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
-                  metadata.status = "completed";
-                  metadata.updatedAt = Date.now();
-                  // Mark the turn as completed
-                  if (metadata.turns && metadata.turns.length > 0) {
-                    metadata.turns[metadata.turns.length - 1].completedAt = Date.now();
-                  }
-                  writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-                  logger.info(`[SubagentStop] Marked sub-agent thread as completed: ${childThreadId}`);
-
-                  // Emit THREAD_STATUS_CHANGED event
-                  emitEvent(EventName.THREAD_STATUS_CHANGED, {
-                    threadId: childThreadId,
-                    status: "completed",
-                  });
-                }
-              } catch (err) {
-                logger.warn(`[SubagentStop] Failed to update sub-agent status: ${err}`);
-              }
-
-              // Clean up mapping
-              agentIdToChildThreadId.delete(agentId);
-            } else {
-              logger.warn(`[SubagentStop] No mapping found for agent_id: ${agentId}`);
-            }
-
-            return { continue: true };
-          },
-        ],
-      },
-    ],
+    // NOTE: SubagentStart and SubagentStop hooks have been removed.
+    // Thread creation is now handled in PreToolUse:Task, and completion in PostToolUse:Task.
+    // This eliminates orphan threads from warmup agents and simplifies the architecture.
     ...(options.stopHook && {
       Stop: [{ hooks: [options.stopHook] }],
     }),
@@ -711,6 +821,15 @@ export async function runAgentLoop(
           ...(priorSessionId && { resume: priorSessionId }),
           abortController,
           hooks,
+          // Custom agent definitions - override built-in agents or define new ones
+          // The manager agent can spawn sub-agents via the Task tool
+          agents: {
+            "manager": {
+              description: "Manager agent that coordinates complex multi-step tasks by delegating to specialized sub-agents. Use this when a task requires orchestrating multiple agents or when you need to break down a complex problem into sub-tasks.",
+              prompt: "You are a manager agent that coordinates complex tasks. You can spawn specialized sub-agents using the Task tool to delegate work. Break down complex problems into focused sub-tasks and coordinate the results.",
+              tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebFetch", "WebSearch", "Task"],
+            },
+          },
         },
       });
 
@@ -720,6 +839,15 @@ export async function runAgentLoop(
 
   try {
     for await (const message of result) {
+      // === DEBUG: Pretty print each streamed message (RAW JSON) ===
+      console.log(`\n${"=".repeat(60)}`);
+      console.log(`[STREAM] Message type: ${message.type}`);
+      console.log(`${"=".repeat(60)}`);
+      console.log(`RAW MESSAGE:`);
+      console.log(JSON.stringify(message, null, 2));
+      console.log(`${"=".repeat(60)}\n`);
+      // === END DEBUG ===
+
       // Capture session_id from init message for stdin streaming
       if (
         streamController &&

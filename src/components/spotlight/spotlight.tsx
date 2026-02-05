@@ -27,7 +27,7 @@ import { worktreeService } from "../../entities/worktrees";
 import type { RepoWorktree } from "@core/types/repositories";
 import { openControlPanel, showMainWindow, showMainWindowWithView } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
-import { promptHistoryService } from "../../lib/prompt-history-service";
+import { savePromptToHistory, saveDraftToHistory } from "../../lib/prompt-history-helpers";
 import { loadSettings } from "../../lib/persistence";
 import { createThread } from "../../lib/thread-creation-service";
 
@@ -598,9 +598,7 @@ export const Spotlight = () => {
         const selectedWorktree = selected.worktree;
 
         // Save prompt to history (fire and forget)
-        promptHistoryService.add(result.data.query).catch((error) => {
-          logger.error("[Spotlight] Failed to save prompt to history:", error);
-        });
+        savePromptToHistory(result.data.query);
 
         // Handle thread creation error (shared between simple and full flow)
         const handleThreadError = (error: unknown) => {
@@ -970,6 +968,8 @@ export const Spotlight = () => {
           break;
         }
         case "ArrowDown":
+          // Skip history navigation if Command key is pressed
+          if (e.metaKey) break;
           // Check if in history mode first
           if (isInHistoryMode) {
             const handled = await handleHistoryNavigation("down");
@@ -990,6 +990,8 @@ export const Spotlight = () => {
           }
           break;
         case "ArrowUp":
+          // Skip history navigation if Command key is pressed
+          if (e.metaKey) break;
           // Check if history navigation should handle this
           if (!query.trim() || isInHistoryMode) {
             const handled = await handleHistoryNavigation("up");
@@ -1095,17 +1097,10 @@ export const Spotlight = () => {
   const handlePanelHidden = useCallback(async () => {
     const trimmedQuery = query.trim();
 
-    // Save draft if input is non-empty and not already in history
+    // Save draft if input is non-empty (saveDraftToHistory already checks for duplicates)
     if (trimmedQuery !== "") {
-      const existsInHistory = await promptHistoryService.exists(trimmedQuery);
-      if (!existsInHistory) {
-        try {
-          await promptHistoryService.addDraft(trimmedQuery);
-          logger.debug("[Spotlight] Draft saved on focus loss:", { query: trimmedQuery });
-        } catch (error) {
-          logger.error("[Spotlight] Failed to save draft:", error);
-        }
-      }
+      await saveDraftToHistory(trimmedQuery);
+      logger.debug("[Spotlight] Draft saved on focus loss:", { query: trimmedQuery });
     }
 
     // Existing reset logic

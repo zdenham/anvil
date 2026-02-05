@@ -254,11 +254,11 @@ textarea {
 .animate-shimmer {
   background: linear-gradient(
     90deg,
-    #a1a1aa 0%,
-    #a1a1aa 40%,
+    theme('colors.surface.400') 0%,
+    theme('colors.surface.400') 40%,
     #ffffff 50%,
-    #a1a1aa 60%,
-    #a1a1aa 100%
+    theme('colors.surface.400') 60%,
+    theme('colors.surface.400') 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
@@ -290,4 +290,5 @@ textarea {
 .tree-chevron.expanded {
   transform: rotate(90deg);
 }
+
 
