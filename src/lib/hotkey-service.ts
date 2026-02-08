@@ -136,59 +136,6 @@ export const completeOnboarding = async (): Promise<void> => {
   await invoke("complete_onboarding");
 };
 
-
-/**
- * Saves the control panel navigation down hotkey to backend config and registers it
- * @param hotkey - The hotkey string to save and register (e.g., "Shift+Down", "Command+J")
- * @deprecated Use Command+P command palette instead. Will be removed in future version.
- */
-export const saveControlPanelNavigationDownHotkey = async (hotkey: string): Promise<void> => {
-  logger.debug(`[hotkey-service] Saving control panel navigation down hotkey: "${hotkey}"`);
-  try {
-    await invoke("save_control_panel_navigation_down_hotkey", { hotkey });
-    logger.debug("[hotkey-service] Control panel navigation down hotkey saved successfully");
-  } catch (err) {
-    logger.error("[hotkey-service] Failed to save control panel navigation down hotkey:", err);
-    throw err;
-  }
-};
-
-/**
- * Gets the saved control panel navigation down hotkey from backend config
- * @deprecated Use Command+P command palette instead. Will be removed in future version.
- */
-export const getSavedControlPanelNavigationDownHotkey = async (): Promise<string> => {
-  const hotkey = await invoke<string>("get_saved_control_panel_navigation_down_hotkey");
-  logger.debug(`[hotkey-service] Got saved control panel navigation down hotkey: "${hotkey}"`);
-  return hotkey;
-};
-
-/**
- * Saves the control panel navigation up hotkey to backend config and registers it
- * @param hotkey - The hotkey string to save and register (e.g., "Shift+Up", "Command+K")
- * @deprecated Use Command+P command palette instead. Will be removed in future version.
- */
-export const saveControlPanelNavigationUpHotkey = async (hotkey: string): Promise<void> => {
-  logger.debug(`[hotkey-service] Saving control panel navigation up hotkey: "${hotkey}"`);
-  try {
-    await invoke("save_control_panel_navigation_up_hotkey", { hotkey });
-    logger.debug("[hotkey-service] Control panel navigation up hotkey saved successfully");
-  } catch (err) {
-    logger.error("[hotkey-service] Failed to save control panel navigation up hotkey:", err);
-    throw err;
-  }
-};
-
-/**
- * Gets the saved control panel navigation up hotkey from backend config
- * @deprecated Use Command+P command palette instead. Will be removed in future version.
- */
-export const getSavedControlPanelNavigationUpHotkey = async (): Promise<string> => {
-  const hotkey = await invoke<string>("get_saved_control_panel_navigation_up_hotkey");
-  logger.debug(`[hotkey-service] Got saved control panel navigation up hotkey: "${hotkey}"`);
-  return hotkey;
-};
-
 /**
  * Checks if a specific panel is currently visible
  * @param panelLabel - The label of the panel to check (e.g., "control-panel", "tasks-list")
@@ -209,23 +156,6 @@ export const isPanelVisible = async (panelLabel: string): Promise<boolean> => {
 export const showControlPanelWithView = async (view: ControlPanelViewType): Promise<void> => {
   logger.info(`[hotkey-service] showControlPanelWithView:`, view);
   await invoke("show_control_panel_with_view", { view });
-};
-
-/**
- * Switch control panel view client-side (no native window operations).
- *
- * @deprecated Use showControlPanelWithView instead - this function emits a JS event
- * that doesn't cross window boundaries, causing stale content when switching threads.
- *
- * @param view - The view to switch to (discriminated union)
- */
-export const switchControlPanelClientSide = (view: ControlPanelViewType): void => {
-  // Import eventBus dynamically to avoid circular dependencies
-  import("@/entities").then(({ eventBus }) => {
-    logger.warn(`[hotkey-service] ⚠️ switchControlPanelClientSide is DEPRECATED - use showControlPanelWithView instead`);
-    logger.info(`[hotkey-service] 📋 Client-side switch to:`, view);
-    eventBus.emit("open-control-panel", { view });
-  });
 };
 
 /**

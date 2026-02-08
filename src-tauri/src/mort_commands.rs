@@ -3,10 +3,8 @@
 //! These commands provide mort-specific directory and file operations,
 //! particularly for managing repositories and their settings.
 
-use crate::build_info;
 use crate::paths;
 use fs2::FileExt;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -286,35 +284,6 @@ pub fn clear_all_locks() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Thread Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Thread Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Get the status of a thread from its metadata file.
-#[tauri::command]
-pub async fn thread_get_status(thread_id: String) -> Result<Option<String>, String> {
-    let metadata_path = paths::threads_dir()
-        .join(&thread_id)
-        .join("metadata.json");
-
-    if !metadata_path.exists() {
-        return Ok(None);
-    }
-
-    let content = fs::read_to_string(&metadata_path).map_err(|e| e.to_string())?;
-    let metadata: serde_json::Value =
-        serde_json::from_str(&content).map_err(|e| e.to_string())?;
-
-    Ok(metadata
-        .get("status")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string()))
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Build Info Commands
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -322,26 +291,6 @@ pub async fn thread_get_status(thread_id: String) -> Result<Option<String>, Stri
 #[tauri::command]
 pub fn get_paths_info() -> paths::PathsInfo {
     paths::get_paths_info()
-}
-
-/// Default hotkeys for this build
-#[derive(Serialize)]
-pub struct HotkeyDefaults {
-    pub spotlight: String,
-    pub clipboard: String,
-    pub app_suffix: String,
-    pub is_alternate_build: bool,
-}
-
-/// Get the default hotkeys for this build
-#[tauri::command]
-pub fn get_default_hotkeys() -> HotkeyDefaults {
-    HotkeyDefaults {
-        spotlight: build_info::DEFAULT_SPOTLIGHT_HOTKEY.to_string(),
-        clipboard: build_info::DEFAULT_CLIPBOARD_HOTKEY.to_string(),
-        app_suffix: build_info::APP_SUFFIX.to_string(),
-        is_alternate_build: build_info::is_alternate_build(),
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

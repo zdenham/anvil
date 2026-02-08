@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use tauri::{
-    webview::Color, AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, Url,
-    WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, Url,
+    WebviewUrl,
 };
 use tauri_plugin_opener::OpenerExt;
 use tauri_nspanel::{
@@ -21,7 +21,7 @@ use tauri_nspanel::{
 
 /// Checks if a navigation URL should be allowed in the webview.
 /// Blocks external http/https URLs and opens them in the system browser instead.
-fn is_allowed_navigation(url: &Url, app: &AppHandle) -> bool {
+pub fn is_allowed_navigation(url: &Url, app: &AppHandle) -> bool {
     // Allow tauri:// protocol (internal app URLs in production)
     if url.scheme() == "tauri" {
         return true;
@@ -988,68 +988,6 @@ pub fn focus_control_panel(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Snaps the control panel position to integer pixel coordinates.
-/// This fixes text blurriness caused by subpixel positioning during drag.
-pub fn snap_control_panel_position(app: &AppHandle) -> Result<(), String> {
-    tracing::info!("[ControlPanel] snap_control_panel_position called");
-
-    if let Ok(panel) = app.get_webview_panel(CONTROL_PANEL_LABEL) {
-        let frame = panel.as_panel().frame();
-
-        tracing::info!(
-            "[ControlPanel] Current frame: origin=({:.6}, {:.6}), size=({:.6}, {:.6})",
-            frame.origin.x,
-            frame.origin.y,
-            frame.size.width,
-            frame.size.height
-        );
-
-        // Round position to nearest integer
-        let snapped_x = frame.origin.x.round();
-        let snapped_y = frame.origin.y.round();
-
-        let x_diff = (frame.origin.x - snapped_x).abs();
-        let y_diff = (frame.origin.y - snapped_y).abs();
-
-        tracing::info!(
-            "[ControlPanel] Snap calculation: snapped=({}, {}), diff=({:.6}, {:.6})",
-            snapped_x,
-            snapped_y,
-            x_diff,
-            y_diff
-        );
-
-        // Only update if position changed (avoid unnecessary redraws)
-        if x_diff > 0.001 || y_diff > 0.001 {
-            tracing::info!(
-                "[ControlPanel] SNAPPING position from ({:.3}, {:.3}) to ({}, {})",
-                frame.origin.x,
-                frame.origin.y,
-                snapped_x,
-                snapped_y
-            );
-            panel
-                .as_panel()
-                .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(snapped_x, snapped_y));
-
-            // Verify the snap worked
-            let new_frame = panel.as_panel().frame();
-            tracing::info!(
-                "[ControlPanel] After snap: origin=({:.6}, {:.6})",
-                new_frame.origin.x,
-                new_frame.origin.y
-            );
-        } else {
-            tracing::info!("[ControlPanel] Position already at integer coordinates, no snap needed");
-        }
-
-        Ok(())
-    } else {
-        tracing::error!("[ControlPanel] Panel not found!");
-        Err("Control panel not found".to_string())
-    }
-}
-
 /// Checks if any nspanel is currently visible
 /// Returns true if at least one of the panels (spotlight, clipboard, error, control-panel) is visible
 pub fn is_any_panel_visible(app: &AppHandle) -> bool {
@@ -1101,38 +1039,6 @@ fn get_control_panel_windows_mutex() -> &'static Mutex<HashMap<String, ControlPa
     CONTROL_PANEL_WINDOWS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Register a window instance in the registry
-fn register_window_instance(instance_id: &str, data: ControlPanelWindowInstance) {
-    if let Ok(mut instances) = get_control_panel_windows_mutex().lock() {
-        tracing::info!(
-            "[ControlPanelWindow] Registering instance: {} for thread: {}",
-            instance_id,
-            data.thread_id
-        );
-        instances.insert(instance_id.to_string(), data);
-    }
-}
-
-/// Unregister a window instance from the registry
-fn unregister_window_instance(instance_id: &str) {
-    if let Ok(mut instances) = get_control_panel_windows_mutex().lock() {
-        tracing::info!(
-            "[ControlPanelWindow] Unregistering instance: {}",
-            instance_id
-        );
-        instances.remove(instance_id);
-    }
-}
-
-/// Get a window instance from the registry
-pub fn get_window_instance(instance_id: &str) -> Option<ControlPanelWindowInstance> {
-    get_control_panel_windows_mutex()
-        .lock()
-        .ok()?
-        .get(instance_id)
-        .cloned()
-}
-
 /// List all open control panel window instances
 pub fn list_control_panel_windows() -> Vec<(String, ControlPanelWindowInstance)> {
     get_control_panel_windows_mutex()
@@ -1145,189 +1051,6 @@ pub fn list_control_panel_windows() -> Vec<(String, ControlPanelWindowInstance)>
                 .collect()
         })
         .unwrap_or_default()
-}
-
-/// Get the current position and size of the control panel NSPanel
-pub fn get_control_panel_position(app: &AppHandle) -> Result<(f64, f64, f64, f64), String> {
-    let panel = app
-        .get_webview_panel(CONTROL_PANEL_LABEL)
-        .map_err(|e| format!("Panel not found: {:?}", e))?;
-
-    let frame = panel.as_panel().frame();
-    // Convert from Cocoa coordinates (origin at bottom-left) to screen coordinates
-    let primary_height = get_primary_screen_height(app);
-    // frame.origin.y is the bottom-left Y in Cocoa coords
-    // We want top-left Y in screen coords (origin at top-left)
-    let screen_y = primary_height - frame.origin.y - frame.size.height;
-
-    Ok((
-        frame.origin.x,
-        screen_y,
-        frame.size.width,
-        frame.size.height,
-    ))
-}
-
-/// View type for standalone control panel windows
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum ControlPanelView {
-    Thread {
-        #[serde(rename = "threadId")]
-        thread_id: String,
-    },
-    Plan {
-        #[serde(rename = "planId")]
-        plan_id: String,
-    },
-}
-
-/// Creates a standalone WebviewWindow for a control panel at the specified position
-fn create_standalone_window(
-    app: &AppHandle,
-    view: &ControlPanelView,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let instance_id = uuid::Uuid::new_v4().to_string();
-    let label = format!("control-panel-window-{}", instance_id);
-
-    let url = match view {
-        ControlPanelView::Thread { thread_id } => format!(
-            "control-panel.html?instanceId={}&view=thread&threadId={}",
-            instance_id, thread_id
-        ),
-        ControlPanelView::Plan { plan_id } => format!(
-            "control-panel.html?instanceId={}&view=plan&planId={}",
-            instance_id, plan_id
-        ),
-    };
-
-    tracing::info!(
-        "[ControlPanelWindow] Creating window {} at ({}, {}) size ({}, {})",
-        label,
-        x,
-        y,
-        width,
-        height
-    );
-
-    let app_for_nav = app.clone();
-    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
-        .title("") // No title - keeps window chrome minimal
-        .inner_size(width, height)
-        .position(x, y)
-        .resizable(true)
-        .decorations(true)  // Native window decorations (close, minimize, fullscreen)
-        .transparent(false) // Disable transparency for native window
-        .visible(true)
-        .fullscreen(false)  // Start windowed, but allow fullscreen via green button
-        .accept_first_mouse(true)
-        .background_color(Color(0x1e, 0x20, 0x1e, 0xff)) // surface-800 to prevent white flash
-        .on_navigation(move |url| is_allowed_navigation(&url, &app_for_nav))
-        .build()?;
-
-    // Enable fullscreen button (green traffic light) and set native background color
-    #[cfg(target_os = "macos")]
-    {
-        use raw_window_handle::HasWindowHandle;
-        if let Ok(handle) = window.window_handle() {
-            if let raw_window_handle::RawWindowHandle::AppKit(appkit_handle) = handle.as_raw() {
-                use objc2::rc::Retained;
-                use objc2_app_kit::{NSColor, NSView, NSWindowCollectionBehavior};
-
-                // Safety: the pointer is valid for the lifetime of the window
-                let ns_view: Retained<NSView> =
-                    unsafe { Retained::retain(appkit_handle.ns_view.as_ptr().cast()) }
-                        .expect("view pointer is valid");
-
-                if let Some(ns_window) = ns_view.window() {
-                    // Enable fullscreen button
-                    let current = ns_window.collectionBehavior();
-                    let new_behavior = current | NSWindowCollectionBehavior::FullScreenPrimary;
-                    ns_window.setCollectionBehavior(new_behavior);
-
-                    // Set native window background color to match quick actions panel
-                    // This prevents white flash before WebView content loads
-                    // Color: rgba(30, 32, 30, 1) = #1e201e
-                    let bg_color = NSColor::colorWithSRGBRed_green_blue_alpha(
-                        30.0 / 255.0,  // red
-                        32.0 / 255.0,  // green
-                        30.0 / 255.0,  // blue
-                        1.0,           // alpha
-                    );
-                    ns_window.setBackgroundColor(Some(&bg_color));
-                }
-            }
-        }
-    }
-
-    // Focus the new window
-    window.set_focus()?;
-
-    // Register instance
-    let instance = match view {
-        ControlPanelView::Thread { thread_id } => ControlPanelWindowInstance {
-            thread_id: thread_id.clone(),
-            task_id: String::new(),
-        },
-        ControlPanelView::Plan { plan_id } => ControlPanelWindowInstance {
-            thread_id: String::new(),
-            task_id: plan_id.clone(), // Store plan_id in task_id field
-        },
-    };
-    register_window_instance(&instance_id, instance);
-
-    // Set up close handler to unregister
-    let instance_id_clone = instance_id.clone();
-    window.on_window_event(move |event| {
-        if let tauri::WindowEvent::Destroyed = event {
-            unregister_window_instance(&instance_id_clone);
-        }
-    });
-
-    Ok(instance_id)
-}
-
-/// Pops out the control panel into a standalone WebviewWindow (unified for both threads and plans)
-pub fn pop_out_control_panel(
-    app: AppHandle,
-    view: ControlPanelView,
-) -> Result<String, String> {
-    tracing::info!(
-        "[ControlPanelWindow] pop_out_control_panel called for view: {:?}",
-        view
-    );
-
-    // Get current panel position
-    let (x, y, width, height) = get_control_panel_position(&app)?;
-    tracing::info!(
-        "[ControlPanelWindow] Panel position: ({}, {}), size: ({}, {})",
-        x,
-        y,
-        width,
-        height
-    );
-
-    // Hide the NSPanel
-    if let Ok(panel) = app.get_webview_panel(CONTROL_PANEL_LABEL) {
-        panel.hide();
-    }
-    clear_pending_control_panel();
-
-    // Create new window at same position
-    let instance_id =
-        create_standalone_window(&app, &view, x, y, width, height)
-            .map_err(|e| e.to_string())?;
-
-    tracing::info!(
-        "[ControlPanelWindow] Created standalone window with instance_id: {}",
-        instance_id
-    );
-
-    Ok(instance_id)
 }
 
 /// Closes a standalone control panel window by instance ID
@@ -1343,20 +1066,6 @@ pub fn close_control_panel_window(app: AppHandle, instance_id: String) -> Result
         window.close().map_err(|e| e.to_string())?;
     }
 
-    // unregister happens in on_window_event handler
     Ok(())
-}
-
-/// Gets the data for a control panel window instance
-pub fn get_control_panel_window_data(
-    instance_id: String,
-) -> Result<ControlPanelWindowInstance, String> {
-    get_window_instance(&instance_id)
-        .ok_or_else(|| format!("Window instance {} not found", instance_id))
-}
-
-/// Lists all open standalone control panel windows
-pub fn list_control_panel_window_instances() -> Vec<(String, ControlPanelWindowInstance)> {
-    list_control_panel_windows()
 }
 

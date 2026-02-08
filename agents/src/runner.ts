@@ -1,17 +1,27 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
+
+/**
+ * Absolute path to this runner script.
+ * Used by sub-agents to spawn recursive sub-agents without needing env vars.
+ */
+export const runnerPath = fileURLToPath(import.meta.url);
 import { SimpleRunnerStrategy } from "./runners/simple-runner-strategy.js";
 import {
   runAgentLoop,
   setupSignalHandlers,
   emitLog,
+  emitEvent,
   type PriorState,
 } from "./runners/shared.js";
 import type { OrchestrationContext } from "./runners/types.js";
 import { getAgentConfig } from "./agent-types/index.js";
-import { cancelled } from "./output.js";
+import { cancelled, setHubClient, appendUserMessage } from "./output.js";
 import { logger } from "./lib/logger.js";
+import { HubClient, type TauriToAgentMessage } from "./lib/hub/index.js";
+import { SocketMessageStream } from "./lib/hub/message-stream.js";
 
 /**
  * Load prior state from a history file (state.json).
@@ -100,6 +110,24 @@ exec node "${cliPath}" "$@"
   process.env.PATH = `${binDir}:${process.env.PATH}`;
 }
 
+/**
+ * Parse early CLI args needed for HubClient initialization.
+ * Returns threadId and optional parentId.
+ */
+function parseEarlyArgs(args: string[]): { threadId?: string; parentId?: string } {
+  const result: { threadId?: string; parentId?: string } = {};
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--thread-id" && args[i + 1]) {
+      result.threadId = args[++i];
+    } else if (args[i] === "--parent-id" && args[i + 1]) {
+      result.parentId = args[++i];
+    }
+  }
+
+  return result;
+}
+
 async function main(): Promise<void> {
   // Set up `mort` command before anything else
   setupMortCommand();
@@ -107,14 +135,94 @@ async function main(): Promise<void> {
   // Only one strategy exists: SimpleRunnerStrategy
   const strategy = new SimpleRunnerStrategy();
   let context: OrchestrationContext | undefined;
+  let hub: HubClient | null = null;
 
   // Create abort controller for cancellation support
   const abortController = new AbortController();
   logger.info(`[runner] Created AbortController, pid=${process.pid}`);
 
-  try {
-    const args = process.argv.slice(2);
+  // Create message stream for queued messages (will be passed to runAgentLoop)
+  const messageStream = new SocketMessageStream();
+  // Set event emitter for ack events (emits via socket or stdout fallback)
+  messageStream.setEventEmitter(emitEvent);
+  // Set callback to append user messages to state (SDK doesn't return injected messages)
+  messageStream.setAppendUserMessage(appendUserMessage);
 
+  // Parse early args to get threadId for hub client initialization
+  const args = process.argv.slice(2);
+  const { threadId, parentId } = parseEarlyArgs(args);
+
+  // Initialize hub client if we have a threadId
+  if (threadId) {
+    hub = new HubClient(threadId, parentId);
+
+    // Handle incoming messages from Tauri
+    hub.on("message", (msg: TauriToAgentMessage) => {
+      switch (msg.type) {
+        case "permission_response":
+          // TODO: Implement permission resolver when permission system is added
+          logger.info(`[runner] Received permission response: ${JSON.stringify(msg.payload)}`);
+          break;
+        case "queued_message": {
+          // Inject queued message into the SDK via message stream
+          const { content } = msg.payload;
+          const messageId = crypto.randomUUID();
+          logger.info(`[runner] Received queued message, injecting into stream: ${messageId}`);
+          messageStream.push(messageId, content);
+          break;
+        }
+        case "cancel":
+          logger.info("[runner] Received cancel message from Tauri, aborting...");
+          abortController.abort();
+          break;
+      }
+    });
+
+    hub.on("disconnect", () => {
+      logger.error("[runner] Disconnected from AgentHub");
+      process.exit(1);
+    });
+
+    hub.on("error", (err) => {
+      logger.error(`[runner] AgentHub error: ${err}`);
+    });
+
+    // Connect to hub
+    try {
+      await hub.connect();
+      logger.info("[runner] Connected to AgentHub");
+
+      // Set hub client for output module
+      setHubClient(hub);
+    } catch (err) {
+      logger.error(`[runner] Failed to connect to AgentHub: ${err}`);
+      // Continue without hub - fall back to stdout-only mode
+      hub = null;
+    }
+  }
+
+  // Cleanup function that disconnects hub
+  function cleanup() {
+    if (hub) {
+      hub.disconnect();
+      logger.info("[runner] Disconnected from AgentHub");
+    }
+  }
+
+  // Register cleanup handlers
+  process.on("SIGTERM", () => {
+    cleanup();
+    process.exit(0);
+  });
+
+  process.on("SIGINT", () => {
+    cleanup();
+    process.exit(0);
+  });
+
+  process.on("exit", cleanup);
+
+  try {
     // Log the strategy
     emitLog(
       "INFO",
@@ -151,15 +259,16 @@ async function main(): Promise<void> {
     // Contains both messages (for UI) and sessionId (for SDK resume)
     const priorState = loadPriorState(config.historyFile);
 
-    // Run the common agent loop with abort controller
-    // Enable stdin queue for simple agents to support queued messages
+    // Run the common agent loop with abort controller and message stream
+    // Message stream enables queued messages via socket IPC
     await runAgentLoop(config, context, agentConfig, priorState, {
       abortController,
-      enableStdinQueue: true,
+      messageStream,
     });
 
     // Clean up on successful completion
     await strategy.cleanup(context, "completed");
+    cleanup();
 
     logger.info("[runner] Agent completed successfully");
     process.exit(0);
@@ -187,6 +296,7 @@ async function main(): Promise<void> {
         }
       }
 
+      cleanup();
       logger.info("[runner] Exiting with code 130");
       process.exit(130); // Standard cancelled exit code (128 + SIGINT)
     }
@@ -217,6 +327,7 @@ async function main(): Promise<void> {
       }
     }
 
+    cleanup();
     process.exit(1);
   }
 }

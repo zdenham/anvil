@@ -193,15 +193,6 @@ impl LogBuffer {
         }
     }
 
-    fn get_all(&self) -> Vec<LogEvent> {
-        self.logs.lock().map(|g| g.clone()).unwrap_or_default()
-    }
-
-    fn clear(&self) {
-        if let Ok(mut logs) = self.logs.lock() {
-            logs.clear();
-        }
-    }
 }
 
 /// Global log buffer instance
@@ -436,14 +427,3 @@ pub fn log_from_web(level: &str, message: &str, source: &str) {
     }
 }
 
-/// Get all buffered logs (for initial load when Logs tab opens)
-#[tauri::command]
-pub fn get_buffered_logs() -> Vec<LogEvent> {
-    LOG_BUFFER.get_all()
-}
-
-/// Clear all buffered logs permanently
-#[tauri::command]
-pub fn clear_logs() {
-    LOG_BUFFER.clear();
-}

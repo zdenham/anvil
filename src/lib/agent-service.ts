@@ -1,18 +1,18 @@
 import { Command, type Child } from "@tauri-apps/plugin-shell";
 import { join, resolveResource, dirname } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { z } from "zod";
 import { FilesystemClient } from "./filesystem-client";
 import { threadService, settingsService } from "@/entities";
 import { eventBus } from "@/entities/events";
 import { shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
-import { EventName, type AgentEventMessage } from "@core/types/events.js";
+import { EventName, type ThreadState } from "@core/types/events.js";
 
 const fs = new FilesystemClient();
 const isDev = import.meta.env.DEV;
 import { logger } from "./logger-client";
-import type { ThreadState } from "@/lib/types/agent-messages";
 import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
 
 // Cache the shell PATH to avoid repeated Tauri calls
@@ -22,38 +22,254 @@ let cachedShellPath: string | null = null;
 let warmupPromise: Promise<void> | null = null;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HMR-Resistant Process Tracking
+// Process Tracking
 // ═══════════════════════════════════════════════════════════════════════════
-// Store process maps on window to survive Vite HMR reloads.
-// Without this, HMR clears module-level Maps, breaking cancellation.
+// Track agent processes for local reference cleanup on process exit.
+// Cancellation now uses socket IPC (with SIGTERM via disk-persisted PID as fallback),
+// so the HMR workaround (window.__agentServiceProcessMaps) is no longer needed.
+// See plans/socket-ipc/06-cleanup-migration.md
 
-interface ProcessMaps {
-  activeSimpleProcesses: Map<string, Child>;
-  agentProcesses: Map<string, Child>;
+// Track active simple agent processes
+const activeSimpleProcesses = new Map<string, Child>();
+
+// Track all agent processes by threadId
+const agentProcesses = new Map<string, Child>();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Socket IPC: Tauri Event Listener for Agent Messages
+// ═══════════════════════════════════════════════════════════════════════════
+// Agents connect to AgentHub socket and send messages, which Tauri emits as
+// `agent:message` events. This listener routes those messages to the eventBus.
+
+/**
+ * Message structure received from the AgentHub via Tauri events.
+ * Matches the SocketMessage struct in agent_hub.rs.
+ */
+interface AgentSocketMessage {
+  senderId: string;
+  threadId: string;
+  type: string;
+  parentId?: string;
+  // Flattened fields from the message
+  state?: ThreadState;
+  name?: string;
+  payload?: unknown;
 }
 
-declare global {
-  interface Window {
-    __agentServiceProcessMaps?: ProcessMaps;
+/** Unlisten function for the agent message listener */
+let agentMessageUnlisten: UnlistenFn | null = null;
+
+/**
+ * Initializes the Tauri event listener for agent messages from the AgentHub socket.
+ * Messages are routed to the eventBus based on their type.
+ *
+ * Call this once on app initialization. Safe to call multiple times - subsequent
+ * calls are no-ops.
+ */
+export async function initAgentMessageListener(): Promise<void> {
+  if (agentMessageUnlisten) {
+    logger.info("[agent-service] Agent message listener already initialized");
+    return;
+  }
+
+  logger.info("[agent-service] Initializing agent:message event listener");
+
+  agentMessageUnlisten = await listen<AgentSocketMessage>("agent:message", (event) => {
+    const msg = event.payload;
+    logger.debug(`[agent-service] Received agent:message`, {
+      threadId: msg.threadId,
+      type: msg.type,
+      senderId: msg.senderId,
+    });
+
+    switch (msg.type) {
+      case "state":
+        // Agent sent a state update
+        if (msg.state) {
+          eventBus.emit(EventName.AGENT_STATE, {
+            threadId: msg.threadId,
+            state: msg.state,
+          });
+        }
+        break;
+
+      case "event":
+        // Agent sent a named event - route based on event name
+        if (msg.name) {
+          routeAgentEvent(msg.threadId, msg.name, msg.payload);
+        }
+        break;
+
+      case "log":
+        // Agent sent a log message - just log it, don't route to eventBus
+        logger.info(`[Agent ${msg.threadId}]`, msg.payload);
+        break;
+
+      default:
+        logger.warn(`[agent-service] Unknown message type: ${msg.type}`);
+    }
+  });
+
+  logger.info("[agent-service] Agent message listener initialized");
+}
+
+/**
+ * Routes a named event from an agent to the appropriate eventBus handler.
+ */
+function routeAgentEvent(threadId: string, eventName: string, payload: unknown): void {
+  logger.info(`[agent-service] Routing event: ${eventName} for thread ${threadId}`);
+
+  // Cast payload based on event type and emit to eventBus
+  switch (eventName) {
+    case EventName.PERMISSION_REQUEST:
+      eventBus.emit(EventName.PERMISSION_REQUEST, payload as {
+        requestId: string;
+        threadId: string;
+        toolName: string;
+        toolInput: Record<string, unknown>;
+        timestamp: number;
+      });
+      break;
+
+    case EventName.THREAD_CREATED:
+    case EventName.THREAD_UPDATED:
+    case EventName.THREAD_STATUS_CHANGED:
+    case EventName.WORKTREE_ALLOCATED:
+    case EventName.WORKTREE_RELEASED:
+    case EventName.WORKTREE_NAME_GENERATED:
+    case EventName.ACTION_REQUESTED:
+    case EventName.AGENT_CANCELLED:
+    case EventName.THREAD_NAME_GENERATED:
+    case EventName.PLAN_DETECTED:
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      eventBus.emit(eventName as any, payload as any);
+      break;
+
+    case EventName.QUEUED_MESSAGE_ACK:
+      // Handle queued message acknowledgement
+      const ackPayload = payload as { messageId: string };
+      useQueuedMessagesStore.getState().confirmMessage(ackPayload.messageId);
+      eventBus.emit(EventName.QUEUED_MESSAGE_ACK, {
+        threadId,
+        messageId: ackPayload.messageId,
+      });
+      break;
+
+    default:
+      // For unknown events, emit them generically (allows extension)
+      logger.warn(`[agent-service] Unhandled event name: ${eventName}`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      eventBus.emit(eventName as any, { threadId, payload });
   }
 }
 
-function getProcessMaps(): ProcessMaps {
-  if (!window.__agentServiceProcessMaps) {
-    window.__agentServiceProcessMaps = {
-      activeSimpleProcesses: new Map(),
-      agentProcesses: new Map(),
-    };
-    logger.info("[agent-service] Initialized process maps on window");
+/**
+ * Cleans up the Tauri event listener for agent messages.
+ * Call this on app unmount.
+ */
+export function cleanupAgentMessageListener(): void {
+  if (agentMessageUnlisten) {
+    logger.info("[agent-service] Cleaning up agent message listener");
+    agentMessageUnlisten();
+    agentMessageUnlisten = null;
   }
-  return window.__agentServiceProcessMaps;
 }
 
-// Track active simple agent processes for cancellation
-const activeSimpleProcesses = getProcessMaps().activeSimpleProcesses;
+// ═══════════════════════════════════════════════════════════════════════════
+// Socket IPC: Send Messages to Agents via Tauri Command
+// ═══════════════════════════════════════════════════════════════════════════
 
-// Track all agent processes by threadId for stdin communication (e.g., permission responses)
-const agentProcesses = getProcessMaps().agentProcesses;
+/**
+ * Sends a message to a connected agent via the AgentHub socket.
+ * This replaces direct stdin writes for socket-connected agents.
+ *
+ * @param threadId - The thread ID of the agent to send to
+ * @param message - The message object to send (will be JSON stringified)
+ */
+export async function sendToAgent(threadId: string, message: Record<string, unknown>): Promise<void> {
+  const payload = JSON.stringify({
+    senderId: "tauri",
+    threadId,
+    ...message,
+  });
+
+  logger.debug(`[agent-service] Sending to agent ${threadId}:`, message);
+
+  try {
+    await invoke("send_to_agent", {
+      threadId,
+      message: payload,
+    });
+  } catch (error) {
+    logger.error(`[agent-service] Failed to send to agent ${threadId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Sends a permission response to an agent via the socket.
+ */
+export async function sendPermissionResponseSocket(
+  threadId: string,
+  requestId: string,
+  decision: "approve" | "deny",
+  reason?: string
+): Promise<void> {
+  await sendToAgent(threadId, {
+    type: "permission_response",
+    payload: { requestId, decision, reason },
+  });
+  logger.info(`[agent-service] Sent permission response via socket:`, { threadId, requestId, decision });
+}
+
+/**
+ * Sends a cancel signal to an agent via the socket.
+ */
+export async function cancelAgentSocket(threadId: string): Promise<void> {
+  await sendToAgent(threadId, { type: "cancel" });
+  logger.info(`[agent-service] Sent cancel via socket to agent ${threadId}`);
+}
+
+/**
+ * Sends a queued message to an agent via the socket.
+ */
+async function sendQueuedMessageSocket(
+  threadId: string,
+  content: string
+): Promise<string> {
+  const messageId = crypto.randomUUID();
+  const timestamp = Date.now();
+
+  // Add to store BEFORE sending (optimistic)
+  useQueuedMessagesStore.getState().addMessage(threadId, messageId, content);
+
+  try {
+    await sendToAgent(threadId, {
+      type: "queued_message",
+      payload: { id: messageId, content, timestamp },
+    });
+    logger.info(`[agent-service] Sent queued message via socket:`, { threadId, messageId });
+    return messageId;
+  } catch (err) {
+    // Rollback on failure
+    useQueuedMessagesStore.getState().confirmMessage(messageId);
+    throw err;
+  }
+}
+
+/**
+ * Checks if an agent is connected via the AgentHub socket.
+ * Used to determine whether to use socket or stdin for communication.
+ */
+export async function isAgentSocketConnected(threadId: string): Promise<boolean> {
+  try {
+    const connectedAgents = await invoke<string[]>("list_connected_agents");
+    return connectedAgents.includes(threadId);
+  } catch (error) {
+    logger.warn(`[agent-service] Failed to check socket connection:`, error);
+    return false;
+  }
+}
 
 /**
  * Gets the shell PATH captured from the user's login shell.
@@ -182,61 +398,6 @@ async function getRunnerPaths(): Promise<{
   };
 }
 
-/**
- * Handle typed events from agent process.
- * Emits to eventBus - entity listeners handle disk refreshes.
- *
- * @param event - The agent event message
- * @param threadId - Optional threadId to augment event payloads that need it
- */
-function handleAgentEvent(event: AgentEventMessage, threadId?: string): void {
-  const { name, payload } = event;
-
-  // Type assertion needed because eventBus.emit expects specific event types
-  // but we're handling all event types dynamically from agent output
-  switch (name) {
-    case EventName.THREAD_CREATED:
-    case EventName.THREAD_UPDATED:
-    case EventName.THREAD_STATUS_CHANGED:
-    case EventName.WORKTREE_ALLOCATED:
-    case EventName.WORKTREE_RELEASED:
-    case EventName.WORKTREE_NAME_GENERATED:
-    case EventName.ACTION_REQUESTED:
-    case EventName.AGENT_CANCELLED:
-    case EventName.THREAD_NAME_GENERATED:
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      eventBus.emit(name as any, payload as any);
-      break;
-
-    case EventName.QUEUED_MESSAGE_ACK:
-      // Agent only sends messageId; we need to add threadId from context
-      if (threadId) {
-        const messageId = (payload as { messageId: string }).messageId;
-        // Confirm in store (single source of truth)
-        useQueuedMessagesStore.getState().confirmMessage(messageId);
-        // Still emit event for any other listeners
-        eventBus.emit(EventName.QUEUED_MESSAGE_ACK, {
-          threadId,
-          messageId,
-        });
-      } else {
-        logger.warn(`[handleAgentEvent] QUEUED_MESSAGE_ACK received without threadId context`);
-      }
-      break;
-
-    case EventName.PLAN_DETECTED:
-      // Forward plan:detected to eventBus - listeners will refresh from disk
-      logger.info(`[handleAgentEvent] 📋 PLAN_DETECTED received from agent stdout, planId=${(payload as { planId: string }).planId}`);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      eventBus.emit(name as any, payload as any);
-      logger.info(`[handleAgentEvent] 📋 PLAN_DETECTED emitted to eventBus`);
-      break;
-
-    default:
-      logger.warn(`[handleAgentEvent] Unhandled event: ${name}`);
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -267,8 +428,15 @@ export interface SpawnSimpleAgentOptions {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Handles stdout output from a simple agent process.
- * Parses JSON lines and emits events to eventBus.
+ * Handles stdout output from an agent process.
+ *
+ * SOCKET-ONLY COMMUNICATION:
+ * State and events now come exclusively via the AgentHub socket (agent:message events).
+ * Stdout is used ONLY for log messages and debug output.
+ *
+ * NOTE: State and event parsing from stdout has been removed as part of the
+ * socket IPC migration (see plans/socket-ipc/06-cleanup-migration.md).
+ * All communication now goes through the socket.
  */
 function handleSimpleAgentOutput(
   threadId: string,
@@ -299,15 +467,10 @@ function handleSimpleAgentOutput(
         }
 
         case "event":
-          logger.info(`[simple-agent:${threadId}] 📤 Parsed event from stdout: name=${output.name}`);
-          handleAgentEvent(output, threadId);
-          break;
-
         case "state":
-          eventBus.emit(EventName.AGENT_STATE, {
-            threadId,
-            state: output.state,
-          });
+          // State and events are now received via socket (agent:message Tauri events).
+          // These should not appear in stdout anymore - log a warning if they do.
+          logger.warn(`[simple-agent:${threadId}] Received ${output.type} via stdout - this is deprecated. Messages should come via socket.`);
           break;
       }
     } else {
@@ -535,6 +698,9 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   });
 
   // Line buffer for stdout - shell plugin may split JSON across chunks
+  // NOTE: Socket-connected agents send state/events via the AgentHub socket,
+  // but we still process stdout for backward compatibility and debug logs.
+  // See handleSimpleAgentOutput() documentation for dual-path communication details.
   const stdoutBuffer = { value: "" };
 
   command.stdout.on("data", (data) => {
@@ -793,19 +959,32 @@ export async function cancelSimpleAgent(threadId: string): Promise<void> {
 }
 
 /**
- * Cancels a running agent by sending SIGTERM to its process.
- * Works for all agent types (simple, orchestrated, etc.)
+ * Cancels a running agent.
+ * Tries socket communication first (for graceful cancellation),
+ * falls back to SIGTERM for process-based agents.
  *
- * Uses PID from thread metadata for cross-window reliability:
- * - Any window can cancel any agent by reading PID from disk
- * - Survives HMR reloads (no in-memory state dependency)
- * - Uses OS-level signals via Rust command
+ * Socket-connected agents receive a cancel message and can clean up gracefully.
+ * Process-based agents receive SIGTERM via OS signal.
  *
- * @returns true if process was killed, false if no process found
+ * @returns true if cancel was sent/process was killed, false if no agent found
  */
 export async function cancelAgent(threadId: string): Promise<boolean> {
   logger.info(`[agent-service] cancelAgent called for threadId=${threadId}`);
 
+  // Try socket first (preferred for graceful cancellation)
+  const isSocketConnected = await isAgentSocketConnected(threadId);
+  if (isSocketConnected) {
+    try {
+      await cancelAgentSocket(threadId);
+      logger.info(`[agent-service] Sent cancel via socket to agent ${threadId}`);
+      return true;
+    } catch (error) {
+      logger.warn(`[agent-service] Socket cancel failed, trying SIGTERM:`, error);
+      // Fall through to SIGTERM
+    }
+  }
+
+  // Fall back to SIGTERM for process-based agents
   try {
     // Get PID from thread metadata (persisted to disk)
     const thread = threadService.get(threadId);
@@ -859,8 +1038,11 @@ export function isSimpleAgentRunning(threadId: string): boolean {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Sends a permission response to a running agent process via stdin.
- * Used when UI approves/denies a permission request from the agent.
+ * Sends a permission response to a running agent via socket.
+ *
+ * NOTE: stdin-based communication has been removed as part of the socket IPC migration.
+ * All agents must now connect via socket to receive permission responses.
+ * (see plans/socket-ipc/06-cleanup-migration.md)
  */
 export async function sendPermissionResponse(
   threadId: string,
@@ -868,38 +1050,7 @@ export async function sendPermissionResponse(
   decision: "approve" | "deny",
   reason?: string
 ): Promise<void> {
-  const process = agentProcesses.get(threadId);
-  if (!process) {
-    logger.warn(`[agent-service] No process found for threadId: ${threadId}`);
-    return;
-  }
-
-  const message = JSON.stringify({
-    type: "permission:response",
-    requestId,
-    decision,
-    reason,
-  }) + "\n";
-
-  try {
-    await process.write(message);
-    logger.info(`[agent-service] Sent permission response:`, { requestId, decision });
-  } catch (error) {
-    // Handle case where process has already terminated
-    // This can happen if the agent exits between the permission request and response
-    if (error instanceof Error && error.message.includes("closed")) {
-      logger.warn(`[agent-service] Process already terminated for threadId: ${threadId}`, {
-        requestId,
-        decision,
-      });
-      // Clean up the stale process reference
-      agentProcesses.delete(threadId);
-      return;
-    }
-    // Re-throw unexpected errors
-    logger.error(`[agent-service] Failed to write permission response:`, error);
-    throw error;
-  }
+  await sendPermissionResponseSocket(threadId, requestId, decision, reason);
 }
 
 /**
@@ -911,72 +1062,22 @@ export function hasAgentProcess(threadId: string): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Interactive Tool Support
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Submit a tool result to resume agent execution.
- * Used for interactive tools like AskUserQuestion.
- *
- * Flow:
- * 1. UI calls this function with the user's response
- * 2. Tauri forwards the result to the Node agent process via IPC
- * 3. Agent appends tool_result message and resumes the agent loop
- */
-export async function submitToolResult(
-  threadId: string,
-  toolId: string,
-  response: string,
-  workingDirectory: string
-): Promise<void> {
-  return invoke("submit_tool_result", {
-    threadId,
-    toolId,
-    response,
-    workingDirectory,
-  });
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Queued Message Support
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Sends a queued message to a running simple agent via stdin.
+ * Sends a queued message to a running agent via socket.
+ *
+ * NOTE: stdin-based communication has been removed as part of the socket IPC migration.
+ * All agents must now connect via socket to receive queued messages.
+ * (see plans/socket-ipc/06-cleanup-migration.md)
+ *
  * @returns The unique ID of the queued message for tracking
  */
 export async function sendQueuedMessage(
   threadId: string,
   message: string
 ): Promise<string> {
-  const child = agentProcesses.get(threadId);
-  if (!child) {
-    throw new Error(`No active process for thread: ${threadId}`);
-  }
-
-  const messageId = crypto.randomUUID();
-  const timestamp = Date.now();
-
-  // Format as JSON line (must end with newline)
-  const payload = JSON.stringify({
-    type: 'queued_message',
-    id: messageId,
-    content: message,
-    timestamp,
-  }) + '\n';
-
-  // Add to store BEFORE sending (optimistic)
-  useQueuedMessagesStore.getState().addMessage(threadId, messageId, message);
-
-  try {
-    await child.write(payload);
-    logger.info('[agent-service] Sent queued message', { threadId, messageId });
-    return messageId;
-  } catch (err) {
-    // Rollback on failure
-    useQueuedMessagesStore.getState().confirmMessage(messageId);
-    throw err;
-  }
+  return await sendQueuedMessageSocket(threadId, message);
 }
 

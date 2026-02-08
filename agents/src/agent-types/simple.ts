@@ -14,7 +14,7 @@ Request human review when you need input or approval.`;
 export const simple: AgentConfig = {
   name: "simple",
   description: "Simple Claude Code agent - runs directly in repository",
-  model: "claude-opus-4-5-20251101",
+  model: "claude-opus-4-6",
   tools: { type: "preset", preset: "claude_code" },
   appendedPrompt: composePrompt(BASE_PROMPT, PLAN_CONVENTIONS, SUB_AGENT_POLICY),
 };

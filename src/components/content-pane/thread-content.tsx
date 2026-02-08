@@ -27,7 +27,6 @@ import { threadService } from "@/entities/threads/service";
 import {
   spawnSimpleAgent,
   resumeSimpleAgent,
-  submitToolResult,
   sendQueuedMessage,
 } from "@/lib/agent-service";
 import { type ThreadInputRef } from "@/components/reusable/thread-input";
@@ -344,26 +343,6 @@ export function ThreadContent({
     }
   }, [messages.length > 0]);
 
-  const handleToolResponse = useCallback(
-    async (toolId: string, response: string) => {
-      if (!workingDirectory) {
-        logger.error("[ThreadContent] Cannot respond: no working directory");
-        return;
-      }
-
-      try {
-        await submitToolResult(threadId, toolId, response, workingDirectory);
-      } catch (error) {
-        logger.error("[ThreadContent] Failed to submit tool response", {
-          error,
-          toolId,
-        });
-        throw error;
-      }
-    },
-    [threadId, workingDirectory]
-  );
-
   return (
     <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
       {/* ThreadView takes remaining space */}
@@ -376,7 +355,6 @@ export function ThreadContent({
           isStreaming={isStreaming}
           status={viewStatus}
           toolStates={toolStates}
-          onToolResponse={handleToolResponse}
         />
       </div>
 

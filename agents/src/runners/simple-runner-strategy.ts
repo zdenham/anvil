@@ -222,6 +222,9 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         case "--history-file":
           config.historyFile = args[++i];
           break;
+        case "--parent-thread-id":
+          config.parentThreadId = args[++i];
+          break;
         // Ignore deprecated arguments for backwards compatibility
         case "--worktree-renamed":
           // Deprecated: now read from disk instead of CLI arg
@@ -388,6 +391,8 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
             initialCommitHash,
           },
         } : {}),
+        // Track parent thread for sub-agents spawned via bash
+        ...(config.parentThreadId ? { parentThreadId: config.parentThreadId } : {}),
         turns: [
           {
             index: 0,

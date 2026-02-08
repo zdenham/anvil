@@ -34,9 +34,14 @@ export async function closeCurrentPanelOrWindow(): Promise<void> {
  * This is used when there are no more unread items - closes the current
  * view and shows the inbox list panel.
  */
+// TODO: Implement open_inbox_list_panel Rust command
+// export async function closeAndShowInbox(): Promise<void> {
+//   await closeCurrentPanelOrWindow();
+//   await invoke("open_inbox_list_panel");
+// }
 export async function closeAndShowInbox(): Promise<void> {
+  // Fallback: just close the panel since open_inbox_list_panel doesn't exist
   await closeCurrentPanelOrWindow();
-  await invoke("open_inbox_list_panel");
 }
 
 /**

@@ -159,16 +159,3 @@ export function extractFileChanges(
   return result;
 }
 
-/**
- * Extract unique file paths from a ThreadState's fileChanges array.
- * @deprecated Use extractFileChanges instead for full operation info
- *
- * @param fileChanges - Array of FileChange objects from ThreadState
- * @returns Array of unique file paths
- */
-export function extractChangedFilePaths(
-  fileChanges: Array<{ path: string }> | undefined
-): string[] {
-  const changes = extractFileChanges(fileChanges as Parameters<typeof extractFileChanges>[0]);
-  return changes.map((c) => c.path);
-}

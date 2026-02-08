@@ -3,7 +3,6 @@ import {
   type PreToolUseHookInput,
   type PostToolUseHookInput,
   type PostToolUseFailureHookInput,
-  type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { relative, isAbsolute, join, resolve } from "path";
@@ -19,6 +18,7 @@ import {
   markToolComplete,
   relayEventsFromToolOutput,
   updateFileChange,
+  getHubClient,
 } from "../output.js";
 import { NodePersistence } from "../lib/persistence-node.js";
 import { EventName } from "@core/types/events.js";
@@ -33,10 +33,7 @@ import {
 import { logger } from "../lib/logger.js";
 import { isMockModeEnabled, mockQuery } from "../testing/mock-query.js";
 import { generateThreadName } from "../services/thread-naming-service.js";
-import {
-  createStdinMessageStream,
-  type StdinMessageStream,
-} from "./stdin-message-stream.js";
+import type { SocketMessageStream } from "../lib/hub/message-stream.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -87,17 +84,23 @@ export function emitLog(
 }
 
 /**
- * Emit event to stdout as JSON line.
+ * Emit event via socket (or fallback to stdout).
  * Used for lifecycle events like thread:created.
  */
 export function emitEvent(
   name: string,
   payload: Record<string, unknown>
 ): void {
-  const jsonLine = JSON.stringify({ type: "event", name, payload });
-  logger.info(`[shared] 📤 emitEvent: name="${name}" payload=${JSON.stringify(payload)}`);
-  logger.info(`[shared] 📤 stdout JSON: ${jsonLine}`);
-  console.log(jsonLine);
+  logger.info(`[shared] emitEvent: name="${name}" payload=${JSON.stringify(payload)}`);
+
+  const hub = getHubClient();
+  if (hub?.isConnected) {
+    hub.sendEvent(name, payload);
+  } else {
+    // Fallback to stdout for backwards compatibility
+    const jsonLine = JSON.stringify({ type: "event", name, payload });
+    console.log(jsonLine);
+  }
 }
 
 /**
@@ -108,21 +111,26 @@ export function buildSystemPrompt(
   config: AgentConfig,
   context: {
     repoId?: string;
+    worktreeId?: string;
     threadId?: string;
     slug?: string;
     branchName?: string | null;
     cwd: string;
     mortDir: string;
+    runnerPath: string;
     parentThreadId?: string;
   }
 ): string {
   // Interpolate template variables
   let prompt = config.appendedPrompt;
   prompt = prompt.replace(/\{\{repoId\}\}/g, context.repoId ?? "none");
+  prompt = prompt.replace(/\{\{worktreeId\}\}/g, context.worktreeId ?? "none");
   prompt = prompt.replace(/\{\{slug\}\}/g, context.slug ?? "none");
   prompt = prompt.replace(/\{\{branchName\}\}/g, context.branchName ?? "none");
   prompt = prompt.replace(/\{\{mortDir\}\}/g, context.mortDir);
   prompt = prompt.replace(/\{\{threadId\}\}/g, context.threadId ?? "none");
+  prompt = prompt.replace(/\{\{runnerPath\}\}/g, context.runnerPath);
+  prompt = prompt.replace(/\{\{cwd\}\}/g, context.cwd);
 
   // Build runtime context
   const envContext = buildEnvironmentContext(context.cwd);
@@ -296,8 +304,8 @@ export interface AgentLoopOptions {
   threadWriter?: ThreadWriter;
   /** AbortController for cancellation support */
   abortController?: AbortController;
-  /** Enable stdin message queue for queued user messages (simple agent only) */
-  enableStdinQueue?: boolean;
+  /** Socket message stream for receiving queued messages via socket IPC */
+  messageStream?: SocketMessageStream;
 }
 
 /**
@@ -355,10 +363,16 @@ export async function runAgentLoop(
   await processPlanMentions(config.prompt, persistence, context);
 
   // Build system prompt
+  // Import runnerPath dynamically to avoid circular dependency
+  const { runnerPath } = await import("../runner.js");
   const systemPrompt = buildSystemPrompt(agentConfig, {
     threadId: context.threadId,
+    repoId: context.repoId,
+    worktreeId: context.worktreeId,
     cwd: context.workingDir,
     mortDir: config.mortDir,
+    runnerPath,
+    parentThreadId: config.parentThreadId,
   });
 
   logger.info(
@@ -766,25 +780,22 @@ export async function runAgentLoop(
     logger.info("[runner] Mock LLM mode enabled");
   }
 
-  // Determine prompt: stdin stream for simple agent, string for task-based
-  // Use provided abortController or create one for stdin stream cleanup
+  // Use provided abortController or create one for cancellation support
   const abortController = options.abortController ?? new AbortController();
-  let prompt: string | AsyncGenerator<SDKUserMessage>;
-  let streamController: StdinMessageStream | null = null;
 
-  if (options.enableStdinQueue && !useMockMode) {
-    // Simple agent with stdin queue enabled
-    const stdinStream = createStdinMessageStream(config.prompt, abortController.signal);
-    prompt = stdinStream.stream;
-    streamController = stdinStream.controller;
-    logger.info("[runAgentLoop] Stdin message queue enabled");
+  // Determine prompt: use message stream if provided (enables queued messages via socket),
+  // otherwise use plain string prompt
+  let prompt: string | AsyncGenerator<import("@anthropic-ai/claude-agent-sdk").SDKUserMessage>;
+  if (options.messageStream) {
+    // Create async iterable from the message stream for SDK consumption
+    prompt = options.messageStream.createStream(config.prompt);
+    logger.info("[runAgentLoop] Using message stream for queued message support");
   } else {
-    // Task-based agent or mock mode - use simple string prompt
     prompt = config.prompt;
   }
 
   // Run the agent (real or mock)
-  // Note: Mock mode does NOT support stdin queue - it uses scripted responses.
+  // Note: Mock mode does NOT support message streams - it uses scripted responses.
   const result = useMockMode
     ? mockQuery({
         onToolResult: async (toolName, toolUseId, result) => {
@@ -807,7 +818,7 @@ export async function runAgentLoop(
         options: {
           cwd: context.workingDir,
           additionalDirectories: [config.mortDir],
-          model: agentConfig.model ?? "claude-opus-4-5-20251101",
+          model: agentConfig.model ?? "claude-opus-4-6",
           systemPrompt: {
             type: "preset",
             preset: "claude_code",
@@ -848,16 +859,11 @@ export async function runAgentLoop(
       console.log(`${"=".repeat(60)}\n`);
       // === END DEBUG ===
 
-      // Capture session_id from init message for stdin streaming
-      if (
-        streamController &&
-        message.type === "system" &&
-        "subtype" in message &&
-        message.subtype === "init" &&
-        "session_id" in message
-      ) {
-        streamController.setSessionId(message.session_id as string);
-        logger.debug(`[runAgentLoop] SDK session_id: ${message.session_id}`);
+      // Capture session_id from init message for message stream
+      if (options.messageStream && message.type === "system" && (message as { subtype?: string }).subtype === "init") {
+        const sessionId = (message as { session_id: string }).session_id;
+        options.messageStream.setSessionId(sessionId);
+        logger.debug(`[runAgentLoop] Updated message stream session_id: ${sessionId}`);
       }
 
       logger.debug(`[runner] Message: type=${message.type}`);
@@ -865,7 +871,10 @@ export async function runAgentLoop(
       if (!shouldContinue) break;
     }
   } finally {
-    // Clean up stdin stream if used
-    streamController?.close();
+    // Clean up message stream on completion
+    if (options.messageStream) {
+      options.messageStream.close();
+      logger.debug("[runAgentLoop] Closed message stream");
+    }
   }
 }

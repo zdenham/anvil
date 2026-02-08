@@ -8,6 +8,7 @@ import { isOnboarded, completeOnboarding } from "./lib/hotkey-service";
 import { spotlightShortcutCommands } from "./lib/tauri-commands";
 import { initializeTriggers } from "./lib/triggers";
 import { bootstrapMortDirectory } from "./lib/mort-bootstrap";
+import { initAgentMessageListener, cleanupAgentMessageListener } from "./lib/agent-service";
 
 // Initialize trigger system for @ file mentions
 initializeTriggers();
@@ -67,10 +68,17 @@ function App() {
       await bootstrapMortDirectory();
       await hydrateEntities();
       setupEntityListeners();
+      // Initialize agent message listener for socket IPC
+      await initAgentMessageListener();
       setIsHydrated(true);
     }
 
     bootstrap();
+
+    // Cleanup on unmount
+    return () => {
+      cleanupAgentMessageListener();
+    };
   }, [appState.status]);
 
   const handleOnboardingComplete = async () => {

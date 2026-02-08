@@ -4,6 +4,8 @@ import type {
   FileChange,
   ToolExecutionState,
 } from "./types.js";
+import type { MockHubServer } from "./mock-hub-server.js";
+import type { StateMessage, EventMessage } from "../lib/hub/types.js";
 
 export class AgentAssertions {
   constructor(private output: AgentRunOutput) {}
@@ -289,4 +291,201 @@ export class AgentAssertions {
  */
 export function assertAgent(output: AgentRunOutput): AgentAssertions {
   return new AgentAssertions(output);
+}
+
+// ============ Socket-based assertion helpers ============
+
+/**
+ * Assert that the MockHubServer received a state matching the predicate.
+ *
+ * @param hub - The MockHubServer instance
+ * @param threadId - The thread ID to filter messages by
+ * @param predicate - Function to test each state
+ * @throws Error if no matching state is found
+ *
+ * @example
+ * assertReceivedState(hub, "thread-123", (state) => state.status === "completed");
+ */
+export function assertReceivedState(
+  hub: MockHubServer,
+  threadId: string,
+  predicate: (state: unknown) => boolean
+): void {
+  const messages = hub.getMessagesForThread(threadId);
+  const stateMessages = messages.filter(
+    (m): m is StateMessage => m.type === "state"
+  );
+
+  const matchingState = stateMessages.find((msg) => predicate(msg.state));
+
+  if (!matchingState) {
+    const stateCount = stateMessages.length;
+    const stateSummary = stateMessages
+      .slice(-5) // Show last 5 states for debugging
+      .map((s) => JSON.stringify(s.state))
+      .join("\n  ");
+
+    throw new Error(
+      `No state matching predicate found for thread ${threadId}.\n` +
+        `Total state messages: ${stateCount}\n` +
+        `Last ${Math.min(5, stateCount)} states:\n  ${stateSummary || "(none)"}`
+    );
+  }
+}
+
+/**
+ * Assert that the MockHubServer received an event with the specified name.
+ *
+ * @param hub - The MockHubServer instance
+ * @param threadId - The thread ID to filter messages by
+ * @param eventName - The event name to look for
+ * @param payloadPredicate - Optional function to validate the event payload
+ * @throws Error if no matching event is found
+ *
+ * @example
+ * assertReceivedEvent(hub, "thread-123", "thread:created");
+ * assertReceivedEvent(hub, "thread-123", "file:changed", (p) => p.path === "/foo/bar.ts");
+ */
+export function assertReceivedEvent(
+  hub: MockHubServer,
+  threadId: string,
+  eventName: string,
+  payloadPredicate?: (payload: unknown) => boolean
+): void {
+  const messages = hub.getMessagesForThread(threadId);
+  const eventMessages = messages.filter(
+    (m): m is EventMessage => m.type === "event"
+  );
+
+  const matchingEvent = eventMessages.find((msg) => {
+    if (msg.name !== eventName) return false;
+    if (payloadPredicate && !payloadPredicate(msg.payload)) return false;
+    return true;
+  });
+
+  if (!matchingEvent) {
+    const eventNames = eventMessages.map((e) => e.name);
+    const uniqueNames = [...new Set(eventNames)];
+
+    throw new Error(
+      `Event "${eventName}" not found for thread ${threadId}.\n` +
+        `Received events: [${uniqueNames.join(", ") || "(none)"}]`
+    );
+  }
+}
+
+/**
+ * Assert that the MockHubServer received a registration message from the thread.
+ *
+ * @param hub - The MockHubServer instance
+ * @param threadId - The thread ID to check
+ * @throws Error if no registration was received
+ *
+ * @example
+ * assertReceivedRegistration(hub, "thread-123");
+ */
+export function assertReceivedRegistration(
+  hub: MockHubServer,
+  threadId: string
+): void {
+  const messages = hub.getMessagesForThread(threadId);
+  const registration = messages.find((m) => m.type === "register");
+
+  if (!registration) {
+    throw new Error(
+      `No registration message received for thread ${threadId}.\n` +
+        `Total messages for thread: ${messages.length}`
+    );
+  }
+}
+
+/**
+ * Assert that the MockHubServer received events in the specified order.
+ *
+ * @param hub - The MockHubServer instance
+ * @param threadId - The thread ID to filter messages by
+ * @param eventNames - Array of event names in expected order
+ * @throws Error if events are not found in the expected order
+ *
+ * @example
+ * assertReceivedEventsInOrder(hub, "thread-123", ["thread:started", "tool:executed", "thread:completed"]);
+ */
+export function assertReceivedEventsInOrder(
+  hub: MockHubServer,
+  threadId: string,
+  eventNames: string[]
+): void {
+  const messages = hub.getMessagesForThread(threadId);
+  const eventMessages = messages.filter(
+    (m): m is EventMessage => m.type === "event"
+  );
+
+  const receivedNames = eventMessages.map((e) => e.name);
+  let lastIndex = -1;
+
+  for (const name of eventNames) {
+    const index = receivedNames.indexOf(name, lastIndex + 1);
+    if (index === -1) {
+      throw new Error(
+        `Event "${name}" not found after position ${lastIndex}.\n` +
+          `Event sequence: [${receivedNames.join(", ")}]`
+      );
+    }
+    lastIndex = index;
+  }
+}
+
+/**
+ * Get the final state sent by an agent to the MockHubServer.
+ *
+ * @param hub - The MockHubServer instance
+ * @param threadId - The thread ID to get state for
+ * @returns The state from the last state message, or undefined if no states received
+ *
+ * @example
+ * const finalState = getFinalState(hub, "thread-123");
+ * expect(finalState?.status).toBe("completed");
+ */
+export function getFinalState(
+  hub: MockHubServer,
+  threadId: string
+): unknown | undefined {
+  const messages = hub.getMessagesForThread(threadId);
+  const stateMessages = messages.filter(
+    (m): m is StateMessage => m.type === "state"
+  );
+
+  if (stateMessages.length === 0) {
+    return undefined;
+  }
+
+  return stateMessages[stateMessages.length - 1].state;
+}
+
+/**
+ * Get all events of a specific type sent by an agent.
+ *
+ * @param hub - The MockHubServer instance
+ * @param threadId - The thread ID to filter by
+ * @param eventName - Optional event name to filter by
+ * @returns Array of event messages
+ *
+ * @example
+ * const toolEvents = getEvents(hub, "thread-123", "tool:executed");
+ */
+export function getEvents(
+  hub: MockHubServer,
+  threadId: string,
+  eventName?: string
+): EventMessage[] {
+  const messages = hub.getMessagesForThread(threadId);
+  const eventMessages = messages.filter(
+    (m): m is EventMessage => m.type === "event"
+  );
+
+  if (eventName) {
+    return eventMessages.filter((e) => e.name === eventName);
+  }
+
+  return eventMessages;
 }

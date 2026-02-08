@@ -14,7 +14,7 @@ import {
   setSessionId,
 } from "../output.js";
 import { logger, stdout } from "../lib/logger.js";
-import { getChildThreadId } from "./shared.js";
+import { getChildThreadId, emitEvent } from "./shared.js";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import type { ThreadState } from "@core/types/events.js";
@@ -141,14 +141,10 @@ export class MessageHandler {
             .join("\n");
 
       // Emit acknowledgement event BEFORE appending (so UI gets it first)
-      // msg.uuid carries the queued message ID from stdin-message-stream
-      // Emit as proper event protocol: {type: "event", name: "...", payload: {...}}
+      // msg.uuid carries the queued message ID from socket message stream
+      // Emit via socket or stdout fallback
       if (msg.uuid) {
-        stdout({
-          type: "event",
-          name: "queued-message:ack",
-          payload: { messageId: msg.uuid },
-        });
+        emitEvent("queued-message:ack", { messageId: msg.uuid });
         logger.info(`[MessageHandler] Emitted ack for queued message: ${msg.uuid}`);
       }
 

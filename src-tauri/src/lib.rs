@@ -11,6 +11,7 @@ pub use accessibility::{is_accessibility_trusted, check_accessibility_with_promp
 pub use accessibility::{disable_spotlight_shortcut, is_spotlight_shortcut_enabled};
 #[cfg(target_os = "macos")]
 pub use accessibility::SystemSettingsNavigator;
+mod agent_hub;
 #[path = "app-search.rs"]
 mod app_search;
 mod build_info;
@@ -37,38 +38,14 @@ mod menu;
 #[cfg(target_os = "macos")]
 mod tray;
 
-use tauri::{AppHandle, Emitter, Manager, Url};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
-use tauri_plugin_opener::OpenerExt;
+
+use agent_hub::AgentHub;
 
 const MAIN_WINDOW_LABEL: &str = "main";
 
-/// Creates a navigation handler that blocks external URLs and opens them in the system browser.
-/// This is the primary defense against in-app navigation to external websites.
-fn is_allowed_navigation(url: &Url, app: &AppHandle) -> bool {
-    // Allow tauri:// protocol (internal app URLs in production)
-    if url.scheme() == "tauri" {
-        return true;
-    }
-
-    // Allow localhost (dev server)
-    if url.scheme() == "http" && url.host_str() == Some("localhost") {
-        return true;
-    }
-
-    // Block external http/https - open in system browser instead
-    if url.scheme() == "http" || url.scheme() == "https" {
-        tracing::info!("[Navigation] Opening external URL in system browser: {}", url);
-        let url_string = url.to_string();
-        if let Err(e) = app.opener().open_url(&url_string, None::<&str>) {
-            tracing::error!("[Navigation] Failed to open URL in browser: {}", e);
-        }
-        return false;
-    }
-
-    // Allow other schemes (file://, etc.) - they're typically safe
-    true
-}
 
 /// Enables the fullscreen button (green traffic light) on macOS for the given window
 #[cfg(target_os = "macos")]
@@ -197,9 +174,26 @@ fn web_log(level: &str, message: &str, source: Option<&str>) {
     logging::log_from_web(level, message, source.unwrap_or("web"));
 }
 
+/// Sends a message to a connected agent via the AgentHub socket.
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn send_to_agent(
+    state: tauri::State<'_, Arc<AgentHub>>,
+    thread_id: String,
+    message: String,
+) -> Result<(), String> {
+    state.send_to_agent(&thread_id, &message)
+}
+
+/// Lists all currently connected agents.
+#[tauri::command]
+fn list_connected_agents(state: tauri::State<'_, Arc<AgentHub>>) -> Vec<String> {
+    state.list_connected_agents()
+}
+
+/// Gets the socket path for agent connections.
+#[tauri::command]
+fn get_agent_socket_path(state: tauri::State<'_, Arc<AgentHub>>) -> String {
+    state.socket_path().to_string()
 }
 
 /// Registers a global hotkey that shows the spotlight window when triggered.
@@ -301,30 +295,12 @@ fn save_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
     result
 }
 
-/// Gets the saved spotlight hotkey from config
-#[tauri::command]
-fn get_saved_hotkey() -> String {
-    config::get_spotlight_hotkey()
-}
-
 /// Saves the clipboard hotkey to config and re-registers hotkeys
 #[tauri::command]
 fn save_clipboard_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
     config::set_clipboard_hotkey(&hotkey)?;
     let spotlight_hotkey = config::get_spotlight_hotkey();
     register_hotkey_internal(&app, &spotlight_hotkey)
-}
-
-/// Gets the saved clipboard hotkey from config
-#[tauri::command]
-fn get_saved_clipboard_hotkey() -> String {
-    config::get_clipboard_hotkey()
-}
-
-/// Checks if the user has completed onboarding
-#[tauri::command]
-fn is_onboarded() -> bool {
-    config::is_onboarded()
 }
 
 /// Marks onboarding as complete
@@ -366,7 +342,7 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
         .title("Mort")
         .inner_size(600.0, 500.0)
         .resizable(true)
-        .on_navigation(move |url| is_allowed_navigation(&url, &app_for_nav))
+        .on_navigation(move |url| panels::is_allowed_navigation(&url, &app_for_nav))
         .build()
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to recreate main window");
@@ -494,19 +470,6 @@ fn pin_control_panel() {
     panels::pin_control_panel()
 }
 
-/// Unpins the control panel (allows hide on blur)
-#[tauri::command]
-fn unpin_control_panel() {
-    panels::unpin_control_panel()
-}
-
-/// Snaps the control panel position to integer pixel coordinates.
-/// This fixes text blurriness caused by subpixel positioning during drag.
-#[tauri::command]
-fn snap_control_panel_position(app: AppHandle) -> Result<(), String> {
-    panels::snap_control_panel_position(&app)
-}
-
 /// Checks if a specific panel is visible
 #[tauri::command]
 fn is_panel_visible(app: AppHandle, panel_label: String) -> bool {
@@ -543,31 +506,11 @@ fn is_any_panel_visible(app: AppHandle) -> bool {
     panels::is_any_panel_visible(&app)
 }
 
-/// Pops out the control panel into a standalone WebviewWindow (unified for threads and plans)
-#[tauri::command]
-fn pop_out_control_panel(app: AppHandle, view: panels::ControlPanelView) -> Result<String, String> {
-    panels::pop_out_control_panel(app, view)
-}
-
 /// Closes a standalone control panel window
 #[tauri::command]
 fn close_control_panel_window(app: AppHandle, instance_id: String) -> Result<(), String> {
     panels::close_control_panel_window(app, instance_id)
 }
-
-/// Gets data for a control panel window instance
-#[tauri::command]
-fn get_control_panel_window_data(instance_id: String) -> Result<panels::ControlPanelWindowInstance, String> {
-    panels::get_control_panel_window_data(instance_id)
-}
-
-/// Lists all open standalone control panel windows
-#[tauri::command]
-fn list_control_panel_window_instances() -> Vec<(String, panels::ControlPanelWindowInstance)> {
-    panels::list_control_panel_window_instances()
-}
-
-
 
 /// Restarts the application (dev mode only - for manual refresh)
 #[tauri::command]
@@ -760,14 +703,21 @@ pub fn run() {
     // Initialize logging (uses config::get_device_id() for log server)
     logging::initialize();
 
+    // Create AgentHub with socket path in data directory
+    let socket_path = paths::data_dir()
+        .join("agent-hub.sock")
+        .to_string_lossy()
+        .to_string();
+    let agent_hub = Arc::new(AgentHub::new(socket_path));
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(process_commands::ProcessManager::new())
-        .manage(mort_commands::LockManager::new());
+        .manage(mort_commands::LockManager::new())
+        .manage(agent_hub.clone());
 
     builder
         .on_window_event(|window, event| {
@@ -831,13 +781,13 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             web_log,
-            greet,
+            // AgentHub commands
+            send_to_agent,
+            list_connected_agents,
+            get_agent_socket_path,
             register_hotkey,
             save_hotkey,
-            get_saved_hotkey,
             save_clipboard_hotkey,
-            get_saved_clipboard_hotkey,
-            is_onboarded,
             complete_onboarding,
             show_main_window,
             show_main_window_with_view,
@@ -848,8 +798,6 @@ pub fn run() {
             hide_control_panel,
             focus_control_panel,
             pin_control_panel,
-            unpin_control_panel,
-            snap_control_panel_position,
             is_panel_visible,
             show_spotlight,
             hide_spotlight,
@@ -859,20 +807,12 @@ pub fn run() {
             get_pending_error,
             get_pending_control_panel,
             is_any_panel_visible,
-            pop_out_control_panel,
             close_control_panel_window,
-            get_control_panel_window_data,
-            list_control_panel_window_instances,
             restart_app,
             app_search::search_applications,
             app_search::open_application,
             app_search::open_directory_in_app,
-            clipboard::get_clipboard_history,
-            clipboard::get_clipboard_content,
             clipboard::paste_clipboard_entry,
-            clipboard::delete_clipboard_entry,
-            clipboard::clear_clipboard_history,
-            clipboard::show_clipboard_manager,
             clipboard::hide_clipboard_manager,
             filesystem::fs_write_file,
             filesystem::fs_read_file,
@@ -880,20 +820,14 @@ pub fn run() {
             filesystem::fs_exists,
             filesystem::fs_remove,
             filesystem::fs_remove_dir_all,
-            filesystem::fs_list_dir,
             filesystem::fs_move,
             filesystem::fs_copy_file,
             filesystem::fs_copy_directory,
-            filesystem::fs_is_git_repo,
             filesystem::fs_git_worktree_add,
             filesystem::fs_git_worktree_remove,
-            filesystem::list_repositories,
-            filesystem::delete_git_branch,
-            filesystem::list_mort_branches,
             // Git commands
             git_commands::git_get_default_branch,
             git_commands::git_get_branch_commit,
-            git_commands::git_get_branch_commits,
             git_commands::git_create_branch,
             git_commands::git_checkout_branch,
             git_commands::git_checkout_commit,
@@ -915,23 +849,13 @@ pub fn run() {
             // Lock commands
             mort_commands::lock_acquire_repo,
             mort_commands::lock_release_repo,
-            // Thread status
-            mort_commands::thread_get_status,
             // Build info commands
             mort_commands::get_paths_info,
-            mort_commands::get_default_hotkeys,
             // Agent commands
             mort_commands::get_agent_types,
             // Process commands
-            process_commands::get_runner_path,
-            process_commands::spawn_agent_process,
-            process_commands::terminate_agent_process,
-            process_commands::is_process_running,
-            process_commands::submit_tool_result,
             process_commands::kill_process,
             // Shell commands
-            shell::get_shell_path,
-            shell::which_binary,
             shell::run_internal_update,
             // Thread commands
             thread_commands::get_thread_status,
@@ -942,9 +866,6 @@ pub fn run() {
             worktree_commands::worktree_rename,
             worktree_commands::worktree_touch,
             worktree_commands::worktree_sync,
-            // Logging commands
-            logging::get_buffered_logs,
-            logging::clear_logs,
             // Spotlight shortcut commands (macOS only)
             #[cfg(target_os = "macos")]
             disable_system_spotlight_shortcut,
@@ -988,6 +909,12 @@ pub fn run() {
             // Ensure .mort directories exist (NEW)
             if let Err(e) = ensure_mort_directories() {
                 tracing::error!("Failed to ensure .mort directories: {}", e);
+            }
+
+            // Start the AgentHub socket server
+            let hub: tauri::State<'_, Arc<AgentHub>> = app.state();
+            if let Err(e) = hub.start(app.handle().clone()) {
+                tracing::error!(error = %e, "Failed to start AgentHub");
             }
 
             // Set up log buffer to emit events to frontend
@@ -1117,8 +1044,18 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            if let tauri::RunEvent::Reopen { .. } = event {
-                let _ = show_main_window(app_handle.clone());
+            match event {
+                tauri::RunEvent::Reopen { .. } => {
+                    let _ = show_main_window(app_handle.clone());
+                }
+                tauri::RunEvent::Exit => {
+                    // Clean up AgentHub socket on exit
+                    if let Some(hub) = app_handle.try_state::<Arc<AgentHub>>() {
+                        tracing::info!("Cleaning up AgentHub on exit");
+                        hub.cleanup();
+                    }
+                }
+                _ => {}
             }
         });
 }

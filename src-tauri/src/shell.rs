@@ -30,60 +30,6 @@ pub fn command(program: &str) -> Command {
     cmd
 }
 
-/// Gets the shell PATH captured at startup.
-/// This is the user's actual PATH from their login shell.
-#[tauri::command]
-pub fn get_shell_path() -> String {
-    let path = paths::shell_path();
-    tracing::info!(
-        path_length = path.len(),
-        path_entries = path.split(':').count(),
-        path_preview = %path.chars().take(150).collect::<String>(),
-        "get_shell_path called"
-    );
-    path.to_string()
-}
-
-/// Finds the full path to a binary using the captured shell PATH.
-/// Returns None if the binary is not found.
-#[tauri::command]
-pub fn which_binary(name: String) -> Option<String> {
-    tracing::info!(binary_name = %name, "which_binary: searching for binary");
-
-    let path_var = paths::shell_path();
-    let path_entries: Vec<&str> = path_var.split(':').collect();
-    tracing::debug!(
-        path_entries_count = path_entries.len(),
-        "which_binary: searching through PATH entries"
-    );
-
-    for (i, dir) in path_entries.iter().enumerate() {
-        let candidate = std::path::Path::new(dir).join(&name);
-        if candidate.exists() && candidate.is_file() {
-            tracing::info!(
-                binary_name = %name,
-                found_at = %candidate.display(),
-                path_entry_index = i,
-                "which_binary: FOUND"
-            );
-            return Some(candidate.to_string_lossy().to_string());
-        }
-    }
-
-    tracing::warn!(
-        binary_name = %name,
-        path_entries_searched = path_entries.len(),
-        "which_binary: NOT FOUND in any PATH entry"
-    );
-
-    // Log the first 10 PATH entries for debugging
-    for (i, entry) in path_entries.iter().take(10).enumerate() {
-        tracing::debug!(index = i, entry = %entry, "which_binary: PATH entry checked");
-    }
-
-    None
-}
-
 /// Runs the internal update script in the background.
 /// The script downloads a new version and restarts the app, so it must be detached.
 #[tauri::command]

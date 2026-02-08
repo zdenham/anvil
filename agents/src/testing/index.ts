@@ -22,7 +22,17 @@ export { defaultRunnerConfig, createRunnerConfig } from "./runner-config.js";
 export type { RunnerConfig } from "./runner-config.js";
 
 // Assertions
-export { AgentAssertions, assertAgent } from "./assertions.js";
+export {
+  AgentAssertions,
+  assertAgent,
+  // Socket-based assertion helpers
+  assertReceivedState,
+  assertReceivedEvent,
+  assertReceivedRegistration,
+  assertReceivedEventsInOrder,
+  getFinalState,
+  getEvents,
+} from "./assertions.js";
 
 // Services
 export {
@@ -68,3 +78,6 @@ export {
   mockQuery,
 } from "./mock-query.js";
 export type { ToolExecutor, MockQueryOptions } from "./mock-query.js";
+
+// Mock Hub Server (for socket IPC testing)
+export { MockHubServer } from "./mock-hub-server.js";

@@ -1,6 +1,6 @@
 /**
  * Strongly-typed event emitter for agents.
- * Outputs structured JSON events to stdout for Tauri frontend consumption.
+ * Outputs via socket (or fallback to stdout) for Tauri frontend consumption.
  */
 import {
   EventName,
@@ -11,21 +11,28 @@ import {
 } from "@core/types/events.js";
 import type { ThreadStatus } from "@core/types/threads.js";
 import { stdout } from "./logger.js";
+import { getHubClient } from "../output.js";
 
 /**
- * Emit a strongly-typed event to stdout.
- * Tauri frontend parses these and dispatches to event bus.
+ * Emit a strongly-typed event via socket (or fallback to stdout).
+ * Tauri frontend receives these and dispatches to event bus.
  */
 export function emitEvent<E extends EventNameType>(
   name: E,
   payload: EventPayloads[E]
 ): void {
-  const message: AgentEventMessage<E> = {
-    type: "event",
-    name,
-    payload,
-  };
-  stdout(message as unknown as Record<string, unknown>);
+  const hub = getHubClient();
+  if (hub?.isConnected) {
+    hub.sendEvent(name, payload);
+  } else {
+    // Fallback to stdout for backwards compatibility
+    const message: AgentEventMessage<E> = {
+      type: "event",
+      name,
+      payload,
+    };
+    stdout(message as unknown as Record<string, unknown>);
+  }
 }
 
 /**

@@ -750,26 +750,63 @@ This same logic applies to "/" automatically - no need to duplicate.
 
 **Important**: Skill parsing and system prompt injection happens at the **agent level**, not the frontend. This allows skills to be read from both UI and agent processes using the adapter pattern.
 
-#### 3.1 Skills Adapter Interface
+#### 3.1 Adapter Pattern: One Service, Pluggable Transports
 
-Following the existing adapter pattern (see `docs/patterns/adapters.md`), define the interface in `core/adapters/types.ts`:
+The adapter pattern means:
+- **One `SkillsService` class** containing ALL business logic (discovery, parsing, priority ordering, slug normalization)
+- **One `FilesystemAdapter` interface** defining the low-level FS operations
+- **Two adapter implementations** (Node and Tauri) that are injected into the service
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         SkillsService                           │
+│  (contains all business logic: discovery, parsing, caching)     │
+│                                                                 │
+│  constructor(fs: FilesystemAdapter)                             │
+│  ─────────────────────────────────────────────────────────────  │
+│  discover(repoPath, homeDir) → SkillMetadata[]                  │
+│  readContent(skillPath) → SkillContent                          │
+│  getBySlug(slug) → SkillMetadata                                │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            │ depends on (injected)
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     FilesystemAdapter                           │
+│  (interface - low-level FS operations only)                     │
+│  ─────────────────────────────────────────────────────────────  │
+│  readFile(path) → string | null                                 │
+│  exists(path) → boolean                                         │
+│  listDir(path) → DirEntry[]                                     │
+│  joinPath(...segments) → string                                 │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+            ┌───────────────┴───────────────┐
+            │                               │
+            ▼                               ▼
+┌───────────────────────┐       ┌───────────────────────┐
+│  NodeFilesystemAdapter │       │ TauriFilesystemAdapter │
+│  (uses Node fs module) │       │ (uses FilesystemClient)│
+└───────────────────────┘       └───────────────────────┘
+```
+
+Define the filesystem adapter interface in `core/adapters/types.ts`:
 
 ```typescript
 // Add to existing types.ts
 
-export interface SkillsAdapter {
+/**
+ * Low-level filesystem operations adapter.
+ * Implementations provide platform-specific file access (Node fs, Tauri IPC, etc.)
+ * SkillsService depends on this interface, not concrete implementations.
+ */
+export interface FilesystemAdapter {
   /**
-   * Discover all skills from configured locations.
-   * @param repoPath - The repository path for project-level skills
-   * @param homeDir - The user's home directory for personal skills
+   * Read file content as string.
+   * @param filePath - Absolute path to file
+   * @returns File content or null if not found/unreadable
    */
-  discover(repoPath: string, homeDir: string): Promise<SkillMetadata[]>;
-
-  /**
-   * Read full content of a skill by its path.
-   * @param skillPath - Absolute path to SKILL.md or command.md
-   */
-  readContent(skillPath: string): Promise<string | null>;
+  readFile(filePath: string): Promise<string | null>;
 
   /**
    * Check if a path exists.
@@ -779,7 +816,7 @@ export interface SkillsAdapter {
   /**
    * List directory contents.
    */
-  listDir(path: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>>;
+  listDir(path: string): Promise<Array<{ name: string; path: string; isDirectory: boolean; isFile: boolean }>>;
 
   /**
    * Join path segments.
@@ -788,24 +825,23 @@ export interface SkillsAdapter {
 }
 ```
 
-#### 3.2 Node.js Adapter Implementation
+#### 3.2 Node.js Filesystem Adapter
 
-Create `core/adapters/node/skills-adapter.ts`:
+Create `core/adapters/node/filesystem-adapter.ts`:
 
 ```typescript
 import * as fs from "fs";
 import * as path from "path";
-import type { SkillsAdapter } from "../types";
+import type { FilesystemAdapter } from "../types";
 
-export class NodeSkillsAdapter implements SkillsAdapter {
-  async discover(repoPath: string, homeDir: string): Promise<SkillMetadata[]> {
-    // Implementation uses fs.readdirSync, fs.readFileSync
-    // Same logic as skillsService but with Node fs
-  }
-
-  async readContent(skillPath: string): Promise<string | null> {
+/**
+ * Node.js implementation of FilesystemAdapter.
+ * Used by agent processes running in Node environment.
+ */
+export class NodeFilesystemAdapter implements FilesystemAdapter {
+  async readFile(filePath: string): Promise<string | null> {
     try {
-      return fs.readFileSync(skillPath, "utf-8");
+      return fs.readFileSync(filePath, "utf-8");
     } catch {
       return null;
     }
@@ -815,12 +851,13 @@ export class NodeSkillsAdapter implements SkillsAdapter {
     return fs.existsSync(p);
   }
 
-  async listDir(p: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> {
+  async listDir(p: string): Promise<Array<{ name: string; path: string; isDirectory: boolean; isFile: boolean }>> {
     const entries = fs.readdirSync(p, { withFileTypes: true });
     return entries.map(e => ({
       name: e.name,
       path: path.join(p, e.name),
       isDirectory: e.isDirectory(),
+      isFile: e.isFile(),
     }));
   }
 
@@ -830,20 +867,24 @@ export class NodeSkillsAdapter implements SkillsAdapter {
 }
 ```
 
-#### 3.3 Tauri Adapter Implementation
+#### 3.3 Tauri Filesystem Adapter
 
-Create `src/adapters/tauri-skills-adapter.ts`:
+Create `src/adapters/tauri-filesystem-adapter.ts`:
 
 ```typescript
 import { FilesystemClient } from "@/lib/filesystem-client";
-import type { SkillsAdapter } from "@core/adapters/types";
+import type { FilesystemAdapter } from "@core/adapters/types";
 
-export class TauriSkillsAdapter implements SkillsAdapter {
+/**
+ * Tauri implementation of FilesystemAdapter.
+ * Used by frontend code running in Tauri webview.
+ */
+export class TauriFilesystemAdapter implements FilesystemAdapter {
   private fs = new FilesystemClient();
 
-  async readContent(skillPath: string): Promise<string | null> {
+  async readFile(filePath: string): Promise<string | null> {
     try {
-      return await this.fs.readFile(skillPath);
+      return await this.fs.readFile(filePath);
     } catch {
       return null;
     }
@@ -853,7 +894,7 @@ export class TauriSkillsAdapter implements SkillsAdapter {
     return await this.fs.exists(p);
   }
 
-  async listDir(p: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> {
+  async listDir(p: string): Promise<Array<{ name: string; path: string; isDirectory: boolean; isFile: boolean }>> {
     return await this.fs.listDir(p);
   }
 
@@ -861,6 +902,245 @@ export class TauriSkillsAdapter implements SkillsAdapter {
     return segments.join("/"); // Tauri uses forward slashes
   }
 }
+```
+
+#### 3.4 SkillsService (Single Implementation)
+
+There is **one `SkillsService` class** that contains all business logic. It receives a `FilesystemAdapter` via constructor injection.
+
+Create `core/lib/skills/skills-service.ts`:
+
+```typescript
+import type { FilesystemAdapter } from "@core/adapters/types";
+import type { SkillMetadata, SkillSource, SkillFrontmatter, SkillContent } from "./types";
+
+// Skill directory configurations
+interface SkillLocation {
+  getPath: (repoPath: string, homeDir: string) => string;
+  source: SkillSource;
+  isLegacy: boolean;
+}
+
+const SKILL_LOCATIONS: SkillLocation[] = [
+  // Priority order: project > mort > personal
+  { getPath: (repo) => `${repo}/.claude/skills`, source: 'project', isLegacy: false },
+  { getPath: (repo) => `${repo}/.claude/commands`, source: 'project_command', isLegacy: true },
+  { getPath: (_, home) => `${home}/.mort/skills`, source: 'mort', isLegacy: false },
+  { getPath: (_, home) => `${home}/.claude/skills`, source: 'personal', isLegacy: false },
+  { getPath: (_, home) => `${home}/.claude/commands`, source: 'personal_command', isLegacy: true },
+];
+
+/**
+ * SkillsService - single implementation with injected filesystem adapter.
+ *
+ * Usage:
+ *   // In frontend (Tauri)
+ *   const service = new SkillsService(new TauriFilesystemAdapter());
+ *
+ *   // In agent (Node.js)
+ *   const service = new SkillsService(new NodeFilesystemAdapter());
+ */
+export class SkillsService {
+  private skills: Map<string, SkillMetadata> = new Map();
+  private slugIndex: Map<string, string> = new Map(); // slug -> id
+  private lastDiscoveryPath: string | null = null;
+
+  constructor(private fs: FilesystemAdapter) {}
+
+  /**
+   * Discover all skills from configured locations.
+   */
+  async discover(repoPath: string, homeDir: string): Promise<SkillMetadata[]> {
+    this.skills.clear();
+    this.slugIndex.clear();
+    this.lastDiscoveryPath = repoPath;
+
+    for (const location of SKILL_LOCATIONS) {
+      const dirPath = location.getPath(repoPath, homeDir);
+
+      if (!await this.fs.exists(dirPath)) {
+        continue;
+      }
+
+      try {
+        const entries = await this.fs.listDir(dirPath);
+
+        for (const entry of entries) {
+          let skillPath: string;
+          let slug: string;
+
+          if (location.isLegacy) {
+            // Legacy: single .md files
+            if (!entry.isFile || !entry.name.endsWith('.md')) continue;
+            skillPath = entry.path;
+            slug = entry.name.replace(/\.md$/, '').toLowerCase();
+          } else {
+            // Modern: directories with SKILL.md
+            if (!entry.isDirectory) continue;
+            skillPath = this.fs.joinPath(entry.path, 'SKILL.md');
+            if (!await this.fs.exists(skillPath)) continue;
+            slug = entry.name.toLowerCase();
+          }
+
+          // Skip if we already have this slug from a higher-priority source
+          if (this.slugIndex.has(slug)) continue;
+
+          try {
+            const content = await this.fs.readFile(skillPath);
+            if (!content) continue;
+
+            const { frontmatter } = this.parseFrontmatter(content);
+
+            // Skip non-user-invocable skills
+            if (frontmatter['user-invocable'] === false) continue;
+
+            const id = crypto.randomUUID();
+            this.slugIndex.set(slug, id);
+
+            const skill: SkillMetadata = {
+              id,
+              slug,
+              name: frontmatter.name || slug,
+              description: frontmatter.description || '',
+              source: location.source,
+              path: skillPath,
+              isLegacyCommand: location.isLegacy,
+              userInvocable: frontmatter['user-invocable'] !== false,
+              disableModelInvocation: frontmatter['disable-model-invocation'] === true,
+            };
+
+            this.skills.set(id, skill);
+          } catch {
+            // Skip malformed skills
+          }
+        }
+      } catch {
+        // Skip inaccessible directories
+      }
+    }
+
+    return this.getAll();
+  }
+
+  /**
+   * Get skill by ID.
+   */
+  getById(id: string): SkillMetadata | undefined {
+    return this.skills.get(id);
+  }
+
+  /**
+   * Get skill by slug.
+   */
+  getBySlug(slug: string): SkillMetadata | undefined {
+    const id = this.slugIndex.get(slug.toLowerCase());
+    return id ? this.skills.get(id) : undefined;
+  }
+
+  /**
+   * Get all discovered skills, sorted by priority then name.
+   */
+  getAll(): SkillMetadata[] {
+    const order: Record<SkillSource, number> = {
+      project: 0,
+      project_command: 1,
+      mort: 2,
+      personal: 3,
+      personal_command: 4,
+    };
+    return Array.from(this.skills.values())
+      .filter(s => s.userInvocable)
+      .sort((a, b) => order[a.source] - order[b.source] || a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Search skills by query (matches name and description).
+   */
+  search(query: string): SkillMetadata[] {
+    const q = query.toLowerCase();
+    return this.getAll().filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.description.toLowerCase().includes(q)
+    );
+  }
+
+  /**
+   * Read full skill content from disk.
+   */
+  async readContent(slug: string): Promise<SkillContent | null> {
+    const skill = this.getBySlug(slug);
+    if (!skill) return null;
+
+    const raw = await this.fs.readFile(skill.path);
+    if (!raw) return null;
+
+    const { body } = this.parseFrontmatter(raw);
+    return { content: body, source: skill.source };
+  }
+
+  /**
+   * Check if rediscovery is needed (repo changed).
+   */
+  needsRediscovery(repoPath: string): boolean {
+    return this.lastDiscoveryPath !== repoPath;
+  }
+
+  private parseFrontmatter(content: string): { frontmatter: SkillFrontmatter; body: string } {
+    if (!content.startsWith('---')) {
+      return { frontmatter: {}, body: content };
+    }
+
+    const endIndex = content.indexOf('---', 3);
+    if (endIndex === -1) {
+      return { frontmatter: {}, body: content };
+    }
+
+    const yamlContent = content.slice(3, endIndex).trim();
+    const body = content.slice(endIndex + 3).trim();
+
+    const frontmatter: SkillFrontmatter = {};
+    for (const line of yamlContent.split('\n')) {
+      const match = line.match(/^([^:]+):\s*(.*)$/);
+      if (match) {
+        const [, key, value] = match;
+        const cleanKey = key.trim();
+        const cleanValue = value.trim().replace(/^["']|["']$/g, '');
+
+        if (cleanKey === 'name') frontmatter.name = cleanValue;
+        else if (cleanKey === 'description') frontmatter.description = cleanValue;
+        else if (cleanKey === 'user-invocable') frontmatter['user-invocable'] = cleanValue !== 'false';
+        else if (cleanKey === 'disable-model-invocation') frontmatter['disable-model-invocation'] = cleanValue === 'true';
+      }
+    }
+
+    return { frontmatter, body };
+  }
+}
+```
+
+#### 3.5 Instantiation in Different Environments
+
+**Frontend (Tauri)** - `src/lib/skills-service-instance.ts`:
+
+```typescript
+import { SkillsService } from "@core/lib/skills/skills-service";
+import { TauriFilesystemAdapter } from "@/adapters/tauri-filesystem-adapter";
+
+// Single instance for the frontend, using Tauri's filesystem
+export const skillsService = new SkillsService(new TauriFilesystemAdapter());
+```
+
+**Agent (Node.js)** - `agents/src/lib/skills-service-instance.ts`:
+
+```typescript
+import { SkillsService } from "@core/lib/skills/skills-service";
+import { NodeFilesystemAdapter } from "@core/adapters/node/filesystem-adapter";
+
+// Single instance for agents, using Node's fs module
+export const skillsService = new SkillsService(new NodeFilesystemAdapter());
+```
+
+Both use the **exact same `SkillsService` class** - only the adapter differs.
 ```
 
 #### 3.4 Skill Injection Logic
@@ -1324,12 +1604,15 @@ Run the production build command for this project. Handle any errors gracefully.
 
 | File | Purpose | Changes |
 |------|---------|---------|
-| `core/adapters/types.ts` | Adapter interfaces | Add `SkillsAdapter` interface |
-| `core/adapters/node/skills-adapter.ts` | **NEW** | Node.js skills adapter (uses `fs` module) |
-| `src/adapters/tauri-skills-adapter.ts` | **NEW** | Tauri skills adapter (uses `FilesystemClient`) |
-| `agents/src/lib/skills/inject-skill.ts` | **NEW** | Shared skill parsing and injection logic |
-| `agents/src/lib/skills/types.ts` | **NEW** | SkillContent, SkillMatch types |
-| `agents/src/runners/shared.ts` | Agent runner | Call `processMessageWithSkills()`, use existing `systemPrompt.append` |
+| `core/services/fs-adapter.ts` | Existing FS adapter interface | Add `listDirWithMetadata()` and `joinPath()` methods |
+| `core/adapters/node/fs-adapter.ts` | Existing Node adapter | Add new method implementations |
+| `src/adapters/tauri-fs-adapter.ts` | Existing Tauri adapter | Add new method implementations (delegates to `FilesystemClient`) |
+| `core/lib/skills/skills-service.ts` | **NEW** | **Single SkillsService class** - all business logic, accepts FSAdapter |
+| `core/lib/skills/types.ts` | **NEW** | SkillMetadata, SkillContent, SkillFrontmatter types |
+| `src/lib/skills-service-instance.ts` | **NEW** | Frontend instance: `new SkillsService(tauriFsAdapter)` |
+| `agents/src/lib/skills-service-instance.ts` | **NEW** | Agent instance: `new SkillsService(nodeFsAdapter)` |
+| `agents/src/lib/skills/inject-skill.ts` | **NEW** | Skill parsing and injection logic |
+| `agents/src/runners/shared.ts` | Agent runner | Call `processMessageWithSkills()`, use shared `skillsService` |
 
 ### Phase 4: UI Display
 

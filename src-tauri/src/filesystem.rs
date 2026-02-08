@@ -3,21 +3,9 @@
 //! Provides low-level file and directory operations for use by TypeScript clients.
 //! Keeps Rust thin - business logic stays in TypeScript.
 
-use crate::paths;
 use crate::shell;
-use serde::Serialize;
 use std::fs;
 use std::path::Path;
-
-/// Directory entry metadata returned by list_dir
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DirEntry {
-    pub name: String,
-    pub path: String,
-    pub is_directory: bool,
-    pub is_file: bool,
-}
 
 /// Writes text content to a file, creating parent directories if needed
 #[tauri::command]
@@ -66,29 +54,6 @@ pub fn fs_remove(path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn fs_remove_dir_all(path: String) -> Result<(), String> {
     fs::remove_dir_all(&path).map_err(|e| format!("Failed to remove directory: {}", e))
-}
-
-/// Lists directory contents with metadata
-#[tauri::command]
-pub fn fs_list_dir(path: String) -> Result<Vec<DirEntry>, String> {
-    let entries = fs::read_dir(&path).map_err(|e| format!("Failed to read directory: {}", e))?;
-
-    let mut result = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-        let metadata = entry
-            .metadata()
-            .map_err(|e| format!("Failed to read metadata: {}", e))?;
-
-        result.push(DirEntry {
-            name: entry.file_name().to_string_lossy().to_string(),
-            path: entry.path().to_string_lossy().to_string(),
-            is_directory: metadata.is_dir(),
-            is_file: metadata.is_file(),
-        });
-    }
-
-    Ok(result)
 }
 
 /// Moves or renames a file or directory
@@ -178,13 +143,6 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Checks if a directory is a git repository
-#[tauri::command]
-pub fn fs_is_git_repo(path: String) -> bool {
-    let git_dir = Path::new(&path).join(".git");
-    git_dir.exists()
-}
-
 /// Creates a git worktree at the specified path.
 /// Much faster than copying for git repositories - shares the .git directory.
 #[tauri::command]
@@ -237,60 +195,4 @@ pub fn fs_git_worktree_remove(repo_path: String, worktree_path: String) -> Resul
     }
 
     Ok(())
-}
-
-/// Lists all repository names in the data_dir/repositories directory.
-/// Returns an empty list if the directory doesn't exist.
-#[tauri::command]
-pub fn list_repositories() -> Result<Vec<String>, String> {
-    let repos_dir = paths::repositories_dir();
-
-    if !repos_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let mut repos = Vec::new();
-    for entry in fs::read_dir(repos_dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        if entry.file_type().map_or(false, |t| t.is_dir()) {
-            if let Some(name) = entry.file_name().to_str() {
-                repos.push(name.to_string());
-            }
-        }
-    }
-
-    Ok(repos)
-}
-
-/// Deletes a git branch from a repository (force delete).
-#[tauri::command]
-pub fn delete_git_branch(repo_path: String, branch: String) -> Result<(), String> {
-    let output = shell::command("git")
-        .args(["-C", &repo_path, "branch", "-D", &branch])
-        .output()
-        .map_err(|e| e.to_string())?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("git branch -D failed: {}", stderr));
-    }
-
-    Ok(())
-}
-
-/// Lists all mort/* branches in a repository.
-#[tauri::command]
-pub fn list_mort_branches(repo_path: String) -> Result<Vec<String>, String> {
-    let output = shell::command("git")
-        .args(["-C", &repo_path, "branch", "--list", "mort/*"])
-        .output()
-        .map_err(|e| e.to_string())?;
-
-    let branches: Vec<String> = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(|s| s.trim().trim_start_matches("* ").to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    Ok(branches)
 }

@@ -82,10 +82,6 @@ vi.mock("@/lib/utils/thread-diff-generator", () => ({
       oldPath: fc.oldPath,
     }));
   }),
-  extractChangedFilePaths: vi.fn().mockImplementation((fileChanges) => {
-    if (!fileChanges) return [];
-    return fileChanges.map((fc: { path: string }) => fc.path);
-  }),
 }));
 
 // Real test data matching a thread at /Users/zac/.mort-dev/threads/

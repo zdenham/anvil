@@ -10,6 +10,7 @@ import type {
   ThreadState,
   ToolExecutionState,
 } from "@core/types/events.js";
+import type { HubClient } from "./lib/hub/index.js";
 
 /**
  * Normalize a file path to be relative to the working directory.
@@ -39,6 +40,23 @@ export type { FileChange, ResultMetrics, ThreadState, ToolExecutionState };
 let statePath: string;
 let state: ThreadState;
 let threadWriter: ThreadWriter | null = null;
+let hubClient: HubClient | null = null;
+
+/**
+ * Set the hub client for socket-based communication.
+ * Called from runner.ts after connecting to the AgentHub.
+ */
+export function setHubClient(client: HubClient): void {
+  hubClient = client;
+}
+
+/**
+ * Get the current hub client for socket-based communication.
+ * Returns null if not connected.
+ */
+export function getHubClient(): HubClient | null {
+  return hubClient;
+}
 
 /**
  * Initialize state with thread path, working directory, optional prior state, and ThreadWriter.
@@ -74,11 +92,15 @@ export async function initState(
 }
 
 /**
- * Emit current state to stdout and write to file.
+ * Emit current state to socket and write to file.
  * Each emission is a complete state snapshot.
  *
- * IMPORTANT: Disk write completes BEFORE stdout emit (disk-as-truth pattern).
+ * IMPORTANT: Disk write completes BEFORE socket emit (disk-as-truth pattern).
  * This ensures UI can safely read from disk when it receives the event signal.
+ *
+ * NOTE: State is ONLY emitted via socket. Agents must connect to the AgentHub
+ * to communicate with the frontend. The stdout fallback has been removed as
+ * part of the socket IPC migration (see plans/socket-ipc/06-cleanup-migration.md).
  */
 export async function emitState(): Promise<void> {
   state.timestamp = Date.now();
@@ -105,8 +127,12 @@ export async function emitState(): Promise<void> {
     writeFileSync(statePath, JSON.stringify(payload, null, 2));
   }
 
-  // THEN emit to stdout (UI can now safely read from disk)
-  stdout({ type: "state", state: payload });
+  // Emit via socket (socket connection is required for state updates)
+  if (hubClient?.isConnected) {
+    hubClient.sendState(payload);
+  } else {
+    logger.debug(`[output] Not connected to hub, state written to disk only`);
+  }
 }
 
 /**
@@ -237,13 +263,54 @@ function markOrphanedToolsAsError(): void {
 }
 
 /**
+ * Extract final result text from the last assistant message.
+ * Used to emit a clean result for bash-based sub-agents.
+ */
+function extractFinalResultText(): string | null {
+  // Find the last assistant message
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    const msg = state.messages[i];
+    if (msg.role === "assistant") {
+      const content = msg.content;
+      // Handle string content
+      if (typeof content === "string") {
+        return content;
+      }
+      // Handle array content - extract text blocks
+      if (Array.isArray(content)) {
+        const textBlocks = content
+          .filter((block): block is { type: "text"; text: string } =>
+            typeof block === "object" && block !== null && "type" in block && block.type === "text" && "text" in block
+          )
+          .map(block => block.text);
+        if (textBlocks.length > 0) {
+          return textBlocks.join("\n");
+        }
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
  * Mark the thread as complete with metrics.
+ * Also emits a SUBAGENT_RESULT marker with just the final text for easy parsing.
  */
 export async function complete(metrics: ResultMetrics): Promise<void> {
   markOrphanedToolsAsError();
   state.metrics = metrics;
   state.status = "complete";
   await emitState();
+
+  // Emit final result marker for bash-based sub-agent consumption
+  const finalText = extractFinalResultText();
+  if (finalText) {
+    stdout({
+      type: "subagent_result",
+      text: finalText,
+    });
+  }
 }
 
 /**
@@ -290,17 +357,20 @@ export function getSessionId(): string | undefined {
 }
 
 /**
- * Parse tool output for event protocol messages and relay them to stdout.
+ * Parse tool output for event protocol messages and relay them via socket.
  *
  * CLI tools (like `mort request-human`) can emit events by outputting JSON lines
  * in the format: {"type":"event","name":"<event-name>","payload":{...}}
  *
  * These events are captured by the bash tool as part of the tool result,
  * but wouldn't normally reach the frontend. This function parses the output,
- * extracts any event protocol lines, and re-emits them via the runner's stdout
+ * extracts any event protocol lines, and re-emits them via the socket
  * so the frontend can receive them.
  *
  * Uses Zod validation to ensure event messages conform to the expected schema.
+ *
+ * NOTE: Events are ONLY emitted via socket. The stdout fallback has been removed
+ * as part of the socket IPC migration (see plans/socket-ipc/06-cleanup-migration.md).
  *
  * @param toolOutput - The raw output from a tool execution
  */
@@ -317,9 +387,13 @@ export function relayEventsFromToolOutput(toolOutput: string): void {
       // Validate with Zod schema
       const result = ToolEventSchema.safeParse(parsed);
       if (result.success) {
-        // Re-emit the event to runner's stdout so frontend receives it
+        // Re-emit the event via socket so frontend receives it
         logger.debug(`[output] Relaying event from tool output: ${result.data.name}`);
-        stdout(result.data);
+        if (hubClient?.isConnected) {
+          hubClient.sendEvent(result.data.name, result.data.payload);
+        } else {
+          logger.debug(`[output] Not connected to hub, event not relayed: ${result.data.name}`);
+        }
       }
     } catch {
       // Not valid JSON, skip this line

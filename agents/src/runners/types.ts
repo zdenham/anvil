@@ -22,6 +22,8 @@ export interface RunnerConfig {
   appendedPrompt?: string;
   /** Additional environment variables to set */
   env?: Record<string, string>;
+  /** Parent thread ID - for sub-agents spawned via bash */
+  parentThreadId?: string;
 }
 
 /**

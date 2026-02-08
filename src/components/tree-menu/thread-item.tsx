@@ -101,11 +101,12 @@ export function ThreadItem({
   };
 
   const handleClick = async () => {
-    onSelect(item.id, "thread");
-    // For folders: clicking the row expands (but doesn't collapse)
-    // Only the chevron can collapse
-    if (item.isFolder && !item.isExpanded) {
-      await treeMenuService.expandSection(`thread:${item.id}`);
+    if (isSelected && item.isFolder) {
+      // Already selected - toggle expansion
+      await treeMenuService.toggleSection(`thread:${item.id}`);
+    } else {
+      // Not selected - just select
+      onSelect(item.id, "thread");
     }
   };
 
@@ -208,8 +209,8 @@ export function ThreadItem({
             : "text-surface-300 hover:bg-accent-500/10"
         )}
       >
-        {/* Folder toggle chevron or status dot - both use same fixed width */}
-        {item.isFolder ? (
+        {/* Folder toggle chevron (when selected) or status dot - both use same fixed width */}
+        {item.isFolder && isSelected ? (
           <button
             type="button"
             className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"

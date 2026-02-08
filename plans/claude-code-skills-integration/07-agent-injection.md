@@ -4,10 +4,11 @@
 
 Implement system prompt injection at the agent level. When a user message contains `/skill-name`, the agent reads the skill from disk and appends instructions to the system prompt. This happens in the agent runner, not the frontend.
 
+**Key**: The agent uses the **same `SkillsService` class** as the frontend (from plan 03), just with a different adapter injected. NO duplicate discovery/parsing logic.
+
 ## Phases
 
-- [ ] Create Node.js skills adapter
-- [ ] Create shared skill injection logic
+- [ ] Create skill injection logic
 - [ ] Integrate with agent runner
 - [ ] Handle multi-skill messages
 
@@ -16,11 +17,13 @@ Implement system prompt injection at the agent level. When a user message contai
 ## Dependencies
 
 - **01-types-foundation** - Needs:
-  - Adapter interfaces (`SkillsAdapter` from `@core/adapters/types`)
-  - Skill types (`SkillSource`, `SkillReference`, `SkillMetadata`, etc. from `@core/types/skills`)
+  - Skill types (`SkillSource`, `SkillContent`, etc. from `@core/types/skills`)
   - Shared utilities (`extractSkillMatches`, `stripFrontmatter` from `@core/skills`)
+- **03-skills-service** - Needs:
+  - `SkillsService` class (the single implementation)
+  - `skillsService` instance for agents (uses Node adapter)
 
-**Note**: This plan can run in parallel with 02, 03, 04, 05, 06 since it only needs the types and utilities from 01.
+**Note**: This plan depends on 03 for the SkillsService. It does NOT create its own discovery logic.
 
 ---
 
@@ -28,166 +31,17 @@ Implement system prompt injection at the agent level. When a user message contai
 
 | File | Action |
 |------|--------|
-| `core/adapters/node/skills-adapter.ts` | **CREATE** |
-| `agents/src/lib/skills/inject-skill.ts` | **CREATE** |
-| `agents/src/lib/skills/index.ts` | **CREATE** |
+| `agents/src/lib/skills/inject-skill.ts` | **CREATE** - Skill injection logic |
+| `agents/src/lib/skills/index.ts` | **CREATE** - Exports |
 | `agents/src/runners/shared.ts` | **MODIFY** - Integrate skill injection |
 
-> **Note**: Types are NOT defined here. All types are imported from `@core/types/skills` (defined canonically in plan 01). This ensures proper dependency direction where `agents` depends on `core`, not the other way around.
+> **Note**: We do NOT create a separate adapter here. The agent uses `SkillsService` from `core/lib/skills/skills-service.ts` with `NodeFileSystemAdapter` injected (instantiated in `agents/src/lib/skills-service-instance.ts` per plan 03).
 
 ---
 
 ## Implementation
 
-### 1. Node.js Skills Adapter
-
-Create `core/adapters/node/skills-adapter.ts`:
-
-```typescript
-import * as fs from "fs";
-import * as path from "path";
-import type { SkillSource, SkillReference, SkillMetadata } from "@core/types/skills";
-import type { SkillsAdapter } from "@core/adapters/types";
-
-interface SkillLocation {
-  getPath: (repoPath: string, homeDir: string) => string;
-  source: SkillSource;
-  isLegacy: boolean;
-}
-
-import { SOURCE_PRIORITY } from "@core/skills";
-
-// SKILL_LOCATIONS order MUST match SOURCE_PRIORITY from @core/skills/constants
-// This ensures consistent priority ordering across frontend and agent.
-const SKILL_LOCATIONS: SkillLocation[] = [
-  { getPath: (repo) => path.join(repo, ".claude", "skills"), source: "project", isLegacy: false },
-  { getPath: (repo) => path.join(repo, ".claude", "commands"), source: "project_command", isLegacy: true },
-  { getPath: (_, home) => path.join(home, ".mort", "skills"), source: "mort", isLegacy: false },
-  { getPath: (_, home) => path.join(home, ".claude", "skills"), source: "personal", isLegacy: false },
-  { getPath: (_, home) => path.join(home, ".claude", "commands"), source: "personal_command", isLegacy: true },
-];
-
-// Runtime verification that SKILL_LOCATIONS order matches SOURCE_PRIORITY
-if (process.env.NODE_ENV !== 'production') {
-  const locationSources = SKILL_LOCATIONS.map(l => l.source);
-  const mismatch = locationSources.some((s, i) => s !== SOURCE_PRIORITY[i]);
-  if (mismatch) {
-    console.warn('[NodeSkillsAdapter] SKILL_LOCATIONS order does not match SOURCE_PRIORITY');
-  }
-}
-
-/**
- * Node.js implementation of SkillsAdapter.
- *
- * This adapter implements the SkillsAdapter interface for use in the agent runner.
- * It uses synchronous fs operations internally but exposes async methods for
- * interface consistency.
- *
- * Primary use case: `findBySlug()` for skill injection in agent runner.
- * The `discover()` method is implemented for interface compliance but the frontend
- * service (plan 03) uses its own implementation with FilesystemClient.
- */
-export class NodeSkillsAdapter implements SkillsAdapter {
-  /**
-   * Discover all skills from configured locations.
-   * Note: The frontend service (plan 03) uses FilesystemClient for this.
-   * This implementation is provided for interface compliance.
-   */
-  async discover(_repoPath: string, _homeDir: string): Promise<SkillMetadata[]> {
-    // This adapter is primarily used for findBySlug in the agent.
-    // Full discovery with metadata parsing is handled by the frontend service.
-    // Throwing here to make it clear this shouldn't be used.
-    throw new Error(
-      "NodeSkillsAdapter.discover() is not implemented. " +
-      "Use the frontend skillsService.discover() for full discovery."
-    );
-  }
-
-  /**
-   * Find a skill by slug across all locations.
-   * Returns first match (respects priority order).
-   * Note: Uses SkillReference (subset of SkillMetadata) since only slug, path, and source
-   * are needed for agent injection.
-   */
-  async findBySlug(slug: string, repoPath: string, homeDir: string): Promise<SkillReference | null> {
-    const normalizedSlug = slug.toLowerCase();
-
-    for (const location of SKILL_LOCATIONS) {
-      const dirPath = location.getPath(repoPath, homeDir);
-
-      if (!fs.existsSync(dirPath)) continue;
-
-      try {
-        if (location.isLegacy) {
-          // Legacy: <dir>/<slug>.md
-          const filePath = path.join(dirPath, `${normalizedSlug}.md`);
-          if (fs.existsSync(filePath)) {
-            return { slug: normalizedSlug, path: filePath, source: location.source };
-          }
-        } else {
-          // Modern: <dir>/<slug>/SKILL.md
-          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-          for (const entry of entries) {
-            if (entry.isDirectory() && entry.name.toLowerCase() === normalizedSlug) {
-              const skillPath = path.join(dirPath, entry.name, "SKILL.md");
-              if (fs.existsSync(skillPath)) {
-                return { slug: normalizedSlug, path: skillPath, source: location.source };
-              }
-            }
-          }
-        }
-      } catch {
-        // Skip on error
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Read skill content from disk.
-   */
-  async readContent(skillPath: string): Promise<string | null> {
-    try {
-      return fs.readFileSync(skillPath, "utf-8");
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Check if a path exists.
-   */
-  async exists(filePath: string): Promise<boolean> {
-    return fs.existsSync(filePath);
-  }
-
-  /**
-   * List directory contents.
-   */
-  async listDir(dirPath: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> {
-    try {
-      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-      return entries.map(entry => ({
-        name: entry.name,
-        path: path.join(dirPath, entry.name),
-        isDirectory: entry.isDirectory(),
-      }));
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Join path segments.
-   */
-  joinPath(...segments: string[]): string {
-    return path.join(...segments);
-  }
-}
-```
-
-### 2. Skill Injection Logic
+### 1. Skill Injection Logic
 
 Create `agents/src/lib/skills/inject-skill.ts`:
 
@@ -272,7 +126,7 @@ export async function processMessageWithSkills(
 }
 ```
 
-### 3. Index Export
+### 2. Index Export
 
 Create `agents/src/lib/skills/index.ts`:
 
@@ -283,44 +137,34 @@ export type {
   SkillContent,
   SkillMatch,
   SkillInjection,
-  SkillReference,
 } from "@core/types/skills";
 
 // Export skill processing functions
 export { extractSkillMatches, buildSkillInstruction, processMessageWithSkills } from "./inject-skill";
+
+// Export the service instance for agent use
+export { skillsService } from "../skills-service-instance";
 ```
 
-### 4. Agent Runner Integration
+### 3. Agent Runner Integration
 
 Update `agents/src/runners/shared.ts`:
 
 ```typescript
 import * as os from "os";
-import { processMessageWithSkills } from "../lib/skills";
-import { stripFrontmatter } from "@core/skills";
-import { NodeSkillsAdapter } from "@core/adapters/node/skills-adapter";
+import { processMessageWithSkills, skillsService } from "../lib/skills";
 
 // In runAgentLoop(), after receiving user message:
 
-const skillsAdapter = new NodeSkillsAdapter();
+// Ensure skills are discovered for this repo
+if (skillsService.needsRediscovery(context.workingDir)) {
+  await skillsService.discover(context.workingDir, os.homedir());
+}
 
 const skillInjection = await processMessageWithSkills(
   userMessage,
-  async (slug) => {
-    const skill = await skillsAdapter.findBySlug(slug, context.workingDir, os.homedir());
-    if (!skill) return null;
-
-    const rawContent = await skillsAdapter.readContent(skill.path);
-    if (!rawContent) return null;
-
-    // Strip frontmatter using shared utility from core
-    const body = stripFrontmatter(rawContent);
-
-    return {
-      content: body,
-      source: skill.source,
-    };
-  }
+  // Uses the same SkillsService as frontend - no duplicate logic
+  (slug) => skillsService.readContent(slug)
 );
 
 // Log found skills
@@ -370,6 +214,7 @@ query({
 - [ ] `$ARGUMENTS` substituted correctly
 - [ ] Multiple skills in one message all get injected
 - [ ] Missing skills don't cause errors
-- [ ] Frontmatter stripped from skill content
-- [ ] Project skills have priority over personal
+- [ ] Frontmatter stripped from skill content (handled by SkillsService.readContent)
+- [ ] Project skills have priority over personal (handled by SkillsService.discover)
 - [ ] Skill injection logged for debugging
+- [ ] Uses shared SkillsService - NO duplicate discovery/parsing logic

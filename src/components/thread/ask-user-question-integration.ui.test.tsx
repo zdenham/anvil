@@ -8,9 +8,6 @@ vi.mock("@/lib/logger-client", () => ({
   logger: { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock("@/services/agent-service", () => ({
-  submitToolResult: vi.fn().mockResolvedValue(undefined),
-}));
 
 // Helper to create tool use messages
 const createToolUseMessage = (

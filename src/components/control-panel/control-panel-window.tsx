@@ -6,7 +6,6 @@ import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
 import {
   resumeSimpleAgent,
-  submitToolResult,
   sendQueuedMessage,
 } from "@/lib/agent-service";
 import { ControlPanelHeader } from "./control-panel-header";
@@ -628,20 +627,6 @@ function ControlPanelWindowContent({
     return () => container.removeEventListener("keydown", handleKeyDown);
   }, [selectedIndex, isStreaming, showFollowUpInput, navigateUp, navigateDown, setSelectedIndex, setShowFollowUpInput, setFollowUpValue, handleQuickAction]);
 
-  const handleToolResponse = useCallback(async (toolId: string, response: string) => {
-    if (!workingDirectory) {
-      logger.error("[ControlPanelWindow] Cannot respond: no working directory");
-      return;
-    }
-
-    try {
-      await submitToolResult(threadId, toolId, response, workingDirectory);
-    } catch (error) {
-      logger.error("[ControlPanelWindow] Failed to submit tool response", { error, toolId });
-      throw error;
-    }
-  }, [threadId, workingDirectory]);
-
 
   const handleAutoSelectInput = useCallback(() => {
     inputRef.current?.focus();
@@ -693,7 +678,6 @@ function ControlPanelWindowContent({
               isStreaming={isStreaming}
               status={viewStatus}
               toolStates={toolStates}
-              onToolResponse={handleToolResponse}
             />
           )}
 

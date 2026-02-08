@@ -71,7 +71,7 @@ function buildSectionItems(
     const children = childThreadsMap.get(thread.id) || [];
     const isFolder = children.length > 0;
     // Use "thread:threadId" key convention for folder expand state
-    const isExpanded = expandedSections[`thread:${thread.id}`] ?? true; // Default expanded
+    const isExpanded = expandedSections[`thread:${thread.id}`] ?? false; // Default collapsed
 
     items.push({
       type: "thread" as const,
@@ -105,7 +105,7 @@ function buildSectionItems(
     const children = planChildrenMap.get(plan.id) || [];
     const isFolder = children.length > 0;
     // Use "plan:planId" key convention for folder expand state
-    const isExpanded = expandedSections[`plan:${plan.id}`] ?? true; // Default expanded
+    const isExpanded = expandedSections[`plan:${plan.id}`] ?? false; // Default collapsed
 
     // Determine if any thread related to this plan is running
     const relations = relationService.getByPlan(plan.id);

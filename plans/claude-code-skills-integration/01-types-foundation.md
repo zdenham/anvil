@@ -18,7 +18,7 @@ Define all TypeScript types for the skills system. This includes both the fronte
 |------|--------|
 | `core/types/skills.ts` | **CREATE** - Canonical type definitions |
 | `src/entities/skills/types.ts` | **CREATE** - Re-exports from @core/types/skills |
-| `core/adapters/types.ts` | **MODIFY** - Add SkillsAdapter |
+| `core/adapters/types.ts` | **MODIFY** - Add FilesystemAdapter |
 
 > **Architecture Note**: Types are defined canonically in `core/types/skills.ts` to ensure proper dependency direction. The `core` package has no dependencies on other packages, while `agents` and `src` can import from `core`. The frontend re-exports from `src/entities/skills/types.ts` for convenience.
 
@@ -126,50 +126,34 @@ export type {
 } from '@core/types/skills';
 ```
 
-### 3. Adapter Interface
+### 3. Filesystem Adapter Interface
 
 Add to `core/adapters/types.ts`:
 
 ```typescript
-import type { SkillMetadata, SkillReference } from '@core/types/skills';
-
 /**
- * Skills adapter interface for filesystem operations.
+ * Low-level filesystem operations adapter.
  *
- * Implementations may implement one or both of the discovery methods depending on use case:
- * - Frontend service (03): Uses `discover()` for full discovery and store hydration
- * - Agent runner (07): Uses `findBySlug()` for single skill lookup during injection
+ * This interface defines ONLY filesystem primitives. High-level business logic
+ * (discovery, parsing, priority ordering) belongs in SkillsService, which
+ * accepts this adapter as a dependency.
+ *
+ * Pattern:
+ *   SkillsService (one implementation, all business logic)
+ *       └── depends on FilesystemAdapter (interface)
+ *              ├── NodeFilesystemAdapter (Node.js fs)
+ *              └── TauriFilesystemAdapter (Tauri IPC)
  *
  * All methods are async for consistency, even if the underlying implementation
  * uses synchronous operations (e.g., Node.js fs).
  */
-export interface SkillsAdapter {
+export interface FilesystemAdapter {
   /**
-   * Discover all skills from configured locations.
-   * Used by the frontend service to hydrate the skills store.
-   * @param repoPath - The repository path for project-level skills
-   * @param homeDir - The user's home directory for personal skills
-   * @returns All discovered skills (respects priority ordering)
+   * Read file content as string.
+   * @param filePath - Absolute path to file
+   * @returns File content or null if not found/unreadable
    */
-  discover(repoPath: string, homeDir: string): Promise<SkillMetadata[]>;
-
-  /**
-   * Find a single skill by its slug across all locations.
-   * Used by the agent runner for skill injection.
-   * Returns the first match respecting priority order (project > mort > personal).
-   * @param slug - The skill slug (case-insensitive)
-   * @param repoPath - The repository path for project-level skills
-   * @param homeDir - The user's home directory for personal skills
-   * @returns The skill reference if found, null otherwise
-   */
-  findBySlug(slug: string, repoPath: string, homeDir: string): Promise<SkillReference | null>;
-
-  /**
-   * Read full content of a skill by its path.
-   * @param skillPath - Absolute path to SKILL.md or command.md
-   * @returns The raw file content, or null if not found
-   */
-  readContent(skillPath: string): Promise<string | null>;
+  readFile(filePath: string): Promise<string | null>;
 
   /**
    * Check if a path exists.
@@ -179,7 +163,7 @@ export interface SkillsAdapter {
   /**
    * List directory contents.
    */
-  listDir(path: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>>;
+  listDir(path: string): Promise<Array<{ name: string; path: string; isDirectory: boolean; isFile: boolean }>>;
 
   /**
    * Join path segments.
@@ -465,7 +449,7 @@ export { extractSkillMatches } from './extract-matches';
 
 - [ ] Canonical types defined in `core/types/skills.ts`: `SkillMetadata`, `SkillReference`, `SkillSource`, `SkillContent`, `SkillFrontmatter`, `SkillMatch`, `SkillInjection`
 - [ ] `src/entities/skills/types.ts` re-exports from `@core/types/skills`
-- [ ] `SkillsAdapter` interface exists in core/adapters
+- [ ] `FilesystemAdapter` interface exists in core/adapters (low-level FS ops only)
 - [ ] Shared utilities exist in `core/skills/`
 - [ ] `SKILL_PATTERN` regex documented with limitations
 - [ ] `SOURCE_PRIORITY`, `SOURCE_ICONS`, `SOURCE_LABELS` constants defined

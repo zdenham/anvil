@@ -535,7 +535,7 @@ export const Spotlight = () => {
   const activateResult = useCallback(
     async (result: SpotlightResult, options?: { metaKey?: boolean }) => {
       const controller = controllerRef.current;
-      const useNSPanel = options?.metaKey ?? false; // Cmd+Enter = NSPanel, Enter = Main Window
+      const useNSPanel = !(options?.metaKey ?? false); // Enter = NSPanel (default), Cmd+Enter = Main Window
 
       // Handle file selection - insert file path at trigger position
       if (result.type === "file") {
@@ -679,14 +679,16 @@ export const Spotlight = () => {
           logger.error("[spotlight] Failed to open main window:", error);
         }
       } else if (result.type === "action" && result.data.action === "open-threads") {
-        try {
-          logger.info("[spotlight] Opening threads panel...");
-          await controller.hideSpotlight();
-          await invoke("show_threads_panel");
-          logger.info("[spotlight] Threads panel opened");
-        } catch (error) {
-          logger.error("[spotlight] Failed to open threads panel:", error);
-        }
+        // TODO: Implement show_threads_panel Rust command
+        // try {
+        //   logger.info("[spotlight] Opening threads panel...");
+        //   await controller.hideSpotlight();
+        //   await invoke("show_threads_panel");
+        //   logger.info("[spotlight] Threads panel opened");
+        // } catch (error) {
+        //   logger.error("[spotlight] Failed to open threads panel:", error);
+        // }
+        logger.warn("[spotlight] open-threads action not implemented - show_threads_panel command does not exist");
       } else if (result.type === "action" && result.data.action === "refresh") {
         // Full rebuild: agents + rust, then restart app
         logger.info("[spotlight] === REFRESH START ===");

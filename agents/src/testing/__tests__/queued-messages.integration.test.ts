@@ -6,15 +6,31 @@ import { createMockScript, cleanupMockScript, MOCK_LLM_VAR } from '../mock-llm.j
  * Integration tests for queued messages.
  *
  * These tests validate that the agent harness can schedule and send
- * queued messages via stdin during agent execution without crashing.
+ * queued messages during agent execution without crashing.
+ *
+ * ## Socket-Based IPC Migration
+ *
+ * As of the socket-ipc migration, these tests now use socket-based IPC by default:
+ * - The AgentTestHarness creates a MockHubServer with a unique Unix socket
+ * - Queued messages are sent via `mockHub.sendQueuedMessage()` instead of stdin
+ * - Messages are collected from the MockHubServer instead of parsing stdout
+ *
+ * The test interface remains the same (queuedMessages option with delayMs and content),
+ * but the underlying transport has changed from stdin JSON lines to socket messages.
+ *
+ * To use legacy stdin-based IPC for comparison testing, pass `useSocketIpc: false`
+ * to the AgentTestHarness constructor.
  *
  * Note: Testing actual queued message processing requires carefully timed
  * mock scripts that keep the agent alive long enough for messages to arrive.
  * The mock LLM doesn't support dynamic delays, so these tests focus on:
- * 1. Harness correctly formats and sends queued messages
+ * 1. Harness correctly formats and sends queued messages via socket
  * 2. Agent completes successfully with queued message timeouts scheduled
  * 3. Timeouts are cleaned up properly when agent exits early
  * 4. Agent emits queued-message:ack events when processing queued messages
+ *
+ * See: agents/src/testing/mock-hub-server.ts for the MockHubServer implementation
+ * See: agents/src/testing/agent-harness.ts for socket IPC integration
  */
 describe('Queued Messages Integration', () => {
   let harness: AgentTestHarness;
@@ -117,8 +133,9 @@ describe('Queued Messages Integration', () => {
     expect(result.durationMs).toBeLessThan(15000);
   });
 
-  it('sends properly formatted JSON messages via stdin', async () => {
-    // This test verifies the harness sends properly formatted messages
+  it('sends properly formatted JSON messages via socket', async () => {
+    // This test verifies the harness sends properly formatted messages via socket
+    // (Previously tested stdin JSON lines, now tests socket message format)
     // The agent validates the JSON format and ignores invalid messages
     mockScriptPath = createMockScript({
       responses: [
@@ -138,7 +155,7 @@ describe('Queued Messages Integration', () => {
     });
 
     // The main verification is that the harness doesn't crash when sending
-    // queued messages - the JSON format is validated by the agent's stdin parser
+    // queued messages - the JSON format is validated by the agent's HubClient
     expect(result.exitCode).toBe(0);
   });
 

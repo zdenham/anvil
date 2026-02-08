@@ -54,7 +54,6 @@ export interface MockThreadMetadata {
 
 export const mockThreadState = {
   threads: new Map<string, MockThreadMetadata>(),
-  runningProcesses: new Set<string>(),
 };
 
 // ============================================================================
@@ -170,24 +169,8 @@ export const mockInvoke = vi.fn(async (cmd: string, args?: Record<string, unknow
       // No-op in tests
       return;
 
-    // Process commands
-    case "get_runner_path":
-      return "/mock/path/to/runner.js";
-
-    case "spawn_agent_process": {
-      const { threadId } = args as { threadId: string };
-      mockThreadState.runningProcesses.add(threadId);
-      return;
-    }
-
-    case "terminate_agent_process": {
-      const { threadId } = args as { threadId: string };
-      mockThreadState.runningProcesses.delete(threadId);
-      return;
-    }
-
-    case "is_process_running":
-      return mockThreadState.runningProcesses.has(args?.threadId as string);
+    // Process commands removed - we use Tauri shell plugin directly
+    // See agent-service.ts for process management via Command.create().spawn()
 
     // Thread commands
     case "get_thread_status": {
@@ -278,7 +261,6 @@ export function resetAllMocks() {
   mockGitState.defaultBranch = "main";
   mockGitState.worktrees = [];
   mockThreadState.threads.clear();
-  mockThreadState.runningProcesses.clear();
   mockEventListeners.clear();
   capturedLogs.length = 0;
   vi.clearAllMocks();

@@ -204,35 +204,6 @@ export const fsCommands = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Process Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const processCommands = {
-  /**
-   * Get the path to the runner script.
-   */
-  getRunnerPath: () => invoke<string>("get_runner_path"),
-
-  /**
-   * Spawn an agent process.
-   */
-  spawnAgentProcess: (args: string[], threadId: string) =>
-    invoke<void>("spawn_agent_process", { args, threadId }),
-
-  /**
-   * Terminate an agent process.
-   */
-  terminateAgentProcess: (threadId: string) =>
-    invoke<void>("terminate_agent_process", { threadId }),
-
-  /**
-   * Check if a process is still running.
-   */
-  isProcessRunning: (threadId: string) =>
-    invoke<boolean>("is_process_running", { threadId }),
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Thread Commands
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -283,6 +254,28 @@ export const agentCommands = {
    * Returns: ['research', 'execution', 'review', 'merge']
    */
   getAgentTypes: () => invoke<string[]>("get_agent_types"),
+
+  /**
+   * Send a message to a connected agent via the AgentHub socket.
+   * Used for permission responses, cancel signals, and queued messages.
+   *
+   * @param threadId - The thread ID of the agent to send to
+   * @param message - The JSON-stringified message to send
+   */
+  sendToAgent: (threadId: string, message: string) =>
+    invoke<void>("send_to_agent", { threadId, message }),
+
+  /**
+   * List all currently connected agents.
+   * Returns an array of thread IDs.
+   */
+  listConnectedAgents: () => invoke<string[]>("list_connected_agents"),
+
+  /**
+   * Get the socket path for agent connections.
+   * Returns the path to the AgentHub socket (e.g., ~/.mort/agent-hub.sock).
+   */
+  getAgentSocketPath: () => invoke<string>("get_agent_socket_path"),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -391,14 +384,6 @@ export const updateCommands = {
  * Running the login shell may trigger macOS Documents permission prompt
  * if the user's shell config files access ~/Documents.
  */
-/**
- * Show the control panel without setting thread context.
- * The view will be set via eventBus from the frontend.
- */
-export async function showControlPanel(): Promise<void> {
-  await invoke("show_control_panel");
-}
-
 export const shellEnvironmentCommands = {
   /**
    * Initialize shell environment by running the login shell.
