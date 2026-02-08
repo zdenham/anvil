@@ -8,7 +8,6 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { relative, isAbsolute, join, resolve } from "path";
 import { readFileSync, writeFileSync, realpathSync, mkdirSync, existsSync } from "fs";
 import crypto from "crypto";
-import os from "os";
 import { parsePhases } from "../lib/phase-parser.js";
 import type { PhaseInfo } from "@core/types/plans.js";
 import type { RunnerConfig, OrchestrationContext } from "./types.js";
@@ -35,7 +34,6 @@ import { logger } from "../lib/logger.js";
 import { isMockModeEnabled, mockQuery } from "../testing/mock-query.js";
 import { generateThreadName } from "../services/thread-naming-service.js";
 import type { SocketMessageStream } from "../lib/hub/message-stream.js";
-import { processMessageWithSkills, skillsService } from "../lib/skills/index.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -86,8 +84,9 @@ export function emitLog(
 }
 
 /**
- * Emit event via socket (or fallback to stdout).
+ * Emit event via socket.
  * Used for lifecycle events like thread:created.
+ * If hub is not connected, logs a warning and skips (events require socket connection).
  */
 export function emitEvent(
   name: string,
@@ -99,9 +98,7 @@ export function emitEvent(
   if (hub?.isConnected) {
     hub.sendEvent(name, payload);
   } else {
-    // Fallback to stdout for backwards compatibility
-    const jsonLine = JSON.stringify({ type: "event", name, payload });
-    console.log(jsonLine);
+    logger.warn(`[shared] Hub not connected, skipping event: ${name}`);
   }
 }
 
@@ -364,26 +361,6 @@ export async function runAgentLoop(
   // Process plan mentions in the initial prompt (e.g., @plans/my-feature.md)
   await processPlanMentions(config.prompt, persistence, context);
 
-  // Process skill invocations in the user message (e.g., /commit fix bug)
-  // Ensure skills are discovered for this repo
-  if (skillsService.needsRediscovery(context.workingDir)) {
-    await skillsService.discover(context.workingDir, os.homedir());
-    logger.info(`[runner] Discovered ${skillsService.getCount()} skills`);
-  }
-
-  const skillInjection = await processMessageWithSkills(
-    config.prompt,
-    // Uses the same SkillsService as frontend - no duplicate logic
-    (slug) => skillsService.readContent(slug)
-  );
-
-  // Log found skills
-  if (skillInjection.skills.length > 0) {
-    logger.info(`[skills] Found ${skillInjection.skills.length} skill(s):`,
-      skillInjection.skills.map(s => `/${s.slug}`).join(", ")
-    );
-  }
-
   // Build system prompt
   // Import runnerPath dynamically to avoid circular dependency
   const { runnerPath } = await import("../runner.js");
@@ -397,10 +374,7 @@ export async function runAgentLoop(
     parentThreadId: config.parentThreadId,
   });
 
-  // Append skill instructions to system prompt if any skills were found
-  const systemPrompt = skillInjection.systemPromptAppend
-    ? `${baseSystemPrompt}\n\n${skillInjection.systemPromptAppend}`
-    : baseSystemPrompt;
+  const systemPrompt = baseSystemPrompt;
 
   logger.info(
     `[runner] System prompt: ${systemPrompt.length} chars, cwd=${context.workingDir}`
@@ -819,6 +793,7 @@ export async function runAgentLoop(
     logger.info("[runAgentLoop] Using message stream for queued message support");
   } else {
     prompt = config.prompt;
+    logger.info(`[runAgentLoop] Using plain string prompt`);
   }
 
   // Run the agent (real or mock)
@@ -845,6 +820,7 @@ export async function runAgentLoop(
         options: {
           cwd: context.workingDir,
           additionalDirectories: [config.mortDir],
+          settingSources: ["user", "project"],
           model: agentConfig.model ?? "claude-opus-4-6",
           systemPrompt: {
             type: "preset",

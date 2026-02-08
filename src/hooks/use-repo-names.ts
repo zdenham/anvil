@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { loadSettings } from "@/lib/persistence";
+import { loadSettings } from "@/lib/app-data-store";
 import { useRepoStore } from "@/entities/repositories";
 import { logger } from "@/lib/logger-client";
 

@@ -12,7 +12,6 @@ import { ControlPanelHeader } from "./control-panel-header";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
-import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggested-actions-panel";
 import { ChangesTab } from "./changes-tab";
 import { PlanView } from "./plan-view";
 import { logger } from "@/lib/logger-client";
@@ -214,7 +213,6 @@ function ControlPanelWindowContent({
 
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
-  const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasScrolledOnMount = useRef(false);
 
@@ -470,7 +468,7 @@ function ControlPanelWindowContent({
         focusLostDuringWait: focusLostAt !== null,
         focusLostAt,
         inputRefExists: !!inputRef.current,
-        quickActionsPanelRefExists: !!quickActionsPanelRef.current,
+        containerRefExists: !!containerRef.current,
         activeElementBefore: document.activeElement?.tagName,
       });
 
@@ -483,12 +481,8 @@ function ControlPanelWindowContent({
         logger.warn(`[ControlPanelWindow] Failed to invoke focus_control_panel`, { error: e });
       }
 
-      // Focus the quick actions panel to enable keyboard navigation
-      // We prefer the quick actions panel over input so arrow keys work immediately
-      if (quickActionsPanelRef.current) {
-        quickActionsPanelRef.current.focus();
-      } else if (containerRef.current) {
-        // Fallback to container for keyboard nav
+      // Focus the container to enable keyboard navigation
+      if (containerRef.current) {
         containerRef.current.focus();
       } else {
         // Final fallback to input if refs not available
@@ -497,7 +491,7 @@ function ControlPanelWindowContent({
 
       // Log whether focus was successful
       const activeEl = document.activeElement;
-      const focusedQuickActions = activeEl?.closest('[data-quick-actions-panel]') !== null;
+      const focusedContainer = activeEl === containerRef.current;
       const focusedInput = activeEl?.closest('[data-thread-input]') !== null ||
                           activeEl?.tagName === 'TEXTAREA';
 
@@ -506,9 +500,9 @@ function ControlPanelWindowContent({
         documentHasFocus: document.hasFocus(),
         activeElementAfter: document.activeElement?.tagName,
         activeElementId: document.activeElement?.id,
-        focusedQuickActions,
+        focusedContainer,
         focusedInput,
-        focusSucceeded: focusedQuickActions || focusedInput,
+        focusSucceeded: focusedContainer || focusedInput,
       });
 
       // Clean up listeners after restoration completes
@@ -558,13 +552,6 @@ function ControlPanelWindowContent({
     }
   }, [isProcessing, setProcessing, setShowFollowUpInput, threadId, navigateToNextItemOrFallback]);
 
-  // Legacy handler for SuggestedActionsPanel onAction prop
-  const handleSuggestedAction = useCallback(
-    async (action: "markUnread" | "archive") => {
-      await handleQuickAction(action);
-    },
-    [handleQuickAction]
-  );
 
   // Keyboard navigation for quick actions - scoped to control panel container
   useEffect(() => {
@@ -628,19 +615,11 @@ function ControlPanelWindowContent({
   }, [selectedIndex, isStreaming, showFollowUpInput, navigateUp, navigateDown, setSelectedIndex, setShowFollowUpInput, setFollowUpValue, handleQuickAction]);
 
 
-  const handleAutoSelectInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  // Handle focus transfer from ThreadInput to quick actions panel
+  // Handle focus transfer from ThreadInput to container for keyboard nav
   const handleNavigateToQuickActions = useCallback(() => {
     logger.debug(`[ControlPanelWindow] handleNavigateToQuickActions called`);
-    // Expand the quick actions panel if collapsed (user is navigating up)
-    // then focus it so keyboard nav works
-    if (quickActionsPanelRef.current) {
-      quickActionsPanelRef.current.expand();
-      quickActionsPanelRef.current.focus();
-    }
+    // Focus the container so keyboard nav works
+    containerRef.current?.focus();
   }, []);
 
   return (
@@ -693,17 +672,7 @@ function ControlPanelWindowContent({
 
       {/* Quick actions and input - always visible */}
       {/* Max width constraint centered for readability on wide screens */}
-      <div className="w-full max-w-[900px] mx-auto">
-        <SuggestedActionsPanel
-          ref={quickActionsPanelRef}
-          view={{ type: "thread", threadId }}
-          onAction={handleSuggestedAction}
-          onAutoSelectInput={handleAutoSelectInput}
-          isStreaming={isStreaming}
-          onSubmitFollowUp={handleSubmit}
-          onQuickAction={handleQuickAction}
-        />
-        {/* SDK Quick Actions Panel */}
+      <div className="w-full max-w-[900px] mx-auto px-2.5">
         <QuickActionsPanel contextType="thread" />
         {/* Queued messages banner - shows pending messages while agent is running */}
         <QueuedMessagesBanner messages={queuedMessages} />

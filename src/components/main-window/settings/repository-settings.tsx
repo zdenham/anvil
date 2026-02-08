@@ -5,7 +5,7 @@ import { SettingsSection } from "../settings-section";
 import { useRepoStore, repoService, type Repository } from "@/entities/repositories";
 import { worktreeService } from "@/entities/worktrees";
 import { threadService } from "@/entities/threads";
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { repoCommands } from "@/lib/tauri-commands";
 
 interface RepoStatus {
@@ -57,7 +57,7 @@ export function RepositorySettings() {
     // Check if source path exists
     let pathValid = true;
     if (repo.sourcePath) {
-      pathValid = await persistence.absolutePathExists(repo.sourcePath);
+      pathValid = await appData.absolutePathExists(repo.sourcePath);
     }
 
     return { worktreeCount, activeThreads, pathValid };

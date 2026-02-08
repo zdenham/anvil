@@ -2,12 +2,18 @@ import { FilesystemClient, type DirEntry } from "./filesystem-client";
 import { logger } from "./logger-client";
 
 /**
- * Low-level persistence layer for the data directory.
- * All paths are relative to the data directory (e.g., ~/.mort or ~/.mort-dev).
+ * App data store - manages files in the Mort data directory.
  *
- * This is a singleton - use `persistence` export directly.
+ * IMPORTANT: All paths are RELATIVE to the data directory (e.g., ~/.mort or ~/.mort-dev).
+ * This is NOT for accessing arbitrary filesystem paths - use FilesystemClient directly for that.
+ *
+ * Examples:
+ *   appData.readJson("threads/abc/state.json")  // reads ~/.mort/threads/abc/state.json
+ *   appData.exists("repositories/my-repo")       // checks ~/.mort/repositories/my-repo
+ *
+ * This is a singleton - use `appData` export directly.
  */
-class Persistence {
+class AppDataStore {
   private fs = new FilesystemClient();
   private baseDir: string | null = null;
 
@@ -52,12 +58,12 @@ class Persistence {
    */
   async writeJson<T>(path: string, data: T): Promise<void> {
     const fullPath = await this.resolvePath(path);
-    logger.debug(`[persistence.writeJson] path=${path}, fullPath=${fullPath}`);
+    logger.debug(`[appData.writeJson] path=${path}, fullPath=${fullPath}`);
     try {
       await this.fs.writeJsonFile(fullPath, data);
-      logger.debug(`[persistence.writeJson] Successfully wrote to ${fullPath}`);
+      logger.debug(`[appData.writeJson] Successfully wrote to ${fullPath}`);
     } catch (err) {
-      logger.error(`[persistence.writeJson] Failed to write to ${fullPath}:`, err);
+      logger.error(`[appData.writeJson] Failed to write to ${fullPath}:`, err);
       throw err;
     }
   }
@@ -69,16 +75,16 @@ class Persistence {
   async readText(path: string): Promise<string | null> {
     const fullPath = await this.resolvePath(path);
     const exists = await this.fs.exists(fullPath);
-    logger.debug(`[persistence.readText] path=${path}, fullPath=${fullPath}, exists=${exists}`);
+    logger.debug(`[appData.readText] path=${path}, fullPath=${fullPath}, exists=${exists}`);
     if (!exists) {
       return null;
     }
     try {
       const content = await this.fs.readFile(fullPath);
-      logger.debug(`[persistence.readText] Read ${content?.length ?? 0} chars`);
+      logger.debug(`[appData.readText] Read ${content?.length ?? 0} chars`);
       return content;
     } catch (e) {
-      logger.error(`[persistence.readText] Error reading file:`, e);
+      logger.error(`[appData.readText] Error reading file:`, e);
       return null;
     }
   }
@@ -133,12 +139,12 @@ class Persistence {
    */
   async ensureDir(path: string): Promise<void> {
     const fullPath = await this.resolvePath(path);
-    logger.debug(`[persistence.ensureDir] path=${path}, fullPath=${fullPath}`);
+    logger.debug(`[appData.ensureDir] path=${path}, fullPath=${fullPath}`);
     try {
       await this.fs.mkdir(fullPath);
-      logger.debug(`[persistence.ensureDir] Successfully ensured ${fullPath}`);
+      logger.debug(`[appData.ensureDir] Successfully ensured ${fullPath}`);
     } catch (err) {
-      logger.error(`[persistence.ensureDir] Failed to ensure ${fullPath}:`, err);
+      logger.error(`[appData.ensureDir] Failed to ensure ${fullPath}:`, err);
       throw err;
     }
   }
@@ -149,7 +155,7 @@ class Persistence {
   async exists(path: string): Promise<boolean> {
     const fullPath = await this.resolvePath(path);
     const result = await this.fs.exists(fullPath);
-    logger.debug(`[persistence.exists] path=${path}, fullPath=${fullPath}, exists=${result}`);
+    logger.debug(`[appData.exists] path=${path}, fullPath=${fullPath}, exists=${result}`);
     return result;
   }
 
@@ -254,13 +260,13 @@ class Persistence {
    * Checks if an absolute path is a git repository.
    */
   async isGitRepo(absolutePath: string): Promise<boolean> {
-    logger.debug(`[persistence.isGitRepo] Checking: ${absolutePath}`);
+    logger.debug(`[appData.isGitRepo] Checking: ${absolutePath}`);
     try {
       const result = await this.fs.isGitRepo(absolutePath);
-      logger.debug(`[persistence.isGitRepo] ${absolutePath} isGitRepo=${result}`);
+      logger.debug(`[appData.isGitRepo] ${absolutePath} isGitRepo=${result}`);
       return result;
     } catch (err) {
-      logger.error(`[persistence.isGitRepo] Failed to check ${absolutePath}:`, err);
+      logger.error(`[appData.isGitRepo] Failed to check ${absolutePath}:`, err);
       throw err;
     }
   }
@@ -269,13 +275,13 @@ class Persistence {
    * Checks if an absolute path exists.
    */
   async absolutePathExists(absolutePath: string): Promise<boolean> {
-    logger.debug(`[persistence.absolutePathExists] Checking: ${absolutePath}`);
+    logger.debug(`[appData.absolutePathExists] Checking: ${absolutePath}`);
     try {
       const result = await this.fs.exists(absolutePath);
-      logger.debug(`[persistence.absolutePathExists] ${absolutePath} exists=${result}`);
+      logger.debug(`[appData.absolutePathExists] ${absolutePath} exists=${result}`);
       return result;
     } catch (err) {
-      logger.error(`[persistence.absolutePathExists] Failed to check ${absolutePath}:`, err);
+      logger.error(`[appData.absolutePathExists] Failed to check ${absolutePath}:`, err);
       throw err;
     }
   }
@@ -304,8 +310,11 @@ class Persistence {
   }
 }
 
-/** Global persistence instance for data directory operations */
-export const persistence = new Persistence();
+/** Global app data store instance for data directory operations */
+export const appData = new AppDataStore();
+
+// Legacy alias for backwards compatibility during migration
+export const persistence = appData;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Repository Settings helpers
@@ -323,7 +332,7 @@ const REPOS_DIR = "repositories";
 export async function loadSettings(repoName: string): Promise<RepositorySettings> {
   const settingsPath = `${REPOS_DIR}/${repoName}/${SETTINGS_FILE}`;
 
-  const raw = await persistence.readJson(settingsPath);
+  const raw = await appData.readJson(settingsPath);
   if (raw) {
     const result = RepositorySettingsSchema.safeParse(raw);
     if (result.success) {
@@ -348,7 +357,7 @@ export async function saveSettings(
   const settingsPath = `${REPOS_DIR}/${repoName}/${SETTINGS_FILE}`;
   logger.debug(`[saveSettings] Settings path: ${settingsPath}`);
   try {
-    await persistence.writeJson(settingsPath, settings);
+    await appData.writeJson(settingsPath, settings);
     logger.debug(`[saveSettings] Successfully saved settings for ${repoName}`);
   } catch (err) {
     logger.error(`[saveSettings] Failed to save settings for ${repoName}:`, err);
@@ -362,7 +371,7 @@ export async function saveSettings(
 async function migrateFromMetadata(repoName: string): Promise<RepositorySettings> {
   const metadataPath = `${REPOS_DIR}/${repoName}/metadata.json`;
 
-  const metadata = await persistence.readJson<{
+  const metadata = await appData.readJson<{
     name: string;
     originalUrl?: string | null;
     sourcePath?: string | null;
@@ -408,7 +417,7 @@ async function discoverExistingWorktrees(repoName: string): Promise<import("@/en
   const repoDir = `${REPOS_DIR}/${repoName}`;
 
   // Look for worktree-* directories
-  const entries = await persistence.listDirEntries(repoDir);
+  const entries = await appData.listDirEntries(repoDir);
 
   for (const entry of entries) {
     if (!entry.isDirectory) continue;

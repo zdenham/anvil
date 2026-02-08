@@ -354,13 +354,19 @@ export function buildTreeFromEntities(
  * Uses pre-loaded repo/worktree lookup store for synchronous name resolution.
  * The lookup store is hydrated at app init, so by the time React renders,
  * all lookups are synchronous O(1) Map accesses.
+ *
+ * @param options.skipFiltering - If true, returns all sections without pin/hide filtering (for Command+N logic)
  */
-export function useTreeData(): RepoWorktreeSection[] {
+export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktreeSection[] {
+  const skipFiltering = options?.skipFiltering ?? false;
+
   // Entity stores - reactive subscriptions
   const threads = useThreadStore((state) => state._threadsArray);
   const plans = usePlanStore((state) => state.getAll());
   const terminals = useTerminalSessionStore((state) => state._sessionsArray);
   const expandedSections = useTreeMenuStore((state) => state.expandedSections);
+  const pinnedSectionId = useTreeMenuStore((state) => state.pinnedSectionId);
+  const hiddenSectionIds = useTreeMenuStore((state) => state.hiddenSectionIds);
 
   // Lookup functions - from pre-hydrated store (synchronous)
   const getRepoName = useRepoWorktreeLookupStore((state) => state.getRepoName);
@@ -388,7 +394,7 @@ export function useTreeData(): RepoWorktreeSection[] {
   }, [threads]);
 
   return useMemo(() => {
-    return buildTreeFromEntities(
+    const allSections = buildTreeFromEntities(
       threads,
       plans,
       terminals,
@@ -399,7 +405,26 @@ export function useTreeData(): RepoWorktreeSection[] {
       getWorktreeName,
       getWorktreePath
     );
-  }, [threads, plans, terminals, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath]);
+
+    // Skip filtering if requested (for Command+N to find most recent worktree)
+    if (skipFiltering) {
+      return allSections;
+    }
+
+    // Apply pin/hide filtering
+    if (pinnedSectionId) {
+      // When pinned, show only the pinned section
+      const pinnedSection = allSections.filter(s => s.id === pinnedSectionId);
+      // If pinned section no longer exists, fall back to showing all (minus hidden)
+      if (pinnedSection.length === 0) {
+        return allSections.filter(s => !hiddenSectionIds.includes(s.id));
+      }
+      return pinnedSection;
+    }
+
+    // Otherwise, filter out hidden sections
+    return allSections.filter(s => !hiddenSectionIds.includes(s.id));
+  }, [threads, plans, terminals, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath, skipFiltering, pinnedSectionId, hiddenSectionIds]);
 }
 
 /**

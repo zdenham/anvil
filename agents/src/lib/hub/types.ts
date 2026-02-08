@@ -24,6 +24,12 @@ export interface EventMessage extends SocketMessage {
   payload: unknown;
 }
 
+export interface LogMessage extends SocketMessage {
+  type: "log";
+  level: string;
+  message: string;
+}
+
 export type TauriToAgentMessage =
   | { type: "permission_response"; payload: { requestId: string; decision: string } }
   | { type: "queued_message"; payload: { content: string } }

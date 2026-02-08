@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { loadSettings } from "@/lib/persistence";
+import { loadSettings } from "@/lib/app-data-store";
 import { useRepoStore } from "@/entities/repositories";
 import { deriveWorkingDirectory } from "@/entities/threads/utils";
 import type { ThreadMetadata } from "@/entities/threads/types";

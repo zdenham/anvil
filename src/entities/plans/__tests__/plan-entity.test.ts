@@ -849,12 +849,12 @@ describe("PlanService CRUD operations", () => {
 
   describe("create", () => {
     it("should save metadata via persistence layer", async () => {
-      const { persistence } = await import("@/lib/persistence");
+      const { appData } = await import("@/lib/app-data-store");
 
       await planService.create({ repoId, worktreeId, relativePath: "new.md" });
 
-      expect(persistence.ensureDir).toHaveBeenCalled();
-      expect(persistence.writeJson).toHaveBeenCalled();
+      expect(appData.ensureDir).toHaveBeenCalled();
+      expect(appData.writeJson).toHaveBeenCalled();
     });
 
     it("should apply optimistic update to store", async () => {
@@ -877,7 +877,7 @@ describe("PlanService CRUD operations", () => {
 
   describe("update", () => {
     it("should update existing plan via persistence layer", async () => {
-      const { persistence } = await import("@/lib/persistence");
+      const { appData } = await import("@/lib/app-data-store");
 
       // Create a plan first
       const plan = createPlanMetadata({ repoId, worktreeId, relativePath: "existing.md" });
@@ -885,7 +885,7 @@ describe("PlanService CRUD operations", () => {
 
       await planService.update(plan.id, { isRead: true });
 
-      expect(persistence.writeJson).toHaveBeenCalled();
+      expect(appData.writeJson).toHaveBeenCalled();
     });
 
     it("should update updatedAt timestamp", async () => {

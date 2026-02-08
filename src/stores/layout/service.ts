@@ -1,4 +1,4 @@
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { logger } from "@/lib/logger-client";
 import { useLayoutStore } from "./store";
 import { LayoutPersistedStateSchema, type LayoutPersistedState } from "./types";
@@ -24,7 +24,7 @@ export const layoutService = {
    */
   async hydrate(): Promise<void> {
     try {
-      const raw = await persistence.readJson(UI_STATE_PATH);
+      const raw = await appData.readJson(UI_STATE_PATH);
       if (raw) {
         const result = LayoutPersistedStateSchema.safeParse(raw);
         if (result.success) {
@@ -45,7 +45,7 @@ export const layoutService = {
   },
 
   /**
-   * Sets a panel width with debounced persistence.
+   * Sets a panel width with debounced appData.
    * Updates store immediately, persists after debounce delay.
    */
   async setPanelWidth(key: string, width: number): Promise<void> {
@@ -59,8 +59,8 @@ export const layoutService = {
 
     persistDebounceTimer = setTimeout(async () => {
       try {
-        await persistence.ensureDir("ui");
-        await persistence.writeJson(UI_STATE_PATH, getPersistedState());
+        await appData.ensureDir("ui");
+        await appData.writeJson(UI_STATE_PATH, getPersistedState());
         logger.debug(`[layoutService] Persisted panel width ${key}=${width}`);
       } catch (err) {
         logger.error("[layoutService] Failed to persist panel width:", err);

@@ -41,7 +41,7 @@ vi.mock("@/lib/logger-client", () => ({
   },
 }));
 
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { eventBus } from "../../events";
 import { EventName } from "@core/types/events.js";
 
@@ -90,8 +90,8 @@ describe("RelationService", () => {
         type: "mentioned",
       });
 
-      expect(persistence.ensureDir).toHaveBeenCalledWith("plan-thread-edges");
-      expect(persistence.writeJson).toHaveBeenCalledWith(
+      expect(appData.ensureDir).toHaveBeenCalledWith("plan-thread-edges");
+      expect(appData.writeJson).toHaveBeenCalledWith(
         `plan-thread-edges/${planId}-${threadId}.json`,
         expect.objectContaining({ planId, threadId, type: "mentioned" })
       );
@@ -122,7 +122,7 @@ describe("RelationService", () => {
       vi.clearAllMocks();
 
       // Mock readJson to return the existing relation for updateType
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId,
         threadId,
         type: "mentioned",
@@ -148,7 +148,7 @@ describe("RelationService", () => {
       await relationService.createOrUpgrade({ planId, threadId, type: "mentioned" });
       vi.clearAllMocks();
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId,
         threadId,
         type: "mentioned",
@@ -169,7 +169,7 @@ describe("RelationService", () => {
       await relationService.createOrUpgrade({ planId, threadId, type: "modified" });
       vi.clearAllMocks();
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId,
         threadId,
         type: "modified",
@@ -263,7 +263,7 @@ describe("RelationService", () => {
       await relationService.createOrUpgrade({ planId, threadId, type: "mentioned" });
       vi.clearAllMocks();
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId,
         threadId,
         type: "mentioned",
@@ -295,7 +295,7 @@ describe("RelationService", () => {
       await relationService.createOrUpgrade({ planId, threadId, type: "mentioned" });
       vi.clearAllMocks();
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId,
         threadId,
         type: "mentioned",
@@ -306,7 +306,7 @@ describe("RelationService", () => {
 
       await relationService.updateType(planId, threadId, "modified");
 
-      expect(persistence.writeJson).toHaveBeenCalled();
+      expect(appData.writeJson).toHaveBeenCalled();
     });
   });
 
@@ -324,7 +324,7 @@ describe("RelationService", () => {
       await relationService.createOrUpgrade({ planId: planId2, threadId, type: "modified" });
 
       // Setup mock for readJson calls during archive
-      (persistence.readJson as ReturnType<typeof vi.fn>)
+      (appData.readJson as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           planId: planId1, threadId, type: "mentioned", archived: false, createdAt: Date.now(), updatedAt: Date.now()
         })
@@ -344,14 +344,14 @@ describe("RelationService", () => {
 
       await relationService.createOrUpgrade({ planId, threadId, type: "mentioned" });
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId, threadId, type: "mentioned", archived: false, createdAt: Date.now(), updatedAt: Date.now()
       });
 
       await relationService.archiveByThread(threadId);
 
       // Should update file, not delete
-      expect(persistence.writeJson).toHaveBeenCalled();
+      expect(appData.writeJson).toHaveBeenCalled();
     });
 
     it("should handle thread with no relations gracefully", async () => {
@@ -373,7 +373,7 @@ describe("RelationService", () => {
       await relationService.createOrUpgrade({ planId, threadId: threadId1, type: "mentioned" });
       await relationService.createOrUpgrade({ planId, threadId: threadId2, type: "modified" });
 
-      (persistence.readJson as ReturnType<typeof vi.fn>)
+      (appData.readJson as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           planId, threadId: threadId1, type: "mentioned", archived: false, createdAt: Date.now(), updatedAt: Date.now()
         })
@@ -393,13 +393,13 @@ describe("RelationService", () => {
 
       await relationService.createOrUpgrade({ planId, threadId, type: "mentioned" });
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId, threadId, type: "mentioned", archived: false, createdAt: Date.now(), updatedAt: Date.now()
       });
 
       await relationService.archiveByPlan(planId);
 
-      expect(persistence.writeJson).toHaveBeenCalled();
+      expect(appData.writeJson).toHaveBeenCalled();
     });
 
     it("should handle plan with no relations gracefully", async () => {
@@ -453,11 +453,11 @@ describe("RelationService", () => {
       const planId = crypto.randomUUID();
       const threadId = crypto.randomUUID();
 
-      (persistence.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      (appData.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         `${planId}-${threadId}.json`,
       ]);
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId,
         threadId,
         type: "mentioned",
@@ -473,22 +473,22 @@ describe("RelationService", () => {
     });
 
     it("should skip non-JSON files", async () => {
-      (persistence.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      (appData.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         "not-a-json.txt",
         "some-file.md",
       ]);
 
       await relationService.hydrate();
 
-      expect(persistence.readJson).not.toHaveBeenCalled();
+      expect(appData.readJson).not.toHaveBeenCalled();
     });
 
     it("should skip invalid JSON files without crashing", async () => {
-      (persistence.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      (appData.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         "invalid.json",
       ]);
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         // Missing required fields
         invalid: true,
       });
@@ -498,11 +498,11 @@ describe("RelationService", () => {
     });
 
     it("should skip files missing required fields", async () => {
-      (persistence.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      (appData.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         "missing-fields.json",
       ]);
 
-      (persistence.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      (appData.readJson as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         planId: "some-plan",
         // Missing threadId and other required fields
       });
@@ -519,12 +519,12 @@ describe("RelationService", () => {
       const planId2 = crypto.randomUUID();
       const threadId2 = crypto.randomUUID();
 
-      (persistence.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      (appData.listDir as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         `${planId1}-${threadId1}.json`,
         `${planId2}-${threadId2}.json`,
       ]);
 
-      (persistence.readJson as ReturnType<typeof vi.fn>)
+      (appData.readJson as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           planId: planId1,
           threadId: threadId1,

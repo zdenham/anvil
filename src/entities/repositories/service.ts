@@ -1,4 +1,4 @@
-import { persistence, loadSettings, saveSettings } from "@/lib/persistence";
+import { appData, loadSettings, saveSettings } from "@/lib/app-data-store";
 import { useRepoStore } from "./store";
 import { logger } from "@/lib/logger-client";
 import { eventBus } from "../events";
@@ -52,7 +52,7 @@ function extractFolderName(path: string): string {
  * Supports patterns: {slug}-N (e.g., shortcut-1) or vN (e.g., v1)
  */
 async function detectWorktrees(repoDir: string, slug: string): Promise<RepositoryVersion[]> {
-  const entries = await persistence.listDirEntries(repoDir);
+  const entries = await appData.listDirEntries(repoDir);
   const versions: RepositoryVersion[] = [];
 
   for (const entry of entries) {
@@ -87,12 +87,12 @@ export const repoService = {
    */
   async hydrate(): Promise<void> {
     // Log the absolute path we're searching in
-    const absoluteReposDir = await persistence.getAbsolutePath(REPOS_DIR);
+    const absoluteReposDir = await appData.getAbsolutePath(REPOS_DIR);
     logger.log(`[repo:hydrate] Starting hydration`);
     logger.log(`[repo:hydrate] Searching in: ${absoluteReposDir}`);
 
-    await persistence.ensureDir(REPOS_DIR);
-    const repoDirs = await persistence.listDir(REPOS_DIR);
+    await appData.ensureDir(REPOS_DIR);
+    const repoDirs = await appData.listDir(REPOS_DIR);
     logger.log(`[repo:hydrate] Found ${repoDirs.length} directories:`, repoDirs);
 
     const repositories: Record<string, Repository> = {};
@@ -104,7 +104,7 @@ export const repoService = {
       let metadata: RepositoryMetadata | null = null;
 
       const settingsPath = `${REPOS_DIR}/${repoName}/settings.json`;
-      const rawSettings = await persistence.readJson(settingsPath);
+      const rawSettings = await appData.readJson(settingsPath);
       const settingsResult = rawSettings ? RepositorySettingsSchema.safeParse(rawSettings) : null;
 
       if (settingsResult?.success) {
@@ -121,7 +121,7 @@ export const repoService = {
         // Fall back to legacy metadata.json
         const metadataPath = `${REPOS_DIR}/${repoName}/metadata.json`;
         logger.log(`[repo:hydrate] ${repoName}: No valid settings.json, trying metadata.json`);
-        const rawMetadata = await persistence.readJson(metadataPath);
+        const rawMetadata = await appData.readJson(metadataPath);
         const metadataResult = rawMetadata ? LegacyMetadataSchema.safeParse(rawMetadata) : null;
 
         if (metadataResult?.success) {
@@ -181,12 +181,12 @@ export const repoService = {
     }
 
     // Check if path exists
-    if (!(await persistence.absolutePathExists(path))) {
+    if (!(await appData.absolutePathExists(path))) {
       return { valid: false, error: "Path does not exist" };
     }
 
     // Check if it's a git repository
-    if (!(await persistence.isGitRepo(path))) {
+    if (!(await appData.isGitRepo(path))) {
       return { valid: false, error: "This folder is not a git repository. Please initialize git first or select a different folder." };
     }
 
@@ -195,7 +195,7 @@ export const repoService = {
     const slug = slugify(folderName);
     const repoDir = `${REPOS_DIR}/${slug}`;
 
-    if (await persistence.exists(repoDir)) {
+    if (await appData.exists(repoDir)) {
       return { valid: false, error: `Repository "${folderName}" already exists` };
     }
 
@@ -210,16 +210,16 @@ export const repoService = {
     const now = Date.now();
     const slug = slugify(input.name);
     const repoDir = `${REPOS_DIR}/${slug}`;
-    const absoluteRepoDir = await persistence.getAbsolutePath(repoDir);
+    const absoluteRepoDir = await appData.getAbsolutePath(repoDir);
 
     logger.log(`[repo:create] Creating repo: "${input.name}" (slug: "${slug}")`);
     logger.log(`[repo:create] Target directory (absolute): ${absoluteRepoDir}`);
 
-    const exists = await persistence.exists(repoDir);
+    const exists = await appData.exists(repoDir);
     logger.log(`[repo:create] Directory exists: ${exists}`);
 
     if (exists) {
-      const contents = await persistence.listDir(repoDir);
+      const contents = await appData.listDir(repoDir);
       logger.error(`[repo:create] Directory already exists with contents:`, contents);
       throw new Error(`Repository already exists: ${input.name}`);
     }
@@ -235,7 +235,7 @@ export const repoService = {
     const repo: Repository = { ...metadata, versions: [] };
 
     // Create directory and settings.json
-    await persistence.ensureDir(repoDir);
+    await appData.ensureDir(repoDir);
     const sourcePath = input.sourcePath ?? "";
     const settings: RepositorySettings = {
       id: crypto.randomUUID(),
@@ -274,7 +274,7 @@ export const repoService = {
   async createFromFolder(sourcePath: string): Promise<Repository> {
     logger.log(`[repo:createFromFolder] Starting creation from: ${sourcePath}`);
 
-    if (!(await persistence.absolutePathExists(sourcePath))) {
+    if (!(await appData.absolutePathExists(sourcePath))) {
       logger.error(`[repo:createFromFolder] Source path does not exist: ${sourcePath}`);
       throw new Error(`Source path does not exist: ${sourcePath}`);
     }
@@ -282,28 +282,28 @@ export const repoService = {
     const folderName = extractFolderName(sourcePath);
     const slug = slugify(folderName);
     const repoDir = `${REPOS_DIR}/${slug}`;
-    const absoluteRepoDir = await persistence.getAbsolutePath(repoDir);
+    const absoluteRepoDir = await appData.getAbsolutePath(repoDir);
 
     logger.log(`[repo:createFromFolder] Folder name: "${folderName}", slug: "${slug}"`);
     logger.log(`[repo:createFromFolder] Target directory (relative): ${repoDir}`);
     logger.log(`[repo:createFromFolder] Target directory (absolute): ${absoluteRepoDir}`);
 
-    const exists = await persistence.exists(repoDir);
+    const exists = await appData.exists(repoDir);
     logger.log(`[repo:createFromFolder] Directory exists: ${exists}`);
 
     if (exists) {
       // Log what's in the directory to help debug zombie repos
-      const contents = await persistence.listDir(repoDir);
+      const contents = await appData.listDir(repoDir);
       logger.error(`[repo:createFromFolder] Directory already exists with contents:`, contents);
       throw new Error(`Repository already exists: ${folderName}`);
     }
 
     // Check if source is a git repo
-    const isGitRepo = await persistence.isGitRepo(sourcePath);
+    const isGitRepo = await appData.isGitRepo(sourcePath);
     const now = Date.now();
 
     // Create directory structure
-    await persistence.ensureDir(repoDir);
+    await appData.ensureDir(repoDir);
 
     // Write settings.json with full RepositorySettings schema
     // Register the source repo as the "main" worktree
@@ -411,7 +411,7 @@ export const repoService = {
     if (existing.useWorktrees && existing.sourcePath) {
       for (const version of existing.versions) {
         try {
-          await persistence.gitWorktreeRemove(existing.sourcePath, version.path);
+          await appData.gitWorktreeRemove(existing.sourcePath, version.path);
         } catch {
           // Worktree might already be gone, continue cleanup
         }
@@ -419,7 +419,7 @@ export const repoService = {
     }
 
     // Remove the entire repository directory
-    await persistence.removeDir(`${REPOS_DIR}/${slug}`);
+    await appData.removeDir(`${REPOS_DIR}/${slug}`);
     useRepoStore.getState()._applyDelete(name);
     eventBus.emit(EventName.REPOSITORY_DELETED, { name });
   },
@@ -437,7 +437,7 @@ export const repoService = {
 
     // Remove the settings folder from ~/.mort/repositories/{slug}
     // Do NOT delete source files on disk - they remain untouched
-    await persistence.removeDir(`${REPOS_DIR}/${slug}`);
+    await appData.removeDir(`${REPOS_DIR}/${slug}`);
     useRepoStore.getState()._applyDelete(repoId);
     eventBus.emit(EventName.REPOSITORY_DELETED, { name: repoId });
   },

@@ -1,4 +1,4 @@
-import { persistence } from '@/lib/persistence.js';
+import { appData } from '@/lib/app-data-store.js';
 import { useDraftsStore } from './store.js';
 import { DraftsFileSchema, type DraftsFile } from './types.js';
 
@@ -7,7 +7,7 @@ const DRAFTS_PATH = 'drafts.json';
 
 async function readDraftsFile(): Promise<DraftsFile> {
   try {
-    const raw = await persistence.readJson<unknown>(DRAFTS_PATH);
+    const raw = await appData.readJson<unknown>(DRAFTS_PATH);
     if (!raw) {
       return { threads: {}, plans: {}, empty: '' };
     }
@@ -18,7 +18,7 @@ async function readDraftsFile(): Promise<DraftsFile> {
 }
 
 async function writeDraftsFile(data: DraftsFile): Promise<void> {
-  await persistence.writeJson(DRAFTS_PATH, data);
+  await appData.writeJson(DRAFTS_PATH, data);
 }
 
 // Simple debounce implementation for draft writes

@@ -32,7 +32,7 @@ import {
   type ReactNode,
 } from "react";
 import { z } from "zod";
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 
 /**
  * Schema for ~/.mort/ui/layout.json
@@ -101,7 +101,7 @@ export function ResizablePanel({
   useEffect(() => {
     async function loadWidth() {
       try {
-        const raw = await persistence.readJson(LAYOUT_PATH);
+        const raw = await appData.readJson(LAYOUT_PATH);
         const result = LayoutStateSchema.safeParse(raw);
         if (result.success && result.data.panelWidths[persistKey]) {
           setWidth(result.data.panelWidths[persistKey]);
@@ -118,13 +118,13 @@ export function ResizablePanel({
   const persistWidth = useCallback(
     async (newWidth: number) => {
       try {
-        const raw = await persistence.readJson(LAYOUT_PATH);
+        const raw = await appData.readJson(LAYOUT_PATH);
         const result = LayoutStateSchema.safeParse(raw);
         const layout: LayoutState = result.success
           ? result.data
           : { panelWidths: {} };
         layout.panelWidths[persistKey] = newWidth;
-        await persistence.writeJson(LAYOUT_PATH, layout);
+        await appData.writeJson(LAYOUT_PATH, layout);
       } catch {
         // Silently fail on persist error
       }

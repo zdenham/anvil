@@ -1,54 +1,44 @@
 import type { FSAdapter, DirEntry } from "../../core/services/fs-adapter";
-import { persistence } from "@/lib/persistence";
 import { FilesystemClient } from "@/lib/filesystem-client";
 
 /**
  * Tauri/frontend implementation of FSAdapter.
- * Wraps the persistence module which operates on the data directory.
+ * Uses FilesystemClient directly for absolute path operations.
+ *
+ * IMPORTANT: This adapter works with ABSOLUTE paths (e.g., /Users/zac/.claude/skills).
+ * It does NOT use the persistence module which prepends the data directory.
  */
 export class TauriFSAdapter implements FSAdapter {
   private fsClient = new FilesystemClient();
+
   async exists(path: string): Promise<boolean> {
-    return persistence.exists(path);
+    return this.fsClient.exists(path);
   }
 
   async readFile(path: string): Promise<string> {
-    const content = await persistence.readText(path);
-    if (content === null) {
-      throw new Error(`File not found: ${path}`);
-    }
-    return content;
+    return this.fsClient.readFile(path);
   }
 
   async writeFile(path: string, content: string): Promise<void> {
-    return persistence.writeText(path, content);
+    return this.fsClient.writeFile(path, content);
   }
 
   async readDir(path: string): Promise<string[]> {
-    const entries = await persistence.listDirEntries(path);
+    const entries = await this.fsClient.listDir(path);
     return entries.map((entry) => entry.name);
   }
 
-  async glob(pattern: string, cwd: string): Promise<string[]> {
-    // persistence.glob operates from the data directory root,
-    // so we prefix the pattern with the cwd path
-    const fullPattern = cwd ? `${cwd}/${pattern}` : pattern;
-    const results = await persistence.glob(fullPattern);
-    // Return paths relative to cwd by stripping the cwd prefix
-    if (cwd) {
-      const prefix = `${cwd}/`;
-      return results.map((p) => (p.startsWith(prefix) ? p.slice(prefix.length) : p));
-    }
-    return results;
+  async glob(_pattern: string, _cwd: string): Promise<string[]> {
+    // TODO: Implement glob using Tauri fs if needed
+    // For now, skill discovery doesn't use glob
+    throw new Error("glob not implemented in TauriFSAdapter");
   }
 
   async mkdir(path: string, _recursive?: boolean): Promise<void> {
-    // ensureDir always creates recursively
-    return persistence.ensureDir(path);
+    return this.fsClient.mkdir(path);
   }
 
   async listDirWithMetadata(path: string): Promise<DirEntry[]> {
-    // FilesystemClient.listDir already returns the correct format
     return this.fsClient.listDir(path);
   }
 

@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cog, Ellipsis, ScrollText } from "lucide-react";
+import { Cog, Ellipsis, ScrollText, Eye } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 
 interface MenuDropdownProps {
   onSettingsClick: () => void;
   onLogsClick: () => void;
+  /** Called when user clicks "Show all workspaces" */
+  onUnhideAll?: () => void;
+  /** Whether any workspaces are hidden or pinned (shows "Show all" option) */
+  hasHiddenOrPinned?: boolean;
 }
 
 interface MenuItem {
@@ -15,7 +19,7 @@ interface MenuItem {
   onClick: () => void;
 }
 
-export function MenuDropdown({ onSettingsClick, onLogsClick }: MenuDropdownProps) {
+export function MenuDropdown({ onSettingsClick, onLogsClick, onUnhideAll, hasHiddenOrPinned }: MenuDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -23,6 +27,10 @@ export function MenuDropdown({ onSettingsClick, onLogsClick }: MenuDropdownProps
   const listRef = useRef<HTMLDivElement>(null);
 
   const menuItems: MenuItem[] = [
+    // Show "Show all workspaces" option when there are hidden/pinned sections
+    ...(hasHiddenOrPinned && onUnhideAll
+      ? [{ id: "unhide-all", label: "Show all workspaces", icon: <Eye size={12} />, onClick: onUnhideAll }]
+      : []),
     { id: "settings", label: "Settings", icon: <Cog size={12} />, onClick: onSettingsClick },
     { id: "logs", label: "Logs", icon: <ScrollText size={12} />, onClick: onLogsClick },
   ];

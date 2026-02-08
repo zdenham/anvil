@@ -1,7 +1,7 @@
 import { FilesystemClient } from "./filesystem-client";
 import { RepoStoreClient } from "./repo-store-client";
 import { SettingsStoreClient } from "./settings-store-client";
-import { persistence } from "./persistence";
+import { appData } from "./app-data-store";
 
 /**
  * Mort store clients for accessing the .mort directory structure
@@ -36,13 +36,13 @@ export async function bootstrapMortDirectory(): Promise<MortStores> {
 
   await Promise.all([
     // Active entity directories
-    persistence.ensureDir("threads"),
-    persistence.ensureDir("plans"),
-    persistence.ensureDir("plan-thread-edges"),
+    appData.ensureDir("threads"),
+    appData.ensureDir("plans"),
+    appData.ensureDir("plan-thread-edges"),
     // Archive directories (mirror structure for all entities)
-    persistence.ensureDir("archive/threads"),
-    persistence.ensureDir("archive/plans"),
-    persistence.ensureDir("archive/plan-thread-edges"),
+    appData.ensureDir("archive/threads"),
+    appData.ensureDir("archive/plans"),
+    appData.ensureDir("archive/plan-thread-edges"),
     // Other stores
     repos.bootstrap(),
     settings.bootstrap(),

@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { RepoWorktree } from "@core/types/repositories";
 import { repoService } from "@/entities/repositories";
 import { worktreeService } from "@/entities/worktrees";
-import { loadSettings } from "@/lib/persistence";
+import { loadSettings } from "@/lib/app-data-store";
 import { logger } from "@/lib/logger-client";
 
 /**

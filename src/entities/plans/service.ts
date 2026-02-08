@@ -1,4 +1,4 @@
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { usePlanStore } from "./store";
 import { PlanMetadataSchema } from "./types";
 import type { PlanMetadata, CreatePlanInput, UpdatePlanInput } from "./types";
@@ -25,9 +25,9 @@ class PlanService {
   async hydrate(): Promise<void> {
     logger.log("[planService:hydrate] Starting plan hydration...");
 
-    await persistence.ensureDir(PLANS_DIRECTORY);
+    await appData.ensureDir(PLANS_DIRECTORY);
     const pattern = `${PLANS_DIRECTORY}/*/metadata.json`;
-    const metadataFiles = await persistence.glob(pattern);
+    const metadataFiles = await appData.glob(pattern);
 
     logger.log(`[planService:hydrate] Found ${metadataFiles.length} plan files`);
 
@@ -35,7 +35,7 @@ class PlanService {
 
     for (const filePath of metadataFiles) {
       try {
-        const data = await persistence.readJson(filePath);
+        const data = await appData.readJson(filePath);
         const result = PlanMetadataSchema.safeParse(data);
 
         if (result.success) {
@@ -211,8 +211,8 @@ class PlanService {
 
     try {
       // Persist to disk
-      await persistence.ensureDir(`${PLANS_DIRECTORY}/${plan.id}`);
-      await persistence.writeJson(
+      await appData.ensureDir(`${PLANS_DIRECTORY}/${plan.id}`);
+      await appData.writeJson(
         `${PLANS_DIRECTORY}/${plan.id}/metadata.json`,
         plan
       );
@@ -254,7 +254,7 @@ class PlanService {
     try {
       const plan = usePlanStore.getState().getPlan(id);
       if (plan) {
-        await persistence.writeJson(
+        await appData.writeJson(
           `${PLANS_DIRECTORY}/${id}/metadata.json`,
           plan
         );
@@ -281,7 +281,7 @@ class PlanService {
     const rollback = usePlanStore.getState()._applyDelete(id);
 
     try {
-      await persistence.removeDir(`${PLANS_DIRECTORY}/${id}`);
+      await appData.removeDir(`${PLANS_DIRECTORY}/${id}`);
       logger.debug(`[planService:delete] Successfully deleted plan: ${id}`);
     } catch (err) {
       logger.error(`[planService:delete] Failed to delete plan, rolling back:`, err);
@@ -302,7 +302,7 @@ class PlanService {
 
     const plan = usePlanStore.getState().getPlan(id);
     if (plan) {
-      await persistence.writeJson(
+      await appData.writeJson(
         `${PLANS_DIRECTORY}/${id}/metadata.json`,
         plan
       );
@@ -318,7 +318,7 @@ class PlanService {
 
     const plan = usePlanStore.getState().getPlan(id);
     if (plan) {
-      await persistence.writeJson(
+      await appData.writeJson(
         `${PLANS_DIRECTORY}/${id}/metadata.json`,
         plan
       );
@@ -340,7 +340,7 @@ class PlanService {
 
     const updatedPlan = usePlanStore.getState().getPlan(id);
     if (updatedPlan) {
-      await persistence.writeJson(
+      await appData.writeJson(
         `${PLANS_DIRECTORY}/${id}/metadata.json`,
         updatedPlan
       );
@@ -370,7 +370,7 @@ class PlanService {
 
     const updatedPlan = usePlanStore.getState().getPlan(id);
     if (updatedPlan) {
-      await persistence.writeJson(
+      await appData.writeJson(
         `${PLANS_DIRECTORY}/${id}/metadata.json`,
         updatedPlan
       );
@@ -415,7 +415,7 @@ class PlanService {
    */
   async refreshById(planId: string): Promise<void> {
     const metadataPath = `${PLANS_DIRECTORY}/${planId}/metadata.json`;
-    const exists = await persistence.exists(metadataPath);
+    const exists = await appData.exists(metadataPath);
 
     if (!exists) {
       // Plan was deleted - remove from store
@@ -426,7 +426,7 @@ class PlanService {
       return;
     }
 
-    const raw = await persistence.readJson(metadataPath);
+    const raw = await appData.readJson(metadataPath);
     const result = raw ? PlanMetadataSchema.safeParse(raw) : null;
     if (result?.success) {
       const existingPlan = usePlanStore.getState().getPlan(planId);
@@ -541,10 +541,10 @@ class PlanService {
         updatedAt: Date.now(),
       };
 
-      await persistence.ensureDir(ARCHIVE_PLANS_DIR);
-      await persistence.ensureDir(metadataDestPath);
-      await persistence.writeJson(`${metadataDestPath}/metadata.json`, updatedPlan);
-      await persistence.removeDir(metadataSourcePath);
+      await appData.ensureDir(ARCHIVE_PLANS_DIR);
+      await appData.ensureDir(metadataDestPath);
+      await appData.writeJson(`${metadataDestPath}/metadata.json`, updatedPlan);
+      await appData.removeDir(metadataSourcePath);
 
       // Emit event so relation service can archive associated relations
       // Include originInstanceId so standalone windows can close themselves
@@ -579,11 +579,11 @@ class PlanService {
    */
   async listArchived(): Promise<PlanMetadata[]> {
     const pattern = `${ARCHIVE_PLANS_DIR}/*/metadata.json`;
-    const files = await persistence.glob(pattern);
+    const files = await appData.glob(pattern);
     const plans: PlanMetadata[] = [];
 
     for (const filePath of files) {
-      const raw = await persistence.readJson(filePath);
+      const raw = await appData.readJson(filePath);
       const result = raw ? PlanMetadataSchema.safeParse(raw) : null;
       if (result?.success) {
         plans.push(result.data);

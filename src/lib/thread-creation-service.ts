@@ -18,7 +18,7 @@ import { threadService, eventBus } from "@/entities";
 import { worktreeService } from "@/entities/worktrees";
 import { EventName } from "@core/types/events.js";
 import { spawnSimpleAgent } from "./agent-service";
-import { loadSettings } from "./persistence";
+import { loadSettings } from "./app-data-store";
 import { logger } from "./logger-client";
 
 export interface CreateThreadOptions {

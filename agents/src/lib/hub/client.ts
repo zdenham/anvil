@@ -50,11 +50,22 @@ export class HubClient extends EventEmitter {
     this.send({ type: "event", name, payload });
   }
 
+  sendLog(level: string, message: string): void {
+    this.send({ type: "log", level, message });
+  }
+
   get isConnected(): boolean {
     return this.connection.isConnected;
   }
 
   disconnect(): void {
     this.connection.destroy();
+  }
+
+  /**
+   * Gracefully disconnect after flushing pending writes.
+   */
+  async gracefulDisconnect(): Promise<void> {
+    await this.connection.gracefulClose();
   }
 }

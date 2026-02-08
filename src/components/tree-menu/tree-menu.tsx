@@ -24,6 +24,12 @@ interface TreeMenuProps {
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
   /** Name of repo currently having a worktree created (for spinner) */
   creatingWorktreeForRepo?: string | null;
+  /** Called when user pins/unpins a section */
+  onPinToggle?: (sectionId: string) => void;
+  /** Called when user hides a section */
+  onHide?: (sectionId: string) => void;
+  /** ID of currently pinned section, or null */
+  pinnedSectionId?: string | null;
   className?: string;
 }
 
@@ -33,7 +39,7 @@ interface TreeMenuProps {
  * Supports keyboard navigation: ArrowUp/Down, ArrowLeft/Right, Enter/Space, Home/End.
  * Uses ARIA tree pattern for accessibility.
  */
-export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, className }: TreeMenuProps) {
+export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, onPinToggle, onHide, pinnedSectionId, className }: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sections = useTreeData();
   const selectedItemId = useTreeMenuStore((state) => state.selectedItemId);
@@ -233,6 +239,9 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onNewWorktr
           onArchiveWorktree={onArchiveWorktree}
           onRefresh={handleRefreshTreeMenu}
           isCreatingWorktree={creatingWorktreeForRepo === section.repoName}
+          onPinToggle={onPinToggle}
+          onHide={onHide}
+          isPinned={pinnedSectionId === section.id}
         />
       ))}
     </div>

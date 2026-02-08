@@ -13,7 +13,7 @@ vi.mock("@/lib/persistence", () => ({
 }));
 
 // Import mocked persistence after mock setup
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 
 describe("Settings Store", () => {
   beforeEach(() => {
@@ -181,7 +181,7 @@ describe("Settings Service", () => {
   describe("set", () => {
     it("updates store optimistically before persist completes", async () => {
       let persistResolved = false;
-      (persistence.writeJson as Mock).mockImplementation(
+      (appData.writeJson as Mock).mockImplementation(
         () =>
           new Promise((resolve) => {
             setTimeout(() => {
@@ -203,12 +203,12 @@ describe("Settings Service", () => {
       expect(persistResolved).toBe(true);
     });
 
-    it("calls persistence.writeJson with full settings object", async () => {
-      (persistence.writeJson as Mock).mockResolvedValue(undefined);
+    it("calls appData.writeJson with full settings object", async () => {
+      (appData.writeJson as Mock).mockResolvedValue(undefined);
 
       await settingsService.set("repository", "/test/repo");
 
-      expect(persistence.writeJson).toHaveBeenCalledWith("settings.json", {
+      expect(appData.writeJson).toHaveBeenCalledWith("settings.json", {
         repository: "/test/repo",
         anthropicApiKey: null,
         workflowMode: "solo",
@@ -227,7 +227,7 @@ describe("Settings Service", () => {
       };
       useSettingsStore.setState({ workspace: originalSettings });
 
-      (persistence.writeJson as Mock).mockRejectedValue(
+      (appData.writeJson as Mock).mockRejectedValue(
         new Error("write failed")
       );
 
@@ -240,7 +240,7 @@ describe("Settings Service", () => {
     });
 
     it("maintains type safety for setting keys", async () => {
-      (persistence.writeJson as Mock).mockResolvedValue(undefined);
+      (appData.writeJson as Mock).mockResolvedValue(undefined);
 
       await settingsService.set("anthropicApiKey", "new-api-key");
 
@@ -252,7 +252,7 @@ describe("Settings Service", () => {
 
   describe("setMany", () => {
     it("updates multiple settings optimistically", async () => {
-      (persistence.writeJson as Mock).mockResolvedValue(undefined);
+      (appData.writeJson as Mock).mockResolvedValue(undefined);
 
       await settingsService.setMany({
         repository: "/batch/repo",
@@ -278,7 +278,7 @@ describe("Settings Service", () => {
       };
       useSettingsStore.setState({ workspace: originalSettings });
 
-      (persistence.writeJson as Mock).mockRejectedValue(
+      (appData.writeJson as Mock).mockRejectedValue(
         new Error("batch write failed")
       );
 
@@ -297,7 +297,7 @@ describe("Settings Service", () => {
       useSettingsStore.setState({
         workspace: { repository: "/existing/repo", anthropicApiKey: "old-key", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal" },
       });
-      (persistence.writeJson as Mock).mockResolvedValue(undefined);
+      (appData.writeJson as Mock).mockResolvedValue(undefined);
 
       await settingsService.setMany({ anthropicApiKey: "new-key" });
 
@@ -316,7 +316,7 @@ describe("Settings Service", () => {
       useSettingsStore.setState({
         workspace: { repository: "/custom/repo", anthropicApiKey: "custom-key", workflowMode: "team", permissionMode: "allow-all", permissionDisplayMode: "modal" },
       });
-      (persistence.writeJson as Mock).mockResolvedValue(undefined);
+      (appData.writeJson as Mock).mockResolvedValue(undefined);
 
       await settingsService.reset();
 
@@ -335,7 +335,7 @@ describe("Settings Service", () => {
       };
       useSettingsStore.setState({ workspace: customSettings });
 
-      (persistence.writeJson as Mock).mockRejectedValue(
+      (appData.writeJson as Mock).mockRejectedValue(
         new Error("reset failed")
       );
 
@@ -347,7 +347,7 @@ describe("Settings Service", () => {
   });
 
   describe("hydrate", () => {
-    it("loads settings from persistence on hydrate", async () => {
+    it("loads settings from appData on hydrate", async () => {
       const storedSettings: WorkspaceSettings = {
         repository: "/stored/repo",
         anthropicApiKey: "stored-key",
@@ -355,7 +355,7 @@ describe("Settings Service", () => {
         permissionMode: "allow-all",
         permissionDisplayMode: "modal",
       };
-      (persistence.readJson as Mock).mockResolvedValue(storedSettings);
+      (appData.readJson as Mock).mockResolvedValue(storedSettings);
 
       await settingsService.hydrate();
 
@@ -364,7 +364,7 @@ describe("Settings Service", () => {
     });
 
     it("uses defaults when no stored settings exist", async () => {
-      (persistence.readJson as Mock).mockResolvedValue(null);
+      (appData.readJson as Mock).mockResolvedValue(null);
 
       await settingsService.hydrate();
 
@@ -406,7 +406,7 @@ describe("Optimistic Update Integration", () => {
       persistComplete: 0,
     };
 
-    (persistence.writeJson as Mock).mockImplementation(async () => {
+    (appData.writeJson as Mock).mockImplementation(async () => {
       await new Promise((r) => setTimeout(r, 50));
       updateTimes.persistComplete = Date.now();
     });
@@ -437,7 +437,7 @@ describe("Optimistic Update Integration", () => {
   });
 
   it("handles concurrent updates correctly", async () => {
-    (persistence.writeJson as Mock).mockResolvedValue(undefined);
+    (appData.writeJson as Mock).mockResolvedValue(undefined);
 
     // Start two concurrent updates
     const promise1 = settingsService.set("repository", "/repo1");
@@ -461,7 +461,7 @@ describe("Optimistic Update Integration", () => {
     };
     useSettingsStore.setState({ workspace: exactPreviousState });
 
-    (persistence.writeJson as Mock).mockRejectedValue(new Error("fail"));
+    (appData.writeJson as Mock).mockRejectedValue(new Error("fail"));
 
     await expect(settingsService.set("repository", "/new")).rejects.toThrow();
 

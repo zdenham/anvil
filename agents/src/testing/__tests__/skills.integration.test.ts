@@ -1,15 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { TestMortDirectory } from '../services/test-mort-directory.js';
 import { TestRepository } from '../services/test-repository.js';
-import {
-  extractSkillMatches,
-  buildSkillInstruction,
-  processMessageWithSkills,
-} from '../../lib/skills/inject-skill.js';
+import { extractSkillMatches } from '@core/skills/index.js';
 import { parseFrontmatter } from '@core/skills/index.js';
-import type { SkillContent, SkillSource } from '@core/types/skills.js';
 
 /**
  * Integration tests for the skills system.
@@ -17,9 +12,7 @@ import type { SkillContent, SkillSource } from '@core/types/skills.js';
  * These tests verify:
  * 1. Skill extraction from messages (extractSkillMatches)
  * 2. Frontmatter parsing (parseFrontmatter)
- * 3. System prompt building (buildSkillInstruction)
- * 4. Full message processing (processMessageWithSkills)
- * 5. Discovery flow with filesystem fixtures
+ * 3. Discovery flow with filesystem fixtures
  */
 
 // ============================================================================
@@ -205,156 +198,6 @@ Content`;
 });
 
 // ============================================================================
-// Unit Tests - buildSkillInstruction
-// ============================================================================
-
-describe('buildSkillInstruction', () => {
-  it('builds instruction with skill content and args', () => {
-    const instruction = buildSkillInstruction(
-      'commit',
-      'project',
-      'Create a commit with the message: $ARGUMENTS',
-      'fix authentication bug'
-    );
-
-    expect(instruction).toContain('<skill-instruction>');
-    expect(instruction).toContain('<skill name="commit" source="project">');
-    expect(instruction).toContain('Create a commit with the message: fix authentication bug');
-    expect(instruction).not.toContain('$ARGUMENTS');
-  });
-
-  it('handles empty args', () => {
-    const instruction = buildSkillInstruction(
-      'deploy',
-      'mort',
-      'Deploy the application. Args: $ARGUMENTS',
-      ''
-    );
-
-    expect(instruction).toContain('Deploy the application. Args: ');
-    expect(instruction).toContain('source="mort"');
-  });
-
-  it('substitutes multiple $ARGUMENTS occurrences', () => {
-    const instruction = buildSkillInstruction(
-      'test',
-      'personal',
-      'First: $ARGUMENTS, Second: $ARGUMENTS',
-      'hello'
-    );
-
-    expect(instruction).toContain('First: hello, Second: hello');
-    expect(instruction).not.toContain('$ARGUMENTS');
-  });
-
-  it('preserves content without $ARGUMENTS', () => {
-    const instruction = buildSkillInstruction(
-      'simple',
-      'project_command',
-      'Just do the thing',
-      'ignored args'
-    );
-
-    expect(instruction).toContain('Just do the thing');
-  });
-});
-
-// ============================================================================
-// Unit Tests - processMessageWithSkills
-// ============================================================================
-
-describe('processMessageWithSkills', () => {
-  it('processes message with no skills', async () => {
-    const mockReadContent = vi.fn();
-
-    const result = await processMessageWithSkills(
-      'Just a regular message',
-      mockReadContent
-    );
-
-    expect(result.displayMessage).toBe('Just a regular message');
-    expect(result.userMessage).toBe('Just a regular message');
-    expect(result.systemPromptAppend).toBeNull();
-    expect(result.skills).toHaveLength(0);
-    expect(mockReadContent).not.toHaveBeenCalled();
-  });
-
-  it('processes message with one skill', async () => {
-    const mockReadContent = vi.fn().mockResolvedValue({
-      content: 'Create a commit with: $ARGUMENTS',
-      source: 'project' as SkillSource,
-    });
-
-    const result = await processMessageWithSkills(
-      '/commit fix bug',
-      mockReadContent
-    );
-
-    expect(mockReadContent).toHaveBeenCalledWith('commit');
-    expect(result.displayMessage).toBe('/commit fix bug');
-    expect(result.userMessage).toBe('/commit fix bug');
-    expect(result.systemPromptAppend).toContain('<skill name="commit"');
-    expect(result.systemPromptAppend).toContain('Create a commit with: fix bug');
-    expect(result.skills).toHaveLength(1);
-    expect(result.skills[0]).toEqual({ slug: 'commit', source: 'project' });
-  });
-
-  it('processes message with multiple skills on separate lines', async () => {
-    const mockReadContent = vi.fn().mockImplementation(async (slug: string) => {
-      if (slug === 'review') {
-        return { content: 'Review PR #$ARGUMENTS', source: 'project' as SkillSource };
-      }
-      if (slug === 'deploy') {
-        return { content: 'Deploy to production', source: 'mort' as SkillSource };
-      }
-      return null;
-    });
-
-    const result = await processMessageWithSkills(
-      '/review 123\n/deploy',
-      mockReadContent
-    );
-
-    expect(result.skills).toHaveLength(2);
-    expect(result.systemPromptAppend).toContain('<skill name="review"');
-    expect(result.systemPromptAppend).toContain('Review PR #123');
-    expect(result.systemPromptAppend).toContain('<skill name="deploy"');
-    expect(result.systemPromptAppend).toContain('Deploy to production');
-  });
-
-  it('skips skills that are not found', async () => {
-    const mockReadContent = vi.fn().mockResolvedValue(null);
-
-    const result = await processMessageWithSkills(
-      '/nonexistent arg',
-      mockReadContent
-    );
-
-    expect(mockReadContent).toHaveBeenCalledWith('nonexistent');
-    expect(result.skills).toHaveLength(0);
-    expect(result.systemPromptAppend).toBeNull();
-  });
-
-  it('handles mixed found and not-found skills', async () => {
-    const mockReadContent = vi.fn().mockImplementation(async (slug: string) => {
-      if (slug === 'found') {
-        return { content: 'Found skill content', source: 'project' as SkillSource };
-      }
-      return null;
-    });
-
-    const result = await processMessageWithSkills(
-      '/found /notfound /found again',
-      mockReadContent
-    );
-
-    // Should only include the found skill (appears once since it's the same slug)
-    expect(result.skills).toHaveLength(1);
-    expect(result.skills[0].slug).toBe('found');
-  });
-});
-
-// ============================================================================
 // Integration Tests - Filesystem Fixtures
 // ============================================================================
 
@@ -523,98 +366,5 @@ description: Has no body
     expect(matches[0].args).toContain('$special');
     expect(matches[0].args).toContain('&');
     expect(matches[0].args).toContain('<chars>');
-  });
-
-  it('handles very long skill content', async () => {
-    const longContent = 'A'.repeat(10000);
-    const mockReadContent = vi.fn().mockResolvedValue({
-      content: longContent,
-      source: 'project' as SkillSource,
-    });
-
-    const result = await processMessageWithSkills('/longskill', mockReadContent);
-
-    expect(result.systemPromptAppend).toContain(longContent);
-    expect(result.systemPromptAppend!.length).toBeGreaterThan(10000);
-  });
-
-  it('handles unicode in skill content', async () => {
-    const unicodeContent = 'Handle these: emoji, CJK, RTL';
-    const mockReadContent = vi.fn().mockResolvedValue({
-      content: unicodeContent,
-      source: 'project' as SkillSource,
-    });
-
-    const result = await processMessageWithSkills('/unicode', mockReadContent);
-
-    expect(result.systemPromptAppend).toContain('emoji');
-  });
-
-  it('handles newlines in skill content', async () => {
-    const multilineContent = `Line 1
-Line 2
-Line 3
-
-With blank line above`;
-
-    const mockReadContent = vi.fn().mockResolvedValue({
-      content: multilineContent,
-      source: 'project' as SkillSource,
-    });
-
-    const result = await processMessageWithSkills('/multi', mockReadContent);
-
-    expect(result.systemPromptAppend).toContain('Line 1\nLine 2\nLine 3');
-    expect(result.systemPromptAppend).toContain('With blank line above');
-  });
-});
-
-// ============================================================================
-// Concurrent Discovery (Race Condition Tests)
-// ============================================================================
-
-describe('Concurrent Operations', () => {
-  it('handles concurrent skill content reads', async () => {
-    let callCount = 0;
-    const mockReadContent = vi.fn().mockImplementation(async (slug: string) => {
-      callCount++;
-      // Simulate async delay
-      await new Promise(resolve => setTimeout(resolve, 10));
-      return { content: `Content for ${slug}`, source: 'project' as SkillSource };
-    });
-
-    // Fire multiple reads concurrently
-    const promises = [
-      processMessageWithSkills('/skill1 args', mockReadContent),
-      processMessageWithSkills('/skill2 args', mockReadContent),
-      processMessageWithSkills('/skill3 args', mockReadContent),
-    ];
-
-    const results = await Promise.all(promises);
-
-    // All should complete successfully
-    expect(results[0].skills[0].slug).toBe('skill1');
-    expect(results[1].skills[0].slug).toBe('skill2');
-    expect(results[2].skills[0].slug).toBe('skill3');
-    expect(callCount).toBe(3);
-  });
-
-  it('handles rapid sequential calls', async () => {
-    const results: string[] = [];
-    const mockReadContent = vi.fn().mockImplementation(async (slug: string) => {
-      results.push(slug);
-      return { content: slug, source: 'project' as SkillSource };
-    });
-
-    // Rapid sequential calls
-    for (let i = 0; i < 10; i++) {
-      await processMessageWithSkills(`/skill${i}`, mockReadContent);
-    }
-
-    expect(results).toHaveLength(10);
-    // Verify order is maintained
-    for (let i = 0; i < 10; i++) {
-      expect(results[i]).toBe(`skill${i}`);
-    }
   });
 });

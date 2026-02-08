@@ -1,5 +1,5 @@
 import { optimistic } from "@/lib/optimistic";
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { useThreadStore } from "./store";
 import { logger } from "@/lib/logger-client";
 import {
@@ -43,13 +43,13 @@ function getStandaloneThreadPath(threadId: string): string {
 async function findThreadPath(threadId: string): Promise<string | undefined> {
   // Check new location first
   const newPath = `${THREADS_DIR}/${threadId}/metadata.json`;
-  if (await persistence.exists(newPath)) {
+  if (await appData.exists(newPath)) {
     return `${THREADS_DIR}/${threadId}`;
   }
 
   // Fall back to legacy task-nested location
   const legacyPattern = `${LEGACY_TASKS_DIR}/*/threads/*-${threadId}/metadata.json`;
-  const matches = await persistence.glob(legacyPattern);
+  const matches = await appData.glob(legacyPattern);
   if (matches.length > 0) {
     return matches[0].replace(/\/metadata\.json$/, "");
   }
@@ -68,17 +68,17 @@ export const threadService = {
 
     // Load from new top-level structure: ~/.mort/threads/*/metadata.json
     const newPattern = `${THREADS_DIR}/*/metadata.json`;
-    const newFiles = await persistence.glob(newPattern);
+    const newFiles = await appData.glob(newPattern);
 
     // Load from legacy task-nested structure: ~/.mort/tasks/*/threads/*/metadata.json
     const legacyPattern = `${LEGACY_TASKS_DIR}/*/threads/*/metadata.json`;
-    const legacyFiles = await persistence.glob(legacyPattern);
+    const legacyFiles = await appData.glob(legacyPattern);
 
     const allFiles = [...newFiles, ...legacyFiles];
 
     await Promise.all(
       allFiles.map(async (filePath) => {
-        const raw = await persistence.readJson(filePath);
+        const raw = await appData.readJson(filePath);
         const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
         if (result?.success) {
           const metadata = result.data;
@@ -133,7 +133,7 @@ export const threadService = {
       return;
     }
 
-    const raw = await persistence.readJson(`${path}/metadata.json`);
+    const raw = await appData.readJson(`${path}/metadata.json`);
     const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
     if (result?.success) {
       const diskMetadata = result.data;
@@ -219,8 +219,8 @@ export const threadService = {
       async (thread) => {
         // Create folder and write metadata.json
         logger.info(`[threadService.create] Persisting thread ${thread.id} to disk at ${threadPath}`);
-        await persistence.ensureDir(threadPath);
-        await persistence.writeJson(`${threadPath}/metadata.json`, thread);
+        await appData.ensureDir(threadPath);
+        await appData.writeJson(`${threadPath}/metadata.json`, thread);
         logger.info(`[threadService.create] Thread ${thread.id} persisted to disk`);
       }
     );
@@ -263,13 +263,13 @@ export const threadService = {
       async (thread) => {
         // Read-modify-write: read current disk state, merge updates, write back
         const metadataPath = `${threadPath}/metadata.json`;
-        const raw = await persistence.readJson(metadataPath);
+        const raw = await appData.readJson(metadataPath);
         const diskResult = raw ? ThreadMetadataSchema.safeParse(raw) : null;
         const diskState = diskResult?.success ? diskResult.data : null;
         const merged = diskState
           ? { ...diskState, ...thread, updatedAt: Date.now() }
           : thread;
-        await persistence.writeJson(metadataPath, merged);
+        await appData.writeJson(metadataPath, merged);
       }
     );
 
@@ -309,13 +309,13 @@ export const threadService = {
       async (t) => {
         // Read-modify-write: preserve runner-written fields
         const metadataPath = `${threadPath}/metadata.json`;
-        const raw = await persistence.readJson(metadataPath);
+        const raw = await appData.readJson(metadataPath);
         const diskResult = raw ? ThreadMetadataSchema.safeParse(raw) : null;
         const diskState = diskResult?.success ? diskResult.data : null;
         const merged = diskState
           ? { ...diskState, turns: t.turns, updatedAt: Date.now() }
           : t;
-        await persistence.writeJson(metadataPath, merged);
+        await appData.writeJson(metadataPath, merged);
       }
     );
   },
@@ -359,7 +359,7 @@ export const threadService = {
       async () => {
         // Read-modify-write: only update frontend-owned fields (exitCode, costUsd)
         const metadataPath = `${threadPath}/metadata.json`;
-        const raw = await persistence.readJson(metadataPath);
+        const raw = await appData.readJson(metadataPath);
         const diskResult = raw ? ThreadMetadataSchema.safeParse(raw) : null;
         if (!diskResult?.success) throw new Error(`Thread ${id} not found on disk or invalid`);
         const diskState = diskResult.data;
@@ -372,7 +372,7 @@ export const threadService = {
           costUsd,
         };
         diskState.updatedAt = Date.now();
-        await persistence.writeJson(metadataPath, diskState);
+        await appData.writeJson(metadataPath, diskState);
       }
     );
   },
@@ -434,7 +434,7 @@ export const threadService = {
     // Optimistically remove from store, then delete folder
     const rollback = useThreadStore.getState()._applyDelete(id);
     try {
-      await persistence.removeDir(threadPath);
+      await appData.removeDir(threadPath);
     } catch (error) {
       rollback();
       throw error;
@@ -573,7 +573,7 @@ export const threadService = {
       }
 
       // Read state.json from disk
-      const raw = await persistence.readJson(statePath);
+      const raw = await appData.readJson(statePath);
       logger.info(`[threadService.loadThreadState] Read state.json result:`, {
         hasData: !!raw,
         threadId,
@@ -686,7 +686,7 @@ export const threadService = {
 
     try {
       // Ensure archive directory exists
-      await persistence.ensureDir(ARCHIVE_THREADS_DIR);
+      await appData.ensureDir(ARCHIVE_THREADS_DIR);
 
       // Archive each thread (parent + all descendants)
       for (const id of allThreadIds) {
@@ -703,15 +703,15 @@ export const threadService = {
         rollbacks.push(rollback);
 
         // Copy metadata and state to archive
-        const metadata = await persistence.readJson(`${sourcePath}/metadata.json`);
-        const state = await persistence.readJson(`${sourcePath}/state.json`);
+        const metadata = await appData.readJson(`${sourcePath}/metadata.json`);
+        const state = await appData.readJson(`${sourcePath}/state.json`);
 
-        await persistence.ensureDir(archivePath);
-        if (metadata) await persistence.writeJson(`${archivePath}/metadata.json`, metadata);
-        if (state) await persistence.writeJson(`${archivePath}/state.json`, state);
+        await appData.ensureDir(archivePath);
+        if (metadata) await appData.writeJson(`${archivePath}/metadata.json`, metadata);
+        if (state) await appData.writeJson(`${archivePath}/state.json`, state);
 
         // Remove original directory
-        await persistence.removeDir(sourcePath);
+        await appData.removeDir(sourcePath);
 
         // Emit event so relation service can archive associated relations
         // Include originInstanceId so standalone windows can close themselves
@@ -734,11 +734,11 @@ export const threadService = {
    */
   async listArchived(): Promise<ThreadMetadata[]> {
     const pattern = `${ARCHIVE_THREADS_DIR}/*/metadata.json`;
-    const files = await persistence.glob(pattern);
+    const files = await appData.glob(pattern);
     const threads: ThreadMetadata[] = [];
 
     for (const filePath of files) {
-      const raw = await persistence.readJson(filePath);
+      const raw = await appData.readJson(filePath);
       const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
       if (result?.success) {
         threads.push(result.data);

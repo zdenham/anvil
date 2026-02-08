@@ -13,7 +13,7 @@ import {
   complete,
   setSessionId,
 } from "../output.js";
-import { logger, stdout } from "../lib/logger.js";
+import { logger } from "../lib/logger.js";
 import { getChildThreadId, emitEvent } from "./shared.js";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -337,9 +337,6 @@ export class MessageHandler {
     state.timestamp = Date.now();
     const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
     writeFileSync(statePath, JSON.stringify(state, null, 2));
-
-    // Emit state event for UI updates
-    stdout({ type: "state", state, threadId: childThreadId });
   }
 
   /**

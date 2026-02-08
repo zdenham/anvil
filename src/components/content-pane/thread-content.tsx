@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
+import { flushSync } from "react-dom";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { ArrowLeft } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
@@ -146,6 +147,12 @@ export function ThreadContent({
   // Toast state for "coming soon" messages
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Track optimistic messages sent but not yet persisted to state.json
+  const [optimisticMessages, setOptimisticMessages] = useState<MessageParam[]>([]);
+  // Track the real message count when optimistic messages were added
+  // This helps us know when the real state has caught up
+  const realMessageCountWhenOptimisticAdded = useRef<number>(0);
+
   // Set this thread as active so AGENT_STATE events update the store
   // Also refresh thread from disk if not in store (handles cross-window sync)
   useEffect(() => {
@@ -184,9 +191,11 @@ export function ThreadContent({
   const isSubAgent = !!activeMetadata?.parentThreadId;
 
   // Derive status to handle optimistic state
-  // If we have optimistic messages but no real state, treat as "running"
+  // If we have optimistic messages or initialPrompt but no real state, treat as "running"
+  // This ensures the message is displayed while waiting for the agent to start
+  const hasOptimisticContent = optimisticMessages.length > 0 || (initialPrompt && !activeState?.messages?.length);
   const viewStatus: ViewStatus =
-    initialPrompt && !activeState?.messages?.length
+    hasOptimisticContent
       ? "running"
       : entityStatus === "paused"
         ? "idle"
@@ -209,26 +218,18 @@ export function ThreadContent({
   // Get queued messages for this thread (reactive)
   const queuedMessages = useQueuedMessagesForThread(threadId);
 
-  // Create optimistic messages when store is empty
+  // Compute messages with optimistic message support
   const messages = useMemo((): MessageParam[] => {
     const now = Date.now();
     const mountTime = componentMountTimes.get(threadId) ?? mountTimeRef.current;
     const elapsed = now - mountTime;
 
-    // If we have messages from the store, use those (real data)
-    if (activeState?.messages && activeState.messages.length > 0) {
-      logger.info(`[ThreadContent:TIMING] messages useMemo - using STORE messages`, {
-        threadId,
-        messageCount: activeState.messages.length,
-        elapsedSinceMount: elapsed,
-        timestamp: new Date(now).toISOString(),
-      });
-      return activeState.messages;
-    }
+    const realMessages = activeState?.messages ?? [];
 
-    // If we have a prompt but no messages yet, show optimistic message
-    if (initialPrompt) {
-      logger.info(`[ThreadContent:TIMING] messages useMemo - creating OPTIMISTIC message`, {
+    // If no real messages, check initialPrompt first (for thread-creation-service path)
+    // and also check if there are no local optimistic messages
+    if (realMessages.length === 0 && initialPrompt && optimisticMessages.length === 0) {
+      logger.info(`[ThreadContent:TIMING] messages useMemo - using INITIAL_PROMPT`, {
         threadId,
         promptLength: initialPrompt.length,
         elapsedSinceMount: elapsed,
@@ -237,15 +238,40 @@ export function ThreadContent({
       return [{ role: "user", content: initialPrompt }];
     }
 
-    logger.info(`[ThreadContent:TIMING] messages useMemo - returning EMPTY array`, {
-      threadId,
-      hasActiveState: !!activeState,
-      hasInitialPrompt: !!initialPrompt,
-      elapsedSinceMount: elapsed,
-      timestamp: new Date(now).toISOString(),
-    });
-    return [];
-  }, [activeState?.messages, initialPrompt, threadId]);
+    // Append any optimistic messages to real messages
+    if (optimisticMessages.length > 0) {
+      logger.info(`[ThreadContent:TIMING] messages useMemo - appending OPTIMISTIC messages`, {
+        threadId,
+        realMessageCount: realMessages.length,
+        optimisticMessageCount: optimisticMessages.length,
+        optimisticPreview: optimisticMessages.map(m =>
+          typeof m.content === 'string' ? m.content.slice(0, 30) : '[complex]'
+        ),
+        elapsedSinceMount: elapsed,
+        timestamp: new Date(now).toISOString(),
+      });
+      return [...realMessages, ...optimisticMessages];
+    }
+
+    // Just real messages (or empty)
+    if (realMessages.length > 0) {
+      logger.info(`[ThreadContent:TIMING] messages useMemo - using STORE messages`, {
+        threadId,
+        messageCount: realMessages.length,
+        elapsedSinceMount: elapsed,
+        timestamp: new Date(now).toISOString(),
+      });
+    } else {
+      logger.info(`[ThreadContent:TIMING] messages useMemo - returning EMPTY array`, {
+        threadId,
+        hasActiveState: !!activeState,
+        hasInitialPrompt: !!initialPrompt,
+        elapsedSinceMount: elapsed,
+        timestamp: new Date(now).toISOString(),
+      });
+    }
+    return realMessages;
+  }, [activeState?.messages, initialPrompt, optimisticMessages, threadId]);
 
   // Show toast with auto-dismiss
   const showToast = useCallback((message: string) => {
@@ -267,6 +293,23 @@ export function ThreadContent({
       // Save to history (fire and forget - don't block on this)
       savePromptToHistory(userPrompt, threadId);
 
+      // Add optimistic message immediately for instant feedback
+      // Track the current real message count so we know when state has caught up
+      const currentRealCount = activeState?.messages?.length ?? 0;
+      realMessageCountWhenOptimisticAdded.current = currentRealCount;
+      logger.info(`[ThreadContent] Adding optimistic message`, {
+        threadId,
+        promptLength: userPrompt.length,
+        promptPreview: userPrompt.slice(0, 50),
+        currentRealMessageCount: currentRealCount,
+        timestamp: Date.now(),
+      });
+      // Use flushSync to force immediate render of the optimistic message
+      // This prevents the message from being cleared before it's ever displayed
+      flushSync(() => {
+        setOptimisticMessages((prev) => [...prev, { role: "user", content: userPrompt }]);
+      });
+
       // Queue message if agent is currently running
       if (canQueueMessages) {
         try {
@@ -274,29 +317,46 @@ export function ThreadContent({
         } catch (error) {
           logger.error("[ThreadContent] Failed to queue message:", error);
           showToast("Failed to queue message");
+          // Remove optimistic message on failure
+          setOptimisticMessages((prev) =>
+            prev.filter((m) => m.content !== userPrompt)
+          );
         }
         return;
       }
 
       if (canResumeAgent) {
-        // For first message on a pre-created thread, use spawnSimpleAgent
-        // This ensures thread naming runs (it only runs on initial spawn, not resume)
-        if (isFirstMessage && activeMetadata?.repoId && activeMetadata?.worktreeId) {
-          logger.info("[ThreadContent] First message - using spawnSimpleAgent");
-          await spawnSimpleAgent({
-            repoId: activeMetadata.repoId,
-            worktreeId: activeMetadata.worktreeId,
-            threadId,
-            prompt: userPrompt,
-            sourcePath: workingDirectory,
-          });
-        } else {
-          await resumeSimpleAgent(threadId, userPrompt, workingDirectory);
+        try {
+          // For first message on a pre-created thread, use spawnSimpleAgent
+          // This ensures thread naming runs (it only runs on initial spawn, not resume)
+          if (isFirstMessage && activeMetadata?.repoId && activeMetadata?.worktreeId) {
+            logger.info("[ThreadContent] First message - using spawnSimpleAgent");
+            await spawnSimpleAgent({
+              repoId: activeMetadata.repoId,
+              worktreeId: activeMetadata.worktreeId,
+              threadId,
+              prompt: userPrompt,
+              sourcePath: workingDirectory,
+            });
+          } else {
+            await resumeSimpleAgent(threadId, userPrompt, workingDirectory);
+          }
+        } catch (error) {
+          logger.error("[ThreadContent] Failed to spawn/resume agent:", error);
+          // Remove optimistic message on failure
+          setOptimisticMessages((prev) =>
+            prev.filter((m) => m.content !== userPrompt)
+          );
+          throw error;
         }
       } else {
         logger.warn("[ThreadContent] Cannot submit in current state", {
           status: viewStatus,
         });
+        // Remove optimistic message since we can't process it
+        setOptimisticMessages((prev) =>
+          prev.filter((m) => m.content !== userPrompt)
+        );
       }
     },
     [
@@ -309,6 +369,7 @@ export function ThreadContent({
       isFirstMessage,
       activeMetadata?.repoId,
       activeMetadata?.worktreeId,
+      activeState?.messages?.length,
     ]
   );
 
@@ -316,6 +377,59 @@ export function ThreadContent({
   useEffect(() => {
     hasScrolledOnMount.current = false;
   }, [threadId]);
+
+  // Reset optimistic messages when thread changes
+  useEffect(() => {
+    setOptimisticMessages([]);
+  }, [threadId]);
+
+  // Clear optimistic messages when they appear in the real state
+  useEffect(() => {
+    if (optimisticMessages.length === 0 || !activeState?.messages) {
+      return;
+    }
+
+    const realMessageCount = activeState.messages.length;
+    const countWhenAdded = realMessageCountWhenOptimisticAdded.current;
+
+    // Only consider clearing if the real message count has INCREASED since we added optimistic messages
+    // This prevents clearing optimistic messages too early due to race conditions
+    if (realMessageCount <= countWhenAdded) {
+      logger.debug(`[ThreadContent] Skipping optimistic clear - real count hasn't increased yet`, {
+        threadId,
+        realMessageCount,
+        countWhenAdded,
+        optimisticCount: optimisticMessages.length,
+      });
+      return;
+    }
+
+    // Find optimistic messages that are now in real state by content matching
+    const realContent = new Set(
+      activeState.messages
+        .filter((m) => m.role === "user")
+        .map((m) =>
+          typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+        )
+    );
+
+    const stillPending = optimisticMessages.filter((m) => {
+      const content =
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+      return !realContent.has(content);
+    });
+
+    if (stillPending.length !== optimisticMessages.length) {
+      logger.debug(`[ThreadContent] Clearing optimistic messages - now in real state`, {
+        threadId,
+        realMessageCount,
+        countWhenAdded,
+        clearedCount: optimisticMessages.length - stillPending.length,
+        remainingCount: stillPending.length,
+      });
+      setOptimisticMessages(stillPending);
+    }
+  }, [activeState?.messages, optimisticMessages, threadId]);
 
   // Auto-focus input when autoFocus flag is set (for newly created threads)
   useEffect(() => {
@@ -342,6 +456,16 @@ export function ThreadContent({
       return () => clearTimeout(timer);
     }
   }, [messages.length > 0]);
+
+  // Log at render time to see what's actually being rendered
+  logger.debug(`[ThreadContent] RENDER`, {
+    threadId,
+    messageCount: messages.length,
+    optimisticCount: optimisticMessages.length,
+    hasActiveState: !!activeState,
+    realMessageCount: activeState?.messages?.length ?? 0,
+    firstMessagePreview: messages[0]?.content?.toString().slice(0, 30),
+  });
 
   return (
     <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">

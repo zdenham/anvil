@@ -18,7 +18,7 @@ vi.mock("../output.js", () => ({
   getHubClient: vi.fn(() => null), // Required by emitEvent in shared.js
 }));
 
-// Mock the logger and stdout
+// Mock the logger
 vi.mock("../lib/logger.js", () => ({
   logger: {
     debug: vi.fn(),
@@ -26,7 +26,6 @@ vi.mock("../lib/logger.js", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
-  stdout: vi.fn(),
 }));
 
 // Mock shared.js - emitEvent is used for ack events
@@ -47,7 +46,7 @@ import {
   markToolComplete,
   complete,
 } from "../output.js";
-import { logger, stdout } from "../lib/logger.js";
+import { logger } from "../lib/logger.js";
 import { emitEvent } from "./shared.js";
 
 describe("MessageHandler", () => {
@@ -70,7 +69,7 @@ describe("MessageHandler", () => {
             { type: "tool_use", id: "toolu_abc", name: "Read", input: { path: "/test" } },
             { type: "tool_use", id: "toolu_def", name: "Bash", input: { command: "ls" } },
           ],
-          model: "claude-opus-4-5-20251101",
+          model: "claude-opus-4-6",
           stop_reason: "tool_use",
           stop_sequence: null,
           container: null,
@@ -105,7 +104,7 @@ describe("MessageHandler", () => {
           type: "message",
           role: "assistant",
           content: [{ type: "text", text: "Hello!", citations: null }],
-          model: "claude-opus-4-5-20251101",
+          model: "claude-opus-4-6",
           stop_reason: "end_turn",
           stop_sequence: null,
           container: null,

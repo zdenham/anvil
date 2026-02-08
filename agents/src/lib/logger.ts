@@ -1,24 +1,22 @@
 /**
- * Simple logger for agents - outputs structured JSON to stdout.
- * All stdout JSON protocol output (logs, events, state) is centralized here.
+ * Simple logger for agents - sends logs via socket to the hub.
+ * Logs are sent via the hub client when connected.
  */
+
+import { getHubClient } from "../output.js";
 
 type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
-
-/**
- * Low-level function to write a JSON message to stdout.
- * This is the ONLY place in the codebase that should call console.log.
- * All structured protocol messages (type: "log", "event", "state") go through here.
- */
-export function stdout(message: Record<string, unknown>): void {
-  console.log(JSON.stringify(message));
-}
 
 function log(level: LogLevel, ...args: unknown[]): void {
   const message = args
     .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
     .join(" ");
-  stdout({ type: "log", level, message });
+
+  const hub = getHubClient();
+  if (hub?.isConnected) {
+    hub.sendLog(level, message);
+  }
+  // Silently drop logs when hub not connected
 }
 
 export const logger = {

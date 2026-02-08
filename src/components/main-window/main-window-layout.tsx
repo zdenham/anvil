@@ -67,7 +67,12 @@ export function MainWindowLayout() {
   // Tree Data (for Command+N new thread in most recent worktree)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const treeSections = useTreeData();
+  // Use unfiltered data for Command+N (need all sections regardless of pin/hide)
+  const treeSections = useTreeData({ skipFiltering: true });
+
+  // Get pin/hide state for passing to TreeMenu
+  const pinnedSectionId = useTreeMenuStore((state) => state.pinnedSectionId);
+  const hiddenSectionIds = useTreeMenuStore((state) => state.hiddenSectionIds);
 
   // Store ref to treeSections for use in keyboard handler (avoids stale closure)
   const treeSectionsRef = useRef(treeSections);
@@ -383,6 +388,48 @@ export function MainWindowLayout() {
     }
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Pin/Hide Handlers (workspace filtering)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handlePinToggle = useCallback(async (sectionId: string) => {
+    logger.info(`[MainWindowLayout] Pin toggle requested for section ${sectionId}`);
+    try {
+      await treeMenuService.togglePinSection(sectionId);
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to toggle pin:`, err);
+    }
+  }, []);
+
+  const handleHideSection = useCallback(async (sectionId: string) => {
+    logger.info(`[MainWindowLayout] Hide section requested: ${sectionId}`);
+
+    // Prevent hiding the last visible section
+    const visibleCount = treeSections.filter(s =>
+      s.id !== sectionId && !hiddenSectionIds.includes(s.id)
+    ).length;
+
+    if (visibleCount === 0 && !pinnedSectionId) {
+      logger.warn(`[MainWindowLayout] Cannot hide last visible section`);
+      return;
+    }
+
+    try {
+      await treeMenuService.hideSection(sectionId);
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to hide section:`, err);
+    }
+  }, [treeSections, hiddenSectionIds, pinnedSectionId]);
+
+  const handleUnhideAll = useCallback(async () => {
+    logger.info(`[MainWindowLayout] Unhide all sections requested`);
+    try {
+      await treeMenuService.unhideAll();
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to unhide all:`, err);
+    }
+  }, []);
+
   const handleArchiveWorktree = useCallback(async (repoName: string, worktreeId: string, worktreeName: string) => {
     logger.info(`[MainWindowLayout] Archive worktree requested: ${worktreeName} (${worktreeId}) in repo ${repoName}`);
 
@@ -446,6 +493,8 @@ export function MainWindowLayout() {
           <TreePanelHeader
             onSettingsClick={handleSettingsClick}
             onLogsClick={handleLogsClick}
+            onUnhideAll={handleUnhideAll}
+            hasHiddenOrPinned={pinnedSectionId !== null || hiddenSectionIds.length > 0}
           />
           <TreeMenu
             onItemSelect={handleItemSelect}
@@ -455,6 +504,9 @@ export function MainWindowLayout() {
             onNewRepo={handleNewRepo}
             onArchiveWorktree={handleArchiveWorktree}
             creatingWorktreeForRepo={creatingWorktreeForRepo}
+            onPinToggle={handlePinToggle}
+            onHide={handleHideSection}
+            pinnedSectionId={pinnedSectionId}
             className="flex-1 min-h-0"
           />
           <div className="px-3 py-2 border-t border-surface-800">

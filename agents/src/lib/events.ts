@@ -1,21 +1,21 @@
 /**
  * Strongly-typed event emitter for agents.
- * Outputs via socket (or fallback to stdout) for Tauri frontend consumption.
+ * Outputs via socket for Tauri frontend consumption.
  */
 import {
   EventName,
   type EventPayloads,
-  type AgentEventMessage,
   type EventNameType,
   type WorktreeStatePayload,
 } from "@core/types/events.js";
 import type { ThreadStatus } from "@core/types/threads.js";
-import { stdout } from "./logger.js";
 import { getHubClient } from "../output.js";
+import { logger } from "./logger.js";
 
 /**
- * Emit a strongly-typed event via socket (or fallback to stdout).
+ * Emit a strongly-typed event via socket.
  * Tauri frontend receives these and dispatches to event bus.
+ * If hub is not connected, logs a warning and skips (events require socket connection).
  */
 export function emitEvent<E extends EventNameType>(
   name: E,
@@ -25,13 +25,7 @@ export function emitEvent<E extends EventNameType>(
   if (hub?.isConnected) {
     hub.sendEvent(name, payload);
   } else {
-    // Fallback to stdout for backwards compatibility
-    const message: AgentEventMessage<E> = {
-      type: "event",
-      name,
-      payload,
-    };
-    stdout(message as unknown as Record<string, unknown>);
+    logger.warn(`[events] Hub not connected, skipping event: ${name}`);
   }
 }
 

@@ -41,7 +41,7 @@ vi.mock("@/lib/persistence", () => ({
 // Import after mocks are set up
 import { threadService } from "../service";
 import { useThreadStore } from "../store";
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { eventBus } from "@/entities/events";
 
 const mockPersistence = vi.mocked(persistence);

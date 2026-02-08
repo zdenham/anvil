@@ -10,6 +10,10 @@ import type { PhaseInfo } from "@/entities/plans/types";
 export const TreeMenuPersistedStateSchema = z.object({
   expandedSections: z.record(z.string(), z.boolean()),
   selectedItemId: z.string().nullable(),
+  /** ID of pinned section ("repoId:worktreeId") or null if none pinned */
+  pinnedSectionId: z.string().nullable().optional(),
+  /** Array of hidden section IDs ("repoId:worktreeId") */
+  hiddenSectionIds: z.array(z.string()).optional(),
 });
 export type TreeMenuPersistedState = z.infer<typeof TreeMenuPersistedStateSchema>;
 

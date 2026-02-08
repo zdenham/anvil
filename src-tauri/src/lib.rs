@@ -815,6 +815,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             web_log,
+            // Logging commands
+            logging::get_buffered_logs,
+            logging::clear_logs,
             // AgentHub commands
             send_to_agent,
             list_connected_agents,

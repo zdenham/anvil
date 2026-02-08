@@ -1,4 +1,4 @@
-import { loadSettings } from "@/lib/persistence";
+import { loadSettings } from "@/lib/app-data-store";
 import { useRepoStore } from "@/entities/repositories";
 import type { PlanMetadata } from "./types";
 import type { RepositorySettings, WorktreeState } from "@/entities/repositories/types";

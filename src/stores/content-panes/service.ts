@@ -1,4 +1,4 @@
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { logger } from "@/lib/logger-client";
 import { useContentPanesStore } from "./store";
 import { ContentPanesPersistedStateSchema, type ContentPanesPersistedState, type ContentPaneData } from "./types";
@@ -22,8 +22,8 @@ function getPersistedState(): ContentPanesPersistedState {
  */
 async function persistState(): Promise<void> {
   const state = getPersistedState();
-  await persistence.ensureDir("ui");
-  await persistence.writeJson(UI_STATE_PATH, state);
+  await appData.ensureDir("ui");
+  await appData.writeJson(UI_STATE_PATH, state);
 }
 
 export const contentPanesService = {
@@ -34,7 +34,7 @@ export const contentPanesService = {
    */
   async hydrate(): Promise<void> {
     try {
-      const raw = await persistence.readJson(UI_STATE_PATH);
+      const raw = await appData.readJson(UI_STATE_PATH);
       if (raw) {
         const result = ContentPanesPersistedStateSchema.safeParse(raw);
         if (result.success) {
@@ -83,10 +83,10 @@ export const contentPanesService = {
     const pane: ContentPaneData = { id: paneId, view };
 
     try {
-      await persistence.ensureDir("ui");
+      await appData.ensureDir("ui");
       const state = getPersistedState();
       state.panes[paneId] = pane;
-      await persistence.writeJson(UI_STATE_PATH, state);
+      await appData.writeJson(UI_STATE_PATH, state);
       useContentPanesStore.getState()._applyCreatePane(pane);
       logger.debug(`[contentPanesService] Created pane ${paneId}`);
       return paneId;
@@ -117,8 +117,8 @@ export const contentPanesService = {
         // Set active to first remaining pane
         state.activePaneId = Object.keys(state.panes)[0] ?? null;
       }
-      await persistence.ensureDir("ui");
-      await persistence.writeJson(UI_STATE_PATH, state);
+      await appData.ensureDir("ui");
+      await appData.writeJson(UI_STATE_PATH, state);
       store._applyClosePane(paneId);
       logger.debug(`[contentPanesService] Closed pane ${paneId}`);
     } catch (err) {
@@ -149,10 +149,10 @@ export const contentPanesService = {
     try {
       const state = getPersistedState();
       state.panes[paneId] = { ...state.panes[paneId], view };
-      await persistence.ensureDir("ui");
+      await appData.ensureDir("ui");
       const writeStart = Date.now();
-      await persistence.writeJson(UI_STATE_PATH, state);
-      logger.debug(`[contentPanesService:TIMING] persistence.writeJson completed in ${Date.now() - writeStart}ms`);
+      await appData.writeJson(UI_STATE_PATH, state);
+      logger.debug(`[contentPanesService:TIMING] appData.writeJson completed in ${Date.now() - writeStart}ms`);
 
       const applyStart = Date.now();
       store._applySetPaneView(paneId, view);
@@ -185,8 +185,8 @@ export const contentPanesService = {
     try {
       const state = getPersistedState();
       state.activePaneId = paneId;
-      await persistence.ensureDir("ui");
-      await persistence.writeJson(UI_STATE_PATH, state);
+      await appData.ensureDir("ui");
+      await appData.writeJson(UI_STATE_PATH, state);
       store._applySetActivePane(paneId);
       logger.debug(`[contentPanesService] Set active pane to ${paneId}`);
     } catch (err) {

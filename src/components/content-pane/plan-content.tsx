@@ -22,7 +22,7 @@ import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
 import { StalePlanView } from "@/components/control-panel/stale-plan-view";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
 import { useRepoStore } from "@/entities/repositories";
-import { loadSettings } from "@/lib/persistence";
+import { loadSettings } from "@/lib/app-data-store";
 import { spawnSimpleAgent } from "@/lib/agent-service";
 import { useContextAwareNavigation } from "@/hooks/use-context-aware-navigation";
 import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";

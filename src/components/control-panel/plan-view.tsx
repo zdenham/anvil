@@ -21,11 +21,10 @@ import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";
 import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
 import { ControlPanelHeader } from "./control-panel-header";
 import { StalePlanView } from "./stale-plan-view";
-import { SuggestedActionsPanel, type SuggestedActionsPanelRef } from "./suggested-actions-panel";
 import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
 import { useQuickActionsStore, planDefaultActions, type ActionType } from "@/stores/quick-actions-store";
 import { useRepoStore } from "@/entities/repositories";
-import { loadSettings } from "@/lib/persistence";
+import { loadSettings } from "@/lib/app-data-store";
 import { spawnSimpleAgent } from "@/lib/agent-service";
 import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
 import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
@@ -43,7 +42,6 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
     useCallback((s) => s.getPlan(planId), [planId])
   );
   const { content, isLoading: isContentLoading, isStale } = usePlanContent(planId);
-  const quickActionsPanelRef = useRef<SuggestedActionsPanelRef>(null);
   const inputRef = useRef<ThreadInputRef>(null);
 
   // State for refresh tracking (cross-window sync)
@@ -162,7 +160,7 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
   // Focus restoration on mount
   useEffect(() => {
     const timer = setTimeout(() => {
-      quickActionsPanelRef.current?.focus();
+      inputRef.current?.focus();
     }, 50);
     return () => clearTimeout(timer);
   }, [planId]);
@@ -214,10 +212,6 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
     }
   }, [planId, isProcessing, setProcessing, navigateToNextItemOrFallback]);
 
-  // Legacy action handler - routes to handleQuickAction
-  const handleLegacyAction = useCallback(async (action: "markUnread" | "archive") => {
-    await handleQuickAction(action);
-  }, [handleQuickAction]);
 
   // Handle message submission from ThreadInput - creates a new thread with plan context
   const handleMessageSubmit = useCallback(async (userMessage: string) => {
@@ -249,17 +243,9 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
     });
   }, [plan, workingDirectory]);
 
-  // Handle focus transfer from ThreadInput to quick actions panel
+  // Handle focus transfer from ThreadInput - no-op since we removed quick actions panel
   const handleNavigateToQuickActions = useCallback(() => {
-    // Expand the quick actions panel if collapsed (user is navigating up)
-    // then focus it so keyboard nav works
-    quickActionsPanelRef.current?.expand();
-    quickActionsPanelRef.current?.focus();
-  }, []);
-
-  // Handle clicks on "respond" action - focus the input
-  const handleAutoSelectInput = useCallback(() => {
-    inputRef.current?.focus();
+    // Focus is handled by keyboard navigation in the main component
   }, []);
 
   // Global keyboard navigation for quick actions
@@ -377,19 +363,9 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
         </div>
       </div>
 
-      {/* Quick actions and input */}
+      {/* Message input */}
       {/* Max width constraint centered for readability on wide screens */}
-      <div className="w-full max-w-[900px] mx-auto">
-        <SuggestedActionsPanel
-          ref={quickActionsPanelRef}
-          view={{ type: "plan", planId }}
-          onAction={handleLegacyAction}
-          isStreaming={false}
-          onQuickAction={handleQuickAction}
-          onAutoSelectInput={handleAutoSelectInput}
-        />
-
-        {/* Message input */}
+      <div className="w-full max-w-[900px] mx-auto px-2.5">
         <ThreadInput
           ref={inputRef}
           onSubmit={handleMessageSubmit}

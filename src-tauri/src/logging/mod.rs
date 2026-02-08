@@ -193,6 +193,21 @@ impl LogBuffer {
         }
     }
 
+    /// Get all buffered logs (for initial frontend load)
+    fn get_all(&self) -> Vec<LogEvent> {
+        self.logs.lock().map(|logs| logs.clone()).unwrap_or_default()
+    }
+
+    /// Clear all buffered logs
+    fn clear(&self) {
+        if let Ok(mut logs) = self.logs.lock() {
+            logs.clear();
+        }
+        // Also clear the dedup tracker
+        if let Ok(mut last_emit) = self.last_emit.lock() {
+            last_emit.clear();
+        }
+    }
 }
 
 /// Global log buffer instance
@@ -425,5 +440,17 @@ pub fn log_from_web(level: &str, message: &str, source: &str) {
         "debug" => tracing::debug!(target: "web", "{}", prefixed),
         _ => tracing::info!(target: "web", "{}", prefixed),
     }
+}
+
+/// Get all buffered logs for initial frontend hydration
+#[tauri::command]
+pub fn get_buffered_logs() -> Vec<LogEvent> {
+    LOG_BUFFER.get_all()
+}
+
+/// Clear all buffered logs
+#[tauri::command]
+pub fn clear_logs() {
+    LOG_BUFFER.clear();
 }
 

@@ -24,8 +24,4 @@ export { PlanContent } from "./plan-content";
 export { EmptyPaneContent } from "./empty-pane-content";
 
 // Sub-components (re-exported for convenience)
-export {
-  SuggestedActionsPanel,
-  type SuggestedActionsPanelRef,
-} from "./suggested-actions-panel";
 export { QueuedMessagesBanner } from "./queued-messages-banner";

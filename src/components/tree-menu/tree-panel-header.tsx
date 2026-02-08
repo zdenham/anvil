@@ -17,6 +17,10 @@ interface TreePanelHeaderProps {
   onLogsClick: () => void;
   /** Called when Terminal is clicked (optional - terminal integration) */
   onTerminalClick?: () => void;
+  /** Called when user clicks "Show all workspaces" */
+  onUnhideAll?: () => void;
+  /** Whether any workspaces are hidden or pinned */
+  hasHiddenOrPinned?: boolean;
 }
 
 /**
@@ -28,6 +32,8 @@ export function TreePanelHeader({
   onSettingsClick,
   onLogsClick,
   onTerminalClick,
+  onUnhideAll,
+  hasHiddenOrPinned,
 }: TreePanelHeaderProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -76,7 +82,12 @@ export function TreePanelHeader({
             </button>
           </Tooltip>
         )}
-        <MenuDropdown onSettingsClick={onSettingsClick} onLogsClick={onLogsClick} />
+        <MenuDropdown
+          onSettingsClick={onSettingsClick}
+          onLogsClick={onLogsClick}
+          onUnhideAll={onUnhideAll}
+          hasHiddenOrPinned={hasHiddenOrPinned}
+        />
       </div>
     </div>
   );

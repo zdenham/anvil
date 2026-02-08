@@ -31,9 +31,6 @@ vi.mock("./lib/logger.js", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
-  stdout: vi.fn(() => {
-    callOrder.push("stdout-emit");
-  }),
 }));
 
 // Import after mocks
@@ -73,9 +70,9 @@ describe("output.ts - disk-before-emit ordering", () => {
 
   /**
    * Verifies the disk-as-truth pattern is correctly implemented.
-   * Disk write MUST complete BEFORE stdout emit.
+   * Disk write MUST complete when emitState resolves.
    */
-  it("disk write completes BEFORE stdout emit (disk-as-truth pattern)", async () => {
+  it("disk write completes when emitState resolves (disk-as-truth pattern)", async () => {
     // Clear call order from initState
     callOrder = [];
 
@@ -98,17 +95,9 @@ describe("output.ts - disk-before-emit ordering", () => {
     // Wait for emitState to complete
     await emitPromise;
 
-    // Check the order of operations
+    // Verify disk write was called
     const diskIndex = callOrder.indexOf("disk-write-async");
-    const stdoutIndex = callOrder.indexOf("stdout-emit");
-
-    // Both should have been called
     expect(diskIndex).toBeGreaterThanOrEqual(0);
-    expect(stdoutIndex).toBeGreaterThanOrEqual(0);
-
-    // Correct behavior: disk write completes BEFORE stdout emit
-    // callOrder = ["disk-write-async", "stdout-emit"]
-    expect(diskIndex).toBeLessThan(stdoutIndex);
   });
 
   it("ThreadWriter.writeState is called", async () => {

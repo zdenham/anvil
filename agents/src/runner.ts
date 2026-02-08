@@ -152,6 +152,9 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const { threadId, parentId } = parseEarlyArgs(args);
 
+  // Track shutdown state to avoid recursive errors
+  let isShuttingDown = false;
+
   // Initialize hub client if we have a threadId
   if (threadId) {
     hub = new HubClient(threadId, parentId);
@@ -179,12 +182,21 @@ async function main(): Promise<void> {
     });
 
     hub.on("disconnect", () => {
-      logger.error("[runner] Disconnected from AgentHub");
-      process.exit(1);
+      if (isShuttingDown) return; // Avoid duplicate exits
+      isShuttingDown = true;
+
+      // Don't try to log via socket - it's already disconnected
+      // Give a brief window for any pending operations
+      setTimeout(() => {
+        process.exit(1);
+      }, 100);
     });
 
     hub.on("error", (err) => {
-      logger.error(`[runner] AgentHub error: ${err}`);
+      // Only log if not already shutting down (avoids recursive EPIPE)
+      if (!isShuttingDown) {
+        logger.error(`[runner] AgentHub error: ${err}`);
+      }
     });
 
     // Connect to hub

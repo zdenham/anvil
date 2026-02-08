@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID, type UUID } from "crypto";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { logger } from "../logger.js";
 
@@ -19,8 +19,8 @@ type AppendUserMessage = (content: string) => Promise<void>;
  * This enables mid-conversation message injection from the socket IPC.
  */
 export class SocketMessageStream {
-  private messageQueue: Array<{ id: string; content: string }> = [];
-  private resolveNext: ((msg: { id: string; content: string } | null) => void) | null = null;
+  private messageQueue: Array<{ id: UUID; content: string }> = [];
+  private resolveNext: ((msg: { id: UUID; content: string } | null) => void) | null = null;
   private closed = false;
   private sessionId: string;
   private eventEmitter: EventEmitter | null = null;
@@ -104,7 +104,7 @@ export class SocketMessageStream {
    * Push a queued message into the stream.
    * Called when a queued_message arrives via socket IPC.
    */
-  push(id: string, content: string): void {
+  push(id: UUID, content: string): void {
     if (this.closed) {
       logger.warn(`[SocketMessageStream] Ignoring message ${id} - stream is closed`);
       return;
@@ -142,7 +142,7 @@ export class SocketMessageStream {
   /**
    * Wait for the next message from the queue or a push.
    */
-  private waitForMessage(): Promise<{ id: string; content: string } | null> {
+  private waitForMessage(): Promise<{ id: UUID; content: string } | null> {
     if (this.closed) return Promise.resolve(null);
 
     // Return from queue if available
@@ -159,7 +159,7 @@ export class SocketMessageStream {
   /**
    * Format a message as an SDKUserMessage.
    */
-  private formatUserMessage(content: string, isSynthetic: boolean, uuid?: string): SDKUserMessage {
+  private formatUserMessage(content: string, isSynthetic: boolean, uuid?: UUID): SDKUserMessage {
     return {
       type: "user",
       message: { role: "user", content },

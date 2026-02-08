@@ -3,7 +3,7 @@ import { join, isAbsolute, relative } from "path";
 import { z } from "zod";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ThreadWriter } from "./services/thread-writer.js";
-import { logger, stdout } from "./lib/logger.js";
+import { logger } from "./lib/logger.js";
 import type {
   FileChange,
   ResultMetrics,
@@ -263,54 +263,13 @@ function markOrphanedToolsAsError(): void {
 }
 
 /**
- * Extract final result text from the last assistant message.
- * Used to emit a clean result for bash-based sub-agents.
- */
-function extractFinalResultText(): string | null {
-  // Find the last assistant message
-  for (let i = state.messages.length - 1; i >= 0; i--) {
-    const msg = state.messages[i];
-    if (msg.role === "assistant") {
-      const content = msg.content;
-      // Handle string content
-      if (typeof content === "string") {
-        return content;
-      }
-      // Handle array content - extract text blocks
-      if (Array.isArray(content)) {
-        const textBlocks = content
-          .filter((block): block is { type: "text"; text: string } =>
-            typeof block === "object" && block !== null && "type" in block && block.type === "text" && "text" in block
-          )
-          .map(block => block.text);
-        if (textBlocks.length > 0) {
-          return textBlocks.join("\n");
-        }
-      }
-      return null;
-    }
-  }
-  return null;
-}
-
-/**
  * Mark the thread as complete with metrics.
- * Also emits a SUBAGENT_RESULT marker with just the final text for easy parsing.
  */
 export async function complete(metrics: ResultMetrics): Promise<void> {
   markOrphanedToolsAsError();
   state.metrics = metrics;
   state.status = "complete";
   await emitState();
-
-  // Emit final result marker for bash-based sub-agent consumption
-  const finalText = extractFinalResultText();
-  if (finalText) {
-    stdout({
-      type: "subagent_result",
-      text: finalText,
-    });
-  }
 }
 
 /**

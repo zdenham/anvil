@@ -7,7 +7,7 @@ import type {
   ResolvedQuickAction,
 } from './types.js';
 import { QuickActionManifestSchema, QuickActionsRegistrySchema } from '@core/types/quick-actions.js';
-import { persistence } from '@/lib/persistence.js';
+import { appData } from '@/lib/app-data-store.js';
 import { logger } from '@/lib/logger-client.js';
 
 const REGISTRY_FILENAME = 'quick-actions-registry.json';
@@ -15,7 +15,7 @@ const QUICK_ACTIONS_DIR = 'quick-actions';
 
 async function readRegistry(): Promise<QuickActionsRegistry> {
   try {
-    const content = await persistence.readJson<QuickActionsRegistry>(REGISTRY_FILENAME);
+    const content = await appData.readJson<QuickActionsRegistry>(REGISTRY_FILENAME);
     if (!content) {
       return { actionOverrides: {}, slugToId: {} };
     }
@@ -26,14 +26,14 @@ async function readRegistry(): Promise<QuickActionsRegistry> {
 }
 
 async function writeRegistry(registry: QuickActionsRegistry): Promise<void> {
-  await persistence.writeJson(REGISTRY_FILENAME, registry);
+  await appData.writeJson(REGISTRY_FILENAME, registry);
 }
 
 async function readManifest(): Promise<QuickActionManifest | null> {
   const manifestPath = `${QUICK_ACTIONS_DIR}/dist/manifest.json`;
 
   try {
-    const content = await persistence.readJson<QuickActionManifest>(manifestPath);
+    const content = await appData.readJson<QuickActionManifest>(manifestPath);
     if (!content) {
       return null;
     }
@@ -50,7 +50,7 @@ export const quickActionService = {
   async hydrate(): Promise<void> {
     logger.log('[quickActionService:hydrate] Starting quick action hydration...');
 
-    const projectPath = await persistence.getAbsolutePath(QUICK_ACTIONS_DIR);
+    const projectPath = await appData.getAbsolutePath(QUICK_ACTIONS_DIR);
 
     const manifest = await readManifest();
     if (!manifest) {

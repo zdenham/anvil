@@ -28,7 +28,7 @@ import type { RepoWorktree } from "@core/types/repositories";
 import { openControlPanel, showMainWindow, showMainWindowWithView } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
 import { savePromptToHistory, saveDraftToHistory } from "../../lib/prompt-history-helpers";
-import { loadSettings } from "../../lib/persistence";
+import { loadSettings } from "../../lib/app-data-store";
 import { createThread } from "../../lib/thread-creation-service";
 
 /** Error types for thread creation */

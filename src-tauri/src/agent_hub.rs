@@ -169,6 +169,14 @@ impl AgentHub {
         hierarchy: Arc<RwLock<HashMap<String, Option<String>>>>,
         app_handle: AppHandle,
     ) {
+        // CRITICAL: Set stream to blocking mode.
+        // Accepted sockets inherit non-blocking from the listener, which causes
+        // the reader loop to break immediately on WouldBlock instead of waiting.
+        if let Err(e) = stream.set_nonblocking(false) {
+            tracing::error!(error = %e, "Failed to set stream to blocking mode");
+            return;
+        }
+
         // Clone stream for writing (reader will own the original)
         let write_stream = match stream.try_clone() {
             Ok(s) => s,

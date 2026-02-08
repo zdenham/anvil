@@ -1,4 +1,4 @@
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
 import { useRelationStore } from "./store";
@@ -59,8 +59,8 @@ class RelationService {
     // Apply optimistically, then persist
     const rollback = store._applyCreate(relation);
     try {
-      await persistence.ensureDir(RELATIONS_DIR);
-      await persistence.writeJson(filePath, relation);
+      await appData.ensureDir(RELATIONS_DIR);
+      await appData.writeJson(filePath, relation);
       logger.debug(`[relationService:createOrUpgrade] Created relation: ${planId}-${threadId} (${type})`);
     } catch (error) {
       rollback();
@@ -101,9 +101,9 @@ class RelationService {
     // Apply optimistically, then persist
     const rollback = store._applyUpdate(planId, threadId, updates);
     try {
-      const raw = await persistence.readJson<PlanThreadRelation>(filePath);
+      const raw = await appData.readJson<PlanThreadRelation>(filePath);
       const merged = { ...(raw ?? existing), ...updates };
-      await persistence.writeJson(filePath, merged);
+      await appData.writeJson(filePath, merged);
       logger.debug(`[relationService:updateType] Updated relation: ${planId}-${threadId} (${previousType} -> ${newType})`);
     } catch (error) {
       rollback();
@@ -131,9 +131,9 @@ class RelationService {
 
       const rollback = store._applyUpdate(relation.planId, relation.threadId, updates);
       try {
-        const raw = await persistence.readJson<PlanThreadRelation>(filePath);
+        const raw = await appData.readJson<PlanThreadRelation>(filePath);
         const merged = { ...(raw ?? relation), ...updates };
-        await persistence.writeJson(filePath, merged);
+        await appData.writeJson(filePath, merged);
       } catch (error) {
         rollback();
         logger.error(`[relationService:archiveByThread] Failed to archive relation:`, error);
@@ -157,9 +157,9 @@ class RelationService {
 
       const rollback = store._applyUpdate(relation.planId, relation.threadId, updates);
       try {
-        const raw = await persistence.readJson<PlanThreadRelation>(filePath);
+        const raw = await appData.readJson<PlanThreadRelation>(filePath);
         const merged = { ...(raw ?? relation), ...updates };
-        await persistence.writeJson(filePath, merged);
+        await appData.writeJson(filePath, merged);
       } catch (error) {
         rollback();
         logger.error(`[relationService:archiveByPlan] Failed to archive relation:`, error);
@@ -203,14 +203,14 @@ class RelationService {
   async hydrate(): Promise<void> {
     logger.log("[relationService:hydrate] Starting relation hydration...");
 
-    await persistence.ensureDir(RELATIONS_DIR);
-    const files = await persistence.listDir(RELATIONS_DIR);
+    await appData.ensureDir(RELATIONS_DIR);
+    const files = await appData.listDir(RELATIONS_DIR);
     const relations: Record<string, PlanThreadRelation> = {};
 
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
       try {
-        const raw = await persistence.readJson(`${RELATIONS_DIR}/${file}`);
+        const raw = await appData.readJson(`${RELATIONS_DIR}/${file}`);
         const result = raw ? PlanThreadRelationSchema.safeParse(raw) : null;
         if (result?.success) {
           const key = makeKey(result.data.planId, result.data.threadId);
@@ -236,8 +236,8 @@ class RelationService {
   async refreshByThread(threadId: string): Promise<void> {
     logger.debug(`[relationService:refreshByThread] Refreshing relations for thread ${threadId}`);
 
-    await persistence.ensureDir(RELATIONS_DIR);
-    const files = await persistence.listDir(RELATIONS_DIR);
+    await appData.ensureDir(RELATIONS_DIR);
+    const files = await appData.listDir(RELATIONS_DIR);
     const store = useRelationStore.getState();
 
     for (const file of files) {
@@ -246,7 +246,7 @@ class RelationService {
       if (!file.includes(threadId)) continue;
 
       try {
-        const raw = await persistence.readJson(`${RELATIONS_DIR}/${file}`);
+        const raw = await appData.readJson(`${RELATIONS_DIR}/${file}`);
         const result = raw ? PlanThreadRelationSchema.safeParse(raw) : null;
 
         if (result?.success && result.data.threadId === threadId) {
@@ -277,8 +277,8 @@ class RelationService {
   async refreshByPlan(planId: string): Promise<void> {
     logger.debug(`[relationService:refreshByPlan] Refreshing relations for plan ${planId}`);
 
-    await persistence.ensureDir(RELATIONS_DIR);
-    const files = await persistence.listDir(RELATIONS_DIR);
+    await appData.ensureDir(RELATIONS_DIR);
+    const files = await appData.listDir(RELATIONS_DIR);
     const store = useRelationStore.getState();
 
     for (const file of files) {
@@ -287,7 +287,7 @@ class RelationService {
       if (!file.includes(planId)) continue;
 
       try {
-        const raw = await persistence.readJson(`${RELATIONS_DIR}/${file}`);
+        const raw = await appData.readJson(`${RELATIONS_DIR}/${file}`);
         const result = raw ? PlanThreadRelationSchema.safeParse(raw) : null;
 
         if (result?.success && result.data.planId === planId) {

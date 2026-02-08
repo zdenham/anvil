@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { RepositorySettingsSchema } from "@core/types/repositories.js";
 import { logger } from "@/lib/logger-client";
 
@@ -36,12 +36,12 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
     const repos = new Map<string, RepoInfo>();
 
     try {
-      const repoDirs = await persistence.listDir(REPOS_DIR);
+      const repoDirs = await appData.listDir(REPOS_DIR);
 
       for (const repoSlug of repoDirs) {
         try {
           const settingsPath = `${REPOS_DIR}/${repoSlug}/settings.json`;
-          const raw = await persistence.readJson(settingsPath);
+          const raw = await appData.readJson(settingsPath);
           const result = raw ? RepositorySettingsSchema.safeParse(raw) : null;
 
           if (result?.success) {

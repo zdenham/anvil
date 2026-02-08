@@ -27,12 +27,6 @@ export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
     mortDir: TestMortDirectory;
     repo: TestRepository;
   }>;
-  /**
-   * Use socket-based IPC instead of stdin/stdout.
-   * When true (default), creates a MockHubServer and communicates via Unix socket.
-   * When false, uses legacy stdin/stdout communication.
-   */
-  useSocketIpc?: boolean;
 }
 
 /**
@@ -47,12 +41,10 @@ export class AgentTestHarness {
   private mockHub: MockHubServer | null = null;
   private runnerConfig: RunnerConfig;
   private customSetup?: AgentTestHarnessOptions["setupEnvironment"];
-  private useSocketIpc: boolean;
 
   constructor(private options: AgentTestHarnessOptions = {}) {
     this.runnerConfig = options.runnerConfig ?? defaultRunnerConfig;
     this.customSetup = options.setupEnvironment;
-    this.useSocketIpc = options.useSocketIpc ?? true;
   }
 
   /**
@@ -111,20 +103,9 @@ export class AgentTestHarness {
   }
 
   /**
-   * Spawn the agent subprocess and collect its output.
+   * Spawn the agent subprocess and collect its output via socket-based IPC.
    */
   private async spawnAgent(opts: AgentTestOptions): Promise<AgentRunOutput> {
-    if (this.useSocketIpc) {
-      return this.spawnAgentWithSocket(opts);
-    } else {
-      return this.spawnAgentLegacy(opts);
-    }
-  }
-
-  /**
-   * Spawn agent using socket-based IPC via MockHubServer.
-   */
-  private async spawnAgentWithSocket(opts: AgentTestOptions): Promise<AgentRunOutput> {
     const currentDir = dirname(fileURLToPath(import.meta.url));
     const runnerPath = join(currentDir, "..", this.runnerConfig.runnerPath);
     const repoCwd = opts.cwd ?? this.repo?.path ?? process.cwd();
@@ -212,10 +193,10 @@ export class AgentTestHarness {
         }
       });
 
-      // Still parse stdout for any logs that might be written there (e.g., debug output)
+      // Parse stdout for debug output only (all protocol messages go via socket)
       const rl = createReadlineInterface({ input: proc.stdout });
       rl.on("line", (line) => {
-        this.parseOutputLine(line, logs, events, states);
+        this.parseDebugOutput(line, logs);
       });
 
       proc.on("close", (code) => {
@@ -226,18 +207,20 @@ export class AgentTestHarness {
           const socketMessages = this.mockHub.getMessagesForThread(threadId);
           for (const msg of socketMessages) {
             if (msg.type === "state") {
+              // StateMessage from socket includes state property
+              const stateMsg = msg as unknown as { type: "state"; state: unknown };
               states.push({
                 type: "state",
-                threadId: msg.threadId,
-                state: msg.state as AgentStateMessage["state"],
+                state: stateMsg.state as AgentStateMessage["state"],
               });
             } else if (msg.type === "event") {
+              // EventMessage from socket includes name and payload
+              const eventMsg = msg as unknown as { type: "event"; name: string; payload: unknown };
               events.push({
                 type: "event",
-                threadId: msg.threadId,
-                name: (msg as { name: string }).name,
-                payload: (msg as { payload: unknown }).payload,
-              });
+                name: eventMsg.name,
+                payload: eventMsg.payload,
+              } as AgentEventMessage);
             }
           }
         }
@@ -262,135 +245,17 @@ export class AgentTestHarness {
   }
 
   /**
-   * Spawn agent using legacy stdin/stdout communication.
-   * Kept for backward compatibility when useSocketIpc is false.
+   * Parse debug output from stdout.
+   * All protocol messages now go via socket; stdout is only for debug logs.
    */
-  private spawnAgentLegacy(opts: AgentTestOptions): Promise<AgentRunOutput> {
-    // Resolve runner path relative to src/testing -> src/runner.ts
-    const currentDir = dirname(fileURLToPath(import.meta.url));
-    const runnerPath = join(currentDir, "..", this.runnerConfig.runnerPath);
-    const repoCwd = opts.cwd ?? this.repo?.path ?? process.cwd();
-    const cliArgs = this.runnerConfig.buildArgs(
-      opts,
-      this.mortDir!.path,
-      repoCwd
-    );
-    const args = [runnerPath, ...cliArgs];
-
-    const logs: AgentLogMessage[] = [];
-    const events: AgentEventMessage[] = [];
-    const states: AgentStateMessage[] = [];
-    let stderr = "";
-    const startTime = Date.now();
-    const timeout = opts.timeout ?? 60000;
-
-    return new Promise((resolve, reject) => {
-      const proc = spawn("tsx", args, {
-        env: { ...process.env, ...this.runnerConfig.env, ...opts.env },
-        stdio: ['pipe', 'pipe', 'pipe'],  // Enable stdin pipe for queued messages
-      });
-
-      let killed = false;
-      let timeoutId: NodeJS.Timeout | null = null;
-
-      // Schedule queued messages to be sent via stdin
-      const queuedMessageTimeouts: NodeJS.Timeout[] = [];
-      if (opts.queuedMessages && opts.queuedMessages.length > 0) {
-        for (const qm of opts.queuedMessages) {
-          const qmTimeoutId = setTimeout(() => {
-            if (!killed && proc.stdin && !proc.stdin.destroyed) {
-              const payload = JSON.stringify({
-                type: 'queued_message',
-                id: randomUUID(),
-                content: qm.content,
-                timestamp: Date.now(),
-              }) + '\n';
-              proc.stdin.write(payload);
-            }
-          }, qm.delayMs);
-          queuedMessageTimeouts.push(qmTimeoutId);
-        }
-      }
-
-      // Set up timeout handling with graceful shutdown
-      timeoutId = setTimeout(() => {
-        if (!killed) {
-          killed = true;
-          proc.kill("SIGTERM");
-          // Force kill after 5 seconds if process doesn't exit gracefully
-          setTimeout(() => proc.kill("SIGKILL"), 5000);
-        }
-      }, timeout);
-
-      const clearTimeoutHandler = () => {
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-
-      // Parse JSON lines from stdout
-      const rl = createReadlineInterface({ input: proc.stdout });
-      rl.on("line", (line) => {
-        this.parseOutputLine(line, logs, events, states);
-      });
-
-      // Capture stderr for debugging
-      proc.stderr.on("data", (data: Buffer) => {
-        const text = data.toString();
-        stderr += text;
-        if (process.env.DEBUG) {
-          process.stderr.write(`[agent stderr] ${text}`);
-        }
-      });
-
-      proc.on("close", (code) => {
-        clearTimeoutHandler();
-        // Clear any pending queued message timeouts
-        queuedMessageTimeouts.forEach(clearTimeout);
-        resolve({
-          logs,
-          events,
-          states,
-          exitCode: killed ? -1 : (code ?? 1),
-          stderr: killed
-            ? `${stderr}\n[Killed: timeout after ${timeout}ms]`
-            : stderr,
-          durationMs: Date.now() - startTime,
-        });
-      });
-
-      proc.on("error", (err) => {
-        clearTimeoutHandler();
-        reject(err);
-      });
-    });
-  }
-
-  /**
-   * Parse a single stdout line and categorize it by message type.
-   * Non-JSON lines are ignored (or logged in DEBUG mode).
-   */
-  private parseOutputLine(
-    line: string,
-    logs: AgentLogMessage[],
-    events: AgentEventMessage[],
-    states: AgentStateMessage[]
-  ): void {
+  private parseDebugOutput(line: string, logs: AgentLogMessage[]): void {
     try {
       const msg = JSON.parse(line);
-      switch (msg.type) {
-        case "log":
-          logs.push(msg as AgentLogMessage);
-          break;
-        case "event":
-          events.push(msg as AgentEventMessage);
-          break;
-        case "state":
-          states.push(msg as AgentStateMessage);
-          break;
-        default:
-          // Unknown message type - ignore but log in debug mode
-          if (process.env.DEBUG) {
-            process.stdout.write(`[agent stdout] Unknown type: ${line}\n`);
-          }
+      if (msg.type === "log") {
+        logs.push(msg as AgentLogMessage);
+      } else if (process.env.DEBUG) {
+        // Unexpected JSON message - log in debug mode
+        process.stdout.write(`[agent stdout] Unexpected: ${line}\n`);
       }
     } catch {
       // Non-JSON output (e.g., raw console.log from dependencies)

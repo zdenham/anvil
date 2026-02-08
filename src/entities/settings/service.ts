@@ -1,5 +1,5 @@
 import { optimistic } from "@/lib/optimistic";
-import { persistence } from "@/lib/persistence";
+import { appData } from "@/lib/app-data-store";
 import { useSettingsStore } from "./store";
 import type { WorkspaceSettings } from "./types";
 import { DEFAULT_WORKSPACE_SETTINGS, WorkspaceSettingsSchema } from "./types";
@@ -12,7 +12,7 @@ export const settingsService = {
    * Should be called once at app initialization.
    */
   async hydrate(): Promise<void> {
-    const raw = await persistence.readJson(SETTINGS_FILE);
+    const raw = await appData.readJson(SETTINGS_FILE);
     const result = raw ? WorkspaceSettingsSchema.safeParse(raw) : null;
     const settings = result?.success ? result.data : DEFAULT_WORKSPACE_SETTINGS;
     useSettingsStore.getState().hydrate(settings);
@@ -39,7 +39,7 @@ export const settingsService = {
     await optimistic(
       updated,
       (settings) => useSettingsStore.getState()._applyUpdate(settings),
-      (settings) => persistence.writeJson(SETTINGS_FILE, settings)
+      (settings) => appData.writeJson(SETTINGS_FILE, settings)
     );
   },
 
@@ -54,7 +54,7 @@ export const settingsService = {
     await optimistic(
       updated,
       (settings) => useSettingsStore.getState()._applyUpdate(settings),
-      (settings) => persistence.writeJson(SETTINGS_FILE, settings)
+      (settings) => appData.writeJson(SETTINGS_FILE, settings)
     );
   },
 
@@ -66,7 +66,7 @@ export const settingsService = {
     await optimistic(
       DEFAULT_WORKSPACE_SETTINGS,
       (settings) => useSettingsStore.getState()._applyUpdate(settings),
-      (settings) => persistence.writeJson(SETTINGS_FILE, settings)
+      (settings) => appData.writeJson(SETTINGS_FILE, settings)
     );
   },
 };

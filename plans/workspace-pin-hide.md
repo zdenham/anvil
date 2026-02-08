@@ -10,13 +10,13 @@ Implement the ability to "pin" a workspace to filter out all other workspaces, a
 
 ## Phases
 
-- [ ] Add pinned/hidden state to tree-menu store and types
-- [ ] Add pin/hide service methods with persistence
-- [ ] Add pin button UI to RepoWorktreeSection header (visible on hover)
-- [ ] Add hide button UI to RepoWorktreeSection header (visible on hover)
-- [ ] Implement filtering logic in useTreeData hook
-- [ ] Add "Show all workspaces" option to MenuDropdown
-- [ ] Handle edge cases (last visible workspace, pinned workspace hidden, etc.)
+- [x] Add pinned/hidden state to tree-menu store and types
+- [x] Add pin/hide service methods with persistence
+- [x] Add pin button UI to RepoWorktreeSection header (visible on hover)
+- [x] Add hide button UI to RepoWorktreeSection header (visible on hover)
+- [x] Implement filtering logic in useTreeData hook
+- [x] Add "Show all workspaces" option to MenuDropdown
+- [x] Handle edge cases (last visible workspace, pinned workspace hidden, etc.)
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

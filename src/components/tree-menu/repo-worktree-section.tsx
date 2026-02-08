@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, ChevronDown, Plus, MessageSquarePlus, FolderGit2, GitBranch, Archive, Pencil, ExternalLink, Loader2, Terminal } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, MessageSquarePlus, FolderGit2, GitBranch, Archive, Pencil, ExternalLink, Loader2, Terminal, Pin, EyeOff } from "lucide-react";
 import { Command } from "@tauri-apps/plugin-shell";
 import { logger } from "@/lib/logger-client";
 import { worktreeService } from "@/entities/worktrees/service";
@@ -30,6 +30,12 @@ interface RepoWorktreeSectionProps {
   onRefresh?: () => void;
   /** Whether a worktree is being created for this repo (shows spinner) */
   isCreatingWorktree?: boolean;
+  /** Called when user clicks pin button */
+  onPinToggle?: (sectionId: string) => void;
+  /** Called when user clicks hide button */
+  onHide?: (sectionId: string) => void;
+  /** Whether this section is currently pinned */
+  isPinned?: boolean;
 }
 
 /**
@@ -50,6 +56,9 @@ export function RepoWorktreeSection({
   onArchiveWorktree,
   onRefresh,
   isCreatingWorktree,
+  onPinToggle,
+  onHide,
+  isPinned,
 }: RepoWorktreeSectionProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -196,6 +205,16 @@ export function RepoWorktreeSection({
     onArchiveWorktree?.(section.repoName, section.worktreeId, section.worktreeName);
   };
 
+  const handleContextPinToggle = () => {
+    setShowContextMenu(false);
+    onPinToggle?.(section.id);
+  };
+
+  const handleContextHide = () => {
+    setShowContextMenu(false);
+    onHide?.(section.id);
+  };
+
   const openInCursor = async () => {
     try {
       logger.log(`[WorktreeRow] Opening worktree in Cursor`, {
@@ -339,6 +358,13 @@ export function RepoWorktreeSection({
           {section.items.length}
         </span>
 
+        {/* Pin indicator - only shown when pinned */}
+        {isPinned && (
+          <span className="text-accent-400 flex items-center justify-center w-5 h-5">
+            <Pin size={12} />
+          </span>
+        )}
+
         {/* Plus button - always visible */}
         {(onNewThread || onNewWorktree || onNewRepo) && (
           <div className="flex items-center">
@@ -443,6 +469,36 @@ export function RepoWorktreeSection({
             <ExternalLink size={11} className="flex-shrink-0" />
             Open
           </button>
+          {/* Pin/Hide section */}
+          {(onPinToggle || onHide) && (
+            <div className="h-px bg-surface-700 my-1" />
+          )}
+          {onPinToggle && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleContextPinToggle();
+              }}
+              className="w-full px-2.5 py-1 text-left text-xs text-surface-200 hover:bg-surface-800 rounded flex items-center gap-2 whitespace-nowrap"
+            >
+              <Pin size={11} className={cn("flex-shrink-0", isPinned && "text-accent-400")} />
+              {isPinned ? "Unpin workspace" : "Pin workspace"}
+            </button>
+          )}
+          {onHide && !isPinned && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleContextHide();
+              }}
+              className="w-full px-2.5 py-1 text-left text-xs text-surface-200 hover:bg-surface-800 rounded flex items-center gap-2 whitespace-nowrap"
+            >
+              <EyeOff size={11} className="flex-shrink-0" />
+              Hide workspace
+            </button>
+          )}
           <div className="h-px bg-surface-700 my-1" />
           {onNewThread && (
             <button
