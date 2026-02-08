@@ -1,5 +1,6 @@
 import { triggerRegistry } from "./registry";
 import { FileTriggerHandler } from "./handlers/file-handler";
+import { skillTriggerHandler } from "./handlers/skill-handler";
 
 let initialized = false;
 
@@ -8,7 +9,7 @@ export function initializeTriggers(): void {
   initialized = true;
 
   triggerRegistry.register(new FileTriggerHandler());
-  // Future: register CommandTriggerHandler, TaskTriggerHandler
+  triggerRegistry.register(skillTriggerHandler);
 }
 
 // Re-export for convenience

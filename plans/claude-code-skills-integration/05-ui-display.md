@@ -6,10 +6,10 @@ Render skill invocations as expandable chips in user messages. Supports multiple
 
 ## Phases
 
-- [ ] Create skill display parser (shares logic with agent)
-- [ ] Create SkillChip component
-- [ ] Update UserMessage to render skill chips
-- [ ] Handle stale skills gracefully
+- [x] Create skill display parser (shares logic with agent)
+- [x] Create SkillChip component
+- [x] Update UserMessage to render skill chips
+- [x] Handle stale skills gracefully
 
 ---
 
@@ -256,11 +256,11 @@ export function UserMessage({ turn }: UserMessageProps) {
 
 ## Acceptance Criteria
 
-- [ ] Skill invocations render as chips above message text
-- [ ] Multiple skills render as multiple chips
-- [ ] Click expands chip to show skill content
-- [ ] Content lazy-loaded on first expand
-- [ ] Stale skills show warning indicator
-- [ ] Stale skills show helpful message when expanded
-- [ ] Source icon shows for each skill type
-- [ ] Args displayed in chip (truncated if long)
+- [x] Skill invocations render as chips above message text
+- [x] Multiple skills render as multiple chips
+- [x] Click expands chip to show skill content
+- [x] Content lazy-loaded on first expand
+- [x] Stale skills show warning indicator
+- [x] Stale skills show helpful message when expanded
+- [x] Source icon shows for each skill type
+- [x] Args displayed in chip (truncated if long)

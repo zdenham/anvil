@@ -9,11 +9,13 @@ interface TreeMenuProps {
   /**
    * Called when an item is selected.
    * @param itemId - The ID of the selected item
-   * @param itemType - The type of the selected item ("thread" or "plan")
+   * @param itemType - The type of the selected item ("thread", "plan", or "terminal")
    */
-  onItemSelect: (itemId: string, itemType: "thread" | "plan") => void;
+  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal") => void;
   /** Called when user wants to create a new thread in a worktree */
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  /** Called when user wants to create a new terminal in a worktree */
+  onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   /** Called when user wants to create a new worktree in a repo */
   onNewWorktree?: (repoName: string) => void;
   /** Called when user wants to add a new repository */
@@ -31,7 +33,7 @@ interface TreeMenuProps {
  * Supports keyboard navigation: ArrowUp/Down, ArrowLeft/Right, Enter/Space, Home/End.
  * Uses ARIA tree pattern for accessibility.
  */
-export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, className }: TreeMenuProps) {
+export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, className }: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sections = useTreeData();
   const selectedItemId = useTreeMenuStore((state) => state.selectedItemId);
@@ -44,7 +46,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, 
 
   // Build flat list of focusable items for keyboard navigation
   const focusableItems = useMemo(() => {
-    const items: Array<{ type: "section" | "item"; id: string; sectionId?: string; itemType?: "thread" | "plan" }> = [];
+    const items: Array<{ type: "section" | "item"; id: string; sectionId?: string; itemType?: "thread" | "plan" | "terminal" }> = [];
 
     for (const section of sections) {
       items.push({ type: "section", id: section.id });
@@ -88,7 +90,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, 
 
   // Handle item selection
   const handleItemSelect = useCallback(
-    async (itemId: string, itemType: "thread" | "plan") => {
+    async (itemId: string, itemType: "thread" | "plan" | "terminal") => {
       await treeMenuService.setSelectedItem(itemId);
       onItemSelect(itemId, itemType);
     },
@@ -225,6 +227,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewWorktree, onNewRepo, 
           onItemSelect={handleItemSelect}
           showDivider={index > 0}
           onNewThread={onNewThread}
+          onNewTerminal={onNewTerminal}
           onNewWorktree={onNewWorktree}
           onNewRepo={onNewRepo}
           onArchiveWorktree={onArchiveWorktree}

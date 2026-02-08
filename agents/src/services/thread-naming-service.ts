@@ -50,6 +50,5 @@ export async function generateThreadName(
     maxOutputTokens: 50,
   });
 
-  // Ensure max 30 characters and clean up
-  return text.trim().slice(0, 30);
+  return text.trim();
 }

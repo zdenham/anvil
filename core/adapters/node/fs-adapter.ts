@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { globSync } from 'glob';
 import type { FileSystemAdapter } from '../types';
 
@@ -33,5 +34,24 @@ export class NodeFileSystemAdapter implements FileSystemAdapter {
 
   glob(pattern: string, cwd: string): string[] {
     return globSync(pattern, { cwd });
+  }
+
+  listDirWithMetadata(dirPath: string): Array<{
+    name: string;
+    path: string;
+    isDirectory: boolean;
+    isFile: boolean;
+  }> {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    return entries.map(e => ({
+      name: e.name,
+      path: path.join(dirPath, e.name),
+      isDirectory: e.isDirectory(),
+      isFile: e.isFile(),
+    }));
+  }
+
+  joinPath(...segments: string[]): string {
+    return path.join(...segments);
   }
 }

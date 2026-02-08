@@ -20,10 +20,10 @@ Modify workspace creation to:
 
 ## Phases
 
-- [ ] Update `NodeGitAdapter` to support fetching and remote branch resolution
-- [ ] Update `WorktreeService.create()` to fetch and checkout remote default branch
-- [ ] Update Rust backend `git_create_worktree` to match the behavior (if used via Tauri)
-- [ ] Add tests for the new behavior
+- [x] Update `NodeGitAdapter` to support fetching and remote branch resolution
+- [x] Update `WorktreeService.create()` to fetch and checkout remote default branch
+- [x] Update Rust backend `git_create_worktree` to match the behavior (if used via Tauri)
+- [x] Add tests for the new behavior
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

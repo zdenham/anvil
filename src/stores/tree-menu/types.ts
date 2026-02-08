@@ -42,10 +42,10 @@ export interface RepoWorktreeSection {
 }
 
 /**
- * Individual tree item (thread or plan).
+ * Individual tree item (thread, plan, or terminal).
  */
 export interface TreeItemNode {
-  type: "thread" | "plan";
+  type: "thread" | "plan" | "terminal";
   /** UUID of the thread or plan */
   id: string;
   /** Display title (thread name or plan filename) */

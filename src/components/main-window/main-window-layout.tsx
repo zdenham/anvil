@@ -35,6 +35,7 @@ import { worktreeService } from "@/entities/worktrees";
 import { logger } from "@/lib/logger-client";
 import { generateUniqueWorktreeName } from "@/lib/random-name";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
+import { terminalSessionService } from "@/entities/terminal-sessions";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
@@ -258,13 +259,15 @@ export function MainWindowLayout() {
   // Tree Selection Handler
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleItemSelect = useCallback(async (itemId: string, itemType: "thread" | "plan") => {
+  const handleItemSelect = useCallback(async (itemId: string, itemType: "thread" | "plan" | "terminal") => {
     logger.info(`[MainWindowLayout] Item selected: ${itemType} ${itemId}`);
 
     if (itemType === "thread") {
       await navigationService.navigateToThread(itemId);
-    } else {
+    } else if (itemType === "plan") {
       await navigationService.navigateToPlan(itemId);
+    } else if (itemType === "terminal") {
+      await navigationService.navigateToView({ type: "terminal", terminalId: itemId });
     }
   }, []);
 
@@ -301,6 +304,21 @@ export function MainWindowLayout() {
       logger.info(`[MainWindowLayout] Created new thread ${thread.id}`);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to create thread:`, err);
+    }
+  }, []);
+
+  const handleNewTerminal = useCallback(async (worktreeId: string, worktreePath: string) => {
+    logger.info(`[MainWindowLayout] Creating new terminal for worktree ${worktreeId}`);
+
+    try {
+      const session = await terminalSessionService.create(worktreeId, worktreePath);
+
+      // Navigate to terminal pane
+      await navigationService.navigateToView({ type: "terminal", terminalId: session.id });
+
+      logger.info(`[MainWindowLayout] Created new terminal ${session.id}`);
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to create terminal:`, err);
     }
   }, []);
 
@@ -432,6 +450,7 @@ export function MainWindowLayout() {
           <TreeMenu
             onItemSelect={handleItemSelect}
             onNewThread={handleNewThread}
+            onNewTerminal={handleNewTerminal}
             onNewWorktree={handleNewWorktree}
             onNewRepo={handleNewRepo}
             onArchiveWorktree={handleArchiveWorktree}

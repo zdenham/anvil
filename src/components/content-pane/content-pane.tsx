@@ -13,6 +13,7 @@ import { useThreadStore } from "@/entities/threads/store";
 import { ContentPaneHeader } from "./content-pane-header";
 import { ThreadContent } from "./thread-content";
 import { PlanContent } from "./plan-content";
+import { TerminalContent } from "./terminal-content";
 import { EmptyPaneContent } from "./empty-pane-content";
 import { SettingsPage } from "../main-window/settings-page";
 import { LogsPage } from "../main-window/logs-page";
@@ -113,6 +114,12 @@ export function ContentPane({
         )}
         {view.type === "settings" && <SettingsPage />}
         {view.type === "logs" && <LogsPage />}
+        {view.type === "terminal" && (
+          <TerminalContent
+            terminalId={view.terminalId}
+            onClose={onClose}
+          />
+        )}
       </div>
     </div>
   );

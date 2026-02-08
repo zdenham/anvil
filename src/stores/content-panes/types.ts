@@ -16,6 +16,7 @@ export const ContentPaneViewSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("plan"), planId: z.string() }),
   z.object({ type: z.literal("settings") }),
   z.object({ type: z.literal("logs") }),
+  z.object({ type: z.literal("terminal"), terminalId: z.string() }),
 ]);
 
 /**

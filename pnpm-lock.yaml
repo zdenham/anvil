@@ -50,6 +50,18 @@ importers:
       '@tauri-apps/plugin-shell':
         specifier: ^2
         version: 2.3.3
+      '@xterm/addon-fit':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@xterm/addon-search':
+        specifier: ^0.16.0
+        version: 0.16.0
+      '@xterm/addon-webgl':
+        specifier: ^0.19.0
+        version: 0.19.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
       ai:
         specifier: ^5.0.108
         version: 5.0.108(zod@4.3.5)
@@ -1937,6 +1949,18 @@ packages:
 
   '@vitest/utils@4.0.14':
     resolution: {integrity: sha512-hLqXZKAWNg8pI+SQXyXxWCTOpA3MvsqcbVeNgSi8x/CSN2wi26dSzn1wrOhmCmFjEvN9p8/kLFRHa6PI8jHazw==}
+
+  '@xterm/addon-fit@0.11.0':
+    resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
+
+  '@xterm/addon-search@0.16.0':
+    resolution: {integrity: sha512-9OeuBFu0/uZJPu+9AHKY6g/w0Czyb/Ut0A5t79I4ULoU4IfU5BEpPFVGQxP4zTTMdfZEYkVIRYbHBX1xWwjeSA==}
+
+  '@xterm/addon-webgl@0.19.0':
+    resolution: {integrity: sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A==}
+
+  '@xterm/xterm@6.0.0':
+    resolution: {integrity: sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -5580,6 +5604,14 @@ snapshots:
     dependencies:
       '@vitest/pretty-format': 4.0.14
       tinyrainbow: 3.0.3
+
+  '@xterm/addon-fit@0.11.0': {}
+
+  '@xterm/addon-search@0.16.0': {}
+
+  '@xterm/addon-webgl@0.19.0': {}
+
+  '@xterm/xterm@6.0.0': {}
 
   acorn-jsx@5.3.2(acorn@8.15.0):
     dependencies:

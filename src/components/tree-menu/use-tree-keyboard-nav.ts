@@ -31,7 +31,7 @@ interface UseTreeKeyboardNavOptions {
   /** Flat list of visible tree items */
   items: TreeItemNode[];
   /** Callback when an item is selected */
-  onSelect: (itemId: string, itemType: "thread" | "plan") => void;
+  onSelect: (itemId: string, itemType: "thread" | "plan" | "terminal") => void;
   /** Get the current selected item index */
   getCurrentIndex: () => number;
 }
@@ -147,7 +147,7 @@ export function useTreeItemKeyboardNav(
   item: TreeItemNode,
   index: number,
   items: TreeItemNode[],
-  onSelect: (itemId: string, itemType: "thread" | "plan") => void
+  onSelect: (itemId: string, itemType: "thread" | "plan" | "terminal") => void
 ) {
   const handleKeyDown = useCallback(
     async (e: React.KeyboardEvent) => {

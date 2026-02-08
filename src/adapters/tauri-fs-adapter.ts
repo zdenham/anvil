@@ -1,11 +1,13 @@
-import type { FSAdapter } from "../../core/services/fs-adapter";
+import type { FSAdapter, DirEntry } from "../../core/services/fs-adapter";
 import { persistence } from "@/lib/persistence";
+import { FilesystemClient } from "@/lib/filesystem-client";
 
 /**
  * Tauri/frontend implementation of FSAdapter.
  * Wraps the persistence module which operates on the data directory.
  */
 export class TauriFSAdapter implements FSAdapter {
+  private fsClient = new FilesystemClient();
   async exists(path: string): Promise<boolean> {
     return persistence.exists(path);
   }
@@ -43,5 +45,14 @@ export class TauriFSAdapter implements FSAdapter {
   async mkdir(path: string, _recursive?: boolean): Promise<void> {
     // ensureDir always creates recursively
     return persistence.ensureDir(path);
+  }
+
+  async listDirWithMetadata(path: string): Promise<DirEntry[]> {
+    // FilesystemClient.listDir already returns the correct format
+    return this.fsClient.listDir(path);
+  }
+
+  joinPath(...segments: string[]): string {
+    return this.fsClient.joinPath(...segments);
   }
 }

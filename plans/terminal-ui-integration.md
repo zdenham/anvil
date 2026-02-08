@@ -578,31 +578,31 @@ export type ContentPaneView =
 
 **Prerequisite**: Main window refactor should be complete or in progress (content pane infrastructure).
 
-### Phase 1: Backend PTY Infrastructure
+### Phase 1: Backend PTY Infrastructure ✅
 1. Add `portable-pty = "0.9"` to Cargo.toml
 2. Create `src-tauri/src/terminal.rs` with PTY manager (see Backend Implementation above)
 3. Register terminal commands in `src-tauri/src/lib.rs`
 4. Test spawn/write/resize/kill cycle
 
-### Phase 2: Terminal Session Entity
+### Phase 2: Terminal Session Entity ✅
 1. Create `src/entities/terminal-sessions/` following existing entity patterns
 2. Implement schema, service, and React hook
 3. Add terminal events to `src/entities/events.ts`
 4. Wire up Tauri event listeners for backend events
 
-### Phase 3: Frontend Terminal Pane
+### Phase 3: Frontend Terminal Pane ✅
 1. Add xterm.js packages to package.json
 2. Create `src/components/content-pane/terminal-content.tsx`
 3. Update `ContentPaneView` type to include terminal
 4. Update `ContentPane` component to render `TerminalContent`
 5. Add both "close" and "archive" buttons to terminal pane header
 
-### Phase 4: UI Integration (Worktree Menu)
+### Phase 4: UI Integration (Worktree Menu) ✅
 1. Add "New Terminal" option to worktree context menu (plus dropdown)
 2. Terminal opens in the worktree path from which it was triggered
 3. Handle terminal exit (show "[Process exited]" message in pane)
 
-### Phase 5: Tree Menu / Sidebar Integration (Required)
+### Phase 5: Tree Menu / Sidebar Integration (Required) ✅
 1. Create `terminal-tree-item.tsx` component for sidebar
 2. Display terminals under their respective worktree (mixed with threads/plans)
 3. Show last command with ellipsis overflow as the item label
@@ -610,7 +610,7 @@ export type ContentPaneView =
 5. Click to open/focus content pane
 6. Archive button kills PTY and removes from list
 
-### Phase 6: Polish
+### Phase 6: Polish ✅
 1. Debounced resize handling
 2. Copy/paste keyboard shortcuts (Cmd+C/V)
 3. Basic theming (match Mort dark theme)

@@ -28,6 +28,7 @@ mod paths;
 mod process_commands;
 mod repo_commands;
 mod shell;
+mod terminal;
 mod thread_commands;
 mod worktree_commands;
 
@@ -43,6 +44,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use agent_hub::AgentHub;
+use terminal::TerminalState;
 
 const MAIN_WINDOW_LABEL: &str = "main";
 
@@ -295,12 +297,30 @@ fn save_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
     result
 }
 
+/// Gets the saved spotlight hotkey from config
+#[tauri::command]
+fn get_saved_hotkey() -> String {
+    config::get_spotlight_hotkey()
+}
+
 /// Saves the clipboard hotkey to config and re-registers hotkeys
 #[tauri::command]
 fn save_clipboard_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
     config::set_clipboard_hotkey(&hotkey)?;
     let spotlight_hotkey = config::get_spotlight_hotkey();
     register_hotkey_internal(&app, &spotlight_hotkey)
+}
+
+/// Gets the saved clipboard hotkey from config
+#[tauri::command]
+fn get_saved_clipboard_hotkey() -> String {
+    config::get_clipboard_hotkey()
+}
+
+/// Checks if the user has completed onboarding
+#[tauri::command]
+fn is_onboarded() -> bool {
+    config::is_onboarded()
 }
 
 /// Marks onboarding as complete
@@ -658,6 +678,19 @@ fn check_documents_access() -> bool {
     result
 }
 
+/// Get the captured shell PATH for spawning agent processes.
+/// This returns the PATH that was captured from the user's login shell,
+/// which includes version manager paths (nvm, fnm, volta, etc.).
+#[tauri::command]
+fn get_shell_path() -> String {
+    let path = paths::shell_path();
+    tracing::debug!(
+        path_len = path.len(),
+        "[tauri-cmd] get_shell_path: returning"
+    );
+    path
+}
+
 /// Get detailed accessibility status for debugging
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -717,7 +750,8 @@ pub fn run() {
         .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init())
         .manage(mort_commands::LockManager::new())
-        .manage(agent_hub.clone());
+        .manage(agent_hub.clone())
+        .manage(terminal::create_terminal_state());
 
     builder
         .on_window_event(|window, event| {
@@ -787,7 +821,10 @@ pub fn run() {
             get_agent_socket_path,
             register_hotkey,
             save_hotkey,
+            get_saved_hotkey,
             save_clipboard_hotkey,
+            get_saved_clipboard_hotkey,
+            is_onboarded,
             complete_onboarding,
             show_main_window,
             show_main_window_with_view,
@@ -814,6 +851,8 @@ pub fn run() {
             app_search::open_directory_in_app,
             clipboard::paste_clipboard_entry,
             clipboard::hide_clipboard_manager,
+            clipboard::get_clipboard_history,
+            clipboard::get_clipboard_content,
             filesystem::fs_write_file,
             filesystem::fs_read_file,
             filesystem::fs_mkdir,
@@ -825,7 +864,10 @@ pub fn run() {
             filesystem::fs_copy_directory,
             filesystem::fs_git_worktree_add,
             filesystem::fs_git_worktree_remove,
+            filesystem::fs_list_dir,
+            filesystem::fs_is_git_repo,
             // Git commands
+            git_commands::git_fetch,
             git_commands::git_get_default_branch,
             git_commands::git_get_branch_commit,
             git_commands::git_create_branch,
@@ -892,9 +934,17 @@ pub fn run() {
             initialize_shell_environment,
             is_shell_initialized,
             check_documents_access,
+            get_shell_path,
             // Repository commands
             repo_commands::validate_repository,
             repo_commands::remove_repository_data,
+            // Terminal commands
+            terminal::spawn_terminal,
+            terminal::write_terminal,
+            terminal::resize_terminal,
+            terminal::kill_terminal,
+            terminal::list_terminals,
+            terminal::kill_terminals_by_cwd,
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
@@ -1053,6 +1103,13 @@ pub fn run() {
                     if let Some(hub) = app_handle.try_state::<Arc<AgentHub>>() {
                         tracing::info!("Cleaning up AgentHub on exit");
                         hub.cleanup();
+                    }
+                    // Kill all terminal PTY processes on exit
+                    if let Some(terminal_state) = app_handle.try_state::<TerminalState>() {
+                        tracing::info!("Killing all terminals on exit");
+                        if let Ok(mut manager) = terminal_state.lock() {
+                            manager.kill_all();
+                        }
                     }
                 }
                 _ => {}

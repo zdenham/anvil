@@ -8,6 +8,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { relative, isAbsolute, join, resolve } from "path";
 import { readFileSync, writeFileSync, realpathSync, mkdirSync, existsSync } from "fs";
 import crypto from "crypto";
+import os from "os";
 import { parsePhases } from "../lib/phase-parser.js";
 import type { PhaseInfo } from "@core/types/plans.js";
 import type { RunnerConfig, OrchestrationContext } from "./types.js";
@@ -34,6 +35,7 @@ import { logger } from "../lib/logger.js";
 import { isMockModeEnabled, mockQuery } from "../testing/mock-query.js";
 import { generateThreadName } from "../services/thread-naming-service.js";
 import type { SocketMessageStream } from "../lib/hub/message-stream.js";
+import { processMessageWithSkills, skillsService } from "../lib/skills/index.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -362,10 +364,30 @@ export async function runAgentLoop(
   // Process plan mentions in the initial prompt (e.g., @plans/my-feature.md)
   await processPlanMentions(config.prompt, persistence, context);
 
+  // Process skill invocations in the user message (e.g., /commit fix bug)
+  // Ensure skills are discovered for this repo
+  if (skillsService.needsRediscovery(context.workingDir)) {
+    await skillsService.discover(context.workingDir, os.homedir());
+    logger.info(`[runner] Discovered ${skillsService.getCount()} skills`);
+  }
+
+  const skillInjection = await processMessageWithSkills(
+    config.prompt,
+    // Uses the same SkillsService as frontend - no duplicate logic
+    (slug) => skillsService.readContent(slug)
+  );
+
+  // Log found skills
+  if (skillInjection.skills.length > 0) {
+    logger.info(`[skills] Found ${skillInjection.skills.length} skill(s):`,
+      skillInjection.skills.map(s => `/${s.slug}`).join(", ")
+    );
+  }
+
   // Build system prompt
   // Import runnerPath dynamically to avoid circular dependency
   const { runnerPath } = await import("../runner.js");
-  const systemPrompt = buildSystemPrompt(agentConfig, {
+  const baseSystemPrompt = buildSystemPrompt(agentConfig, {
     threadId: context.threadId,
     repoId: context.repoId,
     worktreeId: context.worktreeId,
@@ -374,6 +396,11 @@ export async function runAgentLoop(
     runnerPath,
     parentThreadId: config.parentThreadId,
   });
+
+  // Append skill instructions to system prompt if any skills were found
+  const systemPrompt = skillInjection.systemPromptAppend
+    ? `${baseSystemPrompt}\n\n${skillInjection.systemPromptAppend}`
+    : baseSystemPrompt;
 
   logger.info(
     `[runner] System prompt: ${systemPrompt.length} chars, cwd=${context.workingDir}`

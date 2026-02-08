@@ -4,6 +4,7 @@ export interface TriggerResult {
   description: string; // e.g., "src/components/foo.tsx"
   icon?: string;
   insertText: string; // e.g., "@src/components/foo.tsx"
+  secondaryLabel?: string; // e.g., "Personal", "Project" for skills
 }
 
 export interface TriggerConfig {

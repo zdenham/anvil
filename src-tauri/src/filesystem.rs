@@ -4,8 +4,19 @@
 //! Keeps Rust thin - business logic stays in TypeScript.
 
 use crate::shell;
+use serde::Serialize;
 use std::fs;
 use std::path::Path;
+
+/// Directory entry metadata returned by list_dir
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntry {
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+    pub is_file: bool,
+}
 
 /// Writes text content to a file, creating parent directories if needed
 #[tauri::command]
@@ -54,6 +65,29 @@ pub fn fs_remove(path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn fs_remove_dir_all(path: String) -> Result<(), String> {
     fs::remove_dir_all(&path).map_err(|e| format!("Failed to remove directory: {}", e))
+}
+
+/// Lists directory contents with metadata
+#[tauri::command]
+pub fn fs_list_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    let entries = fs::read_dir(&path).map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    let mut result = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let metadata = entry
+            .metadata()
+            .map_err(|e| format!("Failed to read metadata: {}", e))?;
+
+        result.push(DirEntry {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: entry.path().to_string_lossy().to_string(),
+            is_directory: metadata.is_dir(),
+            is_file: metadata.is_file(),
+        });
+    }
+
+    Ok(result)
 }
 
 /// Moves or renames a file or directory
@@ -141,6 +175,13 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Checks if a directory is a git repository
+#[tauri::command]
+pub fn fs_is_git_repo(path: String) -> bool {
+    let git_dir = Path::new(&path).join(".git");
+    git_dir.exists()
 }
 
 /// Creates a git worktree at the specified path.

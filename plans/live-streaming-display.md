@@ -8,28 +8,37 @@ The existing "disk as truth" architecture pattern writes complete `state.json` s
 
 ## Investigation Findings
 
-### Current Architecture
+### Current Architecture (Socket-Based IPC)
 
-1. **Agent-side (`agents/src/runners/shared.ts`)**:
-   - Uses `@anthropic-ai/claude-agent-sdk` with `includePartialMessages: false`
-   - Messages are emitted only when complete via `appendAssistantMessage()`
-   - `emitState()` writes to disk first, then emits to stdout
+The codebase has migrated from stdout-based to **socket-based IPC**. All agent-to-frontend communication now flows through Unix sockets via the AgentHub (Rust backend).
 
-2. **Message Handler (`agents/src/runners/message-handler.ts`)**:
+1. **Agent Hub (Rust) - `src-tauri/src/agent_hub.rs`**:
+   - Unix socket server at `~/.mort/agent-hub.sock`
+   - Accepts connections from all agents (root + sub-agents)
+   - Routes messages to frontend via `agent:message` Tauri events
+   - JSON-line protocol with automatic buffering
+
+2. **Hub Client (Node.js) - `agents/src/lib/hub/client.ts`**:
+   - `HubClient` class manages socket connections
+   - `sendState(state)` - Sends complete thread state snapshots
+   - `sendEvent(name, payload)` - Sends typed events
+   - Socket is the **only** communication path (stdout fallback removed)
+
+3. **Frontend Reception - `src/lib/agent-service.ts`**:
+   - `initAgentMessageListener()` listens for `agent:message` Tauri events
+   - Routes by message type: `state` → `AGENT_STATE`, `event` → `routeAgentEvent()`
+   - Emits to local `eventBus` (mitt)
+
+4. **Cross-Window Broadcasting - `src/lib/event-bridge.ts`**:
+   - `BROADCAST_EVENTS` array controls which events are sent cross-window
+   - Spotlight spawns agent → Control Panel displays it
+   - Uses Tauri `emit()` broadcast with `_source` echo prevention
+
+5. **Message Handler (`agents/src/runners/message-handler.ts`)**:
    - Handles `SDKMessage` types: `system`, `assistant`, `user`, `result`, `tool_progress`
-   - No handling for `SDKPartialAssistantMessage` (streaming events)
+   - **No handling for `SDKPartialAssistantMessage` yet** (streaming events)
 
-3. **Frontend (`src/lib/agent-service.ts`)**:
-   - Parses stdout JSON lines: `log`, `event`, `state`
-   - On `state` events, emits `AGENT_STATE` to eventBus
-   - Thread service reads from disk and updates zustand store
-
-4. **Thread View (`src/components/thread/`)**:
-   - `AssistantMessage` renders `ContentBlock[]` from persisted state
-   - `TextBlock` shows `StreamingCursor` when `isStreaming` prop is true
-   - Currently `isStreaming` only indicates the thread is active, not actual token streaming
-
-### How Streaming Actually Works
+### How Streaming Works in the Anthropic SDK
 
 **Key insight: Streamed content IS the eventual persisted content, just delivered incrementally.**
 
@@ -63,17 +72,11 @@ The Anthropic API streams the assistant's response as it's generated. What you s
 │       │                                                      │
 │       ├── content_block_start (tool_use, index=2)           │
 │       │        └── input_json_delta '{"file'                │
-│       │        └── input_json_delta '":"foo.ts"}'           │
+│       │        └── input_json_delta '":\"foo.ts\"}'         │
 │       │        └── content_block_stop                       │
 │       │                                                      │
 │       └── message_stop                                       │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-              [SDK executes tool, gets result]
-                              │
-                              ▼
-              [New model turn if continuation needed]
 ```
 
 #### Tool Use: What Happens Mid-Stream?
@@ -83,8 +86,6 @@ Tool **invocations** are announced during streaming (you see `content_block_star
 - **Tool execution** happens AFTER `message_stop` - the SDK handles this
 - **Tool results** come back via a separate user message (not streaming)
 - The agentic loop then starts a new model turn, which streams again
-
-So within a single model turn, content blocks are sequential (thinking → text → tool_use). But the overall agentic flow is: stream → execute tools → stream next turn → repeat.
 
 **For our implementation**: We only stream text/thinking content. Tool use blocks appear in streaming but their execution/results flow through the existing `AGENT_STATE` persistence mechanism.
 
@@ -114,97 +115,15 @@ Where `RawMessageStreamEvent` includes:
 - `content_block_stop`: Content block complete
 - `message_start`, `message_delta`, `message_stop`: Message lifecycle
 
-### Cross-Window Event Broadcasting (Critical)
-
-**The agent is typically spawned from the Spotlight window but displayed in the Control Panel window.** This means streaming events MUST be broadcast across windows via Tauri IPC.
-
-Current cross-window flow for `AGENT_STATE`:
-```
-Spotlight Window (spawnSimpleAgent)
-    ↓
-[Agent process spawns, outputs JSON on stdout]
-    ↓
-handleSimpleAgentOutput() parses stdout
-    ↓
-eventBus.emit(AGENT_STATE, { threadId, state }) → local mitt
-    ↓
-setupOutgoingBridge() intercepts → converts to Tauri event
-    ↓
-emit("app:agent:state", { threadId, state, _source: "spotlight" })
-    ↓
-Tauri broadcasts to ALL windows
-    ↓
-Control Panel receives via setupIncomingBridge()
-    ↓
-Checks _source !== controlPanelLabel (echo prevention)
-    ↓
-Emits to local mitt: eventBus.emit(AGENT_STATE, payload)
-    ↓
-Thread listeners update zustand store → UI re-renders
-```
-
-**Key file: `src/lib/event-bridge.ts`**
-- `BROADCAST_EVENTS` array controls which events are sent cross-window
-- Currently includes `AGENT_STATE`, `AGENT_SPAWNED`, `AGENT_COMPLETED`, etc.
-- **We MUST add `STREAM_DELTA` to this array for cross-window streaming**
-
-### Why Zustand Store (Not a Hook)
-
-A zustand store is the correct choice over a simple hook because:
-
-1. **Cross-window state sync**: Each window has its own React context, but zustand stores can receive events from the event bridge and update independently
-2. **Selective subscriptions**: Components can subscribe to specific threadId slices to minimize re-renders
-3. **Non-React access**: The event bridge handlers need to update state outside React component lifecycle (`useStreamingStore.getState().appendDelta(...)`)
-4. **Existing pattern**: This matches how `useThreadStore`, `usePlanStore`, etc. work in the codebase
-
 ## Proposed Architecture
 
 ### Design Principles
 
 1. **Preserve disk-as-truth**: Complete messages still persist to `state.json`
 2. **Streaming state is ephemeral**: Lives only in memory, not persisted
-3. **Graceful degradation**: If streaming fails, fall back to snapshot-based updates
-4. **Minimal UI changes**: Extend existing components rather than rewrite
-
-### Streaming → Persisted Transition
-
-This is how thinking blocks (and all content) transition from streaming to persisted state:
-
-```
-WHILE STREAMING:
-┌─────────────────────────────────────┐
-│  useStreamingStore.activeStreams    │
-│  └── [threadId]                     │
-│       └── blocks: [                 │
-│            { type: "thinking",      │  ◄─── Rendered EXPANDED
-│              content: "Let me..." } │       (live preview)
-│            { type: "text",          │
-│              content: "I'll..." }   │
-│          ]                          │
-└─────────────────────────────────────┘
-
-WHEN AGENT_STATE ARRIVES:
-┌─────────────────────────────────────┐
-│  1. useStreamingStore.clearStream() │  ◄─── Clears ephemeral state
-│                                     │
-│  2. useThreadStore updated from     │
-│     state.json with complete        │  ◄─── ThinkingBlock now in
-│     AssistantMessage                │       persisted message
-└─────────────────────────────────────┘
-
-AFTER TRANSITION:
-┌─────────────────────────────────────┐
-│  UI renders from useThreadStore     │
-│  └── ThinkingBlock rendered         │  ◄─── Rendered COLLAPSED
-│      (using existing component      │       (default for persisted)
-│       with isCollapsed=true)        │
-└─────────────────────────────────────┘
-```
-
-The transition is seamless because:
-- Streaming state is cleared when complete state arrives
-- Same content, different render state (expanded while live, collapsed when done)
-- No duplication because streaming store is emptied first
+3. **Use socket IPC**: Stream deltas via the same AgentHub socket as state updates
+4. **Graceful degradation**: If streaming fails, fall back to snapshot-based updates
+5. **Minimal UI changes**: Extend existing components rather than rewrite
 
 ### High-Level Design
 
@@ -214,20 +133,36 @@ The transition is seamless because:
 │                                                                 │
 │  SDK Query (includePartialMessages: true)                       │
 │       │                                                         │
-│       ├──[stream_event]──► emitStreamDelta() ──► stdout         │
+│       ├──[stream_event]──► hubClient.sendStreamDelta() ──► socket
 │       │                    (NO disk write - ephemeral)          │
 │       │                                                         │
 │       └──[assistant msg]──► appendAssistantMessage() ──► disk   │
-│                             emitState() ──► stdout              │
+│                             hubClient.sendState() ──► socket    │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              │ stdout (JSON lines)
+                              │ Unix Socket (JSON lines)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   SPOTLIGHT WINDOW                              │
-│                   (spawns agent)                                │
+│                        AGENT HUB (Rust)                         │
 │                                                                 │
-│  handleSimpleAgentOutput() parses stdout                        │
+│  handle_connection() reads JSON lines via BufReader             │
+│       │                                                         │
+│       ├──[stream_delta]──► Tauri emit("agent:message", {        │
+│       │                      type: "stream_delta", delta: {...} │
+│       │                    })                                   │
+│       │                                                         │
+│       └──[state]──► Tauri emit("agent:message", {               │
+│                       type: "state", state: {...}               │
+│                     })                                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Tauri IPC (agent:message event)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   FRONTEND (Spotlight Window)                   │
+│                   (receives agent:message)                      │
+│                                                                 │
+│  initAgentMessageListener() routes messages                     │
 │       │                                                         │
 │       ├──[stream_delta]──► eventBus.emit(STREAM_DELTA)          │
 │       │                                                         │
@@ -262,29 +197,93 @@ The transition is seamless because:
 
 | Event | Source | Disk? | Cross-Window? | Store Update |
 |-------|--------|-------|---------------|--------------|
-| `stream_delta` | Agent stdout | No | Yes (via `STREAM_DELTA`) | `useStreamingStore` |
-| `state` | Agent stdout | Yes (state.json) | Yes (via `AGENT_STATE`) | `useThreadStore` |
+| `stream_delta` | Agent via socket | No | Yes (via `STREAM_DELTA`) | `useStreamingStore` |
+| `state` | Agent via socket | Yes (state.json) | Yes (via `AGENT_STATE`) | `useThreadStore` |
 | Agent complete | Process close | Yes (metadata.json) | Yes (via `AGENT_COMPLETED`) | Both stores cleared |
 
+### Streaming → Persisted Transition
+
+```
+WHILE STREAMING:
+┌─────────────────────────────────────┐
+│  useStreamingStore.activeStreams    │
+│  └── [threadId]                     │
+│       └── blocks: [                 │
+│            { type: "thinking",      │  ◄─── Rendered EXPANDED
+│              content: "Let me..." } │       (live preview)
+│            { type: "text",          │
+│              content: "I'll..." }   │
+│          ]                          │
+└─────────────────────────────────────┘
+
+WHEN AGENT_STATE ARRIVES:
+┌─────────────────────────────────────┐
+│  1. useStreamingStore.clearStream() │  ◄─── Clears ephemeral state
+│                                     │
+│  2. useThreadStore updated from     │
+│     state.json with complete        │  ◄─── ThinkingBlock now in
+│     AssistantMessage                │       persisted message
+└─────────────────────────────────────┘
+
+AFTER TRANSITION:
+┌─────────────────────────────────────┐
+│  UI renders from useThreadStore     │
+│  └── ThinkingBlock rendered         │  ◄─── Rendered COLLAPSED
+│      (using existing component      │       (default for persisted)
+│       with isCollapsed=true)        │
+└─────────────────────────────────────┘
+```
+
 ## Implementation Plan
+
+## Phases
+
+- [ ] Phase 1: Agent-side streaming events
+- [ ] Phase 2: Event types and socket message routing
+- [ ] Phase 3: Cross-window event broadcasting
+- [ ] Phase 4: Frontend streaming store
+- [ ] Phase 5: Thread view integration
+- [ ] Phase 6: Testing and polish
+
+<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+
+---
 
 ### Phase 1: Agent-Side Streaming Events
 
 **File: `agents/src/output.ts`**
 
-Add new streaming event emitter (no disk write):
+Add new streaming delta emitter (via socket, no disk write):
 
 ```typescript
+/**
+ * Emit a streaming delta via socket.
+ * Unlike emitState(), this does NOT write to disk - streaming is ephemeral.
+ */
 export function emitStreamDelta(delta: StreamDelta): void {
-  // Emit directly to stdout - no disk write for streaming events
-  stdout({ type: "stream_delta", delta });
+  if (hubClient?.isConnected) {
+    hubClient.send({
+      type: "stream_delta",
+      delta,
+    });
+  }
 }
 
-interface StreamDelta {
+export interface StreamDelta {
   type: "text_delta" | "thinking_delta" | "content_block_start" | "content_block_stop";
   index: number;
   text?: string;
   blockType?: string;
+}
+```
+
+**File: `agents/src/lib/hub/client.ts`**
+
+Add convenience method (optional, can use `send()` directly):
+
+```typescript
+sendStreamDelta(delta: StreamDelta): void {
+  this.send({ type: "stream_delta", delta });
 }
 ```
 
@@ -335,98 +334,18 @@ Enable partial messages:
 includePartialMessages: true,  // Changed from false
 ```
 
-### Phase 2: Frontend Streaming Store
-
-**File: `src/stores/streaming-store.ts` (new)**
-
-```typescript
-import { create } from "zustand";
-
-interface StreamingBlock {
-  type: "text" | "thinking";
-  content: string;
-}
-
-interface StreamingState {
-  // Keyed by threadId
-  activeStreams: Record<string, {
-    blocks: StreamingBlock[];
-    isStreaming: boolean;
-  }>;
-}
-
-interface StreamingActions {
-  startStream: (threadId: string) => void;
-  appendDelta: (threadId: string, index: number, type: string, text: string) => void;
-  startBlock: (threadId: string, index: number, blockType: string) => void;
-  endBlock: (threadId: string, index: number) => void;
-  clearStream: (threadId: string) => void;
-}
-
-export const useStreamingStore = create<StreamingState & StreamingActions>((set) => ({
-  activeStreams: {},
-
-  startStream: (threadId) => set((state) => ({
-    activeStreams: {
-      ...state.activeStreams,
-      [threadId]: { blocks: [], isStreaming: true },
-    },
-  })),
-
-  appendDelta: (threadId, index, type, text) => set((state) => {
-    const stream = state.activeStreams[threadId];
-    if (!stream) return state;
-
-    const blocks = [...stream.blocks];
-    if (!blocks[index]) {
-      blocks[index] = { type: type as "text" | "thinking", content: "" };
-    }
-    blocks[index].content += text;
-
-    return {
-      activeStreams: {
-        ...state.activeStreams,
-        [threadId]: { ...stream, blocks },
-      },
-    };
-  }),
-
-  startBlock: (threadId, index, blockType) => set((state) => {
-    const stream = state.activeStreams[threadId];
-    if (!stream) return state;
-
-    const blocks = [...stream.blocks];
-    blocks[index] = { type: blockType as "text" | "thinking", content: "" };
-
-    return {
-      activeStreams: {
-        ...state.activeStreams,
-        [threadId]: { ...stream, blocks },
-      },
-    };
-  }),
-
-  endBlock: (threadId, index) => set((state) => state),  // No-op for now
-
-  clearStream: (threadId) => set((state) => {
-    const { [threadId]: _, ...rest } = state.activeStreams;
-    return { activeStreams: rest };
-  }),
-}));
-```
-
-### Phase 3: Event Types & Cross-Window Broadcasting
+### Phase 2: Event Types and Socket Message Routing
 
 **File: `core/types/events.ts`**
 
-Add streaming delta event to the event system:
+Add streaming delta event:
 
 ```typescript
-// Add to EventName enum
-export enum EventName {
+// Add to EventName object
+export const EventName = {
   // ... existing events ...
-  STREAM_DELTA = "stream:delta",
-}
+  STREAM_DELTA: "stream:delta",
+} as const;
 
 // Add event payload type
 export interface StreamDeltaPayload {
@@ -439,12 +358,47 @@ export interface StreamDeltaPayload {
   };
 }
 
-// Add to CoreEvents interface
-export interface CoreEvents {
+// Add to EventPayloads interface
+export interface EventPayloads {
   // ... existing events ...
   [EventName.STREAM_DELTA]: StreamDeltaPayload;
 }
 ```
+
+**File: `src/lib/agent-service.ts`**
+
+Route stream_delta messages from socket:
+
+```typescript
+// In initAgentMessageListener(), add case for stream_delta
+agentMessageUnlisten = await listen<AgentSocketMessage>("agent:message", (event) => {
+  const msg = event.payload;
+
+  switch (msg.type) {
+    case "state":
+      // ... existing ...
+      break;
+
+    case "event":
+      // ... existing ...
+      break;
+
+    case "stream_delta":
+      // Stream deltas are high-frequency, ephemeral events
+      eventBus.emit(EventName.STREAM_DELTA, {
+        threadId: msg.threadId,
+        delta: msg.delta as StreamDeltaPayload["delta"],
+      });
+      break;
+
+    case "log":
+      // ... existing ...
+      break;
+  }
+});
+```
+
+### Phase 3: Cross-Window Event Broadcasting
 
 **File: `src/lib/event-bridge.ts`**
 
@@ -463,72 +417,7 @@ const BROADCAST_EVENTS = [
 ] as const;
 ```
 
-**File: `src/lib/agent-output-parser.ts`**
-
-Update schema to handle stream deltas (stdout parsing):
-
-```typescript
-// Add to AgentOutput union for stdout parsing
-export interface StreamDeltaMessage {
-  type: "stream_delta";
-  delta: {
-    type: "text_delta" | "thinking_delta" | "content_block_start" | "content_block_stop";
-    index: number;
-    text?: string;
-    blockType?: string;
-  };
-}
-
-const StreamDeltaSchema = z.object({
-  type: z.literal("stream_delta"),
-  delta: z.object({
-    type: z.enum(["text_delta", "thinking_delta", "content_block_start", "content_block_stop"]),
-    index: z.number(),
-    text: z.string().optional(),
-    blockType: z.string().optional(),
-  }),
-});
-
-export const AgentOutputSchema = z.union([
-  AgentLogMessageSchema,
-  AgentEventMessageSchema,
-  AgentStateMessageSchema,
-  StreamDeltaSchema,
-]);
-```
-
-**File: `src/lib/agent-service.ts`**
-
-Emit stream deltas to eventBus (which triggers cross-window broadcast):
-
-```typescript
-function handleSimpleAgentOutput(threadId: string, data: string, buffer: { value: string }): void {
-  // ... existing buffer logic ...
-
-  for (const line of lines) {
-    const output = parseAgentOutput(line);
-    if (output) {
-      switch (output.type) {
-        // ... existing cases ...
-
-        case "stream_delta":
-          // Emit to eventBus - outgoing bridge will broadcast to other windows
-          eventBus.emit(EventName.STREAM_DELTA, {
-            threadId,
-            delta: output.delta,
-          });
-          break;
-
-        case "state":
-          eventBus.emit(EventName.AGENT_STATE, { threadId, state: output.state });
-          break;
-      }
-    }
-  }
-}
-```
-
-### Phase 4: Streaming Store with Event Listener
+### Phase 4: Frontend Streaming Store
 
 **File: `src/stores/streaming-store.ts` (new)**
 
@@ -566,8 +455,11 @@ export const useStreamingStore = create<StreamingState & StreamingActions>((set,
   })),
 
   handleDelta: ({ threadId, delta }) => set((state) => {
-    const stream = state.activeStreams[threadId];
-    if (!stream) return state;
+    // Auto-create stream if it doesn't exist (for windows that join mid-stream)
+    let stream = state.activeStreams[threadId];
+    if (!stream) {
+      stream = { blocks: [], isStreaming: true };
+    }
 
     const blocks = [...stream.blocks];
 
@@ -724,7 +616,7 @@ export function AssistantMessage({ threadId, ... }) {
 
 **File: `src/lib/agent-service.ts`**
 
-Initialize streaming state on spawn (in the window that spawns):
+Initialize streaming state on spawn:
 
 ```typescript
 import { useStreamingStore } from "@/stores/streaming-store";
@@ -745,21 +637,26 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 - `AGENT_COMPLETED` → clears stream
 - `AGENT_CANCELLED` → clears stream
 
+## Why Zustand Store (Not a Hook)
+
+A zustand store is the correct choice over a simple hook because:
+
+1. **Cross-window state sync**: Each window has its own React context, but zustand stores can receive events from the event bridge and update independently
+2. **Selective subscriptions**: Components can subscribe to specific threadId slices to minimize re-renders
+3. **Non-React access**: The event bridge handlers need to update state outside React component lifecycle (`useStreamingStore.getState().handleDelta(...)`)
+4. **Existing pattern**: This matches how `useThreadStore`, `usePlanStore`, etc. work in the codebase
+
 ## Alternative Approaches Considered
 
 ### 1. React Hook Instead of Zustand Store
 - **Pros**: Simpler, less boilerplate
 - **Cons**: Can't update from event bridge (outside React), can't share across components cleanly
-- **Decision**: Zustand store required because:
-  - Event bridge handlers run outside React lifecycle
-  - Need `getState()` for imperative updates from `handleSimpleAgentOutput()`
-  - Each window has its own store instance, but events sync them via bridge
-  - Selective subscriptions minimize re-renders (`useStreamingStore(s => s.activeStreams[threadId])`)
+- **Decision**: Zustand store required (see reasons above)
 
-### 2. WebSocket/SSE Instead of stdout
-- **Pros**: Native browser streaming, potential lower latency
-- **Cons**: Requires additional infrastructure, Tauri IPC works well
-- **Decision**: Not needed - stdout parsing with JSON lines is sufficient
+### 2. Send Deltas via stdout (Original Approach)
+- **Pros**: Simpler initial implementation
+- **Cons**: Stdout fallback has been removed from codebase; socket is now the only path
+- **Decision**: Must use socket IPC - it's the established communication path
 
 ### 3. Persist Streaming State to Disk
 - **Pros**: Could survive app restarts mid-stream
@@ -780,10 +677,10 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 
 1. **Unit Tests**:
    - `streaming-store.ts`: Test state transitions, concurrent streams
-   - `agent-output-parser.ts`: Test delta parsing
+   - Message handler: Test delta parsing
 
 2. **Integration Tests**:
-   - Agent spawns and emits stream deltas correctly
+   - Agent spawns and emits stream deltas correctly via socket
    - Frontend accumulates and displays deltas
    - Complete message clears streaming state
 
@@ -791,6 +688,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
    - Visual verification of token-by-token streaming
    - Test long responses (thinking blocks, code blocks)
    - Test multiple concurrent threads
+   - Test Control Panel opening mid-stream
 
 ## Rollout Plan
 
@@ -800,20 +698,12 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 
 1. **React Re-renders**: Use zustand selectors to minimize re-renders
 2. **Memory**: Clear streaming state on message complete
-3. **Throttling**: Consider throttling UI updates if needed (batch deltas)
+3. **Throttling**: Consider throttling UI updates if needed (batch deltas every ~50ms)
 
-## Decisions & Open Questions
-
-### Decided
-
-1. **Thinking blocks while streaming**: Show expanded (not collapsed) during streaming. They transition to collapsed state naturally when the complete `AGENT_STATE` arrives and streaming state is cleared.
-
-2. **Feature flag**: None - implement outright.
-
-### Open Questions
+## Open Questions
 
 1. Should we show streaming content for resumed conversations?
-2. Should we throttle/batch delta events to reduce Tauri IPC overhead?
+2. Should we throttle/batch delta events to reduce IPC overhead?
    - Could batch every 50ms instead of per-token
    - Trade-off between smoothness and efficiency
 3. How to handle the case where Control Panel opens mid-stream?

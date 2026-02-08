@@ -17,6 +17,7 @@ export class WorktreeService {
 
   /**
    * Create a new named worktree.
+   * Fetches from origin and checks out the remote default branch commit (detached HEAD).
    */
   create(repoName: string, name: string): WorktreeState {
     return this.withLock(repoName, () => {
@@ -32,8 +33,32 @@ export class WorktreeService {
         throw new Error('Name can only contain letters, numbers, dashes, and underscores');
       }
 
+      // Fetch latest from origin and get remote default branch commit
+      let remoteCommit: string | undefined;
+      try {
+        this.git.fetch(settings.sourcePath, 'origin');
+        const defaultBranch = this.git.getDefaultBranch(settings.sourcePath);
+        remoteCommit = this.git.getBranchCommit(
+          settings.sourcePath,
+          `origin/${defaultBranch}`
+        );
+        this.logger.info('Fetched remote commit for worktree', {
+          repoName,
+          defaultBranch,
+          commit: remoteCommit.slice(0, 8),
+        });
+      } catch (err) {
+        // Fall back to local default branch if fetch fails (e.g., no network, no remote)
+        this.logger.warn('Failed to fetch from origin, falling back to local default branch', {
+          repoName,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
       const worktreePath = `${this.mortDir}/repositories/${repoName}/${name}`;
-      this.git.createWorktree(settings.sourcePath, worktreePath);
+      this.git.createWorktree(settings.sourcePath, worktreePath, {
+        commit: remoteCommit,
+      });
 
       const now = Date.now();
       const worktree: WorktreeState = {

@@ -142,7 +142,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
     if (placeholder) return placeholder;
     if (disabled) return "Agent is running...";
     if (!workingDirectory) return "Type a message...";
-    return "Type a message, @ to mention files...";
+    return "Type a message, @ to mention files, / for skills...";
   };
 
   return (

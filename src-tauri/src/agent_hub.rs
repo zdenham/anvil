@@ -285,23 +285,6 @@ impl AgentHub {
             .unwrap_or_default()
     }
 
-    /// Returns the parent ID for a given thread ID, if tracked.
-    pub fn get_parent_id(&self, thread_id: &str) -> Option<String> {
-        self.hierarchy
-            .read()
-            .ok()
-            .and_then(|guard| guard.get(thread_id).cloned())
-            .flatten()
-    }
-
-    /// Returns all tracked hierarchy relationships.
-    pub fn get_hierarchy(&self) -> HashMap<String, Option<String>> {
-        self.hierarchy
-            .read()
-            .map(|guard| guard.clone())
-            .unwrap_or_default()
-    }
-
     /// Cleans up the socket file and signals shutdown.
     pub fn cleanup(&self) {
         // Signal shutdown to listener thread
@@ -404,15 +387,4 @@ mod tests {
             .contains("Agent not connected: nonexistent-thread"));
     }
 
-    #[test]
-    fn test_get_hierarchy_empty() {
-        let hub = AgentHub::new("/tmp/test-hierarchy.sock".to_string());
-        assert!(hub.get_hierarchy().is_empty());
-    }
-
-    #[test]
-    fn test_get_parent_id_nonexistent() {
-        let hub = AgentHub::new("/tmp/test-parent.sock".to_string());
-        assert!(hub.get_parent_id("nonexistent").is_none());
-    }
 }

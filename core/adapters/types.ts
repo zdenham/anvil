@@ -71,6 +71,26 @@ export interface FileSystemAdapter {
    * @returns Array of matching file paths relative to cwd
    */
   glob(pattern: string, cwd: string): string[];
+
+  /**
+   * List directory contents with metadata.
+   * @param path - Absolute path to the directory
+   * @returns Array of entries with name, path, isDirectory, isFile
+   * @throws If directory does not exist or cannot be read
+   */
+  listDirWithMetadata(path: string): Array<{
+    name: string;
+    path: string;
+    isDirectory: boolean;
+    isFile: boolean;
+  }>;
+
+  /**
+   * Join path segments using platform-appropriate separator.
+   * @param segments - Path segments to join
+   * @returns Joined path
+   */
+  joinPath(...segments: string[]): string;
 }
 
 // =============================================================================
@@ -292,4 +312,48 @@ export interface PathLock {
    * @returns true if lock is held, false otherwise
    */
   isHeld(lockPath: string): boolean;
+}
+
+// =============================================================================
+// FilesystemAdapter (Skills System)
+// =============================================================================
+
+/**
+ * Low-level filesystem operations adapter.
+ *
+ * This interface defines ONLY filesystem primitives. High-level business logic
+ * (discovery, parsing, priority ordering) belongs in SkillsService, which
+ * accepts this adapter as a dependency.
+ *
+ * Pattern:
+ *   SkillsService (one implementation, all business logic)
+ *       └── depends on FilesystemAdapter (interface)
+ *              ├── NodeFilesystemAdapter (Node.js fs)
+ *              └── TauriFilesystemAdapter (Tauri IPC)
+ *
+ * All methods are async for consistency, even if the underlying implementation
+ * uses synchronous operations (e.g., Node.js fs).
+ */
+export interface FilesystemAdapter {
+  /**
+   * Read file content as string.
+   * @param filePath - Absolute path to file
+   * @returns File content or null if not found/unreadable
+   */
+  readFile(filePath: string): Promise<string | null>;
+
+  /**
+   * Check if a path exists.
+   */
+  exists(path: string): Promise<boolean>;
+
+  /**
+   * List directory contents.
+   */
+  listDir(path: string): Promise<Array<{ name: string; path: string; isDirectory: boolean; isFile: boolean }>>;
+
+  /**
+   * Join path segments.
+   */
+  joinPath(...segments: string[]): string;
 }

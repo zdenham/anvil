@@ -6,9 +6,9 @@ Add a Skills section to the settings panel showing all discovered skills with th
 
 ## Phases
 
-- [ ] Create SkillListItem component
-- [ ] Create SkillsSettings section
-- [ ] Add to settings routes
+- [x] Create SkillListItem component
+- [x] Create SkillsSettings section
+- [x] Add to settings routes
 
 ---
 
@@ -23,9 +23,9 @@ Add a Skills section to the settings panel showing all discovered skills with th
 
 | File | Action |
 |------|--------|
-| `src/components/settings/skill-list-item.tsx` | **CREATE** |
-| `src/components/settings/skills-settings.tsx` | **CREATE** |
-| `src/components/settings/index.tsx` | **MODIFY** - Add Skills section |
+| `src/components/main-window/settings/skill-list-item.tsx` | **CREATE** |
+| `src/components/main-window/settings/skills-settings.tsx` | **CREATE** |
+| `src/components/main-window/settings-page.tsx` | **MODIFY** - Add Skills section |
 
 ---
 
@@ -202,11 +202,11 @@ import { SkillsSettings } from "./skills-settings";
 
 ## Acceptance Criteria
 
-- [ ] Skills section visible in settings
-- [ ] Skills grouped by source (Project vs Personal)
-- [ ] Each skill shows: slug, source badge, description, path
-- [ ] Legacy commands marked with "Legacy" badge
-- [ ] Empty state shows when no skills found
-- [ ] Help text explains skill locations
-- [ ] Link to documentation works
-- [ ] Skills refresh when settings opens
+- [x] Skills section visible in settings
+- [x] Skills grouped by source (Project vs Personal)
+- [x] Each skill shows: slug, source badge, description, path
+- [x] Legacy commands marked with "Legacy" badge
+- [x] Empty state shows when no skills found
+- [x] Help text explains skill locations
+- [x] Link to documentation works
+- [x] Skills refresh when settings opens

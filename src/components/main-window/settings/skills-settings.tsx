@@ -1,0 +1,122 @@
+import { useEffect, useState } from "react";
+import { useSkillsStore, skillsService } from "@/entities/skills";
+import { useRepoStore } from "@/entities/repositories";
+import { fsCommands } from "@/lib/tauri-commands";
+import { SkillListItem } from "./skill-list-item";
+import { SettingsSection } from "../settings-section";
+import { FolderOpen, ExternalLink } from "lucide-react";
+
+export function SkillsSettings() {
+  const skills = useSkillsStore(state => state.getAll());
+  const repositories = useRepoStore(state => state.repositories);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Get the first repository's source path (most common case)
+  const firstRepo = Object.values(repositories)[0];
+  const repoPath = firstRepo?.sourcePath;
+
+  // Refresh skills when settings opens
+  useEffect(() => {
+    const discoverSkills = async () => {
+      if (!repoPath) return;
+
+      setIsLoading(true);
+      try {
+        const homeDir = await fsCommands.getHomeDir();
+        const discoveredSkills = await skillsService.discover(repoPath, homeDir);
+
+        // Hydrate the store with discovered skills
+        const skillsRecord: Record<string, typeof discoveredSkills[0]> = {};
+        for (const skill of discoveredSkills) {
+          skillsRecord[skill.id] = skill;
+        }
+        useSkillsStore.getState().hydrate(skillsRecord, repoPath);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    discoverSkills();
+  }, [repoPath]);
+
+  const projectSkills = skills.filter(s =>
+    s.source === 'project' || s.source === 'project_command'
+  );
+  const personalSkills = skills.filter(s =>
+    s.source === 'personal' || s.source === 'personal_command' || s.source === 'mort'
+  );
+
+  return (
+    <SettingsSection
+      title="Skills"
+      description="Skills extend agent capabilities. Use /skill-name to invoke."
+    >
+      <div className="space-y-6">
+        {/* Help text */}
+        <div className="text-sm text-surface-400 space-y-2">
+          <p>Create skills in these locations:</p>
+          <ul className="list-disc list-inside space-y-1 text-xs font-mono text-surface-500">
+            <li>~/.mort/skills/&lt;name&gt;/SKILL.md (Mort-specific)</li>
+            <li>~/.claude/skills/&lt;name&gt;/SKILL.md (Personal)</li>
+            <li>&lt;repo&gt;/.claude/skills/&lt;name&gt;/SKILL.md (Project)</li>
+            <li>~/.claude/commands/&lt;name&gt;.md (Legacy)</li>
+          </ul>
+        </div>
+
+        {/* Skills list */}
+        {isLoading ? (
+          <div className="text-center py-8 text-surface-400">
+            <p>Discovering skills...</p>
+          </div>
+        ) : skills.length === 0 ? (
+          <div className="text-center py-8 text-surface-400">
+            <FolderOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>No skills found</p>
+            <p className="text-xs mt-1">
+              Create a SKILL.md file in one of the locations above
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {projectSkills.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-surface-500 uppercase tracking-wide mb-2">
+                  Project Skills ({projectSkills.length})
+                </h4>
+                <div className="border border-surface-700 rounded-md px-3 bg-surface-800/30">
+                  {projectSkills.map(skill => (
+                    <SkillListItem key={skill.id} skill={skill} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {personalSkills.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-surface-500 uppercase tracking-wide mb-2">
+                  Personal Skills ({personalSkills.length})
+                </h4>
+                <div className="border border-surface-700 rounded-md px-3 bg-surface-800/30">
+                  {personalSkills.map(skill => (
+                    <SkillListItem key={skill.id} skill={skill} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Link to docs */}
+        <a
+          href="https://docs.anthropic.com/en/docs/claude-code/skills"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+        >
+          Learn more about skills
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+    </SettingsSection>
+  );
+}

@@ -1,5 +1,16 @@
 import { useEffect, useRef, type RefObject } from "react";
-import { Loader2, FileCode, FileJson, FileText, File } from "lucide-react";
+import {
+  Loader2,
+  FileCode,
+  FileJson,
+  FileText,
+  File,
+  Folder,
+  FolderCode,
+  Sparkles,
+  User,
+  Terminal,
+} from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { TriggerConfig, TriggerResult } from "@/lib/triggers/types";
 
@@ -50,12 +61,46 @@ function getFileIcon(extension: string) {
   }
 }
 
+// Lucide icon mapping for skill sources
+// Maps SOURCE_ICONS values to actual Lucide components
+function getSkillIcon(iconName: string) {
+  const iconClass = "h-4 w-4 text-secondary-400";
+  switch (iconName) {
+    case "folder":
+      return <Folder className={iconClass} />;
+    case "folder-code":
+      return <FolderCode className={iconClass} />;
+    case "sparkles":
+      return <Sparkles className={iconClass} />;
+    case "user":
+      return <User className={iconClass} />;
+    case "terminal":
+      return <Terminal className={iconClass} />;
+    default:
+      return <File className="h-4 w-4 text-surface-400" />;
+  }
+}
+
+// Get icon based on trigger type - file extensions vs Lucide icon names
+function getResultIcon(icon: string | undefined) {
+  if (!icon) return <File className="h-4 w-4 text-surface-400" />;
+
+  // Check if it's a known Lucide icon name (used by skills)
+  const lucideIcons = ["folder", "folder-code", "sparkles", "user", "terminal"];
+  if (lucideIcons.includes(icon)) {
+    return getSkillIcon(icon);
+  }
+
+  // Otherwise treat as file extension
+  return getFileIcon(icon);
+}
+
 // Empty state messages
 const EMPTY_STATES = {
-  noQuery: "Type to search files",
-  noResults: "No matching files found",
+  noQuery: "Type to search",
+  noResults: "No results found",
   noRootPath: "No repository selected",
-  error: "Error searching files",
+  error: "Search error",
 };
 
 // Path truncation for long paths
@@ -172,11 +217,16 @@ export function TriggerDropdown({
           index === selectedIndex && "bg-surface-700"
         )}
       >
-        {getFileIcon(result.icon || "")}
+        {getResultIcon(result.icon)}
         <span className="flex-1 truncate font-medium">{result.label}</span>
         <span className="text-surface-500 text-xs truncate max-w-[200px]">
           {truncatePath(result.description)}
         </span>
+        {result.secondaryLabel && (
+          <span className="text-surface-500 text-xs shrink-0">
+            {result.secondaryLabel}
+          </span>
+        )}
       </div>
     ));
   };
@@ -203,7 +253,7 @@ export function TriggerDropdown({
       {renderContent()}
       {/* Live region for result count */}
       <div role="status" aria-live="polite" className="sr-only">
-        {results.length} files found
+        {results.length} {results.length === 1 ? "result" : "results"} found
       </div>
     </div>
   );

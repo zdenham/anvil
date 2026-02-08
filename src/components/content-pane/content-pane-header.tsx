@@ -20,9 +20,12 @@ import {
   GitCompare,
   MessageSquare,
   PictureInPicture2,
+  Terminal,
+  Archive,
 } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
+import { useTerminalSession, terminalSessionService } from "@/entities/terminal-sessions";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
 import { Breadcrumb } from "./breadcrumb";
@@ -65,6 +68,15 @@ export function ContentPaneHeader({
         isStreaming={isStreaming}
         onClose={onClose}
         onPopOut={onPopOut}
+      />
+    );
+  }
+
+  if (view.type === "terminal") {
+    return (
+      <TerminalHeader
+        terminalId={view.terminalId}
+        onClose={onClose}
       />
     );
   }
@@ -294,6 +306,70 @@ function SimpleHeader({
           onClick={onClose}
           className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Header for Terminal view mode.
+ * Shows terminal icon, working directory, close button, and archive button.
+ * - Close hides the pane but keeps the terminal alive
+ * - Archive kills the PTY process
+ */
+function TerminalHeader({
+  terminalId,
+  onClose,
+}: {
+  terminalId: string;
+  onClose: () => void;
+}) {
+  const session = useTerminalSession(terminalId);
+
+  // Get the directory name from the full path
+  const dirName = session?.worktreePath?.split("/").pop() ?? "terminal";
+
+  // Archive (kill) the terminal
+  const handleArchive = useCallback(async () => {
+    await terminalSessionService.archive(terminalId);
+    onClose();
+  }, [terminalId, onClose]);
+
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+      {/* Terminal icon */}
+      <Terminal size={14} className="text-surface-400" />
+
+      {/* Label */}
+      <span className="text-surface-200 text-xs truncate">
+        {session?.lastCommand ?? dirName}
+      </span>
+
+      {/* Status indicator */}
+      {session && !session.isAlive && (
+        <span className="text-xs text-surface-500">(exited)</span>
+      )}
+
+      <div className="ml-auto flex items-center gap-2">
+        {/* Archive button - kills the PTY */}
+        <button
+          onClick={handleArchive}
+          className="p-1 rounded hover:bg-red-600/20 text-surface-400 hover:text-red-400 transition-colors"
+          aria-label="Archive terminal (kill process)"
+          title="Archive terminal (kill process)"
+        >
+          <Archive size={12} />
+        </button>
+
+        {/* Close button - hides pane but keeps terminal alive */}
+        <button
+          onClick={onClose}
+          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+          aria-label="Close pane (terminal stays alive)"
+          title="Close pane (terminal stays alive)"
         >
           <X size={12} />
         </button>

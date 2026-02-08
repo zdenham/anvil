@@ -54,6 +54,22 @@ export type * from "./quick-actions/types";
 export { useDraftsStore, draftService } from "./drafts";
 export type { DraftsFile } from "./drafts";
 
+// Skills
+export { useSkillsStore } from "./skills";
+export type * from "./skills";
+
+// Terminal Sessions
+export {
+  useTerminalSessionStore,
+  terminalSessionService,
+  useTerminalSessions,
+  useTerminalSessionsByWorktree,
+  useTerminalSession,
+  useTerminalOutputBuffer,
+  useTerminalActions,
+} from "./terminal-sessions";
+export type { TerminalSession } from "./terminal-sessions";
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // App-level hydration & event listeners
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -75,6 +91,7 @@ import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store"
 import { quickActionService } from "./quick-actions/service";
 import { setupQuickActionListeners } from "./quick-actions/listeners";
 import { draftService } from "./drafts/service";
+import { setupTerminalListeners } from "./terminal-sessions/listeners";
 
 /**
  * Hydrates all entity stores from disk.
@@ -142,5 +159,6 @@ export function setupEntityListeners(): void {
   setupTreeMenuListeners();
   setupWorktreeListeners();
   setupQuickActionListeners();
+  setupTerminalListeners();
   logger.log("[entities:listeners] All entity listeners initialized");
 }

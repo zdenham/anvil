@@ -10,6 +10,27 @@ pub struct WorktreeInfo {
     pub is_bare: bool,
 }
 
+/// Fetch from a remote to update refs
+#[tauri::command]
+pub async fn git_fetch(repo_path: String, remote: Option<String>) -> Result<(), String> {
+    let remote = remote.unwrap_or_else(|| "origin".to_string());
+    let output = shell::command("git")
+        .args(["fetch", &remote])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to fetch from {}: {}",
+            remote,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(())
+}
+
 /// Detect the repository's default branch.
 /// Mirrors the logic from agents/src/git.ts getDefaultBranch()
 #[tauri::command]

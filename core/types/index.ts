@@ -42,3 +42,6 @@ export * from "./logs.js";
 
 // Quick action types - shared between Tauri client and Node server
 export * from "./quick-actions.js";
+
+// Skills types - shared between Tauri client and Node server
+export * from "./skills.js";

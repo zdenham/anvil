@@ -17,7 +17,8 @@ export type ContentPaneView =
   | { type: "thread"; threadId: string; autoFocus?: boolean }
   | { type: "plan"; planId: string }
   | { type: "settings" }
-  | { type: "logs" };
+  | { type: "logs" }
+  | { type: "terminal"; terminalId: string };
 
 /**
  * Represents a single content pane instance.
@@ -62,6 +63,14 @@ export interface PlanContentProps {
   planId: string;
   /** Called when content should be popped out to separate window */
   onPopOut?: () => void;
+}
+
+export interface TerminalContentProps {
+  terminalId: string;
+  /** Called when user closes the pane (hides but keeps terminal alive) */
+  onClose?: () => void;
+  /** Called when user archives the terminal (kills PTY) */
+  onArchive?: () => void;
 }
 
 /**

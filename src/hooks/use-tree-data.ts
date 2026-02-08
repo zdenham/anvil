@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
+import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { relationService } from "@/entities/relations/service";
 import { getThreadStatusVariant, getPlanStatusVariant } from "@/utils/thread-colors";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
+import type { TerminalSession } from "@/entities/terminal-sessions/types";
 import type { RepoWorktreeSection, TreeItemNode } from "@/stores/tree-menu/types";
 
 /**
@@ -27,10 +29,10 @@ function getPlanTitle(plan: PlanMetadata): string {
 }
 
 /**
- * Build tree items for a section, handling nested plans and sub-agent threads.
+ * Build tree items for a section, handling nested plans, sub-agent threads, and terminals.
  * Returns a flat list with depth info for rendering.
  *
- * Key insight: We must sort top-level items (threads + root plans) by createdAt
+ * Key insight: We must sort top-level items (threads + root plans + terminals) by createdAt
  * BEFORE building the tree. This ensures children are added immediately after
  * their parent, maintaining correct visual nesting.
  *
@@ -40,6 +42,7 @@ function getPlanTitle(plan: PlanMetadata): string {
 function buildSectionItems(
   threads: ThreadMetadata[],
   plans: PlanMetadata[],
+  terminals: TerminalSession[],
   sectionId: string,
   expandedSections: Record<string, boolean>,
   runningThreadIds: Set<string>
@@ -141,17 +144,38 @@ function buildSectionItems(
   // Get root plans (no parentId)
   const rootPlans = planChildrenMap.get(undefined) || [];
 
+  // Add terminal item
+  function addTerminal(terminal: TerminalSession) {
+    // Terminals are never folders, always depth 0
+    items.push({
+      type: "terminal" as const,
+      id: terminal.id,
+      title: terminal.lastCommand ?? terminal.worktreePath.split("/").pop() ?? "terminal",
+      // Show "read" for alive terminals, "unread" for exited (dimmed)
+      status: terminal.isAlive ? "read" : "unread",
+      updatedAt: terminal.createdAt, // Terminals don't have updatedAt
+      createdAt: terminal.createdAt,
+      sectionId,
+      depth: 0,
+      isFolder: false,
+      isExpanded: false,
+      parentId: undefined,
+    });
+  }
+
   // Create a unified list of top-level items for sorting
   interface TopLevelItem {
-    type: "thread" | "root-plan";
+    type: "thread" | "root-plan" | "terminal";
     createdAt: number;
     thread?: ThreadMetadata; // For threads
     plan?: PlanMetadata; // For plans
+    terminal?: TerminalSession; // For terminals
   }
 
   const topLevel: TopLevelItem[] = [
     ...rootThreads.map((thread) => ({ type: "thread" as const, createdAt: thread.createdAt, thread })),
     ...rootPlans.map((plan) => ({ type: "root-plan" as const, createdAt: plan.createdAt, plan })),
+    ...terminals.map((terminal) => ({ type: "terminal" as const, createdAt: terminal.createdAt, terminal })),
   ];
 
   // Sort top-level items by createdAt descending (newest first)
@@ -163,6 +187,8 @@ function buildSectionItems(
       addThreadAndChildren(item.thread, 0);
     } else if (item.type === "root-plan" && item.plan) {
       addPlanAndChildren(item.plan, 0);
+    } else if (item.type === "terminal" && item.terminal) {
+      addTerminal(item.terminal);
     }
   }
 
@@ -177,11 +203,12 @@ interface RepoWithWorktrees {
 
 /**
  * Builds tree structure from entity stores.
- * Groups threads and plans by their repo/worktree association.
+ * Groups threads, plans, and terminals by their repo/worktree association.
  * Handles nested plans via buildSectionItems.
  *
  * @param threads - All threads from store
  * @param plans - All plans from store
+ * @param terminals - All terminals from store
  * @param expandedSections - Expansion state from tree menu store
  * @param runningThreadIds - Set of thread IDs with running status
  * @param allRepos - All known repos with their worktrees (for showing empty sections)
@@ -192,6 +219,7 @@ interface RepoWithWorktrees {
 export function buildTreeFromEntities(
   threads: ThreadMetadata[],
   plans: PlanMetadata[],
+  terminals: TerminalSession[],
   expandedSections: Record<string, boolean>,
   runningThreadIds: Set<string>,
   allRepos: RepoWithWorktrees[],
@@ -199,9 +227,10 @@ export function buildTreeFromEntities(
   getWorktreeName: (repoId: string, worktreeId: string) => string,
   getWorktreePath: (repoId: string, worktreeId: string) => string
 ): RepoWorktreeSection[] {
-  // Group threads and plans by "repoId:worktreeId"
+  // Group threads, plans, and terminals by "repoId:worktreeId"
   const threadsBySection = new Map<string, ThreadMetadata[]>();
   const plansBySection = new Map<string, PlanMetadata[]>();
+  const terminalsBySection = new Map<string, TerminalSession[]>();
   const sectionInfo = new Map<string, {
     repoId: string;
     worktreeId: string;
@@ -225,6 +254,7 @@ export function buildTreeFromEntities(
       });
       threadsBySection.set(sectionId, []);
       plansBySection.set(sectionId, []);
+      terminalsBySection.set(sectionId, []);
     }
     return sectionId;
   };
@@ -258,11 +288,27 @@ export function buildTreeFromEntities(
     }
   }
 
+  // Group terminals by section (using worktreeId only - terminals store worktreeId)
+  for (const terminal of terminals) {
+    // Find the section ID for this terminal's worktreeId
+    for (const [sectionId, info] of sectionInfo) {
+      if (info.worktreeId === terminal.worktreeId) {
+        terminalsBySection.get(sectionId)!.push(terminal);
+
+        if (terminal.createdAt < info.earliestCreated) {
+          info.earliestCreated = terminal.createdAt;
+        }
+        break;
+      }
+    }
+  }
+
   // Build sections using the new buildSectionItems helper
   const sections: RepoWorktreeSection[] = [];
   for (const [sectionId, info] of sectionInfo) {
     const sectionThreads = threadsBySection.get(sectionId) || [];
     const sectionPlans = plansBySection.get(sectionId) || [];
+    const sectionTerminals = terminalsBySection.get(sectionId) || [];
 
     // Use buildSectionItems for proper nested plan handling
     // Note: buildSectionItems already sorts top-level items by createdAt descending
@@ -270,6 +316,7 @@ export function buildTreeFromEntities(
     const items = buildSectionItems(
       sectionThreads,
       sectionPlans,
+      sectionTerminals,
       sectionId,
       expandedSections,
       runningThreadIds
@@ -312,6 +359,7 @@ export function useTreeData(): RepoWorktreeSection[] {
   // Entity stores - reactive subscriptions
   const threads = useThreadStore((state) => state._threadsArray);
   const plans = usePlanStore((state) => state.getAll());
+  const terminals = useTerminalSessionStore((state) => state._sessionsArray);
   const expandedSections = useTreeMenuStore((state) => state.expandedSections);
 
   // Lookup functions - from pre-hydrated store (synchronous)
@@ -343,6 +391,7 @@ export function useTreeData(): RepoWorktreeSection[] {
     return buildTreeFromEntities(
       threads,
       plans,
+      terminals,
       expandedSections,
       runningThreadIds,
       allRepos,
@@ -350,7 +399,7 @@ export function useTreeData(): RepoWorktreeSection[] {
       getWorktreeName,
       getWorktreePath
     );
-  }, [threads, plans, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath]);
+  }, [threads, plans, terminals, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath]);
 }
 
 /**

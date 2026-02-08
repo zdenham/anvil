@@ -4,6 +4,7 @@
 
 export type {
   FileSystemAdapter,
+  FilesystemAdapter,
   GitAdapter,
   WorktreeInfo,
   PathLock,

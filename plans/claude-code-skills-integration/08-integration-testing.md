@@ -166,13 +166,15 @@ For UI tests, use the `TestStores.clear()` helper from `src/test/helpers/stores.
 
 ## Phases
 
-- [ ] Create test skill fixtures
-- [ ] Test discovery flow
-- [ ] Test slash command UI
-- [ ] Test agent injection
-- [ ] Test UI display
-- [ ] Test edge cases
-- [ ] Polish and bug fixes
+- [x] Create test skill fixtures
+- [x] Test discovery flow
+- [x] Test slash command UI
+- [x] Test agent injection
+- [x] Test UI display
+- [x] Test edge cases
+- [x] Polish and bug fixes
+
+<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 

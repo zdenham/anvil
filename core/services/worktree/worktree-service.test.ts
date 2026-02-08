@@ -100,14 +100,67 @@ describe('WorktreeService', () => {
   });
 
   describe('create()', () => {
-    it('should create git worktree on disk', () => {
+    it('should fetch from origin and create worktree at remote commit', () => {
       const result = service.create('test-repo', 'my-worktree');
+
+      // Should fetch from origin first
+      expect(mockGit.fetch).toHaveBeenCalledWith('/path/to/source', 'origin');
+
+      // Should get the default branch
+      expect(mockGit.getDefaultBranch).toHaveBeenCalledWith('/path/to/source');
+
+      // Should get the remote commit
+      expect(mockGit.getBranchCommit).toHaveBeenCalledWith('/path/to/source', 'origin/main');
+
+      // Should create worktree with the remote commit
+      expect(mockGit.createWorktree).toHaveBeenCalledWith(
+        '/path/to/source',
+        '/home/user/.mort/repositories/test-repo/my-worktree',
+        { commit: 'abc123' }
+      );
+      expect(result.path).toBe('/home/user/.mort/repositories/test-repo/my-worktree');
+      expect(result.name).toBe('my-worktree');
+    });
+
+    it('should fall back to local default branch if fetch fails', () => {
+      (mockGit.fetch as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('Network error');
+      });
+
+      const result = service.create('test-repo', 'my-worktree');
+
+      // Should log warning about fetch failure
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to fetch from origin, falling back to local default branch',
+        expect.objectContaining({ repoName: 'test-repo' })
+      );
+
+      // Should create worktree without commit option (uses local HEAD)
+      expect(mockGit.createWorktree).toHaveBeenCalledWith(
+        '/path/to/source',
+        '/home/user/.mort/repositories/test-repo/my-worktree',
+        { commit: undefined }
+      );
+      expect(result.name).toBe('my-worktree');
+    });
+
+    it('should fall back to local if getBranchCommit fails for remote branch', () => {
+      (mockGit.getBranchCommit as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('Remote branch not found');
+      });
+
+      const result = service.create('test-repo', 'my-worktree');
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to fetch from origin, falling back to local default branch',
+        expect.objectContaining({ repoName: 'test-repo' })
+      );
 
       expect(mockGit.createWorktree).toHaveBeenCalledWith(
         '/path/to/source',
-        '/home/user/.mort/repositories/test-repo/my-worktree'
+        '/home/user/.mort/repositories/test-repo/my-worktree',
+        { commit: undefined }
       );
-      expect(result.path).toBe('/home/user/.mort/repositories/test-repo/my-worktree');
       expect(result.name).toBe('my-worktree');
     });
 

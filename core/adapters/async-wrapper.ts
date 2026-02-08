@@ -5,7 +5,7 @@
  */
 
 import type { FileSystemAdapter } from './types';
-import type { FSAdapter } from '../services/fs-adapter';
+import type { FSAdapter, DirEntry } from '../services/fs-adapter';
 
 /**
  * Wraps the new sync FileSystemAdapter to provide the old async interface.
@@ -45,5 +45,13 @@ export class AsyncFileSystemAdapter implements FSAdapter {
 
   async mkdir(path: string, recursive?: boolean): Promise<void> {
     return this.sync.mkdir(path, { recursive });
+  }
+
+  async listDirWithMetadata(path: string): Promise<DirEntry[]> {
+    return this.sync.listDirWithMetadata(path);
+  }
+
+  joinPath(...segments: string[]): string {
+    return this.sync.joinPath(...segments);
   }
 }

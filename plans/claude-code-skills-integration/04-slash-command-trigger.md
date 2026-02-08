@@ -6,10 +6,10 @@ Implement the `/` trigger handler for the skill dropdown. Uses the existing trig
 
 ## Phases
 
-- [ ] Create skill trigger handler
-- [ ] Register handler in trigger registry
-- [ ] Update input placeholder text
-- [ ] Add secondaryLabel support to dropdown (if needed)
+- [x] Create skill trigger handler
+- [x] Register handler in trigger registry
+- [x] Update input placeholder text
+- [x] Add secondaryLabel support to dropdown (if needed)
 
 ---
 
@@ -145,11 +145,11 @@ No need to duplicate this logic.
 
 ## Acceptance Criteria
 
-- [ ] `/` at start of input opens skill dropdown
-- [ ] `/` after space in message opens skill dropdown
-- [ ] `//` inserts literal `/` (escape sequence)
-- [ ] `/` in URLs (e.g., `http://`) does NOT trigger dropdown
-- [ ] Skills searchable by name and description
-- [ ] Source label shown (Personal, Project, Mort)
-- [ ] Selecting skill inserts `/<slug> ` with trailing space
-- [ ] Dropdown refreshes skill list on each trigger
+- [x] `/` at start of input opens skill dropdown
+- [x] `/` after space in message opens skill dropdown
+- [x] `//` inserts literal `/` (escape sequence)
+- [x] `/` in URLs (e.g., `http://`) does NOT trigger dropdown
+- [x] Skills searchable by name and description
+- [x] Source label shown (Personal, Project, Mort)
+- [x] Selecting skill inserts `/<slug> ` with trailing space
+- [x] Dropdown refreshes skill list on each trigger

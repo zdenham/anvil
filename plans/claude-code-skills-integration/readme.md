@@ -6,10 +6,12 @@ Integrate Claude Code skills and legacy commands into Mort, enabling users to de
 
 ## Phases
 
-- [ ] Foundation types and interfaces (01, 02)
-- [ ] Skills entity implementation (03)
-- [ ] Parallel UI and agent work (04, 05, 06, 07)
-- [ ] Integration and testing (08)
+- [x] Foundation types and interfaces (01, 02)
+- [x] Skills entity implementation (03)
+- [x] Parallel UI and agent work (04, 05, 06, 07)
+- [x] Integration and testing (08)
+
+<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 

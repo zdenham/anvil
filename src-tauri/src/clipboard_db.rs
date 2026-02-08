@@ -1,10 +1,21 @@
 use crate::paths;
 use rusqlite::{params, Connection, Result};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
 const MAX_CONTENT_SIZE: usize = 100_000; // 100KB
 const PREVIEW_LENGTH: usize = 200;
+
+/// Lightweight entry for list display (no full content)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClipboardEntryPreview {
+    pub id: String,
+    pub preview: String,
+    pub content_size: usize,
+    pub timestamp: i64,
+    pub app_source: Option<String>,
+}
 
 /// Global database connection
 static DB_CONNECTION: OnceLock<Mutex<Connection>> = OnceLock::new();
@@ -104,6 +115,61 @@ pub fn insert_entry(content: String, app_source: Option<String>) -> Result<Strin
     )?;
 
     Ok(id)
+}
+
+/// Get recent entries (preview only, no full content)
+pub fn get_recent_entries(limit: usize) -> Result<Vec<ClipboardEntryPreview>> {
+    let conn = get_connection().lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT id, preview, content_size, timestamp, app_source
+         FROM clipboard_entries
+         ORDER BY timestamp DESC
+         LIMIT ?1",
+    )?;
+
+    let entries = stmt
+        .query_map([limit], |row| {
+            Ok(ClipboardEntryPreview {
+                id: row.get(0)?,
+                preview: row.get(1)?,
+                content_size: row.get(2)?,
+                timestamp: row.get(3)?,
+                app_source: row.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(entries)
+}
+
+/// Search entries by content (preview only returned)
+pub fn search_entries(query: &str, limit: usize) -> Result<Vec<ClipboardEntryPreview>> {
+    let conn = get_connection().lock().unwrap();
+
+    let pattern = format!("%{}%", query.to_lowercase());
+
+    let mut stmt = conn.prepare(
+        "SELECT id, preview, content_size, timestamp, app_source
+         FROM clipboard_entries
+         WHERE lower(content) LIKE ?1
+         ORDER BY timestamp DESC
+         LIMIT ?2",
+    )?;
+
+    let entries = stmt
+        .query_map(params![pattern, limit], |row| {
+            Ok(ClipboardEntryPreview {
+                id: row.get(0)?,
+                preview: row.get(1)?,
+                content_size: row.get(2)?,
+                timestamp: row.get(3)?,
+                app_source: row.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(entries)
 }
 
 /// Get full content for a specific entry

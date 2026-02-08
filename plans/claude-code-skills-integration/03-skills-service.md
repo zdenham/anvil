@@ -41,11 +41,11 @@ Create the **single `SkillsService` class** that contains ALL business logic for
 
 ## Phases
 
-- [ ] Implement frontmatter parser
-- [ ] Create skill location configuration
-- [ ] Implement discovery logic
-- [ ] Add content reading
-- [ ] Export service from entity
+- [x] Implement frontmatter parser
+- [x] Create skill location configuration
+- [x] Implement discovery logic
+- [x] Add content reading
+- [x] Export service from entity
 
 ---
 
@@ -339,11 +339,11 @@ export { skillsService } from '@/lib/skills-service-instance';
 
 ## Acceptance Criteria
 
-- [ ] `skillsService.discover()` scans all 5 locations
-- [ ] Priority ordering works (project skills shadow personal with same slug)
-- [ ] Slugs normalized to lowercase
-- [ ] Frontmatter parsed correctly
-- [ ] Non-user-invocable skills excluded
-- [ ] `readContent()` returns skill body with frontmatter stripped
-- [ ] `needsRediscovery()` detects repo changes
-- [ ] Malformed skills logged but don't crash discovery
+- [x] `skillsService.discover()` scans all 5 locations
+- [x] Priority ordering works (project skills shadow personal with same slug)
+- [x] Slugs normalized to lowercase
+- [x] Frontmatter parsed correctly
+- [x] Non-user-invocable skills excluded
+- [x] `readContent()` returns skill body with frontmatter stripped
+- [x] `needsRediscovery()` detects repo changes
+- [x] Malformed skills logged but don't crash discovery

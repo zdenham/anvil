@@ -14,6 +14,8 @@ vi.mock("../output.js", () => ({
   markToolRunning: vi.fn(),
   markToolComplete: vi.fn(),
   complete: vi.fn(),
+  setSessionId: vi.fn(),
+  getHubClient: vi.fn(() => null), // Required by emitEvent in shared.js
 }));
 
 // Mock the logger and stdout
@@ -27,6 +29,16 @@ vi.mock("../lib/logger.js", () => ({
   stdout: vi.fn(),
 }));
 
+// Mock shared.js - emitEvent is used for ack events
+vi.mock("./shared.js", async () => {
+  const actual = await vi.importActual("./shared.js");
+  return {
+    ...actual,
+    emitEvent: vi.fn(),
+    getChildThreadId: vi.fn(() => undefined),
+  };
+});
+
 // Import mocked functions for assertions
 import {
   appendAssistantMessage,
@@ -36,6 +48,7 @@ import {
   complete,
 } from "../output.js";
 import { logger, stdout } from "../lib/logger.js";
+import { emitEvent } from "./shared.js";
 
 describe("MessageHandler", () => {
   let handler: MessageHandler;
@@ -462,12 +475,8 @@ describe("MessageHandler", () => {
 
       await handler.handle(msg);
 
-      // Verify stdout was called with ack event
-      expect(stdout).toHaveBeenCalledWith({
-        type: "event",
-        name: "queued-message:ack",
-        payload: { messageId: testUuid },
-      });
+      // Verify emitEvent was called with ack event
+      expect(emitEvent).toHaveBeenCalledWith("queued-message:ack", { messageId: testUuid });
 
       // Verify appendUserMessage was also called
       expect(appendUserMessage).toHaveBeenCalledWith("Follow-up from user");
@@ -488,11 +497,10 @@ describe("MessageHandler", () => {
 
       await handler.handle(msg);
 
-      // stdout should not have been called with ack event
-      expect(stdout).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "queued-message:ack",
-        })
+      // emitEvent should not have been called with ack event
+      expect(emitEvent).not.toHaveBeenCalledWith(
+        "queued-message:ack",
+        expect.anything()
       );
 
       // But appendUserMessage should still be called
@@ -514,10 +522,9 @@ describe("MessageHandler", () => {
 
       await handler.handle(msg);
 
-      expect(stdout).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "queued-message:ack",
-        })
+      expect(emitEvent).not.toHaveBeenCalledWith(
+        "queued-message:ack",
+        expect.anything()
       );
 
       // Synthetic messages should be ignored (not appended)
@@ -545,10 +552,9 @@ describe("MessageHandler", () => {
       await handler.handle(msg);
 
       // Tool results should not trigger ack
-      expect(stdout).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "queued-message:ack",
-        })
+      expect(emitEvent).not.toHaveBeenCalledWith(
+        "queued-message:ack",
+        expect.anything()
       );
 
       // But markToolComplete should be called
@@ -559,8 +565,8 @@ describe("MessageHandler", () => {
       const callOrder: string[] = [];
 
       // Track call order
-      vi.mocked(stdout).mockImplementation(() => {
-        callOrder.push("stdout");
+      vi.mocked(emitEvent).mockImplementation(() => {
+        callOrder.push("emitEvent");
       });
       vi.mocked(appendUserMessage).mockImplementation(async () => {
         callOrder.push("appendUserMessage");
@@ -582,8 +588,8 @@ describe("MessageHandler", () => {
 
       await handler.handle(msg);
 
-      // Verify stdout (ack) is called before appendUserMessage
-      expect(callOrder).toEqual(["stdout", "appendUserMessage"]);
+      // Verify emitEvent (ack) is called before appendUserMessage
+      expect(callOrder).toEqual(["emitEvent", "appendUserMessage"]);
     });
   });
 });

@@ -3,6 +3,7 @@ import { ClipboardHotkeySettings } from "./settings/clipboard-hotkey-settings";
 import { RepositorySettings } from "./settings/repository-settings";
 import { AboutSettings } from "./settings/about-settings";
 import { QuickActionsSettings } from "@/components/settings/quick-actions-settings";
+import { SkillsSettings } from "./settings/skills-settings";
 
 export function SettingsPage() {
   return (
@@ -11,6 +12,7 @@ export function SettingsPage() {
         <HotkeySettings />
         <ClipboardHotkeySettings />
         <QuickActionsSettings />
+        <SkillsSettings />
         <RepositorySettings />
         <AboutSettings />
       </div>

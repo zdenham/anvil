@@ -6,9 +6,9 @@ Define all TypeScript types for the skills system. This includes both the fronte
 
 ## Phases
 
-- [ ] Create skills entity types
-- [ ] Create adapter interface types
-- [ ] Export from appropriate indexes
+- [x] Create skills entity types
+- [x] Create adapter interface types
+- [x] Export from appropriate indexes
 
 ---
 
@@ -447,13 +447,13 @@ export { extractSkillMatches } from './extract-matches';
 
 ## Acceptance Criteria
 
-- [ ] Canonical types defined in `core/types/skills.ts`: `SkillMetadata`, `SkillReference`, `SkillSource`, `SkillContent`, `SkillFrontmatter`, `SkillMatch`, `SkillInjection`
-- [ ] `src/entities/skills/types.ts` re-exports from `@core/types/skills`
-- [ ] `FilesystemAdapter` interface exists in core/adapters (low-level FS ops only)
-- [ ] Shared utilities exist in `core/skills/`
-- [ ] `SKILL_PATTERN` regex documented with limitations
-- [ ] `SOURCE_PRIORITY`, `SOURCE_ICONS`, `SOURCE_LABELS` constants defined
-- [ ] `parseFrontmatter()` is the single source of truth
-- [ ] Types compile without errors
-- [ ] No circular dependencies
-- [ ] Dependency direction is correct: `agents` -> `core`, `src` -> `core`
+- [x] Canonical types defined in `core/types/skills.ts`: `SkillMetadata`, `SkillReference`, `SkillSource`, `SkillContent`, `SkillFrontmatter`, `SkillMatch`, `SkillInjection`
+- [x] `src/entities/skills/types.ts` re-exports from `@core/types/skills`
+- [x] `FilesystemAdapter` interface exists in core/adapters (low-level FS ops only)
+- [x] Shared utilities exist in `core/skills/`
+- [x] `SKILL_PATTERN` regex documented with limitations
+- [x] `SOURCE_PRIORITY`, `SOURCE_ICONS`, `SOURCE_LABELS` constants defined
+- [x] `parseFrontmatter()` is the single source of truth
+- [x] Types compile without errors
+- [x] No circular dependencies
+- [x] Dependency direction is correct: `agents` -> `core`, `src` -> `core`

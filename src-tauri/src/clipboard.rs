@@ -6,13 +6,14 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-use crate::clipboard_db;
+use crate::clipboard_db::{self, ClipboardEntryPreview};
 use crate::panels;
 
 /// Global app handle for emitting events from background thread
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 const POLL_INTERVAL_MS: u64 = 500;
+const DEFAULT_RESULT_LIMIT: usize = 100;
 
 /// Simulate Cmd+V to paste into the currently active app using native CGEvent API.
 /// Since NSPanel doesn't steal focus, the previous app is still frontmost.
@@ -137,6 +138,32 @@ pub fn initialize(app: &AppHandle) {
             thread::sleep(Duration::from_millis(POLL_INTERVAL_MS));
         }
     });
+}
+
+/// Get clipboard history previews, optionally filtered by query
+#[tauri::command]
+pub fn get_clipboard_history(
+    query: Option<String>,
+    limit: Option<usize>,
+) -> Vec<ClipboardEntryPreview> {
+    let limit = limit.unwrap_or(DEFAULT_RESULT_LIMIT);
+
+    let results = match query {
+        Some(q) if !q.trim().is_empty() => {
+            clipboard_db::search_entries(&q, limit).unwrap_or_default()
+        }
+        _ => clipboard_db::get_recent_entries(limit).unwrap_or_default(),
+    };
+
+    tracing::debug!(count = results.len(), "Returning clipboard history");
+
+    results
+}
+
+/// Get full content for a specific entry (for preview panel)
+#[tauri::command]
+pub fn get_clipboard_content(id: String) -> Option<String> {
+    clipboard_db::get_entry_content(&id).ok().flatten()
 }
 
 /// Copy an entry back to the clipboard, hide panel, and paste into active app

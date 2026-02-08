@@ -8,9 +8,9 @@ Implement system prompt injection at the agent level. When a user message contai
 
 ## Phases
 
-- [ ] Create skill injection logic
-- [ ] Integrate with agent runner
-- [ ] Handle multi-skill messages
+- [x] Create skill injection logic
+- [x] Integrate with agent runner
+- [x] Handle multi-skill messages
 
 ---
 
@@ -209,12 +209,12 @@ query({
 
 ## Acceptance Criteria
 
-- [ ] `/skill args` in message triggers skill injection
-- [ ] Skill content appended to system prompt in `<skill-instruction>` tags
-- [ ] `$ARGUMENTS` substituted correctly
-- [ ] Multiple skills in one message all get injected
-- [ ] Missing skills don't cause errors
-- [ ] Frontmatter stripped from skill content (handled by SkillsService.readContent)
-- [ ] Project skills have priority over personal (handled by SkillsService.discover)
-- [ ] Skill injection logged for debugging
-- [ ] Uses shared SkillsService - NO duplicate discovery/parsing logic
+- [x] `/skill args` in message triggers skill injection
+- [x] Skill content appended to system prompt in `<skill-instruction>` tags
+- [x] `$ARGUMENTS` substituted correctly
+- [x] Multiple skills in one message all get injected
+- [x] Missing skills don't cause errors
+- [x] Frontmatter stripped from skill content (handled by SkillsService.readContent)
+- [x] Project skills have priority over personal (handled by SkillsService.discover)
+- [x] Skill injection logged for debugging
+- [x] Uses shared SkillsService - NO duplicate discovery/parsing logic

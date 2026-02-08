@@ -65,7 +65,7 @@ function focusTreeItem(index: number) {
 interface PlanItemProps {
   item: TreeItemNode;
   isSelected: boolean;
-  onSelect: (itemId: string, itemType: "thread" | "plan") => void;
+  onSelect: (itemId: string, itemType: "thread" | "plan" | "terminal") => void;
   tabIndex?: number;
   /** Index in the flat list for keyboard navigation */
   itemIndex?: number;

@@ -6,9 +6,9 @@ Create the Zustand store for managing skill state in the frontend. Follows the s
 
 ## Phases
 
-- [ ] Create Zustand store with selectors
-- [ ] Add hydration support
-- [ ] Export from entity index
+- [x] Create Zustand store with selectors
+- [x] Add hydration support
+- [x] Export from entity index
 
 ---
 
@@ -130,9 +130,9 @@ export * from './skills';
 
 ## Acceptance Criteria
 
-- [ ] `useSkillsStore` hook exists and compiles
-- [ ] `getBySlug` normalizes to lowercase
-- [ ] `getAll` returns skills sorted by source priority, then name
-- [ ] `search` filters on name, slug, and description
-- [ ] `hydrate` sets skills and tracks discovery path
-- [ ] Store exported from `src/entities/skills`
+- [x] `useSkillsStore` hook exists and compiles
+- [x] `getBySlug` normalizes to lowercase
+- [x] `getAll` returns skills sorted by source priority, then name
+- [x] `search` filters on name, slug, and description
+- [x] `hydrate` sets skills and tracks discovery path
+- [x] Store exported from `src/entities/skills`
