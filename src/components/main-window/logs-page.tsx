@@ -37,7 +37,9 @@ export function LogsPage() {
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
     if (autoScroll && filteredLogs.length > 0) {
-      virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
+      queueMicrotask(() => {
+        virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
+      });
     }
   }, [filteredLogs.length, autoScroll, virtualizer]);
 
@@ -56,7 +58,9 @@ export function LogsPage() {
   const scrollToBottom = useCallback(() => {
     setAutoScroll(true);
     if (filteredLogs.length > 0) {
-      virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
+      queueMicrotask(() => {
+        virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
+      });
     }
   }, [filteredLogs.length, virtualizer]);
 

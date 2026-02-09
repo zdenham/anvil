@@ -28,8 +28,8 @@ Wrap the `scrollToIndex` call in a microtask using `queueMicrotask()` or `setTim
 
 ## Phases
 
-- [ ] Update the auto-scroll useEffect to defer scrollToIndex with queueMicrotask
-- [ ] Update the scrollToBottom callback similarly for consistency
+- [x] Update the auto-scroll useEffect to defer scrollToIndex with queueMicrotask
+- [x] Update the scrollToBottom callback similarly for consistency
 - [ ] Test that auto-scroll still works correctly
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
