@@ -56,8 +56,38 @@ pub async fn worktree_create(repo_name: String, name: String) -> Result<Worktree
         .to_string_lossy()
         .to_string();
 
-    // Call existing git primitive
-    git_commands::git_create_worktree(source_path, worktree_path.clone(), String::new()).await?;
+    // Fetch latest from origin and get remote default branch commit
+    let remote_commit = match fetch_remote_commit(&source_path).await {
+        Ok(commit) => {
+            tracing::info!(
+                repo_name = %repo_name,
+                commit = %&commit[..8.min(commit.len())],
+                "Using remote commit for worktree"
+            );
+            Some(commit)
+        }
+        Err(e) => {
+            tracing::warn!(
+                repo_name = %repo_name,
+                error = %e,
+                "Failed to fetch remote commit, falling back to local HEAD"
+            );
+            None
+        }
+    };
+
+    // Create worktree - at remote commit if available, otherwise detached at HEAD
+    if let Some(commit) = &remote_commit {
+        git_commands::git_create_worktree_at_commit(
+            source_path.clone(),
+            worktree_path.clone(),
+            commit.clone(),
+        )
+        .await?;
+    } else {
+        git_commands::git_create_worktree(source_path, worktree_path.clone(), String::new())
+            .await?;
+    }
 
     // Create worktree state
     let now = now_millis();
@@ -369,6 +399,19 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
 }
 
 // Helper functions
+
+/// Fetch from origin and get the commit of the remote default branch.
+async fn fetch_remote_commit(source_path: &str) -> Result<String, String> {
+    // Fetch latest from origin
+    git_commands::git_fetch(source_path.to_string(), Some("origin".to_string())).await?;
+
+    // Get the default branch name
+    let default_branch = git_commands::git_get_default_branch(source_path.to_string()).await?;
+
+    // Get the commit of origin/<default-branch>
+    let remote_ref = format!("origin/{}", default_branch);
+    git_commands::git_get_branch_commit(source_path.to_string(), remote_ref).await
+}
 
 fn now_millis() -> u64 {
     SystemTime::now()

@@ -286,6 +286,30 @@ pub async fn git_create_worktree(
     Ok(())
 }
 
+/// Create a new worktree at a specific commit (detached HEAD)
+/// This is used to create worktrees at a remote branch commit.
+pub(crate) async fn git_create_worktree_at_commit(
+    repo_path: String,
+    worktree_path: String,
+    commit: String,
+) -> Result<(), String> {
+    let output = shell::command("git")
+        .args(["worktree", "add", "--detach", &worktree_path, &commit])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to create worktree at commit {}: {}",
+            commit,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(())
+}
+
 /// Remove a worktree
 #[tauri::command]
 pub async fn git_remove_worktree(repo_path: String, worktree_path: String) -> Result<(), String> {

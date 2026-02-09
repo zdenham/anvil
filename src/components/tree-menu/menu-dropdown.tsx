@@ -138,7 +138,7 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onUnhideAll, hasHid
           aria-activedescendant={`menu-option-${focusedIndex}`}
           className={cn(
             "absolute top-full right-0 mt-1 z-50",
-            "w-[140px]",
+            "w-[180px]",
             "bg-surface-800 border border-surface-700 rounded-lg shadow-lg",
             "py-1"
           )}
