@@ -9,7 +9,7 @@
  * - Scrollback buffer restoration
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -69,9 +69,11 @@ export function TerminalContent({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const isInitializedRef = useRef(false);
 
-  // Get the scrollback buffer to restore when reopening
-  const outputBuffer = useTerminalSessionStore(
-    (state) => state.outputBuffers[terminalId] || ""
+  // Capture initial buffer value once for reconnection scenarios.
+  // Using useState with initializer function ensures we only read from store once at mount,
+  // preventing re-renders when outputBuffer changes during live usage.
+  const [initialBuffer] = useState(
+    () => useTerminalSessionStore.getState().outputBuffers[terminalId] || ""
   );
 
   // Write to PTY when user types
@@ -166,9 +168,9 @@ export function TerminalContent({
       handleResize();
     }, 0);
 
-    // Restore scrollback buffer if we have one
-    if (outputBuffer) {
-      terminal.write(outputBuffer);
+    // Restore scrollback buffer if we have one (only at mount time)
+    if (initialBuffer) {
+      terminal.write(initialBuffer);
     }
 
     // Handle user input
@@ -220,7 +222,7 @@ export function TerminalContent({
       fitAddonRef.current = null;
       isInitializedRef.current = false;
     };
-  }, [terminalId, handleInput, handleResize, outputBuffer]);
+  }, [terminalId, handleInput, handleResize, initialBuffer]);
 
   // Focus terminal when container is clicked
   const handleClick = useCallback(() => {
