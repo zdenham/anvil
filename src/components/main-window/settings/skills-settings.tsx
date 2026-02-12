@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSkillsStore, skillsService } from "@/entities/skills";
 import { useRepoStore } from "@/entities/repositories";
 import { fsCommands } from "@/lib/tauri-commands";
@@ -7,7 +7,8 @@ import { SettingsSection } from "../settings-section";
 import { FolderOpen, ExternalLink } from "lucide-react";
 
 export function SkillsSettings() {
-  const skills = useSkillsStore(state => state.getAll());
+  const skillsRecord = useSkillsStore(state => state.skills);
+  const skills = useMemo(() => useSkillsStore.getState().getAll(), [skillsRecord]);
   const repositories = useRepoStore(state => state.repositories);
   const [isLoading, setIsLoading] = useState(false);
 

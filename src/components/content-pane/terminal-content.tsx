@@ -105,10 +105,12 @@ export function TerminalContent({
     resizeTimeoutRef.current = window.setTimeout(() => {
       try {
         fitAddon.fit();
+        const session = useTerminalSessionStore.getState().sessions[terminalId];
+        if (!session?.isAlive) return;
         terminalSessionService
           .resize(terminalId, terminal.cols, terminal.rows)
           .catch((err) => {
-            logger.error("[TerminalContent] Failed to resize terminal", {
+            logger.debug("[TerminalContent] Failed to resize terminal", {
               terminalId,
               error: err,
             });
