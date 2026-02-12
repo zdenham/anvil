@@ -12,6 +12,7 @@ import {
   markToolComplete,
   complete,
   setSessionId,
+  updateUsage,
 } from "../output.js";
 import { logger } from "../lib/logger.js";
 import { getChildThreadId, emitEvent } from "./shared.js";
@@ -100,6 +101,16 @@ export class MessageHandler {
       }
     }
 
+    // Extract and store per-call usage
+    if (msg.message.usage) {
+      await updateUsage({
+        inputTokens: msg.message.usage.input_tokens,
+        outputTokens: msg.message.usage.output_tokens,
+        cacheCreationTokens: msg.message.usage.cache_creation_input_tokens ?? 0,
+        cacheReadTokens: msg.message.usage.cache_read_input_tokens ?? 0,
+      });
+    }
+
     // Cast content type - BetaContentBlock[] is structurally compatible with ContentBlockParam[]
     await appendAssistantMessage({
       role: "assistant",
@@ -159,12 +170,17 @@ export class MessageHandler {
   }
 
   private async handleResult(msg: SDKResultMessage): Promise<boolean> {
+    // Extract context window size from modelUsage (use first model's value)
+    const modelUsageEntries = Object.values(msg.modelUsage ?? {});
+    const contextWindow = modelUsageEntries[0]?.contextWindow;
+
     switch (msg.subtype) {
       case "success":
         await complete({
           durationApiMs: msg.duration_api_ms,
           totalCostUsd: msg.total_cost_usd,
           numTurns: msg.num_turns,
+          contextWindow,
         });
         break;
       case "error_during_execution": {
@@ -183,6 +199,7 @@ export class MessageHandler {
             durationApiMs: msg.duration_api_ms,
             totalCostUsd: msg.total_cost_usd,
             numTurns: msg.num_turns,
+            contextWindow,
           });
         }
     }
@@ -359,6 +376,25 @@ export class MessageHandler {
           if (block.type === "tool_use") {
             state.toolStates[block.id] = { status: "running", toolName: block.name };
           }
+        }
+
+        // Extract usage for child thread
+        if (msg.message.usage) {
+          const turnUsage = {
+            inputTokens: msg.message.usage.input_tokens,
+            outputTokens: msg.message.usage.output_tokens,
+            cacheCreationTokens: msg.message.usage.cache_creation_input_tokens ?? 0,
+            cacheReadTokens: msg.message.usage.cache_read_input_tokens ?? 0,
+          };
+          state.lastCallUsage = turnUsage;
+
+          const prev = state.cumulativeUsage;
+          state.cumulativeUsage = {
+            inputTokens: (prev?.inputTokens ?? 0) + turnUsage.inputTokens,
+            outputTokens: (prev?.outputTokens ?? 0) + turnUsage.outputTokens,
+            cacheCreationTokens: (prev?.cacheCreationTokens ?? 0) + turnUsage.cacheCreationTokens,
+            cacheReadTokens: (prev?.cacheReadTokens ?? 0) + turnUsage.cacheReadTokens,
+          };
         }
 
         // Append message

@@ -1,8 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { Turn } from "@/lib/utils/turn-grouping";
 import { getUserTurnPrompt } from "@/lib/utils/turn-grouping";
-import { parseSkillsFromDisplayMessage } from "@/lib/skills/parse-skill-display";
-import { SkillChip } from "./skill-chip";
 
 interface UserMessageProps {
   /** The user turn containing the message */
@@ -22,9 +20,6 @@ export function UserMessage({ turn }: UserMessageProps) {
     return null;
   }
 
-  // Parse skill invocations from the text content
-  const { skills, remainingText } = parseSkillsFromDisplayMessage(content);
-
   return (
     <article
       role="article"
@@ -38,23 +33,7 @@ export function UserMessage({ turn }: UserMessageProps) {
           "shadow-sm"
         )}
       >
-        {/* Render skill chips first */}
-        {skills.length > 0 && (
-          <div className="skill-chips mb-2">
-            {skills.map((skill, idx) => (
-              <SkillChip
-                key={`${skill.skillSlug}-${idx}`}
-                slug={skill.skillSlug}
-                args={skill.args}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Render remaining text */}
-        {remainingText && (
-          <p className="whitespace-pre-wrap break-words">{remainingText}</p>
-        )}
+        <p className="whitespace-pre-wrap break-words">{content}</p>
       </div>
     </article>
   );

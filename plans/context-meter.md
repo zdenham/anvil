@@ -1,15 +1,28 @@
 # Context Meter Feature
 
-Display token usage relative to the context window with detailed breakdown on hover.
+Display token usage relative to the context window with detailed breakdown on hover. Each thread (parent and child) tracks its own context independently.
+
+## Phases
+
+- [x] Add TokenUsage to ThreadState and emit from agent
+- [x] Create ContextMeter component with tooltip
+- [x] Integrate into ThreadHeader (works for both parent and child threads)
+- [x] Add tests
+
+<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+
+---
 
 ## Overview
 
-The context meter is a visual indicator showing how much of Claude's context window is being used in the current thread. It appears in the thread header and provides a detailed breakdown by token type when hovered.
+The context meter is a visual indicator showing how much of Claude's context window is being used in the current thread. It appears in the **ThreadHeader** for every thread — both parent and child (sub-agent) threads.
+
+**Key design decision:** Parent and child agents run in separate SDK sessions with independent context windows. Each thread tracks its own usage. When clicking into a child agent thread, its header shows *that agent's* context usage, not the parent's.
 
 ## Requirements
 
 ### Functional
-- Display current token usage as a percentage of the 200K context window
+- Display current token usage as a percentage of the context window
 - Show visual progress bar that fills based on usage
 - On hover, display tooltip with breakdown:
   - Input tokens
@@ -18,7 +31,8 @@ The context meter is a visual indicator showing how much of Claude's context win
   - Cache read tokens
   - Total tokens / max context
 - Update in real-time during agent streaming
-- Persist token counts to thread state for historical reference
+- Persist token counts to thread state (already on disk via `state.json`)
+- Works identically for parent and child threads — each shows its own context
 
 ### Visual
 - Compact horizontal bar in thread header (between breadcrumb and action buttons)
@@ -34,13 +48,10 @@ The context meter is a visual indicator showing how much of Claude's context win
 
 ### SDK Token Data Availability
 
-The Anthropic Agent SDK provides token usage at two points:
-
-1. **Per-turn** in `SDKAssistantMessage.message.usage` - fires each time Claude responds
-2. **Final totals** in `SDKResultMessage.usage` - fires when agent run completes
+The Anthropic Agent SDK provides per-turn usage on every `SDKAssistantMessage`:
 
 ```typescript
-// Available on each SDKAssistantMessage.message.usage
+// SDKAssistantMessage.message.usage (BetaUsage)
 {
   input_tokens: number;
   output_tokens: number;
@@ -49,67 +60,144 @@ The Anthropic Agent SDK provides token usage at two points:
 }
 ```
 
-**Important:** Per-turn values are incremental (that turn only), not cumulative. The frontend must accumulate them to get running totals.
+Final cumulative totals are available on `SDKResultMessage`:
+
+```typescript
+// SDKResultMessage.usage (NonNullableUsage) — cumulative for entire run
+// SDKResultMessage.modelUsage: Record<string, ModelUsage> — per-model breakdown
+// ModelUsage includes contextWindow and maxOutputTokens per model
+```
+
+**Important — understanding per-turn token semantics:**
+
+- `input_tokens` on each turn is the **full context sent for that API call** — it includes the entire conversation history. It is NOT incremental. Each turn's `input_tokens` will be larger than the previous as history grows. The latest `input_tokens` is the best real-time indicator of context window pressure.
+- `output_tokens` on each turn is only that turn's generated output — it IS incremental.
+- `cache_creation_input_tokens` and `cache_read_input_tokens` are per-request caching behavior.
+- **Do NOT sum `input_tokens` across turns** — that would massively overcount. Use the latest value as-is.
+
+For sub-agents: messages with a `parent_tool_use_id` are routed to child thread state by `MessageHandler.handleForChildThread()`. We add usage tracking there too.
+
+### Communication: Unix Socket IPC
+
+Agent state reaches the frontend via the **socket IPC architecture** (not stdout):
+
+```
+Agent Process                   Unix Socket              Rust AgentHub          Frontend
+    │                              │                         │                     │
+    │ 1. emitState()               │                         │                     │
+    │    - writes state.json       │                         │                     │
+    │    - hubClient.sendState()   │                         │                     │
+    ├─────────────────────────────>│                         │                     │
+    │                              │  2. AgentHub receives   │                     │
+    │                              ├────────────────────────>│                     │
+    │                              │     Tauri event:        │                     │
+    │                              │     "agent:message"     │                     │
+    │                              │                         │  3. agent-service.ts│
+    │                              │                         │     listen() handler│
+    │                              │                         ├────────────────────>│
+    │                              │                         │  eventBus.emit(     │
+    │                              │                         │    AGENT_STATE)     │
+    │                              │                         │                     │
+    │                              │                         │  4. Zustand stores  │
+    │                              │                         │     subscribe &     │
+    │                              │                         │     update UI       │
+```
+
+Key files in the IPC chain:
+- `agents/src/lib/hub/client.ts` — `HubClient` connects to `~/.mort/agent-hub.sock`
+- `agents/src/output.ts` — `emitState()` writes disk first, then `hubClient.sendState(payload)`
+- `src/lib/agent-service.ts` — Tauri `listen<AgentSocketMessage>("agent:message", ...)` routes to eventBus
 
 ### Data Flow
 
 ```
-SDKAssistantMessage (per-turn)
-    ↓
-MessageHandler.handleAssistant() extracts usage
-    ↓
-Emits AGENT_STATE with usage field (new)
-    ↓
-Frontend accumulates running totals in Zustand
-    ↓
-ContextMeter component rerenders
+Parent thread:
+  SDKAssistantMessage (parent_tool_use_id = null)
+      ↓
+  MessageHandler.handleAssistant() extracts usage
+      ↓
+  updateUsage() sets state.usage
+      ↓
+  emitState() → disk (state.json) → hubClient.sendState() → socket
+      ↓
+  Rust AgentHub → Tauri "agent:message" event → agent-service.ts
+      ↓
+  eventBus.emit(AGENT_STATE, { threadId, state }) → Zustand → ContextMeter
 
-SDKResultMessage (on completion)
-    ↓
-MessageHandler.handleResult() extracts final usage
-    ↓
-Emits via complete() metrics
-    ↓
-Frontend validates/replaces accumulated totals
+Child thread:
+  SDKAssistantMessage (parent_tool_use_id = Task tool ID)
+      ↓
+  MessageHandler.handleForChildThread() extracts usage into child state
+      ↓
+  Child state written to child's state.json on disk
+      ↓
+  When user navigates into child thread, frontend loads child state.json
+      ↓
+  ContextMeter reads child's usage from loaded state
 ```
 
-### Token Sources
+### Why input_tokens is the Right Metric
 
-The Anthropic SDK provides token counts:
-- `input_tokens` - tokens in the request (messages, system prompt)
-- `output_tokens` - tokens generated by Claude
-- `cache_creation_input_tokens` - tokens written to cache (if prompt caching enabled)
-- `cache_read_input_tokens` - tokens read from cache
+The context window limit constrains the *input* to each API call. `input_tokens` on the most recent turn tells us how full the context is. Output tokens don't count against the window — they're generated tokens, not stored context. Cache tokens are a billing optimization, not a context pressure indicator.
+
+So the meter should primarily show: **last `input_tokens` / context_window_size**.
+
+The context window size can be obtained from `SDKResultMessage.modelUsage[model].contextWindow` at run completion; default to 200K before that value is available.
+
+The tooltip can show the full breakdown for informational purposes.
 
 ## Implementation
 
-### Phase 1: Agent-Side Token Emission
+### Phase 1: Add TokenUsage to ThreadState and Emit from Agent
 
-#### 1.1 Emit per-turn usage from MessageHandler
+#### 1.1 Add TokenUsage to ThreadState schema
+
+**File:** `core/types/events.ts`
+
+Add a `TokenUsage` schema and include it as an optional field on `ThreadStateSchema`:
+
+```typescript
+export const TokenUsageSchema = z.object({
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  cacheCreationTokens: z.number(),
+  cacheReadTokens: z.number(),
+});
+export type TokenUsage = z.infer<typeof TokenUsageSchema>;
+
+// Add to ThreadStateSchema:
+usage: TokenUsageSchema.optional(),
+```
+
+Also add `contextWindow` and `usage` to `ResultMetricsSchema`:
+
+```typescript
+export const ResultMetricsSchema = z.object({
+  durationApiMs: z.number(),
+  totalCostUsd: z.number(),
+  numTurns: z.number(),
+  usage: TokenUsageSchema.optional(),
+  contextWindow: z.number().optional(), // from SDKResultMessage.modelUsage
+});
+```
+
+#### 1.2 Emit usage from MessageHandler — parent thread
 
 **File:** `agents/src/runners/message-handler.ts`
 
-Modify `handleAssistant()` to emit token usage via state event:
+In `handleAssistant()`, after marking tool_use blocks as running and before `appendAssistantMessage()`, extract usage:
 
 ```typescript
 private async handleAssistant(msg: SDKAssistantMessage): Promise<boolean> {
-  // ... existing tool marking logic ...
+  // ... existing: iterate content blocks, markToolRunning() ...
 
-  // Emit usage data if present
+  // Extract and store per-turn usage
   if (msg.message.usage) {
-    const usage = msg.message.usage;
-    // Emit via stdout for frontend consumption
-    stdout({
-      type: "state",
-      state: {
-        type: "token_usage",
-        usage: {
-          inputTokens: usage.input_tokens,
-          outputTokens: usage.output_tokens,
-          cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
-          cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-        },
-      },
+    await updateUsage({
+      inputTokens: msg.message.usage.input_tokens,
+      outputTokens: msg.message.usage.output_tokens,
+      cacheCreationTokens: msg.message.usage.cache_creation_input_tokens ?? 0,
+      cacheReadTokens: msg.message.usage.cache_read_input_tokens ?? 0,
     });
   }
 
@@ -118,275 +206,146 @@ private async handleAssistant(msg: SDKAssistantMessage): Promise<boolean> {
 }
 ```
 
-#### 1.2 Include final usage in complete() metrics
+Note: `updateUsage` imported from `../output.js` (top-level import, not dynamic).
 
-**File:** `agents/src/runners/message-handler.ts`
+#### 1.3 Emit usage from MessageHandler — child thread
 
-Update `handleResult()` to pass usage to `complete()`:
+In `handleForChildThread()`, case `"assistant"`, extract usage into the child's in-memory state (which is later written to disk):
 
 ```typescript
-private async handleResult(msg: SDKResultMessage): Promise<boolean> {
-  switch (msg.subtype) {
-    case "success":
-      await complete({
-        durationApiMs: msg.duration_api_ms,
-        totalCostUsd: msg.total_cost_usd,
-        numTurns: msg.num_turns,
-        // Add final usage totals
-        usage: msg.usage ? {
-          inputTokens: msg.usage.input_tokens,
-          outputTokens: msg.usage.output_tokens,
-          cacheCreationTokens: msg.usage.cache_creation_input_tokens ?? 0,
-          cacheReadTokens: msg.usage.cache_read_input_tokens ?? 0,
-        } : undefined,
-      });
-      break;
-    // ... rest unchanged
+case "assistant": {
+  const msg = message as SDKAssistantMessage;
+
+  // Extract usage for child thread
+  if (msg.message.usage) {
+    childState.usage = {
+      inputTokens: msg.message.usage.input_tokens,
+      outputTokens: msg.message.usage.output_tokens,
+      cacheCreationTokens: msg.message.usage.cache_creation_input_tokens ?? 0,
+      cacheReadTokens: msg.message.usage.cache_read_input_tokens ?? 0,
+    };
   }
+
+  // ... existing: mark tool_use blocks, push message, write to disk ...
 }
 ```
 
-#### 1.3 Update ResultMetrics type
+Child state is managed via `this.childThreadStates: Map<string, ThreadState>` and written to disk at the end of `handleForChildThread()`. The usage field will be persisted automatically.
 
-**File:** `agents/src/output.ts` and `core/types/events.ts`
+#### 1.4 Add updateUsage to output.ts
 
-Add optional usage to ResultMetrics:
+**File:** `agents/src/output.ts`
+
+Follow the existing pattern of direct state mutation + emitState():
 
 ```typescript
-export interface ResultMetrics {
-  durationApiMs: number;
-  totalCostUsd: number;
-  numTurns: number;
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    cacheCreationTokens: number;
-    cacheReadTokens: number;
-  };
+export async function updateUsage(usage: TokenUsage): Promise<void> {
+  state.usage = usage;
+  await emitState();
 }
 ```
 
-### Phase 2: Create Context Meter Component
+This writes the updated state to disk and sends it over the socket to the frontend.
 
-#### 2.1 Create the main component
+#### 1.5 Include usage and contextWindow in complete() metrics
+
+In `handleResult()`, extract `contextWindow` from `SDKResultMessage.modelUsage` and pass through to `complete()`:
+
+```typescript
+// Extract context window size from modelUsage (use first model's value)
+const modelUsageEntries = Object.values(msg.modelUsage ?? {});
+const contextWindow = modelUsageEntries[0]?.contextWindow;
+
+await complete({
+  durationApiMs: msg.duration_api_ms,
+  totalCostUsd: msg.total_cost_usd,
+  numTurns: msg.num_turns,
+  usage: state.usage,
+  contextWindow,
+});
+```
+
+### Phase 2: Create ContextMeter Component
+
+#### 2.1 Create the component
 
 **File:** `src/components/content-pane/context-meter.tsx`
 
-```typescript
-interface ContextMeterProps {
-  threadId: string;
-}
-
-export function ContextMeter({ threadId }: ContextMeterProps) {
-  // Get token counts from thread state
-  // Calculate percentage of 200K context
-  // Render bar with tooltip
-}
-```
-
-Component structure:
-- Wrapper div with Radix Tooltip
-- Progress bar (background + fill)
-- Percentage text label
-- Tooltip content with detailed breakdown
-
-#### 2.2 Create custom hook for token data
-
-**File:** `src/hooks/use-context-meter.ts`
+A compact bar + percentage that reads usage from the thread's state. On hover, shows a Radix tooltip with full breakdown.
 
 ```typescript
-interface ContextMeterData {
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-  totalTokens: number;
-  percentage: number;
-  usageLevel: 'low' | 'medium' | 'high' | 'critical';
-}
+const DEFAULT_CONTEXT_WINDOW = 200_000;
 
-export function useContextMeter(threadId: string): ContextMeterData | null {
-  // Select from Zustand store
-  // Calculate derived values
-  // Return null if no thread data
-}
+const USAGE_LEVELS = [
+  { max: 0.5, color: "bg-green-500", label: "low" },
+  { max: 0.8, color: "bg-yellow-500", label: "medium" },
+  { max: 0.95, color: "bg-orange-500", label: "high" },
+  { max: Infinity, color: "bg-red-500", label: "critical" },
+] as const;
 ```
 
-### Phase 3: Integrate into UI
+Props: `{ threadId: string }`
 
-#### 3.1 Add to thread header
+The component:
+1. Reads usage from thread state (via the thread store's state selector)
+2. Uses `contextWindow` from metrics if available, otherwise `DEFAULT_CONTEXT_WINDOW`
+3. Computes `percentage = inputTokens / contextWindow`
+4. Renders a bar with color based on threshold
+5. Wraps in Radix Tooltip showing the full breakdown
+
+#### 2.2 Read usage from thread state
+
+The frontend receives `ThreadState` via socket IPC events (`AGENT_STATE`) and stores it in Zustand. The `usage` field added in Phase 1 flows through automatically — no new store or event handling needed.
+
+For child threads: when the user navigates into a child thread, the frontend loads the child's `state.json` from disk. The `usage` field is included in the persisted state.
+
+### Phase 3: Integrate into ThreadHeader
 
 **File:** `src/components/content-pane/content-pane-header.tsx`
 
-In the `ThreadHeader` component, add `ContextMeter` between the breadcrumb and action buttons:
+Add `<ContextMeter threadId={threadId} />` to the `ThreadHeader` component, positioned between the breadcrumb and the action buttons (in the `ml-auto` div, before the cancel button).
 
-```tsx
-<div className="flex items-center gap-2">
-  {/* Existing breadcrumb */}
-  <ContextMeter threadId={threadId} />
-  {/* Existing action buttons */}
-</div>
+This works for both parent and child threads because `ThreadHeader` always receives the active `threadId`. When viewing a child thread, the threadId is the child's ID, so the meter shows the child's context usage.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ● repo / worktree / thread    [═══░░░] 15%  [Cancel] [×]   │
+└─────────────────────────────────────────────────────────────┘
+
+Tooltip on hover:
+┌──────────────────────────┐
+│ Context Window            │
+│ ─────────────────────     │
+│ Input:       30,290       │
+│ Output:       8,234       │
+│ Cache write:  2,100       │
+│ Cache read:   7,500       │
+│ ─────────────────────     │
+│ 30,290 / 200,000 (15.1%)  │
+└──────────────────────────┘
 ```
 
-#### 3.2 Style with existing patterns
+### Phase 4: Tests
 
-Use existing Tailwind classes and color palette:
-- Background: `bg-surface-800`
-- Border: `border border-surface-700`
-- Text: `text-surface-400` (muted), `text-surface-200` (emphasis)
-- Bar colors: Tailwind green/yellow/orange/red scales
-- Tooltip: Reuse existing `Tooltip` component from `ui/tooltip.tsx`
-
-### Phase 4: Frontend Token Accumulation
-
-#### 4.1 Handle per-turn usage in agent-service
-
-**File:** `src/lib/agent-service.ts`
-
-Update `handleSimpleAgentOutput()` to recognize token_usage state events:
-
-```typescript
-case "state":
-  if (output.state.type === "token_usage") {
-    eventBus.emit(EventName.AGENT_STATE, {
-      threadId,
-      state: output.state,
-    });
-  } else {
-    eventBus.emit(EventName.AGENT_STATE, {
-      threadId,
-      state: output.state,
-    });
-  }
-  break;
-```
-
-#### 4.2 Accumulate in Zustand store
-
-**File:** `src/stores/thread-store.ts` (or new dedicated store)
-
-Create state for accumulated token counts per thread:
-
-```typescript
-interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-}
-
-interface ThreadTokenState {
-  usage: Record<string, TokenUsage>;  // keyed by threadId
-  addUsage: (threadId: string, usage: TokenUsage) => void;
-  resetUsage: (threadId: string) => void;
-  setFinalUsage: (threadId: string, usage: TokenUsage) => void;
-}
-```
-
-The `addUsage` function accumulates incremental per-turn values. The `setFinalUsage` replaces with authoritative totals from `SDKResultMessage`.
-
-#### 4.3 Subscribe in useContextMeter hook
-
-```typescript
-useEffect(() => {
-  const unsubscribe = eventBus.on(EventName.AGENT_STATE, (data) => {
-    if (data.threadId === threadId && data.state.type === "token_usage") {
-      // Add incremental usage to accumulated total
-      addUsage(threadId, data.state.usage);
-    }
-  });
-  return unsubscribe;
-}, [threadId]);
-```
-
-#### 4.4 Smooth animations
-
-Add CSS transitions for bar width changes:
-```css
-.context-meter-fill {
-  transition: width 300ms ease-out;
-}
-```
+- Unit test for percentage calculation and threshold logic
+- Component test for ContextMeter rendering with various usage levels
+- Verify tooltip content renders correct breakdown
 
 ## File Changes Summary
 
 | File | Change Type | Description |
 |------|-------------|-------------|
-| `agents/src/runners/message-handler.ts` | Modify | Emit per-turn usage via stdout, include usage in complete() |
-| `agents/src/output.ts` | Modify | Add usage to ResultMetrics type |
-| `core/types/events.ts` | Modify | Add TokenUsage type, update ResultMetrics schema |
-| `src/lib/agent-service.ts` | Modify | Handle token_usage state events |
-| `src/stores/token-usage-store.ts` | Create | Zustand store for accumulating per-thread token usage |
-| `src/components/content-pane/context-meter.tsx` | Create | Main meter component |
-| `src/hooks/use-context-meter.ts` | Create | Data hook for token stats |
-| `src/components/content-pane/content-pane-header.tsx` | Modify | Add meter to ThreadHeader |
-
-## Testing
-
-### Unit Tests
-- `useContextMeter` hook returns correct calculations
-- Percentage math is accurate (total / 200000 * 100)
-- Usage level thresholds are correct
-- Handles missing/zero data gracefully
-
-### Component Tests
-- Meter renders with correct percentage width
-- Tooltip shows all token types
-- Color changes at threshold boundaries
-- Handles null thread state
-
-### Integration Tests
-- Token counts accumulate correctly during streaming
-- Persisted data loads on app restart
-- Real-time updates work during agent runs
-
-## Design Mockup
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ ● Thread Name                    [═══░░░░░] 15%  [◧] [×]   │
-└─────────────────────────────────────────────────────────────┘
-
-Tooltip on hover:
-┌──────────────────────────┐
-│ Context Usage            │
-│ ─────────────────────    │
-│ Input:       12,456      │
-│ Output:       8,234      │
-│ Cache write:  2,100      │
-│ Cache read:   7,500      │
-│ ─────────────────────    │
-│ Total: 30,290 / 200,000  │
-│ 15.1% of context used    │
-└──────────────────────────┘
-```
-
-## Constants
-
-```typescript
-const CONTEXT_WINDOW_SIZE = 200_000;
-
-const USAGE_THRESHOLDS = {
-  low: 0.5,      // < 50% green
-  medium: 0.8,   // 50-80% yellow
-  high: 0.95,    // 80-95% orange
-  // > 95% red (critical)
-};
-```
+| `core/types/events.ts` | Modify | Add `TokenUsageSchema`, add `usage` to `ThreadStateSchema` and `ResultMetricsSchema`, add `contextWindow` to `ResultMetricsSchema` |
+| `agents/src/runners/message-handler.ts` | Modify | Extract usage in `handleAssistant()` and `handleForChildThread()`, extract `contextWindow` from `modelUsage` in `handleResult()` |
+| `agents/src/output.ts` | Modify | Add `updateUsage()` function |
+| `src/components/content-pane/context-meter.tsx` | Create | ContextMeter component with bar + tooltip |
+| `src/components/content-pane/content-pane-header.tsx` | Modify | Add ContextMeter to ThreadHeader |
 
 ## Edge Cases
 
-- **No token data**: Show empty/disabled state, not 0%
-- **Exceeds context**: Cap at 100%, show red/warning state
-- **Cache tokens**: Explain in tooltip that cache reads reduce effective input
-- **Multiple agents**: Track per-thread, not globally
-- **Thread switching**: Component should cleanly unmount/remount
-- **Resume vs new run**: When resuming a thread, accumulated totals should persist; new runs should reset or continue from previous total
-- **Accumulation drift**: Per-turn values are incremental - if a message is missed, totals may drift. Use `SDKResultMessage.usage` final values to correct any drift at end of run
-
-## Future Enhancements
-
-- Click to expand detailed token history over time
-- Warning notification when approaching limit
-- Estimate remaining capacity for next message
-- Compare token efficiency across threads
+- **No token data yet**: Don't render the meter (return null)
+- **Exceeds context**: Cap bar at 100%, show red
+- **Child thread with no usage**: Same as parent — don't render until first usage arrives
+- **Thread switching**: React key on threadId ensures clean remount
+- **Resume**: Usage persists in state.json, so resumed threads show their last known usage immediately
+- **Context window size unknown**: Default to 200K until `SDKResultMessage.modelUsage` provides the actual value

@@ -23,10 +23,10 @@ import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
-import { QueuedMessagesBanner } from "./queued-messages-banner";
+
 import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
-import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
+
 import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
 import { eventBus, type ControlPanelViewType } from "@/entities/events";
 import { EventName } from "@core/types/events.js";
@@ -286,8 +286,6 @@ function ControlPanelWindowContent({
   const resumableStatuses: ViewStatus[] = ['idle', 'error', 'cancelled', 'completed'];
   const canResumeAgent = resumableStatuses.includes(viewStatus);
 
-  // Get queued messages for this thread (reactive)
-  const queuedMessages = useQueuedMessagesForThread(threadId);
 
   // Create optimistic messages when store is empty
   const messages = useMemo((): MessageParam[] => {
@@ -674,8 +672,6 @@ function ControlPanelWindowContent({
       {/* Max width constraint centered for readability on wide screens */}
       <div className="w-full max-w-[900px] mx-auto px-2.5">
         <QuickActionsPanel contextType="thread" />
-        {/* Queued messages banner - shows pending messages while agent is running */}
-        <QueuedMessagesBanner messages={queuedMessages} />
         {/* Wrap input with visual indicator when in queue mode */}
         <div className={cn(
           "relative",

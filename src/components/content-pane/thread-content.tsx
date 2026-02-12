@@ -38,7 +38,7 @@ import { logger } from "@/lib/logger-client";
 import { savePromptToHistory } from "@/lib/prompt-history-helpers";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
 import { useWorkingDirectory } from "@/hooks/use-working-directory";
-import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
+
 import { navigationService } from "@/stores/navigation-service";
 import type { ThreadContentProps } from "./types";
 
@@ -215,8 +215,6 @@ export function ThreadContent({
   ];
   const canResumeAgent = resumableStatuses.includes(viewStatus);
 
-  // Get queued messages for this thread (reactive)
-  const queuedMessages = useQueuedMessagesForThread(threadId);
 
   // Compute messages with optimistic message support
   const messages = useMemo((): MessageParam[] => {
@@ -495,8 +493,6 @@ export function ThreadContent({
           workingDirectory={workingDirectory}
           contextType={messages.length === 0 ? "empty" : "thread"}
           placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
-          queuedMessages={queuedMessages}
-          canQueue={canQueueMessages}
         />
       )}
 

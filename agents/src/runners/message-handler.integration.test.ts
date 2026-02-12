@@ -33,6 +33,7 @@ vi.mock("../output.js", () => ({
   complete: vi.fn((metrics) => {
     mockCalls.complete.push(metrics);
   }),
+  updateUsage: vi.fn(),
   relayEventsFromToolOutput: vi.fn(),
 }));
 

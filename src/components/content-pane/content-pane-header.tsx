@@ -30,6 +30,7 @@ import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
 import { Breadcrumb } from "./breadcrumb";
 import { useBreadcrumbContext } from "./use-breadcrumb-context";
+import { ContextMeter } from "./context-meter";
 import type { ContentPaneHeaderProps } from "./types";
 
 function getStatusVariant(
@@ -224,6 +225,8 @@ function ThreadHeader({
       />
 
       <div className="ml-auto flex items-center gap-2">
+        <ContextMeter threadId={threadId} />
+
         {isStreaming && (
           <button
             onClick={handleCancel}

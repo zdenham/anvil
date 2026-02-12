@@ -216,12 +216,31 @@ export const FileChangeSchema = z.object({
 export type FileChange = z.infer<typeof FileChangeSchema>;
 
 /**
+ * Token usage from a single API call.
+ *
+ * Per the Anthropic API docs, total input tokens for a single request is:
+ *   inputTokens + cacheCreationTokens + cacheReadTokens
+ *
+ * inputTokens alone is only the uncached portion.
+ * outputTokens is only this call's generated output (incremental).
+ */
+export const TokenUsageSchema = z.object({
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  cacheCreationTokens: z.number(),
+  cacheReadTokens: z.number(),
+});
+export type TokenUsage = z.infer<typeof TokenUsageSchema>;
+
+/**
  * Execution metrics for completed agent run.
  */
 export const ResultMetricsSchema = z.object({
   durationApiMs: z.number(),
   totalCostUsd: z.number(),
   numTurns: z.number(),
+  lastCallUsage: TokenUsageSchema.optional(),
+  contextWindow: z.number().optional(),
 });
 export type ResultMetrics = z.infer<typeof ResultMetricsSchema>;
 
@@ -258,6 +277,10 @@ export const ThreadStateSchema = z.object({
   toolStates: z.record(z.string(), ToolExecutionStateSchema),
   /** SDK session ID for resuming conversations */
   sessionId: z.string().optional(),
+  /** Latest token usage from the most recent API call (for context pressure) */
+  lastCallUsage: TokenUsageSchema.optional(),
+  /** Cumulative token usage across all API calls (for total spend display) */
+  cumulativeUsage: TokenUsageSchema.optional(),
 });
 export type ThreadState = z.infer<typeof ThreadStateSchema>;
 

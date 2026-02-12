@@ -118,6 +118,12 @@ export const repoService = {
           createdAt: settings.createdAt,
         };
       } else {
+        // Log why settings.json failed so we can diagnose issues
+        if (!rawSettings) {
+          logger.warn(`[repo:hydrate] ${repoName}: settings.json not found or unreadable`);
+        } else if (settingsResult && !settingsResult.success) {
+          logger.warn(`[repo:hydrate] ${repoName}: settings.json failed schema validation:`, settingsResult.error.message);
+        }
         // Fall back to legacy metadata.json
         const metadataPath = `${REPOS_DIR}/${repoName}/metadata.json`;
         logger.log(`[repo:hydrate] ${repoName}: No valid settings.json, trying metadata.json`);

@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.38",
-    "@anthropic-ai/claude-agent-sdk": "^0.2.37",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.39",
     "@anthropic-ai/sdk": "^0.74.0",
     "ai": "^6.0.77",
     "glob": "^13.0.0",

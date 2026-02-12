@@ -76,6 +76,16 @@ function loadPriorState(historyFile: string | undefined): PriorState {
       logger.info("[runner] No prior toolStates found");
     }
 
+    // Load token usage so context meter stays visible during resume
+    if (state.lastCallUsage && typeof state.lastCallUsage === "object") {
+      result.lastCallUsage = state.lastCallUsage;
+      logger.info("[runner] Loaded prior lastCallUsage from history");
+    }
+    if (state.cumulativeUsage && typeof state.cumulativeUsage === "object") {
+      result.cumulativeUsage = state.cumulativeUsage;
+      logger.info("[runner] Loaded prior cumulativeUsage from history");
+    }
+
     return result;
   } catch (err) {
     logger.warn(`[runner] Failed to load history file: ${err}`);

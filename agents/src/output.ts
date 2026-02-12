@@ -9,6 +9,7 @@ import type {
   ResultMetrics,
   ThreadState,
   ToolExecutionState,
+  TokenUsage,
 } from "@core/types/events.js";
 import type { HubClient } from "./lib/hub/index.js";
 
@@ -35,7 +36,7 @@ const ToolEventSchema = z.object({
 });
 
 // Re-export shared types for backwards compatibility
-export type { FileChange, ResultMetrics, ThreadState, ToolExecutionState };
+export type { FileChange, ResultMetrics, ThreadState, ToolExecutionState, TokenUsage };
 
 let statePath: string;
 let state: ThreadState;
@@ -68,6 +69,8 @@ export function getHubClient(): HubClient | null {
  * @param writer - Optional ThreadWriter for resilient writes
  * @param priorSessionId - SDK session ID from previous run (for resuming)
  * @param priorToolStates - Prior tool states (for UI rendering of completed tools from previous turns)
+ * @param priorLastCallUsage - Last call token usage from previous run (keeps context meter visible during resume)
+ * @param priorCumulativeUsage - Cumulative token usage from previous run
  */
 export async function initState(
   threadPath: string,
@@ -75,7 +78,9 @@ export async function initState(
   priorMessages: MessageParam[] = [],
   writer?: ThreadWriter,
   priorSessionId?: string,
-  priorToolStates?: Record<string, ToolExecutionState>
+  priorToolStates?: Record<string, ToolExecutionState>,
+  priorLastCallUsage?: TokenUsage,
+  priorCumulativeUsage?: TokenUsage
 ): Promise<void> {
   statePath = join(threadPath, "state.json");
   threadWriter = writer ?? null;
@@ -87,6 +92,8 @@ export async function initState(
     timestamp: Date.now(),
     toolStates: priorToolStates ?? {},
     sessionId: priorSessionId,
+    lastCallUsage: priorLastCallUsage,
+    cumulativeUsage: priorCumulativeUsage,
   };
   await emitState();
 }
@@ -264,9 +271,13 @@ function markOrphanedToolsAsError(): void {
 
 /**
  * Mark the thread as complete with metrics.
+ * Merges latest per-call usage from state into metrics if not already set.
  */
 export async function complete(metrics: ResultMetrics): Promise<void> {
   markOrphanedToolsAsError();
+  if (state.lastCallUsage && !metrics.lastCallUsage) {
+    metrics.lastCallUsage = state.lastCallUsage;
+  }
   state.metrics = metrics;
   state.status = "complete";
   await emitState();
@@ -313,6 +324,24 @@ export async function setSessionId(sessionId: string): Promise<void> {
  */
 export function getSessionId(): string | undefined {
   return state.sessionId;
+}
+
+/**
+ * Update token usage from the latest API call.
+ * Sets per-call snapshot and accumulates cumulative totals.
+ */
+export async function updateUsage(usage: TokenUsage): Promise<void> {
+  state.lastCallUsage = usage;
+
+  const prev = state.cumulativeUsage;
+  state.cumulativeUsage = {
+    inputTokens: (prev?.inputTokens ?? 0) + usage.inputTokens,
+    outputTokens: (prev?.outputTokens ?? 0) + usage.outputTokens,
+    cacheCreationTokens: (prev?.cacheCreationTokens ?? 0) + usage.cacheCreationTokens,
+    cacheReadTokens: (prev?.cacheReadTokens ?? 0) + usage.cacheReadTokens,
+  };
+
+  await emitState();
 }
 
 /**

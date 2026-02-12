@@ -70,10 +70,11 @@ impl LogServerLayer {
 /// This naturally handles retries without needing a separate retry buffer.
 fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
     let mut buffer: Vec<LogRow> = Vec::with_capacity(MAX_BUFFER_SIZE);
-    let mut last_flush_attempt = Instant::now();
+    let mut last_flush = Instant::now();
+    let mut flush_backoff = FLUSH_INTERVAL;
 
     loop {
-        let timeout = FLUSH_INTERVAL.saturating_sub(last_flush_attempt.elapsed());
+        let timeout = flush_backoff.saturating_sub(last_flush.elapsed());
 
         match receiver.recv_timeout(timeout) {
             Ok(row) => {
@@ -83,16 +84,25 @@ fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
                 }
                 buffer.push(row);
 
-                // Flush if batch size reached
-                if buffer.len() >= BATCH_SIZE {
-                    try_flush(&config.url, &mut buffer);
-                    last_flush_attempt = Instant::now();
+                // Only attempt flush if backoff period has elapsed
+                if buffer.len() >= BATCH_SIZE && last_flush.elapsed() >= flush_backoff {
+                    if try_flush(&config.url, &mut buffer) {
+                        flush_backoff = FLUSH_INTERVAL; // Reset on success
+                    } else {
+                        // Back off: double the interval, cap at 60s
+                        flush_backoff = (flush_backoff * 2).min(Duration::from_secs(60));
+                    }
+                    last_flush = Instant::now();
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if !buffer.is_empty() {
-                    try_flush(&config.url, &mut buffer);
-                    last_flush_attempt = Instant::now();
+                    if try_flush(&config.url, &mut buffer) {
+                        flush_backoff = FLUSH_INTERVAL;
+                    } else {
+                        flush_backoff = (flush_backoff * 2).min(Duration::from_secs(60));
+                    }
+                    last_flush = Instant::now();
                 }
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -105,8 +115,8 @@ fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
 }
 
 /// Attempts to flush with exponential backoff retry.
-/// On success, buffer is cleared. On failure, buffer is retained for next attempt.
-fn try_flush(url: &str, buffer: &mut Vec<LogRow>) {
+/// On success, buffer is cleared and returns true. On failure, buffer is retained and returns false.
+fn try_flush(url: &str, buffer: &mut Vec<LogRow>) -> bool {
     let mut delay = INITIAL_RETRY_DELAY;
 
     for attempt in 0..MAX_RETRIES {
@@ -116,7 +126,7 @@ fn try_flush(url: &str, buffer: &mut Vec<LogRow>) {
         match send_batch(url, &batch) {
             Ok(()) => {
                 buffer.clear(); // Only clear on success
-                return;
+                return true;
             }
             Err(e) => {
                 if attempt < MAX_RETRIES - 1 {
@@ -138,6 +148,7 @@ fn try_flush(url: &str, buffer: &mut Vec<LogRow>) {
         "Log server temporarily unavailable. {} logs buffered.",
         buffer.len()
     );
+    false
 }
 
 /// Sends a batch of logs to the server (non-destructive, takes reference).

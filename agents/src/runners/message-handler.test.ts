@@ -15,6 +15,7 @@ vi.mock("../output.js", () => ({
   markToolComplete: vi.fn(),
   complete: vi.fn(),
   setSessionId: vi.fn(),
+  updateUsage: vi.fn(),
   getHubClient: vi.fn(() => null), // Required by emitEvent in shared.js
 }));
 
@@ -313,6 +314,7 @@ describe("MessageHandler", () => {
         durationApiMs: 800,
         totalCostUsd: 0.05,
         numTurns: 3,
+        contextWindow: undefined,
       });
     });
 
@@ -414,6 +416,7 @@ describe("MessageHandler", () => {
         durationApiMs: 800,
         totalCostUsd: 0.03,
         numTurns: 2,
+        contextWindow: undefined,
       });
     });
   });

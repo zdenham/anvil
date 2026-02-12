@@ -318,6 +318,10 @@ export interface PriorState {
   sessionId?: string;
   /** Prior tool states - preserved so resumed conversations show completed tools correctly */
   toolStates?: Record<string, ToolExecutionState>;
+  /** Last call token usage - preserved so context meter stays visible during resume */
+  lastCallUsage?: import("../../../core/types/events.js").TokenUsage;
+  /** Cumulative token usage across all calls - preserved across resume */
+  cumulativeUsage?: import("../../../core/types/events.js").TokenUsage;
 }
 
 /**
@@ -337,7 +341,7 @@ export async function runAgentLoop(
   priorState: PriorState = { messages: [] },
   options: AgentLoopOptions = {}
 ): Promise<void> {
-  const { messages: priorMessages, sessionId: priorSessionId, toolStates: priorToolStates } = priorState;
+  const { messages: priorMessages, sessionId: priorSessionId, toolStates: priorToolStates, lastCallUsage, cumulativeUsage } = priorState;
 
   // Log prior state for debugging
   logger.info(`[runAgentLoop] Starting with ${priorMessages.length} prior messages`);
@@ -351,8 +355,9 @@ export async function runAgentLoop(
     logger.info(`[runAgentLoop] Prior message roles: ${priorMessages.map(m => m.role).join(", ")}`);
   }
 
-  // Initialize state with prior messages (for UI), sessionId (for resume), and toolStates (for UI rendering)
-  await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId, priorToolStates);
+  // Initialize state with prior messages (for UI), sessionId (for resume), toolStates (for UI rendering),
+  // and token usage (so context meter stays visible during resume)
+  await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId, priorToolStates, lastCallUsage, cumulativeUsage);
   await appendUserMessage(config.prompt);
 
   // Persistence instance for plan detection and mention tracking
@@ -821,6 +826,7 @@ export async function runAgentLoop(
           cwd: context.workingDir,
           additionalDirectories: [config.mortDir],
           settingSources: ["user", "project"],
+          betas: ["fast-mode-2026-02-01" as any],
           model: agentConfig.model ?? "claude-opus-4-6",
           systemPrompt: {
             type: "preset",

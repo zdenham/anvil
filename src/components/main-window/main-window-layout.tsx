@@ -433,13 +433,18 @@ export function MainWindowLayout() {
   const handleArchiveWorktree = useCallback(async (repoName: string, worktreeId: string, worktreeName: string) => {
     logger.info(`[MainWindowLayout] Archive worktree requested: ${worktreeName} (${worktreeId}) in repo ${repoName}`);
 
-    // Get threads in this worktree to show count in confirmation
+    // Get threads and plans in this worktree to show counts in confirmation
     const threads = threadService.getByWorktree(worktreeId);
+    const plans = planService.getByWorktree(worktreeId);
     const threadCount = threads.length;
+    const planCount = plans.length;
 
     // Confirm with user
-    const message = threadCount > 0
-      ? `Archive worktree "${worktreeName}" and its ${threadCount} thread${threadCount === 1 ? "" : "s"}?`
+    const parts: string[] = [];
+    if (threadCount > 0) parts.push(`${threadCount} thread${threadCount === 1 ? "" : "s"}`);
+    if (planCount > 0) parts.push(`${planCount} plan${planCount === 1 ? "" : "s"}`);
+    const message = parts.length > 0
+      ? `Archive worktree "${worktreeName}" and its ${parts.join(" and ")}?`
       : `Archive worktree "${worktreeName}"?`;
 
     const confirmed = await confirm(message, {
@@ -453,10 +458,20 @@ export function MainWindowLayout() {
     }
 
     try {
+      // Kill all terminal sessions in the worktree
+      await terminalSessionService.archiveByWorktree(worktreeId);
+      logger.info(`[MainWindowLayout] Archived terminal sessions for worktree ${worktreeId}`);
+
       // Archive all threads in the worktree
       for (const thread of threads) {
         await threadService.archive(thread.id);
         logger.info(`[MainWindowLayout] Archived thread ${thread.id}`);
+      }
+
+      // Archive all plans in the worktree
+      for (const plan of plans) {
+        await planService.archive(plan.id);
+        logger.info(`[MainWindowLayout] Archived plan ${plan.id}`);
       }
 
       // Delete the worktree
@@ -469,7 +484,7 @@ export function MainWindowLayout() {
       // Refresh tree menu
       await treeMenuService.hydrate();
 
-      logger.info(`[MainWindowLayout] Successfully archived worktree "${worktreeName}" with ${threadCount} threads`);
+      logger.info(`[MainWindowLayout] Successfully archived worktree "${worktreeName}" with ${threadCount} threads, ${planCount} plans`);
     } catch (error) {
       logger.error(`[MainWindowLayout] Failed to archive worktree:`, error);
     }
