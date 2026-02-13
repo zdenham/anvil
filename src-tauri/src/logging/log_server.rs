@@ -69,12 +69,21 @@ impl LogServerLayer {
 /// Single buffer design: logs accumulate in one buffer that only drains on successful flush.
 /// This naturally handles retries without needing a separate retry buffer.
 fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
+    let _span = tracing::info_span!("log_server_loop").entered();
     let mut buffer: Vec<LogRow> = Vec::with_capacity(MAX_BUFFER_SIZE);
     let mut last_flush = Instant::now();
     let mut flush_backoff = FLUSH_INTERVAL;
 
     loop {
-        let timeout = flush_backoff.saturating_sub(last_flush.elapsed());
+        let elapsed = last_flush.elapsed();
+        let timeout = flush_backoff.saturating_sub(elapsed);
+
+        if timeout.is_zero() {
+            eprintln!(
+                "[log_server] spin-loop avoided: elapsed={:?} backoff={:?}, resetting timer",
+                elapsed, flush_backoff
+            );
+        }
 
         match receiver.recv_timeout(timeout) {
             Ok(row) => {
@@ -102,8 +111,8 @@ fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
                     } else {
                         flush_backoff = (flush_backoff * 2).min(Duration::from_secs(60));
                     }
-                    last_flush = Instant::now();
                 }
+                last_flush = Instant::now();
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 // Final flush on shutdown

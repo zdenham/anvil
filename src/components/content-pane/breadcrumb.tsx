@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 interface BreadcrumbProps {
   repoName?: string;
   worktreeName?: string;
-  category: "threads" | "plans";
+  category: "threads" | "plans" | "files";
   itemLabel: string;
   onCategoryClick: () => void;
 }

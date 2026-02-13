@@ -26,6 +26,8 @@ interface AssistantMessageProps {
   onToolResponse?: (toolId: string, response: string) => void;
   /** Thread ID for persisting expand state across virtualization */
   threadId: string;
+  /** Working directory for resolving relative file paths in markdown */
+  workingDirectory?: string;
 }
 
 /**
@@ -39,6 +41,7 @@ export function AssistantMessage({
   toolStates,
   onToolResponse,
   threadId,
+  workingDirectory,
 }: AssistantMessageProps) {
   const message = messages[messageIndex];
   const content = (message.content as ContentBlock[]) ?? [];
@@ -60,6 +63,7 @@ export function AssistantMessage({
                     key={`text-${index}`}
                     content={block.text}
                     isStreaming={showCursor}
+                    workingDirectory={workingDirectory}
                   />
                 );
 

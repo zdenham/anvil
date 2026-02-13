@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Copy, Search, Trash2, Radio } from "lucide-react";
+import { Activity, Check, ChevronDown, Copy, Loader2, Search, Trash2 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-shell";
 import type { LogEntry, LogFilter, LogLevel } from "@/entities/logs";
 import { cn } from "@/lib/utils";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 
 const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
 const COPY_FEEDBACK_MS = 2000;
@@ -70,43 +70,16 @@ export function LogsToolbar({
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isCopied, setIsCopied] = useState(false);
-  const [isEventTapRunning, setIsEventTapRunning] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Check initial state and listen for CGEvent test events
-  useEffect(() => {
-    // Check if already running on mount
-    invoke<boolean>("is_cgevent_test_running").then(setIsEventTapRunning).catch(() => {});
-
-    // Listen for events from the CGEvent tap
-    const unlisten = listen<{ type: string }>("cgevent-test", (event) => {
-      if (event.payload.type === "started") {
-        setIsEventTapRunning(true);
-      } else if (event.payload.type === "stopped") {
-        setIsEventTapRunning(false);
-      }
-      // Other events (key_down, key_up, flags_changed, modifier_released)
-      // will be logged via the normal logging system
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  const toggleEventTap = useCallback(async () => {
-    try {
-      if (isEventTapRunning) {
-        await invoke("stop_cgevent_test");
-      } else {
-        await invoke("start_cgevent_test");
-      }
-    } catch (e) {
-      console.error("Failed to toggle CGEvent tap:", e);
-    }
-  }, [isEventTapRunning]);
+  // Profiling state
+  const [profilingType, setProfilingType] = useState<"cpu" | "trace" | null>(null);
+  const [profilingResult, setProfilingResult] = useState<string | null>(null);
+  const [profilingError, setProfilingError] = useState<string | null>(null);
+  const [showProfilingMenu, setShowProfilingMenu] = useState(false);
+  const profilingMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleLevel = (level: LogLevel) => {
     const newLevels = filter.levels.includes(level)
@@ -136,6 +109,47 @@ export function LogsToolbar({
     const timer = setTimeout(() => setIsCopied(false), COPY_FEEDBACK_MS);
     return () => clearTimeout(timer);
   }, [isCopied]);
+
+  // Profiling handler
+  const startProfiling = useCallback(async (type: "cpu" | "trace") => {
+    setShowProfilingMenu(false);
+    setProfilingType(type);
+    setProfilingResult(null);
+    setProfilingError(null);
+
+    try {
+      const command = type === "cpu" ? "capture_cpu_profile" : "start_trace";
+      const path = await invoke<string>(command, { durationSecs: 10 });
+      setProfilingResult(path);
+    } catch (e) {
+      setProfilingError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setProfilingType(null);
+    }
+  }, []);
+
+  // Clear profiling result/error after timeout
+  useEffect(() => {
+    if (!profilingResult && !profilingError) return;
+    const timer = setTimeout(() => {
+      setProfilingResult(null);
+      setProfilingError(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [profilingResult, profilingError]);
+
+  // Close profiling menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profilingMenuRef.current && !profilingMenuRef.current.contains(e.target as Node)) {
+        setShowProfilingMenu(false);
+      }
+    };
+    if (showProfilingMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showProfilingMenu]);
 
   // Close on outside click
   useEffect(() => {
@@ -344,21 +358,68 @@ export function LogsToolbar({
           : `${filteredCount} of ${totalCount}`}
       </span>
 
-      {/* CGEvent Tap Test, Copy and Clear buttons */}
+      {/* Profiling, Copy, and Clear buttons */}
       <div className="ml-auto flex items-center gap-1">
-        <button
-          onClick={toggleEventTap}
-          className={cn(
-            "flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors",
-            isEventTapRunning
-              ? "bg-red-600/20 text-red-400 hover:bg-red-600/30"
-              : "bg-surface-800 text-surface-400 hover:text-surface-200 hover:bg-surface-700"
+        {/* Profiling dropdown */}
+        <div ref={profilingMenuRef} className="relative">
+          <button
+            onClick={() => !profilingType && setShowProfilingMenu(!showProfilingMenu)}
+            disabled={!!profilingType}
+            className={cn(
+              "p-1.5 rounded transition-colors",
+              profilingType
+                ? "text-amber-400 animate-pulse"
+                : profilingError
+                  ? "text-red-400"
+                  : profilingResult
+                    ? "text-green-400"
+                    : "text-surface-400 hover:text-surface-200 hover:bg-surface-800",
+              profilingType && "cursor-not-allowed"
+            )}
+            title={
+              profilingType
+                ? `Capturing ${profilingType === "cpu" ? "CPU flamegraph" : "chrome trace"}...`
+                : profilingError
+                  ? `Profiling error: ${profilingError}`
+                  : profilingResult
+                    ? "Profiling complete"
+                    : "Profile CPU"
+            }
+          >
+            {profilingType ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+          </button>
+
+          {showProfilingMenu && (
+            <div className="absolute top-full right-0 mt-1 z-50 w-[180px] bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1">
+              <button
+                onClick={() => startProfiling("cpu")}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-surface-200 hover:bg-surface-700 cursor-pointer"
+              >
+                CPU Flamegraph
+                <span className="ml-auto text-surface-500">10s</span>
+              </button>
+              <button
+                onClick={() => startProfiling("trace")}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-surface-200 hover:bg-surface-700 cursor-pointer"
+              >
+                Chrome Trace
+                <span className="ml-auto text-surface-500">10s</span>
+              </button>
+            </div>
           )}
-          title={isEventTapRunning ? "Stop CGEvent tap test" : "Start CGEvent tap test (logs modifier key events)"}
-        >
-          <Radio size={12} className={isEventTapRunning ? "animate-pulse" : ""} />
-          <span>{isEventTapRunning ? "Stop Tap" : "Event Tap"}</span>
-        </button>
+
+          {profilingResult && (
+            <div className="absolute top-full right-0 mt-1 z-50 bg-surface-800 border border-surface-700 rounded-lg shadow-lg px-3 py-2">
+              <button
+                onClick={() => open(`file://${profilingResult}`)}
+                className="text-xs text-accent-400 hover:text-accent-300 whitespace-nowrap"
+              >
+                Open result
+              </button>
+            </div>
+          )}
+        </div>
+
         <button
           onClick={handleCopy}
           disabled={filteredLogs.length === 0}

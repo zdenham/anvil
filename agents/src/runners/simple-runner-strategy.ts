@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync, readdirSync } from "fs";
+import type { TokenUsage } from "@core/types/events.js";
 import { execFileSync } from "child_process";
 import { join } from "path";
 import { z } from "zod";
@@ -474,12 +475,28 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
             };
           }
 
+          // Read final usage from state.json and merge into metadata
+          let lastCallUsage: TokenUsage | undefined;
+          let cumulativeUsage: TokenUsage | undefined;
+          const statePath = join(threadPath, "state.json");
+          if (existsSync(statePath)) {
+            try {
+              const stateRaw = JSON.parse(readFileSync(statePath, "utf-8"));
+              lastCallUsage = stateRaw.lastCallUsage;
+              cumulativeUsage = stateRaw.cumulativeUsage;
+            } catch {
+              // Best-effort: usage may already be in metadata from updateUsage()
+            }
+          }
+
           const updated: SimpleThreadMetadata = {
             ...parseResult.data,
             status: status === "completed" ? "completed" : status === "cancelled" ? "cancelled" : "error",
             updatedAt: now,
             pid: null, // Clear PID - process is exiting
             turns,
+            ...(lastCallUsage && { lastCallUsage }),
+            ...(cumulativeUsage && { cumulativeUsage }),
           };
           writeFileSync(threadMetadataPath, JSON.stringify(updated, null, 2));
         } else {

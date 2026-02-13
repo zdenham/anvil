@@ -1,0 +1,225 @@
+/**
+ * FileContent
+ *
+ * Displays a file from disk with syntax highlighting.
+ * Reads fresh from disk on every mount (no caching).
+ *
+ * - Code files: line-numbered, syntax-highlighted via Shiki
+ * - Markdown files: rendered via MarkdownRenderer with source toggle
+ * - Binary/missing files: error message
+ */
+
+import { useState, useEffect, memo } from "react";
+import { FilesystemClient } from "@/lib/filesystem-client";
+import { getLanguageFromPath } from "@/lib/language-detection";
+import { useCodeHighlight } from "@/hooks/use-code-highlight";
+import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
+import { logger } from "@/lib/logger-client";
+import type { ThemedToken } from "@/lib/syntax-highlighter";
+
+const filesystemClient = new FilesystemClient();
+
+interface FileContentProps {
+  filePath: string;
+  repoId?: string;
+  worktreeId?: string;
+}
+
+type FileState =
+  | { status: "loading" }
+  | { status: "loaded"; content: string; language: string }
+  | { status: "error"; message: string };
+
+/** Detect binary content by checking for null bytes */
+function isBinaryContent(content: string): boolean {
+  return content.includes("\0");
+}
+
+export function FileContent({ filePath }: FileContentProps) {
+  const [fileState, setFileState] = useState<FileState>({ status: "loading" });
+  const [viewMode, setViewMode] = useState<"rendered" | "source">("rendered");
+
+  useEffect(() => {
+    setFileState({ status: "loading" });
+    setViewMode("rendered");
+
+    let cancelled = false;
+
+    async function loadFile() {
+      try {
+        const content = await filesystemClient.readFile(filePath);
+        if (cancelled) return;
+
+        if (isBinaryContent(content)) {
+          setFileState({ status: "error", message: "Binary file — cannot display" });
+          return;
+        }
+
+        const language = getLanguageFromPath(filePath);
+        setFileState({ status: "loaded", content, language });
+      } catch (err) {
+        if (cancelled) return;
+        logger.error("[FileContent] Failed to read file:", err);
+        setFileState({ status: "error", message: "File not found or cannot be read" });
+      }
+    }
+
+    loadFile();
+    return () => { cancelled = true; };
+  }, [filePath]);
+
+  if (fileState.status === "loading") {
+    return (
+      <div className="flex items-center justify-center h-full text-surface-400 text-sm">
+        Loading...
+      </div>
+    );
+  }
+
+  if (fileState.status === "error") {
+    return (
+      <div className="flex items-center justify-center h-full text-surface-400 text-sm">
+        {fileState.message}
+      </div>
+    );
+  }
+
+  const { content, language } = fileState;
+  const isMarkdown = language === "markdown" || language === "mdx";
+
+  if (isMarkdown && viewMode === "rendered") {
+    return (
+      <div className="flex flex-col h-full">
+        <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="max-w-[900px] mx-auto p-4">
+            <MarkdownRenderer content={content} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {isMarkdown && <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />}
+      <div className="flex-1 min-h-0 overflow-auto">
+        <HighlightedFileView content={content} language={language} />
+      </div>
+    </div>
+  );
+}
+
+function ViewModeToggle({
+  viewMode,
+  onToggle,
+}: {
+  viewMode: "rendered" | "source";
+  onToggle: (mode: "rendered" | "source") => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-surface-700">
+      <button
+        onClick={() => onToggle("rendered")}
+        className={`px-2 py-0.5 text-xs rounded transition-colors ${
+          viewMode === "rendered"
+            ? "bg-surface-700 text-surface-200"
+            : "text-surface-400 hover:text-surface-200"
+        }`}
+      >
+        Rendered
+      </button>
+      <button
+        onClick={() => onToggle("source")}
+        className={`px-2 py-0.5 text-xs rounded transition-colors ${
+          viewMode === "source"
+            ? "bg-surface-700 text-surface-200"
+            : "text-surface-400 hover:text-surface-200"
+        }`}
+      >
+        Source
+      </button>
+    </div>
+  );
+}
+
+/** Renders syntax-highlighted file content with line numbers */
+const HighlightedFileView = memo(function HighlightedFileView({
+  content,
+  language,
+}: {
+  content: string;
+  language: string;
+}) {
+  const { tokens, isLoading } = useCodeHighlight(content, language);
+  const lines = content.split("\n");
+
+  // Width of line number gutter based on total lines
+  const gutterWidth = `${Math.max(String(lines.length).length * 0.6 + 0.5, 2)}rem`;
+
+  if (isLoading || !tokens) {
+    return <PlainFileView lines={lines} gutterWidth={gutterWidth} />;
+  }
+
+  return (
+    <div className="font-mono text-sm leading-relaxed">
+      {tokens.map((lineTokens, i) => (
+        <FileLine key={i} lineNumber={i + 1} tokens={lineTokens} gutterWidth={gutterWidth} />
+      ))}
+    </div>
+  );
+});
+
+/** Single highlighted line with line number gutter */
+const FileLine = memo(function FileLine({
+  lineNumber,
+  tokens,
+  gutterWidth,
+}: {
+  lineNumber: number;
+  tokens: ThemedToken[];
+  gutterWidth: string;
+}) {
+  return (
+    <div className="flex hover:bg-surface-800/50">
+      <span
+        className="text-zinc-500 select-none text-right pr-2 font-mono text-xs shrink-0 pt-px"
+        style={{ width: gutterWidth }}
+      >
+        {lineNumber}
+      </span>
+      <code className="flex-1 px-2 whitespace-pre">
+        {tokens.length === 0 ? (
+          <span>&nbsp;</span>
+        ) : (
+          tokens.map((token, j) => (
+            <span key={j} style={{ color: token.color }}>
+              {token.content}
+            </span>
+          ))
+        )}
+      </code>
+    </div>
+  );
+});
+
+/** Fallback: plain text with line numbers while highlighting loads */
+function PlainFileView({ lines, gutterWidth }: { lines: string[]; gutterWidth: string }) {
+  return (
+    <div className="font-mono text-sm leading-relaxed">
+      {lines.map((line, i) => (
+        <div key={i} className="flex hover:bg-surface-800/50">
+          <span
+            className="text-zinc-500 select-none text-right pr-2 font-mono text-xs shrink-0 pt-px"
+            style={{ width: gutterWidth }}
+          >
+            {i + 1}
+          </span>
+          <code className="flex-1 px-2 whitespace-pre text-zinc-300">
+            {line || "\u00a0"}
+          </code>
+        </div>
+      ))}
+    </div>
+  );
+}

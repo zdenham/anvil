@@ -14,7 +14,9 @@ import { ContentPaneHeader } from "./content-pane-header";
 import { ThreadContent } from "./thread-content";
 import { PlanContent } from "./plan-content";
 import { TerminalContent } from "./terminal-content";
+import { FileContent } from "./file-content";
 import { EmptyPaneContent } from "./empty-pane-content";
+import { ChangesTab } from "../control-panel/changes-tab";
 import { SettingsPage } from "../main-window/settings-page";
 import { LogsPage } from "../main-window/logs-page";
 import { logger } from "@/lib/logger-client";
@@ -55,28 +57,19 @@ export function ContentPane({
   // Derive streaming state for header
   const isStreaming = useThreadStreamingState(view);
 
-  // Get initial prompt from optimistic thread metadata for immediate display
-  const initialPrompt = useThreadStore(
-    useCallback(
-      (s) => {
-        if (view.type === "thread") {
-          const prompt = s.threads[view.threadId]?.turns[0]?.prompt;
-          const now = Date.now();
-          const elapsed = now - mountTimeRef.current;
-          logger.info(`[ContentPane:TIMING] useThreadStore selector ran for initialPrompt`, {
-            threadId: view.threadId,
-            hasPrompt: !!prompt,
-            promptLength: prompt?.length ?? 0,
-            elapsedSinceMount: elapsed,
-            timestamp: new Date(now).toISOString(),
-          });
-          return prompt;
-        }
-        return undefined;
-      },
-      [view]
-    )
+  // Thread data selectors for both ThreadContent and ChangesTab
+  const threadId = view.type === "thread" ? view.threadId : null;
+
+  const activeMetadata = useThreadStore(
+    useCallback((s) => (threadId ? s.threads[threadId] : undefined), [threadId])
   );
+  const activeState = useThreadStore(
+    useCallback((s) => (threadId ? s.threadStates[threadId] : undefined), [threadId])
+  );
+  const isLoadingThreadState = useThreadStore((s) => s.activeThreadLoading);
+
+  // Derive initial prompt from thread metadata
+  const initialPrompt = activeMetadata?.turns[0]?.prompt;
 
   return (
     <div className="flex flex-col h-full bg-surface-900">
@@ -91,24 +84,21 @@ export function ContentPane({
 
       <div className="flex-1 min-h-0">
         {view.type === "empty" && <EmptyPaneContent />}
-        {view.type === "thread" && (() => {
-          const now = Date.now();
-          logger.info(`[ContentPane:TIMING] About to render ThreadContent`, {
-            threadId: view.threadId,
-            hasInitialPrompt: !!initialPrompt,
-            promptLength: initialPrompt?.length ?? 0,
-            elapsedSinceMount: now - mountTimeRef.current,
-            timestamp: new Date(now).toISOString(),
-          });
-          return (
-            <ThreadContent
-              threadId={view.threadId}
-              onPopOut={onPopOut}
-              autoFocus={view.autoFocus}
-              initialPrompt={initialPrompt}
-            />
-          );
-        })()}
+        {view.type === "thread" && threadTab === "conversation" && (
+          <ThreadContent
+            threadId={view.threadId}
+            onPopOut={onPopOut}
+            autoFocus={view.autoFocus}
+            initialPrompt={initialPrompt}
+          />
+        )}
+        {view.type === "thread" && threadTab === "changes" && activeMetadata && (
+          <ChangesTab
+            threadMetadata={activeMetadata}
+            threadState={activeState}
+            isLoadingThreadState={isLoadingThreadState}
+          />
+        )}
         {view.type === "plan" && (
           <PlanContent planId={view.planId} onPopOut={onPopOut} />
         )}
@@ -118,6 +108,13 @@ export function ContentPane({
           <TerminalContent
             terminalId={view.terminalId}
             onClose={onClose}
+          />
+        )}
+        {view.type === "file" && (
+          <FileContent
+            filePath={view.filePath}
+            repoId={view.repoId}
+            worktreeId={view.worktreeId}
           />
         )}
       </div>

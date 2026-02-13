@@ -2,11 +2,22 @@
 
 The Tauri binary consumes 100% CPU even at idle (no agents running, fresh launch). We need programmatic profiling to identify the hot path.
 
+> **IMPORTANT: All profiling is strictly on-demand.**
+>
+> Nothing in this plan runs at startup or during normal operation. Both the trace capture (`tracing-chrome`) and the CPU sampler (`pprof`) are **off by default** and only activate when explicitly triggered from the UI or dev console. There is **zero performance impact** on normal usage — no background threads, no file I/O, no sampling overhead unless the user opts in.
+
+> **How it works at runtime:**
+>
+> - **Normal launch**: No profiling code executes. The `tracing-chrome` layer is not attached. The `pprof` sampler is not running. No trace files are written.
+> - **User triggers profiling**: A Tauri IPC command (`start_trace` / `capture_cpu_profile`) activates the profiler for a bounded duration, writes results to disk, then stops.
+> - **After profiling completes**: Everything returns to the normal no-overhead state.
+
 ## Phases
 
-- [ ] Add `tracing-chrome` for programmatic trace capture
-- [ ] Instrument background threads with tracing spans
-- [ ] Add a Tauri command to dump a CPU sample on demand
+- [x] Add `tracing-chrome` and `pprof` deps (gated behind on-demand activation)
+- [x] Instrument background threads with tracing spans (zero-cost when no subscriber active)
+- [x] Add Tauri commands to start/stop trace and capture CPU profile on demand
+- [x] Add profiling UI trigger to logs toolbar
 - [ ] Build and capture a trace, analyze results
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
@@ -23,11 +34,13 @@ Use **`tracing-chrome`** to emit Chrome Trace Format (`.json`) files that can be
 
 For CPU sampling, we add a Tauri IPC command that captures a **pprof-style CPU profile** using the `pprof` crate, writing a flamegraph SVG on demand.
 
-Both approaches are programmatic — no manual Activity Monitor needed.
+> **Both tools are activated only on demand** — triggered by explicit IPC calls from the UI or dev console. They are never enabled at startup and have no runtime cost during normal operation.
 
 ---
 
-## Phase 1: Add `tracing-chrome` for Trace Capture
+## Phase 1: Add `tracing-chrome` and `pprof` Dependencies
+
+> **These are compile-time dependencies only.** Adding the crates does not activate any profiling at runtime. The profiling code paths are only invoked through explicit IPC commands (Phase 3).
 
 ### Dependencies
 
@@ -40,31 +53,11 @@ pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
 
 Note: `pprof` only works on Linux/macOS. Guard with `#[cfg(unix)]` if needed.
 
-### Wire into logging layer stack
+### DO NOT wire into `init_logging()`
 
-In `src-tauri/src/logging/mod.rs`, add a `tracing_chrome::ChromeLayerBuilder` alongside the existing layers:
+The `tracing-chrome` layer is **not** added to the default subscriber at startup. Instead, it will be activated on demand via Tauri IPC commands (see Phase 3). This ensures zero overhead during normal operation.
 
-```rust
-use tracing_chrome::ChromeLayerBuilder;
-
-// Inside init_logging() or equivalent:
-let (chrome_layer, _chrome_guard) = ChromeLayerBuilder::new()
-    .file(log_dir.join("trace.json"))
-    .include_args(true)
-    .build();
-
-// Add to the subscriber layering:
-// subscriber.with(chrome_layer)
-```
-
-The `_chrome_guard` must be held alive (store in a `OnceCell<FlushGuard>` or pass to app state) — dropping it flushes and finalizes the trace file.
-
-### What this gives us
-
-Every `#[tracing::instrument]` span and `tracing::info!()` event in the Rust code will appear as spans in the trace timeline. We can see:
-- Which threads are active and for how long
-- Which functions dominate CPU time
-- Where busy-wait loops show up as solid blocks
+The tracing spans added in Phase 2 use the standard `tracing` macros which are effectively no-ops when no chrome layer subscriber is active — they compile down to a disabled atomic check.
 
 ---
 
@@ -118,11 +111,56 @@ fn web_log(...) { ... }
 
 ---
 
-## Phase 3: Add On-Demand CPU Profile Command
+## Phase 3: Add On-Demand Profiling Commands
 
-Add a Tauri command that captures a CPU profile for N seconds and writes a flamegraph:
+> **All profiling is triggered explicitly via IPC.** Nothing starts at launch. The commands below are the only way to activate profiling, and each one stops automatically after the requested duration.
 
-### `src-tauri/src/mort_commands.rs` (or new `profiling.rs`)
+Two IPC commands — one for tracing timeline, one for CPU flamegraph:
+
+### `src-tauri/src/profiling.rs` (new file)
+
+#### Command 1: `start_trace` — On-demand tracing-chrome capture
+
+```rust
+use std::sync::Mutex;
+use tracing_chrome::{ChromeLayerBuilder, FlushGuard};
+
+// Held in Tauri managed state — None when not profiling
+pub struct TraceState(pub Mutex<Option<FlushGuard>>);
+
+#[tauri::command]
+pub async fn start_trace(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, TraceState>,
+    duration_secs: u64,
+) -> Result<String, String> {
+    // Activate the chrome trace layer on demand
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let trace_path = data_dir.join("logs").join(format!(
+        "trace-{}.json",
+        chrono::Utc::now().format("%Y%m%d-%H%M%S")
+    ));
+
+    let (chrome_layer, guard) = ChromeLayerBuilder::new()
+        .file(&trace_path)
+        .include_args(true)
+        .build();
+
+    // Attach layer dynamically (via reload handle or similar)
+    // Store guard so trace stays active
+    *state.0.lock().unwrap() = Some(guard);
+
+    // Auto-stop after duration
+    tokio::time::sleep(std::time::Duration::from_secs(duration_secs)).await;
+
+    // Drop guard to flush and finalize the trace file
+    *state.0.lock().unwrap() = None;
+
+    Ok(trace_path.to_string_lossy().to_string())
+}
+```
+
+#### Command 2: `capture_cpu_profile` — On-demand pprof flamegraph
 
 ```rust
 use pprof::ProfilerGuardBuilder;
@@ -133,6 +171,7 @@ pub async fn capture_cpu_profile(
     app: tauri::AppHandle,
     duration_secs: u64,
 ) -> Result<String, String> {
+    // Profiler only runs for the requested duration, then stops
     let guard = ProfilerGuardBuilder::default()
         .frequency(997)  // ~1000 Hz sampling, prime to avoid aliasing
         .blocklist(&["libc", "libsystem", "pthread"])
@@ -163,26 +202,75 @@ pub async fn capture_cpu_profile(
 }
 ```
 
-Register in the Tauri command handler:
+Register both in the Tauri command handler:
 ```rust
 .invoke_handler(tauri::generate_handler![
     // ... existing commands ...
+    start_trace,
     capture_cpu_profile,
 ])
 ```
 
-### Frontend trigger (optional convenience)
+### Frontend trigger (from dev console or UI)
 
-Add to the control panel or call from the dev console:
 ```typescript
 import { invoke } from "@tauri-apps/api/core";
-const path = await invoke<string>("capture_cpu_profile", { durationSecs: 10 });
-console.log("Flamegraph written to:", path);
+
+// Capture a 10-second trace timeline
+const tracePath = await invoke<string>("start_trace", { durationSecs: 10 });
+console.log("Trace written to:", tracePath);
+
+// Capture a 10-second CPU flamegraph
+const flamePath = await invoke<string>("capture_cpu_profile", { durationSecs: 10 });
+console.log("Flamegraph written to:", flamePath);
 ```
 
 ---
 
-## Phase 4: Build and Capture
+## Phase 4: Add Profiling UI to Logs Toolbar
+
+The Tauri commands exist but there's no UI to trigger them — only dev console invocations. Add a dropdown button to the logs toolbar.
+
+### Single file change: `src/components/main-window/logs-toolbar.tsx`
+
+#### Imports to add
+
+```tsx
+import { Activity, Check, ChevronDown, Copy, Loader2, Search, Trash2 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-shell";
+```
+
+#### State + handlers
+
+- `profilingType: "cpu" | "trace" | null` — tracks active profiling session
+- `profilingResult: string | null` — output file path on success
+- `profilingError: string | null` — error message on failure
+- `showProfilingMenu: boolean` — dropdown visibility
+- `profilingMenuRef` — for outside-click dismissal
+
+Handler calls `invoke<string>("capture_cpu_profile" | "start_trace", { durationSecs: 10 })`. Auto-resets result/error after 5s following the existing `isCopied` feedback pattern.
+
+#### Button UI in the right-side button group (before copy button)
+
+A single button with a dropdown containing two options:
+
+| State | Icon | Color | Behavior |
+|-------|------|-------|----------|
+| Idle | `Activity` | gray | Click opens dropdown with "CPU Flamegraph" / "Chrome Trace" |
+| Profiling | `Loader2` (spinning) | amber | Disabled, tooltip shows type |
+| Success | `Check` | green (5s) | Inline "Open" link appears, calls `open(path)` from shell plugin |
+| Error | `Activity` | red (5s) | Error message in tooltip |
+
+Dropdown styling matches the existing level-filter dropdown: `bg-surface-800 border border-surface-700 rounded-lg shadow-lg`.
+
+#### `capture_cpu_profile` is `#[cfg(unix)]` only
+
+Let it fail gracefully on non-unix — the error gets caught and shown in tooltip. This is a dev tool targeting macOS, so no platform gating needed in the UI.
+
+---
+
+## Phase 5: Build and Capture
 
 ### Build with debug symbols
 
@@ -234,6 +322,7 @@ cd src-tauri && cargo build
 | `src-tauri/src/icons.rs` | Add tracing spans |
 | `src-tauri/src/mort_commands.rs` | Add `capture_cpu_profile` command |
 | `src-tauri/src/lib.rs` | Register new command |
+| `src/components/main-window/logs-toolbar.tsx` | Add profiling dropdown button (Phase 4) |
 
 ## Alternatives Considered
 

@@ -29,8 +29,25 @@ use tauri::{AppHandle, Emitter};
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::time::FormatTime;
 use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::reload;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
+
+/// Type alias for the chrome trace reload handle.
+/// The inner layer is Option<ChromeLayer> — None when inactive, Some when tracing.
+type ChromeReloadHandle = reload::Handle<
+    Option<tracing_chrome::ChromeLayer<tracing_subscriber::Registry>>,
+    tracing_subscriber::Registry,
+>;
+
+/// Global handle to dynamically swap in/out the chrome trace layer.
+static CHROME_RELOAD_HANDLE: OnceLock<ChromeReloadHandle> = OnceLock::new();
+
+/// Returns the reload handle for the chrome trace layer.
+/// Used by `profiling::start_trace` to activate/deactivate tracing.
+pub fn chrome_reload_handle() -> Option<&'static ChromeReloadHandle> {
+    CHROME_RELOAD_HANDLE.get()
+}
 
 /// Global start time for uptime display in console logs
 static START_TIME: OnceLock<Instant> = OnceLock::new();
@@ -397,8 +414,14 @@ pub fn initialize() {
         LogServerLayer::new(config, device_id)
     });
 
+    // Chrome trace layer — starts as None (inactive), swapped in on-demand via reload handle
+    let chrome_layer: Option<tracing_chrome::ChromeLayer<tracing_subscriber::Registry>> = None;
+    let (chrome_reload_layer, chrome_reload_handle) = reload::Layer::new(chrome_layer);
+    let _ = CHROME_RELOAD_HANDLE.set(chrome_reload_handle);
+
     // Initialize the subscriber with all layers
     tracing_subscriber::registry()
+        .with(chrome_reload_layer)
         .with(console_layer)
         .with(json_layer)
         .with(BufferLayer)

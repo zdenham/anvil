@@ -209,7 +209,7 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
               This plan is empty
             </div>
           ) : (
-            <MarkdownRenderer content={content} />
+            <MarkdownRenderer content={content} workingDirectory={workingDirectory} />
           )}
         </div>
       </div>

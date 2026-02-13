@@ -84,6 +84,7 @@ pub fn initialize(app: &AppHandle) {
 
     // Start monitoring thread
     thread::spawn(|| {
+        let _span = tracing::info_span!("clipboard_poll_loop").entered();
         tracing::info!("Monitoring thread started");
         let mut clipboard = match Clipboard::new() {
             Ok(c) => c,

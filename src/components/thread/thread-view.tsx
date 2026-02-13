@@ -28,6 +28,8 @@ interface ThreadViewProps {
   toolStates?: Record<string, ToolExecutionState>;
   /** Callback when user responds to a tool (e.g., AskUserQuestion) */
   onToolResponse?: (toolId: string, response: string) => void;
+  /** Working directory for resolving relative file paths in markdown */
+  workingDirectory?: string;
 }
 
 /**
@@ -48,6 +50,7 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
   onRetry,
   toolStates,
   onToolResponse,
+  workingDirectory,
 }, ref) {
   const mountTimeRef = useRef<number>(Date.now());
   const hasLoggedMount = useRef(false);
@@ -140,6 +143,7 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
         isStreaming={isStreaming}
         toolStates={toolStates}
         onToolResponse={onToolResponse}
+        workingDirectory={workingDirectory}
       />
 
       {/* Error banner for errors during streaming */}

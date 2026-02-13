@@ -122,6 +122,7 @@ pub async fn spawn_terminal(
         .map_err(|e| format!("Failed to clone PTY reader: {}", e))?;
 
     std::thread::spawn(move || {
+        let _span = tracing::info_span!("terminal_reader", terminal_id = id).entered();
         let mut buf = [0u8; 4096];
         loop {
             match reader.read(&mut buf) {

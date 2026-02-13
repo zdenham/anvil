@@ -13,12 +13,13 @@ import {
   complete,
   setSessionId,
   updateUsage,
+  writeUsageToMetadata,
 } from "../output.js";
 import { logger } from "../lib/logger.js";
 import { getChildThreadId, emitEvent } from "./shared.js";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import type { ThreadState } from "@core/types/events.js";
+import { EventName, type ThreadState } from "@core/types/events.js";
 
 /**
  * MessageHandler processes SDK messages and updates thread state.
@@ -354,6 +355,9 @@ export class MessageHandler {
     state.timestamp = Date.now();
     const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
     writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+    // Emit THREAD_UPDATED so frontend refreshes this child's metadata
+    emitEvent(EventName.THREAD_UPDATED, { threadId: childThreadId });
   }
 
   /**
@@ -404,6 +408,13 @@ export class MessageHandler {
         });
 
         await this.emitChildThreadState(childThreadId, state);
+
+        // Write usage to child's metadata.json
+        if (state.lastCallUsage || state.cumulativeUsage) {
+          const childMetadataPath = join(this.mortDir!, "threads", childThreadId, "metadata.json");
+          await writeUsageToMetadata(childMetadataPath, state.lastCallUsage, state.cumulativeUsage);
+        }
+
         return true;
       }
 

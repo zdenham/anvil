@@ -1,9 +1,6 @@
 #[cfg(target_os = "macos")]
 pub mod accessibility;
 
-#[cfg(target_os = "macos")]
-mod cgevent_test;
-
 // Make public for mort-test CLI access
 #[cfg(target_os = "macos")]
 pub use accessibility::{is_accessibility_trusted, check_accessibility_with_prompt};
@@ -26,6 +23,7 @@ mod mort_commands;
 mod panels;
 mod paths;
 mod process_commands;
+mod profiling;
 mod repo_commands;
 mod shell;
 mod terminal;
@@ -751,7 +749,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(mort_commands::LockManager::new())
         .manage(agent_hub.clone())
-        .manage(terminal::create_terminal_state());
+        .manage(terminal::create_terminal_state())
+        .manage(profiling::ProfilingState(std::sync::Mutex::new(false)));
 
     builder
         .on_window_event(|window, event| {
@@ -926,13 +925,6 @@ pub fn run() {
             get_accessibility_status,
             #[cfg(target_os = "macos")]
             kill_system_settings,
-            // CGEvent tap test commands (macOS only)
-            #[cfg(target_os = "macos")]
-            cgevent_test::start_cgevent_test,
-            #[cfg(target_os = "macos")]
-            cgevent_test::stop_cgevent_test,
-            #[cfg(target_os = "macos")]
-            cgevent_test::is_cgevent_test_running,
             // Shell environment commands
             initialize_shell_environment,
             is_shell_initialized,
@@ -941,6 +933,10 @@ pub fn run() {
             // Repository commands
             repo_commands::validate_repository,
             repo_commands::remove_repository_data,
+            // Profiling commands (on-demand, zero overhead at runtime)
+            #[cfg(unix)]
+            profiling::capture_cpu_profile,
+            profiling::start_trace,
             // Terminal commands
             terminal::spawn_terminal,
             terminal::write_terminal,

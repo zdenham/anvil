@@ -21,6 +21,8 @@ interface TurnRendererProps {
   onToolResponse?: (toolId: string, response: string) => void;
   /** Thread ID for persisting expand state across virtualization */
   threadId: string;
+  /** Working directory for resolving relative file paths in markdown */
+  workingDirectory?: string;
 }
 
 /**
@@ -35,6 +37,7 @@ export function TurnRenderer({
   toolStates,
   onToolResponse,
   threadId,
+  workingDirectory,
 }: TurnRendererProps) {
   // Skip rendering user turns that only contain tool_results
   // (tool results are displayed within the ToolUseBlock of the previous assistant turn)
@@ -60,6 +63,7 @@ export function TurnRenderer({
             toolStates={toolStates}
             onToolResponse={onToolResponse}
             threadId={threadId}
+            workingDirectory={workingDirectory}
           />
         </div>
       );

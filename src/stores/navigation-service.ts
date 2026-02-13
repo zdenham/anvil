@@ -36,6 +36,21 @@ export const navigationService = {
   },
 
   /**
+   * Navigate to a file - clears tree selection (files aren't tree items).
+   */
+  async navigateToFile(
+    filePath: string,
+    context?: { repoId?: string; worktreeId?: string }
+  ): Promise<void> {
+    await treeMenuService.setSelectedItem(null);
+    await contentPanesService.setActivePaneView({
+      type: "file",
+      filePath,
+      ...context,
+    });
+  },
+
+  /**
    * Navigate to a view - clears tree selection for non-item views.
    */
   async navigateToView(view: ContentPaneView): Promise<void> {
@@ -43,6 +58,11 @@ export const navigationService = {
       await this.navigateToThread(view.threadId, { autoFocus: view.autoFocus });
     } else if (view.type === "plan") {
       await this.navigateToPlan(view.planId);
+    } else if (view.type === "file") {
+      await this.navigateToFile(view.filePath, {
+        repoId: view.repoId,
+        worktreeId: view.worktreeId,
+      });
     } else {
       // For settings, logs, empty - clear tree selection
       await treeMenuService.setSelectedItem(null);

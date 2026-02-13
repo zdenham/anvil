@@ -662,6 +662,30 @@ export const threadService = {
   },
 
   /**
+   * Get total cumulative usage for a thread and all its descendants.
+   * Since usage is now in metadata, this works without loading any state files.
+   */
+  getAggregateUsage(threadId: string): { inputTokens: number; outputTokens: number; cacheCreationTokens: number; cacheReadTokens: number } | undefined {
+    const thread = this.get(threadId);
+    if (!thread?.cumulativeUsage) return undefined;
+
+    const descendantIds = this.getDescendantThreadIds(threadId);
+    const allUsages = [thread.cumulativeUsage];
+
+    for (const id of descendantIds) {
+      const desc = this.get(id);
+      if (desc?.cumulativeUsage) allUsages.push(desc.cumulativeUsage);
+    }
+
+    return {
+      inputTokens: allUsages.reduce((s, u) => s + u.inputTokens, 0),
+      outputTokens: allUsages.reduce((s, u) => s + u.outputTokens, 0),
+      cacheCreationTokens: allUsages.reduce((s, u) => s + u.cacheCreationTokens, 0),
+      cacheReadTokens: allUsages.reduce((s, u) => s + u.cacheReadTokens, 0),
+    };
+  },
+
+  /**
    * Archives a thread.
    * Moves the thread folder from its current location to archive/threads/.
    * Cascades to all descendant threads (children, grandchildren, etc.).

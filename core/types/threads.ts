@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TokenUsageSchema } from './events.js';
 
 export type ThreadStatus = "idle" | "running" | "completed" | "error" | "paused" | "cancelled";
 
@@ -46,6 +47,10 @@ export const ThreadMetadataBaseSchema = z.object({
   parentThreadId: z.string().uuid().optional(),   // Parent thread ID (presence implies sub-agent)
   parentToolUseId: z.string().optional(),         // Task tool_use ID that spawned this
   agentType: z.string().optional(),               // "Explore", "Plan", "general-purpose", etc.
+
+  // Token usage (written by agent SDK, read by frontend for cost display)
+  lastCallUsage: TokenUsageSchema.optional(),
+  cumulativeUsage: TokenUsageSchema.optional(),
 });
 
 /**

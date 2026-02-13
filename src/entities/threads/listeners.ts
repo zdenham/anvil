@@ -57,6 +57,12 @@ export function setupThreadListeners(): void {
   eventBus.on(EventName.THREAD_UPDATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_UPDATED]) => {
     try {
       await threadService.refreshById(threadId);
+
+      // Cascade: refresh ancestor chain so aggregate cost displays update
+      const thread = threadService.get(threadId);
+      if (thread?.parentThreadId) {
+        await threadService.refreshById(thread.parentThreadId);
+      }
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh updated thread ${threadId}:`, e);
     }
@@ -77,7 +83,7 @@ export function setupThreadListeners(): void {
     }
   });
 
-  // Agent state updates - only refresh state if this is the active thread
+  // Agent state updates - refresh metadata (for usage) + state if active thread
   eventBus.on(EventName.AGENT_STATE, async ({ threadId }: EventPayloads[typeof EventName.AGENT_STATE]) => {
     logger.info(`[FC-DEBUG] AGENT_STATE event received`, {
       threadId,
@@ -85,12 +91,21 @@ export function setupThreadListeners(): void {
       isActiveThread: useThreadStore.getState().activeThreadId === threadId,
     });
     try {
+      // Always refresh metadata (usage data lives there now)
+      await threadService.refreshById(threadId);
+
       const store = useThreadStore.getState();
       if (store.activeThreadId === threadId) {
         logger.info(`[FC-DEBUG] Thread is active, calling loadThreadState`);
         await threadService.loadThreadState(threadId);
       } else {
         logger.info(`[FC-DEBUG] Thread is NOT active, skipping loadThreadState`);
+      }
+
+      // Cascade: refresh parent so aggregate cost displays update
+      const thread = threadService.get(threadId);
+      if (thread?.parentThreadId) {
+        await threadService.refreshById(thread.parentThreadId);
       }
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh thread state ${threadId}:`, e);
@@ -111,6 +126,12 @@ export function setupThreadListeners(): void {
       // Only refresh state if this is the active thread
       if (store.activeThreadId === threadId) {
         await threadService.loadThreadState(threadId);
+      }
+
+      // Cascade: refresh parent so aggregate cost displays update
+      const thread = threadService.get(threadId);
+      if (thread?.parentThreadId) {
+        await threadService.refreshById(thread.parentThreadId);
       }
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh completed thread ${threadId}:`, e);

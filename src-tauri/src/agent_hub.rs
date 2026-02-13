@@ -91,6 +91,7 @@ impl AgentHub {
 
         // Spawn listener thread
         thread::spawn(move || {
+            let _span = tracing::info_span!("agent_hub_accept_loop").entered();
             loop {
                 // Check shutdown flag
                 if let Ok(guard) = shutdown.read() {

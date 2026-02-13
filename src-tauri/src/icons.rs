@@ -28,6 +28,7 @@ pub fn initialize(app_handle: &tauri::AppHandle) {
 
     // Spawn background task to extract all app icons
     std::thread::spawn(move || {
+        let _span = tracing::info_span!("icon_extraction").entered();
         extract_all_icons(&cache_dir);
     });
 }

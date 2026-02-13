@@ -18,7 +18,8 @@ export type ContentPaneView =
   | { type: "plan"; planId: string }
   | { type: "settings" }
   | { type: "logs" }
-  | { type: "terminal"; terminalId: string };
+  | { type: "terminal"; terminalId: string }
+  | { type: "file"; filePath: string; repoId?: string; worktreeId?: string };
 
 /**
  * Represents a single content pane instance.

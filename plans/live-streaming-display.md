@@ -121,11 +121,19 @@ Where `RawMessageStreamEvent` includes:
 
 1. **Preserve disk-as-truth**: Complete messages still persist to `state.json`
 2. **Streaming state is ephemeral**: Lives only in memory, not persisted
-3. **Use socket IPC**: Stream deltas via the same AgentHub socket as state updates
+3. **Use socket IPC**: Stream content via the same AgentHub socket as state updates
 4. **Graceful degradation**: If streaming fails, fall back to snapshot-based updates
 5. **Minimal UI changes**: Extend existing components rather than rewrite
 
 ### High-Level Design
+
+**Key design choice: Agent-side accumulation.** The agent accumulates streamed content into full content block snapshots and sends the complete accumulated state on each emit (throttled to ~50ms). This means:
+- The socket message is always a **full snapshot** of current streaming blocks, not individual deltas
+- The client simply replaces its state wholesale — no accumulation logic needed
+- Late-joining windows (e.g., Control Panel opening mid-stream) get the full content immediately
+- Resumed conversations work identically — the agent re-streams accumulated content
+
+This is redundant in bandwidth but dramatically simplifies the client and eliminates an entire class of sync bugs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -133,7 +141,13 @@ Where `RawMessageStreamEvent` includes:
 │                                                                 │
 │  SDK Query (includePartialMessages: true)                       │
 │       │                                                         │
-│       ├──[stream_event]──► hubClient.sendStreamDelta() ──► socket
+│       ├──[stream_event]──► accumulator.handleDelta()            │
+│       │                    ├── updates in-memory blocks         │
+│       │                    └── throttled (50ms):                │
+│       │                        hubClient.send({                 │
+│       │                          type: "optimistic_stream",     │
+│       │                          blocks: [full snapshot]        │
+│       │                        })                               │
 │       │                    (NO disk write - ephemeral)          │
 │       │                                                         │
 │       └──[assistant msg]──► appendAssistantMessage() ──► disk   │
@@ -147,9 +161,10 @@ Where `RawMessageStreamEvent` includes:
 │                                                                 │
 │  handle_connection() reads JSON lines via BufReader             │
 │       │                                                         │
-│       ├──[stream_delta]──► Tauri emit("agent:message", {        │
-│       │                      type: "stream_delta", delta: {...} │
-│       │                    })                                   │
+│       ├──[optimistic_stream]──► Tauri emit("agent:message", {   │
+│       │                           type: "optimistic_stream",    │
+│       │                           blocks: [...]                 │
+│       │                         })                              │
 │       │                                                         │
 │       └──[state]──► Tauri emit("agent:message", {               │
 │                       type: "state", state: {...}               │
@@ -164,13 +179,13 @@ Where `RawMessageStreamEvent` includes:
 │                                                                 │
 │  initAgentMessageListener() routes messages                     │
 │       │                                                         │
-│       ├──[stream_delta]──► eventBus.emit(STREAM_DELTA)          │
+│       ├──[optimistic_stream]──► eventBus.emit(OPTIMISTIC_STREAM)│
 │       │                                                         │
 │       └──[state]──► eventBus.emit(AGENT_STATE)                  │
 │                                                                 │
 │  setupOutgoingBridge() intercepts mitt events                   │
 │       │                                                         │
-│       └──► Tauri emit("app:stream:delta", {..., _source})       │
+│       └──► Tauri emit("app:optimistic:stream", {..., _source})  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               │ Tauri IPC broadcast
@@ -181,11 +196,12 @@ Where `RawMessageStreamEvent` includes:
 │                                                                 │
 │  setupIncomingBridge() receives Tauri event                     │
 │       │                                                         │
-│       └──► eventBus.emit(STREAM_DELTA, payload)                 │
+│       └──► eventBus.emit(OPTIMISTIC_STREAM, payload)            │
 │                              │                                  │
 │  setupStreamingListeners()   │                                  │
 │       │                      ▼                                  │
-│       └──► useStreamingStore.handleDelta(payload)               │
+│       └──► useStreamingStore.setStream(payload)                 │
+│            (simple replacement — no accumulation)               │
 │                              │                                  │
 │  ThreadView subscribes       │                                  │
 │       │                      ▼                                  │
@@ -197,129 +213,182 @@ Where `RawMessageStreamEvent` includes:
 
 | Event | Source | Disk? | Cross-Window? | Store Update |
 |-------|--------|-------|---------------|--------------|
-| `stream_delta` | Agent via socket | No | Yes (via `STREAM_DELTA`) | `useStreamingStore` |
+| `optimistic_stream` | Agent via socket | **No** (ephemeral) | Yes (via `OPTIMISTIC_STREAM`) | `useStreamingStore` |
 | `state` | Agent via socket | Yes (state.json) | Yes (via `AGENT_STATE`) | `useThreadStore` |
 | Agent complete | Process close | Yes (metadata.json) | Yes (via `AGENT_COMPLETED`) | Both stores cleared |
+
+> The `optimistic` prefix signals that this event carries ephemeral preview data that must NOT be written to disk or persisted to state. It exists purely for UI responsiveness.
 
 ### Streaming → Persisted Transition
 
 ```
 WHILE STREAMING:
-┌─────────────────────────────────────┐
-│  useStreamingStore.activeStreams    │
-│  └── [threadId]                     │
-│       └── blocks: [                 │
-│            { type: "thinking",      │  ◄─── Rendered EXPANDED
-│              content: "Let me..." } │       (live preview)
-│            { type: "text",          │
-│              content: "I'll..." }   │
-│          ]                          │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────┐
+│  useStreamingStore.activeStreams     │
+│  └── [threadId]                      │
+│       └── blocks: [                  │
+│            { type: "thinking",       │  ◄─── Rendered EXPANDED
+│              content: "Let me..." }  │       (live preview)
+│            { type: "text",           │
+│              content: "I'll..." }    │
+│          ]                           │
+│       (full snapshot — no accum.)    │
+└──────────────────────────────────────┘
 
 WHEN AGENT_STATE ARRIVES:
-┌─────────────────────────────────────┐
-│  1. useStreamingStore.clearStream() │  ◄─── Clears ephemeral state
-│                                     │
-│  2. useThreadStore updated from     │
-│     state.json with complete        │  ◄─── ThinkingBlock now in
-│     AssistantMessage                │       persisted message
-└─────────────────────────────────────┘
+┌──────────────────────────────────────┐
+│  1. useStreamingStore.clearStream()  │  ◄─── Clears optimistic state
+│                                      │
+│  2. useThreadStore updated from      │
+│     state.json with complete         │  ◄─── ThinkingBlock now in
+│     AssistantMessage                 │       persisted message
+└──────────────────────────────────────┘
 
 AFTER TRANSITION:
-┌─────────────────────────────────────┐
-│  UI renders from useThreadStore     │
-│  └── ThinkingBlock rendered         │  ◄─── Rendered COLLAPSED
-│      (using existing component      │       (default for persisted)
-│       with isCollapsed=true)        │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────┐
+│  UI renders from useThreadStore      │
+│  └── ThinkingBlock rendered          │  ◄─── Rendered COLLAPSED
+│      (using existing component       │       (default for persisted)
+│       with isCollapsed=true)         │
+└──────────────────────────────────────┘
 ```
 
 ## Implementation Plan
 
 ## Phases
 
-- [ ] Phase 1: Agent-side streaming events
-- [ ] Phase 2: Event types and socket message routing
+- [ ] Phase 1: Agent-side streaming with accumulation + throttling
+- [ ] Phase 2: Event types and socket message routing (`OPTIMISTIC_STREAM`)
 - [ ] Phase 3: Cross-window event broadcasting
-- [ ] Phase 4: Frontend streaming store
+- [ ] Phase 4: Frontend streaming store (snapshot replacement, no accumulation)
 - [ ] Phase 5: Thread view integration
-- [ ] Phase 6: Testing and polish
+- [ ] Phase 6: Stream lifecycle management
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
-### Phase 1: Agent-Side Streaming Events
+### Phase 1: Agent-Side Streaming with Accumulation
 
-**File: `agents/src/output.ts`**
+The agent accumulates stream deltas into full content block snapshots and emits the complete accumulated state via socket, throttled to ~50ms. The client never accumulates — it just replaces.
 
-Add new streaming delta emitter (via socket, no disk write):
+**File: `agents/src/lib/stream-accumulator.ts` (new)**
+
+Accumulates SDK stream deltas into content block snapshots and emits throttled snapshots via socket:
 
 ```typescript
+import { type HubClient } from "./hub/client.js";
+
+interface StreamBlock {
+  type: "text" | "thinking";
+  content: string;
+}
+
 /**
- * Emit a streaming delta via socket.
- * Unlike emitState(), this does NOT write to disk - streaming is ephemeral.
+ * Accumulates SDK stream deltas into full content block snapshots.
+ * Emits throttled optimistic_stream messages via the hub socket.
+ *
+ * The "optimistic" prefix signals this data is ephemeral and must
+ * NOT be persisted to disk or written to state.
  */
-export function emitStreamDelta(delta: StreamDelta): void {
-  if (hubClient?.isConnected) {
-    hubClient.send({
-      type: "stream_delta",
-      delta,
+export class StreamAccumulator {
+  private blocks: StreamBlock[] = [];
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private dirty = false;
+
+  constructor(
+    private hubClient: HubClient,
+    private threadId: string,
+    private throttleMs = 50,
+  ) {}
+
+  handleDelta(event: RawMessageStreamEvent): void {
+    if (event.type === "content_block_start") {
+      const blockType = event.content_block.type;
+      // Only accumulate text and thinking blocks
+      if (blockType === "text" || blockType === "thinking") {
+        this.blocks[event.index] = { type: blockType, content: "" };
+        this.schedulFlush();
+      }
+    } else if (event.type === "content_block_delta") {
+      const block = this.blocks[event.index];
+      if (!block) return;
+
+      if (event.delta.type === "text_delta") {
+        block.content += event.delta.text;
+      } else if (event.delta.type === "thinking_delta") {
+        block.content += event.delta.thinking;
+      }
+      this.scheduleFlush();
+    }
+    // content_block_stop: no action needed, block is already complete
+  }
+
+  /** Flush immediately (e.g., on message_stop) */
+  flush(): void {
+    this.cancelPendingFlush();
+    this.emitSnapshot();
+  }
+
+  /** Reset accumulator for next model turn */
+  reset(): void {
+    this.cancelPendingFlush();
+    this.blocks = [];
+    this.dirty = false;
+  }
+
+  private scheduleFlush(): void {
+    this.dirty = true;
+    if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => {
+        this.flushTimer = null;
+        if (this.dirty) {
+          this.emitSnapshot();
+        }
+      }, this.throttleMs);
+    }
+  }
+
+  private cancelPendingFlush(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+
+  private emitSnapshot(): void {
+    this.dirty = false;
+    if (!this.hubClient.isConnected) return;
+
+    // Filter out empty/undefined slots and send full snapshot
+    const blocks = this.blocks.filter(Boolean);
+    this.hubClient.send({
+      type: "optimistic_stream",
+      threadId: this.threadId,
+      blocks,
     });
   }
-}
-
-export interface StreamDelta {
-  type: "text_delta" | "thinking_delta" | "content_block_start" | "content_block_stop";
-  index: number;
-  text?: string;
-  blockType?: string;
-}
-```
-
-**File: `agents/src/lib/hub/client.ts`**
-
-Add convenience method (optional, can use `send()` directly):
-
-```typescript
-sendStreamDelta(delta: StreamDelta): void {
-  this.send({ type: "stream_delta", delta });
 }
 ```
 
 **File: `agents/src/runners/message-handler.ts`**
 
-Handle `SDKPartialAssistantMessage`:
+Handle `SDKPartialAssistantMessage` — feed raw events into the accumulator:
 
 ```typescript
+private accumulator: StreamAccumulator;
+
+// In constructor or init:
+this.accumulator = new StreamAccumulator(hubClient, threadId);
+
 private async handleStreamEvent(msg: SDKPartialAssistantMessage): Promise<boolean> {
   const event = msg.event;
+  this.accumulator.handleDelta(event);
 
-  if (event.type === "content_block_delta") {
-    if (event.delta.type === "text_delta") {
-      emitStreamDelta({
-        type: "text_delta",
-        index: event.index,
-        text: event.delta.text,
-      });
-    } else if (event.delta.type === "thinking_delta") {
-      emitStreamDelta({
-        type: "thinking_delta",
-        index: event.index,
-        text: event.delta.thinking,
-      });
-    }
-  } else if (event.type === "content_block_start") {
-    emitStreamDelta({
-      type: "content_block_start",
-      index: event.index,
-      blockType: event.content_block.type,
-    });
-  } else if (event.type === "content_block_stop") {
-    emitStreamDelta({
-      type: "content_block_stop",
-      index: event.index,
-    });
+  // On message_stop, flush any remaining buffered content and reset
+  if (event.type === "message_stop") {
+    this.accumulator.flush();
+    this.accumulator.reset();
   }
 
   return true;
@@ -338,39 +407,38 @@ includePartialMessages: true,  // Changed from false
 
 **File: `core/types/events.ts`**
 
-Add streaming delta event:
+Add optimistic stream event:
 
 ```typescript
 // Add to EventName object
 export const EventName = {
   // ... existing events ...
-  STREAM_DELTA: "stream:delta",
+  OPTIMISTIC_STREAM: "optimistic:stream",
 } as const;
 
 // Add event payload type
-export interface StreamDeltaPayload {
+export interface OptimisticStreamPayload {
   threadId: string;
-  delta: {
-    type: "text_delta" | "thinking_delta" | "content_block_start" | "content_block_stop";
-    index: number;
-    text?: string;
-    blockType?: string;
-  };
+  /** Full accumulated content snapshot - NOT a delta. Replaces previous snapshot. */
+  blocks: Array<{
+    type: "text" | "thinking";
+    content: string;
+  }>;
 }
 
 // Add to EventPayloads interface
 export interface EventPayloads {
   // ... existing events ...
-  [EventName.STREAM_DELTA]: StreamDeltaPayload;
+  [EventName.OPTIMISTIC_STREAM]: OptimisticStreamPayload;
 }
 ```
 
 **File: `src/lib/agent-service.ts`**
 
-Route stream_delta messages from socket:
+Route optimistic_stream messages from socket:
 
 ```typescript
-// In initAgentMessageListener(), add case for stream_delta
+// In initAgentMessageListener(), add case for optimistic_stream
 agentMessageUnlisten = await listen<AgentSocketMessage>("agent:message", (event) => {
   const msg = event.payload;
 
@@ -383,11 +451,11 @@ agentMessageUnlisten = await listen<AgentSocketMessage>("agent:message", (event)
       // ... existing ...
       break;
 
-    case "stream_delta":
-      // Stream deltas are high-frequency, ephemeral events
-      eventBus.emit(EventName.STREAM_DELTA, {
+    case "optimistic_stream":
+      // Optimistic stream: full content snapshots, NOT persisted to disk
+      eventBus.emit(EventName.OPTIMISTIC_STREAM, {
         threadId: msg.threadId,
-        delta: msg.delta as StreamDeltaPayload["delta"],
+        blocks: msg.blocks,
       });
       break;
 
@@ -402,7 +470,7 @@ agentMessageUnlisten = await listen<AgentSocketMessage>("agent:message", (event)
 
 **File: `src/lib/event-bridge.ts`**
 
-**CRITICAL: Add STREAM_DELTA to broadcast events for cross-window delivery:**
+**CRITICAL: Add OPTIMISTIC_STREAM to broadcast events for cross-window delivery:**
 
 ```typescript
 const BROADCAST_EVENTS = [
@@ -412,8 +480,9 @@ const BROADCAST_EVENTS = [
   EventName.AGENT_COMPLETED,
   // ... existing events ...
 
-  // Streaming (NEW - required for spotlight → control panel)
-  EventName.STREAM_DELTA,
+  // Optimistic streaming (NEW - required for spotlight → control panel)
+  // "optimistic" prefix = ephemeral, NOT persisted to state
+  EventName.OPTIMISTIC_STREAM,
 ] as const;
 ```
 
@@ -421,10 +490,12 @@ const BROADCAST_EVENTS = [
 
 **File: `src/stores/streaming-store.ts` (new)**
 
+The store is drastically simplified by agent-side accumulation. It receives full content snapshots and simply replaces its state — no delta accumulation logic needed.
+
 ```typescript
 import { create } from "zustand";
 import { eventBus } from "@/entities/events";
-import { EventName, type StreamDeltaPayload } from "@core/types/events.js";
+import { EventName, type OptimisticStreamPayload } from "@core/types/events.js";
 
 interface StreamingBlock {
   type: "text" | "thinking";
@@ -432,65 +503,27 @@ interface StreamingBlock {
 }
 
 interface StreamingState {
+  /** Optimistic (ephemeral) streaming content, keyed by threadId. NOT persisted. */
   activeStreams: Record<string, {
     blocks: StreamingBlock[];
-    isStreaming: boolean;
   }>;
 }
 
 interface StreamingActions {
-  startStream: (threadId: string) => void;
-  handleDelta: (payload: StreamDeltaPayload) => void;
+  /** Replace the full streaming snapshot for a thread (no accumulation). */
+  setStream: (payload: OptimisticStreamPayload) => void;
   clearStream: (threadId: string) => void;
 }
 
-export const useStreamingStore = create<StreamingState & StreamingActions>((set, get) => ({
+export const useStreamingStore = create<StreamingState & StreamingActions>((set) => ({
   activeStreams: {},
 
-  startStream: (threadId) => set((state) => ({
+  setStream: ({ threadId, blocks }) => set((state) => ({
     activeStreams: {
       ...state.activeStreams,
-      [threadId]: { blocks: [], isStreaming: true },
+      [threadId]: { blocks },
     },
   })),
-
-  handleDelta: ({ threadId, delta }) => set((state) => {
-    // Auto-create stream if it doesn't exist (for windows that join mid-stream)
-    let stream = state.activeStreams[threadId];
-    if (!stream) {
-      stream = { blocks: [], isStreaming: true };
-    }
-
-    const blocks = [...stream.blocks];
-
-    switch (delta.type) {
-      case "content_block_start":
-        blocks[delta.index] = {
-          type: delta.blockType === "thinking" ? "thinking" : "text",
-          content: ""
-        };
-        break;
-      case "text_delta":
-      case "thinking_delta":
-        if (blocks[delta.index]) {
-          blocks[delta.index] = {
-            ...blocks[delta.index],
-            content: blocks[delta.index].content + (delta.text ?? ""),
-          };
-        }
-        break;
-      case "content_block_stop":
-        // Block complete - no action needed
-        break;
-    }
-
-    return {
-      activeStreams: {
-        ...state.activeStreams,
-        [threadId]: { ...stream, blocks },
-      },
-    };
-  }),
 
   clearStream: (threadId) => set((state) => {
     const { [threadId]: _, ...rest } = state.activeStreams;
@@ -503,17 +536,17 @@ export const useStreamingStore = create<StreamingState & StreamingActions>((set,
 // ============================================================================
 
 export function setupStreamingListeners(): void {
-  // Handle stream deltas from any window (via event bridge)
-  eventBus.on(EventName.STREAM_DELTA, (payload) => {
-    useStreamingStore.getState().handleDelta(payload);
+  // Receive full content snapshots from agent (via event bridge)
+  eventBus.on(EventName.OPTIMISTIC_STREAM, (payload) => {
+    useStreamingStore.getState().setStream(payload);
   });
 
-  // Clear streaming state when complete state arrives
+  // Clear optimistic state when persisted state arrives
   eventBus.on(EventName.AGENT_STATE, ({ threadId }) => {
     useStreamingStore.getState().clearStream(threadId);
   });
 
-  // Clear streaming state when agent completes/errors/cancels
+  // Clear optimistic state when agent completes/errors/cancels
   eventBus.on(EventName.AGENT_COMPLETED, ({ threadId }) => {
     useStreamingStore.getState().clearStream(threadId);
   });
@@ -554,7 +587,7 @@ export function StreamingContent({ threadId }: StreamingContentProps) {
   // Selective subscription - only re-renders when this thread's stream changes
   const stream = useStreamingStore((s) => s.activeStreams[threadId]);
 
-  if (!stream?.isStreaming || stream.blocks.length === 0) {
+  if (!stream || stream.blocks.length === 0) {
     return null;
   }
 
@@ -614,28 +647,14 @@ export function AssistantMessage({ threadId, ... }) {
 
 ### Phase 6: Stream Lifecycle Management
 
-**File: `src/lib/agent-service.ts`**
-
-Initialize streaming state on spawn:
-
-```typescript
-import { useStreamingStore } from "@/stores/streaming-store";
-
-export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promise<void> {
-  // ... existing code ...
-
-  // Initialize streaming state locally
-  // Note: Other windows will auto-create stream state when they receive STREAM_DELTA
-  useStreamingStore.getState().startStream(options.threadId);
-
-  // ... spawn command ...
-}
-```
+No explicit initialization needed on the frontend. Because the agent sends full content snapshots, the store is populated automatically when the first `OPTIMISTIC_STREAM` event arrives. This also means:
+- **Resumed conversations**: Work identically — the agent re-streams accumulated content
+- **Late-joining windows**: Get full content on the next snapshot (~50ms)
 
 **Cleanup is handled automatically by event listeners** (see Phase 4):
-- `AGENT_STATE` → clears stream (complete message arrived)
-- `AGENT_COMPLETED` → clears stream
-- `AGENT_CANCELLED` → clears stream
+- `AGENT_STATE` → clears optimistic stream (persisted message arrived)
+- `AGENT_COMPLETED` → clears optimistic stream
+- `AGENT_CANCELLED` → clears optimistic stream
 
 ## Why Zustand Store (Not a Hook)
 
@@ -643,8 +662,10 @@ A zustand store is the correct choice over a simple hook because:
 
 1. **Cross-window state sync**: Each window has its own React context, but zustand stores can receive events from the event bridge and update independently
 2. **Selective subscriptions**: Components can subscribe to specific threadId slices to minimize re-renders
-3. **Non-React access**: The event bridge handlers need to update state outside React component lifecycle (`useStreamingStore.getState().handleDelta(...)`)
+3. **Non-React access**: The event bridge handlers need to update state outside React component lifecycle (`useStreamingStore.getState().setStream(...)`)
 4. **Existing pattern**: This matches how `useThreadStore`, `usePlanStore`, etc. work in the codebase
+
+Note: With agent-side accumulation, the store's role is even simpler — it's just a snapshot holder. No accumulation, merging, or ordering logic needed.
 
 ## Alternative Approaches Considered
 
@@ -696,16 +717,22 @@ A zustand store is the correct choice over a simple hook because:
 
 ## Performance Considerations
 
-1. **React Re-renders**: Use zustand selectors to minimize re-renders
-2. **Memory**: Clear streaming state on message complete
-3. **Throttling**: Consider throttling UI updates if needed (batch deltas every ~50ms)
+1. **React Re-renders**: Use zustand selectors to minimize re-renders (subscribe per-threadId)
+2. **Memory**: Clear optimistic streaming state when persisted message arrives
+3. **Throttling**: Agent-side `StreamAccumulator` throttles to 50ms — UI receives ~20 updates/sec max
+4. **Bandwidth**: Sending full snapshots is redundant but bounded — content only grows during a single model turn, and thinking/text blocks are relatively small. The 50ms throttle keeps message frequency reasonable.
 
-## Open Questions
+## Resolved Questions
 
-1. Should we show streaming content for resumed conversations?
-2. Should we throttle/batch delta events to reduce IPC overhead?
-   - Could batch every 50ms instead of per-token
-   - Trade-off between smoothness and efficiency
-3. How to handle the case where Control Panel opens mid-stream?
-   - Currently: Would only see deltas from that point forward
-   - Option: Could add "catch-up" mechanism to request current streaming state
+1. **Show streaming for resumed conversations?** → **Yes.** Agent-side accumulation means the agent always holds the full snapshot. Resumed conversations stream identically to new ones.
+
+2. **Throttle/batch delta events?** → **Yes, 50ms.** The `StreamAccumulator` batches at 50ms intervals — good balance between perceived smoothness and IPC/render overhead. The agent accumulates per-token but only emits snapshots at the throttle interval.
+
+3. **Control Panel opens mid-stream?** → **Solved by agent-side accumulation.** Since each socket message is a full content snapshot (not an incremental delta), any window that joins mid-stream will receive the complete accumulated content on the very next emit (~50ms). No "catch-up" mechanism needed.
+
+## Naming Convention: "Optimistic" Prefix
+
+The `OPTIMISTIC_STREAM` / `optimistic_stream` naming was chosen deliberately to signal that this event carries **ephemeral preview data** that must never be written to disk or persisted to state. The "optimistic" prefix is a well-understood pattern (optimistic UI updates) that communicates:
+- This data is a best-effort preview, not the source of truth
+- It will be replaced by the real persisted data when `AGENT_STATE` arrives
+- It should never be serialized, cached, or treated as authoritative

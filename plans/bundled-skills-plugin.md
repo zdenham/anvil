@@ -7,7 +7,7 @@ Write Mort-provided skills to the `~/.mort` directory at runtime, allowing easy 
 The Claude Agent SDK supports loading skills from various locations including plugins. This plan outlines a **managed skills** approach where:
 
 1. Mort-provided skills are stored in `plugins/mort/skills/` in the repo
-2. Skills are synced to `~/.mort/skills/` on app startup (idempotent)
+2. Skills are synced to `~/.mort/skills/` on **app startup** and via an explicit **re-sync button** in settings
 3. User-defined skills in `~/.mort/skills/` are preserved
 4. A plugin at `~/.mort/` is passed to the SDK via the `plugins` option
 5. Skills are invoked as `/mort:skill-name` (namespaced by plugin)
@@ -15,7 +15,9 @@ The Claude Agent SDK supports loading skills from various locations including pl
 ## Phases
 
 - [ ] Create Mort plugin structure at `plugins/mort/`
-- [ ] Create skill sync service to copy skills to `~/.mort/` on startup
+- [ ] Bundle plugin in Tauri resources and add path resolution
+- [ ] Create skill sync service (frontend-side, uses Tauri FS)
+- [ ] Wire sync into app startup (`hydrateEntities`) + settings re-sync button
 - [ ] Pass plugin reference to SDK `query()` in agent runner
 - [ ] Ensure `~/.mort/skills/` is detected for `/` invocation
 - [ ] Create initial managed skills
@@ -148,109 +150,183 @@ plugins/mort/
 
 This is the "source of truth" that gets synced to `~/.mort/`.
 
-### Phase 2: Create Skill Sync Service
+### Phase 2: Bundle Plugin in Tauri Resources + Path Resolution
 
-Create a service that syncs the plugin to the user's `.mort` directory:
+The plugin source files must be available at runtime in both dev and production. Follow the established pattern from `src/lib/paths.ts` and `src/lib/agent-service.ts`.
 
-**Location:** `agents/src/services/skill-sync.ts`
+**Add to `src-tauri/tauri.conf.json` resources:**
+```json
+"resources": [
+  // ... existing resources ...
+  "../plugins/mort/.claude-plugin/plugin.json",
+  "../plugins/mort/skills/**/*"
+]
+```
+
+**Add to `src/lib/paths.ts`:**
+```typescript
+/**
+ * Gets the path to the bundled Mort plugin source directory.
+ * In dev: points at the repo's plugins/mort/ directly.
+ * In production: resolves from Tauri's bundled resources.
+ */
+export async function getBundledPluginPath(): Promise<string> {
+  const isDev = import.meta.env.DEV;
+
+  if (isDev) {
+    return `${__PROJECT_ROOT__}/plugins/mort`;
+  }
+
+  // Production: resolve from bundled resources
+  // resolveResource returns a path under the app's Resources directory.
+  // The _up_ prefix navigates from src-tauri to the project root (Tauri convention).
+  const pluginJsonPath = await resolveResource('_up_/plugins/mort/.claude-plugin/plugin.json');
+  // Walk up from .claude-plugin/plugin.json to get the plugin root
+  return await dirname(await dirname(pluginJsonPath));
+}
+```
+
+**Why this works:** This mirrors the exact pattern used for `getRunnerPath()`, `getQuickActionsTemplatePath()`, and `getAgentPaths()` — all use `__PROJECT_ROOT__` in dev, `resolveResource('_up_/...')` in prod. No `__dirname` shenanigans in the agents layer.
+
+### Phase 3: Create Skill Sync Service (Frontend-Side)
+
+The sync runs on the **frontend** (Tauri webview), not the agent process. This avoids the `__dirname` pathing issue entirely — the frontend already has robust dev/prod path resolution.
+
+**Location:** `src/lib/skill-sync.ts`
 
 ```typescript
-import * as fs from "fs/promises";
-import * as path from "path";
-import { existsSync } from "fs";
+import { getBundledPluginPath, getMortDir } from './paths';
+import { FilesystemClient } from './filesystem-client';
+import { logger } from './logger-client';
 
-const PLUGIN_SOURCE = path.join(__dirname, "../../..", "plugins", "mort");
-const MORT_DIR = path.join(os.homedir(), ".mort");
+const fs = new FilesystemClient();
 
 /**
- * Sync managed skills from plugins/mort to ~/.mort
- * - Copies plugin.json (always overwrites)
- * - Copies skills/* (overwrites existing, preserves user-created)
+ * Sync managed skills from the bundled plugin to ~/.mort.
  *
- * Idempotent - safe to call on every startup.
+ * - Copies .claude-plugin/plugin.json (always overwrites)
+ * - Copies skills/* (overwrites existing managed skills, preserves user-created)
+ * - Idempotent — safe to call on every startup
  */
 export async function syncManagedSkills(): Promise<void> {
-  // Ensure ~/.mort exists
-  await fs.mkdir(MORT_DIR, { recursive: true });
+  const pluginSourcePath = await getBundledPluginPath();
+  const mortDir = await getMortDir();
 
-  // Sync .claude-plugin directory
-  const pluginJsonSrc = path.join(PLUGIN_SOURCE, ".claude-plugin", "plugin.json");
-  const pluginJsonDst = path.join(MORT_DIR, ".claude-plugin", "plugin.json");
-  await fs.mkdir(path.dirname(pluginJsonDst), { recursive: true });
-  await fs.copyFile(pluginJsonSrc, pluginJsonDst);
+  // 1. Sync .claude-plugin/plugin.json
+  const srcPluginJson = `${pluginSourcePath}/.claude-plugin/plugin.json`;
+  const dstPluginJson = `${mortDir}/.claude-plugin/plugin.json`;
+  await fs.ensureDir(`${mortDir}/.claude-plugin`);
+  await fs.copyFile(srcPluginJson, dstPluginJson);
 
-  // Sync skills directory
-  const skillsSrc = path.join(PLUGIN_SOURCE, "skills");
-  const skillsDst = path.join(MORT_DIR, "skills");
-  await fs.mkdir(skillsDst, { recursive: true });
+  // 2. Sync skills directory
+  const srcSkillsDir = `${pluginSourcePath}/skills`;
+  const dstSkillsDir = `${mortDir}/skills`;
+  await fs.ensureDir(dstSkillsDir);
 
-  // Copy each skill directory from source
-  const sourceSkills = await fs.readdir(skillsSrc, { withFileTypes: true });
+  // Read source skill directories and copy each one
+  const sourceSkills = await fs.readDir(srcSkillsDir);
   for (const entry of sourceSkills) {
-    if (entry.isDirectory()) {
+    if (entry.isDirectory) {
       await copySkillDirectory(
-        path.join(skillsSrc, entry.name),
-        path.join(skillsDst, entry.name)
+        `${srcSkillsDir}/${entry.name}`,
+        `${dstSkillsDir}/${entry.name}`
       );
     }
   }
 
-  console.log(`[skill-sync] Synced managed skills to ${MORT_DIR}`);
+  logger.log(`[skill-sync] Synced managed skills to ${mortDir}`);
 }
 
 async function copySkillDirectory(src: string, dst: string): Promise<void> {
-  await fs.mkdir(dst, { recursive: true });
-
-  const entries = await fs.readdir(src, { withFileTypes: true });
+  await fs.ensureDir(dst);
+  const entries = await fs.readDir(src);
   for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const dstPath = path.join(dst, entry.name);
-
-    if (entry.isDirectory()) {
-      await copySkillDirectory(srcPath, dstPath);
+    if (entry.isDirectory) {
+      await copySkillDirectory(`${src}/${entry.name}`, `${dst}/${entry.name}`);
     } else {
-      await fs.copyFile(srcPath, dstPath);
+      await fs.copyFile(`${src}/${entry.name}`, `${dst}/${entry.name}`);
     }
   }
 }
 ```
 
-**Key behaviors:**
-- Creates `~/.mort/` if it doesn't exist
-- Copies `plugin.json` to `~/.mort/.claude-plugin/plugin.json`
-- Copies each skill directory from source to destination
-- User-created skills (not in source) are preserved
-- Managed skills are always overwritten with latest version
+**Key design choices:**
+- Uses `FilesystemClient` (Tauri FS adapter) — same as the rest of the frontend
+- Path resolution uses `getBundledPluginPath()` — works in dev and prod
+- No Node.js `fs` module, no `__dirname` — all Tauri APIs
 
-### Phase 3: Pass Plugin Reference to SDK `query()`
+### Phase 4: Wire Into App Startup + Settings Re-Sync Button
 
-Update `agents/src/runners/shared.ts` to pass the plugin:
+**On startup — `src/entities/index.ts` `hydrateEntities()`:**
 
 ```typescript
-import { syncManagedSkills } from "../services/skill-sync.js";
+import { syncManagedSkills } from '@/lib/skill-sync';
 
-// At startup (before first query)
-await syncManagedSkills();
+export async function hydrateEntities(): Promise<void> {
+  // ... existing hydration ...
 
-// In query() call
+  // Sync managed skills from bundled plugin to ~/.mort
+  // This only copies a handful of small .md files — fast and idempotent
+  await syncManagedSkills();
+  logger.log("[entities:hydrate] Managed skills synced");
+
+  // ... rest of hydration ...
+}
+```
+
+This fires once on app launch — not per agent invocation. Skill files only change when the app itself is updated, so startup sync is the right cadence.
+
+**Re-sync button — `src/components/main-window/settings/skills-settings.tsx`:**
+
+Add a "Re-sync built-in skills" button next to the existing skills list:
+
+```tsx
+import { syncManagedSkills } from '@/lib/skill-sync';
+
+// In the component:
+const [isSyncing, setIsSyncing] = useState(false);
+
+const handleResync = async () => {
+  setIsSyncing(true);
+  try {
+    await syncManagedSkills();
+    // Re-discover to refresh the UI
+    const homeDir = await fsCommands.getHomeDir();
+    const discoveredSkills = await skillsService.discover(repoPath, homeDir);
+    // ... hydrate store
+  } finally {
+    setIsSyncing(false);
+  }
+};
+
+// Render button:
+<button onClick={handleResync} disabled={isSyncing}>
+  {isSyncing ? 'Syncing...' : 'Re-sync built-in skills'}
+</button>
+```
+
+### Phase 5: Pass Plugin Reference to SDK `query()`
+
+Update `agents/src/runners/shared.ts` to pass the plugin. The agent runner already receives `config.mortDir` (`~/.mort`), which is the plugin root after sync.
+
+```typescript
+// In query() call — agents/src/runners/shared.ts
 const result = query({
   prompt,
   options: {
     plugins: [
-      { type: "local", path: config.mortDir }  // ~/.mort is the plugin root
+      { type: "local", path: config.mortDir }  // ~/.mort is now a valid plugin root
     ],
     cwd: context.workingDir,
     additionalDirectories: [config.mortDir],
-    // ... rest of options
+    // ... rest of options unchanged
   }
 });
 ```
 
-**Note:** `config.mortDir` is already `~/.mort`, which is now both:
-1. The plugin root (contains `.claude-plugin/plugin.json`)
-2. The additional directory for skill discovery
+**No sync happens here.** The agent process trusts that the frontend already synced skills on startup. `config.mortDir` is already an absolute path passed from the Tauri process, so no path resolution needed.
 
-### Phase 4: Ensure Skill Detection on `/` Invocation
+### Phase 6: Ensure Skill Detection on `/` Invocation
 
 The current `SkillsService` in `core/lib/skills/skills-service.ts` already discovers skills from:
 
@@ -267,7 +343,7 @@ This means skills in `~/.mort/skills/` are already detected for the UI skill pic
 
 Both paths should work. The SkillsService provides UI autocomplete, while the SDK plugin provides runtime execution.
 
-### Phase 5: Create Initial Managed Skills
+### Phase 7: Create Initial Managed Skills
 
 **plugins/mort/skills/commit/SKILL.md:**
 ```yaml
@@ -334,30 +410,82 @@ When creating plans:
 4. Use the standard plan format with phase checkboxes
 ```
 
-### Phase 6: Testing
+### Phase 8: Testing
 
 **Test scenarios:**
 
 1. **Fresh install**:
-   - Delete `~/.mort/skills/`
+   - Delete `~/.mort/skills/` and `~/.mort/.claude-plugin/`
    - Start app
    - Verify `~/.mort/.claude-plugin/plugin.json` exists
    - Verify `~/.mort/skills/{commit,review-pr,plan}/SKILL.md` exist
 
 2. **Update scenario**:
    - Modify `plugins/mort/skills/commit/SKILL.md`
-   - Start app
+   - Restart app
    - Verify changes synced to `~/.mort/skills/commit/SKILL.md`
 
 3. **User skill preservation**:
    - Create `~/.mort/skills/my-custom/SKILL.md`
-   - Start app
+   - Restart app
    - Verify custom skill still exists
 
 4. **Skill invocation**:
    - Type `/` in UI, verify skills appear in autocomplete
    - Invoke `/commit`, verify skill executes
    - Verify SDK receives plugin via `plugins` option
+
+5. **Production build**:
+   - Build with `cargo tauri build`
+   - Verify `plugins/mort/` files are in the `.app` bundle resources
+   - Verify `getBundledPluginPath()` resolves correctly
+   - Verify sync works from bundled resources
+
+---
+
+## Pathing Strategy
+
+This is the critical piece. The codebase has an established pattern for dev vs. prod path resolution, and we follow it exactly.
+
+### Dev Mode
+
+`import.meta.env.DEV === true`
+
+All paths point directly at the source tree via `__PROJECT_ROOT__` (injected by Vite as `process.cwd()` at build time):
+
+```
+__PROJECT_ROOT__/plugins/mort/          ← getBundledPluginPath()
+__PROJECT_ROOT__/agents/dist/runner.js  ← getAgentPaths()  (existing)
+__PROJECT_ROOT__/core/sdk/template      ← getQuickActionsTemplatePath()  (existing)
+```
+
+### Production Mode
+
+`import.meta.env.DEV === false`
+
+Tauri bundles files listed in `tauri.conf.json` → `bundle.resources` into the app's `Resources/` directory. The `resolveResource('_up_/...')` API resolves paths relative to `src-tauri/`, where `_up_` navigates to the project root.
+
+```
+App.app/Contents/Resources/
+├── _up_/
+│   ├── plugins/mort/.claude-plugin/plugin.json   ← NEW
+│   ├── plugins/mort/skills/commit/SKILL.md       ← NEW
+│   ├── plugins/mort/skills/review-pr/SKILL.md    ← NEW
+│   ├── plugins/mort/skills/plan/SKILL.md         ← NEW
+│   ├── agents/dist/runner.js                     ← existing
+│   ├── agents/node_modules/...                   ← existing
+│   └── ...
+```
+
+### Agent Process (No Path Resolution Needed)
+
+The agent process (`agents/`) receives `config.mortDir` as an absolute path from the Tauri process. It never needs to resolve bundled resource paths — it just passes `config.mortDir` to the SDK as a plugin path:
+
+```typescript
+plugins: [{ type: "local", path: config.mortDir }]  // e.g. /Users/zac/.mort
+```
+
+This completely avoids the `__dirname` issue in the original plan. The agent process doesn't know or care where the skills came from — it just points the SDK at `~/.mort`.
 
 ---
 
@@ -367,8 +495,12 @@ When creating plans:
 |------|--------|
 | `plugins/mort/.claude-plugin/plugin.json` | New: Plugin manifest |
 | `plugins/mort/skills/*/SKILL.md` | New: Managed skill definitions |
-| `agents/src/services/skill-sync.ts` | New: Skill sync service |
-| `agents/src/runners/shared.ts` | Modify: Call sync, pass plugins to query() |
+| `src-tauri/tauri.conf.json` | Modify: Add plugin resources to bundle |
+| `src/lib/paths.ts` | Modify: Add `getBundledPluginPath()` |
+| `src/lib/skill-sync.ts` | New: Skill sync service (frontend) |
+| `src/entities/index.ts` | Modify: Call `syncManagedSkills()` in hydration |
+| `src/components/main-window/settings/skills-settings.tsx` | Modify: Add re-sync button |
+| `agents/src/runners/shared.ts` | Modify: Pass `plugins` to SDK `query()` |
 | `~/.mort/` | Runtime: Synced plugin with skills |
 
 ---
@@ -376,21 +508,26 @@ When creating plans:
 ## Architecture Summary
 
 ```
-Source (repo)                    Destination (runtime)
-─────────────                    ────────────────────
-plugins/mort/                    ~/.mort/
-├── .claude-plugin/              ├── .claude-plugin/
-│   └── plugin.json      ──►     │   └── plugin.json
-└── skills/                      └── skills/
-    ├── commit/          ──►         ├── commit/
-    ├── review-pr/       ──►         ├── review-pr/
-    ├── plan/            ──►         ├── plan/
-    └── ...                          └── <user skills preserved>
+Source (repo)                    Bundle (prod)                      Destination (runtime)
+─────────────                    ─────────────                      ────────────────────
+plugins/mort/                    App.app/Resources/_up_/            ~/.mort/
+├── .claude-plugin/       ──►    plugins/mort/.claude-plugin/ ──►   ├── .claude-plugin/
+│   └── plugin.json              │   └── plugin.json               │   └── plugin.json
+└── skills/               ──►    plugins/mort/skills/        ──►   └── skills/
+    ├── commit/                      ├── commit/                       ├── commit/
+    ├── review-pr/                   ├── review-pr/                    ├── review-pr/
+    ├── plan/                        ├── plan/                         ├── plan/
+    └── ...                          └── ...                           └── <user skills preserved>
+
+         Dev: __PROJECT_ROOT__/plugins/mort
+         Prod: resolveResource('_up_/plugins/mort/...')
 ```
+
+**Sync trigger:** App startup (in `hydrateEntities()`) + manual re-sync button in settings.
 
 **SDK receives:**
 ```typescript
-plugins: [{ type: "local", path: "~/.mort" }]
+plugins: [{ type: "local", path: "/Users/zac/.mort" }]
 ```
 
 **SkillsService discovers from:**

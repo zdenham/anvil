@@ -38,12 +38,13 @@ plist = "1"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "registry"] }
 ureq = { version = "2", features = ["json"] }
 fs2 = "0.4"
 shellexpand = "3.1"
 clap = { version = "4", features = ["derive"] }
 raw-window-handle = "0.6"
+tracing-chrome = "0.7"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
@@ -68,6 +69,10 @@ core-foundation = "0.10"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["signal"] }
+pprof = { version = "0.14", features = ["flamegraph", "prost-codec"] }
 
 [dev-dependencies]
 tiny_http = "0.12"
+
+[profile.release]
+debug = 1  # Line tables for profiling symbol resolution

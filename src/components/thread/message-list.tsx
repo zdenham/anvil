@@ -21,6 +21,8 @@ interface MessageListProps {
   toolStates?: Record<string, ToolExecutionState>;
   /** Callback when user responds to a tool (e.g., AskUserQuestion) */
   onToolResponse?: (toolId: string, response: string) => void;
+  /** Working directory for resolving relative file paths in markdown */
+  workingDirectory?: string;
 }
 
 export interface MessageListRef {
@@ -43,6 +45,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   isStreaming = false,
   toolStates,
   onToolResponse,
+  workingDirectory,
 }, ref) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -125,11 +128,12 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
             toolStates={toolStates}
             onToolResponse={onToolResponse}
             threadId={threadId}
+            workingDirectory={workingDirectory}
           />
         </div>
       );
     },
-    [messages, turns.length, isStreaming, toolStates, onToolResponse, threadId]
+    [messages, turns.length, isStreaming, toolStates, onToolResponse, threadId, workingDirectory]
   );
 
   // Footer component for working indicator (renders at end of virtualized list)

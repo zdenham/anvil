@@ -5,12 +5,17 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "./code-block";
 import { InlineCode } from "./inline-code";
+import { navigationService } from "@/stores/navigation-service";
 import { logger } from "@/lib/logger-client";
 
 interface MarkdownRendererProps {
   content: string;
   isStreaming?: boolean;
   className?: string;
+  /** Working directory for resolving relative file paths */
+  workingDirectory?: string;
+  /** Callback when a file link is clicked (defaults to navigationService.navigateToFile) */
+  onFileClick?: (absolutePath: string) => void;
 }
 
 /**
@@ -26,6 +31,31 @@ function hashCode(str: string): string {
   return hash.toString(36);
 }
 
+/** Check if a link href looks like a file path (not a URL or anchor) */
+function looksLikeFilePath(href: string): boolean {
+  if (href.startsWith("#")) return false;
+  if (/^[a-z]+:\/\//i.test(href)) return false;
+  // Has a file extension or starts with ./ or ../
+  return /\.\w+$/.test(href) || href.startsWith("./") || href.startsWith("../");
+}
+
+/** Resolve a possibly-relative path against a working directory */
+function resolvePath(href: string, workingDirectory: string): string {
+  if (href.startsWith("/")) return href;
+  // Normalize: join workingDirectory + href, then resolve .. and .
+  const parts = `${workingDirectory}/${href}`.split("/");
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (part === "." || part === "") continue;
+    if (part === "..") {
+      resolved.pop();
+    } else {
+      resolved.push(part);
+    }
+  }
+  return "/" + resolved.join("/");
+}
+
 /**
  * Custom react-markdown wrapper that integrates CodeBlock and InlineCode
  * components for proper code rendering with syntax highlighting.
@@ -34,7 +64,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   isStreaming,
   className,
+  workingDirectory,
+  onFileClick,
 }: MarkdownRendererProps) {
+  const resolvedWorkingDirectory = workingDirectory;
+
   // Track code block index for stable keys within a render
   const codeBlockIndexRef = useRef(0);
 
@@ -109,6 +143,30 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         );
       }
 
+      // File-like links → open in content pane
+      if (href && resolvedWorkingDirectory && looksLikeFilePath(href)) {
+        const handleFileClick = (e: React.MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const absolutePath = resolvePath(href, resolvedWorkingDirectory);
+          if (onFileClick) {
+            onFileClick(absolutePath);
+          } else {
+            navigationService.navigateToFile(absolutePath);
+          }
+        };
+        return (
+          <a
+            href={href}
+            onClick={handleFileClick}
+            className="text-zinc-200 hover:text-white underline cursor-pointer"
+            {...props}
+          >
+            {children}
+          </a>
+        );
+      }
+
       // For non-external links, render normally
       return <a href={href} {...props}>{children}</a>;
     },
@@ -140,7 +198,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     td: ({ children }: { children?: React.ReactNode }) => (
       <td className="px-2 py-1.5 text-zinc-400">{children}</td>
     ),
-  }), [isStreaming]);
+  }), [isStreaming, resolvedWorkingDirectory, onFileClick]);
 
   return (
     <div className={cn("prose prose-invert prose-sm prose-p:leading-relaxed max-w-none", className)}>

@@ -55,7 +55,7 @@ export async function getRunnerPath(): Promise<string> {
   }
 
   // Production: resolve from bundled resources (compiled JS)
-  const runnerPath = await resolveResource('sdk-runner.js');
+  const runnerPath = await resolveResource('_up_/sdk-runner.js');
   return runnerPath;
 }
 
@@ -73,7 +73,7 @@ export async function getSdkTypesPath(): Promise<string> {
   }
 
   // Production: resolve from bundled resources
-  const typesPath = await resolveResource('sdk-types.d.ts');
+  const typesPath = await resolveResource('_up_/sdk-types.d.ts');
   return typesPath;
 }
 

@@ -45,6 +45,7 @@ struct AppInfoPlist {
 pub fn initialize() {
     // Build index in background to not block startup
     std::thread::spawn(|| {
+        let _span = tracing::info_span!("app_search_index").entered();
         let start = Instant::now();
         let apps = build_app_index();
         let count = apps.len();

@@ -1,6 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { useThreadStore } from "@/entities/threads/store";
+import { threadService } from "@/entities/threads/service";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CONTEXT_WINDOW = 200_000;
@@ -26,11 +27,26 @@ interface ContextMeterProps {
 }
 
 export function ContextMeter({ threadId }: ContextMeterProps) {
+  // Read usage from metadata (always available) instead of state (lazy-loaded)
+  const thread = useThreadStore(
+    useCallback((s) => s.threads[threadId], [threadId]),
+  );
+  // Fall back to state for context window size (metrics are only in state)
   const threadState = useThreadStore(
     useCallback((s) => s.threadStates[threadId], [threadId]),
   );
 
-  const usage = threadState?.lastCallUsage;
+  // Subscribe to entire threads map so we re-render when any descendant's usage changes
+  const allThreads = useThreadStore(useCallback((s) => s.threads, []));
+  const aggregateUsage = useMemo(() => {
+    return threadService.getAggregateUsage(threadId);
+  }, [allThreads, threadId]);
+
+  const hasDescendants = !!(aggregateUsage && thread?.cumulativeUsage &&
+    (aggregateUsage.inputTokens !== thread.cumulativeUsage.inputTokens ||
+     aggregateUsage.outputTokens !== thread.cumulativeUsage.outputTokens));
+
+  const usage = thread?.lastCallUsage;
   if (!usage) return null;
 
   const contextWindow =
@@ -74,7 +90,9 @@ export function ContextMeter({ threadId }: ContextMeterProps) {
           >
             <TooltipContent
               usage={usage}
-              cumulativeUsage={threadState?.cumulativeUsage}
+              cumulativeUsage={thread?.cumulativeUsage}
+              aggregateUsage={aggregateUsage}
+              hasDescendants={hasDescendants}
               contextWindow={contextWindow}
             />
           </TooltipPrimitive.Content>
@@ -94,6 +112,8 @@ interface TokenUsageFields {
 interface TooltipContentProps {
   usage: TokenUsageFields;
   cumulativeUsage?: TokenUsageFields;
+  aggregateUsage?: TokenUsageFields;
+  hasDescendants: boolean;
   contextWindow: number;
 }
 
@@ -124,6 +144,8 @@ function formatTokensK(n: number): string {
 function TooltipContent({
   usage,
   cumulativeUsage,
+  aggregateUsage,
+  hasDescendants,
   contextWindow,
 }: TooltipContentProps) {
   const contextTotal =
@@ -139,9 +161,19 @@ function TooltipContent({
       </div>
       {cumulativeUsage && (
         <div className="flex justify-between gap-4 mt-0.5">
-          <span className="text-surface-400">thread cost</span>
+          <span className="text-surface-400">
+            {hasDescendants ? "own cost" : "thread cost"}
+          </span>
           <span className="text-surface-300">
             {formatCost(calculateCost(cumulativeUsage))}
+          </span>
+        </div>
+      )}
+      {aggregateUsage && hasDescendants && (
+        <div className="flex justify-between gap-4 mt-0.5">
+          <span className="text-surface-400">total cost</span>
+          <span className="text-surface-300">
+            {formatCost(calculateCost(aggregateUsage))}
           </span>
         </div>
       )}

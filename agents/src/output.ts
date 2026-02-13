@@ -1,4 +1,4 @@
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join, isAbsolute, relative } from "path";
 import { z } from "zod";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
@@ -39,6 +39,7 @@ const ToolEventSchema = z.object({
 export type { FileChange, ResultMetrics, ThreadState, ToolExecutionState, TokenUsage };
 
 let statePath: string;
+let metadataPath: string;
 let state: ThreadState;
 let threadWriter: ThreadWriter | null = null;
 let hubClient: HubClient | null = null;
@@ -83,6 +84,7 @@ export async function initState(
   priorCumulativeUsage?: TokenUsage
 ): Promise<void> {
   statePath = join(threadPath, "state.json");
+  metadataPath = join(threadPath, "metadata.json");
   threadWriter = writer ?? null;
   state = {
     messages: priorMessages,
@@ -342,6 +344,40 @@ export async function updateUsage(usage: TokenUsage): Promise<void> {
   };
 
   await emitState();
+
+  // Also write usage to metadata.json so it's available without loading full state
+  await writeUsageToMetadata(metadataPath, state.lastCallUsage, state.cumulativeUsage);
+}
+
+/**
+ * Read-modify-write usage fields into a metadata.json file.
+ * Used by updateUsage (parent thread) and child thread handling.
+ */
+export async function writeUsageToMetadata(
+  mdPath: string,
+  lastCallUsage: TokenUsage | undefined,
+  cumulativeUsage: TokenUsage | undefined,
+): Promise<void> {
+  try {
+    if (!existsSync(mdPath)) return;
+    const raw = readFileSync(mdPath, "utf-8");
+    const metadata = JSON.parse(raw);
+    metadata.lastCallUsage = lastCallUsage;
+    metadata.cumulativeUsage = cumulativeUsage;
+    metadata.updatedAt = Date.now();
+
+    if (threadWriter) {
+      try {
+        await threadWriter.writeMetadata(metadata);
+      } catch {
+        writeFileSync(mdPath, JSON.stringify(metadata, null, 2));
+      }
+    } else {
+      writeFileSync(mdPath, JSON.stringify(metadata, null, 2));
+    }
+  } catch (err) {
+    logger.warn(`[output] Failed to write usage to metadata: ${err}`);
+  }
 }
 
 /**

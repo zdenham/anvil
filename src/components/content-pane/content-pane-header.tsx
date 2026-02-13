@@ -73,6 +73,17 @@ export function ContentPaneHeader({
     );
   }
 
+  if (view.type === "file") {
+    return (
+      <FileHeader
+        filePath={view.filePath}
+        repoId={view.repoId}
+        worktreeId={view.worktreeId}
+        onClose={onClose}
+      />
+    );
+  }
+
   if (view.type === "terminal") {
     return (
       <TerminalHeader
@@ -303,6 +314,47 @@ function SimpleHeader({
   return (
     <div className="flex items-center gap-2.5 px-3 py-1.5 border-b border-surface-700">
       <span className="text-surface-200 text-xs">{displayTitle}</span>
+
+      <div className="ml-auto">
+        <button
+          onClick={onClose}
+          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+          aria-label="Close pane"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Header for File view mode.
+ * Shows breadcrumb with file name, close button.
+ */
+function FileHeader({
+  filePath,
+  repoId,
+  worktreeId,
+  onClose,
+}: {
+  filePath: string;
+  repoId?: string;
+  worktreeId?: string;
+  onClose: () => void;
+}) {
+  const { repoName, worktreeName } = useBreadcrumbContext(repoId, worktreeId);
+  const fileName = filePath.split("/").pop() ?? "file";
+
+  return (
+    <div className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+      <Breadcrumb
+        repoName={repoName}
+        worktreeName={worktreeName}
+        category="files"
+        itemLabel={fileName}
+        onCategoryClick={onClose}
+      />
 
       <div className="ml-auto">
         <button

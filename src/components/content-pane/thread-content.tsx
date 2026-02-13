@@ -466,42 +466,43 @@ export function ThreadContent({
   });
 
   return (
-    <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
-      {/* ThreadView takes remaining space */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
-        <ThreadView
-          key={threadId}
-          ref={messageListRef}
-          threadId={threadId}
-          messages={messages}
-          isStreaming={isStreaming}
-          status={viewStatus}
-          toolStates={toolStates}
-        />
-      </div>
-
-      {/* Back to parent button for sub-agent threads */}
-      {isSubAgent && activeMetadata?.parentThreadId && (
-        <BackToParentButton parentThreadId={activeMetadata.parentThreadId} />
-      )}
-
-      {/* Quick actions and input pinned to bottom - hidden for sub-agent threads (read-only) */}
-      {!isSubAgent && (
-        <ThreadInputSection
-          ref={inputRef}
-          onSubmit={handleSubmit}
-          workingDirectory={workingDirectory}
-          contextType={messages.length === 0 ? "empty" : "thread"}
-          placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
-        />
-      )}
-
-      {/* Toast for temporary messages */}
-      {toastMessage && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg shadow-lg border border-amber-500 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          {toastMessage}
+      <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
+        {/* ThreadView takes remaining space */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
+          <ThreadView
+            key={threadId}
+            ref={messageListRef}
+            threadId={threadId}
+            messages={messages}
+            isStreaming={isStreaming}
+            status={viewStatus}
+            toolStates={toolStates}
+            workingDirectory={workingDirectory || undefined}
+          />
         </div>
-      )}
-    </div>
+
+        {/* Back to parent button for sub-agent threads */}
+        {isSubAgent && activeMetadata?.parentThreadId && (
+          <BackToParentButton parentThreadId={activeMetadata.parentThreadId} />
+        )}
+
+        {/* Quick actions and input pinned to bottom - hidden for sub-agent threads (read-only) */}
+        {!isSubAgent && (
+          <ThreadInputSection
+            ref={inputRef}
+            onSubmit={handleSubmit}
+            workingDirectory={workingDirectory}
+            contextType={messages.length === 0 ? "empty" : "thread"}
+            placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+          />
+        )}
+
+        {/* Toast for temporary messages */}
+        {toastMessage && (
+          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg shadow-lg border border-amber-500 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            {toastMessage}
+          </div>
+        )}
+      </div>
   );
 }
