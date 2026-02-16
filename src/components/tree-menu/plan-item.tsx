@@ -7,7 +7,7 @@ import type { PhaseInfo } from "@/entities/plans/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { planService } from "@/entities/plans/service";
 import { treeMenuService } from "@/stores/tree-menu/service";
-import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 
 /**
  * Get text color class based on item status.
@@ -210,7 +210,7 @@ export function PlanItem({
   }, [item.id]);
 
   // Calculate indentation based on depth using shared constants
-  const indentPx = INDENT_BASE + (item.depth * INDENT_STEP);
+  const indentPx = TREE_INDENT_BASE + (item.depth * TREE_INDENT_STEP);
 
   return (
     <ItemPreviewTooltip itemId={item.id} itemType="plan">

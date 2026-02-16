@@ -1,14 +1,16 @@
 # 03 — File Type Icons
 
-**Parallel track C** — no dependencies on other sub-plans. Can run simultaneously with 01 and 02.
+**Status: COMPLETE**
+
+**Parallel track C** — no dependencies on other sub-plans. Can run simultaneously with 02.
 
 See [decisions.md](./decisions.md) for rationale on using VS Code Material Icon Theme.
 
 ## Phases
 
-- [ ] Install `material-icon-theme` npm dependency
-- [ ] Create icon manifest module (build the lookup data from `generateManifest()`)
-- [ ] Create icon resolver module (public API consumed by file browser)
+- [x] Install `material-icon-theme` npm dependency
+- [x] Create icon manifest module (build the lookup data from `generateManifest()`)
+- [x] Create icon resolver module (public API consumed by file browser)
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

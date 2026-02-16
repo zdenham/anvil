@@ -1,14 +1,25 @@
 # 02 — Rust File Watcher Module
 
-**Parallel track B** — no dependencies on other sub-plans. Can run simultaneously with 01 and 03.
+**Status: COMPLETE**
+
+**Parallel track B** — no dependencies on other sub-plans. Can run simultaneously with 03.
 
 See [decisions.md](./decisions.md) for rationale on custom `notify`-based watcher vs `tauri-plugin-fs`, debounce strategy, and manual refresh fallback.
 
+## Existing infrastructure
+
+- `src-tauri/src/terminal.rs` — reference for the `Arc<Mutex<Manager>>` state pattern, `create_*_state()` constructor, `cleanup_all()` shutdown
+- `src-tauri/src/lib.rs:29` — `mod terminal;` declaration (add `mod file_watcher;` nearby)
+- `src-tauri/src/lib.rs:752` — `.manage(terminal::create_terminal_state())` (add `.manage(file_watcher::create_file_watcher_state())` nearby)
+- `src-tauri/src/lib.rs:940-946` — terminal commands in `tauri::generate_handler!` (add file watcher commands nearby)
+- `src-tauri/src/lib.rs:1100-1108` — `RunEvent::Exit` terminal cleanup (add file watcher cleanup nearby)
+- `src-tauri/Cargo.toml:43` — `fs2 = "0.4"` (add `notify-debouncer-mini` nearby)
+
 ## Phases
 
-- [ ] Add `notify-debouncer-mini` dependency and create `file_watcher.rs` module
-- [ ] Register file watcher state and commands in `lib.rs`
-- [ ] Create frontend TypeScript client
+- [x] Add `notify-debouncer-mini` dependency and create `file_watcher.rs` module
+- [x] Register file watcher state and commands in `lib.rs`
+- [x] Create frontend TypeScript client
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -48,12 +59,15 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-/// Event payload emitted to frontend when a watched directory changes.
-/// No path details — the frontend just re-reads the directory.
+/// Event payload emitted to frontend when watched files change.
+/// Includes the specific paths that changed so the frontend can
+/// update surgically instead of re-reading the entire directory.
 #[derive(Clone, Serialize)]
 struct FileWatcherEvent {
     #[serde(rename = "watchId")]
     watch_id: String,
+    #[serde(rename = "changedPaths")]
+    changed_paths: Vec<String>,
 }
 
 /// An active watch session. Dropping this stops the watcher automatically
@@ -134,9 +148,16 @@ pub fn start_watch(
         move |result: DebounceEventResult| {
             match result {
                 Ok(events) if !events.is_empty() => {
+                    let changed_paths: Vec<String> = events
+                        .iter()
+                        .map(|e| e.path.to_string_lossy().to_string())
+                        .collect();
                     let _ = app.emit(
                         "file-watcher:changed",
-                        FileWatcherEvent { watch_id: event_watch_id.clone() },
+                        FileWatcherEvent {
+                            watch_id: event_watch_id.clone(),
+                            changed_paths,
+                        },
                     );
                 }
                 Err(e) => {
@@ -272,6 +293,7 @@ import { logger } from "@/lib/logger-client";
 /** Payload shape for file-watcher:changed events from Rust */
 interface FileWatcherEvent {
   watchId: string;
+  changedPaths: string[];
 }
 
 export const fileWatcherClient = {
@@ -299,27 +321,28 @@ export const fileWatcherClient = {
   /**
    * Listen for change events on a specific watch.
    * Returns an unlisten function — call it to unsubscribe.
-   * The callback receives no arguments; the consumer should re-read
-   * the directory contents when called.
+   * The callback receives the list of changed file paths so the
+   * consumer can update only the affected entries.
    */
   onChanged(
     watchId: string,
-    callback: () => void,
+    callback: (changedPaths: string[]) => void,
   ): Promise<UnlistenFn> {
     return listen<FileWatcherEvent>("file-watcher:changed", (event) => {
       if (event.payload.watchId === watchId) {
-        callback();
+        callback(event.payload.changedPaths);
       }
     });
   },
 };
 ```
 
-**Key differences from the old plan:**
-- `FileWatcherEvent` interface replaces `as any` cast (coding guideline: strong types, avoid `any` or casts).
-- `listen<FileWatcherEvent>` generic parameter gives type-safe payload access.
+**Key design decisions:**
+- `FileWatcherEvent` includes `changedPaths` — the frontend receives the specific files that changed and can update surgically instead of re-reading the entire directory.
+- `listen<FileWatcherEvent>` generic parameter gives type-safe payload access (no `any` casts).
 - `logger` import replaces silent operation (coding guideline: never `console.log`, use logger).
 - Method renamed from `onEvent` to `onChanged` to match the event name `file-watcher:changed`.
+- Callback signature is `(changedPaths: string[]) => void` so consumers know exactly which files to re-stat.
 
 ---
 

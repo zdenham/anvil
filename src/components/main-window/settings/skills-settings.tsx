@@ -4,17 +4,36 @@ import { useRepoStore } from "@/entities/repositories";
 import { fsCommands } from "@/lib/tauri-commands";
 import { SkillListItem } from "./skill-list-item";
 import { SettingsSection } from "../settings-section";
-import { FolderOpen, ExternalLink } from "lucide-react";
+import { FolderOpen, ExternalLink, RefreshCw } from "lucide-react";
+import { syncManagedSkills } from "@/lib/skill-sync";
 
 export function SkillsSettings() {
   const skillsRecord = useSkillsStore(state => state.skills);
   const skills = useMemo(() => useSkillsStore.getState().getAll(), [skillsRecord]);
   const repositories = useRepoStore(state => state.repositories);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Get the first repository's source path (most common case)
   const firstRepo = Object.values(repositories)[0];
   const repoPath = firstRepo?.sourcePath;
+
+  const handleResync = async () => {
+    if (!repoPath) return;
+    setIsSyncing(true);
+    try {
+      await syncManagedSkills();
+      const homeDir = await fsCommands.getHomeDir();
+      const discoveredSkills = await skillsService.discover(repoPath, homeDir);
+      const freshRecord: Record<string, typeof discoveredSkills[0]> = {};
+      for (const skill of discoveredSkills) {
+        freshRecord[skill.id] = skill;
+      }
+      useSkillsStore.getState().hydrate(freshRecord, repoPath);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Refresh skills when settings opens
   useEffect(() => {
@@ -106,6 +125,16 @@ export function SkillsSettings() {
             )}
           </div>
         )}
+
+        {/* Re-sync built-in skills */}
+        <button
+          onClick={handleResync}
+          disabled={isSyncing}
+          className="flex items-center gap-2 text-xs text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+          {isSyncing ? 'Syncing...' : 'Re-sync built-in skills'}
+        </button>
 
         {/* Link to docs */}
         <a

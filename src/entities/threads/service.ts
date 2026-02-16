@@ -192,6 +192,7 @@ export const threadService = {
       updatedAt: now,
       git: input.git,
       isRead: true, // New threads start as read
+      permissionMode: "plan",
       turns: [
         {
           index: 0,
@@ -487,6 +488,7 @@ export const threadService = {
       updatedAt: now,
       isRead: true, // New threads start as read (user just created it)
       _isOptimistic: true, // Mark as optimistic until disk confirmation
+      permissionMode: "plan",
       turns: params.prompt
         ? [{
             index: 0,

@@ -6,7 +6,7 @@ import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
 import { treeMenuService } from "@/stores/tree-menu/service";
-import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 
 /**
  * Get text color class based on item status.
@@ -16,6 +16,8 @@ import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
 function getTextColorClass(status: StatusDotVariant, isSelected: boolean): string {
   if (isSelected) return "";
   switch (status) {
+    case "needs-input":
+      return "text-amber-300 animate-shimmer";
     case "running":
       return "animate-shimmer";
     case "unread":
@@ -185,7 +187,7 @@ export function ThreadItem({
 
   // Calculate indentation based on depth using shared constants
   // Threads are always depth 0, but this keeps alignment consistent with plans
-  const indentPx = INDENT_BASE + (item.depth * INDENT_STEP);
+  const indentPx = TREE_INDENT_BASE + (item.depth * TREE_INDENT_STEP);
 
   return (
     <ItemPreviewTooltip itemId={item.id} itemType="thread">

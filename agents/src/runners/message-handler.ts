@@ -3,8 +3,10 @@ import type {
   SDKUserMessage,
   SDKResultMessage,
   SDKToolProgressMessage,
+  SDKPartialAssistantMessage,
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import type { StreamAccumulator } from "../lib/stream-accumulator.js";
 import {
   appendAssistantMessage,
   appendUserMessage,
@@ -33,6 +35,7 @@ import { EventName, type ThreadState } from "@core/types/events.js";
  */
 export class MessageHandler {
   private mortDir: string | null = null;
+  private accumulator: StreamAccumulator | null = null;
 
   // In-memory state cache for child threads (childThreadId -> state)
   private childThreadStates = new Map<string, ThreadState>();
@@ -40,9 +43,11 @@ export class MessageHandler {
   /**
    * Create a MessageHandler.
    * @param mortDir - Optional path to mort directory for sub-agent state routing
+   * @param accumulator - Optional stream accumulator for live streaming display
    */
-  constructor(mortDir?: string) {
+  constructor(mortDir?: string, accumulator?: StreamAccumulator) {
     this.mortDir = mortDir ?? null;
+    this.accumulator = accumulator ?? null;
   }
 
   /**
@@ -72,6 +77,8 @@ export class MessageHandler {
         return this.handleResult(message);
       case "tool_progress":
         return this.handleToolProgress(message);
+      case "stream_event":
+        return this.handleStreamEvent(message as SDKPartialAssistantMessage);
       default:
         logger.debug(`[MessageHandler] Ignoring message type: ${(message as { type: string }).type}`);
         return true;
@@ -211,6 +218,19 @@ export class MessageHandler {
     logger.debug(
       `[MessageHandler] Tool ${msg.tool_name} running for ${msg.elapsed_time_seconds}s`
     );
+    return true;
+  }
+
+  private handleStreamEvent(msg: SDKPartialAssistantMessage): boolean {
+    if (!this.accumulator) return true;
+
+    this.accumulator.handleDelta(msg.event);
+
+    if (msg.event.type === "message_stop") {
+      this.accumulator.flush();
+      this.accumulator.reset();
+    }
+
     return true;
   }
 

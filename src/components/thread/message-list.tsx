@@ -6,6 +6,8 @@ import type { ToolExecutionState } from "@/lib/types/agent-messages";
 import { cn } from "@/lib/utils";
 import { TurnRenderer } from "./turn-renderer";
 import { WorkingIndicator } from "./working-indicator";
+import { StreamingContent } from "./streaming-content";
+import { useStreamingStore } from "@/stores/streaming-store";
 import { logger } from "@/lib/logger-client";
 
 interface MessageListProps {
@@ -136,15 +138,42 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     [messages, turns.length, isStreaming, toolStates, onToolResponse, threadId, workingDirectory]
   );
 
-  // Footer component for working indicator (renders at end of virtualized list)
+  // Check if we have active streaming data for this thread
+  const hasStreamingContent = useStreamingStore(
+    (s) => {
+      const stream = s.activeStreams[threadId];
+      return !!stream && stream.blocks.length > 0;
+    }
+  );
+
+  // Footer component for streaming content / working indicator (renders at end of virtualized list)
   const Footer = useCallback(() => {
-    if (!showWorkingIndicator) return null;
-    return (
-      <div className="w-full max-w-[900px] mx-auto">
-        <WorkingIndicator />
-      </div>
-    );
-  }, [showWorkingIndicator]);
+    // Show streaming content when we have live blocks from the agent
+    if (hasStreamingContent) {
+      return (
+        <div className="px-4 py-2 w-full max-w-[900px] mx-auto">
+          <article role="article" aria-label="Assistant response" className="group">
+            <div className="flex gap-3">
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <StreamingContent threadId={threadId} workingDirectory={workingDirectory} />
+              </div>
+            </div>
+          </article>
+        </div>
+      );
+    }
+
+    // Show working indicator when streaming but no content yet (waiting for first token)
+    if (showWorkingIndicator) {
+      return (
+        <div className="w-full max-w-[900px] mx-auto">
+          <WorkingIndicator />
+        </div>
+      );
+    }
+
+    return null;
+  }, [hasStreamingContent, showWorkingIndicator, threadId, workingDirectory]);
 
   return (
     <div

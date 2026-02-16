@@ -10,6 +10,8 @@ interface ThreadInputProps {
   workingDirectory?: string;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Called when Shift+Tab is pressed to cycle permission mode */
+  onCycleMode?: () => void;
   /** @deprecated Up/down arrows now cycle prompt history instead of navigating to quick actions */
   onNavigateToQuickActions?: () => void;
 }
@@ -24,6 +26,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   workingDirectory,
   placeholder,
   autoFocus,
+  onCycleMode,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onNavigateToQuickActions: _deprecated,
 }: ThreadInputProps, ref) {
@@ -61,6 +64,13 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
   const handleKeyDown = useCallback(
     async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Shift+Tab cycles permission mode
+      if (e.shiftKey && e.key === "Tab") {
+        e.preventDefault();
+        onCycleMode?.();
+        return;
+      }
+
       // Enter submits (unless Shift is held for newline, or trigger dropdown is active)
       // Only consume Enter if there's content to submit - otherwise let it propagate to quick actions
       if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && value.trim()) {
@@ -119,7 +129,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       // Note: Arrow keys, Tab, plain Enter are handled by TriggerSearchInput
       // when trigger is active and dropdown is enabled
     },
-    [handleSubmit, triggerState?.isActive, value, isInHistoryMode, handleHistoryNavigation]
+    [handleSubmit, triggerState?.isActive, value, isInHistoryMode, handleHistoryNavigation, onCycleMode]
   );
 
   const handleTriggerStateChange = useCallback((state: TriggerStateInfo) => {

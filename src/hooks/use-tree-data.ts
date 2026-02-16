@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
+import { usePermissionStore } from "@/entities/permissions/store";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { relationService } from "@/entities/relations/service";
@@ -45,7 +46,8 @@ function buildSectionItems(
   terminals: TerminalSession[],
   sectionId: string,
   expandedSections: Record<string, boolean>,
-  runningThreadIds: Set<string>
+  runningThreadIds: Set<string>,
+  threadsWithPendingInput: Set<string>,
 ): TreeItemNode[] {
   const items: TreeItemNode[] = [];
 
@@ -80,7 +82,7 @@ function buildSectionItems(
       type: "thread" as const,
       id: thread.id,
       title: thread.name ?? "New Thread",
-      status: getThreadStatusVariant(thread),
+      status: getThreadStatusVariant(thread, threadsWithPendingInput.has(thread.id)),
       updatedAt: thread.updatedAt,
       createdAt: thread.createdAt,
       sectionId,
@@ -225,7 +227,8 @@ export function buildTreeFromEntities(
   allRepos: RepoWithWorktrees[],
   getRepoName: (repoId: string) => string,
   getWorktreeName: (repoId: string, worktreeId: string) => string,
-  getWorktreePath: (repoId: string, worktreeId: string) => string
+  getWorktreePath: (repoId: string, worktreeId: string) => string,
+  threadsWithPendingInput: Set<string> = new Set(),
 ): RepoWorktreeSection[] {
   // Group threads, plans, and terminals by "repoId:worktreeId"
   const threadsBySection = new Map<string, ThreadMetadata[]>();
@@ -319,7 +322,8 @@ export function buildTreeFromEntities(
       sectionTerminals,
       sectionId,
       expandedSections,
-      runningThreadIds
+      runningThreadIds,
+      threadsWithPendingInput,
     );
 
     sections.push({
@@ -393,6 +397,18 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
     return new Set(threads.filter((t) => t.status === "running").map((t) => t.id));
   }, [threads]);
 
+  // Get thread IDs with pending permission requests (for "needs-input" status)
+  const permissionRequests = usePermissionStore((state) => state.requests);
+  const threadsWithPendingInput = useMemo(() => {
+    const ids = new Set<string>();
+    for (const req of Object.values(permissionRequests)) {
+      if (req.status === "pending") {
+        ids.add(req.threadId);
+      }
+    }
+    return ids;
+  }, [permissionRequests]);
+
   return useMemo(() => {
     const allSections = buildTreeFromEntities(
       threads,
@@ -403,7 +419,8 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
       allRepos,
       getRepoName,
       getWorktreeName,
-      getWorktreePath
+      getWorktreePath,
+      threadsWithPendingInput,
     );
 
     // Skip filtering if requested (for Command+N to find most recent worktree)
@@ -424,7 +441,7 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
 
     // Otherwise, filter out hidden sections
     return allSections.filter(s => !hiddenSectionIds.includes(s.id));
-  }, [threads, plans, terminals, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath, skipFiltering, pinnedSectionId, hiddenSectionIds]);
+  }, [threads, plans, terminals, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath, skipFiltering, pinnedSectionId, hiddenSectionIds, threadsWithPendingInput]);
 }
 
 /**

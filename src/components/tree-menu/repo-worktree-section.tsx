@@ -9,6 +9,7 @@ import type { RepoWorktreeSection as RepoWorktreeSectionType } from "@/stores/tr
 import { ThreadItem } from "./thread-item";
 import { PlanItem } from "./plan-item";
 import { TerminalItem } from "./terminal-item";
+import { FilesItem } from "./files-item";
 
 interface RepoWorktreeSectionProps {
   section: RepoWorktreeSectionType;
@@ -36,6 +37,10 @@ interface RepoWorktreeSectionProps {
   onHide?: (sectionId: string) => void;
   /** Whether this section is currently pinned */
   isPinned?: boolean;
+  /** Called when user opens the file browser for this worktree */
+  onOpenFiles?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  /** Whether the file browser is currently open for this worktree */
+  isFileBrowserOpen?: boolean;
 }
 
 /**
@@ -59,6 +64,8 @@ export function RepoWorktreeSection({
   onPinToggle,
   onHide,
   isPinned,
+  onOpenFiles,
+  isFileBrowserOpen,
 }: RepoWorktreeSectionProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -593,6 +600,17 @@ export function RepoWorktreeSection({
         aria-label="Items"
         className={`tree-children ${section.isExpanded ? 'expanded' : 'collapsed'}`}
       >
+        {/* "Files" pinned at top of expanded section - before threads/plans/terminals */}
+        {onOpenFiles && (
+          <FilesItem
+            repoId={section.repoId}
+            worktreeId={section.worktreeId}
+            worktreePath={section.worktreePath}
+            isActive={isFileBrowserOpen ?? false}
+            onOpenFiles={onOpenFiles}
+          />
+        )}
+
         {section.items.map((item, index) => {
           if (item.type === "thread") {
             return (

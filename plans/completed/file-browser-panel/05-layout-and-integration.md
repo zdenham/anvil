@@ -1,15 +1,25 @@
 # 05 — Layout Integration + Tree Menu Entry + Wiring
 
+**Status: COMPLETE**
+
 **Depends on:** [04-file-browser-component.md](./04-file-browser-component.md)
 
 See [decisions.md](./decisions.md) for rationale on resizable right panel, toggle/dismiss behavior, tree menu integration, worktree switching, and active state highlighting.
 
+## Existing infrastructure
+
+- `src/components/ui/resizable-panel.tsx` — `ResizablePanel` component with `position: "left" | "right"`, `minWidth`, `maxWidth?`, `defaultWidth`, `persistKey`, `closeThreshold?`, `onClose?`, `className?` props. Persists width to `~/.mort/ui/layout.json`.
+- `src/components/tree-menu/repo-worktree-section.tsx:13` — `RepoWorktreeSectionProps` interface (add `onOpenFiles?` and `isFileBrowserOpen?` props here)
+- `src/stores/tree-menu/types.ts:28` — `RepoWorktreeSection` type has `repoId`, `worktreeId`, `worktreePath` fields needed for `onOpenFiles` callback
+- `src/components/tree-menu/tree-menu.tsx` — currently 249 lines (at limit — keep additions minimal)
+- `src/components/main-window/main-window-layout.tsx` — currently 547 lines (already over limit — extract logic into hook as planned)
+
 ## Phases
 
-- [ ] Extract file-browser layout logic into a dedicated hook + add right-panel slot
-- [ ] Add "Files" entry point to each worktree section in the tree menu
-- [ ] Wire up file clicks to open in content pane via navigateToFile
-- [ ] Add Escape-key dismiss handler
+- [x] Extract file-browser layout logic into a dedicated hook + add right-panel slot
+- [x] Add "Files" entry point to each worktree section in the tree menu
+- [x] Wire up file clicks to open in content pane via navigateToFile
+- [x] Add Escape-key dismiss handler
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -324,21 +334,27 @@ In the expanded items section (the `<div role="group" aria-label="Items">` block
 
 ## Phase 3: Wire up file clicks
 
-This connects `FileBrowserPanel` file clicks to `navigateToFile` from [01-file-view-type.md](./01-file-view-type.md).
+This connects `FileBrowserPanel` file clicks to `navigateToFile`.
+
+**Note:** `navigateToFile` already exists at `src/stores/navigation-service.ts:41-51` and the full file viewer (`FileContent`) is already implemented. Clicking a file will open a syntax-highlighted view in the content pane.
 
 **File: `src/components/file-browser/file-browser-panel.tsx`** (created in sub-plan 04)
 
-The `FileBrowserPanel` component from sub-plan 04 defines an `onFileClick` handler that is called when a file entry is clicked. Wire it to `navigationService.navigateToFile`:
+The `FileBrowserPanel` component from sub-plan 04 defines a `handleNavigate` callback. For file entries (not directories), it calls `navigationService.navigateToFile`:
 
 ```typescript
 import { navigationService } from "@/stores/navigation-service";
 ```
 
-In the component, add the handler and pass it to the file list rendering:
+Already wired in plan 04's Phase 2 implementation:
 
 ```typescript
-const handleFileClick = useCallback(
+const handleNavigate = useCallback(
   (entry: DirEntry) => {
+    if (entry.isDirectory) {
+      setCurrentPath(entry.path);
+      return;
+    }
     navigationService.navigateToFile(entry.path, { repoId, worktreeId });
   },
   [repoId, worktreeId]
@@ -346,10 +362,10 @@ const handleFileClick = useCallback(
 ```
 
 **Key points:**
-- `navigationService.navigateToFile()` is added in sub-plan 01. It clears tree selection and sets the content pane view to `{ type: "file", filePath, repoId?, worktreeId? }`.
-- `DirEntry` is the type from sub-plan 02's Rust `list_dir` command. It has a `path: string` field (absolute path).
+- `navigationService.navigateToFile()` exists at `src/stores/navigation-service.ts:41-51`. It clears tree selection and sets the content pane view to `{ type: "file", filePath, repoId?, worktreeId? }`.
+- `DirEntry` is the type from `src/lib/filesystem-client.ts`. It has `name`, `path`, `isDirectory`, `isFile` fields.
 - The file browser panel **stays open** after clicking a file (per decisions). The file opens in the content pane via `navigateToFile`, but the panel is not closed.
-- If the file viewer from `plans/file-viewer-pane.md` is not yet implemented, files show a placeholder in the content pane (from sub-plan 01's minimal `file` view routing).
+- The full file viewer (`src/components/content-pane/file-content.tsx`) renders syntax-highlighted content — no placeholder needed.
 
 ---
 

@@ -134,6 +134,7 @@ pub async fn spawn_terminal(
                 }
                 Ok(n) => {
                     // Send output data as array of bytes (for binary-safe transfer)
+                    tracing::trace!(terminal_id = id, bytes = n, "Emitting terminal:output");
                     let _ = app_clone.emit(
                         "terminal:output",
                         serde_json::json!({

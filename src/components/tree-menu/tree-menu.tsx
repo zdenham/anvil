@@ -30,6 +30,10 @@ interface TreeMenuProps {
   onHide?: (sectionId: string) => void;
   /** ID of currently pinned section, or null */
   pinnedSectionId?: string | null;
+  /** Called when user opens the file browser for a worktree */
+  onOpenFiles?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  /** Worktree ID that currently has the file browser open, or null */
+  fileBrowserWorktreeId?: string | null;
   className?: string;
 }
 
@@ -39,7 +43,7 @@ interface TreeMenuProps {
  * Supports keyboard navigation: ArrowUp/Down, ArrowLeft/Right, Enter/Space, Home/End.
  * Uses ARIA tree pattern for accessibility.
  */
-export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, onPinToggle, onHide, pinnedSectionId, className }: TreeMenuProps) {
+export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, onPinToggle, onHide, pinnedSectionId, onOpenFiles, fileBrowserWorktreeId, className }: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sections = useTreeData();
   const selectedItemId = useTreeMenuStore((state) => state.selectedItemId);
@@ -242,6 +246,8 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onNewWorktr
           onPinToggle={onPinToggle}
           onHide={onHide}
           isPinned={pinnedSectionId === section.id}
+          onOpenFiles={onOpenFiles}
+          isFileBrowserOpen={fileBrowserWorktreeId === section.worktreeId}
         />
       ))}
     </div>

@@ -3,21 +3,6 @@ import { treeMenuService } from "@/stores/tree-menu/service";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 
 /**
- * Indentation constants for tree items.
- */
-export const INDENT_BASE = 8; // px - base indentation for top-level items
-export const INDENT_STEP = 8; // px per depth level for nested items
-
-/**
- * Calculate indent style for a tree item based on depth.
- */
-export function getIndentStyle(depth: number): React.CSSProperties {
-  return {
-    paddingLeft: `${INDENT_BASE + depth * INDENT_STEP}px`,
-  };
-}
-
-/**
  * Focus a tree item by its index using data attribute.
  */
 function focusItem(index: number) {

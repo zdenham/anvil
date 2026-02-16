@@ -1,5 +1,6 @@
 import type { ThreadStatus } from "./threads.js";
 import type { RelationType } from "./relations.js";
+import type { PermissionModeId } from "./permissions.js";
 import { z } from "zod";
 
 // WorktreeState is defined in src/entities/repositories/types.ts
@@ -81,6 +82,7 @@ export const EventName = {
   // Permission flow
   PERMISSION_REQUEST: "permission:request",
   PERMISSION_RESPONSE: "permission:response",
+  PERMISSION_MODE_CHANGED: "permission:mode-changed",
 
   // Queued message acknowledgement
   QUEUED_MESSAGE_ACK: "queued-message:ack",
@@ -100,6 +102,9 @@ export const EventName = {
 
   // Thread naming
   THREAD_NAME_GENERATED: "thread:name:generated",
+
+  // Streaming
+  OPTIMISTIC_STREAM: "optimistic:stream",
 } as const;
 
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
@@ -107,6 +112,19 @@ export type EventNameType = (typeof EventName)[keyof typeof EventName];
 // ============================================================================
 // Event Payloads
 // ============================================================================
+
+/**
+ * Optimistic stream payload - full accumulated content snapshot.
+ * Replaces previous snapshot (NOT a delta).
+ */
+export interface OptimisticStreamPayload {
+  threadId: string;
+  /** Full accumulated content snapshot - NOT a delta. Replaces previous snapshot. */
+  blocks: Array<{
+    type: "text" | "thinking";
+    content: string;
+  }>;
+}
 
 /**
  * Payload types for each event.
@@ -172,6 +190,11 @@ export interface EventPayloads {
     reason?: string;
   };
 
+  [EventName.PERMISSION_MODE_CHANGED]: {
+    threadId: string;
+    modeId: PermissionModeId;
+  };
+
   // Queued message acknowledgement
   [EventName.QUEUED_MESSAGE_ACK]: {
     threadId: string;
@@ -193,6 +216,9 @@ export interface EventPayloads {
 
   // Thread naming
   [EventName.THREAD_NAME_GENERATED]: { threadId: string; name: string };
+
+  // Streaming
+  [EventName.OPTIMISTIC_STREAM]: OptimisticStreamPayload;
 }
 
 // ============================================================================
@@ -315,6 +341,7 @@ export const EventNameSchema = z.enum([
   EventName.SETTINGS_UPDATED,
   EventName.PERMISSION_REQUEST,
   EventName.PERMISSION_RESPONSE,
+  EventName.PERMISSION_MODE_CHANGED,
   EventName.QUEUED_MESSAGE_ACK,
   EventName.PLAN_DETECTED,
   EventName.PLAN_CREATED,
@@ -324,6 +351,7 @@ export const EventNameSchema = z.enum([
   EventName.RELATION_UPDATED,
   EventName.USER_MESSAGE_SENT,
   EventName.THREAD_NAME_GENERATED,
+  EventName.OPTIMISTIC_STREAM,
 ]);
 
 /**

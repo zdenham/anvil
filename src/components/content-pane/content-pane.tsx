@@ -106,6 +106,7 @@ export function ContentPane({
         {view.type === "logs" && <LogsPage />}
         {view.type === "terminal" && (
           <TerminalContent
+            key={view.terminalId}
             terminalId={view.terminalId}
             onClose={onClose}
           />

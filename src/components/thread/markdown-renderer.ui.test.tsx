@@ -93,6 +93,113 @@ And more text after.`;
   });
 
   // ============================================================================
+  // File Path Auto-Linking Tests
+  // ============================================================================
+
+  describe("File Path Linking", () => {
+    it("renders bare file paths as clickable links", () => {
+      render(
+        <MarkdownRenderer
+          content="The relative path of the README is README.md."
+          workingDirectory="/home/user/project"
+        />
+      );
+
+      const link = screen.getByRole("link", { name: "README.md" });
+      expect(link).toBeInTheDocument();
+      expect(link.tagName).toBe("A");
+    });
+
+    it("renders file paths with directories as clickable links", () => {
+      render(
+        <MarkdownRenderer
+          content="Here's a random one: src/components/thread/thinking-block.tsx"
+          workingDirectory="/home/user/project"
+        />
+      );
+
+      const link = screen.getByRole("link", { name: "src/components/thread/thinking-block.tsx" });
+      expect(link).toBeInTheDocument();
+    });
+
+    it("calls onFileClick with resolved path when bare file link is clicked", () => {
+      const onFileClick = vi.fn();
+      render(
+        <MarkdownRenderer
+          content="See README.md for details."
+          workingDirectory="/home/user/project"
+          onFileClick={onFileClick}
+        />
+      );
+
+      const link = screen.getByRole("link", { name: "README.md" });
+      link.click();
+      expect(onFileClick).toHaveBeenCalledWith("/home/user/project/README.md");
+    });
+
+    it("makes inline code file paths clickable", () => {
+      const onFileClick = vi.fn();
+      render(
+        <MarkdownRenderer
+          content="Use `package.json` to configure."
+          workingDirectory="/home/user/project"
+          onFileClick={onFileClick}
+        />
+      );
+
+      const codeElement = screen.getByText("package.json");
+      expect(codeElement.tagName).toBe("CODE");
+      expect(codeElement).toHaveClass("cursor-pointer");
+      codeElement.click();
+      expect(onFileClick).toHaveBeenCalledWith("/home/user/project/package.json");
+    });
+
+    it("does not auto-link file paths when no workingDirectory is provided", () => {
+      render(
+        <MarkdownRenderer content="See README.md for details." />
+      );
+
+      // Should not have a link role for README.md
+      const links = screen.queryAllByRole("link");
+      const readmeLink = links.find(l => l.textContent === "README.md");
+      expect(readmeLink).toBeUndefined();
+    });
+
+    it("does not make non-file inline code clickable", () => {
+      render(
+        <MarkdownRenderer
+          content="Use `console.log` for debugging"
+          workingDirectory="/home/user/project"
+        />
+      );
+
+      const codeElement = screen.getByText("console.log");
+      expect(codeElement).not.toHaveClass("cursor-pointer");
+    });
+
+    it("handles the full bug report example", () => {
+      const content = `The relative path of the README is README.md.
+
+Let me find a TSX file for you.
+Found 100 files
+Here's a random one: src/components/thread/thinking-block.tsx`;
+
+      render(
+        <MarkdownRenderer
+          content={content}
+          workingDirectory="/home/user/project"
+        />
+      );
+
+      const readmeLink = screen.getByRole("link", { name: "README.md" });
+      expect(readmeLink).toBeInTheDocument();
+
+      const tsxLink = screen.getByRole("link", { name: "src/components/thread/thinking-block.tsx" });
+      expect(tsxLink).toBeInTheDocument();
+    });
+  });
+
+  // ============================================================================
   // Props Tests
   // ============================================================================
 

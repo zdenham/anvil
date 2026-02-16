@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Mort",
-  "version": "0.0.38",
+  "version": "0.0.39",
   "identifier": "com.mort.app",
   "build": {
     "beforeDevCommand": "vite",
@@ -64,7 +64,9 @@
       "../migrations/package.json",
       "../migrations/dist/**/*",
       "../sdk-runner.js",
-      "../sdk-types.d.ts"
+      "../sdk-types.d.ts",
+      "../plugins/mort/.claude-plugin/plugin.json",
+      "../plugins/mort/skills/**/*"
     ]
   }
 }

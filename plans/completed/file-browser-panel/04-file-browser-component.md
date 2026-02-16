@@ -1,15 +1,24 @@
 # 04 — FileBrowserPanel Component
 
-**Depends on:** [01-file-view-type.md](./01-file-view-type.md), [02-rust-file-watcher.md](./02-rust-file-watcher.md), [03-file-icons.md](./03-file-icons.md)
+**Status: COMPLETE**
+
+**Depends on:** [02-rust-file-watcher.md](./02-rust-file-watcher.md), [03-file-icons.md](./03-file-icons.md). [01-file-view-type.md](./01-file-view-type.md) is **done** — `navigateToFile()` exists at `src/stores/navigation-service.ts:41-51`.
 
 See [decisions.md](./decisions.md) for rationale on single-directory navigation, breadcrumb truncation, file display rules, error handling, and keyboard support.
 
+## Existing infrastructure
+
+- `src/lib/filesystem-client.ts` — `FilesystemClient` class with `listDir(path): Promise<DirEntry[]>`, `DirEntry` type with `name`, `path`, `isDirectory`, `isFile` fields
+- `src/stores/navigation-service.ts:41-51` — `navigateToFile()` for opening files in the content pane
+- `src/components/content-pane/file-content.tsx` — Full file viewer (syntax highlighting) — already renders when `navigateToFile` is called
+- `src-tauri/src/filesystem.rs` — Rust `fs_list_dir` command backing `listDir()`
+
 ## Phases
 
-- [ ] Create directory listing utilities and entry list sub-component
-- [ ] Create FileBrowserPanel shell with directory reading and navigation
-- [ ] Add file watcher integration and manual refresh
-- [ ] Add breadcrumb header with truncation
+- [x] Create directory listing utilities and entry list sub-component
+- [x] Create FileBrowserPanel shell with directory reading and navigation
+- [x] Add file watcher integration and manual refresh
+- [x] Add breadcrumb header with truncation
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -119,7 +128,7 @@ Renders the scrollable list of directory entries. Directories show a `ChevronRig
 ```tsx
 import { ChevronRight } from "lucide-react";
 import type { DirEntry } from "@/lib/filesystem-client";
-import { getFileIcon } from "./file-icons";
+import { getFileIconUrl } from "./file-icons";
 
 interface FileEntryListProps {
   entries: DirEntry[];
@@ -148,7 +157,7 @@ export function FileEntryList({ entries, onNavigate }: FileEntryListProps) {
             <ChevronRight size={12} className="flex-shrink-0 text-surface-400" />
           ) : (
             <img
-              src={getFileIcon(entry.name)}
+              src={getFileIconUrl(entry.name)}
               alt=""
               className="w-4 h-4 flex-shrink-0"
             />
@@ -165,7 +174,7 @@ export function FileEntryList({ entries, onNavigate }: FileEntryListProps) {
 - `key={entry.path}` — entry paths are unique within a directory and serve as stable keys for a single directory listing. These are not persisted entity keys, so paths are acceptable here.
 - Empty directory state per decisions ("handle with sensible defaults").
 - Directories use `ChevronRight` from lucide-react at `size={12}` with `text-surface-400` — consistent with the left sidebar tree menu chevron pattern (see `tree-menu/thread-item.tsx`, `tree-menu/plan-item.tsx`).
-- Files use `getFileIcon` from sub-plan 03. Icon source type (SVG `<img>` vs inline SVG component) depends on how sub-plan 03 exports icons. If it returns a React component instead of a URL, switch to `<Icon className="w-4 h-4" />`.
+- Files use `getFileIconUrl` from sub-plan 03 (`src/components/file-browser/file-icons.ts`). Returns a URL string for use in `<img src={...}>` tags.
 
 ---
 
@@ -335,7 +344,7 @@ useEffect(() => {
         fileWatcherClient.stopWatch(watchId);
         return;
       }
-      return fileWatcherClient.onEvent(watchId, () => {
+      return fileWatcherClient.onChanged(watchId, () => {
         setRefreshKey((k) => k + 1);
       });
     })

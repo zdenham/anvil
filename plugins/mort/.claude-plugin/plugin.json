@@ -1,0 +1,8 @@
+{
+  "name": "mort",
+  "description": "Mort's built-in skills for code assistance",
+  "version": "1.0.0",
+  "author": {
+    "name": "Mort"
+  }
+}

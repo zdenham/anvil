@@ -92,6 +92,8 @@ import { quickActionService } from "./quick-actions/service";
 import { setupQuickActionListeners } from "./quick-actions/listeners";
 import { draftService } from "./drafts/service";
 import { setupTerminalListeners } from "./terminal-sessions/listeners";
+import { syncManagedSkills } from "@/lib/skill-sync";
+import { setupStreamingListeners } from "@/stores/streaming-store";
 
 /**
  * Hydrates all entity stores from disk.
@@ -138,6 +140,10 @@ export async function hydrateEntities(): Promise<void> {
     await draftService.hydrate();
     logger.log("[entities:hydrate] Drafts hydrated");
 
+    // Sync managed skills from bundled plugin to ~/.mort
+    await syncManagedSkills();
+    logger.log("[entities:hydrate] Managed skills synced");
+
     logger.log("[entities:hydrate] All entities hydrated successfully");
   } catch (error) {
     logger.error("[entities:hydrate] Hydration failed!", error);
@@ -160,5 +166,6 @@ export function setupEntityListeners(): void {
   setupWorktreeListeners();
   setupQuickActionListeners();
   setupTerminalListeners();
+  setupStreamingListeners();
   logger.log("[entities:listeners] All entity listeners initialized");
 }

@@ -29,7 +29,10 @@ import {
   spawnSimpleAgent,
   resumeSimpleAgent,
   sendQueuedMessage,
+  sendToAgent,
 } from "@/lib/agent-service";
+import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions.js";
+import { EventName } from "@core/types/events.js";
 import { type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { ThreadView } from "@/components/thread/thread-view";
@@ -189,6 +192,31 @@ export function ThreadContent({
 
   // Detect sub-agent threads (read-only mode)
   const isSubAgent = !!activeMetadata?.parentThreadId;
+
+  // Permission mode from thread metadata (defaults to "plan")
+  const permissionMode: PermissionModeId = activeMetadata?.permissionMode ?? "plan";
+
+  // Cycle to next permission mode: plan -> implement -> supervise -> plan
+  const handleCycleMode = useCallback(async () => {
+    if (!threadId) return;
+    const currentIndex = PERMISSION_MODE_CYCLE.indexOf(permissionMode);
+    const nextMode = PERMISSION_MODE_CYCLE[(currentIndex + 1) % PERMISSION_MODE_CYCLE.length];
+
+    // Optimistic UI update via thread service
+    await threadService.update(threadId, { permissionMode: nextMode });
+
+    // Emit event to agent process via hub socket
+    try {
+      await sendToAgent(threadId, {
+        type: "event",
+        name: EventName.PERMISSION_MODE_CHANGED,
+        payload: { threadId, modeId: nextMode },
+      });
+    } catch {
+      // Agent may not be connected (idle thread) - that's OK,
+      // the mode is persisted to disk and will be read on next agent start
+    }
+  }, [threadId, permissionMode]);
 
   // Derive status to handle optimistic state
   // If we have optimistic messages or initialPrompt but no real state, treat as "running"
@@ -494,6 +522,9 @@ export function ThreadContent({
             workingDirectory={workingDirectory}
             contextType={messages.length === 0 ? "empty" : "thread"}
             placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+            threadId={threadId}
+            permissionMode={permissionMode}
+            onCycleMode={handleCycleMode}
           />
         )}
 

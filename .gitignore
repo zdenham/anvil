@@ -35,3 +35,6 @@ secrets/
 sdk-runner.js
 sdk-runner.js.map
 sdk-types.d.ts
+
+# Generated icon assets (copied from node_modules by postinstall)
+public/material-icons/

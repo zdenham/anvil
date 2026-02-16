@@ -39,6 +39,8 @@ import { terminalSessionService } from "@/entities/terminal-sessions";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
+import { useFileBrowserPanel } from "@/hooks/use-file-browser-panel";
+import { FileBrowserPanel } from "@/components/file-browser/file-browser-panel";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
 import type { ContentPaneView } from "@/components/content-pane/types";
@@ -59,6 +61,17 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   useQuickActionHotkeys();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // File Browser Panel (right-side slide-out)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const {
+    fileBrowserContext,
+    handleOpenFileBrowser,
+    closeFileBrowser,
+    fileBrowserWorktreeId,
+  } = useFileBrowserPanel();
 
   // Track whether listeners have been initialized (prevents duplicate registration)
   const listenersInitialized = useRef(false);
@@ -522,6 +535,8 @@ export function MainWindowLayout() {
             onPinToggle={handlePinToggle}
             onHide={handleHideSection}
             pinnedSectionId={pinnedSectionId}
+            onOpenFiles={handleOpenFileBrowser}
+            fileBrowserWorktreeId={fileBrowserWorktreeId}
             className="flex-1 min-h-0"
           />
           <div className="px-3 py-2 border-t border-surface-800">
@@ -529,8 +544,30 @@ export function MainWindowLayout() {
           </div>
         </ResizablePanel>
 
-        {/* Right Panel: Content Pane */}
+        {/* Center Panel: Content Pane */}
         <ContentPaneContainer />
+
+        {/* Right Panel: File Browser */}
+        {fileBrowserContext && (
+          <ResizablePanel
+            position="right"
+            minWidth={180}
+            maxWidth={Math.floor(window.innerWidth * 0.5)}
+            defaultWidth={250}
+            persistKey="file-browser-panel-width"
+            closeThreshold={120}
+            onClose={closeFileBrowser}
+            className="bg-surface-950 border-l border-surface-700"
+          >
+            <FileBrowserPanel
+              key={fileBrowserContext.worktreeId}
+              rootPath={fileBrowserContext.rootPath}
+              repoId={fileBrowserContext.repoId}
+              worktreeId={fileBrowserContext.worktreeId}
+              onClose={closeFileBrowser}
+            />
+          </ResizablePanel>
+        )}
 
         {/* Build mode indicator */}
         <BuildModeIndicator />

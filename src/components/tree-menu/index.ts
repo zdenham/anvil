@@ -4,4 +4,4 @@ export { RepoWorktreeSection } from "./repo-worktree-section";
 export { ThreadItem } from "./thread-item";
 export { PlanItem } from "./plan-item";
 export { SectionDivider } from "./section-divider";
-export { useTreeKeyboardNav, useTreeItemKeyboardNav, getIndentStyle, INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+export { useTreeKeyboardNav, useTreeItemKeyboardNav } from "./use-tree-keyboard-nav";

@@ -14,13 +14,13 @@ The Claude Agent SDK supports loading skills from various locations including pl
 
 ## Phases
 
-- [ ] Create Mort plugin structure at `plugins/mort/`
-- [ ] Bundle plugin in Tauri resources and add path resolution
-- [ ] Create skill sync service (frontend-side, uses Tauri FS)
-- [ ] Wire sync into app startup (`hydrateEntities`) + settings re-sync button
-- [ ] Pass plugin reference to SDK `query()` in agent runner
-- [ ] Ensure `~/.mort/skills/` is detected for `/` invocation
-- [ ] Create initial managed skills
+- [x] Create Mort plugin structure at `plugins/mort/`
+- [x] Bundle plugin in Tauri resources and add path resolution
+- [x] Create skill sync service (frontend-side, uses Tauri FS)
+- [x] Wire sync into app startup (`hydrateEntities`) + settings re-sync button
+- [x] Pass plugin reference to SDK `query()` in agent runner
+- [x] Ensure `~/.mort/skills/` is detected for `/` invocation
+- [x] Create initial managed skills
 - [ ] Test skill sync and invocation
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->

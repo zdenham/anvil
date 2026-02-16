@@ -61,6 +61,7 @@ export class ThreadService {
       git: input.git,
       isRead: false, // New threads start as unread since they're running
       pid: process.pid, // Write our own PID for cross-window cancellation
+      permissionMode: "plan",
       turns: [initialTurn],
     };
 

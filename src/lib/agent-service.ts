@@ -8,7 +8,7 @@ import { threadService, settingsService } from "@/entities";
 import { eventBus } from "@/entities/events";
 import { shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
-import { EventName, type ThreadState } from "@core/types/events.js";
+import { EventName, type ThreadState, type OptimisticStreamPayload } from "@core/types/events.js";
 
 const fs = new FilesystemClient();
 const isDev = import.meta.env.DEV;
@@ -54,6 +54,7 @@ interface AgentSocketMessage {
   state?: ThreadState;
   name?: string;
   payload?: unknown;
+  blocks?: OptimisticStreamPayload["blocks"];
 }
 
 /** Unlisten function for the agent message listener */
@@ -97,6 +98,16 @@ export async function initAgentMessageListener(): Promise<void> {
         // Agent sent a named event - route based on event name
         if (msg.name) {
           routeAgentEvent(msg.threadId, msg.name, msg.payload);
+        }
+        break;
+
+      case "optimistic_stream":
+        // Agent sent a live streaming content snapshot
+        if (msg.blocks) {
+          eventBus.emit(EventName.OPTIMISTIC_STREAM, {
+            threadId: msg.threadId,
+            blocks: msg.blocks,
+          });
         }
         break;
 

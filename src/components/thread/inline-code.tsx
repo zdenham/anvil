@@ -3,12 +3,13 @@ import { cn } from "@/lib/utils";
 interface InlineCodeProps {
   children: React.ReactNode;
   className?: string;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 /**
  * Styled inline code element for markdown content.
  */
-export function InlineCode({ children, className }: InlineCodeProps) {
+export function InlineCode({ children, className, onClick }: InlineCodeProps) {
   return (
     <code
       className={cn(
@@ -16,6 +17,8 @@ export function InlineCode({ children, className }: InlineCodeProps) {
         "before:content-none after:content-none",
         className
       )}
+      onClick={onClick}
+      role={onClick ? "link" : undefined}
     >
       {children}
     </code>

@@ -15,6 +15,7 @@ mod build_info;
 mod clipboard;
 mod clipboard_db;
 mod config;
+mod file_watcher;
 mod filesystem;
 mod git_commands;
 mod icons;
@@ -750,6 +751,7 @@ pub fn run() {
         .manage(mort_commands::LockManager::new())
         .manage(agent_hub.clone())
         .manage(terminal::create_terminal_state())
+        .manage(file_watcher::create_file_watcher_state())
         .manage(profiling::ProfilingState(std::sync::Mutex::new(false)));
 
     builder
@@ -944,6 +946,10 @@ pub fn run() {
             terminal::kill_terminal,
             terminal::list_terminals,
             terminal::kill_terminals_by_cwd,
+            // File watcher commands
+            file_watcher::start_watch,
+            file_watcher::stop_watch,
+            file_watcher::list_watches,
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
@@ -1108,6 +1114,13 @@ pub fn run() {
                         tracing::info!("Killing all terminals on exit");
                         if let Ok(mut manager) = terminal_state.lock() {
                             manager.kill_all();
+                        }
+                    }
+                    // Stop all file watchers on exit
+                    if let Some(watcher_state) = app_handle.try_state::<file_watcher::FileWatcherState>() {
+                        tracing::info!("Stopping all file watchers on exit");
+                        if let Ok(mut manager) = watcher_state.lock() {
+                            manager.cleanup_all();
                         }
                     }
                 }

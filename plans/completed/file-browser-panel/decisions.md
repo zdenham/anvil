@@ -34,7 +34,7 @@ All architectural and design decisions for the file browser panel feature. Sub-p
 
 ## File Clicks
 
-- **Placeholder in content pane** — clicking a file shows a placeholder with the file path. Full syntax-highlighted viewer is a separate plan (`file-viewer-pane.md`).
+- **Full file viewer in content pane** — clicking a file opens it with syntax highlighting via the `FileContent` component (`src/components/content-pane/file-content.tsx`). The file viewer was implemented in `plans/completed/file-viewer-pane.md` — the original placeholder plan was superseded.
 - **Panel stays open after click** — user can browse through multiple files without re-opening.
 
 ## Icons
@@ -66,4 +66,4 @@ All architectural and design decisions for the file browser panel feature. Sub-p
 
 ## Relationship to file-viewer-pane.md
 
-This plan covers the **file browser panel** (the directory listing UI and right-side panel). The **file viewer** (syntax-highlighted file rendering in the content pane) is covered by `plans/file-viewer-pane.md`. Phase 1 of the browser plan implements the shared `file` view type + `navigateToFile` that both features need.
+This plan covers the **file browser panel** (the directory listing UI and right-side panel). The **file viewer** (syntax-highlighted file rendering in the content pane) was implemented in `plans/completed/file-viewer-pane.md` and is fully working. Plan 01 (shared `file` view type + `navigateToFile`) is complete. The remaining plans (02-05) build the browse-and-navigate UI that uses `navigateToFile` to open files.

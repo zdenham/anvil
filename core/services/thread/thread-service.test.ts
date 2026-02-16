@@ -154,6 +154,7 @@ describe('ThreadService', () => {
         updatedAt: 1000,
         isRead: true,
         turns: [],
+        permissionMode: "plan",
       };
       const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));

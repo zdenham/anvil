@@ -3,7 +3,7 @@ import { Archive, Loader2, Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { terminalSessionService } from "@/entities/terminal-sessions";
-import { INDENT_BASE, INDENT_STEP } from "./use-tree-keyboard-nav";
+import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 
 /**
  * Get text color class based on terminal state.
@@ -92,7 +92,7 @@ export function TerminalItem({
   }, [item.id, onSelect]);
 
   // Calculate indentation based on depth using shared constants
-  const indentPx = INDENT_BASE + (item.depth * INDENT_STEP);
+  const indentPx = TREE_INDENT_BASE + (item.depth * TREE_INDENT_STEP);
 
   return (
     <div

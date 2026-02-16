@@ -16,6 +16,10 @@ export function StatusLegend() {
         <span>Running</span>
       </div>
       <div className="flex items-center gap-1.5">
+        <StatusDot variant="needs-input" />
+        <span>Needs Input</span>
+      </div>
+      <div className="flex items-center gap-1.5">
         <StatusDot variant="unread" />
         <span>Unread</span>
       </div>

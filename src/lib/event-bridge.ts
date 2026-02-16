@@ -22,6 +22,7 @@ const BROADCAST_EVENTS = [
   EventName.AGENT_CANCELLED,
 
   // Thread lifecycle
+  EventName.OPTIMISTIC_STREAM,
   EventName.THREAD_OPTIMISTIC_CREATED,
   EventName.THREAD_CREATED,
   EventName.THREAD_UPDATED,

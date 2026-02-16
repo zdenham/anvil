@@ -10,6 +10,7 @@
 
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getTreeIndentPx } from "@/lib/tree-indent";
 
 export interface TreeNodeProps {
   /** Indentation depth (0 = root) */
@@ -35,8 +36,6 @@ export interface TreeNodeProps {
   /** Data attribute for testing/querying */
   "data-node-id"?: string;
 }
-
-const INDENT_PX = 16;
 
 export function TreeNode({
   depth,
@@ -64,7 +63,7 @@ export function TreeNode({
         isSelected && "bg-surface-800 text-surface-100",
         className
       )}
-      style={{ paddingLeft: depth * INDENT_PX + 8 }}
+      style={{ paddingLeft: getTreeIndentPx(depth) }}
       onClick={onClick}
       role="treeitem"
       aria-selected={isSelected}

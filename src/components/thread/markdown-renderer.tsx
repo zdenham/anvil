@@ -7,6 +7,7 @@ import { CodeBlock } from "./code-block";
 import { InlineCode } from "./inline-code";
 import { navigationService } from "@/stores/navigation-service";
 import { logger } from "@/lib/logger-client";
+import { looksLikeFilePath, resolvePath, autoLinkFilePaths } from "./file-path-utils";
 
 interface MarkdownRendererProps {
   content: string;
@@ -29,31 +30,6 @@ function hashCode(str: string): string {
     hash = hash & hash;
   }
   return hash.toString(36);
-}
-
-/** Check if a link href looks like a file path (not a URL or anchor) */
-function looksLikeFilePath(href: string): boolean {
-  if (href.startsWith("#")) return false;
-  if (/^[a-z]+:\/\//i.test(href)) return false;
-  // Has a file extension or starts with ./ or ../
-  return /\.\w+$/.test(href) || href.startsWith("./") || href.startsWith("../");
-}
-
-/** Resolve a possibly-relative path against a working directory */
-function resolvePath(href: string, workingDirectory: string): string {
-  if (href.startsWith("/")) return href;
-  // Normalize: join workingDirectory + href, then resolve .. and .
-  const parts = `${workingDirectory}/${href}`.split("/");
-  const resolved: string[] = [];
-  for (const part of parts) {
-    if (part === "." || part === "") continue;
-    if (part === "..") {
-      resolved.pop();
-    } else {
-      resolved.push(part);
-    }
-  }
-  return "/" + resolved.join("/");
 }
 
 /**
@@ -94,6 +70,28 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         !String(children).includes("\n");
 
       if (isInline) {
+        // If inline code looks like a file path and we have a working directory, make it clickable
+        if (resolvedWorkingDirectory && looksLikeFilePath(codeString)) {
+          const handleFileClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const absolutePath = resolvePath(codeString, resolvedWorkingDirectory);
+            if (onFileClick) {
+              onFileClick(absolutePath);
+            } else {
+              navigationService.navigateToFile(absolutePath);
+            }
+          };
+          return (
+            <InlineCode
+              {...props}
+              className="cursor-pointer hover:text-amber-300 hover:underline"
+              onClick={handleFileClick}
+            >
+              {children}
+            </InlineCode>
+          );
+        }
         return <InlineCode {...props}>{children}</InlineCode>;
       }
 
@@ -200,10 +198,16 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     ),
   }), [isStreaming, resolvedWorkingDirectory, onFileClick]);
 
+  // Pre-process content to auto-link bare file paths in text
+  const processedContent = useMemo(
+    () => resolvedWorkingDirectory ? autoLinkFilePaths(content) : content,
+    [content, resolvedWorkingDirectory]
+  );
+
   return (
     <div className={cn("prose prose-invert prose-sm prose-p:leading-relaxed max-w-none", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );

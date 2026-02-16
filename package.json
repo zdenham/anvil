@@ -1,7 +1,7 @@
 {
   "name": "mort",
   "private": true,
-  "version": "v0.0.38",
+  "version": "v0.0.39",
   "type": "module",
   "scripts": {
     "orb": "tsx observability/orb/index.ts",
@@ -25,7 +25,8 @@
     "test:ui:watch": "vitest --config vitest.config.ui.ts",
     "lint": "eslint src core",
     "lint:fix": "eslint src core --fix",
-    "release:internal": "./scripts/internal-build.sh"
+    "release:internal": "./scripts/internal-build.sh",
+    "postinstall": "cp -r node_modules/material-icon-theme/icons public/material-icons"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.53",
@@ -50,6 +51,7 @@
     "clsx": "^2.1.1",
     "glob": "^13.0.0",
     "lucide-react": "^0.562.0",
+    "material-icon-theme": "^5.31.0",
     "mitt": "^3.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

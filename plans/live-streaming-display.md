@@ -257,12 +257,12 @@ AFTER TRANSITION:
 
 ## Phases
 
-- [ ] Phase 1: Agent-side streaming with accumulation + throttling
-- [ ] Phase 2: Event types and socket message routing (`OPTIMISTIC_STREAM`)
-- [ ] Phase 3: Cross-window event broadcasting
-- [ ] Phase 4: Frontend streaming store (snapshot replacement, no accumulation)
-- [ ] Phase 5: Thread view integration
-- [ ] Phase 6: Stream lifecycle management
+- [x] Phase 1: Agent-side streaming with accumulation + throttling
+- [x] Phase 2: Event types and socket message routing (`OPTIMISTIC_STREAM`)
+- [x] Phase 3: Cross-window event broadcasting
+- [x] Phase 4: Frontend streaming store (snapshot replacement, no accumulation)
+- [x] Phase 5: Thread view integration
+- [x] Phase 6: Stream lifecycle management
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

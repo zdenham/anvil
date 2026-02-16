@@ -130,7 +130,13 @@ export function TerminalContent({
     if (!containerRef.current || isInitializedRef.current) return;
     isInitializedRef.current = true;
 
-    logger.info("[TerminalContent] Initializing terminal", { terminalId });
+    const instanceId = Math.random().toString(36).slice(2, 8);
+    logger.info("[TerminalContent] Initializing terminal", {
+      terminalId,
+      instanceId,
+      hasInitialBuffer: !!initialBuffer,
+      initialBufferLength: initialBuffer.length,
+    });
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -172,6 +178,12 @@ export function TerminalContent({
 
     // Restore scrollback buffer if we have one (only at mount time)
     if (initialBuffer) {
+      logger.info("[TerminalContent] Writing initialBuffer to xterm", {
+        terminalId,
+        instanceId,
+        bufferLength: initialBuffer.length,
+        bufferPreview: initialBuffer.slice(0, 100),
+      });
       terminal.write(initialBuffer);
     }
 
@@ -187,13 +199,39 @@ export function TerminalContent({
 
     // Listen for PTY output
     let outputUnlisten: UnlistenFn | undefined;
+    let disposed = false;
     listen<TerminalOutputPayload>("terminal:output", (event) => {
       const { id, data } = event.payload;
-      if (String(id) === terminalId) {
+      const eventTerminalId = String(id);
+      if (eventTerminalId === terminalId) {
+        if (disposed) {
+          logger.warn("[TerminalContent] LEAK: Received output after dispose!", {
+            terminalId,
+            instanceId,
+            eventTerminalId,
+            dataLength: data.length,
+          });
+          return;
+        }
         const text = new TextDecoder().decode(new Uint8Array(data));
+        logger.debug("[TerminalContent] Writing PTY output", {
+          terminalId,
+          instanceId,
+          dataLength: data.length,
+          textPreview: text.slice(0, 60),
+        });
         terminal.write(text);
       }
     }).then((unlisten) => {
+      if (disposed) {
+        // Component already unmounted before listener registered — immediately clean up
+        logger.warn("[TerminalContent] Listener registered after dispose, cleaning up", {
+          terminalId,
+          instanceId,
+        });
+        unlisten();
+        return;
+      }
       outputUnlisten = unlisten;
     });
 
@@ -201,9 +239,20 @@ export function TerminalContent({
     let exitUnlisten: UnlistenFn | undefined;
     listen<TerminalExitPayload>("terminal:exit", (event) => {
       if (String(event.payload.id) === terminalId) {
-        terminal.write("\r\n\x1b[90m[Process exited]\x1b[0m\r\n");
+        logger.info("[TerminalContent] Terminal exit event received", {
+          terminalId,
+          instanceId,
+          disposed,
+        });
+        if (!disposed) {
+          terminal.write("\r\n\x1b[90m[Process exited]\x1b[0m\r\n");
+        }
       }
     }).then((unlisten) => {
+      if (disposed) {
+        unlisten();
+        return;
+      }
       exitUnlisten = unlisten;
     });
 
@@ -212,7 +261,13 @@ export function TerminalContent({
 
     // Cleanup
     return () => {
-      logger.info("[TerminalContent] Disposing terminal", { terminalId });
+      disposed = true;
+      logger.info("[TerminalContent] Disposing terminal", {
+        terminalId,
+        instanceId,
+        hadOutputUnlisten: !!outputUnlisten,
+        hadExitUnlisten: !!exitUnlisten,
+      });
       outputUnlisten?.();
       exitUnlisten?.();
       resizeObserver.disconnect();

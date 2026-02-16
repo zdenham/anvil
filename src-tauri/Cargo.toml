@@ -1,6 +1,6 @@
 [package]
 name = "mort"
-version = "0.0.38"
+version = "0.0.39"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -41,6 +41,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "registry"] }
 ureq = { version = "2", features = ["json"] }
 fs2 = "0.4"
+notify-debouncer-mini = "0.7"
 shellexpand = "3.1"
 clap = { version = "4", features = ["derive"] }
 raw-window-handle = "0.6"

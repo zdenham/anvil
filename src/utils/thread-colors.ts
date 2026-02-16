@@ -7,9 +7,20 @@ export interface DotColorResult {
 }
 
 /**
- * Get the status variant for a thread based on its status and read state.
+ * Get the status variant for a thread based on its status, read state,
+ * and whether it has pending input (permission requests or ask-user questions).
+ *
+ * Priority: needs-input > running > unread > read
+ * "needs-input" takes priority over "running" because "blocked waiting for user"
+ * is more important than "agent is working".
  */
-export function getThreadStatusVariant(thread: ThreadMetadata): StatusDotVariant {
+export function getThreadStatusVariant(
+  thread: ThreadMetadata,
+  hasPendingInput?: boolean,
+): StatusDotVariant {
+  if (hasPendingInput) {
+    return "needs-input";
+  }
   if (thread.status === "running") {
     return "running";
   }

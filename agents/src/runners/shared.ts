@@ -24,6 +24,7 @@ import { NodePersistence } from "../lib/persistence-node.js";
 import { EventName } from "@core/types/events.js";
 import type { ToolExecutionState } from "@core/types/events.js";
 import { MessageHandler } from "./message-handler.js";
+import { StreamAccumulator } from "../lib/stream-accumulator.js";
 import type { ThreadWriter } from "../services/thread-writer.js";
 import {
   buildEnvironmentContext,
@@ -825,6 +826,7 @@ export async function runAgentLoop(
         options: {
           cwd: context.workingDir,
           additionalDirectories: [config.mortDir],
+          plugins: [{ type: "local" as const, path: config.mortDir }],
           settingSources: ["user", "project"],
           betas: ["fast-mode-2026-02-01" as any],
           model: agentConfig.model ?? "claude-opus-4-6",
@@ -836,7 +838,7 @@ export async function runAgentLoop(
           tools: agentConfig.tools,
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
-          includePartialMessages: false,
+          includePartialMessages: true,
           // Resume from prior SDK session if available (enables conversation continuity)
           ...(priorSessionId && { resume: priorSessionId }),
           abortController,
@@ -853,9 +855,15 @@ export async function runAgentLoop(
         },
       });
 
+  // Create stream accumulator for live streaming display (if hub is available)
+  const hubClient = getHubClient();
+  const accumulator = hubClient && context.threadId
+    ? new StreamAccumulator(hubClient, context.threadId)
+    : undefined;
+
   // Process messages with dedicated handler
   // Pass mortDir for sub-agent message routing
-  const handler = new MessageHandler(config.mortDir);
+  const handler = new MessageHandler(config.mortDir, accumulator);
 
   try {
     for await (const message of result) {

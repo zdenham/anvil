@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export type StatusDotVariant = "running" | "unread" | "read" | "stale";
+export type StatusDotVariant = "running" | "unread" | "read" | "stale" | "needs-input";
 
 interface StatusDotProps {
   variant: StatusDotVariant;
@@ -23,6 +23,7 @@ export function StatusDot({ variant, className, ...props }: StatusDotProps) {
       className={cn(
         "w-1.5 h-1.5 rounded-full flex-shrink-0",
         variant === "running" && "status-dot-running",
+        variant === "needs-input" && "status-dot-needs-input",
         variant === "unread" && "bg-blue-500",
         variant === "read" && "bg-zinc-400",
         variant === "stale" && "bg-amber-500",
