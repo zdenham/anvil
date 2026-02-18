@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * CSS Control Panel Verification Tests
  *

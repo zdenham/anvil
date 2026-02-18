@@ -17,13 +17,13 @@ export const GLOBAL_OVERRIDES: PermissionRule[] = [
     toolPattern: "^Bash$",
     commandPattern: "rm\\s+(-rf|--force).*\\.git",
     decision: "deny",
-    reason: "Cannot delete .git directory",
+    reason: "Safety override: cannot delete .git directory. This is a global protection that cannot be bypassed in any mode.",
   },
   {
     toolPattern: "^(Write|Edit)$",
     pathPattern: "\\.env",
     decision: "deny",
-    reason: "Cannot modify .env files",
+    reason: "Safety override: cannot modify .env files. This is a global protection that cannot be bypassed in any mode.",
   },
 ];
 
@@ -135,7 +135,7 @@ export class PermissionEvaluator {
     // 3. Mode default
     return {
       decision: this.mode.defaultDecision,
-      reason: `${this.mode.name} mode default`,
+      reason: `${this.mode.name} mode: "${toolName}" is not in the allowed tool list. ${this.mode.description}.`,
     };
   }
 }

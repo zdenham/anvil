@@ -132,7 +132,7 @@ export interface OptimisticStreamPayload {
  */
 export interface EventPayloads {
   // Thread events
-  [EventName.THREAD_OPTIMISTIC_CREATED]: { threadId: string; repoId: string; worktreeId: string; prompt: string; status: ThreadStatus };
+  [EventName.THREAD_OPTIMISTIC_CREATED]: { threadId: string; repoId: string; worktreeId: string; prompt: string; status: ThreadStatus; permissionMode?: PermissionModeId };
   [EventName.THREAD_CREATED]: { threadId: string; repoId: string; worktreeId: string };
   [EventName.THREAD_UPDATED]: { threadId: string };
   [EventName.THREAD_STATUS_CHANGED]: { threadId: string; status: ThreadStatus };

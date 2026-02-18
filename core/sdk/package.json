@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild runner.ts --bundle --format=esm --target=node22 --platform=node --outfile=../../sdk-runner.js --sourcemap && cp dist/index.d.ts ../../sdk-types.d.ts",
-    "build:watch": "esbuild runner.ts --bundle --format=esm --target=node22 --platform=node --outfile=../../sdk-runner.js --sourcemap --watch",
+    "build": "esbuild runner.ts --bundle --format=esm --target=node22 --platform=node --outfile=../../sdk-runner.mjs --sourcemap && cp dist/index.d.ts ../../sdk-types.d.ts",
+    "build:watch": "esbuild runner.ts --bundle --format=esm --target=node22 --platform=node --outfile=../../sdk-runner.mjs --sourcemap --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --dir __tests__/integration"

@@ -6,7 +6,7 @@ import {
 import {
   PLAN_MODE,
   IMPLEMENT_MODE,
-  SUPERVISE_MODE,
+  APPROVE_MODE,
 } from "@core/types/permissions.js";
 import type { PermissionConfig } from "@core/types/permissions.js";
 
@@ -60,9 +60,9 @@ describe("PermissionEvaluator", () => {
       expect(result.decision).toBe("allow");
     });
 
-    it("Supervise mode: Write to anything -> ask", () => {
+    it("Approve mode: Write to anything -> ask", () => {
       const evaluator = new PermissionEvaluator(
-        makeConfig({ mode: SUPERVISE_MODE }),
+        makeConfig({ mode: APPROVE_MODE }),
       );
       const result = evaluator.evaluate("Write", {
         file_path: "/Users/zac/project/src/app.tsx",
@@ -70,9 +70,9 @@ describe("PermissionEvaluator", () => {
       expect(result.decision).toBe("ask");
     });
 
-    it("Supervise mode: Read tool -> allow", () => {
+    it("Approve mode: Read tool -> allow", () => {
       const evaluator = new PermissionEvaluator(
-        makeConfig({ mode: SUPERVISE_MODE }),
+        makeConfig({ mode: APPROVE_MODE }),
       );
       const result = evaluator.evaluate("Read", {
         file_path: "/Users/zac/project/src/app.tsx",
@@ -196,8 +196,8 @@ describe("PermissionEvaluator", () => {
       evaluator.setMode(IMPLEMENT_MODE);
       expect(evaluator.getModeId()).toBe("implement");
 
-      evaluator.setMode(SUPERVISE_MODE);
-      expect(evaluator.getModeId()).toBe("supervise");
+      evaluator.setMode(APPROVE_MODE);
+      expect(evaluator.getModeId()).toBe("approve");
     });
   });
 
@@ -226,7 +226,7 @@ describe("PermissionEvaluator", () => {
       const result = evaluator.evaluate("SomeUnknownTool", {});
       // Plan mode default is deny
       expect(result.decision).toBe("deny");
-      expect(result.reason).toContain("Plan mode default");
+      expect(result.reason).toContain("Plan mode");
     });
 
     it("unknown tool in implement mode -> hits allow default", () => {

@@ -21,7 +21,6 @@ import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { TreeMenu, TreePanelHeader } from "@/components/tree-menu";
 import { ContentPaneContainer } from "@/components/content-pane";
-import { BuildModeIndicator } from "@/components/ui/BuildModeIndicator";
 import { CommandPalette } from "@/components/command-palette";
 import { MainWindowProvider } from "./main-window-context";
 import { contentPanesService, setupContentPanesListeners } from "@/stores/content-panes";
@@ -568,9 +567,6 @@ export function MainWindowLayout() {
             />
           </ResizablePanel>
         )}
-
-        {/* Build mode indicator */}
-        <BuildModeIndicator />
 
         {/* Command Palette (Command+P) */}
         <CommandPalette

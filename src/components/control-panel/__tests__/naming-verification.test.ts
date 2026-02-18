@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Control Panel Naming Convention Verification Tests
  *

@@ -1,6 +1,6 @@
 import { useStreamingStore } from "@/stores/streaming-store";
-import { MarkdownRenderer } from "./markdown-renderer";
 import { StreamingCursor } from "./streaming-cursor";
+import { TrickleBlock } from "./trickle-block";
 
 interface StreamingContentProps {
   threadId: string;
@@ -13,6 +13,7 @@ interface StreamingContentProps {
  *
  * Subscribes to the streaming store for ephemeral blocks (text + thinking)
  * and renders them with a blinking cursor at the end.
+ * Each block uses TrickleBlock for smooth character-by-character reveal.
  */
 export function StreamingContent({ threadId, workingDirectory }: StreamingContentProps) {
   const stream = useStreamingStore((s) => s.activeStreams[threadId]);
@@ -29,17 +30,11 @@ export function StreamingContent({ threadId, workingDirectory }: StreamingConten
 
         return (
           <div key={index} className="relative">
-            {block.type === "thinking" ? (
-              <div className="text-sm text-muted-foreground italic border-l-2 border-secondary-400/30 pl-4">
-                {block.content}
-              </div>
-            ) : (
-              <MarkdownRenderer
-                content={block.content}
-                isStreaming={isLast}
-                workingDirectory={workingDirectory}
-              />
-            )}
+            <TrickleBlock
+              block={block}
+              isLast={isLast}
+              workingDirectory={workingDirectory}
+            />
             {isLast && hasContent && <StreamingCursor />}
           </div>
         );

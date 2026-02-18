@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Event Types Control Panel Verification Tests
  *

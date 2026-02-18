@@ -23,6 +23,7 @@ import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { flushSync } from "react-dom";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { ArrowLeft } from "lucide-react";
+import { ContextMeter } from "@/components/content-pane/context-meter";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
 import {
@@ -60,8 +61,10 @@ type ViewStatus =
  */
 function BackToParentButton({
   parentThreadId,
+  threadId,
 }: {
   parentThreadId: string;
+  threadId: string;
 }) {
   const parentThread = useThreadStore(
     useCallback((s) => s.threads[parentThreadId], [parentThreadId])
@@ -72,7 +75,7 @@ function BackToParentButton({
   }, [parentThreadId]);
 
   return (
-    <div className="py-3 px-2">
+    <div className="flex items-center justify-between py-3 px-2">
       <button
         onClick={handleParentClick}
         className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 transition-colors"
@@ -80,6 +83,7 @@ function BackToParentButton({
         <ArrowLeft className="h-4 w-4" />
         <span>Back to {parentThread?.name ?? "parent thread"}</span>
       </button>
+      <ContextMeter threadId={threadId} />
     </div>
   );
 }
@@ -193,10 +197,10 @@ export function ThreadContent({
   // Detect sub-agent threads (read-only mode)
   const isSubAgent = !!activeMetadata?.parentThreadId;
 
-  // Permission mode from thread metadata (defaults to "plan")
-  const permissionMode: PermissionModeId = activeMetadata?.permissionMode ?? "plan";
+  // Permission mode from thread metadata (defaults to "implement")
+  const permissionMode: PermissionModeId = activeMetadata?.permissionMode ?? "implement";
 
-  // Cycle to next permission mode: plan -> implement -> supervise -> plan
+  // Cycle to next permission mode: implement -> plan -> approve -> implement
   const handleCycleMode = useCallback(async () => {
     if (!threadId) return;
     const currentIndex = PERMISSION_MODE_CYCLE.indexOf(permissionMode);
@@ -356,13 +360,17 @@ export function ThreadContent({
           // For first message on a pre-created thread, use spawnSimpleAgent
           // This ensures thread naming runs (it only runs on initial spawn, not resume)
           if (isFirstMessage && activeMetadata?.repoId && activeMetadata?.worktreeId) {
-            logger.info("[ThreadContent] First message - using spawnSimpleAgent");
+            logger.info("[ThreadContent] First message - using spawnSimpleAgent", {
+              threadId,
+              permissionMode: activeMetadata.permissionMode,
+            });
             await spawnSimpleAgent({
               repoId: activeMetadata.repoId,
               worktreeId: activeMetadata.worktreeId,
               threadId,
               prompt: userPrompt,
               sourcePath: workingDirectory,
+              permissionMode: activeMetadata.permissionMode,
             });
           } else {
             await resumeSimpleAgent(threadId, userPrompt, workingDirectory);
@@ -395,6 +403,7 @@ export function ThreadContent({
       isFirstMessage,
       activeMetadata?.repoId,
       activeMetadata?.worktreeId,
+      activeMetadata?.permissionMode,
       activeState?.messages?.length,
     ]
   );
@@ -476,12 +485,14 @@ export function ThreadContent({
       messageListRef.current
     ) {
       hasScrolledOnMount.current = true;
-      const timer = setTimeout(() => {
-        messageListRef.current?.scrollToBottom();
-      }, 100);
-      return () => clearTimeout(timer);
+      // Use double-rAF to wait for Virtuoso to finish layout
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          messageListRef.current?.scrollToBottom();
+        });
+      });
     }
-  }, [messages.length > 0]);
+  }, [messages.length]);
 
   // Log at render time to see what's actually being rendered
   logger.debug(`[ThreadContent] RENDER`, {
@@ -511,7 +522,10 @@ export function ThreadContent({
 
         {/* Back to parent button for sub-agent threads */}
         {isSubAgent && activeMetadata?.parentThreadId && (
-          <BackToParentButton parentThreadId={activeMetadata.parentThreadId} />
+          <BackToParentButton
+            parentThreadId={activeMetadata.parentThreadId}
+            threadId={threadId}
+          />
         )}
 
         {/* Quick actions and input pinned to bottom - hidden for sub-agent threads (read-only) */}

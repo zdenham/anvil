@@ -14,6 +14,7 @@ import {
   setupSignalHandlers,
   emitLog,
   emitEvent,
+  propagateModeToChildren,
   type PriorState,
 } from "./runners/shared.js";
 import type { OrchestrationContext } from "./runners/types.js";
@@ -22,6 +23,10 @@ import { cancelled, setHubClient, appendUserMessage } from "./output.js";
 import { logger } from "./lib/logger.js";
 import { HubClient, type TauriToAgentMessage } from "./lib/hub/index.js";
 import { SocketMessageStream } from "./lib/hub/message-stream.js";
+import { PermissionEvaluator, GLOBAL_OVERRIDES } from "./lib/permission-evaluator.js";
+import { PermissionGate } from "./lib/permission-gate.js";
+import { BUILTIN_MODES } from "@core/types/permissions.js";
+import type { PermissionModeId } from "@core/types/permissions.js";
 
 /**
  * Load prior state from a history file (state.json).
@@ -158,6 +163,12 @@ async function main(): Promise<void> {
   // Set callback to append user messages to state (SDK doesn't return injected messages)
   messageStream.setAppendUserMessage(appendUserMessage);
 
+  // Create permission gate for async approval flow
+  const permissionGate = new PermissionGate();
+
+  // Permission evaluator — created after context is available, but referenced in handler
+  let permissionEvaluator: PermissionEvaluator | undefined;
+
   // Parse early args to get threadId for hub client initialization
   const args = process.argv.slice(2);
   const { threadId, parentId } = parseEarlyArgs(args);
@@ -172,10 +183,36 @@ async function main(): Promise<void> {
     // Handle incoming messages from Tauri
     hub.on("message", (msg: TauriToAgentMessage) => {
       switch (msg.type) {
-        case "permission_response":
-          // TODO: Implement permission resolver when permission system is added
-          logger.info(`[runner] Received permission response: ${JSON.stringify(msg.payload)}`);
+        case "permission_response": {
+          const { requestId, decision, reason } = msg.payload;
+          logger.info(`[runner] Received permission response: ${requestId} -> ${decision}`);
+          permissionGate.resolve(requestId, decision === "approve", reason);
           break;
+        }
+        case "permission_mode_changed": {
+          const newModeId = msg.payload.modeId as PermissionModeId;
+          const newMode = BUILTIN_MODES[newModeId];
+          if (newMode && permissionEvaluator) {
+            permissionEvaluator.setMode(newMode);
+            logger.info(`[runner] Permission mode changed to: ${newMode.name}`);
+            // Propagate to running child threads
+            const mortDir = process.env.MORT_DATA_DIR;
+            if (context && mortDir) {
+              propagateModeToChildren(context.threadId, newModeId, mortDir);
+            }
+            // Notify agent via streamInput
+            const planContext = newMode.id === "plan"
+              ? " Write all plans to the plans/ directory."
+              : "";
+            messageStream.push(
+              crypto.randomUUID(),
+              `[System] <system-reminder>Permission mode changed to "${newMode.name}". ${newMode.description}.${planContext}</system-reminder>`,
+            );
+          } else {
+            logger.warn(`[runner] Unknown permission mode: ${newModeId}`);
+          }
+          break;
+        }
         case "queued_message": {
           // Inject queued message into the SDK via message stream
           const { content } = msg.payload;
@@ -269,6 +306,15 @@ async function main(): Promise<void> {
     // Set up orchestration context (working directory, thread metadata, etc.)
     context = await strategy.setup(config);
 
+    // Construct permission evaluator now that we have the working directory
+    const modeId = context.permissionModeId ?? "implement";
+    permissionEvaluator = new PermissionEvaluator({
+      mode: BUILTIN_MODES[modeId],
+      overrides: GLOBAL_OVERRIDES,
+      workingDirectory: context.workingDir,
+    });
+    logger.info(`[runner] Permission evaluator initialized with mode: ${modeId}`);
+
     // Set up signal handlers with abort support
     // Pass abortController so signals trigger abort instead of immediate exit
     setupSignalHandlers(async () => {
@@ -281,11 +327,12 @@ async function main(): Promise<void> {
     // Contains both messages (for UI) and sessionId (for SDK resume)
     const priorState = loadPriorState(config.historyFile);
 
-    // Run the common agent loop with abort controller and message stream
-    // Message stream enables queued messages via socket IPC
+    // Run the common agent loop with abort controller, message stream, and permission system
     await runAgentLoop(config, context, agentConfig, priorState, {
       abortController,
       messageStream,
+      permissionEvaluator,
+      permissionGate,
     });
 
     // Clean up on successful completion

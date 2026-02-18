@@ -600,7 +600,7 @@ export function RepoWorktreeSection({
         aria-label="Items"
         className={`tree-children ${section.isExpanded ? 'expanded' : 'collapsed'}`}
       >
-        {/* "Files" pinned at top of expanded section - before threads/plans/terminals */}
+        {/* "Files" pinned at top of expanded section */}
         {onOpenFiles && (
           <FilesItem
             repoId={section.repoId}
@@ -611,6 +611,21 @@ export function RepoWorktreeSection({
           />
         )}
 
+        {/* Terminals pinned after Files */}
+        {section.items.map((item, index) => {
+          if (item.type !== "terminal") return null;
+          return (
+            <TerminalItem
+              key={item.id}
+              item={item}
+              isSelected={selectedItemId === item.id}
+              onSelect={onItemSelect}
+              itemIndex={index}
+            />
+          );
+        })}
+
+        {/* Threads and plans */}
         {section.items.map((item, index) => {
           if (item.type === "thread") {
             return (
@@ -623,17 +638,7 @@ export function RepoWorktreeSection({
                 allItems={section.items}
               />
             );
-          } else if (item.type === "terminal") {
-            return (
-              <TerminalItem
-                key={item.id}
-                item={item}
-                isSelected={selectedItemId === item.id}
-                onSelect={onItemSelect}
-                itemIndex={index}
-              />
-            );
-          } else {
+          } else if (item.type === "plan") {
             return (
               <PlanItem
                 key={item.id}
@@ -645,6 +650,7 @@ export function RepoWorktreeSection({
               />
             );
           }
+          return null;
         })}
       </div>
     </div>

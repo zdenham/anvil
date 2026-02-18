@@ -32,6 +32,8 @@ vi.mock("../output.js", () => ({
   complete: vi.fn(async () => {}),
   setSessionId: vi.fn(async () => {}),
   relayEventsFromToolOutput: vi.fn(),
+  getHubClient: vi.fn(),
+  updateFileChange: vi.fn(),
 }));
 
 // Mock the logger

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 
 export interface FileBrowserContext {
   rootPath: string;
@@ -33,20 +33,6 @@ export function useFileBrowserPanel(): UseFileBrowserPanelReturn {
   const closeFileBrowser = useCallback(() => {
     setFileBrowserContext(null);
   }, []);
-
-  // Escape key dismisses the panel (per decisions: "Escape key toggles it off")
-  useEffect(() => {
-    if (!fileBrowserContext) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setFileBrowserContext(null);
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [fileBrowserContext]);
 
   return {
     fileBrowserContext,

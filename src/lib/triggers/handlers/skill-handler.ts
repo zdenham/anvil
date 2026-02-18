@@ -7,6 +7,7 @@ import type {
 import { skillsService } from "@/entities/skills";
 import { SOURCE_ICONS, SOURCE_LABELS } from "@core/skills";
 import { getHomeDir } from "@/lib/utils/path-display";
+import { getMortDir } from "@/lib/paths";
 
 /**
  * Skill trigger handler for "/" - follows same pattern as FileTriggerHandler for "@"
@@ -34,7 +35,8 @@ class SkillTriggerHandler implements TriggerHandler {
     // Refresh skills on each "/" trigger (ensures fresh list)
     const homeDir = getHomeDir();
     if (homeDir) {
-      await skillsService.discover(context.rootPath, homeDir);
+      const mortDir = await getMortDir();
+      await skillsService.discover(context.rootPath, homeDir, mortDir);
     }
 
     const skills = query

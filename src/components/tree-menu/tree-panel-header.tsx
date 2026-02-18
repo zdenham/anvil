@@ -1,8 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { RefreshCw, Terminal } from "lucide-react";
 import { MortLogo } from "@/components/ui/mort-logo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { MenuDropdown } from "./menu-dropdown";
+import { PathsInfoSchema } from "@/lib/types/paths";
 import { threadService } from "@/entities/threads/service";
 import { planService } from "@/entities/plans/service";
 import { repoService } from "@/entities/repositories";
@@ -36,6 +38,18 @@ export function TreePanelHeader({
   hasHiddenOrPinned,
 }: TreePanelHeaderProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [appSuffix, setAppSuffix] = useState<string>("");
+
+  useEffect(() => {
+    invoke<unknown>("get_paths_info")
+      .then((raw) => {
+        const info = PathsInfoSchema.parse(raw);
+        setAppSuffix(info.app_suffix);
+      })
+      .catch((err) => {
+        logger.error("[TreePanelHeader] Failed to get paths info:", err);
+      });
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -60,7 +74,9 @@ export function TreePanelHeader({
   return (
     <div className="pl-3 pr-2 py-2 border-b border-surface-700 flex items-center gap-2.5">
       <MortLogo size={4} />
-      <h1 className="font-semibold text-surface-100 font-mono text-sm">MORT</h1>
+      <h1 className="font-semibold text-surface-100 font-mono text-sm">
+        MORT{appSuffix ? ` ${appSuffix.toUpperCase()}` : ""}
+      </h1>
       <div className="flex-1" />
       <div className="flex items-center gap-0.5">
         <Tooltip content="Refresh" side="bottom">

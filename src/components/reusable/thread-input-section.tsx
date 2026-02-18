@@ -24,7 +24,7 @@ import type { PermissionModeId } from "@core/types/permissions.js";
 export interface ThreadInputSectionProps {
   onSubmit: (prompt: string) => void | Promise<void>;
   workingDirectory: string | null;
-  contextType: "empty" | "thread";
+  contextType: "empty" | "thread" | "plan";
   disabled?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
@@ -68,16 +68,16 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
     );
 
     return (
-      <div className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-4">
-        <QuickActionsPanel contextType={contextType} />
-
-        {/* Permission request block - pinned above input when pending */}
+      <div className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-1 pb-1">
+        {/* Permission request block - pinned above everything when pending */}
         {pendingRequest && pendingRequest.status === "pending" && (
           <PermissionRequestBlock
             request={pendingRequest}
             onRespond={handlePermissionRespond}
           />
         )}
+
+        <QuickActionsPanel contextType={contextType} />
 
         <ThreadInput
           ref={ref}
@@ -89,8 +89,8 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
           onCycleMode={onCycleMode}
         />
 
-        {/* Status bar - below input when threadId is provided */}
-        {threadId && permissionMode && onCycleMode && (
+        {/* Status bar - below input when permission mode is provided */}
+        {permissionMode && onCycleMode && (
           <ThreadInputStatusBar
             threadId={threadId}
             permissionMode={permissionMode}

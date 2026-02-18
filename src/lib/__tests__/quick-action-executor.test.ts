@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Quick Action Executor Tests
  *

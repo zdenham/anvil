@@ -46,8 +46,8 @@ export interface RunnerResult {
  * This is the bundled runner.ts that executes actions.
  */
 function getRunnerPath(): string {
-  // The runner is built to ../../sdk-runner.js relative to core/sdk/
-  return path.resolve(__dirname, '../../../../sdk-runner.js');
+  // The runner is built to ../../sdk-runner.mjs relative to core/sdk/
+  return path.resolve(__dirname, '../../../../sdk-runner.mjs');
 }
 
 /**

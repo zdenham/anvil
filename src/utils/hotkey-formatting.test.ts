@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { formatKeyDisplay, formatHotkeyDisplay } from './hotkey-formatting';
 
 describe('Hotkey Formatting', () => {

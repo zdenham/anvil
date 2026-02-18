@@ -11,6 +11,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useThreadStore } from "@/entities/threads/store";
 import { ContentPaneHeader } from "./content-pane-header";
+import { FindBar } from "./find-bar";
 import { ThreadContent } from "./thread-content";
 import { PlanContent } from "./plan-content";
 import { TerminalContent } from "./terminal-content";
@@ -19,6 +20,7 @@ import { EmptyPaneContent } from "./empty-pane-content";
 import { ChangesTab } from "../control-panel/changes-tab";
 import { SettingsPage } from "../main-window/settings-page";
 import { LogsPage } from "../main-window/logs-page";
+import { useContentSearch } from "./use-content-search";
 import { logger } from "@/lib/logger-client";
 import type { ContentPaneProps, ContentPaneView } from "./types";
 
@@ -71,6 +73,35 @@ export function ContentPane({
   // Derive initial prompt from thread metadata
   const initialPrompt = activeMetadata?.turns[0]?.prompt;
 
+  // Find-in-page
+  const [findBarOpen, setFindBarOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const search = useContentSearch(contentRef);
+  const isSearchable =
+    view.type !== "empty" && view.type !== "terminal" && view.type !== "settings" && view.type !== "thread";
+
+  const searchClearRef = useRef(search.clear);
+  searchClearRef.current = search.clear;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f" && isSearchable) {
+        e.preventDefault();
+        setFindBarOpen((prev) => {
+          if (prev) searchClearRef.current();
+          return !prev;
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isSearchable]);
+
+  const closeFindBar = useCallback(() => {
+    search.clear();
+    setFindBarOpen(false);
+  }, [search]);
+
   return (
     <div className="flex flex-col h-full bg-surface-900">
       <ContentPaneHeader
@@ -82,7 +113,10 @@ export function ContentPane({
         onPopOut={onPopOut}
       />
 
-      <div className="flex-1 min-h-0">
+      <div ref={contentRef} className="flex-1 min-h-0 relative">
+        {isSearchable && findBarOpen && (
+          <FindBar search={search} onClose={closeFindBar} />
+        )}
         {view.type === "empty" && <EmptyPaneContent />}
         {view.type === "thread" && threadTab === "conversation" && (
           <ThreadContent

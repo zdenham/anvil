@@ -3,7 +3,7 @@ import type { SkillMetadata, SkillSource, SkillContent } from '@core/types/skill
 import { parseFrontmatter, SOURCE_PRIORITY } from '@core/skills/index.js';
 
 interface SkillLocation {
-  getPath: (repoPath: string, homeDir: string) => string;
+  getPath: (repoPath: string, homeDir: string, mortDataDir?: string) => string;
   source: SkillSource;
   isLegacy: boolean;
 }
@@ -15,7 +15,7 @@ interface SkillLocation {
 const SKILL_LOCATIONS: SkillLocation[] = [
   { getPath: (repo) => `${repo}/.claude/skills`, source: 'project', isLegacy: false },
   { getPath: (repo) => `${repo}/.claude/commands`, source: 'project_command', isLegacy: true },
-  { getPath: (_, home) => `${home}/.mort/skills`, source: 'mort', isLegacy: false },
+  { getPath: (_, home, mortDir) => mortDir ? `${mortDir}/skills` : `${home}/.mort/skills`, source: 'mort', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/skills`, source: 'personal', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/commands`, source: 'personal_command', isLegacy: true },
 ];
@@ -48,15 +48,16 @@ export class SkillsService {
    *
    * @param repoPath - Path to the current repository
    * @param homeDir - Path to user's home directory
+   * @param mortDataDir - Optional path to mort data directory (e.g. ~/.mort or ~/.mort-dev)
    * @returns Array of discovered skill metadata, sorted by priority
    */
-  async discover(repoPath: string, homeDir: string): Promise<SkillMetadata[]> {
+  async discover(repoPath: string, homeDir: string, mortDataDir?: string): Promise<SkillMetadata[]> {
     this.skills.clear();
     this.slugIndex.clear();
     this.lastDiscoveryPath = repoPath;
 
     for (const location of SKILL_LOCATIONS) {
-      const dirPath = location.getPath(repoPath, homeDir);
+      const dirPath = location.getPath(repoPath, homeDir, mortDataDir);
 
       if (!await this.fs.exists(dirPath)) {
         continue;

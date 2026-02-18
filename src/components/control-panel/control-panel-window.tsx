@@ -7,9 +7,13 @@ import { threadService } from "@/entities/threads/service";
 import {
   resumeSimpleAgent,
   sendQueuedMessage,
+  sendToAgent,
 } from "@/lib/agent-service";
+import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions.js";
+import { EventName } from "@core/types/events.js";
 import { ControlPanelHeader } from "./control-panel-header";
-import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
+import { type ThreadInputRef } from "@/components/reusable/thread-input";
+import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
 import { ChangesTab } from "./changes-tab";
@@ -24,12 +28,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavigationBanner } from "./navigation-banner";
 
-import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 
 import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
 import { eventBus, type ControlPanelViewType } from "@/entities/events";
-import { EventName } from "@core/types/events.js";
 import type { WindowConfig } from "@/control-panel-main";
 
 /** Map entity ThreadStatus to ThreadView's expected status type */
@@ -267,6 +269,30 @@ function ControlPanelWindowContent({
   const entityStatus = activeMetadata?.status ?? "idle";
   // Derive working directory from thread's worktreeId via repo settings
   const workingDirectory = useWorkingDirectory(activeMetadata);
+
+  // Permission mode from thread metadata (defaults to "implement")
+  const permissionMode: PermissionModeId = activeMetadata?.permissionMode ?? "implement";
+
+  // Cycle to next permission mode: implement -> plan -> approve -> implement
+  const handleCycleMode = useCallback(async () => {
+    if (!threadId) return;
+    const currentIndex = PERMISSION_MODE_CYCLE.indexOf(permissionMode);
+    const nextMode = PERMISSION_MODE_CYCLE[(currentIndex + 1) % PERMISSION_MODE_CYCLE.length];
+
+    await threadService.update(threadId, { permissionMode: nextMode });
+
+    try {
+      await sendToAgent(threadId, {
+        type: "event",
+        name: EventName.PERMISSION_MODE_CHANGED,
+        payload: { threadId, modeId: nextMode },
+      });
+    } catch {
+      // Agent may not be connected (idle thread) - that's OK,
+      // the mode is persisted to disk and will be read on next agent start
+    }
+  }, [threadId, permissionMode]);
+
   // Derive status to handle optimistic state
   // If we have optimistic messages but no real state, treat as "running"
   // This prevents ThreadView from showing EmptyState when status === "idle"
@@ -613,13 +639,6 @@ function ControlPanelWindowContent({
   }, [selectedIndex, isStreaming, showFollowUpInput, navigateUp, navigateDown, setSelectedIndex, setShowFollowUpInput, setFollowUpValue, handleQuickAction]);
 
 
-  // Handle focus transfer from ThreadInput to container for keyboard nav
-  const handleNavigateToQuickActions = useCallback(() => {
-    logger.debug(`[ControlPanelWindow] handleNavigateToQuickActions called`);
-    // Focus the container so keyboard nav works
-    containerRef.current?.focus();
-  }, []);
-
   return (
     <div
       ref={containerRef}
@@ -668,27 +687,19 @@ function ControlPanelWindowContent({
         </div>
       </div>
 
-      {/* Quick actions and input - always visible */}
-      {/* Max width constraint centered for readability on wide screens */}
-      <div className="w-full max-w-[900px] mx-auto px-2.5">
-        <QuickActionsPanel contextType="thread" />
-        {/* Wrap input with visual indicator when in queue mode */}
-        <div className={cn(
-          "relative",
-          canQueueMessages && "ring-1 ring-amber-500/30 ring-inset"
-        )}>
-          <ThreadInput
-            ref={inputRef}
-            onSubmit={handleSubmit}
-            disabled={false}
-            workingDirectory={workingDirectory}
-            placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
-            onNavigateToQuickActions={handleNavigateToQuickActions}
-          />
-        </div>
+      {/* Quick actions, permission block, input, and status bar */}
+      <div className="w-full px-2.5">
+        <ThreadInputSection
+          ref={inputRef}
+          onSubmit={handleSubmit}
+          workingDirectory={workingDirectory}
+          contextType="thread"
+          placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+          threadId={threadId}
+          permissionMode={permissionMode}
+          onCycleMode={handleCycleMode}
+        />
       </div>
-
-      {/* <PermissionIndicator threadId={threadId} /> */}
 
       {/* Navigation banner overlays at bottom */}
       <NavigationBanner />

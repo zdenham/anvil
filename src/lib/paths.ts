@@ -49,13 +49,13 @@ export async function getRunnerPath(): Promise<string> {
   const isDev = import.meta.env.DEV;
 
   if (isDev) {
-    // Development: use built sdk-runner.js at project root
+    // Development: use built sdk-runner.mjs at project root
     // Build it with: cd core/sdk && pnpm build
-    return `${__PROJECT_ROOT__}/sdk-runner.js`;
+    return `${__PROJECT_ROOT__}/sdk-runner.mjs`;
   }
 
   // Production: resolve from bundled resources (compiled JS)
-  const runnerPath = await resolveResource('_up_/sdk-runner.js');
+  const runnerPath = await resolveResource('_up_/sdk-runner.mjs');
   return runnerPath;
 }
 

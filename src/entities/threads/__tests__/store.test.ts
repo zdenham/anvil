@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Thread Store Tests
  *

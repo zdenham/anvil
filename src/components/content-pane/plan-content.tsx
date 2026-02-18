@@ -20,7 +20,8 @@ import { useRef, useCallback, useEffect, useState } from "react";
 import { planService, usePlanStore } from "@/entities/plans";
 import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
 import { StalePlanView } from "@/components/control-panel/stale-plan-view";
-import { ThreadInput, type ThreadInputRef } from "@/components/reusable/thread-input";
+import { type ThreadInputRef } from "@/components/reusable/thread-input";
+import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { useRepoStore } from "@/entities/repositories";
 import { loadSettings } from "@/lib/app-data-store";
 import { spawnSimpleAgent } from "@/lib/agent-service";
@@ -28,7 +29,7 @@ import { useContextAwareNavigation } from "@/hooks/use-context-aware-navigation"
 import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";
 import { usePlanContent } from "@/entities/plans/hooks/use-plan-content";
 import { logger } from "@/lib/logger-client";
-import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
+import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions.js";
 import type { PlanContentProps } from "./types";
 
 export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
@@ -53,6 +54,15 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
 
   // Context-aware navigation (main window vs control panel)
   const { navigateToThread } = useContextAwareNavigation();
+
+  // Local permission mode for the thread that will be created
+  const [permissionMode, setPermissionMode] = useState<PermissionModeId>("implement");
+  const handleCycleMode = useCallback(() => {
+    setPermissionMode((current) => {
+      const idx = PERMISSION_MODE_CYCLE.indexOf(current);
+      return PERMISSION_MODE_CYCLE[(idx + 1) % PERMISSION_MODE_CYCLE.length];
+    });
+  }, []);
 
   // Reset refresh state when planId changes
   useEffect(() => {
@@ -171,9 +181,10 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
         threadId,
         prompt: messageWithContext,
         sourcePath: workingDirectory,
+        permissionMode,
       });
     },
-    [plan, workingDirectory, navigateToThread]
+    [plan, workingDirectory, navigateToThread, permissionMode]
   );
 
   // Still resolving whether plan exists - return null to avoid any flash
@@ -215,18 +226,15 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
       </div>
 
       {/* Quick actions and input */}
-      <div className="flex-shrink-0 w-full max-w-[900px] mx-auto">
-        <QuickActionsPanel contextType="plan" />
-
-        {/* Message input */}
-        <ThreadInput
-          ref={inputRef}
-          onSubmit={handleMessageSubmit}
-          disabled={false}
-          workingDirectory={workingDirectory}
-          placeholder="Type a message to start a thread about this plan..."
-        />
-      </div>
+      <ThreadInputSection
+        ref={inputRef}
+        onSubmit={handleMessageSubmit}
+        workingDirectory={workingDirectory ?? null}
+        contextType="plan"
+        placeholder="Type a message to start a thread about this plan..."
+        permissionMode={permissionMode}
+        onCycleMode={handleCycleMode}
+      />
     </div>
   );
 }

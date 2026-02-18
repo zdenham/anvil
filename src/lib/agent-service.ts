@@ -9,6 +9,7 @@ import { eventBus } from "@/entities/events";
 import { shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
 import { EventName, type ThreadState, type OptimisticStreamPayload } from "@core/types/events.js";
+import type { PermissionModeId } from "@core/types/permissions.js";
 
 const fs = new FilesystemClient();
 const isDev = import.meta.env.DEV;
@@ -432,6 +433,8 @@ export interface SpawnSimpleAgentOptions {
   prompt: string;
   /** Repository source path - agent runs here directly (no worktree) */
   sourcePath: string;
+  /** Permission mode for tool execution (defaults to "implement" if not provided) */
+  permissionMode?: PermissionModeId;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -500,6 +503,7 @@ const SpawnOptionsSchema = z.object({
   threadId: z.string().uuid("threadId must be a valid UUID"),
   prompt: z.string(),
   sourcePath: z.string(),
+  permissionMode: z.enum(["plan", "implement", "approve"]).optional(),
 });
 
 /**
@@ -676,6 +680,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     "--cwd", parsed.sourcePath,
     "--prompt", parsed.prompt,
     "--mort-dir", mortDir,
+    ...(parsed.permissionMode ? ["--permission-mode", parsed.permissionMode] : []),
   ];
 
   logger.info("[agent-service] spawnSimpleAgent command:", {
@@ -872,6 +877,9 @@ export async function resumeSimpleAgent(
     worktreeId,
   });
 
+  // Read permission mode from thread metadata (set by frontend)
+  const permissionMode = thread?.permissionMode;
+
   const commandArgs = [
     runnerPath,
     "--repo-id", repoId,
@@ -881,6 +889,7 @@ export async function resumeSimpleAgent(
     "--prompt", prompt,
     "--mort-dir", mortDir,
     "--history-file", stateFilePath,
+    ...(permissionMode ? ["--permission-mode", permissionMode] : []),
   ];
 
   logger.info("[agent-service] resumeSimpleAgent: command args:", commandArgs);

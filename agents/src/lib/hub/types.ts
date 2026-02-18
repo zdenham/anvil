@@ -30,7 +30,14 @@ export interface LogMessage extends SocketMessage {
   message: string;
 }
 
+export interface RelayMessage extends SocketMessage {
+  type: "relay";
+  targetThreadId: string;
+  payload: Record<string, unknown>;
+}
+
 export type TauriToAgentMessage =
-  | { type: "permission_response"; payload: { requestId: string; decision: string } }
+  | { type: "permission_response"; payload: { requestId: string; decision: string; reason?: string } }
+  | { type: "permission_mode_changed"; payload: { modeId: string } }
   | { type: "queued_message"; payload: { content: string } }
   | { type: "cancel" };

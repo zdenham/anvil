@@ -17,6 +17,7 @@ interface GitContext {
 interface ThreadContext {
   repoId: string | null;
   parentThreadId?: string;
+  permissionModeId?: string;
 }
 
 function checkIsGitRepo(cwd: string): boolean {
@@ -104,6 +105,19 @@ ${git.status}
 Recent commits:
 ${git.recentCommits}
 </git>`;
+  }
+
+  if (thread.permissionModeId) {
+    const descriptions: Record<string, string> = {
+      plan: "Plan — read all, write only to plans/",
+      implement: "Implement — all tools allowed",
+      approve: "Approve — file edits require user approval",
+    };
+    const desc = descriptions[thread.permissionModeId] ?? thread.permissionModeId;
+    const planHint = thread.permissionModeId === "plan"
+      ? "\nWrite plans to plans/ (kebab-case .md files)."
+      : "";
+    context += `\n\n<permissions>\nMode: ${desc}${planHint}\n</permissions>`;
   }
 
   return context;

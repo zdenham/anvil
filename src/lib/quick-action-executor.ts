@@ -16,6 +16,7 @@
  */
 
 import { Command, type Child } from '@tauri-apps/plugin-shell';
+import { invoke } from '@tauri-apps/api/core';
 import { z } from 'zod';
 import type { ResolvedQuickAction } from '@/entities/quick-actions/types.js';
 import { threadService } from '@/entities/threads/service.js';
@@ -158,14 +159,16 @@ export async function executeQuickAction(
     contextType: execContext.contextType,
   });
 
+  // Resolve the user's shell PATH so macOS GUI apps can find `node`
+  const shellPath = await invoke<string>("get_shell_path");
+
   // Spawn Node process (running pre-built JS)
-  // Note: Command.create with just program and args - no options needed
   const command = Command.create('node', [
     runnerPath,
     '--action', actionJsPath,
     '--context', JSON.stringify(execContext),
     '--mort-dir', dataDir,
-  ], {});
+  ], { env: { PATH: shellPath } });
 
   let child: Child;
   let errorOutput = '';

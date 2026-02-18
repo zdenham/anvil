@@ -67,12 +67,12 @@ export interface PermissionRule {
 }
 
 /** The three built-in permission mode IDs */
-export type PermissionModeId = "plan" | "implement" | "supervise";
+export type PermissionModeId = "plan" | "implement" | "approve";
 
 /** A permission mode definition with ordered rules */
 export interface PermissionModeDefinition {
   id: PermissionModeId;
-  name: string;               // Display name: "Plan", "Implement", "Supervise"
+  name: string;               // Display name: "Plan", "Implement", "Approve"
   description: string;
   rules: PermissionRule[];    // evaluated in order, first match wins
   defaultDecision: EvaluatorDecision; // if no rules match
@@ -86,7 +86,7 @@ export interface PermissionConfig {
 }
 
 /** Cycle order for Shift+Tab */
-export const PERMISSION_MODE_CYCLE: PermissionModeId[] = ["plan", "implement", "supervise"];
+export const PERMISSION_MODE_CYCLE: PermissionModeId[] = ["implement", "plan", "approve"];
 
 // ── Built-in Mode Definitions ───────────────────────────────────────
 
@@ -99,7 +99,7 @@ export const PLAN_MODE: PermissionModeDefinition = {
     { toolPattern: "^Bash$", decision: "allow" },
     { toolPattern: "^Task$", decision: "allow" },
     { toolPattern: "^(Write|Edit|NotebookEdit)$", pathPattern: "^plans/", decision: "allow" },
-    { toolPattern: "^(Write|Edit|NotebookEdit)$", decision: "deny", reason: "Plan mode: writes are restricted to the plans/ directory" },
+    { toolPattern: "^(Write|Edit|NotebookEdit)$", decision: "deny", reason: "Plan mode: file writes are restricted to the plans/ directory. Move your output to plans/ or ask the user to switch to Implement mode." },
   ],
   defaultDecision: "deny",
 };
@@ -112,9 +112,9 @@ export const IMPLEMENT_MODE: PermissionModeDefinition = {
   defaultDecision: "allow",
 };
 
-export const SUPERVISE_MODE: PermissionModeDefinition = {
-  id: "supervise",
-  name: "Supervise",
+export const APPROVE_MODE: PermissionModeDefinition = {
+  id: "approve",
+  name: "Approve",
   description: "Read/Bash auto-approved, file edits require approval with diff preview",
   rules: [
     { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch)$", decision: "allow" },
@@ -128,5 +128,5 @@ export const SUPERVISE_MODE: PermissionModeDefinition = {
 export const BUILTIN_MODES: Record<PermissionModeId, PermissionModeDefinition> = {
   plan: PLAN_MODE,
   implement: IMPLEMENT_MODE,
-  supervise: SUPERVISE_MODE,
+  approve: APPROVE_MODE,
 };

@@ -88,6 +88,23 @@ export function isToolResultOnlyTurn(turn: Turn): boolean {
 }
 
 /**
+ * Check if a user turn is a system-injected message (not from the human user).
+ * These are messages like permission mode change notifications that should be
+ * hidden from the UI but remain in state.json for the agent's context.
+ */
+export function isSystemInjectedTurn(turn: Turn): boolean {
+  if (turn.type !== "user") return false;
+  const content = turn.message.content;
+  if (typeof content === "string") return content.startsWith("[System] ");
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (block.type === "text" && block.text.startsWith("[System] ")) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Get assistant message content blocks.
  */
 export function getAssistantContent(turn: Turn): ContentBlock[] {

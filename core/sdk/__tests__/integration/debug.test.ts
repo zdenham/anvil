@@ -11,7 +11,7 @@ describe('debug paths', () => {
     console.log('Test __dirname:', __dirname);
 
     // Resolve runner path as the harness would
-    const runnerPath = path.resolve(__dirname, '../../../../sdk-runner.js');
+    const runnerPath = path.resolve(__dirname, '../../../../sdk-runner.mjs');
     console.log('Runner path:', runnerPath);
 
     // Check if runner exists

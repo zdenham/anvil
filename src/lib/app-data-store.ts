@@ -338,12 +338,48 @@ export async function loadSettings(repoName: string): Promise<RepositorySettings
     if (result.success) {
       return result.data;
     }
-    // Invalid settings.json - fall through to migrate
-    logger.warn(`[loadSettings] Invalid settings.json for ${repoName}, attempting migration:`, result.error.message);
+    // Settings.json exists but failed validation — try repair before migration
+    logger.warn(`[loadSettings] Invalid settings.json for ${repoName}, attempting repair:`, result.error.message);
+    const repaired = repairSettingsJson(raw);
+    const retryResult = RepositorySettingsSchema.safeParse(repaired);
+    if (retryResult.success) {
+      logger.info(`[loadSettings] Repair succeeded for ${repoName}, saving corrected settings`);
+      await saveSettings(repoName, retryResult.data);
+      return retryResult.data;
+    }
+    logger.warn(`[loadSettings] Repair failed for ${repoName}, falling through to migration`);
   }
 
   // Try migrating from metadata.json
   return await migrateFromMetadata(repoName);
+}
+
+/**
+ * Attempts to repair a settings.json that failed Zod validation.
+ * Handles common Rust/TypeScript serialization mismatches:
+ * - Converts null to undefined for optional numeric fields (createdAt, lastAccessedAt)
+ * - Strips unexpected null values from worktree entries
+ */
+function repairSettingsJson(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+
+  const obj = raw as Record<string, unknown>;
+  if (!Array.isArray(obj.worktrees)) return raw;
+
+  return {
+    ...obj,
+    worktrees: obj.worktrees.map((wt: unknown) => {
+      if (typeof wt !== 'object' || wt === null) return wt;
+      const worktree = { ...(wt as Record<string, unknown>) };
+      // Convert null → undefined for optional fields that Rust serializes as null
+      for (const key of ['createdAt', 'lastAccessedAt']) {
+        if (worktree[key] === null) {
+          delete worktree[key];
+        }
+      }
+      return worktree;
+    }),
+  };
 }
 
 /**

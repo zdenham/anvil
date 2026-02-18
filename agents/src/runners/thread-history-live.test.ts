@@ -107,6 +107,8 @@ vi.mock("../output.js", () => {
       writeFileSync(statePath, JSON.stringify(state, null, 2));
     }),
     relayEventsFromToolOutput: vi.fn(),
+    getHubClient: vi.fn(),
+    updateFileChange: vi.fn(),
   };
 });
 

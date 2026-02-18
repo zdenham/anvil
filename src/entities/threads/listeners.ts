@@ -2,6 +2,7 @@ import { EventName, EventPayloads } from "@core/types/events.js";
 import { eventBus } from "../events.js";
 import { threadService } from "./service.js";
 import { useThreadStore } from "./store.js";
+import { useStreamingStore } from "@/stores/streaming-store.js";
 import { logger } from "@/lib/logger-client.js";
 
 /**
@@ -10,7 +11,7 @@ import { logger } from "@/lib/logger-client.js";
 export function setupThreadListeners(): void {
   // Optimistic thread creation - creates placeholder in store for immediate UI feedback
   // Will be overwritten by THREAD_CREATED when disk version is available
-  eventBus.on(EventName.THREAD_OPTIMISTIC_CREATED, ({ threadId, repoId, worktreeId, prompt, status }: EventPayloads[typeof EventName.THREAD_OPTIMISTIC_CREATED]) => {
+  eventBus.on(EventName.THREAD_OPTIMISTIC_CREATED, ({ threadId, repoId, worktreeId, prompt, status, permissionMode }: EventPayloads[typeof EventName.THREAD_OPTIMISTIC_CREATED]) => {
     const eventReceivedAt = Date.now();
     try {
       const existingThread = useThreadStore.getState().threads[threadId];
@@ -34,6 +35,7 @@ export function setupThreadListeners(): void {
         worktreeId,
         status,
         prompt,
+        permissionMode,
       });
       logger.info(`[ThreadListener:TIMING] Optimistic thread ${threadId} created in store`, {
         threadId,
@@ -102,6 +104,9 @@ export function setupThreadListeners(): void {
         logger.info(`[FC-DEBUG] Thread is NOT active, skipping loadThreadState`);
       }
 
+      // Clear streaming content AFTER replacement data is in the store
+      useStreamingStore.getState().clearStream(threadId);
+
       // Cascade: refresh parent so aggregate cost displays update
       const thread = threadService.get(threadId);
       if (thread?.parentThreadId) {
@@ -127,6 +132,9 @@ export function setupThreadListeners(): void {
       if (store.activeThreadId === threadId) {
         await threadService.loadThreadState(threadId);
       }
+
+      // Clear streaming content AFTER replacement data is in the store
+      useStreamingStore.getState().clearStream(threadId);
 
       // Cascade: refresh parent so aggregate cost displays update
       const thread = threadService.get(threadId);

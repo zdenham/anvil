@@ -239,6 +239,38 @@ impl AgentHub {
                                 continue;
                             }
 
+                            // Handle relay messages - forward payload to target agent
+                            if msg.msg_type == "relay" {
+                                if let Some(target_id) = msg.rest.get("targetThreadId").and_then(|v| v.as_str()) {
+                                    if let Some(payload) = msg.rest.get("payload") {
+                                        let payload_str = payload.to_string();
+                                        if let Ok(agents_guard) = agents.read() {
+                                            if let Some(target_tx) = agents_guard.get(target_id) {
+                                                if let Err(e) = target_tx.send(payload_str) {
+                                                    tracing::warn!(
+                                                        error = %e,
+                                                        target_id = %target_id,
+                                                        "Failed to relay message to agent"
+                                                    );
+                                                } else {
+                                                    tracing::debug!(
+                                                        sender = %msg.thread_id,
+                                                        target = %target_id,
+                                                        "Relayed message between agents"
+                                                    );
+                                                }
+                                            } else {
+                                                tracing::debug!(
+                                                    target_id = %target_id,
+                                                    "Relay target agent not connected"
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                continue;
+                            }
+
                             // Forward all other messages to Tauri/UI
                             if let Err(e) = app_handle.emit("agent:message", &msg) {
                                 tracing::warn!(error = %e, "Failed to emit agent:message event");

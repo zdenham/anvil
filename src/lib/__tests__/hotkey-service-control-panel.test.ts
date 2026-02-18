@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Hotkey Service Control Panel Verification Tests
  *

@@ -32,9 +32,9 @@ dist-ssr
 secrets/
 
 # SDK build outputs
-sdk-runner.js
-sdk-runner.js.map
+sdk-runner.mjs
+sdk-runner.mjs.map
 sdk-types.d.ts
 
 # Generated icon assets (copied from node_modules by postinstall)
-public/material-icons/
+public/material-icons/test-diagnostics/

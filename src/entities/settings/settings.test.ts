@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { useSettingsStore } from "./store";
 import { settingsService } from "./service";

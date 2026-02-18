@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { buildAnnotatedFiles } from "./annotated-file-builder";
 import type { ParsedDiff, ParsedDiffFile, DiffHunk } from "./diff-parser";

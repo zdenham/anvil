@@ -1,7 +1,7 @@
 {
   "name": "mort",
   "private": true,
-  "version": "v0.0.39",
+  "version": "v0.0.44",
   "type": "module",
   "scripts": {
     "orb": "tsx observability/orb/index.ts",
@@ -20,7 +20,8 @@
     "build:migrations": "cd migrations && pnpm build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "NODE_OPTIONS='--require ./src/test/epipe-handler.cjs' vitest",
+    "test": "NODE_OPTIONS='--require ./src/test/epipe-handler.cjs' vitest run",
+    "test:watch": "NODE_OPTIONS='--require ./src/test/epipe-handler.cjs' vitest",
     "test:ui": "vitest run --config vitest.config.ui.ts",
     "test:ui:watch": "vitest --config vitest.config.ui.ts",
     "lint": "eslint src core",

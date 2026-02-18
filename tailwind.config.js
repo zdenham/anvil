@@ -11,11 +11,16 @@ export default {
     extend: {
       animation: {
         shimmer: 'shimmer 2.5s linear infinite',
+        'cursor-blink': 'cursorBlink 1s steps(2, start) infinite',
       },
       keyframes: {
         shimmer: {
           '0%': { backgroundPosition: '100% 0' },
           '100%': { backgroundPosition: '-100% 0' },
+        },
+        cursorBlink: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
         },
       },
       fontFamily: {

@@ -46,7 +46,7 @@ export function FilesItem({ repoId, worktreeId, worktreePath, isActive, onOpenFi
       )}
     >
       <span className="flex-shrink-0 w-3 flex items-center justify-center">
-        <FolderOpen size={13} />
+        <FolderOpen size={11} />
       </span>
       <span>Files</span>
     </button>

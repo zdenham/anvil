@@ -308,4 +308,13 @@ textarea {
   transform: rotate(90deg);
 }
 
+/* Find-in-page highlight styles (CSS Custom Highlight API) */
+::highlight(search-results) {
+  background-color: rgba(251, 191, 36, 0.4); /* amber-400 */
+}
+
+::highlight(search-current) {
+  background-color: rgba(249, 115, 22, 0.6); /* orange-500 */
+}
+
 

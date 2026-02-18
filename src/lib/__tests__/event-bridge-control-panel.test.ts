@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Event Bridge Control Panel Verification Tests
  *

@@ -41,13 +41,8 @@ export function setupStreamingListeners(): void {
     useStreamingStore.getState().setStream(payload);
   });
 
-  eventBus.on(EventName.AGENT_STATE, ({ threadId }) => {
-    useStreamingStore.getState().clearStream(threadId);
-  });
-
-  eventBus.on(EventName.AGENT_COMPLETED, ({ threadId }) => {
-    useStreamingStore.getState().clearStream(threadId);
-  });
+  // NOTE: AGENT_STATE and AGENT_COMPLETED clearing is handled in listeners.ts
+  // AFTER loadThreadState resolves, to avoid a flash of empty content.
 
   eventBus.on(EventName.AGENT_CANCELLED, ({ threadId }) => {
     useStreamingStore.getState().clearStream(threadId);

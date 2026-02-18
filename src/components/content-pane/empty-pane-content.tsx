@@ -81,6 +81,7 @@ export function EmptyPaneContent() {
         contextType="empty"
         autoFocus
         disabled={noRepoConfigured}
+        placeholder={noRepoConfigured ? "Add a repository to get started" : undefined}
       />
     </div>
   );

@@ -2,15 +2,17 @@
  * PermissionRequestBlock
  *
  * Pinned permission request block rendered above the chat input.
- * Shows tool name, file path (if applicable), and approve/deny buttons.
- * Keyboard: Enter -> approve, Esc -> deny.
+ * Shows tool name, file path (if applicable), and selectable approve/deny options.
+ * Keyboard: Arrow Up/Down to select, Enter to confirm.
  * Auto-focuses when mounted to capture keyboard input.
  */
 
-import { useCallback, useEffect, useRef } from "react";
-import { AlertTriangle, Check, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { isDangerousTool } from "@core/types/permissions.js";
 import type { PermissionRequest, PermissionStatus } from "@core/types/permissions.js";
+import { useToolDiff } from "@/components/thread/use-tool-diff";
+import { InlineDiffBlock } from "@/components/thread/inline-diff-block";
 import { PermissionInputDisplay } from "./permission-input-display";
 
 interface PermissionRequestBlockProps {
@@ -37,8 +39,10 @@ function getFilePath(toolInput: Record<string, unknown>): string | undefined {
 
 export function PermissionRequestBlock({ request, onRespond }: PermissionRequestBlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState(0); // 0 = Approve, 1 = Deny
   const isDangerous = isDangerousTool(request.toolName);
   const filePath = getFilePath(request.toolInput);
+  const diffData = useToolDiff(request.toolName, request.toolInput);
 
   // Auto-focus container on mount
   useEffect(() => {
@@ -55,17 +59,21 @@ export function PermissionRequestBlock({ request, onRespond }: PermissionRequest
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
         e.stopPropagation();
-        handleApprove();
-      } else if (e.key === "Escape") {
+        setSelected((prev) => (prev === 0 ? 1 : 0));
+      } else if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
-        handleDeny();
+        if (selected === 0) {
+          handleApprove();
+        } else {
+          handleDeny();
+        }
       }
     },
-    [handleApprove, handleDeny],
+    [selected, handleApprove, handleDeny],
   );
 
   return (
@@ -73,11 +81,7 @@ export function PermissionRequestBlock({ request, onRespond }: PermissionRequest
       ref={containerRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className={`mb-2 rounded-lg border p-3 outline-none focus:ring-1 ${
-        isDangerous
-          ? "border-amber-500/50 focus:ring-amber-500/30"
-          : "border-blue-500/50 focus:ring-blue-500/30"
-      } bg-surface-800`}
+      className="mb-2 rounded-lg border border-surface-600 p-3 outline-none bg-surface-800"
       role="alertdialog"
       aria-label={`Permission request: Allow ${request.toolName}?`}
     >
@@ -91,40 +95,59 @@ export function PermissionRequestBlock({ request, onRespond }: PermissionRequest
         </span>
       </div>
 
-      {/* File path */}
-      {filePath && (
-        <div className="text-xs text-surface-400 font-mono truncate mb-1">
-          {filePath}
-        </div>
+      {/* Diff preview for Write/Edit tools, fallback to generic input display */}
+      {diffData ? (
+        <InlineDiffBlock
+          filePath={diffData.filePath}
+          diff={diffData.diff}
+          lines={diffData.lines}
+          stats={diffData.stats}
+          isPending
+        />
+      ) : (
+        <>
+          {filePath && (
+            <div className="text-xs text-surface-400 font-mono truncate mb-1">
+              {filePath}
+            </div>
+          )}
+          <PermissionInputDisplay
+            toolName={request.toolName}
+            toolInput={request.toolInput}
+          />
+        </>
       )}
 
-      {/* Tool input preview */}
-      <PermissionInputDisplay
-        toolName={request.toolName}
-        toolInput={request.toolInput}
-      />
-
-      {/* Action buttons */}
-      <div className="flex justify-end gap-2 mt-3">
-        <button
-          onClick={handleDeny}
-          className="px-3 py-1 text-xs text-surface-300 hover:text-surface-100
-                     border border-surface-600 rounded hover:border-surface-500
-                     flex items-center gap-1.5 transition-colors"
-        >
-          <X size={12} />
-          Deny
-          <kbd className="ml-0.5 px-1 py-0.5 bg-surface-700 rounded text-[10px]">Esc</kbd>
-        </button>
+      {/* Selectable options */}
+      <div className="mt-3 flex flex-col gap-0.5 font-mono">
         <button
           onClick={handleApprove}
-          className="px-3 py-1 text-xs bg-green-600 hover:bg-green-500
-                     text-white rounded flex items-center gap-1.5 transition-colors"
+          className={`px-2 py-1 text-xs rounded flex items-center gap-1.5 transition-colors ${
+            selected === 0
+              ? "text-surface-100"
+              : "text-surface-500 hover:text-surface-300"
+          }`}
         >
-          <Check size={12} />
+          <ChevronRight size={12} className={selected === 0 ? "opacity-100" : "opacity-0"} />
           Approve
-          <kbd className="ml-0.5 px-1 py-0.5 bg-green-800 rounded text-[10px]">&#9166;</kbd>
         </button>
+        <button
+          onClick={handleDeny}
+          className={`px-2 py-1 text-xs rounded flex items-center gap-1.5 transition-colors ${
+            selected === 1
+              ? "text-surface-100"
+              : "text-surface-500 hover:text-surface-300"
+          }`}
+        >
+          <ChevronRight size={12} className={selected === 1 ? "opacity-100" : "opacity-0"} />
+          Deny
+        </button>
+      </div>
+
+      {/* Keyboard hint */}
+      <div className="mt-2 text-[10px] text-surface-500 flex items-center gap-2">
+        <span>&#8593;&#8595; select</span>
+        <span>&#8629; confirm</span>
       </div>
     </div>
   );

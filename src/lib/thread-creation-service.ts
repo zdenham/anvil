@@ -17,6 +17,7 @@
 import { threadService, eventBus } from "@/entities";
 import { worktreeService } from "@/entities/worktrees";
 import { EventName } from "@core/types/events.js";
+import type { PermissionModeId } from "@core/types/permissions.js";
 import { spawnSimpleAgent } from "./agent-service";
 import { loadSettings } from "./app-data-store";
 import { logger } from "./logger-client";
@@ -26,6 +27,8 @@ export interface CreateThreadOptions {
   repoId: string;
   worktreeId: string;
   worktreePath: string;
+  /** Permission mode for tool execution (defaults to "implement" if not provided) */
+  permissionMode?: PermissionModeId;
 }
 
 export interface CreateThreadResult {
@@ -89,6 +92,7 @@ export async function createThread(
     worktreeId,
     status: "running", // Mark as running since agent will start immediately
     prompt, // Include first message for immediate display
+    permissionMode: options.permissionMode,
   });
 
   // Broadcast optimistic create to ALL windows so they have the thread before UI opens
@@ -98,6 +102,7 @@ export async function createThread(
     worktreeId,
     prompt,
     status: "running",
+    permissionMode: options.permissionMode,
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -149,6 +154,7 @@ export async function createThread(
     threadId,
     prompt,
     sourcePath: worktreePath,
+    permissionMode: options.permissionMode,
   })
     .then(() => {
       logger.info("[thread-creation-service] Agent spawned successfully", {

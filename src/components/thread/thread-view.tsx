@@ -98,8 +98,8 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
     return <ErrorState error={error} onRetry={onRetry} />;
   }
 
-  // Empty/idle state
-  if (status === "idle" || messages.length === 0) {
+  // Empty/idle state (don't flash EmptyState if streaming content still exists)
+  if (status === "idle" || (messages.length === 0 && !isStreaming)) {
     const now = Date.now();
     const mountTime = threadViewMountTimes.get(threadId) ?? mountTimeRef.current;
     logger.info(`[ThreadView:TIMING] Rendering EmptyState`, {

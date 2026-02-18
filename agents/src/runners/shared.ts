@@ -6,7 +6,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { relative, isAbsolute, join, resolve } from "path";
-import { readFileSync, writeFileSync, realpathSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync, realpathSync, mkdirSync, existsSync } from "fs";
 import crypto from "crypto";
 import { parsePhases } from "../lib/phase-parser.js";
 import type { PhaseInfo } from "@core/types/plans.js";
@@ -35,6 +35,9 @@ import { logger } from "../lib/logger.js";
 import { isMockModeEnabled, mockQuery } from "../testing/mock-query.js";
 import { generateThreadName } from "../services/thread-naming-service.js";
 import type { SocketMessageStream } from "../lib/hub/message-stream.js";
+import type { PermissionEvaluator } from "../lib/permission-evaluator.js";
+import type { PermissionGate } from "../lib/permission-gate.js";
+import type { PermissionModeId } from "@core/types/permissions.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -104,6 +107,55 @@ export function emitEvent(
 }
 
 /**
+ * Propagate a permission mode change to all running child threads.
+ * Discovers children by scanning thread metadata on disk, sends mode change
+ * via hub relay, and persists the updated mode to each child's metadata.
+ */
+export function propagateModeToChildren(
+  parentThreadId: string,
+  modeId: PermissionModeId,
+  mortDir: string,
+): void {
+  const hub = getHubClient();
+  const threadsDir = join(mortDir, "threads");
+
+  let entries: string[];
+  try {
+    entries = readdirSync(threadsDir);
+  } catch {
+    return; // No threads directory — nothing to propagate
+  }
+
+  for (const entry of entries) {
+    const metadataPath = join(threadsDir, entry, "metadata.json");
+    try {
+      if (!existsSync(metadataPath)) continue;
+      const raw = readFileSync(metadataPath, "utf-8");
+      const metadata = JSON.parse(raw);
+
+      if (metadata.parentThreadId !== parentThreadId) continue;
+      if (metadata.status !== "running") continue;
+
+      // Send mode change via hub relay to the child agent
+      if (hub?.isConnected) {
+        hub.relay(metadata.id, {
+          type: "permission_mode_changed",
+          payload: { modeId },
+        });
+        logger.info(`[propagateModeToChildren] Relayed mode=${modeId} to child=${metadata.id}`);
+      }
+
+      // Persist to disk so mode survives restarts
+      metadata.permissionMode = modeId;
+      metadata.updatedAt = Date.now();
+      writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+    } catch {
+      // Child thread may have been cleaned up — skip
+    }
+  }
+}
+
+/**
  * Build system prompt for agent by interpolating template variables
  * and appending runtime context (environment, git status, thread info).
  */
@@ -119,6 +171,7 @@ export function buildSystemPrompt(
     mortDir: string;
     runnerPath: string;
     parentThreadId?: string;
+    permissionModeId?: string;
   }
 ): string {
   // Interpolate template variables
@@ -138,6 +191,7 @@ export function buildSystemPrompt(
   const threadContext = {
     repoId: context.repoId ?? null,
     parentThreadId: context.parentThreadId,
+    permissionModeId: context.permissionModeId,
   };
   const runtimeContext = formatSystemPromptContext(
     envContext,
@@ -306,6 +360,10 @@ export interface AgentLoopOptions {
   abortController?: AbortController;
   /** Socket message stream for receiving queued messages via socket IPC */
   messageStream?: SocketMessageStream;
+  /** Permission evaluator for PreToolUse hook decisions */
+  permissionEvaluator?: PermissionEvaluator;
+  /** Permission gate for async approval flow (ask decisions) */
+  permissionGate?: PermissionGate;
 }
 
 /**
@@ -378,6 +436,7 @@ export async function runAgentLoop(
     mortDir: config.mortDir,
     runnerPath,
     parentThreadId: config.parentThreadId,
+    permissionModeId: context.permissionModeId ?? "implement",
   });
 
   const systemPrompt = baseSystemPrompt;
@@ -390,8 +449,87 @@ export async function runAgentLoop(
   const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
 
   // Build hooks for state tracking and side effects
+  const { permissionEvaluator, permissionGate } = options;
+
   const hooks = {
     PreToolUse: [
+      // Permission hook — matches ALL tools, evaluated before the Task hook
+      ...(permissionEvaluator && permissionGate
+        ? [
+            {
+              matcher: undefined as undefined, // matches everything
+              timeout: 3600, // 1 hour (validated by Phase 0 experiments)
+              hooks: [
+                async (
+                  hookInput: unknown,
+                  _toolUseId: string | undefined,
+                  { signal }: { signal: AbortSignal },
+                ) => {
+                  const input = hookInput as PreToolUseHookInput;
+                  const { decision, reason } = permissionEvaluator.evaluate(
+                    input.tool_name,
+                    input.tool_input,
+                  );
+
+                  if (decision === "allow") {
+                    return {
+                      hookSpecificOutput: {
+                        hookEventName: "PreToolUse" as const,
+                        permissionDecision: "allow" as const,
+                        permissionDecisionReason: reason,
+                      },
+                    };
+                  }
+
+                  if (decision === "deny") {
+                    return {
+                      hookSpecificOutput: {
+                        hookEventName: "PreToolUse" as const,
+                        permissionDecision: "deny" as const,
+                        permissionDecisionReason: reason,
+                      },
+                    };
+                  }
+
+                  // decision === "ask" — block and wait for user
+                  const requestId = crypto.randomUUID();
+                  const threadId = context.threadId;
+                  const response = await permissionGate.waitForResponse(
+                    requestId,
+                    {
+                      threadId,
+                      toolName: input.tool_name,
+                      toolInput: input.tool_input,
+                      reason,
+                      signal,
+                    },
+                    emitEvent,
+                  );
+
+                  if (response === "timeout" || signal.aborted) {
+                    return {
+                      continue: false,
+                      stopReason: "Permission request timed out — agent stopped",
+                    };
+                  }
+
+                  const userDecision = response.approved
+                    ? ("allow" as const)
+                    : ("deny" as const);
+                  return {
+                    hookSpecificOutput: {
+                      hookEventName: "PreToolUse" as const,
+                      permissionDecision: userDecision,
+                      permissionDecisionReason:
+                        response.reason ??
+                        (response.approved ? "User approved" : "User denied"),
+                    },
+                  };
+                },
+              ],
+            },
+          ]
+        : []),
       {
         matcher: "Task",
         hooks: [
@@ -442,6 +580,7 @@ export async function runAgentLoop(
               parentThreadId: context.threadId,
               parentToolUseId: toolUseId,  // Full toolu_01ABC... format
               agentType: agentType,
+              permissionMode: permissionEvaluator?.getModeId() ?? context.permissionModeId ?? "implement",
             };
 
             try {
@@ -802,6 +941,35 @@ export async function runAgentLoop(
     logger.info(`[runAgentLoop] Using plain string prompt`);
   }
 
+  // ---- [SKILL-DEBUG] Diagnostic logging for plugin/skill loading ----
+  const plugins = [{ type: "local" as const, path: config.mortDir }];
+  logger.info(`[SKILL-DEBUG] Plugin config: ${JSON.stringify(plugins)}`);
+  logger.info(`[SKILL-DEBUG] mortDir: ${config.mortDir}`);
+  const pluginJsonPath = join(config.mortDir, '.claude-plugin', 'plugin.json');
+  const skillsDir = join(config.mortDir, 'skills');
+  logger.info(`[SKILL-DEBUG] Plugin JSON path: ${pluginJsonPath}`);
+  logger.info(`[SKILL-DEBUG] Plugin JSON exists: ${existsSync(pluginJsonPath)}`);
+  logger.info(`[SKILL-DEBUG] Skills dir exists: ${existsSync(skillsDir)}`);
+  if (existsSync(skillsDir)) {
+    try {
+      const skillEntries = readdirSync(skillsDir);
+      logger.info(`[SKILL-DEBUG] Skills found: ${JSON.stringify(skillEntries)}`);
+    } catch (e) {
+      logger.warn(`[SKILL-DEBUG] Failed to read skills dir: ${e}`);
+    }
+  }
+  if (existsSync(pluginJsonPath)) {
+    try {
+      const pluginContent = readFileSync(pluginJsonPath, 'utf-8');
+      logger.info(`[SKILL-DEBUG] Plugin JSON content: ${pluginContent}`);
+    } catch (e) {
+      logger.warn(`[SKILL-DEBUG] Failed to read plugin JSON: ${e}`);
+    }
+  }
+  // Note: DEBUG_CLAUDE_AGENT_SDK=1 env var is not settable via query() options;
+  // set it in the process environment before launching the agent if needed.
+  // ---- End [SKILL-DEBUG] ----
+
   // Run the agent (real or mock)
   // Note: Mock mode does NOT support message streams - it uses scripted responses.
   const result = useMockMode
@@ -892,6 +1060,11 @@ export async function runAgentLoop(
     if (options.messageStream) {
       options.messageStream.close();
       logger.debug("[runAgentLoop] Closed message stream");
+    }
+    // Clean up pending permission requests
+    if (permissionGate) {
+      permissionGate.clear();
+      logger.debug("[runAgentLoop] Cleared permission gate");
     }
   }
 }

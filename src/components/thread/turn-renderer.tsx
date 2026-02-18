@@ -1,7 +1,7 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { Turn } from "@/lib/utils/turn-grouping";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
-import { isToolResultOnlyTurn } from "@/lib/utils/turn-grouping";
+import { isToolResultOnlyTurn, isSystemInjectedTurn } from "@/lib/utils/turn-grouping";
 import { UserMessage } from "./user-message";
 import { AssistantMessage } from "./assistant-message";
 
@@ -42,6 +42,11 @@ export function TurnRenderer({
   // Skip rendering user turns that only contain tool_results
   // (tool results are displayed within the ToolUseBlock of the previous assistant turn)
   if (turn.type === "user" && isToolResultOnlyTurn(turn)) {
+    return null;
+  }
+
+  // Skip rendering system-injected messages (e.g., permission mode changes)
+  if (turn.type === "user" && isSystemInjectedTurn(turn)) {
     return null;
   }
 

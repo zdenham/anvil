@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Queued Messages Store Tests
  *

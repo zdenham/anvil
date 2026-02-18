@@ -4,15 +4,29 @@ This document describes how to test the Mort codebase.
 
 ## Quick Reference
 
+| Command | Scope | Expected Time | Description |
+|---------|-------|---------------|-------------|
+| `pnpm test` | `src/` | ~5-10s | Frontend unit/integration tests |
+| `pnpm test:ui` | `src/` | ~5s | UI isolation tests (happy-dom) |
+| `cd agents && pnpm test` | `agents/` | ~3-4 min | Agent tests (includes live LLM calls) |
+| `cd core/sdk && pnpm test` | `core/sdk/` | ~13s | Quick Actions SDK tests |
+| `pnpm tsc --noEmit` | frontend | — | Type check frontend |
+| `pnpm --filter agents typecheck` | agents | — | Type check agents |
+| `cd src-tauri && cargo test` | Rust | — | Run Rust tests |
+| `./src-tauri/target/debug/mort-test` | full app | — | Run E2E accessibility tests |
+
+### Watch Mode
+
+Each test workspace has a separate watch script for interactive development:
+
 | Command | Description |
 |---------|-------------|
-| `pnpm test` | Run all TypeScript unit/integration tests |
-| `pnpm test:ui` | Run UI isolation tests |
-| `cd core/sdk && pnpm test` | Run Quick Actions SDK tests |
-| `pnpm tsc --noEmit` | Type check frontend |
-| `pnpm --filter agents typecheck` | Type check agents |
-| `cd src-tauri && cargo test` | Run Rust tests |
-| `./src-tauri/target/debug/mort-test` | Run E2E accessibility tests |
+| `pnpm test:watch` | Frontend tests in watch mode |
+| `pnpm test:ui:watch` | UI tests in watch mode |
+| `cd agents && pnpm test:watch` | Agent tests in watch mode |
+| `cd core/sdk && pnpm test:watch` | SDK tests in watch mode |
+
+**Important:** Always use `pnpm test` (which runs `vitest run`) for CI and agent workflows. Never use watch mode in automated contexts — watch mode starts a persistent file watcher that never exits, and multiple watchers on the same repo cause cascading re-runs.
 
 ## Test Types
 
@@ -20,8 +34,9 @@ Mort uses five distinct testing approaches, each serving a specific purpose in t
 
 **Unit & Integration Tests** (`pnpm test`)
 - Test services and libraries in isolation using mock adapters.
-- Run headlessly via Vitest. Fast feedback loop.
-- Tests live in `core/services/**/*.test.ts` and `src/lib/*.test.ts`.
+- Run headlessly via Vitest under jsdom. Fast feedback loop (~5-10s).
+- Scoped to `src/**/*.test.{ts,tsx}` only — does not run agent, SDK, or UI isolation tests.
+- Tests live in `src/lib/*.test.ts`, `src/entities/**/*.test.ts`, `src/components/**/*.test.ts`, etc.
 
 **UI Isolation Tests** (`pnpm test:ui`)
 - Test React components with mocked Tauri APIs and virtual filesystem.
@@ -33,6 +48,7 @@ Mort uses five distinct testing approaches, each serving a specific purpose in t
 - Test agent behavior end-to-end with real or mocked Anthropic APIs.
 - Verify event emissions, tool usage, and agent lifecycle.
 - Tests live in `agents/src/testing/__tests__/`.
+- **Note:** Includes live LLM integration tests gated behind `ANTHROPIC_API_KEY`. These take ~3-4 minutes and make real API calls. Expect slow runs if the key is set.
 
 **Quick Actions Integration Tests** (`cd core/sdk && pnpm test`)
 - Test quick actions by spawning the actual runner process.
@@ -72,6 +88,19 @@ Logs are written to `logs/dev.log`. See [logs.md](./logs.md) for how to read the
 | Testing keyboard shortcuts work | E2E |
 | Testing window opens/closes | E2E |
 | Testing full user workflows | E2E |
+
+## Test Configuration
+
+Each workspace has its own Vitest config with the correct environment:
+
+| Workspace | Config | Environment | Scope |
+|-----------|--------|-------------|-------|
+| Root (frontend) | `vitest.config.ts` | jsdom | `src/**/*.test.{ts,tsx}` (excludes `.ui.test`) |
+| UI isolation | `vitest.config.ui.ts` | happy-dom | `src/**/*.ui.test.{ts,tsx}` |
+| Agents | `agents/vitest.config.ts` | node | `agents/src/**/*.test.ts` |
+| SDK | `core/sdk/vitest.config.ts` | node | `core/sdk/**/*.test.ts` |
+
+**Do not widen the root config's `include` pattern.** It is intentionally scoped to `src/` to avoid pulling in agent/SDK tests under the wrong environment (jsdom), which causes worker crashes and false failures.
 
 ## Type Checking
 

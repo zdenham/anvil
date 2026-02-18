@@ -54,6 +54,11 @@ export class HubClient extends EventEmitter {
     this.send({ type: "log", level, message });
   }
 
+  /** Relay a message to another agent through the hub */
+  relay(targetThreadId: string, payload: Record<string, unknown>): void {
+    this.send({ type: "relay", targetThreadId, payload });
+  }
+
   get isConnected(): boolean {
     return this.connection.isConnected;
   }

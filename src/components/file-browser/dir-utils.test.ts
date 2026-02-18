@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { sortDirEntries } from "./dir-utils";
 import type { DirEntry } from "@/lib/filesystem-client";

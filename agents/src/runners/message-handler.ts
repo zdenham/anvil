@@ -427,13 +427,14 @@ export class MessageHandler {
           content: msg.message.content as Parameters<typeof appendAssistantMessage>[0]["content"],
         });
 
-        await this.emitChildThreadState(childThreadId, state);
-
-        // Write usage to child's metadata.json
+        // Write usage to child's metadata.json BEFORE emitting event
+        // so the frontend reads updated metadata when it refreshes
         if (state.lastCallUsage || state.cumulativeUsage) {
           const childMetadataPath = join(this.mortDir!, "threads", childThreadId, "metadata.json");
           await writeUsageToMetadata(childMetadataPath, state.lastCallUsage, state.cumulativeUsage);
         }
+
+        await this.emitChildThreadState(childThreadId, state);
 
         return true;
       }

@@ -1,4 +1,4 @@
-import type { PermissionMode } from "@core/types/permissions.js";
+import type { PermissionModeId } from "@core/types/permissions.js";
 
 /**
  * Configuration produced by parsing CLI args.
@@ -24,6 +24,8 @@ export interface RunnerConfig {
   env?: Record<string, string>;
   /** Parent thread ID - for sub-agents spawned via bash */
   parentThreadId?: string;
+  /** Permission mode for tool execution (e.g., "plan", "implement", "approve") */
+  permissionMode?: PermissionModeId;
 }
 
 /**
@@ -42,8 +44,8 @@ export interface OrchestrationContext {
   worktreeId?: string;
   /** Cleanup function to call on exit */
   cleanup?: () => void | Promise<void>;
-  /** Permission mode for tool execution */
-  permissionMode?: PermissionMode;
+  /** Permission mode ID for tool execution (defaults to "implement") */
+  permissionModeId?: PermissionModeId;
 }
 
 /**

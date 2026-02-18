@@ -128,7 +128,7 @@ function calculatePosition(
   anchorRect: DOMRect,
   dropdownHeight: number,
   containerRef?: RefObject<HTMLElement>
-): { top: number; left: number; direction: "up" | "down" } {
+): { top?: number; bottom?: number; left: number; direction: "up" | "down" } {
   const viewportHeight = window.innerHeight;
   const containerBounds = containerRef?.current?.getBoundingClientRect();
   const bottomBoundary = containerBounds?.bottom ?? viewportHeight;
@@ -145,8 +145,9 @@ function calculatePosition(
     };
   }
 
+  // Anchor bottom edge just above the input so dropdown grows upward
   return {
-    top: anchorRect.top - dropdownHeight - 4,
+    bottom: viewportHeight - anchorRect.top + 4,
     left: anchorRect.left,
     direction: "up",
   };
@@ -246,7 +247,8 @@ export function TriggerDropdown({
         "py-1"
       )}
       style={{
-        top: position.top,
+        ...(position.top !== undefined && { top: position.top }),
+        ...(position.bottom !== undefined && { bottom: position.bottom }),
         left: position.left,
       }}
     >

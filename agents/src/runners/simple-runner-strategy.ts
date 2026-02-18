@@ -226,6 +226,9 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         case "--parent-thread-id":
           config.parentThreadId = args[++i];
           break;
+        case "--permission-mode":
+          config.permissionMode = args[++i] as RunnerConfig["permissionMode"];
+          break;
         // Ignore deprecated arguments for backwards compatibility
         case "--worktree-renamed":
           // Deprecated: now read from disk instead of CLI arg
@@ -332,6 +335,8 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
             status: "running",
             updatedAt: now,
             pid: process.pid, // Write our own PID for cross-window cancellation
+            // Update permission mode from CLI arg (user may have changed it between runs)
+            ...(config.permissionMode ? { permissionMode: config.permissionMode } : {}),
             turns: [
               ...existingMetadata.turns,
               {
@@ -385,6 +390,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         updatedAt: now,
         pid: process.pid, // Write our own PID for cross-window cancellation
         isRead: true,
+        permissionMode: config.permissionMode ?? "implement",
         // Capture git info for diff generation (if in a git repo)
         ...(initialCommitHash && branch ? {
           git: {
@@ -432,6 +438,9 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
       }
     }
 
+    // Use CLI-provided permission mode as source of truth (avoids disk read race conditions)
+    const permissionModeId = config.permissionMode ?? "implement";
+
     // Return context with cwd as workingDir
     return {
       workingDir: cwd,
@@ -439,6 +448,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
       threadPath,
       repoId,
       worktreeId,
+      permissionModeId,
     };
   }
 

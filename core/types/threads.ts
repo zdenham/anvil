@@ -52,8 +52,8 @@ export const ThreadMetadataBaseSchema = z.object({
   lastCallUsage: TokenUsageSchema.optional(),
   cumulativeUsage: TokenUsageSchema.optional(),
 
-  // Permission mode for the agent (default: "plan")
-  permissionMode: z.enum(["plan", "implement", "supervise"]).optional().default("plan"),
+  // Permission mode for the agent (default: "implement")
+  permissionMode: z.enum(["plan", "implement", "approve"]).optional().default("implement"),
 });
 
 /**
@@ -99,7 +99,7 @@ export interface UpdateThreadInput {
   pid?: number | null;
   changedFilePaths?: string[];
   name?: string;
-  permissionMode?: "plan" | "implement" | "supervise";
+  permissionMode?: "plan" | "implement" | "approve";
 }
 
 /**

@@ -13,6 +13,7 @@ import {
 import { ThreadStateSchema } from "@/lib/types/agent-messages";
 import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
+import type { PermissionModeId } from "@core/types/permissions.js";
 import type { PlanMetadata } from "../plans/types";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -192,7 +193,7 @@ export const threadService = {
       updatedAt: now,
       git: input.git,
       isRead: true, // New threads start as read
-      permissionMode: "plan",
+      permissionMode: "implement",
       turns: [
         {
           index: 0,
@@ -477,6 +478,7 @@ export const threadService = {
     worktreeId: string;
     status: ThreadStatus;
     prompt?: string;
+    permissionMode?: PermissionModeId;
   }): void {
     const now = Date.now();
     const optimisticThread: ThreadMetadata = {
@@ -488,7 +490,7 @@ export const threadService = {
       updatedAt: now,
       isRead: true, // New threads start as read (user just created it)
       _isOptimistic: true, // Mark as optimistic until disk confirmation
-      permissionMode: "plan",
+      permissionMode: params.permissionMode ?? "implement",
       turns: params.prompt
         ? [{
             index: 0,
