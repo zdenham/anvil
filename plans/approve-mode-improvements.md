@@ -1,16 +1,18 @@
 # Approve Mode Improvements
 
-Three issues with the current approve mode UX:
+Four issues with the current approve mode UX:
 
 1. **Permission block is pinned above input**, not inline in the chat where the tool use happens
 2. **No syntax highlighting** in the diff preview shown in the permission block
 3. **Non-destructive tools prompt unnecessarily** — `TodoWrite`, `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `Skill`, `SendMessage`, and similar tools fall through to `defaultDecision: "ask"` because they don't match any explicit rule
+4. **Large diffs overwhelm the approval UI** — a big edit shows the entire diff expanded, pushing the approve/deny controls far off-screen
 
 ## Phases
 
 - [ ] Auto-allow non-destructive tools in approve mode rules
 - [ ] Move permission request block inline into the chat stream
 - [ ] Add syntax highlighting to the permission diff preview
+- [ ] Auto-collapse large diffs in the approval preview
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -120,3 +122,36 @@ Since Shiki highlighting is async, follow the same pattern used in `code-block.t
 - The `AnnotatedLineRow` component already handles both cases (renders `TokenizedContent` when tokens exist, falls back to plain text otherwise)
 
 This means the diff preview will flash in plain text briefly then get syntax-colored — same as code blocks in the chat do during streaming.
+
+---
+
+## Phase 4: Auto-collapse large diffs in the approval preview
+
+**Problem:** When an Edit or Write tool produces a large diff (e.g. 200+ changed lines), the entire diff renders expanded in the permission approval block. This pushes the approve/deny controls far below the viewport, requiring the user to scroll past a wall of code just to respond. It should behave like tool-use blocks do — default collapsed past a threshold, with a click to expand.
+
+**Approach:** Wrap the `InlineDiffBlock` inside the permission/tool-use approval UI with the existing `CollapsibleOutputBlock` pattern when the diff exceeds a line threshold. Small diffs remain fully visible; large diffs show a preview with a gradient fade and "Show full diff" expand button.
+
+### Changes
+
+**1. Add a `defaultCollapsed` prop to `InlineDiffBlock`**
+
+`src/components/thread/inline-diff-block.tsx` — Add an optional `defaultCollapsed?: boolean` prop. When true, the diff content area renders inside a `CollapsibleOutputBlock` (from `src/components/ui/collapsible-output-block.tsx`) with `maxCollapsedHeight` set to something reasonable like `200px` (roughly 10-12 lines of code). The user can click "Expand" to see the full diff.
+
+This reuses the exact same collapse/expand UX that bash output and tool results already use — gradient overlay at the bottom with an expand button.
+
+**2. Determine the threshold**
+
+The caller decides whether to pass `defaultCollapsed`. The logic lives where `InlineDiffBlock` is instantiated for approval:
+
+- In `PermissionRequestBlock` (`src/components/permission/permission-request-block.tsx`): compute total line count from the diff data. If it exceeds a threshold (e.g. **40 lines**), pass `defaultCollapsed={true}`.
+- After Phase 2, the same logic applies wherever the inline approval UI renders inside `ToolUseBlock`.
+
+**Why 40 lines:** Small enough that a ~10-line edit stays fully visible (no UX regression), large enough that a full-file rewrite or multi-hunk edit collapses to a manageable preview. The collapsed height of `200px` shows roughly the first 10 lines — enough context to verify the file and nature of the change before expanding.
+
+**3. Preserve expand/collapse state**
+
+Use local component state (not the Zustand `toolExpandStore`) since the permission block is ephemeral — it disappears after approval. No need to persist collapse state across re-renders.
+
+**4. Keep approve/deny controls always visible**
+
+The approve/deny controls (`InlineDiffActions` or the `PermissionRequestBlock` buttons) must render **below** the collapsible area so they're always visible regardless of collapse state. This is already the natural layout — the actions render after the diff block. The key constraint is that collapsing the diff must not also hide the action buttons.

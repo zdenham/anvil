@@ -125,10 +125,10 @@ The simplest reliable fix: in the `PostToolUse:Task` handler, after reading `sta
 
 ## Phases
 
-- [ ] Write the integration test in `agents/src/testing/__tests__/sub-agent-usage.integration.test.ts`
-- [ ] Run the test to confirm it fails (proving the bug exists)
-- [ ] Fix the `PostToolUse:Task` handler to propagate usage from state to metadata
-- [ ] Re-run the test to confirm it passes
+- [x] Write the integration test in `agents/src/testing/__tests__/sub-agent-usage.integration.test.ts`
+- [x] Run the test to confirm it fails (proving the bug exists)
+- [x] Fix the `PostToolUse:Task` handler to propagate usage from state to metadata
+- [x] Re-run the test to confirm it passes
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

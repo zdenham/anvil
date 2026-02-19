@@ -19,6 +19,7 @@ import {
   relayEventsFromToolOutput,
   updateFileChange,
   getHubClient,
+  writeUsageToMetadata,
 } from "../output.js";
 import { NodePersistence } from "../lib/persistence-node.js";
 import { EventName } from "@core/types/events.js";
@@ -818,6 +819,19 @@ export async function runAgentLoop(
                       (c: { type: string }) => c.type === "text"
                     );
                     lastTurn.response = textContent?.text ?? JSON.stringify(taskResponse.content);
+                  }
+
+                  // Write usage from task result if not already present from handleForChildThread
+                  if (!metadata.lastCallUsage && taskResponse.usage) {
+                    const u = taskResponse.usage;
+                    const usage = {
+                      inputTokens: u.input_tokens ?? 0,
+                      outputTokens: u.output_tokens ?? 0,
+                      cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+                      cacheReadTokens: u.cache_read_input_tokens ?? 0,
+                    };
+                    metadata.lastCallUsage = usage;
+                    metadata.cumulativeUsage = usage;
                   }
 
                   metadata.updatedAt = Date.now();

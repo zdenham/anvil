@@ -11,8 +11,8 @@ The permission system solves exactly this class of problem: intercept a tool at 
 ### Why hook-level, not tool-result level?
 
 - **Consistency**: Same async-wait architecture as permissions — one pattern to maintain.
-- **SDK control**: The hook controls whether the tool "succeeds" or "fails" from the SDK's perspective. We can inject the user's answer as the tool result directly, avoiding the need for a separate `submitToolResult` Tauri command.
-- **Simplicity**: No need to pause/resume the agent loop or manage tool-result injection. The hook blocks, the user answers, the hook returns a tool result containing the answer.
+- **SDK-native**: The `AskUserQuestionInput` has an official `answers` field "populated by the permission system." PreToolUse hooks can inject this via `updatedInput`, so the SDK handles the rest — no custom result injection needed.
+- **Simplicity**: Hook blocks, user answers in UI, hook returns `allow` + `updatedInput` with answers pre-populated. The SDK executes the tool normally and produces the correct `AskUserQuestionOutput`.
 
 ## Phases
 
@@ -41,12 +41,11 @@ export class QuestionGate {
     requestId: string,
     context: {
       threadId: string;
-      toolName: string;
       toolInput: Record<string, unknown>;
       signal: AbortSignal;
     },
     emitEvent: (name: string, payload: Record<string, unknown>) => void,
-  ): Promise<{ answer: string } | "timeout"> {
+  ): Promise<{ answers: Record<string, string> } | "timeout"> {
     emitEvent("question:request", {
       requestId,
       threadId: context.threadId,
@@ -65,11 +64,11 @@ export class QuestionGate {
     });
   }
 
-  resolve(requestId: string, answer: string): void {
+  resolve(requestId: string, answers: Record<string, string>): void {
     const pending = this.pending.get(requestId);
     if (!pending) return;
     this.pending.delete(requestId);
-    pending.resolve({ answer });
+    pending.resolve({ answers });
   }
 
   clear(): void {
@@ -80,8 +79,9 @@ export class QuestionGate {
 ```
 
 Differences from `PermissionGate`:
-- Response payload is `{ answer: string }` instead of `{ approved: boolean; reason?: string }`.
+- Response payload is `{ answers: Record<string, string> }` (question text → answer label) instead of `{ approved: boolean; reason?: string }`.
 - Event name is `question:request` / `question:response` instead of `permission:*`.
+- Matches SDK's `AskUserQuestionInput.answers` format exactly.
 
 ---
 
@@ -89,7 +89,7 @@ Differences from `PermissionGate`:
 
 **File**: `agents/src/runners/shared.ts`
 
-Add a second entry to the `PreToolUse` hooks array, **before** the permission hook (so it fires first and the permission hook never sees AskUserQuestion):
+Add a new entry to the `PreToolUse` hooks array, **before** the permission hook (so it fires first and the permission hook never sees AskUserQuestion). Uses `updatedInput` to inject the `answers` field — see [Research finding #1](#1-sdk-tool-result-injection--resolved-updatedinput-with-answers-field) for full rationale.
 
 ```ts
 {
@@ -98,18 +98,14 @@ Add a second entry to the `PreToolUse` hooks array, **before** the permission ho
   hooks: [
     async (hookInput, _toolUseId, { signal }) => {
       const input = hookInput as PreToolUseHookInput;
+      const toolInput = input.tool_input as Record<string, unknown>;
       const requestId = crypto.randomUUID();
 
-      const response = await questionGate.waitForAnswer(
-        requestId,
-        {
-          threadId: context.threadId,
-          toolName: input.tool_name,
-          toolInput: input.tool_input as Record<string, unknown>,
-          signal,
-        },
-        emitEvent,
-      );
+      const response = await questionGate.waitForAnswer(requestId, {
+        threadId: context.threadId,
+        toolInput,
+        signal,
+      }, emitEvent);
 
       if (response === "timeout" || signal.aborted) {
         return {
@@ -121,22 +117,19 @@ Add a second entry to the `PreToolUse` hooks array, **before** the permission ho
         };
       }
 
-      // Return allow + inject the user's answer so the SDK sees a successful tool result
+      // Inject answers into tool input via updatedInput — SDK's official mechanism
+      // AskUserQuestionInput.answers: Record<string, string> maps question text → answer
       return {
         hookSpecificOutput: {
           hookEventName: "PreToolUse" as const,
           permissionDecision: "allow" as const,
-          permissionDecisionReason: response.answer,
-          // The SDK will use this as the tool_result content
-          toolResult: response.answer,
+          updatedInput: { ...toolInput, answers: response.answers },
         },
       };
     },
   ],
-},
+}
 ```
-
-> **Open question**: The SDK may or may not support injecting a `toolResult` from the hook output. If it doesn't, we may need to let the tool execute normally and instead use a **PostToolUse** hook or intercept the tool's own execution to return the answer. Investigate SDK behavior during implementation. Worst case, we allow the tool, then the tool itself reads the answer from a shared in-memory store that the gate populates before resolving.
 
 `questionGate` is instantiated in `runner.ts` alongside `permissionGate` and passed into `runAgentLoop` via the options bag.
 
@@ -164,7 +157,7 @@ With payload types:
 [EventName.QUESTION_RESPONSE]: {
   requestId: string;
   threadId: string;
-  answer: string;
+  answers: Record<string, string>; // question text → selected label(s)
 };
 ```
 
@@ -173,7 +166,7 @@ With payload types:
 Add to `TauriToAgentMessage`:
 
 ```ts
-| { type: "question_response"; payload: { requestId: string; answer: string } }
+| { type: "question_response"; payload: { requestId: string; answers: Record<string, string> } }
 ```
 
 ### 3c. Runner message handler (`agents/src/runner.ts`)
@@ -182,8 +175,8 @@ In the `hub.on("message")` handler, add a case:
 
 ```ts
 case "question_response": {
-  const { requestId, answer } = msg.payload;
-  questionGate.resolve(requestId, answer);
+  const { requestId, answers } = msg.payload;
+  questionGate.resolve(requestId, answers);
   break;
 }
 ```
@@ -263,25 +256,31 @@ The existing `AskUserQuestionBlock` in `AssistantMessage` continues to work for 
 ### 6a. Question service (`src/entities/questions/service.ts`, new)
 
 ```ts
-async function respond(threadId: string, requestId: string, answer: string): Promise<void> {
+async function respond(
+  threadId: string,
+  requestId: string,
+  answers: Record<string, string>,
+): Promise<void> {
   // 1. Optimistically mark answered in store
-  useQuestionStore.getState().markAnswered(requestId, answer);
+  useQuestionStore.getState().markAnswered(requestId, answers);
 
   // 2. Send response to agent via socket
   await sendToAgent(threadId, {
     type: "question_response",
-    payload: { requestId, answer },
+    payload: { requestId, answers },
   });
 }
 ```
 
 Uses the same `sendToAgent` helper that permission responses use.
 
-### 6b. Wire into AskUserQuestionBlock
+### 6b. Wire into question carousel
 
-The `onSubmit` callback from the question block calls `questionService.respond(threadId, requestId, formattedAnswer)`.
+The carousel component collects answers from each question as `Record<string, string>` mapping question text to selected option label(s). Multi-select answers are comma-separated labels per the SDK spec (e.g., `"Option A, Option C"`).
 
-The formatted answer is the string representation of the user's selection (e.g., `"Option A: Description"` or for multi-select, a comma-separated list). This matches what the SDK currently expects as a tool_result for AskUserQuestion.
+When all questions are answered and user confirms, calls `questionService.respond(threadId, requestId, answersMap)`.
+
+The `answers` map flows all the way back to the agent's PreToolUse hook, which injects it via `updatedInput.answers` into the `AskUserQuestionInput` — matching the SDK's official format exactly.
 
 ---
 
@@ -298,26 +297,138 @@ HubClient sends event over Unix socket → Tauri hub → frontend
   ↓
 routeAgentEvent → eventBus.emit(QUESTION_REQUEST) → question store
   ↓
-MessageList footer renders AskUserQuestionBlock (pending, interactive)
+MessageList footer renders question carousel (all questions, dot navigation)
   ↓
-User selects option(s), presses Enter
+User answers each question, navigates with ←/→, confirms with Enter
   ↓
-questionService.respond() → sendToAgent("question_response", { requestId, answer })
+questionService.respond() → sendToAgent("question_response", { requestId, answers })
+  answers = { "Which auth?": "JWT", "Which lib?": "jsonwebtoken" }
   ↓
 Tauri hub → Unix socket → agent HubClient message handler
   ↓
-questionGate.resolve(requestId, answer) — promise resolves
+questionGate.resolve(requestId, answers) — promise resolves
   ↓
-Hook returns allow + answer → SDK receives tool result → agent continues
+Hook returns allow + updatedInput: { ...originalInput, answers }
+  ↓
+SDK executes AskUserQuestion with pre-populated answers → returns AskUserQuestionOutput
+  ↓
+Agent sees: { questions: [...], answers: { "Which auth?": "JWT", ... } }
 ```
 
-## Open questions / risks
+## Research findings
 
-1. **SDK tool result injection from hooks**: Can a PreToolUse hook override the tool's return value? If not, we need an alternative:
-   - Let the tool execute but have it read the answer from a shared store (the gate populates before resolving).
-   - Or use a custom `canUseTool` implementation instead of hooks.
-   - Investigation needed during Phase 2 implementation.
+> Sources: [SDK TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript), [Hooks Reference](https://code.claude.com/docs/en/hooks), [Issue #12031 — PreToolUse strips AskUserQuestion results](https://github.com/anthropics/claude-code/issues/12031), [Issue #13439 — Empty responses with hooks](https://github.com/anthropics/claude-code/issues/13439), [Issue #12605 — AskUserQuestion hook support](https://github.com/anthropics/claude-code/issues/12605)
 
-2. **Multiple questions in one tool call**: The `AskUserQuestion` tool can contain multiple questions in the `questions` array. The current UI only renders the first question. For the initial implementation, we can keep this behavior (one question per tool call is the common case). Multi-question support can be added later.
+### 1. SDK tool result injection — RESOLVED: `updatedInput` with `answers` field
 
-3. **Streaming state**: While the hook blocks, the agent appears "working" to the user. We may want to update the streaming store to show a different state (e.g., "waiting for answer") so the UI doesn't show a spinner. This is a polish item.
+**The SDK has a built-in `answers` field on `AskUserQuestionInput`** (from official docs):
+
+```ts
+interface AskUserQuestionInput {
+  questions: Array<{ question, header, options, multiSelect }>;
+  /**
+   * User answers populated by the permission system.
+   * Maps question text to selected option label(s).
+   * Multi-select answers are comma-separated.
+   */
+  answers?: Record<string, string>;
+}
+```
+
+And `AskUserQuestionOutput` returns:
+
+```ts
+interface AskUserQuestionOutput {
+  questions: Array<{ question, header, options, multiSelect }>;
+  answers: Record<string, string>; // Maps question text → answer string
+}
+```
+
+**This is the official mechanism.** The SDK's `AskUserQuestion` tool checks for pre-populated `answers` in its input. When present, it uses them directly instead of prompting via stdin. The permission system (`canUseTool`) is documented as the intended integration point for this.
+
+**Our approach**: PreToolUse hook with `updatedInput`:
+
+1. Hook fires, blocks on deferred promise, emits event to frontend
+2. User answers in UI, response flows back through hub socket
+3. Gate resolves with user's answers as `Record<string, string>` (question text → selected label)
+4. Hook returns:
+   ```ts
+   {
+     hookSpecificOutput: {
+       hookEventName: "PreToolUse",
+       permissionDecision: "allow",
+       updatedInput: {
+         ...originalInput,
+         answers: { "Which auth method?": "JWT tokens", "Which library?": "jsonwebtoken" }
+       }
+     }
+   }
+   ```
+5. SDK executes `AskUserQuestion` with pre-populated answers → returns `AskUserQuestionOutput` with answers filled in → agent sees correct results
+
+**This is clean, official, and avoids any hacks.** No deny-as-answer workaround, no result interception, no shared state stores. The `updatedInput` field is explicitly designed for this — the docs even say answers are "populated by the permission system."
+
+**Known issue**: There are open bugs ([#12031](https://github.com/anthropics/claude-code/issues/12031), [#13439](https://github.com/anthropics/claude-code/issues/13439)) where PreToolUse hooks strip AskUserQuestion results or cause empty responses in the CLI. These are CLI-specific stdin/stdout conflicts. Since we're using the SDK programmatically with `updatedInput.answers` (not stdin), we should not hit these issues. If we do, fallback is to use `permissionDecision: "deny"` with the answers formatted in `permissionDecisionReason` — the agent sees the denial reason as context and extracts the answers.
+
+### 2. Updated Phase 2 — hook returns `updatedInput` with `answers`
+
+Replace the Phase 2 hook implementation. The `QuestionGate` now resolves with `Record<string, string>` (answers map) instead of a single string:
+
+```ts
+{
+  matcher: "AskUserQuestion",
+  timeout: 3600,
+  hooks: [
+    async (hookInput, _toolUseId, { signal }) => {
+      const input = hookInput as PreToolUseHookInput;
+      const toolInput = input.tool_input as Record<string, unknown>;
+      const requestId = crypto.randomUUID();
+
+      const response = await questionGate.waitForAnswer(requestId, {
+        threadId: context.threadId,
+        toolInput,
+        signal,
+      }, emitEvent);
+
+      if (response === "timeout" || signal.aborted) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse" as const,
+            permissionDecision: "deny" as const,
+            permissionDecisionReason: "Question timed out",
+          },
+        };
+      }
+
+      // Inject answers into tool input — SDK's official mechanism
+      return {
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse" as const,
+          permissionDecision: "allow" as const,
+          updatedInput: { ...toolInput, answers: response.answers },
+        },
+      };
+    },
+  ],
+}
+```
+
+The `QuestionGate` response type changes from `{ answer: string }` to `{ answers: Record<string, string> }` to match the SDK's expected format.
+
+### 3. Multiple questions — carousel with dot navigation
+
+The `AskUserQuestion` tool supports 1-4 questions in the `questions` array. The current UI (`parseAskUserQuestionInput`) only extracts the first question.
+
+**Plan**: Render all questions in a carousel with left/right navigation and dot indicators:
+
+- `parseAskUserQuestionInput` updated to return `NormalizedQuestion[]` (array) instead of single
+- Carousel wrapper component around `AskUserQuestionBlock`
+- Left/right arrow keys cycle between questions (existing vim j/k + up/down stays for option selection within a question)
+- Dot indicators below the question block show position: `● ○ ○ ○`
+- Each question tracks its own selected answer independently
+- Submit sends all answers at once when the last unanswered question is answered (or an explicit "Submit all" action)
+- Answer format: `Record<string, string>` mapping question text to selected option label(s), matching SDK's `AskUserQuestionOutput.answers` format. Multi-select answers are comma-separated labels per the SDK spec.
+
+**No existing pagination/carousel components** in the codebase — build a lightweight Tailwind-based one.
+
+### 4. Streaming state — deferred (not important for now)
