@@ -46,7 +46,7 @@ export async function generateWorktreeName(
   const anthropic = createAnthropic({ apiKey });
 
   const { text } = await generateText({
-    model: anthropic("claude-3-5-haiku-latest"),
+    model: anthropic("claude-haiku-4-5-20251001"),
     system: SYSTEM_PROMPT,
     prompt: `Generate a worktree name for this task: "${prompt.slice(0, 200)}"`,
     maxOutputTokens: 20,

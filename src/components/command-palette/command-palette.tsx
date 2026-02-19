@@ -216,6 +216,9 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             placeholder="Search threads and plans..."
             className="w-full bg-transparent text-surface-200 placeholder-surface-500 outline-none text-sm"
             autoFocus
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
         </div>
 

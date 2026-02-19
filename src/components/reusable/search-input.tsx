@@ -155,6 +155,8 @@ export const SearchInput = forwardRef<HTMLTextAreaElement, SearchInputProps>(
             className
           )}
           spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
           onChange={handleChange}
           value={value}
           {...props}

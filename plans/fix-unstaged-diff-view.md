@@ -1,20 +1,26 @@
-# Fix: Unstaged/Untracked Files Not Showing in Per-Thread Diff View
+# Fix: Per-Thread Diff View — Unstaged Files + Multi-Turn Accumulation
 
 ## Problem
 
-Users report that the per-thread diff view does not display diffs for unstaged/untracked files. The Rust backend (`git_diff_files`) relies on an `operation` label from the agent to decide whether to use `git diff` or synthetic diff generation. This label is frequently wrong, causing untracked files to be routed through `git diff <base_commit>` which returns nothing for files git doesn't know about.
+Two related issues with the per-thread diff view:
+
+1. **Unstaged/untracked files show no diff.** The Rust backend relies on an `operation` label from the agent to route diff strategy. When the label is wrong (common), untracked files get routed through `git diff <base_commit>` which returns nothing.
+
+2. **Multi-turn conversations only show the latest turn's changes.** The `fileChanges` array is reset to `[]` on every turn resume. Changes from prior turns are lost.
 
 ## Phases
 
 - [ ] Simplify Rust backend to determine tracking status from git itself
-- [ ] Remove operation-based routing from frontend caller
-- [ ] Verify fix with manual testing
+- [ ] Persist fileChanges across turns in the agent state pipeline
+- [ ] Verify both fixes with manual testing
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
-## Root Cause
+## Issue 1: Unstaged/Untracked Files
+
+### Root Cause
 
 **File:** `src-tauri/src/git_commands.rs:535-537`
 
@@ -29,20 +35,18 @@ let (new_files, tracked_files): (Vec<_>, Vec<_>) = requests
 - `"create"` → synthetic diff (read from disk, all lines as `+`)
 - anything else → `git diff <base_commit> -- <file>`
 
-The operation label comes from the agent's tool-call tracking (`shared.ts:690`), which naively assigns `"create"` for `Write` and `"modify"` for `Edit`. This is wrong in many cases (e.g., `Write` on existing file, `Edit` after `Write` on new file). When an untracked file gets labeled `"modify"`, `git diff` returns empty and no diff is shown.
+The operation label comes from `shared.ts:690`, which naively assigns `"create"` for `Write` and `"modify"` for `Edit`. This is wrong in many cases (e.g., `Edit` after `Write` overwrites operation to `"modify"`). When an untracked file gets labeled `"modify"`, `git diff` returns empty.
 
-**The operation label shouldn't matter for diff generation at all.** Git already knows which files exist at a given commit.
+**The operation label shouldn't matter for diff generation.** Git already knows which files exist at a given commit.
 
-## Proposed Fix
+### Fix
 
-### Phase 1: Simplify Rust backend (`src-tauri/src/git_commands.rs`)
+Replace the operation-based partition with a `git ls-tree` check. The function should:
 
-Replace the operation-based partition with a git-based check. The function should:
-
-1. Accept just file paths (ignore operations for routing purposes)
+1. Accept just file paths (ignore operations for routing)
 2. Use `git ls-tree <base_commit>` to determine which files exist at the base commit
-3. Files in the tree → `git diff <base_commit> -- <file>` (shows working dir changes vs base)
-4. Files NOT in the tree → `generate_new_file_diff()` (synthetic, all lines as additions)
+3. Files in the tree → `git diff <base_commit> -- <file>`
+4. Files NOT in the tree → `generate_new_file_diff()` (synthetic)
 
 ```rust
 pub async fn git_diff_files(
@@ -51,7 +55,7 @@ pub async fn git_diff_files(
     file_paths: Vec<String>,
     file_requests: Option<Vec<FileDiffRequest>>,
 ) -> Result<String, String> {
-    // Collect all paths (support both legacy and new calling conventions)
+    // Collect all paths (support both calling conventions)
     let all_paths: Vec<String> = if let Some(requests) = file_requests {
         requests.into_iter().map(|r| r.path).collect()
     } else {
@@ -62,7 +66,7 @@ pub async fn git_diff_files(
         return Ok(String::new());
     }
 
-    // Ask git which of these files exist at the base commit
+    // Ask git which files exist at the base commit
     let ls_output = shell::command("git")
         .args(&["ls-tree", "--name-only", "-r", &base_commit])
         .current_dir(&repo_path)
@@ -80,7 +84,7 @@ pub async fn git_diff_files(
 
     let mut all_diffs = Vec::new();
 
-    // Tracked files: git diff <base> -- <files>
+    // Tracked files: git diff
     if !tracked.is_empty() {
         let mut args = vec!["diff".to_string(), base_commit.clone(), "--".to_string()];
         args.extend(tracked);
@@ -95,7 +99,7 @@ pub async fn git_diff_files(
         }
     }
 
-    // Untracked files: synthetic diff (all lines as additions)
+    // Untracked files: synthetic diff
     for path in untracked {
         match generate_new_file_diff(&repo_path, &path) {
             Ok(diff) if !diff.is_empty() => all_diffs.push(diff),
@@ -108,29 +112,95 @@ pub async fn git_diff_files(
 }
 ```
 
-This is a straightforward refactor. The function signature stays the same (backward compatible), it just stops using `operation` for routing.
+Function signature stays the same (backward compatible), it just stops using `operation` for routing.
 
-### Phase 2: Clean up frontend caller
+**File to modify:** `src-tauri/src/git_commands.rs`
 
-In `thread-diff-generator.ts`, the `fileRequests` still sends operation info. This can be simplified — we can either:
+---
 
-- **Minimal change:** Keep sending `fileRequests` with operations (Rust just ignores them for routing). Operations are still useful metadata elsewhere.
-- **Clean change:** Switch to the legacy `file_paths` param (just string array) since operations aren't needed for diff generation.
+## Issue 2: Multi-Turn File Changes Lost
 
-Recommend the minimal change — less churn, and the `FileDiffRequest` struct might be useful if we ever want the Rust side to know the operation for other reasons (e.g., delete files shouldn't generate diffs at all).
+### Root Cause
 
-## Files to Modify
+`fileChanges` is reset to `[]` every time a thread resumes for a new turn. The data is never carried forward.
+
+**The reset** — `agents/src/output.ts:91`:
+```typescript
+state = {
+    messages: priorMessages,
+    fileChanges: [],  // ← always empty on resume
+    // ...
+};
+```
+
+**The missing load** — `agents/src/runner.ts:35-99` (`loadPriorState`):
+
+The function loads `messages`, `sessionId`, `toolStates`, `lastCallUsage`, and `cumulativeUsage` from the prior state file — but **not `fileChanges`**. The `PriorState` interface (`shared.ts:374-385`) doesn't even have a `fileChanges` field.
+
+**Result:** Turn 1 writes `fileChanges: [a.ts, b.ts]` to `state.json`. Turn 2 starts, resets to `fileChanges: []`, only accumulates turn 2's changes. The frontend reads `state.json` and only sees the latest turn.
+
+### Fix
+
+Thread `fileChanges` through the same pattern used for all other persisted state:
+
+**1. Add to `PriorState` interface** (`agents/src/runners/shared.ts:374`):
+```typescript
+export interface PriorState {
+  messages: MessageParam[];
+  sessionId?: string;
+  toolStates?: Record<string, ToolExecutionState>;
+  lastCallUsage?: TokenUsage;
+  cumulativeUsage?: TokenUsage;
+  fileChanges?: FileChange[];  // NEW
+}
+```
+
+**2. Load in `loadPriorState`** (`agents/src/runner.ts:54-92`):
+```typescript
+// Load prior file changes so diffs accumulate across turns
+if (Array.isArray(state.fileChanges)) {
+  result.fileChanges = state.fileChanges;
+  logger.info(`[runner] Loaded ${state.fileChanges.length} prior file changes`);
+}
+```
+
+**3. Accept in `initState`** (`agents/src/output.ts:76-101`):
+```typescript
+export async function initState(
+  threadPath: string,
+  workingDirectory: string,
+  priorMessages: MessageParam[] = [],
+  writer?: ThreadWriter,
+  priorSessionId?: string,
+  priorToolStates?: Record<string, ToolExecutionState>,
+  priorLastCallUsage?: TokenUsage,
+  priorCumulativeUsage?: TokenUsage,
+  priorFileChanges?: FileChange[],  // NEW
+): Promise<void> {
+  state = {
+    messages: priorMessages,
+    fileChanges: priorFileChanges ?? [],  // preserve prior changes
+    // ...
+  };
+}
+```
+
+**4. Pass through `runAgentLoop`** (`agents/src/runners/shared.ts:420`):
+
+Extract `fileChanges` from `priorState` and pass to `initState`.
+
+### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src-tauri/src/git_commands.rs` | Replace operation-based partition with `git ls-tree` check |
+| `agents/src/runners/shared.ts` | Add `fileChanges` to `PriorState`, pass to `initState` |
+| `agents/src/runner.ts` | Load `fileChanges` in `loadPriorState` |
+| `agents/src/output.ts` | Accept `priorFileChanges` param in `initState`, use instead of `[]` |
 
-Optionally:
-| File | Change |
-|------|--------|
-| `src/lib/utils/thread-diff-generator.ts` | Simplify to just pass file paths if desired |
+---
 
 ## Notes
 
-- The agent-side operation labels (`shared.ts:690`) are still slightly wrong but that's a separate concern — they're used for UI display in the changes tab, not for diff generation. Can be fixed independently if needed.
-- `git ls-tree -r <base_commit>` lists all files recursively at that commit. For large repos this could be slow, but it's a single call and the output is just file paths. If perf is a concern, we could instead check individual files with `git cat-file -e <base_commit>:<path>`, but batch is simpler.
+- The agent-side operation labels (`shared.ts:690`) are still slightly wrong but that's a separate concern — they're used for UI display in the changes tab, not for diff generation after Issue 1 is fixed.
+- `git ls-tree -r <base_commit>` lists all files at that commit. For very large repos this could be slow; if needed we could check individual files with `git cat-file -e <base_commit>:<path>` instead.
+- `updateFileChange` in `output.ts` already deduplicates by path (replaces existing entry), so loading prior changes and then accumulating new ones within a turn works correctly — if the agent modifies the same file again, it updates in place.

@@ -57,7 +57,7 @@ export const SearchBar = () => {
         className="w-full px-4 py-4 bg-gradient-to-br from-surface-900 to-surface-800 text-white text-3xl font-light focus:outline-none rounded-xl border border-surface-700/50 shadow-2xl"
         autoFocus
         autoComplete={isAtTagging ? "off" : "on"}
-        autoCorrect={isAtTagging ? "off" : "on"}
+        autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
       />
