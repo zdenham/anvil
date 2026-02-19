@@ -45,3 +45,12 @@ export * from "./quick-actions.js";
 
 // Skills types - shared between Tauri client and Node server
 export * from "./skills.js";
+
+// Drain event types - shared between Node agent (emission) and Rust (consumption)
+export * from "./drain-events.js";
+
+// Pipeline types - event delivery pipeline stage tracking
+export * from "./pipeline.js";
+
+// Diagnostic logging types - per-module diagnostic toggle config
+export * from "./diagnostic-logging.js";

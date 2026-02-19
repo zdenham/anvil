@@ -9,10 +9,11 @@
  * 4. The control panel switches to show the new thread's conversation
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { usePlanStore } from "@/entities/plans/store";
 import { useControlPanelStore } from "./store";
 import { threadService } from "@/entities/threads/service";
+import { draftService } from "@/entities/drafts/service";
 import { logger } from "@/lib/logger-client";
 
 interface PlanInputAreaProps {
@@ -24,6 +25,22 @@ export function PlanInputArea({ planId }: PlanInputAreaProps) {
   const [isLoading, setIsLoading] = useState(false);
   const plan = usePlanStore((s) => s.getPlan(planId));
   const setView = useControlPanelStore((s) => s.setView);
+  const messageRef = useRef(message);
+  messageRef.current = message;
+
+  // Restore draft on mount / planId change, save on unmount
+  useEffect(() => {
+    const draft = draftService.getPlanDraft(planId);
+    if (draft) setMessage(draft);
+    return () => {
+      const current = messageRef.current;
+      if (current.trim()) {
+        draftService.savePlanDraft(planId, current);
+      } else {
+        draftService.clearPlanDraft(planId);
+      }
+    };
+  }, [planId]);
 
   const handleSend = useCallback(async () => {
     if (!message.trim() || !plan) return;
@@ -61,6 +78,7 @@ export function PlanInputArea({ planId }: PlanInputAreaProps) {
       setView({ type: "thread", threadId: thread.id });
 
       setMessage("");
+      draftService.clearPlanDraft(planId);
     } catch (error) {
       logger.error("[PlanInputArea] Failed to create thread:", error);
     } finally {

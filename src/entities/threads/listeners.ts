@@ -1,9 +1,15 @@
 import { EventName, EventPayloads } from "@core/types/events.js";
+// DiagnosticLoggingConfig used in staleness handler below
+import { invoke } from "@tauri-apps/api/core";
 import { eventBus } from "../events.js";
 import { threadService } from "./service.js";
 import { useThreadStore } from "./store.js";
 import { useStreamingStore } from "@/stores/streaming-store.js";
 import { logger } from "@/lib/logger-client.js";
+import { useHeartbeatStore, startHeartbeatMonitor } from "@/stores/heartbeat-store.js";
+import { handleStaleness, setupRecoveryCleanupListeners } from "@/lib/state-recovery.js";
+import { settingsService } from "../settings/service.js";
+import { sendToAgent } from "@/lib/agent-service.js";
 
 /**
  * Setup thread event listeners.
@@ -179,4 +185,54 @@ export function setupThreadListeners(): void {
       store.setActiveThread(null);
     }
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Heartbeat Monitoring & Recovery
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Start heartbeat monitor with staleness handler
+  startHeartbeatMonitor(async (threadId: string) => {
+    // 1. Auto-enable all diagnostic modules
+    const allEnabled = {
+      pipeline: true,
+      heartbeat: true,
+      sequenceGaps: true,
+      socketHealth: true,
+    };
+    try {
+      await settingsService.set("diagnosticLogging", allEnabled);
+      // Update Rust hub diagnostic state so pipeline logging activates there too
+      await invoke("update_diagnostic_config", { config: allEnabled });
+      logger.warn("[diagnostics] Auto-enabled all diagnostic modules due to heartbeat staleness");
+    } catch (err) {
+      logger.error("[diagnostics] Failed to auto-enable diagnostics:", err);
+    }
+
+    // 2. Relay diagnostic config to in-flight agents via hub
+    // NOTE: type must be "diagnostic_config" (underscore) to match agent-side TauriToAgentMessage
+    try {
+      await sendToAgent(threadId, {
+        type: "diagnostic_config",
+        payload: allEnabled,
+      });
+    } catch (err) {
+      // Agent may not be reachable — that's expected when pipeline is broken
+      logger.debug("[diagnostics] Failed to relay diagnostic config to agent:", err);
+    }
+
+    // 3. Trigger disk recovery + polling fallback
+    await handleStaleness(threadId);
+  });
+
+  // Clean up heartbeat tracking when agent finishes
+  eventBus.on(EventName.AGENT_COMPLETED, ({ threadId }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
+    useHeartbeatStore.getState().removeThread(threadId);
+  });
+
+  eventBus.on(EventName.AGENT_CANCELLED, ({ threadId }: EventPayloads[typeof EventName.AGENT_CANCELLED]) => {
+    useHeartbeatStore.getState().removeThread(threadId);
+  });
+
+  // Set up recovery polling cleanup (stops polling on agent complete/cancel)
+  setupRecoveryCleanupListeners();
 }

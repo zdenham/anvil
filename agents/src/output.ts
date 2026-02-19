@@ -44,6 +44,9 @@ let state: ThreadState;
 let threadWriter: ThreadWriter | null = null;
 let hubClient: HubClient | null = null;
 
+/** Track last logged connection state to avoid spamming on every write. */
+let lastLoggedConnectionState: string | null = null;
+
 /**
  * Set the hub client for socket-based communication.
  * Called from runner.ts after connecting to the AgentHub.
@@ -58,6 +61,35 @@ export function setHubClient(client: HubClient): void {
  */
 export function getHubClient(): HubClient | null {
   return hubClient;
+}
+
+/**
+ * Emit via socket with connection-state-aware logging.
+ *
+ * - connected: call sendFn directly (HubClient stamps and writes)
+ * - reconnecting: call sendFn (HubClient queues internally during reconnect)
+ * - disconnected: log once on transition, then silently drop
+ *
+ * Avoids the previous pattern of logging "not connected" on every single write attempt.
+ */
+function emitViaSocket(sendFn: () => void): void {
+  if (!hubClient) return;
+
+  const connState = hubClient.connectionState;
+  if (connState === "connected" || connState === "reconnecting") {
+    // HubClient handles queueing during reconnection internally
+    sendFn();
+    if (lastLoggedConnectionState === "disconnected") {
+      lastLoggedConnectionState = connState;
+    }
+    return;
+  }
+
+  // disconnected — log once on transition
+  if (lastLoggedConnectionState !== "disconnected") {
+    logger.debug("[output] Hub disconnected, state written to disk only");
+    lastLoggedConnectionState = "disconnected";
+  }
 }
 
 /**
@@ -81,14 +113,15 @@ export async function initState(
   priorSessionId?: string,
   priorToolStates?: Record<string, ToolExecutionState>,
   priorLastCallUsage?: TokenUsage,
-  priorCumulativeUsage?: TokenUsage
+  priorCumulativeUsage?: TokenUsage,
+  priorFileChanges?: FileChange[],
 ): Promise<void> {
   statePath = join(threadPath, "state.json");
   metadataPath = join(threadPath, "metadata.json");
   threadWriter = writer ?? null;
   state = {
     messages: priorMessages,
-    fileChanges: [],
+    fileChanges: priorFileChanges ?? [],
     workingDirectory,
     status: "running",
     timestamp: Date.now(),
@@ -136,12 +169,8 @@ export async function emitState(): Promise<void> {
     writeFileSync(statePath, JSON.stringify(payload, null, 2));
   }
 
-  // Emit via socket (socket connection is required for state updates)
-  if (hubClient?.isConnected) {
-    hubClient.sendState(payload);
-  } else {
-    logger.debug(`[output] Not connected to hub, state written to disk only`);
-  }
+  // Emit via socket — HubClient handles queueing during reconnection
+  emitViaSocket(() => hubClient?.sendState(payload));
 }
 
 /**
@@ -411,13 +440,8 @@ export function relayEventsFromToolOutput(toolOutput: string): void {
       // Validate with Zod schema
       const result = ToolEventSchema.safeParse(parsed);
       if (result.success) {
-        // Re-emit the event via socket so frontend receives it
         logger.debug(`[output] Relaying event from tool output: ${result.data.name}`);
-        if (hubClient?.isConnected) {
-          hubClient.sendEvent(result.data.name, result.data.payload);
-        } else {
-          logger.debug(`[output] Not connected to hub, event not relayed: ${result.data.name}`);
-        }
+        emitViaSocket(() => hubClient?.sendEvent(result.data.name, result.data.payload));
       }
     } catch {
       // Not valid JSON, skip this line

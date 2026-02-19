@@ -1,5 +1,6 @@
 use crate::shell;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -523,86 +524,59 @@ pub async fn git_diff_files(
     file_paths: Vec<String>,
     file_requests: Option<Vec<FileDiffRequest>>,
 ) -> Result<String, String> {
-    // If file_requests is provided, use the new operation-aware logic
-    if let Some(requests) = file_requests {
-        if requests.is_empty() {
-            return Ok(String::new());
-        }
+    // Collect all paths (support both calling conventions)
+    let all_paths: Vec<String> = if let Some(requests) = file_requests {
+        requests.into_iter().map(|r| r.path).collect()
+    } else {
+        file_paths
+    };
 
-        let mut all_diffs = Vec::new();
-
-        // Separate files by operation type
-        let (new_files, tracked_files): (Vec<_>, Vec<_>) = requests
-            .into_iter()
-            .partition(|r| r.operation == "create");
-
-        // Generate diffs for tracked files using git diff
-        if !tracked_files.is_empty() {
-            let tracked_paths: Vec<String> = tracked_files.iter().map(|r| r.path.clone()).collect();
-
-            let mut args = vec!["diff".to_string(), base_commit.clone(), "--".to_string()];
-            args.extend(tracked_paths);
-
-            let output = shell::command("git")
-                .args(&args)
-                .current_dir(&repo_path)
-                .output()
-                .map_err(|e| format!("Failed to execute git diff: {}", e))?;
-
-            if !output.status.success() {
-                return Err(format!(
-                    "Failed to generate diff: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                ));
-            }
-
-            let diff_output = String::from_utf8_lossy(&output.stdout).to_string();
-            if !diff_output.is_empty() {
-                all_diffs.push(diff_output);
-            }
-        }
-
-        // Generate synthetic diffs for new/untracked files
-        for file in new_files {
-            match generate_new_file_diff(&repo_path, &file.path) {
-                Ok(diff) => {
-                    if !diff.is_empty() {
-                        all_diffs.push(diff);
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to generate diff for new file {}: {}", file.path, e);
-                    // Continue with other files even if one fails
-                }
-            }
-        }
-
-        return Ok(all_diffs.join("\n"));
-    }
-
-    // Legacy path: just file_paths without operation info
-    if file_paths.is_empty() {
+    if all_paths.is_empty() {
         return Ok(String::new());
     }
 
-    // Build the git diff command:
-    // git diff <base_commit> -- <file1> <file2> ...
-    let mut args = vec!["diff".to_string(), base_commit.clone(), "--".to_string()];
-    args.extend(file_paths);
-
-    let output = shell::command("git")
-        .args(&args)
+    // Ask git which files exist at the base commit
+    let ls_output = shell::command("git")
+        .args(&["ls-tree", "--name-only", "-r", &base_commit])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to execute git diff: {}", e))?;
+        .map_err(|e| format!("Failed to list files at base commit: {}", e))?;
 
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to generate diff: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
+    let tracked_at_base: HashSet<String> = String::from_utf8_lossy(&ls_output.stdout)
+        .lines()
+        .map(|s| s.to_string())
+        .collect();
+
+    let (tracked, untracked): (Vec<_>, Vec<_>) = all_paths
+        .into_iter()
+        .partition(|p| tracked_at_base.contains(p));
+
+    let mut all_diffs = Vec::new();
+
+    // Tracked files: git diff
+    if !tracked.is_empty() {
+        let mut args = vec!["diff".to_string(), base_commit.clone(), "--".to_string()];
+        args.extend(tracked);
+        let output = shell::command("git")
+            .args(&args)
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Failed to execute git diff: {}", e))?;
+        let diff_output = String::from_utf8_lossy(&output.stdout).to_string();
+        if !diff_output.is_empty() {
+            all_diffs.push(diff_output);
+        }
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    // Untracked files: synthetic diff
+    for path in untracked {
+        match generate_new_file_diff(&repo_path, &path) {
+            Ok(diff) if !diff.is_empty() => all_diffs.push(diff),
+            Err(e) => tracing::warn!("Failed to generate diff for new file {}: {}", path, e),
+            _ => {}
+        }
+    }
+
+    Ok(all_diffs.join("\n"))
 }
 

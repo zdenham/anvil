@@ -1,38 +1,39 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useInputStore } from '../input-store.js';
+import { createInputStore } from '../input-store.js';
 
-describe('useInputStore', () => {
+describe('createInputStore', () => {
+  let store: ReturnType<typeof createInputStore>;
+
   beforeEach(() => {
-    // Reset store state before each test
-    useInputStore.setState({ content: '', focusRequested: false });
+    store = createInputStore();
   });
 
   it('setContent updates content', () => {
-    useInputStore.getState().setContent('hello');
-    expect(useInputStore.getState().content).toBe('hello');
+    store.getState().setContent('hello');
+    expect(store.getState().content).toBe('hello');
   });
 
   it('appendContent appends to existing content', () => {
-    useInputStore.getState().setContent('hello');
-    useInputStore.getState().appendContent(' world');
-    expect(useInputStore.getState().content).toBe('hello world');
+    store.getState().setContent('hello');
+    store.getState().appendContent(' world');
+    expect(store.getState().content).toBe('hello world');
   });
 
   it('clearContent resets content to empty string', () => {
-    useInputStore.getState().setContent('hello');
-    useInputStore.getState().clearContent();
-    expect(useInputStore.getState().content).toBe('');
+    store.getState().setContent('hello');
+    store.getState().clearContent();
+    expect(store.getState().content).toBe('');
   });
 
   it('requestFocus sets focusRequested to true', () => {
-    useInputStore.getState().requestFocus();
-    expect(useInputStore.getState().focusRequested).toBe(true);
+    store.getState().requestFocus();
+    expect(store.getState().focusRequested).toBe(true);
   });
 
   it('clearFocusRequest sets focusRequested to false', () => {
-    useInputStore.getState().requestFocus();
-    useInputStore.getState().clearFocusRequest();
-    expect(useInputStore.getState().focusRequested).toBe(false);
+    store.getState().requestFocus();
+    store.getState().clearFocusRequest();
+    expect(store.getState().focusRequested).toBe(false);
   });
 });

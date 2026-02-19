@@ -4,9 +4,9 @@ Add a right-click context menu to file browser entries (files and folders), matc
 
 ## Phases
 
-- [ ] Extract reusable context menu component
-- [ ] Add context menu to file tree entries
-- [ ] Wire up menu actions (copy path, copy name, open in Cursor)
+- [x] Extract reusable context menu component
+- [x] Add context menu to file tree entries
+- [x] Wire up menu actions (copy relative/absolute path, copy name, open in Cursor)
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

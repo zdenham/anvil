@@ -22,6 +22,8 @@ import { getChildThreadId, emitEvent } from "./shared.js";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { EventName, type ThreadState } from "@core/types/events.js";
+import type { DrainManager } from "../lib/drain-manager.js";
+import { DrainEventName } from "@core/types/drain-events.js";
 
 /**
  * MessageHandler processes SDK messages and updates thread state.
@@ -36,18 +38,33 @@ import { EventName, type ThreadState } from "@core/types/events.js";
 export class MessageHandler {
   private mortDir: string | null = null;
   private accumulator: StreamAccumulator | null = null;
+  private drainManager: DrainManager | null = null;
 
   // In-memory state cache for child threads (childThreadId -> state)
   private childThreadStates = new Map<string, ThreadState>();
+
+  /** Turn counter incremented on each assistant message with usage */
+  private turnIndex = 0;
+
+  /** Context pressure thresholds already crossed (emit once per threshold) */
+  private crossedThresholds = new Set<number>();
+
+  /** Cumulative input tokens across all turns (for context pressure) */
+  private cumulativeInputTokens = 0;
+
+  /** Context window size (populated from result message) */
+  private contextWindow: number | null = null;
 
   /**
    * Create a MessageHandler.
    * @param mortDir - Optional path to mort directory for sub-agent state routing
    * @param accumulator - Optional stream accumulator for live streaming display
+   * @param drainManager - Optional drain manager for analytics event emission
    */
-  constructor(mortDir?: string, accumulator?: StreamAccumulator) {
+  constructor(mortDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager) {
     this.mortDir = mortDir ?? null;
     this.accumulator = accumulator ?? null;
+    this.drainManager = drainManager ?? null;
   }
 
   /**
@@ -111,12 +128,37 @@ export class MessageHandler {
 
     // Extract and store per-call usage
     if (msg.message.usage) {
+      const usage = msg.message.usage;
       await updateUsage({
-        inputTokens: msg.message.usage.input_tokens,
-        outputTokens: msg.message.usage.output_tokens,
-        cacheCreationTokens: msg.message.usage.cache_creation_input_tokens ?? 0,
-        cacheReadTokens: msg.message.usage.cache_read_input_tokens ?? 0,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+        cacheReadTokens: usage.cache_read_input_tokens ?? 0,
       });
+
+      // Emit api:call drain event
+      if (this.drainManager) {
+        const cacheCreation = usage.cache_creation_input_tokens ?? 0;
+        const cacheRead = usage.cache_read_input_tokens ?? 0;
+        const totalInput = usage.input_tokens;
+
+        this.drainManager.emit(DrainEventName.API_CALL, {
+          turnIndex: this.turnIndex++,
+          inputTokens: totalInput,
+          outputTokens: usage.output_tokens,
+          cacheCreationTokens: cacheCreation,
+          cacheReadTokens: cacheRead,
+          cacheHitRate: totalInput > 0 ? cacheRead / totalInput : 0,
+          stopReason: msg.message.stop_reason ?? "unknown",
+          toolUseCount: this.countBlocks(msg, "tool_use"),
+          thinkingBlockCount: this.countBlocks(msg, "thinking"),
+          textBlockCount: this.countBlocks(msg, "text"),
+        });
+
+        // Track cumulative input tokens for context pressure
+        this.cumulativeInputTokens += totalInput;
+        this.checkContextPressure();
+      }
     }
 
     // Cast content type - BetaContentBlock[] is structurally compatible with ContentBlockParam[]
@@ -182,6 +224,9 @@ export class MessageHandler {
     const modelUsageEntries = Object.values(msg.modelUsage ?? {});
     const contextWindow = modelUsageEntries[0]?.contextWindow;
 
+    // Store context window for pressure checks on future turns
+    if (contextWindow) this.contextWindow = contextWindow;
+
     switch (msg.subtype) {
       case "success":
         await complete({
@@ -232,6 +277,32 @@ export class MessageHandler {
     }
 
     return true;
+  }
+
+  /** Count content blocks of a given type in an assistant message */
+  private countBlocks(msg: SDKAssistantMessage, blockType: string): number {
+    return msg.message.content.filter((b) => b.type === blockType).length;
+  }
+
+  /** Check if context pressure thresholds have been crossed and emit events */
+  private checkContextPressure(): void {
+    if (!this.drainManager || !this.contextWindow || this.contextWindow <= 0) return;
+
+    const thresholds = [50, 75, 90, 95];
+    const utilization = (this.cumulativeInputTokens / this.contextWindow) * 100;
+
+    for (const threshold of thresholds) {
+      if (utilization >= threshold && !this.crossedThresholds.has(threshold)) {
+        this.crossedThresholds.add(threshold);
+        this.drainManager.emit(DrainEventName.CONTEXT_PRESSURE, {
+          utilization,
+          threshold,
+          inputTokens: this.cumulativeInputTokens,
+          contextWindow: this.contextWindow,
+          turnIndex: this.turnIndex,
+        });
+      }
+    }
   }
 
   private extractToolResult(msg: SDKUserMessage): string {

@@ -26,6 +26,8 @@ import { EventName } from "@core/types/events.js";
 import type { ToolExecutionState } from "@core/types/events.js";
 import { MessageHandler } from "./message-handler.js";
 import { StreamAccumulator } from "../lib/stream-accumulator.js";
+import { DrainManager } from "../lib/drain-manager.js";
+import { DrainEventName } from "@core/types/drain-events.js";
 import type { ThreadWriter } from "../services/thread-writer.js";
 import {
   buildEnvironmentContext,
@@ -86,6 +88,20 @@ export function emitLog(
   message: string
 ): void {
   console.log(JSON.stringify({ type: "log", level, message }));
+}
+
+/**
+ * Classify an error for drain analytics.
+ * Maps error messages to structured categories.
+ */
+function classifyError(
+  error: unknown,
+): "permission_denied" | "execution_error" | "timeout" | "unknown" {
+  const msg = String(error).toLowerCase();
+  if (msg.includes("permission") || msg.includes("denied")) return "permission_denied";
+  if (msg.includes("timeout") || msg.includes("timed out")) return "timeout";
+  if (msg.includes("error")) return "execution_error";
+  return "unknown";
 }
 
 /**
@@ -382,6 +398,8 @@ export interface PriorState {
   lastCallUsage?: import("../../../core/types/events.js").TokenUsage;
   /** Cumulative token usage across all calls - preserved across resume */
   cumulativeUsage?: import("../../../core/types/events.js").TokenUsage;
+  /** Prior file changes — preserved so diffs accumulate across turns */
+  fileChanges?: import("../../../core/types/events.js").FileChange[];
 }
 
 /**
@@ -401,7 +419,7 @@ export async function runAgentLoop(
   priorState: PriorState = { messages: [] },
   options: AgentLoopOptions = {}
 ): Promise<void> {
-  const { messages: priorMessages, sessionId: priorSessionId, toolStates: priorToolStates, lastCallUsage, cumulativeUsage } = priorState;
+  const { messages: priorMessages, sessionId: priorSessionId, toolStates: priorToolStates, lastCallUsage, cumulativeUsage, fileChanges: priorFileChanges } = priorState;
 
   // Log prior state for debugging
   logger.info(`[runAgentLoop] Starting with ${priorMessages.length} prior messages`);
@@ -415,9 +433,18 @@ export async function runAgentLoop(
     logger.info(`[runAgentLoop] Prior message roles: ${priorMessages.map(m => m.role).join(", ")}`);
   }
 
+  // Create drain manager for analytics event emission
+  const drainManager = new DrainManager(getHubClient());
+  const loopStartTime = Date.now();
+
+  // Emit thread lifecycle started
+  drainManager.emit(DrainEventName.THREAD_LIFECYCLE, {
+    transition: "started",
+  });
+
   // Initialize state with prior messages (for UI), sessionId (for resume), toolStates (for UI rendering),
   // and token usage (so context meter stays visible during resume)
-  await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId, priorToolStates, lastCallUsage, cumulativeUsage);
+  await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId, priorToolStates, lastCallUsage, cumulativeUsage, priorFileChanges);
   await appendUserMessage(config.prompt);
 
   // Persistence instance for plan detection and mention tracking
@@ -463,16 +490,38 @@ export async function runAgentLoop(
               hooks: [
                 async (
                   hookInput: unknown,
-                  _toolUseId: string | undefined,
+                  toolUseId: string | undefined,
                   { signal }: { signal: AbortSignal },
                 ) => {
                   const input = hookInput as PreToolUseHookInput;
+                  const evalStart = Date.now();
+
+                  // Start tool timer for duration tracking
+                  if (toolUseId) drainManager.startTimer(toolUseId);
+
                   const { decision, reason } = permissionEvaluator.evaluate(
                     input.tool_name,
                     input.tool_input,
                   );
+                  const evaluationTimeMs = Date.now() - evalStart;
 
                   if (decision === "allow") {
+                    // Emit permission:decided + tool:started for allowed tools
+                    drainManager.emit(DrainEventName.PERMISSION_DECIDED, {
+                      toolName: input.tool_name,
+                      toolUseId: toolUseId ?? "unknown",
+                      decision: "allow",
+                      reason,
+                      modeId: permissionEvaluator.getModeId(),
+                      evaluationTimeMs,
+                    });
+                    drainManager.emit(DrainEventName.TOOL_STARTED, {
+                      toolUseId: toolUseId ?? "unknown",
+                      toolName: input.tool_name,
+                      toolInput: JSON.stringify(input.tool_input).slice(0, 2000),
+                      permissionDecision: "allow",
+                      permissionReason: reason,
+                    });
                     return {
                       hookSpecificOutput: {
                         hookEventName: "PreToolUse" as const,
@@ -483,6 +532,21 @@ export async function runAgentLoop(
                   }
 
                   if (decision === "deny") {
+                    // Emit permission:decided + tool:denied for blocked tools
+                    drainManager.emit(DrainEventName.PERMISSION_DECIDED, {
+                      toolName: input.tool_name,
+                      toolUseId: toolUseId ?? "unknown",
+                      decision: "deny",
+                      reason,
+                      modeId: permissionEvaluator.getModeId(),
+                      evaluationTimeMs,
+                    });
+                    drainManager.emit(DrainEventName.TOOL_DENIED, {
+                      toolUseId: toolUseId ?? "unknown",
+                      toolName: input.tool_name,
+                      reason: reason ?? "Permission denied",
+                      deniedBy: "rule",
+                    });
                     return {
                       hookSpecificOutput: {
                         hookEventName: "PreToolUse" as const,
@@ -495,6 +559,7 @@ export async function runAgentLoop(
                   // decision === "ask" — block and wait for user
                   const requestId = crypto.randomUUID();
                   const threadId = context.threadId;
+                  const askStart = Date.now();
                   const response = await permissionGate.waitForResponse(
                     requestId,
                     {
@@ -508,6 +573,16 @@ export async function runAgentLoop(
                   );
 
                   if (response === "timeout" || signal.aborted) {
+                    drainManager.emit(DrainEventName.PERMISSION_DECIDED, {
+                      toolName: input.tool_name,
+                      toolUseId: toolUseId ?? "unknown",
+                      decision: "ask",
+                      reason,
+                      modeId: permissionEvaluator.getModeId(),
+                      evaluationTimeMs,
+                      waitTimeMs: Date.now() - askStart,
+                      userDecision: "timeout",
+                    });
                     return {
                       continue: false,
                       stopReason: "Permission request timed out — agent stopped",
@@ -517,6 +592,36 @@ export async function runAgentLoop(
                   const userDecision = response.approved
                     ? ("allow" as const)
                     : ("deny" as const);
+                  const waitTimeMs = Date.now() - askStart;
+
+                  drainManager.emit(DrainEventName.PERMISSION_DECIDED, {
+                    toolName: input.tool_name,
+                    toolUseId: toolUseId ?? "unknown",
+                    decision: "ask",
+                    reason,
+                    modeId: permissionEvaluator.getModeId(),
+                    evaluationTimeMs,
+                    waitTimeMs,
+                    userDecision,
+                  });
+
+                  if (userDecision === "allow") {
+                    drainManager.emit(DrainEventName.TOOL_STARTED, {
+                      toolUseId: toolUseId ?? "unknown",
+                      toolName: input.tool_name,
+                      toolInput: JSON.stringify(input.tool_input).slice(0, 2000),
+                      permissionDecision: "allow",
+                      permissionReason: response.reason ?? "User approved",
+                    });
+                  } else {
+                    drainManager.emit(DrainEventName.TOOL_DENIED, {
+                      toolUseId: toolUseId ?? "unknown",
+                      toolName: input.tool_name,
+                      reason: response.reason ?? "User denied",
+                      deniedBy: "user",
+                    });
+                  }
+
                   return {
                     hookSpecificOutput: {
                       hookEventName: "PreToolUse" as const,
@@ -622,6 +727,15 @@ export async function runAgentLoop(
 
               logger.info(`[PreToolUse:Task] Created child thread: ${childThreadId} for toolUseId: ${toolUseId}`);
 
+              // Emit subagent:spawned drain event and start timer
+              drainManager.startTimer(`subagent:${childThreadId}`);
+              drainManager.emit(DrainEventName.SUBAGENT_SPAWNED, {
+                childThreadId,
+                agentType,
+                toolUseId,
+                promptLength: taskPrompt.length,
+              });
+
               // Fire-and-forget: generate thread name
               const apiKey = process.env.ANTHROPIC_API_KEY;
               if (apiKey) {
@@ -675,6 +789,16 @@ export async function runAgentLoop(
                 : JSON.stringify(input.tool_response);
 
             await markToolComplete(input.tool_use_id, toolResponse, false);
+
+            // Emit tool:completed drain event
+            const toolDurationMs = drainManager.endTimer(input.tool_use_id);
+            drainManager.emit(DrainEventName.TOOL_COMPLETED, {
+              toolUseId: input.tool_use_id,
+              toolName: input.tool_name,
+              durationMs: toolDurationMs,
+              resultLength: toolResponse.length,
+              resultTruncated: toolResponse.length > 10000,
+            });
 
             // Side effect: relay embedded events to stdout
             relayEventsFromToolOutput(toolResponse);
@@ -806,8 +930,10 @@ export async function runAgentLoop(
                 const statePath = join(childThreadPath, "state.json");
 
                 // === Update metadata.json ===
+                let childAgentType = "unknown";
                 if (existsSync(metadataPath)) {
                   const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+                  childAgentType = metadata.agentType ?? "unknown";
 
                   metadata.status = "completed";
 
@@ -879,6 +1005,15 @@ export async function runAgentLoop(
                   logger.info(`[PostToolUse:Task] Appended final response to state.json`);
                 }
 
+                // Emit subagent:completed drain event
+                const subagentDurationMs = drainManager.endTimer(`subagent:${childThreadId}`);
+                drainManager.emit(DrainEventName.SUBAGENT_COMPLETED, {
+                  childThreadId,
+                  agentType: childAgentType,
+                  durationMs: subagentDurationMs,
+                  resultLength: toolResponse.length,
+                });
+
                 // Emit THREAD_STATUS_CHANGED
                 emitEvent(EventName.THREAD_STATUS_CHANGED, {
                   threadId: childThreadId,
@@ -916,6 +1051,16 @@ export async function runAgentLoop(
 
             // Mark tool as error in state
             await markToolComplete(input.tool_use_id, input.error, true);
+
+            // Emit tool:failed drain event
+            const failDurationMs = drainManager.endTimer(input.tool_use_id);
+            drainManager.emit(DrainEventName.TOOL_FAILED, {
+              toolUseId: input.tool_use_id,
+              toolName: input.tool_name,
+              durationMs: failDurationMs,
+              error: input.error.slice(0, 1000),
+              errorType: classifyError(input.error),
+            });
 
             logger.debug(
               `[PostToolUseFailure] ${input.tool_name}: ${input.error}`
@@ -1044,9 +1189,10 @@ export async function runAgentLoop(
     : undefined;
 
   // Process messages with dedicated handler
-  // Pass mortDir for sub-agent message routing
-  const handler = new MessageHandler(config.mortDir, accumulator);
+  // Pass mortDir for sub-agent message routing, drainManager for analytics
+  const handler = new MessageHandler(config.mortDir, accumulator, drainManager);
 
+  let loopError: string | undefined;
   try {
     for await (const message of result) {
       // === DEBUG: Pretty print each streamed message (RAW JSON) ===
@@ -1069,7 +1215,17 @@ export async function runAgentLoop(
       const shouldContinue = await handler.handle(message);
       if (!shouldContinue) break;
     }
+  } catch (err) {
+    loopError = String(err);
+    throw err;
   } finally {
+    // Emit thread lifecycle completion drain event
+    drainManager.emit(DrainEventName.THREAD_LIFECYCLE, {
+      transition: loopError ? "errored" : "completed",
+      durationMs: Date.now() - loopStartTime,
+      error: loopError,
+    });
+
     // Clean up message stream on completion
     if (options.messageStream) {
       options.messageStream.close();

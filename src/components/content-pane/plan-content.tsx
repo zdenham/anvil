@@ -28,6 +28,8 @@ import { spawnSimpleAgent } from "@/lib/agent-service";
 import { useContextAwareNavigation } from "@/hooks/use-context-aware-navigation";
 import { useMarkPlanAsRead } from "@/entities/plans/use-mark-plan-as-read";
 import { usePlanContent } from "@/entities/plans/hooks/use-plan-content";
+import { useDraftSync, clearCurrentDraft } from "@/hooks/useDraftSync";
+import { useInputStore } from "@/stores/input-store";
 import { logger } from "@/lib/logger-client";
 import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions.js";
 import type { PlanContentProps } from "./types";
@@ -51,6 +53,10 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
 
   // Mark plan as read when viewed
   useMarkPlanAsRead(planId);
+
+  // Draft sync — save/restore input drafts for plan context
+  useDraftSync({ type: 'plan', id: planId });
+  const clearContent = useInputStore((s) => s.clearContent);
 
   // Context-aware navigation (main window vs control panel)
   const { navigateToThread } = useContextAwareNavigation();
@@ -165,6 +171,9 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
         return;
       }
 
+      // Clear the persisted draft on send
+      clearCurrentDraft({ type: 'plan', id: planId }, clearContent);
+
       // Prefix message with @ and the plan's relative path for context
       const messageWithContext = `@${plan.relativePath} ${userMessage}`;
 
@@ -184,7 +193,7 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
         permissionMode,
       });
     },
-    [plan, workingDirectory, navigateToThread, permissionMode]
+    [plan, workingDirectory, navigateToThread, permissionMode, planId, clearContent]
   );
 
   // Still resolving whether plan exists - return null to avoid any flash

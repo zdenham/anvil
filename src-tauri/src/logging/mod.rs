@@ -12,6 +12,8 @@
 
 mod config;
 pub mod log_server;
+pub mod sqlite_layer;
+pub mod sqlite_worker;
 
 #[cfg(test)]
 mod tests;
@@ -419,6 +421,9 @@ pub fn initialize() {
     let (chrome_reload_layer, chrome_reload_handle) = reload::Layer::new(chrome_layer);
     let _ = CHROME_RELOAD_HANDLE.set(chrome_reload_handle);
 
+    // SQLite drain layer — always enabled, writes to ~/.mort/drain.sqlite3
+    let sqlite_drain_layer = sqlite_layer::SQLiteLayer::new();
+
     // Initialize the subscriber with all layers
     tracing_subscriber::registry()
         .with(chrome_reload_layer)
@@ -426,6 +431,7 @@ pub fn initialize() {
         .with(json_layer)
         .with(BufferLayer)
         .with(log_server_layer)
+        .with(sqlite_drain_layer)
         .init();
 
     tracing::info!("Logging initialized");

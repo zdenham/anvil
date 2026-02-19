@@ -3,6 +3,8 @@ import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { useMRUWorktree } from "@/hooks/use-mru-worktree";
 import { createThread } from "@/lib/thread-creation-service";
 import { contentPanesService } from "@/stores/content-panes/service";
+import { useDraftSync, clearCurrentDraft } from "@/hooks/useDraftSync";
+import { useInputStore } from "@/stores/input-store";
 import { logger } from "@/lib/logger-client";
 
 /**
@@ -18,6 +20,10 @@ import { logger } from "@/lib/logger-client";
  */
 export function EmptyPaneContent() {
   const { workingDirectory, repoId, worktreeId, mruWorktree } = useMRUWorktree();
+
+  // Draft sync — save/restore input drafts for empty state
+  useDraftSync({ type: 'empty' });
+  const clearContent = useInputStore((s) => s.clearContent);
 
   const handleSubmit = useCallback(
     async (prompt: string) => {
@@ -38,6 +44,9 @@ export function EmptyPaneContent() {
         promptLength: prompt.length,
       });
 
+      // Clear the persisted draft on send
+      clearCurrentDraft({ type: 'empty' }, clearContent);
+
       const { threadId } = await createThread({
         prompt,
         repoId,
@@ -48,7 +57,7 @@ export function EmptyPaneContent() {
       // Switch view to the new thread
       await contentPanesService.setActivePaneView({ type: "thread", threadId });
     },
-    [repoId, worktreeId, workingDirectory]
+    [repoId, worktreeId, workingDirectory, clearContent]
   );
 
   // Show message if no repositories configured

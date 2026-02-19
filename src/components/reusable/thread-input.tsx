@@ -3,6 +3,7 @@ import { TriggerSearchInput, type TriggerStateInfo } from "./trigger-search-inpu
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { CursorBoundary } from "@/lib/cursor-boundary";
 import { usePromptHistory } from "@/hooks/use-prompt-history";
+import { useInputStore } from "@/stores/input-store";
 
 interface ThreadInputProps {
   onSubmit: (prompt: string) => void;
@@ -30,13 +31,14 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onNavigateToQuickActions: _deprecated,
 }: ThreadInputProps, ref) {
-  const [value, setValue] = useState("");
+  const value = useInputStore((s) => s.content);
+  const setStoreContent = useInputStore((s) => s.setContent);
   const [triggerState, setTriggerState] = useState<TriggerStateInfo | null>(null);
   const inputRef = useRef<TriggerSearchInputRef>(null);
 
   const { handleHistoryNavigation, resetHistory, isInHistoryMode } = usePromptHistory({
     onQueryChange: (query: string) => {
-      setValue(query);
+      setStoreContent(query);
       // Move cursor to end after history selection
       requestAnimationFrame(() => {
         const textarea = inputRef.current?.getElement();
@@ -56,10 +58,10 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   const handleSubmit = useCallback(() => {
     if (value.trim() && !disabled) {
       onSubmit(value.trim());
-      setValue("");
+      setStoreContent("");
       resetHistory();
     }
-  }, [value, disabled, onSubmit, resetHistory]);
+  }, [value, disabled, onSubmit, resetHistory, setStoreContent]);
 
 
   const handleKeyDown = useCallback(
@@ -137,11 +139,11 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   }, []);
 
   // Handle value changes - reset history mode when user types
-  // Note: This only fires on actual user input, not when we call setValue from history navigation
+  // Note: This only fires on actual user input, not when we call setStoreContent from history navigation
   const handleChange = useCallback((newValue: string) => {
     resetHistory();
-    setValue(newValue);
-  }, [resetHistory]);
+    setStoreContent(newValue);
+  }, [resetHistory, setStoreContent]);
 
   // Determine if triggers should be enabled
   // Disable if no working directory (file search won't work)

@@ -4,14 +4,17 @@
 //! - Creates socket at `~/.mort/agent-hub.sock` on app startup
 //! - Accepts connections from all agents (root + bash-based sub-agents)
 //! - Routes messages between agents and the frontend via Tauri events
+//! - Injects pipeline stamps (`hub:received`, `hub:emitted`) for diagnostics
+//! - Tracks per-agent sequence numbers to detect gaps
 //! - Cleans up on app exit
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::thread;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 
 /// Message structure for socket communication between agents and the hub.
@@ -29,8 +32,80 @@ pub struct SocketMessage {
     pub rest: serde_json::Value,
 }
 
+/// Diagnostic logging configuration -- mirrors TypeScript DiagnosticLoggingConfig.
+///
+/// Each module can be independently toggled. Parsed from MORT_DIAGNOSTIC_LOGGING
+/// env var (JSON string). Status transitions, gap summaries, and errors always
+/// log regardless of these toggles.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticLoggingConfig {
+    /// Per-message pipeline stage stamps at every hop
+    #[serde(default)]
+    pub pipeline: bool,
+    /// Heartbeat timing details: jitter, latency
+    #[serde(default)]
+    pub heartbeat: bool,
+    /// Detailed sequence gap context
+    #[serde(default)]
+    pub sequence_gaps: bool,
+    /// Write failures, backpressure stats, connection state
+    #[serde(default)]
+    pub socket_health: bool,
+}
+
+impl DiagnosticLoggingConfig {
+    /// Parse config from MORT_DIAGNOSTIC_LOGGING env var, falling back to defaults.
+    fn from_env() -> Self {
+        std::env::var("MORT_DIAGNOSTIC_LOGGING")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+}
+
+/// Shared diagnostic config state, updatable at runtime from the frontend.
+pub type DiagnosticConfigState = Arc<Mutex<DiagnosticLoggingConfig>>;
+
 /// Channel sender type for sending messages to a connected agent.
 type AgentWriter = mpsc::Sender<String>;
+
+/// Returns current time as milliseconds since Unix epoch.
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+/// Extracts the seq number from the first pipeline stamp in the array.
+/// Returns None if the pipeline array is missing, empty, or the first
+/// stamp has no numeric `seq` field.
+fn extract_seq(msg: &serde_json::Value) -> Option<u64> {
+    msg.get("pipeline")?
+        .as_array()?
+        .first()?
+        .get("seq")?
+        .as_u64()
+}
+
+/// Appends a pipeline stamp to the message's pipeline array.
+/// Creates the array if it doesn't exist.
+fn append_pipeline_stamp(msg: &mut serde_json::Value, stage: &str, seq: Option<u64>) {
+    let stamp = serde_json::json!({
+        "stage": stage,
+        "seq": seq.unwrap_or(0),
+        "ts": now_ms(),
+    });
+
+    if let Some(pipeline) = msg.get_mut("pipeline") {
+        if let Some(arr) = pipeline.as_array_mut() {
+            arr.push(stamp);
+        }
+    } else if let Some(obj) = msg.as_object_mut() {
+        obj.insert("pipeline".to_string(), serde_json::json!([stamp]));
+    }
+}
 
 /// Central hub for managing agent connections and message routing.
 pub struct AgentHub {
@@ -40,17 +115,34 @@ pub struct AgentHub {
     hierarchy: Arc<RwLock<HashMap<String, Option<String>>>>,
     /// Flag to signal shutdown to the listener thread
     shutdown: Arc<RwLock<bool>>,
+    /// Diagnostic logging config, shared with connection handlers
+    diagnostic_config: DiagnosticConfigState,
 }
 
 impl AgentHub {
     /// Creates a new AgentHub with the specified socket path.
     pub fn new(socket_path: String) -> Self {
+        let config = DiagnosticLoggingConfig::from_env();
+        tracing::info!(
+            pipeline = config.pipeline,
+            heartbeat = config.heartbeat,
+            sequence_gaps = config.sequence_gaps,
+            socket_health = config.socket_health,
+            "AgentHub diagnostic config initialized"
+        );
+
         Self {
             socket_path,
             agents: Arc::new(RwLock::new(HashMap::new())),
             hierarchy: Arc::new(RwLock::new(HashMap::new())),
             shutdown: Arc::new(RwLock::new(false)),
+            diagnostic_config: Arc::new(Mutex::new(config)),
         }
+    }
+
+    /// Returns a clone of the diagnostic config state for Tauri managed state.
+    pub fn diagnostic_config(&self) -> DiagnosticConfigState {
+        self.diagnostic_config.clone()
     }
 
     /// Returns the socket path.
@@ -88,6 +180,7 @@ impl AgentHub {
         let agents = self.agents.clone();
         let hierarchy = self.hierarchy.clone();
         let shutdown = self.shutdown.clone();
+        let diagnostic_config = self.diagnostic_config.clone();
 
         // Spawn listener thread
         thread::spawn(move || {
@@ -107,10 +200,17 @@ impl AgentHub {
                         let agents = agents.clone();
                         let hierarchy = hierarchy.clone();
                         let app_handle = app_handle.clone();
+                        let diag_config = diagnostic_config.clone();
 
                         // Spawn handler thread for this connection
                         thread::spawn(move || {
-                            Self::handle_connection(stream, agents, hierarchy, app_handle);
+                            Self::handle_connection(
+                                stream,
+                                agents,
+                                hierarchy,
+                                app_handle,
+                                diag_config,
+                            );
                         });
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -162,13 +262,16 @@ impl AgentHub {
     /// This runs in its own thread and:
     /// 1. Sets up bidirectional communication channels
     /// 2. Processes incoming messages from the agent
-    /// 3. Forwards messages to the Tauri frontend via events
-    /// 4. Cleans up when the connection closes
+    /// 3. Injects pipeline stamps (hub:received, hub:emitted)
+    /// 4. Tracks sequence numbers and detects gaps
+    /// 5. Forwards messages to the Tauri frontend via events
+    /// 6. Cleans up when the connection closes
     fn handle_connection(
         stream: UnixStream,
         agents: Arc<RwLock<HashMap<String, AgentWriter>>>,
         hierarchy: Arc<RwLock<HashMap<String, Option<String>>>>,
         app_handle: AppHandle,
+        diagnostic_config: DiagnosticConfigState,
     ) {
         // CRITICAL: Set stream to blocking mode.
         // Accepted sockets inherit non-blocking from the listener, which causes
@@ -209,78 +312,179 @@ impl AgentHub {
         // Reader loop - reads from socket and processes messages
         let reader = BufReader::new(stream);
         let mut thread_id: Option<String> = None;
+        let mut last_seq: Option<u64> = None;
 
         for line in reader.lines() {
             match line {
                 Ok(line) if line.is_empty() => continue,
                 Ok(line) => {
-                    match serde_json::from_str::<SocketMessage>(&line) {
-                        Ok(msg) => {
-                            // Handle registration
-                            if msg.msg_type == "register" {
-                                thread_id = Some(msg.thread_id.clone());
-
-                                // Store the agent's writer channel
-                                if let Ok(mut agents_guard) = agents.write() {
-                                    agents_guard.insert(msg.thread_id.clone(), tx.clone());
-                                    tracing::info!(
-                                        thread_id = %msg.thread_id,
-                                        parent_id = ?msg.parent_id,
-                                        "Agent registered"
-                                    );
-                                }
-
-                                // Store hierarchy relationship
-                                if let Ok(mut hierarchy_guard) = hierarchy.write() {
-                                    hierarchy_guard
-                                        .insert(msg.thread_id.clone(), msg.parent_id.clone());
-                                }
-
-                                continue;
-                            }
-
-                            // Handle relay messages - forward payload to target agent
-                            if msg.msg_type == "relay" {
-                                if let Some(target_id) = msg.rest.get("targetThreadId").and_then(|v| v.as_str()) {
-                                    if let Some(payload) = msg.rest.get("payload") {
-                                        let payload_str = payload.to_string();
-                                        if let Ok(agents_guard) = agents.read() {
-                                            if let Some(target_tx) = agents_guard.get(target_id) {
-                                                if let Err(e) = target_tx.send(payload_str) {
-                                                    tracing::warn!(
-                                                        error = %e,
-                                                        target_id = %target_id,
-                                                        "Failed to relay message to agent"
-                                                    );
-                                                } else {
-                                                    tracing::debug!(
-                                                        sender = %msg.thread_id,
-                                                        target = %target_id,
-                                                        "Relayed message between agents"
-                                                    );
-                                                }
-                                            } else {
-                                                tracing::debug!(
-                                                    target_id = %target_id,
-                                                    "Relay target agent not connected"
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                                continue;
-                            }
-
-                            // Forward all other messages to Tauri/UI
-                            if let Err(e) = app_handle.emit("agent:message", &msg) {
-                                tracing::warn!(error = %e, "Failed to emit agent:message event");
-                            }
-                        }
+                    // Parse as raw Value for pipeline stamp injection
+                    let mut raw_msg: serde_json::Value = match serde_json::from_str(&line) {
+                        Ok(v) => v,
                         Err(e) => {
                             tracing::warn!(
                                 error = %e,
                                 line_preview = %line.chars().take(100).collect::<String>(),
                                 "Failed to parse message from agent"
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Extract routing fields from the raw JSON
+                    let msg_type = raw_msg
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let msg_thread_id = raw_msg
+                        .get("threadId")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let msg_sender_id = raw_msg
+                        .get("senderId")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let msg_parent_id = raw_msg
+                        .get("parentId")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    // Extract seq from the first pipeline stamp (agent:sent)
+                    let seq = extract_seq(&raw_msg);
+
+                    // Inject hub:received stamp
+                    append_pipeline_stamp(&mut raw_msg, "hub:received", seq);
+
+                    // Sequence gap detection (always-on)
+                    if let Some(current_seq) = seq {
+                        if let Some(prev) = last_seq {
+                            let expected = prev + 1;
+                            if current_seq != expected {
+                                tracing::warn!(
+                                    agent_id = %msg_sender_id,
+                                    expected = expected,
+                                    got = current_seq,
+                                    "SEQ GAP"
+                                );
+                            }
+                        }
+                        last_seq = Some(current_seq);
+                    }
+
+                    // Opt-in per-message diagnostic logging
+                    let diag_pipeline = diagnostic_config
+                        .lock()
+                        .map(|c| c.pipeline)
+                        .unwrap_or(false);
+                    if diag_pipeline {
+                        tracing::debug!(
+                            agent_id = %msg_sender_id,
+                            msg_type = %msg_type,
+                            seq = ?seq,
+                            stage = "hub:received",
+                            "Pipeline diagnostic: message received"
+                        );
+                    }
+
+                    // Handle registration
+                    if msg_type == "register" {
+                        thread_id = Some(msg_thread_id.clone());
+
+                        // Store the agent's writer channel
+                        if let Ok(mut agents_guard) = agents.write() {
+                            agents_guard.insert(msg_thread_id.clone(), tx.clone());
+                            tracing::info!(
+                                thread_id = %msg_thread_id,
+                                parent_id = ?msg_parent_id,
+                                "Agent registered"
+                            );
+                        }
+
+                        // Store hierarchy relationship
+                        if let Ok(mut hierarchy_guard) = hierarchy.write() {
+                            hierarchy_guard.insert(msg_thread_id.clone(), msg_parent_id);
+                        }
+
+                        continue;
+                    }
+
+                    // Handle relay messages - forward payload to target agent
+                    if msg_type == "relay" {
+                        if let Some(target_id) =
+                            raw_msg.get("targetThreadId").and_then(|v| v.as_str())
+                        {
+                            if let Some(payload) = raw_msg.get("payload") {
+                                let payload_str = payload.to_string();
+                                if let Ok(agents_guard) = agents.read() {
+                                    if let Some(target_tx) = agents_guard.get(target_id) {
+                                        if let Err(e) = target_tx.send(payload_str) {
+                                            tracing::warn!(
+                                                error = %e,
+                                                target_id = %target_id,
+                                                "Failed to relay message to agent"
+                                            );
+                                        } else {
+                                            tracing::debug!(
+                                                sender = %msg_thread_id,
+                                                target = %target_id,
+                                                "Relayed message between agents"
+                                            );
+                                        }
+                                    } else {
+                                        tracing::debug!(
+                                            target_id = %target_id,
+                                            "Relay target agent not connected"
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Handle drain messages -- bridge to tracing for SQLite layer
+                    if msg_type == "drain" {
+                        if let (Some(event), Some(props)) = (
+                            raw_msg.get("event").and_then(|v| v.as_str()),
+                            raw_msg.get("properties"),
+                        ) {
+                            let props_str = props.to_string();
+                            tracing::info!(
+                                target: "drain",
+                                thread_id = %msg_thread_id,
+                                event = %event,
+                                properties = %props_str,
+                            );
+                        }
+                        continue; // Don't forward to frontend -- drain events are storage-only
+                    }
+
+                    // Forward all other messages to Tauri/UI
+                    match app_handle.emit("agent:message", &raw_msg) {
+                        Ok(()) => {
+                            // Inject hub:emitted stamp after successful emit
+                            append_pipeline_stamp(&mut raw_msg, "hub:emitted", seq);
+
+                            if diag_pipeline {
+                                tracing::debug!(
+                                    agent_id = %msg_sender_id,
+                                    msg_type = %msg_type,
+                                    seq = ?seq,
+                                    stage = "hub:emitted",
+                                    "Pipeline diagnostic: message emitted"
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            // Always log emit failures with seq info
+                            tracing::warn!(
+                                agent_id = %msg_sender_id,
+                                seq = ?seq,
+                                error = %e,
+                                "EMIT FAILED"
                             );
                         }
                     }
@@ -345,6 +549,25 @@ impl AgentHub {
                 tracing::info!(socket_path = %self.socket_path, "Socket file removed");
             }
         }
+    }
+}
+
+/// Updates the diagnostic logging config at runtime.
+/// Called by the frontend to enable/disable diagnostic modules.
+#[tauri::command]
+pub fn update_diagnostic_config(
+    config: DiagnosticLoggingConfig,
+    state: tauri::State<'_, DiagnosticConfigState>,
+) {
+    tracing::info!(
+        pipeline = config.pipeline,
+        heartbeat = config.heartbeat,
+        sequence_gaps = config.sequence_gaps,
+        socket_health = config.socket_health,
+        "Diagnostic config updated"
+    );
+    if let Ok(mut guard) = state.lock() {
+        *guard = config;
     }
 }
 
@@ -428,4 +651,88 @@ mod tests {
             .contains("Agent not connected: nonexistent-thread"));
     }
 
+    #[test]
+    fn test_diagnostic_config_default() {
+        let config = DiagnosticLoggingConfig::default();
+        assert!(!config.pipeline);
+        assert!(!config.heartbeat);
+        assert!(!config.sequence_gaps);
+        assert!(!config.socket_health);
+    }
+
+    #[test]
+    fn test_diagnostic_config_deserialization() {
+        let json =
+            r#"{"pipeline":true,"heartbeat":false,"sequenceGaps":true,"socketHealth":false}"#;
+        let config: DiagnosticLoggingConfig = serde_json::from_str(json).unwrap();
+        assert!(config.pipeline);
+        assert!(!config.heartbeat);
+        assert!(config.sequence_gaps);
+        assert!(!config.socket_health);
+    }
+
+    #[test]
+    fn test_diagnostic_config_partial_deserialization() {
+        // Missing fields should default to false
+        let json = r#"{"pipeline":true}"#;
+        let config: DiagnosticLoggingConfig = serde_json::from_str(json).unwrap();
+        assert!(config.pipeline);
+        assert!(!config.heartbeat);
+        assert!(!config.sequence_gaps);
+        assert!(!config.socket_health);
+    }
+
+    #[test]
+    fn test_now_ms() {
+        let ts = now_ms();
+        // Should be a reasonable timestamp (after 2024-01-01)
+        assert!(ts > 1_704_067_200_000);
+    }
+
+    #[test]
+    fn test_extract_seq_with_pipeline() {
+        let msg = serde_json::json!({
+            "type": "output",
+            "pipeline": [{"stage": "agent:sent", "seq": 42, "ts": 1234567890}]
+        });
+        assert_eq!(extract_seq(&msg), Some(42));
+    }
+
+    #[test]
+    fn test_extract_seq_no_pipeline() {
+        let msg = serde_json::json!({"type": "output"});
+        assert_eq!(extract_seq(&msg), None);
+    }
+
+    #[test]
+    fn test_extract_seq_empty_pipeline() {
+        let msg = serde_json::json!({"type": "output", "pipeline": []});
+        assert_eq!(extract_seq(&msg), None);
+    }
+
+    #[test]
+    fn test_append_pipeline_stamp_existing_array() {
+        let mut msg = serde_json::json!({
+            "type": "output",
+            "pipeline": [{"stage": "agent:sent", "seq": 5, "ts": 1000}]
+        });
+        append_pipeline_stamp(&mut msg, "hub:received", Some(5));
+
+        let pipeline = msg["pipeline"].as_array().unwrap();
+        assert_eq!(pipeline.len(), 2);
+        assert_eq!(pipeline[1]["stage"], "hub:received");
+        assert_eq!(pipeline[1]["seq"], 5);
+        assert!(pipeline[1]["ts"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn test_append_pipeline_stamp_no_array() {
+        let mut msg = serde_json::json!({"type": "register"});
+        append_pipeline_stamp(&mut msg, "hub:received", None);
+
+        let pipeline = msg["pipeline"].as_array().unwrap();
+        assert_eq!(pipeline.len(), 1);
+        assert_eq!(pipeline[0]["stage"], "hub:received");
+        assert_eq!(pipeline[0]["seq"], 0);
+    }
 }

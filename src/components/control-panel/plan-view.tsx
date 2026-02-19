@@ -28,6 +28,7 @@ import { loadSettings } from "@/lib/app-data-store";
 import { spawnSimpleAgent } from "@/lib/agent-service";
 import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
 import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
+import { InputStoreProvider } from "@/stores/input-store";
 import { logger } from "@/lib/logger-client";
 import { cn } from "@/lib/utils";
 
@@ -365,16 +366,18 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
 
       {/* Message input */}
       {/* Max width constraint centered for readability on wide screens */}
-      <div className="w-full max-w-[900px] mx-auto px-2.5">
-        <ThreadInput
-          ref={inputRef}
-          onSubmit={handleMessageSubmit}
-          disabled={false}
-          workingDirectory={workingDirectory}
-          placeholder="Type a message to start a thread about this plan..."
-          onNavigateToQuickActions={handleNavigateToQuickActions}
-        />
-      </div>
+      <InputStoreProvider>
+        <div className="w-full max-w-[900px] mx-auto px-2.5">
+          <ThreadInput
+            ref={inputRef}
+            onSubmit={handleMessageSubmit}
+            disabled={false}
+            workingDirectory={workingDirectory}
+            placeholder="Type a message to start a thread about this plan..."
+            onNavigateToQuickActions={handleNavigateToQuickActions}
+          />
+        </div>
+      </InputStoreProvider>
     </div>
   );
 }

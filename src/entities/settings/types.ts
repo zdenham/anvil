@@ -3,6 +3,7 @@ import {
   PermissionModeSchema,
   PermissionDisplayModeSchema,
 } from "@core/types/permissions.js";
+import { DiagnosticLoggingConfigSchema } from "@core/types/diagnostic-logging.js";
 
 // WorkflowMode stays as simple type alias (used by schema)
 export type WorkflowMode = "solo" | "team";
@@ -49,6 +50,13 @@ export const WorkspaceSettingsSchema = z.object({
    * Persists across windows and sessions.
    */
   quickActionsCollapsed: z.boolean(),
+
+  /**
+   * Diagnostic logging configuration — per-module toggles for verbose diagnostics.
+   * Optional for backwards compatibility with existing settings files.
+   * When absent, all diagnostic modules are disabled.
+   */
+  diagnosticLogging: DiagnosticLoggingConfigSchema.optional(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 

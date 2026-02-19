@@ -10,8 +10,8 @@ Two related issues with the per-thread diff view:
 
 ## Phases
 
-- [ ] Simplify Rust backend to determine tracking status from git itself
-- [ ] Persist fileChanges across turns in the agent state pipeline
+- [x] Simplify Rust backend to determine tracking status from git itself
+- [x] Persist fileChanges across turns in the agent state pipeline
 - [ ] Verify both fixes with manual testing
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->

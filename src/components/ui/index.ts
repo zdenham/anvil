@@ -37,3 +37,11 @@ export { BuildModeIndicator } from "./BuildModeIndicator";
 // Resizable panel
 export { ResizablePanel, LayoutStateSchema } from "./resizable-panel";
 export type { ResizablePanelProps, LayoutState } from "./resizable-panel";
+
+// Context menu
+export {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuDivider,
+  useContextMenu,
+} from "./context-menu";

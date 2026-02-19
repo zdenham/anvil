@@ -31,6 +31,7 @@ import { NavigationBanner } from "./navigation-banner";
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
 
 import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
+import { InputStoreProvider } from "@/stores/input-store";
 import { eventBus, type ControlPanelViewType } from "@/entities/events";
 import type { WindowConfig } from "@/control-panel-main";
 
@@ -688,18 +689,20 @@ function ControlPanelWindowContent({
       </div>
 
       {/* Quick actions, permission block, input, and status bar */}
-      <div className="w-full px-2.5">
-        <ThreadInputSection
-          ref={inputRef}
-          onSubmit={handleSubmit}
-          workingDirectory={workingDirectory}
-          contextType="thread"
-          placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
-          threadId={threadId}
-          permissionMode={permissionMode}
-          onCycleMode={handleCycleMode}
-        />
-      </div>
+      <InputStoreProvider>
+        <div className="w-full px-2.5">
+          <ThreadInputSection
+            ref={inputRef}
+            onSubmit={handleSubmit}
+            workingDirectory={workingDirectory}
+            contextType="thread"
+            placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+            threadId={threadId}
+            permissionMode={permissionMode}
+            onCycleMode={handleCycleMode}
+          />
+        </div>
+      </InputStoreProvider>
 
       {/* Navigation banner overlays at bottom */}
       <NavigationBanner />

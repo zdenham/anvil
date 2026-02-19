@@ -29,6 +29,8 @@ interface MessageListProps {
 
 export interface MessageListRef {
   scrollToBottom: () => void;
+  scrollToIndex: (index: number) => void;
+  getScrollerElement: () => HTMLElement | null;
 }
 
 /**
@@ -50,6 +52,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   workingDirectory,
 }, ref) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerElRef = useRef<HTMLElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const footerRef = useRef<HTMLDivElement | null>(null);
   const mountTimeRef = useRef<number>(Date.now());
@@ -114,10 +117,16 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     });
   }, []);
 
-  // Expose scrollToBottom function through ref
+  const scrollToIndex = useCallback((index: number) => {
+    virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "smooth" });
+  }, []);
+
+  // Expose scroll functions and scroller element through ref
   useImperativeHandle(ref, () => ({
     scrollToBottom,
-  }), [scrollToBottom]);
+    scrollToIndex,
+    getScrollerElement: () => scrollerElRef.current,
+  }), [scrollToBottom, scrollToIndex]);
 
   // Render individual turn
   const itemContent = useCallback(
@@ -134,7 +143,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         });
       }
       return (
-        <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", index === 0 && "pt-12")}>
+        <div data-turn-index={index} className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", index === 0 && "pt-12")}>
           <TurnRenderer
             turn={turn}
             turnIndex={index}
@@ -186,7 +195,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     if (showWorkingIndicator) {
       return (
         <div className="w-full max-w-[900px] mx-auto">
-          <WorkingIndicator />
+          <WorkingIndicator threadId={threadId} />
         </div>
       );
     }
@@ -204,6 +213,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     >
       <Virtuoso
         ref={virtuosoRef}
+        scrollerRef={(el) => { scrollerElRef.current = el as HTMLElement | null; }}
         data={turns}
         itemContent={itemContent}
         components={{ Footer }}

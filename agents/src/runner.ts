@@ -19,7 +19,8 @@ import {
 } from "./runners/shared.js";
 import type { OrchestrationContext } from "./runners/types.js";
 import { getAgentConfig } from "./agent-types/index.js";
-import { cancelled, setHubClient, appendUserMessage } from "./output.js";
+import { cancelled, setHubClient, appendUserMessage, emitState } from "./output.js";
+import { DiagnosticLoggingConfigSchema } from "@core/types/diagnostic-logging.js";
 import { logger } from "./lib/logger.js";
 import { HubClient, type TauriToAgentMessage } from "./lib/hub/index.js";
 import { SocketMessageStream } from "./lib/hub/message-stream.js";
@@ -89,6 +90,12 @@ function loadPriorState(historyFile: string | undefined): PriorState {
     if (state.cumulativeUsage && typeof state.cumulativeUsage === "object") {
       result.cumulativeUsage = state.cumulativeUsage;
       logger.info("[runner] Loaded prior cumulativeUsage from history");
+    }
+
+    // Load prior file changes so diffs accumulate across turns
+    if (Array.isArray(state.fileChanges)) {
+      result.fileChanges = state.fileChanges;
+      logger.info(`[runner] Loaded ${state.fileChanges.length} prior file changes`);
     }
 
     return result;
@@ -221,6 +228,15 @@ async function main(): Promise<void> {
           messageStream.push(messageId, content);
           break;
         }
+        case "diagnostic_config": {
+          // Runtime diagnostic config update (e.g. auto-enable on staleness)
+          const parseResult = DiagnosticLoggingConfigSchema.safeParse(msg.payload);
+          if (parseResult.success && hub) {
+            hub.updateDiagnosticConfig(parseResult.data);
+            logger.info("[runner] Diagnostic config updated at runtime");
+          }
+          break;
+        }
         case "cancel":
           logger.info("[runner] Received cancel message from Tauri, aborting...");
           abortController.abort();
@@ -229,14 +245,17 @@ async function main(): Promise<void> {
     });
 
     hub.on("disconnect", () => {
-      if (isShuttingDown) return; // Avoid duplicate exits
-      isShuttingDown = true;
+      if (isShuttingDown) return;
+      // Agent keeps running — state written to disk only until reconnected
+      logger.warn("[runner] Hub disconnected — agent will continue, state written to disk only");
+    });
 
-      // Don't try to log via socket - it's already disconnected
-      // Give a brief window for any pending operations
-      setTimeout(() => {
-        process.exit(1);
-      }, 100);
+    hub.on("reconnected", () => {
+      logger.info("[runner] Hub reconnected — resuming live state emission");
+      // Emit current state immediately so UI catches up
+      emitState().catch(() => {
+        // Best-effort: state will be emitted on next change anyway
+      });
     });
 
     hub.on("error", (err) => {
@@ -251,6 +270,11 @@ async function main(): Promise<void> {
       await hub.connect();
       logger.info("[runner] Connected to AgentHub");
 
+      // Start heartbeat for root-level agents only (sub-agents rely on parent)
+      if (!parentId) {
+        hub.startHeartbeat();
+      }
+
       // Set hub client for output module
       setHubClient(hub);
     } catch (err) {
@@ -260,9 +284,10 @@ async function main(): Promise<void> {
     }
   }
 
-  // Cleanup function that disconnects hub
+  // Cleanup function that disconnects hub and logs session summary
   function cleanup() {
     if (hub) {
+      logger.info(hub.sessionSummary);
       hub.disconnect();
       logger.info("[runner] Disconnected from AgentHub");
     }

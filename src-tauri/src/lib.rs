@@ -749,6 +749,7 @@ pub fn run() {
         .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init())
         .manage(mort_commands::LockManager::new())
+        .manage(agent_hub.diagnostic_config())
         .manage(agent_hub.clone())
         .manage(terminal::create_terminal_state())
         .manage(file_watcher::create_file_watcher_state())
@@ -823,6 +824,7 @@ pub fn run() {
             send_to_agent,
             list_connected_agents,
             get_agent_socket_path,
+            agent_hub::update_diagnostic_config,
             register_hotkey,
             save_hotkey,
             get_saved_hotkey,

@@ -1,7 +1,7 @@
 {
   "name": "mort",
   "private": true,
-  "version": "v0.0.44",
+  "version": "v0.0.45",
   "type": "module",
   "scripts": {
     "orb": "tsx observability/orb/index.ts",

@@ -17,9 +17,9 @@ Create a new hook `useThreadSearch` that:
 
 ## Phases
 
-- [ ] Create `useThreadSearch` hook with data-layer search
-- [ ] Integrate into thread view and wire up Cmd+F
-- [ ] Add DOM highlighting after scroll
+- [x] Create `useThreadSearch` hook with data-layer search
+- [x] Integrate into thread view and wire up Cmd+F
+- [x] Add DOM highlighting after scroll
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

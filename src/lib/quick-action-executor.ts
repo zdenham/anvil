@@ -23,7 +23,7 @@ import { threadService } from '@/entities/threads/service.js';
 import { useThreadStore } from '@/entities/threads/store.js';
 import { planService } from '@/entities/plans/service.js';
 import { navigationService } from '@/stores/navigation-service.js';
-import { useInputStore } from '@/stores/input-store.js';
+import { getActiveInputStore } from '@/stores/input-store.js';
 import { toast } from '@/lib/toast.js';
 import { logger } from '@/lib/logger-client.js';
 import { FilesystemClient } from '@/lib/filesystem-client.js';
@@ -267,17 +267,18 @@ export async function handleSDKEvent(event: SDKEvent): Promise<void> {
       break;
 
     // UI operations - handled locally (no disk persistence needed)
+    // Uses the active input store registry (whichever area the user is interacting with)
     case 'ui:setInput':
-      useInputStore.getState().setContent(event.payload);
+      getActiveInputStore()?.getState().setContent(event.payload);
       break;
     case 'ui:appendInput':
-      useInputStore.getState().appendContent(event.payload);
+      getActiveInputStore()?.getState().appendContent(event.payload);
       break;
     case 'ui:clearInput':
-      useInputStore.getState().clearContent();
+      getActiveInputStore()?.getState().clearContent();
       break;
     case 'ui:focusInput':
-      useInputStore.getState().requestFocus();
+      getActiveInputStore()?.getState().requestFocus();
       break;
     case 'ui:navigate':
       await handleNavigation(event.payload);

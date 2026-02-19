@@ -73,6 +73,7 @@ export function FileBrowserPanel({
             entries={tree.rootChildren}
             depth={0}
             tree={tree}
+            rootPath={rootPath}
             onFileClick={handleFileClick}
           />
         )}

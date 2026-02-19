@@ -24,6 +24,7 @@ import { flushSync } from "react-dom";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { ArrowLeft } from "lucide-react";
 import { ContextMeter } from "@/components/content-pane/context-meter";
+import { FindBar } from "@/components/content-pane/find-bar";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
 import {
@@ -38,10 +39,13 @@ import { type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageListRef } from "@/components/thread/message-list";
+import { useThreadSearch } from "@/components/thread/use-thread-search";
 import { logger } from "@/lib/logger-client";
 import { savePromptToHistory } from "@/lib/prompt-history-helpers";
 import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
 import { useWorkingDirectory } from "@/hooks/use-working-directory";
+import { useDraftSync, clearCurrentDraft } from "@/hooks/useDraftSync";
+import { useInputStore } from "@/stores/input-store";
 
 import { navigationService } from "@/stores/navigation-service";
 import type { ThreadContentProps } from "./types";
@@ -147,9 +151,17 @@ export function ThreadContent({
     markOnComplete: true,
   });
 
+  // Draft sync — save/restore input drafts on navigation
+  useDraftSync({ type: 'thread', id: threadId });
+  const clearContent = useInputStore((s) => s.clearContent);
+
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
   const hasScrolledOnMount = useRef(false);
+
+  // Find-in-page state
+  const [findBarOpen, setFindBarOpen] = useState(false);
+  const scrollerRef = useRef<HTMLElement | null>(null);
 
   // Toast state for "coming soon" messages
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -303,6 +315,39 @@ export function ThreadContent({
     return realMessages;
   }, [activeState?.messages, initialPrompt, optimisticMessages, threadId]);
 
+  // Keep scrollerRef in sync with MessageList's scroller element
+  useEffect(() => {
+    const el = messageListRef.current?.getScrollerElement?.() ?? null;
+    if (el !== scrollerRef.current) {
+      scrollerRef.current = el;
+    }
+  });
+
+  // Thread search hook (data-layer search + DOM highlighting)
+  const threadSearch = useThreadSearch(messages, messageListRef, scrollerRef);
+  const searchClearRef = useRef(threadSearch.clear);
+  searchClearRef.current = threadSearch.clear;
+
+  // Cmd+F handler for find-in-page
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setFindBarOpen((prev) => {
+          if (prev) searchClearRef.current();
+          return !prev;
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const closeFindBar = useCallback(() => {
+    threadSearch.clear();
+    setFindBarOpen(false);
+  }, [threadSearch]);
+
   // Show toast with auto-dismiss
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
@@ -322,6 +367,9 @@ export function ThreadContent({
 
       // Save to history (fire and forget - don't block on this)
       savePromptToHistory(userPrompt, threadId);
+
+      // Clear the persisted draft on send
+      clearCurrentDraft({ type: 'thread', id: threadId }, clearContent);
 
       // Add optimistic message immediately for instant feedback
       // Track the current real message count so we know when state has caught up
@@ -405,6 +453,7 @@ export function ThreadContent({
       activeMetadata?.worktreeId,
       activeMetadata?.permissionMode,
       activeState?.messages?.length,
+      clearContent,
     ]
   );
 
@@ -506,6 +555,9 @@ export function ThreadContent({
 
   return (
       <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
+        {/* Find bar for Cmd+F search */}
+        {findBarOpen && <FindBar search={threadSearch} onClose={closeFindBar} />}
+
         {/* ThreadView takes remaining space */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
           <ThreadView

@@ -10,6 +10,9 @@ import { shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
 import { EventName, type ThreadState, type OptimisticStreamPayload } from "@core/types/events.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
+import type { PipelineStamp } from "@core/types/pipeline.js";
+import { useHeartbeatStore } from "@/stores/heartbeat-store";
+import { useSettingsStore } from "@/entities/settings/store";
 
 const fs = new FilesystemClient();
 const isDev = import.meta.env.DEV;
@@ -56,10 +59,72 @@ interface AgentSocketMessage {
   name?: string;
   payload?: unknown;
   blocks?: OptimisticStreamPayload["blocks"];
+  /** Pipeline stamps from upstream stages (agent:sent, hub:received, hub:emitted) */
+  pipeline?: PipelineStamp[];
+  /** Agent-side timestamp (for heartbeat messages) */
+  timestamp?: number;
 }
 
 /** Unlisten function for the agent message listener */
 let agentMessageUnlisten: UnlistenFn | null = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pipeline Sequence Tracking
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Last seen sequence number per thread — used for gap detection */
+const lastSeqByThread = new Map<string, number>();
+
+/**
+ * Checks for sequence gaps and logs pipeline diagnostics.
+ * Returns the sequence number from the first pipeline stamp.
+ */
+function trackPipelineSeq(msg: AgentSocketMessage): number {
+  const seq = msg.pipeline?.[0]?.seq ?? 0;
+  if (seq === 0) return 0;
+
+  const lastSeq = lastSeqByThread.get(msg.threadId) ?? 0;
+
+  // Detect gaps (always logged, not diagnostic-gated)
+  if (lastSeq > 0 && seq > lastSeq + 1) {
+    const gapSize = seq - lastSeq - 1;
+    const lastStage = msg.pipeline?.[0]?.stage ?? "unknown";
+
+    logger.warn(
+      `[agent-service] SEQ GAP: expected ${lastSeq + 1}, got ${seq} — ${gapSize} events dropped. Last seen stages: ${lastStage}@seq=${lastSeq}`
+    );
+
+    // Record gap in heartbeat store for diagnostic panel
+    useHeartbeatStore.getState().addGapRecord({
+      threadId: msg.threadId,
+      expectedSeq: lastSeq + 1,
+      receivedSeq: seq,
+      gapSize,
+      timestamp: Date.now(),
+      lastStage,
+    });
+  }
+
+  lastSeqByThread.set(msg.threadId, seq);
+
+  // Diagnostic pipeline logging (opt-in)
+  const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
+  if (diagnosticConfig?.pipeline && msg.pipeline) {
+    const stages = msg.pipeline.map(
+      (s) => `${s.stage}@${s.seq}(${s.ts})`
+    ).join(" -> ");
+    logger.debug(`[agent-service] Pipeline trail: ${stages} -> frontend:received@${seq}(${Date.now()})`);
+  }
+
+  return seq;
+}
+
+/**
+ * Cleans up sequence tracking for a thread.
+ */
+function cleanupSeqTracking(threadId: string): void {
+  lastSeqByThread.delete(threadId);
+}
 
 /**
  * Initializes the Tauri event listener for agent messages from the AgentHub socket.
@@ -83,6 +148,9 @@ export async function initAgentMessageListener(): Promise<void> {
       type: msg.type,
       senderId: msg.senderId,
     });
+
+    // Track pipeline sequence for all messages (gap detection)
+    const seq = trackPipelineSeq(msg);
 
     switch (msg.type) {
       case "state":
@@ -110,6 +178,15 @@ export async function initAgentMessageListener(): Promise<void> {
             blocks: msg.blocks,
           });
         }
+        break;
+
+      case "heartbeat":
+        // Agent sent a heartbeat — update heartbeat store
+        useHeartbeatStore.getState().updateHeartbeat(
+          msg.threadId,
+          msg.timestamp ?? Date.now(),
+          seq,
+        );
         break;
 
       case "log":
@@ -693,16 +770,24 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   // Log full command for debugging
   logger.info("[agent-service] Full command args:", commandArgs);
 
-  const envVars = {
+  // Build diagnostic logging env var from current settings
+  const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
+  const diagnosticEnv = diagnosticConfig ? JSON.stringify(diagnosticConfig) : undefined;
+
+  const envVars: Record<string, string> = {
     ANTHROPIC_API_KEY: apiKey,
     NODE_PATH: nodeModulesPath,
     MORT_DATA_DIR: mortDir,
     PATH: shellPath,
   };
+  if (diagnosticEnv) {
+    envVars.MORT_DIAGNOSTIC_LOGGING = diagnosticEnv;
+  }
 
   logger.info("[agent-service] Command environment (excluding API key):", {
     NODE_PATH: nodeModulesPath,
     MORT_DATA_DIR: mortDir,
+    MORT_DIAGNOSTIC_LOGGING: diagnosticEnv ?? "(not set)",
     PATH_length: shellPath.length,
     PATH_preview: shellPath.substring(0, 150) + "...",
   });
@@ -740,6 +825,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     // Note: PID is cleared by the runner during cleanup, not here
     activeSimpleProcesses.delete(options.threadId);
     agentProcesses.delete(options.threadId);
+    cleanupSeqTracking(options.threadId);
     logger.info(`[agent-service] Removed from process maps. agentProcesses now has ${agentProcesses.size} entries`);
 
     if (code.code === 130) {
@@ -894,14 +980,21 @@ export async function resumeSimpleAgent(
 
   logger.info("[agent-service] resumeSimpleAgent: command args:", commandArgs);
 
+  // Build diagnostic logging env var from current settings
+  const resumeDiagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
+  const resumeEnvVars: Record<string, string> = {
+    ANTHROPIC_API_KEY: apiKey,
+    NODE_PATH: nodeModulesPath,
+    MORT_DATA_DIR: mortDir,
+    PATH: shellPath,
+  };
+  if (resumeDiagnosticConfig) {
+    resumeEnvVars.MORT_DIAGNOSTIC_LOGGING = JSON.stringify(resumeDiagnosticConfig);
+  }
+
   const command = Command.create("node", commandArgs, {
     cwd: sourcePath,
-    env: {
-      ANTHROPIC_API_KEY: apiKey,
-      NODE_PATH: nodeModulesPath,
-      MORT_DATA_DIR: mortDir,
-      PATH: shellPath,
-    },
+    env: resumeEnvVars,
   });
 
   const stdoutBuffer = { value: "" };
@@ -926,6 +1019,7 @@ export async function resumeSimpleAgent(
     // Note: PID is cleared by the runner during cleanup, not here
     activeSimpleProcesses.delete(threadId);
     agentProcesses.delete(threadId);
+    cleanupSeqTracking(threadId);
 
     if (code.code === 130) {
       // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
