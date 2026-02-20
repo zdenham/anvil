@@ -1,19 +1,24 @@
 /**
  * FileContent
  *
- * Displays a file from disk with syntax highlighting.
+ * Displays a file from disk with syntax highlighting or media preview.
  * Reads fresh from disk on every mount (no caching).
  *
- * - Code files: line-numbered, syntax-highlighted via Shiki
+ * - Media files (images, video, audio, PDF): rendered via asset protocol URL
+ * - SVG files: rendered visually with source toggle
  * - Markdown files: rendered via MarkdownRenderer with source toggle
+ * - Code/text files: line-numbered, syntax-highlighted via Shiki
  * - Binary/missing files: error message
  */
 
 import { useState, useEffect, memo } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { FilesystemClient } from "@/lib/filesystem-client";
 import { getLanguageFromPath } from "@/lib/language-detection";
+import { getFileCategory, type FileCategory } from "@/lib/file-categories";
 import { useCodeHighlight } from "@/hooks/use-code-highlight";
 import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
+import { MediaPreview } from "./media-preview";
 import { logger } from "@/lib/logger-client";
 import type { ThemedToken } from "@/lib/syntax-highlighter";
 
@@ -28,6 +33,7 @@ interface FileContentProps {
 type FileState =
   | { status: "loading" }
   | { status: "loaded"; content: string; language: string }
+  | { status: "media"; category: FileCategory; assetUrl: string }
   | { status: "error"; message: string };
 
 /** Detect binary content by checking for null bytes */
@@ -43,6 +49,17 @@ export function FileContent({ filePath }: FileContentProps) {
     setFileState({ status: "loading" });
     setViewMode("rendered");
 
+    const category = getFileCategory(filePath);
+
+    // Non-text media files skip readFile entirely — use asset protocol
+    if (category !== "text" && category !== "svg") {
+      const assetUrl = convertFileSrc(filePath);
+      setFileState({ status: "media", category, assetUrl });
+      return;
+    }
+
+    // SVG: prepare asset URL for rendered mode, but also load text for source mode
+    const assetUrl = category === "svg" ? convertFileSrc(filePath) : null;
     let cancelled = false;
 
     async function loadFile() {
@@ -55,12 +72,22 @@ export function FileContent({ filePath }: FileContentProps) {
           return;
         }
 
-        const language = getLanguageFromPath(filePath);
-        setFileState({ status: "loaded", content, language });
+        if (assetUrl) {
+          setFileState({ status: "media", category: "svg", assetUrl });
+        } else {
+          const language = getLanguageFromPath(filePath);
+          setFileState({ status: "loaded", content, language });
+        }
       } catch (err) {
         if (cancelled) return;
         logger.error("[FileContent] Failed to read file:", err);
-        setFileState({ status: "error", message: "File not found or cannot be read" });
+
+        // SVG can still render visually even if text read fails
+        if (assetUrl) {
+          setFileState({ status: "media", category: "svg", assetUrl });
+        } else {
+          setFileState({ status: "error", message: "File not found or cannot be read" });
+        }
       }
     }
 
@@ -69,18 +96,25 @@ export function FileContent({ filePath }: FileContentProps) {
   }, [filePath]);
 
   if (fileState.status === "loading") {
-    return (
-      <div className="flex items-center justify-center h-full text-surface-400 text-sm">
-        Loading...
-      </div>
-    );
+    return <CenteredMessage>Loading...</CenteredMessage>;
   }
 
   if (fileState.status === "error") {
+    return <CenteredMessage>{fileState.message}</CenteredMessage>;
+  }
+
+  if (fileState.status === "media") {
     return (
-      <div className="flex items-center justify-center h-full text-surface-400 text-sm">
-        {fileState.message}
-      </div>
+      <MediaPreview
+        category={fileState.category}
+        assetUrl={fileState.assetUrl}
+        filePath={filePath}
+        viewMode={viewMode}
+        renderToggle={() => <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />}
+        renderHighlighted={(content, lang) => (
+          <HighlightedFileView content={content} language={lang} />
+        )}
+      />
     );
   }
 
@@ -106,6 +140,16 @@ export function FileContent({ filePath }: FileContentProps) {
       <div className="flex-1 min-h-0 overflow-auto">
         <HighlightedFileView content={content} language={language} />
       </div>
+    </div>
+  );
+}
+
+// --- Shared UI components ---
+
+function CenteredMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-center h-full text-surface-400 text-sm">
+      {children}
     </div>
   );
 }
@@ -153,8 +197,6 @@ const HighlightedFileView = memo(function HighlightedFileView({
 }) {
   const { tokens, isLoading } = useCodeHighlight(content, language);
   const lines = content.split("\n");
-
-  // Width of line number gutter based on total lines
   const gutterWidth = `${Math.max(String(lines.length).length * 0.6 + 0.5, 2)}rem`;
 
   if (isLoading || !tokens) {
@@ -162,7 +204,7 @@ const HighlightedFileView = memo(function HighlightedFileView({
   }
 
   return (
-    <div className="font-mono text-sm leading-relaxed">
+    <div className="font-mono text-sm leading-relaxed text-surface-300">
       {tokens.map((lineTokens, i) => (
         <FileLine key={i} lineNumber={i + 1} tokens={lineTokens} gutterWidth={gutterWidth} />
       ))}

@@ -25,6 +25,7 @@ import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { repoService, type Repository, eventBus } from "../../entities";
 import { worktreeService } from "../../entities/worktrees";
 import type { RepoWorktree } from "@core/types/repositories";
+import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions";
 import { openControlPanel, showMainWindow, showMainWindowWithView } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
 import { savePromptToHistory, saveDraftToHistory } from "../../lib/prompt-history-helpers";
@@ -216,7 +217,7 @@ export class SpotlightController {
     content: string,
     repo: Repository,
     worktreePath?: string,
-    options?: { useNSPanel?: boolean }
+    options?: { useNSPanel?: boolean; permissionMode?: PermissionModeId }
   ): Promise<void> {
     const useNSPanel = options?.useNSPanel ?? true; // Default to NSPanel for backward compatibility
     const startTime = Date.now();
@@ -262,6 +263,7 @@ export class SpotlightController {
       repoId: settings.id,
       worktreeId,
       worktreePath: workingDir,
+      permissionMode: options?.permissionMode,
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -328,6 +330,7 @@ interface SpotlightState {
   repoWorktrees: RepoWorktree[];  // Flat MRU list across all repositories
   worktreeOverlayVisible: boolean;  // Whether overlay is currently shown
   worktreeOverlayConfirming: boolean;  // Whether overlay is in "confirming" animation state
+  permissionMode: PermissionModeId;
 }
 
 const INITIAL_STATE: SpotlightState = {
@@ -341,6 +344,7 @@ const INITIAL_STATE: SpotlightState = {
   repoWorktrees: [],
   worktreeOverlayVisible: false,
   worktreeOverlayConfirming: false,
+  permissionMode: "implement",
 };
 
 const INITIAL_TRIGGER_STATE: TriggerStateInfo = {
@@ -656,7 +660,10 @@ export const Spotlight = () => {
         // Run in selected worktree
         // Route based on modifier: Enter = main window, Shift+Enter = NSPanel
         controller
-          .createSimpleThread(result.data.query, selectedRepo, selectedWorktree.path, { useNSPanel })
+          .createSimpleThread(result.data.query, selectedRepo, selectedWorktree.path, {
+            useNSPanel,
+            permissionMode: state.permissionMode,
+          })
           .catch(handleThreadError);
 
         // Hide spotlight immediately - thread window is already showing
@@ -824,7 +831,7 @@ export const Spotlight = () => {
         await invoke("restart_app");
       }
     },
-    [triggerState.results, repoWorktrees, selectedWorktreeIndex, resizeSpotlight, inputExpanded]
+    [triggerState.results, repoWorktrees, selectedWorktreeIndex, resizeSpotlight, inputExpanded, state.permissionMode]
   );
 
   // Initialize controller on mount and fetch app suffix
@@ -946,20 +953,17 @@ export const Spotlight = () => {
           await controller.hideSpotlight();
           break;
         case "Tab": {
-          // Tab cycles worktrees when multiple are available (works with or without query)
-          if (repoWorktrees.length > 1) {
-            e.preventDefault();
-            if (e.shiftKey) {
-              // Shift+Tab = cycle backward
-              setState((prev) => ({
-                ...prev,
-                selectedWorktreeIndex:
-                  prev.selectedWorktreeIndex > 0
-                    ? prev.selectedWorktreeIndex - 1
-                    : prev.repoWorktrees.length - 1,
-              }));
-            } else {
-              // Tab = cycle forward
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Shift+Tab = cycle permission mode
+            setState((prev) => {
+              const idx = PERMISSION_MODE_CYCLE.indexOf(prev.permissionMode);
+              const next = PERMISSION_MODE_CYCLE[(idx + 1) % PERMISSION_MODE_CYCLE.length];
+              return { ...prev, permissionMode: next };
+            });
+          } else {
+            // Tab = cycle worktree forward
+            if (repoWorktrees.length > 1) {
               setState((prev) => ({
                 ...prev,
                 selectedWorktreeIndex:
@@ -1251,6 +1255,7 @@ export const Spotlight = () => {
           selectedWorktreeIndex,
           repoCount: controllerRef.current.getRepositories().length,
         }}
+        permissionMode={state.permissionMode}
       />
       <WorktreeOverlay
         visible={state.worktreeOverlayVisible}

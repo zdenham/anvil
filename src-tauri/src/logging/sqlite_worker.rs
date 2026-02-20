@@ -1,7 +1,7 @@
 //! Background worker thread for batched SQLite drain event writes.
 //!
 //! Receives `DrainRow` structs from the `SQLiteLayer` via mpsc channel
-//! and inserts them into `~/.mort/drain.sqlite3` in batched transactions.
+//! and inserts them into `<data_dir>/databases/drain.db` in batched transactions.
 //! Same batch pattern as `log_server.rs::batch_worker`.
 
 use super::sqlite_layer::{DrainRow, PropertyValue};
@@ -16,14 +16,11 @@ const FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Opens the drain SQLite database with WAL mode and creates schema.
 fn open_db() -> rusqlite::Connection {
-    let db_path = dirs::home_dir()
-        .expect("Failed to resolve home directory")
-        .join(".mort")
-        .join("drain.sqlite3");
+    let db_path = crate::paths::drain_database();
 
     // Ensure parent directory exists
     if let Some(parent) = db_path.parent() {
-        std::fs::create_dir_all(parent).expect("Failed to create ~/.mort directory");
+        std::fs::create_dir_all(parent).expect("Failed to create databases directory");
     }
 
     let conn =
@@ -31,6 +28,7 @@ fn open_db() -> rusqlite::Connection {
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
         .expect("Failed to set WAL mode on drain database");
     init_schema(&conn);
+    tracing::info!(path = %db_path.display(), "Drain SQLite database initialized");
     conn
 }
 
@@ -39,14 +37,14 @@ fn init_schema(conn: &rusqlite::Connection) {
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS drain_events (
-            event_id   TEXT PRIMARY KEY NOT NULL,
-            event      TEXT NOT NULL,
-            ts         INTEGER NOT NULL,
-            thread_id  TEXT NOT NULL
+            event_id    TEXT PRIMARY KEY NOT NULL,
+            event       TEXT NOT NULL,
+            timestamp   INTEGER NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS event_properties (
             event_id      TEXT NOT NULL,
+            timestamp     INTEGER NOT NULL,
             key           TEXT NOT NULL,
             value_string  TEXT,
             value_number  REAL,
@@ -54,12 +52,8 @@ fn init_schema(conn: &rusqlite::Connection) {
             FOREIGN KEY (event_id) REFERENCES drain_events(event_id)
         );
 
-        CREATE INDEX IF NOT EXISTS idx_drain_thread
-            ON drain_events(thread_id);
-        CREATE INDEX IF NOT EXISTS idx_drain_thread_event
-            ON drain_events(thread_id, event);
-        CREATE INDEX IF NOT EXISTS idx_drain_ts
-            ON drain_events(ts);
+        CREATE INDEX IF NOT EXISTS idx_drain_timestamp
+            ON drain_events(timestamp);
         CREATE INDEX IF NOT EXISTS idx_props_event_id
             ON event_properties(event_id);
         CREATE INDEX IF NOT EXISTS idx_props_key
@@ -81,27 +75,27 @@ fn flush_batch(conn: &rusqlite::Connection, buffer: &mut Vec<DrainRow>) {
         let tx = conn.unchecked_transaction()?;
         {
             let mut event_stmt = tx.prepare_cached(
-                "INSERT INTO drain_events (event_id, event, ts, thread_id) \
-                 VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO drain_events (event_id, event, timestamp) \
+                 VALUES (?1, ?2, ?3)",
             )?;
             let mut prop_stmt = tx.prepare_cached(
                 "INSERT INTO event_properties \
-                 (event_id, key, value_string, value_number, value_bool) \
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                 (event_id, timestamp, key, value_string, value_number, value_bool) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )?;
 
             for row in buffer.iter() {
                 event_stmt.execute((
                     &row.event_id,
                     &row.event,
-                    &row.ts,
-                    &row.thread_id,
+                    &row.timestamp,
                 ))?;
 
                 for (key, val) in &row.properties {
                     match val {
                         PropertyValue::String(s) => prop_stmt.execute((
                             &row.event_id,
+                            &row.timestamp,
                             key,
                             Some(s.as_str()),
                             None::<f64>,
@@ -109,6 +103,7 @@ fn flush_batch(conn: &rusqlite::Connection, buffer: &mut Vec<DrainRow>) {
                         ))?,
                         PropertyValue::Number(n) => prop_stmt.execute((
                             &row.event_id,
+                            &row.timestamp,
                             key,
                             None::<&str>,
                             Some(*n),
@@ -116,6 +111,7 @@ fn flush_batch(conn: &rusqlite::Connection, buffer: &mut Vec<DrainRow>) {
                         ))?,
                         PropertyValue::Bool(b) => prop_stmt.execute((
                             &row.event_id,
+                            &row.timestamp,
                             key,
                             None::<&str>,
                             None::<f64>,
@@ -229,8 +225,7 @@ mod tests {
         let mut buffer = vec![DrainRow {
             event_id: "test-id-1".to_string(),
             event: "tool:started".to_string(),
-            ts: 1700000000000,
-            thread_id: "thread-abc".to_string(),
+            timestamp: 1700000000000,
             properties: vec![
                 (
                     "toolName".to_string(),
@@ -307,8 +302,7 @@ mod tests {
             DrainRow {
                 event_id: "ev-1".to_string(),
                 event: "tool:started".to_string(),
-                ts: 1700000000000,
-                thread_id: "thread-1".to_string(),
+                timestamp: 1700000000000,
                 properties: vec![(
                     "toolName".to_string(),
                     PropertyValue::String("Bash".to_string()),
@@ -317,8 +311,7 @@ mod tests {
             DrainRow {
                 event_id: "ev-2".to_string(),
                 event: "api:call".to_string(),
-                ts: 1700000001000,
-                thread_id: "thread-1".to_string(),
+                timestamp: 1700000001000,
                 properties: vec![
                     ("inputTokens".to_string(), PropertyValue::Number(500.0)),
                     ("outputTokens".to_string(), PropertyValue::Number(200.0)),

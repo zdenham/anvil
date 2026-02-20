@@ -449,12 +449,16 @@ impl AgentHub {
                     if msg_type == "drain" {
                         if let (Some(event), Some(props)) = (
                             raw_msg.get("event").and_then(|v| v.as_str()),
-                            raw_msg.get("properties"),
+                            raw_msg.get("properties").cloned(),
                         ) {
-                            let props_str = props.to_string();
+                            // Inject threadId into properties so it's stored as a regular property
+                            let mut props_with_thread = props;
+                            if let Some(obj) = props_with_thread.as_object_mut() {
+                                obj.insert("threadId".to_string(), serde_json::Value::String(msg_thread_id.clone()));
+                            }
+                            let props_str = props_with_thread.to_string();
                             tracing::info!(
                                 target: "drain",
-                                thread_id = %msg_thread_id,
                                 event = %event,
                                 properties = %props_str,
                             );

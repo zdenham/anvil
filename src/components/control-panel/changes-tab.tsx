@@ -199,6 +199,8 @@ export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }
   const isWaitingForThreadState = !initialLoadComplete;
 
   useEffect(() => {
+    let aborted = false;
+
     logger.info(`[FC-DEBUG] generateDiffs useEffect triggered`, {
       threadId: threadMetadata.id,
       initialCommitHash,
@@ -254,6 +256,14 @@ export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }
           fileChanges,
           workingDirectory
         );
+
+        // If the effect was superseded by a newer invocation (e.g. workingDirectory
+        // changed from "" to the resolved path), discard stale results.
+        if (aborted) {
+          logger.info(`[FC-DEBUG] generateDiffs aborted (stale), discarding result`);
+          return;
+        }
+
         logger.info(`[FC-DEBUG] generateThreadDiff returned`, {
           hasError: !!result.error,
           fileCount: result.diff.files.length,
@@ -268,6 +278,12 @@ export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }
           // Fetch full file contents for all changed files
           logger.info(`[FC-DEBUG] Fetching file contents`);
           const fileContents = await fetchFileContents(result, workingDirectory);
+
+          if (aborted) {
+            logger.info(`[FC-DEBUG] generateDiffs aborted (stale) after fetchFileContents`);
+            return;
+          }
+
           logger.info(`[FC-DEBUG] fetchFileContents returned`, {
             fileCount: Object.keys(fileContents).length,
             filePaths: Object.keys(fileContents),
@@ -283,15 +299,22 @@ export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }
           setAnnotatedFiles(annotated);
         }
       } catch (err) {
+        if (aborted) return;
         logger.error(`[FC-DEBUG] generateDiffs error`, err);
         setError(err instanceof Error ? err.message : "Failed to generate diff");
       } finally {
-        setLoading(false);
+        if (!aborted) {
+          setLoading(false);
+        }
         logger.info(`[FC-DEBUG] generateDiffs completed`);
       }
     };
 
     generateDiffs();
+
+    return () => {
+      aborted = true;
+    };
   }, [initialCommitHash, fileChanges, workingDirectory, isLoadingThreadState, isWaitingForThreadState, threadMetadata.id, initialLoadComplete]);
 
   // Loading state - show when diff is generating OR when thread state is still loading from disk

@@ -161,15 +161,11 @@ export function useThreadSearch(
       }
 
       // Determine which visible range corresponds to the current match
-      // Use the match's turnIndex to find the right range
       if (currentIdx >= 0 && currentIdx < matchesRef.current.length) {
         const match = matchesRef.current[currentIdx];
-        // Find the range in the visible DOM that best corresponds to this match
-        // by checking text offsets within the turn's container
         for (const range of ranges) {
           const el = range.startContainer.parentElement;
           if (!el) continue;
-          // Check if this range's turn container matches the match's turnIndex
           const turnEl = el.closest("[data-turn-index]");
           if (
             turnEl &&
@@ -180,7 +176,6 @@ export function useThreadSearch(
             break;
           }
         }
-        // Fallback: if we couldn't match precisely, don't highlight current
         if (currentRange) {
           CSS.highlights.set(HIGHLIGHT_CURRENT, new Highlight(currentRange));
         } else {
@@ -191,6 +186,63 @@ export function useThreadSearch(
       }
     },
     [scrollerRef],
+  );
+
+  /** Scroll Virtuoso scroller so the current match element is visible. */
+  const scrollToCurrentMatch = useCallback(
+    (matchIdx: number) => {
+      const container = scrollerRef.current;
+      const matches = matchesRef.current;
+      if (!container || matchIdx < 0 || matchIdx >= matches.length) return;
+
+      // Wait for Virtuoso to finish rendering after scrollToIndex
+      setTimeout(() => {
+        // Re-apply highlights first so the DOM ranges are fresh
+        applyHighlights(matchIdx);
+
+        // Now find the current-highlight range's element
+        const q = queryRef.current.toLowerCase();
+        if (!q) return;
+
+        const match = matches[matchIdx];
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+        let targetEl: HTMLElement | null = null;
+
+        while (walker.nextNode()) {
+          const node = walker.currentNode as Text;
+          const text = node.textContent?.toLowerCase();
+          if (!text) continue;
+
+          const idx = text.indexOf(q);
+          if (idx === -1) continue;
+
+          const el = node.parentElement;
+          if (!el) continue;
+          const turnEl = el.closest("[data-turn-index]");
+          if (
+            turnEl &&
+            Number(turnEl.getAttribute("data-turn-index")) === match.turnIndex
+          ) {
+            targetEl = el;
+            break;
+          }
+        }
+
+        if (targetEl) {
+          const elRect = targetEl.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          const isVisible =
+            elRect.top >= containerRect.top && elRect.bottom <= containerRect.bottom;
+          if (!isVisible) {
+            const offsetInContainer = elRect.top - containerRect.top;
+            const desiredScroll =
+              container.scrollTop + offsetInContainer - containerRect.height / 2 + elRect.height / 2;
+            container.scrollTo({ top: desiredScroll, behavior: "auto" });
+          }
+        }
+      }, 100);
+    },
+    [scrollerRef, applyHighlights],
   );
 
   // --- Search execution ---
@@ -212,18 +264,14 @@ export function useThreadSearch(
 
     if (results.length > 0) {
       setCurrentMatch(1);
-      // Scroll to the first match's turn
-      messageListRef.current?.scrollToIndex(results[0].turnIndex);
-      // Highlight after scroll settles
+      // Only highlight visible matches — no scrolling on typing
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          applyHighlights(0);
-        });
+        applyHighlights(0);
       });
     } else {
       setCurrentMatch(0);
     }
-  }, [segments, clearHighlights, applyHighlights, messageListRef]);
+  }, [segments, clearHighlights, applyHighlights]);
 
   // Debounced search on query change
   useEffect(() => {
@@ -269,30 +317,30 @@ export function useThreadSearch(
 
   // --- Navigation ---
 
+  const navigateToMatch = useCallback(
+    (matchIdx: number) => {
+      const matches = matchesRef.current;
+      if (matchIdx < 0 || matchIdx >= matches.length) return;
+
+      const match = matches[matchIdx];
+      // Always scrollToIndex first to ensure Virtuoso renders the turn
+      messageListRef.current?.scrollToIndex(match.turnIndex);
+      // Then fine-tune scroll to the specific element after Virtuoso settles
+      scrollToCurrentMatch(matchIdx);
+    },
+    [messageListRef, scrollToCurrentMatch],
+  );
+
   const goToNext = useCallback(() => {
     const matches = matchesRef.current;
     if (matches.length === 0) return;
 
     setCurrentMatch((prev) => {
       const next = prev >= matches.length ? 1 : prev + 1;
-      const match = matches[next - 1];
-      const prevMatch = matches[(prev || 1) - 1];
-
-      // Scroll if the turn changed
-      if (!prevMatch || match.turnIndex !== prevMatch.turnIndex) {
-        messageListRef.current?.scrollToIndex(match.turnIndex);
-      }
-
-      // Re-highlight after potential scroll
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          applyHighlights(next - 1);
-        });
-      });
-
+      navigateToMatch(next - 1);
       return next;
     });
-  }, [applyHighlights, messageListRef]);
+  }, [navigateToMatch]);
 
   const goToPrevious = useCallback(() => {
     const matches = matchesRef.current;
@@ -300,22 +348,10 @@ export function useThreadSearch(
 
     setCurrentMatch((prev) => {
       const next = prev <= 1 ? matches.length : prev - 1;
-      const match = matches[next - 1];
-      const prevMatch = matches[(prev || 1) - 1];
-
-      if (!prevMatch || match.turnIndex !== prevMatch.turnIndex) {
-        messageListRef.current?.scrollToIndex(match.turnIndex);
-      }
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          applyHighlights(next - 1);
-        });
-      });
-
+      navigateToMatch(next - 1);
       return next;
     });
-  }, [applyHighlights, messageListRef]);
+  }, [navigateToMatch]);
 
   const clear = useCallback(() => {
     setQuery("");

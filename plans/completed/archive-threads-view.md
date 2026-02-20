@@ -8,10 +8,10 @@ Threads are easily archived (single hover-click + confirm) but there's no way to
 
 ## Phases
 
-- [ ] Add archive service method to list and unarchive threads
-- [ ] Create the archived threads content pane view
-- [ ] Add "Archived Threads" entry to the tree panel header dropdown
-- [ ] Wire up navigation so clicking the menu item opens the pane
+- [x] Add archive service method to list and unarchive threads
+- [x] Create the archived threads content pane view
+- [x] Add "Archived Threads" entry to the tree panel header dropdown
+- [x] Wire up navigation so clicking the menu item opens the pane
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

@@ -98,9 +98,9 @@ SVG uses the existing `ViewModeToggle` pattern — "Rendered" shows `<img src={a
 
 ## Phases
 
-- [ ] Create `src/lib/file-categories.ts` with extension maps and `getFileCategory()`
-- [ ] Update `file-content.tsx` — add media state, category-based routing, image/svg/pdf/video/audio renderers
-- [ ] Update `language-detection.ts` — remove svg→xml mapping (svg handled as visual now)
+- [x] Create `src/lib/file-categories.ts` with extension maps and `getFileCategory()`
+- [x] Update `file-content.tsx` — add media state, category-based routing, image/svg/pdf/video/audio renderers
+- [x] Update `language-detection.ts` — remove svg→xml mapping (svg handled as visual now)
 - [ ] Manual smoke test with sample files to verify each type works
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->

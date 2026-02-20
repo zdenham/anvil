@@ -350,6 +350,11 @@ pub fn clipboard_database() -> PathBuf {
     databases_dir().join("clipboard.db")
 }
 
+/// Path to drain analytics database in .mort/databases
+pub fn drain_database() -> PathBuf {
+    databases_dir().join("drain.db")
+}
+
 
 
 /// Get current paths info for debugging/display

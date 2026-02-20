@@ -3,7 +3,7 @@ import { cn } from "../../lib/utils";
 
 interface ResultItemProps {
   icon: ReactNode | null;
-  title: string;
+  title: ReactNode;
   subtitle: ReactNode;
   isSelected: boolean;
   onSelect: () => void;

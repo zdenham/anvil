@@ -22,7 +22,7 @@ export const FileHeader = memo(function FileHeader({ file }: FileHeaderProps) {
   const isRename = file.type === "renamed" && file.oldPath;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-surface-800 sticky top-0 z-10">
+    <div className="flex items-center gap-2.5 px-3 py-1.5 bg-surface-800 sticky top-0 z-10">
       {/* File icon */}
       <FileIcon type={file.type} className="w-4 h-4 flex-shrink-0" />
 
@@ -30,16 +30,16 @@ export const FileHeader = memo(function FileHeader({ file }: FileHeaderProps) {
       <div className="flex-1 min-w-0 flex items-center gap-2">
         {isRename ? (
           <>
-            <span className="font-mono text-sm text-surface-400 truncate">
+            <span className="font-mono text-xs text-surface-400 truncate">
               {file.oldPath}
             </span>
             <ArrowRight className="w-4 h-4 text-surface-500 flex-shrink-0" aria-hidden="true" />
-            <span className="font-mono text-sm text-surface-200 truncate">
+            <span className="font-mono text-xs text-surface-200 truncate">
               {file.newPath}
             </span>
           </>
         ) : (
-          <span className="font-mono text-sm text-surface-200 truncate">
+          <span className="font-mono text-xs text-surface-200 truncate">
             {path}
           </span>
         )}

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cog, Ellipsis, ScrollText, Eye } from "lucide-react";
+import { Archive, Cog, Ellipsis, ScrollText, Eye } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 
 interface MenuDropdownProps {
   onSettingsClick: () => void;
   onLogsClick: () => void;
+  onArchiveClick: () => void;
   /** Called when user clicks "Show all workspaces" */
   onUnhideAll?: () => void;
   /** Whether any workspaces are hidden or pinned (shows "Show all" option) */
@@ -19,21 +20,32 @@ interface MenuItem {
   onClick: () => void;
 }
 
-export function MenuDropdown({ onSettingsClick, onLogsClick, onUnhideAll, hasHiddenOrPinned }: MenuDropdownProps) {
+export function MenuDropdown({ onSettingsClick, onLogsClick, onArchiveClick, onUnhideAll, hasHiddenOrPinned }: MenuDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const menuItems: MenuItem[] = [
     // Show "Show all workspaces" option when there are hidden/pinned sections
     ...(hasHiddenOrPinned && onUnhideAll
-      ? [{ id: "unhide-all", label: "Show all workspaces", icon: <Eye size={12} />, onClick: onUnhideAll }]
+      ? [{ id: "unhide-all", label: "Show all workspaces", icon: <Eye size={11} />, onClick: onUnhideAll }]
       : []),
-    { id: "settings", label: "Settings", icon: <Cog size={12} />, onClick: onSettingsClick },
-    { id: "logs", label: "Logs", icon: <ScrollText size={12} />, onClick: onLogsClick },
+    { id: "settings", label: "Settings", icon: <Cog size={11} />, onClick: onSettingsClick },
+    { id: "logs", label: "Logs", icon: <ScrollText size={11} />, onClick: onLogsClick },
+    { id: "archive", label: "Archive", icon: <Archive size={11} />, onClick: onArchiveClick },
   ];
+
+  const open = useCallback(() => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setIsOpen(true);
+  }, []);
+
+  const closeAfterDelay = useCallback(() => {
+    hoverTimeoutRef.current = setTimeout(() => setIsOpen(false), 150);
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -63,6 +75,13 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onUnhideAll, hasHid
       focusedItem?.scrollIntoView({ block: "nearest" });
     }
   }, [focusedIndex, isOpen]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -114,7 +133,13 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onUnhideAll, hasHid
   };
 
   return (
-    <div ref={dropdownRef} className="relative" onKeyDown={handleKeyDown}>
+    <div
+      ref={dropdownRef}
+      className="relative"
+      onKeyDown={handleKeyDown}
+      onMouseEnter={open}
+      onMouseLeave={closeAfterDelay}
+    >
       <Tooltip content="More options" side="bottom">
         <button
           ref={buttonRef}
@@ -136,12 +161,7 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onUnhideAll, hasHid
           ref={listRef}
           role="menu"
           aria-activedescendant={`menu-option-${focusedIndex}`}
-          className={cn(
-            "absolute top-full right-0 mt-1 z-50",
-            "w-[180px]",
-            "bg-surface-800 border border-surface-700 rounded-lg shadow-lg",
-            "py-1"
-          )}
+          className="absolute top-0 left-full ml-1 z-50 bg-surface-900 border border-surface-700 rounded-lg shadow-lg p-1.5"
         >
           {menuItems.map((item, index) => (
             <div
@@ -152,12 +172,12 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onUnhideAll, hasHid
               onClick={() => handleSelect(item)}
               onMouseEnter={() => setFocusedIndex(index)}
               className={cn(
-                "flex items-center gap-2 px-3 py-1.5 cursor-pointer",
-                "text-sm text-surface-200",
-                index === focusedIndex && "bg-surface-700"
+                "flex items-center gap-2 px-2.5 py-1 cursor-pointer rounded whitespace-nowrap",
+                "text-xs text-surface-200",
+                index === focusedIndex && "bg-surface-800"
               )}
             >
-              <span className="text-surface-400">{item.icon}</span>
+              <span className="text-surface-400 flex-shrink-0">{item.icon}</span>
               <span>{item.label}</span>
             </div>
           ))}

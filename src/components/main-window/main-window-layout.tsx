@@ -300,6 +300,10 @@ export function MainWindowLayout() {
     await navigationService.navigateToView({ type: "logs" });
   }, []);
 
+  const handleArchiveClick = useCallback(async () => {
+    await navigationService.navigateToView({ type: "archive" });
+  }, []);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // New Thread/Worktree Handlers (from tree section plus buttons)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -520,6 +524,7 @@ export function MainWindowLayout() {
           <TreePanelHeader
             onSettingsClick={handleSettingsClick}
             onLogsClick={handleLogsClick}
+            onArchiveClick={handleArchiveClick}
             onUnhideAll={handleUnhideAll}
             hasHiddenOrPinned={pinnedSectionId !== null || hiddenSectionIds.length > 0}
           />

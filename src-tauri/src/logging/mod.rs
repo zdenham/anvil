@@ -421,7 +421,7 @@ pub fn initialize() {
     let (chrome_reload_layer, chrome_reload_handle) = reload::Layer::new(chrome_layer);
     let _ = CHROME_RELOAD_HANDLE.set(chrome_reload_handle);
 
-    // SQLite drain layer — always enabled, writes to ~/.mort/drain.sqlite3
+    // SQLite drain layer — always enabled, writes to <data_dir>/databases/drain.db
     let sqlite_drain_layer = sqlite_layer::SQLiteLayer::new();
 
     // Initialize the subscriber with all layers

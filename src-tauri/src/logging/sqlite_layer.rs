@@ -11,8 +11,7 @@ use tracing_subscriber::Layer;
 pub struct DrainRow {
     pub event_id: String,
     pub event: String,
-    pub ts: i64,
-    pub thread_id: String,
+    pub timestamp: i64,
     pub properties: Vec<(String, PropertyValue)>,
 }
 
@@ -47,12 +46,10 @@ impl SQLiteLayer {
 
 /// Visitor that extracts structured drain fields from a tracing event.
 ///
-/// Expects three fields:
-/// - `thread_id`: the agent thread ID
+/// Expects two fields:
 /// - `event`: the drain event name (e.g. "tool:started")
-/// - `properties`: JSON string of key-value pairs
+/// - `properties`: JSON string of key-value pairs (includes threadId)
 struct DrainFieldVisitor {
-    thread_id: Option<String>,
     event: Option<String>,
     properties_json: Option<String>,
 }
@@ -60,7 +57,6 @@ struct DrainFieldVisitor {
 impl DrainFieldVisitor {
     fn new() -> Self {
         Self {
-            thread_id: None,
             event: None,
             properties_json: None,
         }
@@ -70,7 +66,6 @@ impl DrainFieldVisitor {
 impl tracing::field::Visit for DrainFieldVisitor {
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
         match field.name() {
-            "thread_id" => self.thread_id = Some(value.to_string()),
             "event" => self.event = Some(value.to_string()),
             "properties" => self.properties_json = Some(value.to_string()),
             _ => {}
@@ -86,7 +81,6 @@ impl tracing::field::Visit for DrainFieldVisitor {
             s
         };
         match field.name() {
-            "thread_id" => self.thread_id = Some(cleaned),
             "event" => self.event = Some(cleaned),
             "properties" => self.properties_json = Some(cleaned),
             _ => {}
@@ -139,10 +133,9 @@ where
         let mut visitor = DrainFieldVisitor::new();
         event.record(&mut visitor);
 
-        // Both event name and thread_id are required
-        let (event_name, thread_id) = match (visitor.event, visitor.thread_id) {
-            (Some(e), Some(t)) => (e, t),
-            _ => return,
+        let event_name = match visitor.event {
+            Some(e) => e,
+            None => return,
         };
 
         let properties = visitor
@@ -154,8 +147,7 @@ where
         let row = DrainRow {
             event_id: uuid::Uuid::new_v4().to_string(),
             event: event_name,
-            ts: chrono::Utc::now().timestamp_millis(),
-            thread_id,
+            timestamp: chrono::Utc::now().timestamp_millis(),
             properties,
         };
 

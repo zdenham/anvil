@@ -118,7 +118,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   }, []);
 
   const scrollToIndex = useCallback((index: number) => {
-    virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "smooth" });
+    virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "auto" });
   }, []);
 
   // Expose scroll functions and scroller element through ref

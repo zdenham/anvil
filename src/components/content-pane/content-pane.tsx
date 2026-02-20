@@ -16,6 +16,7 @@ import { ThreadContent } from "./thread-content";
 import { PlanContent } from "./plan-content";
 import { TerminalContent } from "./terminal-content";
 import { FileContent } from "./file-content";
+import { ArchiveView } from "./archive-view";
 import { EmptyPaneContent } from "./empty-pane-content";
 import { ChangesTab } from "../control-panel/changes-tab";
 import { SettingsPage } from "../main-window/settings-page";
@@ -141,6 +142,7 @@ export function ContentPane({
         </InputStoreProvider>
         {view.type === "settings" && <SettingsPage />}
         {view.type === "logs" && <LogsPage />}
+        {view.type === "archive" && <ArchiveView />}
         {view.type === "terminal" && (
           <TerminalContent
             key={view.terminalId}

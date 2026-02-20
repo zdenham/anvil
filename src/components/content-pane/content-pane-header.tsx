@@ -344,7 +344,7 @@ function FileHeader({
   const fileName = filePath.split("/").pop() ?? "file";
 
   return (
-    <div className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+    <div className="@container flex items-center gap-2.5 pl-3 pr-2 py-2 border-b border-surface-700">
       <Breadcrumb
         repoName={repoName}
         worktreeName={worktreeName}
@@ -356,7 +356,7 @@ function FileHeader({
       <div className="ml-auto">
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+          className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"
         >
           <X size={12} />

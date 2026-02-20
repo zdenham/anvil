@@ -15,10 +15,10 @@ Add permission mode cycling via Shift+Tab to the spotlight, display the current 
 
 ## Phases
 
-- [ ] Simplify worktree cycling to Tab-only (remove Shift+Tab backward cycling)
-- [ ] Add permission mode state and Shift+Tab cycling to spotlight
-- [ ] Display permission mode next to "Create thread" in results tray
-- [ ] Pass selected permission mode through to thread creation
+- [x] Simplify worktree cycling to Tab-only (remove Shift+Tab backward cycling)
+- [x] Add permission mode state and Shift+Tab cycling to spotlight
+- [x] Display permission mode next to "Create thread" in results tray
+- [x] Pass selected permission mode through to thread creation
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

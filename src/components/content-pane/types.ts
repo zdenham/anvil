@@ -18,6 +18,7 @@ export type ContentPaneView =
   | { type: "plan"; planId: string }
   | { type: "settings" }
   | { type: "logs" }
+  | { type: "archive" }
   | { type: "terminal"; terminalId: string }
   | { type: "file"; filePath: string; repoId?: string; worktreeId?: string };
 

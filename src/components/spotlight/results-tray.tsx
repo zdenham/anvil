@@ -6,6 +6,7 @@ import { AppIcon } from "./app-icon";
 import { CalculatorIcon } from "./calculator-icon";
 import { MortLogo } from "../ui/mort-logo";
 import type { RepoWorktree } from "@core/types/repositories";
+import { BUILTIN_MODES, type PermissionModeId } from "@core/types/permissions";
 
 interface WorktreeInfo {
   repoWorktrees: RepoWorktree[];
@@ -14,12 +15,19 @@ interface WorktreeInfo {
   repoCount: number;
 }
 
+const MODE_COLORS: Record<PermissionModeId, string> = {
+  plan: "text-blue-400",
+  implement: "text-green-400",
+  approve: "text-amber-400",
+};
+
 interface ResultsTrayProps {
   results: SpotlightResult[];
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
   onActivate: (result: SpotlightResult) => void;
   worktreeInfo?: WorktreeInfo;
+  permissionMode?: PermissionModeId;
 }
 
 const getResultKey = (result: SpotlightResult, index: number): string => {
@@ -43,8 +51,9 @@ const getResultKey = (result: SpotlightResult, index: number): string => {
 
 const getResultDisplay = (
   result: SpotlightResult,
-  worktreeInfo?: WorktreeInfo
-): { icon: React.ReactNode | null; title: string; subtitle: React.ReactNode } => {
+  worktreeInfo?: WorktreeInfo,
+  permissionMode?: PermissionModeId,
+): { icon: React.ReactNode | null; title: React.ReactNode; subtitle: React.ReactNode } => {
   if (result.type === "file") {
     return {
       icon: null,
@@ -104,9 +113,21 @@ const getResultDisplay = (
         }
       }
     }
+    const modeId = permissionMode ?? "implement";
+    const modeName = BUILTIN_MODES[modeId].name;
+    const modeColor = MODE_COLORS[modeId];
+    const title = (
+      <span className="inline-flex items-center gap-1.5">
+        Create thread
+        <span className="text-surface-600">·</span>
+        <span className={`${modeColor} font-mono text-xs`}>{modeName}</span>
+        <span className="text-surface-500 font-mono text-[10px]">(shift+tab to cycle)</span>
+      </span>
+    );
+
     return {
       icon: <div className="w-10 h-10 flex items-center justify-center"><MortLogo size={7} /></div>,
-      title: "Create thread",
+      title,
       subtitle,
     };
   }
@@ -162,6 +183,7 @@ export const ResultsTray = ({
   onSelectIndex,
   onActivate,
   worktreeInfo,
+  permissionMode,
 }: ResultsTrayProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLDivElement>(null);
@@ -194,9 +216,10 @@ export const ResultsTray = ({
       style={needsScroll ? { maxHeight } : undefined}
     >
       {results.map((result, index) => {
-        // Only pass worktreeInfo to thread results
+        // Only pass worktreeInfo and permissionMode to thread results
         const displayWorktreeInfo = result.type === "thread" ? worktreeInfo : undefined;
-        const { icon, title, subtitle } = getResultDisplay(result, displayWorktreeInfo);
+        const displayPermissionMode = result.type === "thread" ? permissionMode : undefined;
+        const { icon, title, subtitle } = getResultDisplay(result, displayWorktreeInfo, displayPermissionMode);
         const isSelected = index === selectedIndex;
         return (
           <div key={getResultKey(result, index)} ref={isSelected ? selectedRef : undefined}>

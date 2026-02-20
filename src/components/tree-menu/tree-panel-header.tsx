@@ -17,6 +17,8 @@ interface TreePanelHeaderProps {
   onSettingsClick: () => void;
   /** Called when Logs is clicked */
   onLogsClick: () => void;
+  /** Called when Archive is clicked */
+  onArchiveClick: () => void;
   /** Called when Terminal is clicked (optional - terminal integration) */
   onTerminalClick?: () => void;
   /** Called when user clicks "Show all workspaces" */
@@ -33,6 +35,7 @@ interface TreePanelHeaderProps {
 export function TreePanelHeader({
   onSettingsClick,
   onLogsClick,
+  onArchiveClick,
   onTerminalClick,
   onUnhideAll,
   hasHiddenOrPinned,
@@ -101,6 +104,7 @@ export function TreePanelHeader({
         <MenuDropdown
           onSettingsClick={onSettingsClick}
           onLogsClick={onLogsClick}
+          onArchiveClick={onArchiveClick}
           onUnhideAll={onUnhideAll}
           hasHiddenOrPinned={hasHiddenOrPinned}
         />

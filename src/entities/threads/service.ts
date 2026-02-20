@@ -777,6 +777,50 @@ export const threadService = {
   },
 
   /**
+   * Unarchives a thread.
+   * Moves the thread folder from archive/threads/ back to threads/.
+   * Adds the thread back to the Zustand store and emits THREAD_CREATED.
+   */
+  async unarchive(threadId: string): Promise<void> {
+    const archivePath = `${ARCHIVE_THREADS_DIR}/${threadId}`;
+    const metadataPath = `${archivePath}/metadata.json`;
+
+    const raw = await appData.readJson(metadataPath);
+    const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
+    if (!result?.success) {
+      logger.warn(`[threadService.unarchive] Thread ${threadId} not found in archive`);
+      return;
+    }
+
+    const metadata = result.data;
+    const destPath = getStandaloneThreadPath(threadId);
+
+    // Copy files back to active threads directory
+    await appData.ensureDir(destPath);
+
+    await appData.writeJson(`${destPath}/metadata.json`, metadata);
+    const state = await appData.readJson(`${archivePath}/state.json`);
+    if (state) {
+      await appData.writeJson(`${destPath}/state.json`, state);
+    }
+
+    // Remove from archive
+    await appData.removeDir(archivePath);
+
+    // Add back to store
+    useThreadStore.getState()._applyCreate(metadata);
+
+    // Emit event so tree menu and other listeners can react
+    eventBus.emit(EventName.THREAD_CREATED, {
+      threadId,
+      repoId: metadata.repoId,
+      worktreeId: metadata.worktreeId,
+    });
+
+    logger.info(`[threadService.unarchive] Unarchived thread ${threadId}`);
+  },
+
+  /**
    * Get plans related to a thread.
    * Uses the relation service to find associated plans.
    */

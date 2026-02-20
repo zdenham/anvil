@@ -43,7 +43,6 @@ const EXTENSION_MAP: Record<string, string> = {
   psm1: "powershell",
   toml: "toml",
   xml: "xml",
-  svg: "xml",
   vue: "vue",
   svelte: "svelte",
   dockerfile: "dockerfile",
