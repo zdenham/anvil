@@ -438,6 +438,67 @@
 </section>
 
 <!-- ============================================ -->
+<!-- SLIDE — Claude Code Permission System -->
+<!-- ============================================ -->
+<section>
+  <h2>Claude Code Permission System</h2>
+  <h3>Layers of defense</h3>
+
+  <div style="display: flex; gap: 2em; align-items: flex-start;">
+    <div style="flex: 1;">
+      <!-- Layered diagram as SVG -->
+      <svg width="460" height="340" viewBox="0 0 460 340" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer layer: Sandbox -->
+        <rect x="10" y="10" width="440" height="320" rx="12" fill="#fef2f2" stroke="#fca5a5" stroke-width="2"/>
+        <text x="230" y="36" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="13" font-weight="600" fill="#dc2626">Sandbox</text>
+        <text x="230" y="52" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#991b1b">OS-level isolation &middot; network/fs restrictions</text>
+
+        <!-- Hooks layer -->
+        <rect x="30" y="64" width="400" height="256" rx="10" fill="#fefce8" stroke="#fde047" stroke-width="2"/>
+        <text x="230" y="88" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="13" font-weight="600" fill="#a16207">Hooks (PreToolUse / PostToolUse)</text>
+        <text x="230" y="104" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#854d0e">Custom logic &middot; deny overrides bypass &middot; configurable timeouts</text>
+
+        <!-- Deny / Allow / Ask Rules -->
+        <rect x="50" y="116" width="360" height="194" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
+        <text x="230" y="140" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="13" font-weight="600" fill="#2563eb">Deny / Allow / Ask Rules</text>
+        <text x="230" y="156" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#1e40af">Read allowlists &middot; Write restrictions &middot; Bash command parsing</text>
+
+        <!-- Permission Mode -->
+        <rect x="70" y="168" width="320" height="132" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="2"/>
+        <text x="230" y="192" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="13" font-weight="600" fill="#16a34a">Permission Mode</text>
+        <text x="230" y="208" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#166534">Plan / Implement / Approve / Bypass</text>
+
+        <!-- canUseTool -->
+        <rect x="90" y="220" width="280" height="68" rx="4" fill="#faf5ff" stroke="#c4b5fd" stroke-width="2"/>
+        <text x="230" y="250" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="13" font-weight="600" fill="#7c3aed">canUseTool</text>
+        <text x="230" y="268" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#5b21b6">Final callback &middot; 60s hard timeout &middot; fails open</text>
+
+        <!-- Evaluation arrow -->
+        <text x="430" y="176" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="9" fill="#94a3b8" transform="rotate(90, 430, 176)">evaluated outside → in</text>
+      </svg>
+    </div>
+
+    <div style="flex: 0.7; font-size: 0.78em;">
+      <strong>Command parsing</strong>
+      <p style="margin: 0.3em 0 0.8em; color: var(--muted); line-height: 1.5;">Bash commands are parsed to detect chaining (<code>&&</code>, <code>||</code>, <code>;</code>). Each sub-command is evaluated independently &mdash; no sneaking <code>rm -rf</code> after a benign <code>ls</code>.</p>
+
+      <strong>Evaluation order</strong>
+      <ol style="margin: 0.3em 0 0.8em; font-size: 0.95em; line-height: 1.6;">
+        <li>Hooks (can deny, even in bypass)</li>
+        <li>Deny rules (hard block)</li>
+        <li>Allow rules (auto-approve)</li>
+        <li>Ask rules (prompt user)</li>
+        <li>Permission mode</li>
+        <li>canUseTool (last resort)</li>
+      </ol>
+
+      <strong>Key insight</strong>
+      <p style="margin: 0.3em 0; color: var(--muted); line-height: 1.5;">A deny at any layer overrides all allows below it. Defense in depth.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ -->
 <!-- SLIDE 5 — The Next Step Function -->
 <!-- ============================================ -->
 <section>
@@ -488,7 +549,7 @@
         <circle cx="20" cy="20" r="3" fill="#475569"/>
       </svg>
       <div style="font-family: var(--r-heading-font); font-weight: 600; font-size: 0.72em; margin: 8px 0 4px; color: #475569;">Wave 3</div>
-      <div style="font-family: var(--r-heading-font); font-weight: 600; font-size: 0.78em; color: #222;">Devin / SWE-Agent</div>
+      <div style="font-family: var(--r-heading-font); font-weight: 600; font-size: 0.78em; color: #222;">OpenCLAW / Devin</div>
       <div style="font-size: 0.68em; color: var(--muted); margin-top: 6px; line-height: 1.4;">Autonomous loops.<br>Quality is inconsistent.</div>
     </div>
     <!-- Arrow -->
@@ -498,28 +559,41 @@
     <!-- Wave 4 -->
     <div style="flex: 1; padding: 16px 14px; background: #f5f3ff; border-radius: 8px; text-align: center; border: 2px solid #c7d2fe;">
       <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-        <!-- Orchestration / nodes icon -->
-        <circle cx="20" cy="10" r="5" fill="#6366f1"/>
-        <circle cx="10" cy="30" r="5" fill="#6366f1"/>
-        <circle cx="30" cy="30" r="5" fill="#6366f1"/>
-        <line x1="20" y1="15" x2="10" y2="25" stroke="#6366f1" stroke-width="2"/>
-        <line x1="20" y1="15" x2="30" y2="25" stroke="#6366f1" stroke-width="2"/>
-        <line x1="10" y1="30" x2="30" y2="30" stroke="#6366f1" stroke-width="2" stroke-dasharray="3,2"/>
+        <!-- Question mark icon -->
+        <circle cx="20" cy="20" r="16" fill="none" stroke="#6366f1" stroke-width="2.5"/>
+        <path d="M15,15 Q15,9 20,9 Q26,9 26,14 Q26,18 20,19 L20,23" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="20" cy="29" r="1.8" fill="#6366f1"/>
       </svg>
       <div style="font-family: var(--r-heading-font); font-weight: 600; font-size: 0.72em; margin: 8px 0 4px; color: #6366f1;">Wave 4</div>
-      <div style="font-family: var(--r-heading-font); font-weight: 600; font-size: 0.78em; color: #222;">Orchestrated Agents</div>
-      <div style="font-size: 0.68em; color: var(--muted); margin-top: 6px; line-height: 1.4;">Coordination + measurement<br>+ feedback loops.</div>
+      <div style="font-family: var(--r-heading-font); font-weight: 600; font-size: 0.78em; color: #222;">?</div>
+      <div style="font-size: 0.68em; color: var(--muted); margin-top: 6px; line-height: 1.4;">Orchestration + measurement<br>+ feedback loops.</div>
     </div>
   </div>
 
-  <div style="display: flex; gap: 1.5em; margin-top: 1.2em; font-size: 0.75em; align-items: flex-start;">
-    <div style="flex: 1; padding: 10px 14px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #6366f1;">
-      <strong>Models are already powerful enough.</strong> The bottleneck is the harness &mdash; how we orchestrate, measure, and correct.
-    </div>
-    <div style="flex: 1; padding: 10px 14px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #6366f1;">
-      <strong>The next step function</strong> comes from better orchestration, not just better models. Quality gates, plan systems, feedback loops.
-    </div>
-  </div>
+  <!-- Step function plot -->
+  <svg width="100%" height="120" viewBox="0 0 900 120" xmlns="http://www.w3.org/2000/svg" style="margin-top: 0.6em;">
+    <!-- Axes -->
+    <line x1="60" y1="100" x2="880" y2="100" stroke="#e2e8f0" stroke-width="1.5"/>
+    <line x1="60" y1="10" x2="60" y2="100" stroke="#e2e8f0" stroke-width="1.5"/>
+    <!-- Y axis label -->
+    <text x="12" y="58" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="10" fill="#94a3b8" transform="rotate(-90, 12, 58)">capability</text>
+    <!-- X axis label -->
+    <text x="470" y="118" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="10" fill="#94a3b8">time</text>
+    <!-- Step function - model capability (gray, gradual rises) -->
+    <polyline points="60,88 200,88 200,72 400,72 400,50 600,50 600,28 860,28" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6,3"/>
+    <!-- Step function - harness quality (indigo, steeper steps) -->
+    <polyline points="60,92 200,92 200,82 400,82 400,62 600,62 600,22 860,22" fill="none" stroke="#6366f1" stroke-width="2.5"/>
+    <!-- Wave labels on x-axis -->
+    <text x="130" y="112" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="9" fill="#94a3b8">W1</text>
+    <text x="300" y="112" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="9" fill="#94a3b8">W2</text>
+    <text x="500" y="112" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="9" fill="#94a3b8">W3</text>
+    <text x="730" y="112" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="9" fill="#6366f1" font-weight="600">W4</text>
+    <!-- Legend -->
+    <line x1="680" y1="14" x2="710" y2="14" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6,3"/>
+    <text x="714" y="18" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="10" fill="#94a3b8">model</text>
+    <line x1="770" y1="14" x2="800" y2="14" stroke="#6366f1" stroke-width="2.5"/>
+    <text x="804" y="18" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="10" fill="#6366f1">harness</text>
+  </svg>
 </section>
 
 <!-- ============================================ -->
@@ -651,7 +725,7 @@
 <!-- SLIDE 9b — Disk as Truth -->
 <!-- ============================================ -->
 <section>
-  <h2>Storage &mdash; Disk as Truth</h2>
+  <h2>Events as Signals, Disk as Truth</h2>
   <pre><code>~/.mort/
 ├── agent-hub.sock                # Unix socket (runtime)
 ├── threads/{id}/
@@ -666,10 +740,11 @@
     ├── clipboard.db              # Clipboard history (FTS)
     └── drain-events.db           # Analytics (17 event types)</code></pre>
   <ul>
+    <li><strong>Events are signals, not data</strong> &mdash; they notify that something changed, never carry the truth</li>
+    <li><strong>Disk is the source of truth</strong> &mdash; listeners always re-read from disk on signal</li>
     <li>Multi-writer safe: UI + agents both write</li>
     <li>Crash resilient: no in-memory-only state</li>
     <li>Complete disk write <strong>before</strong> emitting event</li>
-    <li>Listeners always re-read from disk, never trust event payloads</li>
   </ul>
 </section>
 
@@ -750,26 +825,61 @@
 <section>
   <h2>Orchestration Modes</h2>
   <h3>Mode 1: Top-Down (User-Initiated Swarm)</h3>
-  <pre><code>User creates plan with phases
-          │
-          ▼
-┌─────────────────────┐
-│  "Build feature X"  │
-│                     │
-│  Phase 1: Research  │ ──► Agent A (Plan mode)
-│  Phase 2: Implement │ ──► Agent B (Implement mode, Worktree B)
-│  Phase 3: Tests     │ ──► Agent C (Implement mode, Worktree C)
-│  Phase 4: Review    │ ──► Agent D (Approve mode)
-└─────────────────────┘
-          │
-          ▼
-Phases complete → merge worktrees → quality gate → done</code></pre>
-  <ul>
-    <li>User defines the plan, Mort distributes phases to agents</li>
-    <li>Each agent gets appropriate permission mode</li>
-    <li>Parallel work on isolated worktrees</li>
-    <li>Human stays in the loop via Approve mode on final review</li>
-  </ul>
+
+  <div style="display: flex; gap: 2em; align-items: flex-start;">
+    <div style="flex: 1;">
+      <!-- Org chart / pyramid SVG -->
+      <svg width="420" height="280" viewBox="0 0 420 280" xmlns="http://www.w3.org/2000/svg">
+        <!-- User at top -->
+        <rect x="155" y="8" width="110" height="40" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+        <text x="210" y="33" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="12" font-weight="600" fill="#222">User + Plan</text>
+
+        <!-- Connector lines from user to agents -->
+        <line x1="185" y1="48" x2="80" y2="90" stroke="#cbd5e1" stroke-width="1.5"/>
+        <line x1="210" y1="48" x2="210" y2="90" stroke="#cbd5e1" stroke-width="1.5"/>
+        <line x1="235" y1="48" x2="340" y2="90" stroke="#cbd5e1" stroke-width="1.5"/>
+
+        <!-- Agent A: Research (Plan mode) -->
+        <rect x="20" y="90" width="120" height="50" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
+        <text x="80" y="112" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="11" font-weight="600" fill="#2563eb">Agent A</text>
+        <text x="80" y="128" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#64748b">Research (Plan)</text>
+
+        <!-- Agent B: Implement -->
+        <rect x="150" y="90" width="120" height="50" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="2"/>
+        <text x="210" y="112" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="11" font-weight="600" fill="#16a34a">Agent B</text>
+        <text x="210" y="128" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#64748b">Implement (WT-B)</text>
+
+        <!-- Agent C: Tests -->
+        <rect x="280" y="90" width="120" height="50" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="2"/>
+        <text x="340" y="112" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="11" font-weight="600" fill="#16a34a">Agent C</text>
+        <text x="340" y="128" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#64748b">Tests (WT-C)</text>
+
+        <!-- Connector down to review -->
+        <line x1="80" y1="140" x2="210" y2="180" stroke="#cbd5e1" stroke-width="1.5"/>
+        <line x1="210" y1="140" x2="210" y2="180" stroke="#cbd5e1" stroke-width="1.5"/>
+        <line x1="340" y1="140" x2="210" y2="180" stroke="#cbd5e1" stroke-width="1.5"/>
+
+        <!-- Agent D: Review -->
+        <rect x="150" y="180" width="120" height="50" rx="6" fill="#fefce8" stroke="#fde047" stroke-width="2"/>
+        <text x="210" y="202" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="11" font-weight="600" fill="#a16207">Agent D</text>
+        <text x="210" y="218" text-anchor="middle" font-family="'Inter', sans-serif" font-size="10" fill="#64748b">Review (Approve)</text>
+
+        <!-- Arrow to done -->
+        <line x1="210" y1="230" x2="210" y2="256" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#cbd5e1"/></marker></defs>
+        <text x="210" y="272" text-anchor="middle" font-family="'Atkinson Hyperlegible Mono', monospace" font-size="11" fill="#64748b">merge &rarr; quality gate &rarr; done</text>
+      </svg>
+    </div>
+
+    <div style="flex: 0.7;">
+      <ul>
+        <li>User defines the plan, Mort distributes phases to agents</li>
+        <li>Each agent gets appropriate permission mode</li>
+        <li>Parallel work on isolated worktrees</li>
+        <li>Human stays in the loop via Approve mode on final review</li>
+      </ul>
+    </div>
+  </div>
 </section>
 
 <!-- ============================================ -->
@@ -807,7 +917,7 @@ Phases complete → merge worktrees → quality gate → done</code></pre>
 <!-- ============================================ -->
 <section class="center-slide">
   <blockquote>Agents can write code fast.<br>But how do we know the code is <strong>good</strong>?</blockquote>
-  <p style="margin-top: 1em; color: var(--muted); font-size: 0.9em;">We need a taxonomy of code quality &mdash; and it's bigger than you think.</p>
+  <p style="margin-top: 1em; color: var(--muted); font-size: 0.9em;">Understanding code quality is a prerequisite to scaling agents.<br>We should build our taste in what matters &mdash; as a team.</p>
 </section>
 
 <!-- ============================================ -->
@@ -950,8 +1060,9 @@ Phases complete → merge worktrees → quality gate → done</code></pre>
   <h3>Why this matters more with agents</h3>
   <ul style="font-size: 0.78em;">
     <li>Agents dramatically reduce <strong>implementation</strong> effort</li>
-    <li>But <strong>maintenance</strong> effort stays the same &mdash; or gets worse</li>
-    <li>Agent code is often: over-engineered, under-documented, inconsistent, bloated</li>
+    <li>Maintenance effort doesn't shrink at the same rate &mdash; and can grow if we're not deliberate</li>
+    <li>Agent code <em>can</em> trend toward: more abstractions than needed, inconsistent patterns across sessions, code that grows faster than it gets pruned</li>
+    <li><strong>State compounds the problem</strong> &mdash; it's not a closed system of code, it's code + state. Each new feature multiplies the state space. Agents add features fast, which means state explosion becomes a real risk.</li>
     <li><strong>When implementation is cheap, maintenance dominates. YAGNI matters more with AI, not less.</strong></li>
   </ul>
 </section>
@@ -977,6 +1088,40 @@ Phases complete → merge worktrees → quality gate → done</code></pre>
       <tr><td>Dependency freshness</td><td>No outdated deps</td><td><span class="pill pill-green">automated</span></td></tr>
     </tbody>
   </table>
+</section>
+
+<!-- ============================================ -->
+<!-- SLIDE — Composite Metrics -->
+<!-- ============================================ -->
+<section>
+  <h2>Composite Metrics</h2>
+  <h3>Combining signals for better risk detection</h3>
+
+  <div class="two-col" style="margin-top: 0.8em;">
+    <div>
+      <div class="formula" style="font-size: 1em; padding: 16px;">CRAP = CC<sup>2</sup> &middot; (1 - coverage)<sup>3</sup> + CC</div>
+      <p style="margin-top: 0.6em; font-size: 0.82em;"><strong>CRAP metric</strong> &mdash; penalizes complex untested code. High cyclomatic complexity + low test coverage = high CRAP score.</p>
+      <ul style="font-size: 0.78em; margin-top: 0.4em;">
+        <li>CC = 1, coverage = 100% &rarr; CRAP = 1 (trivial, tested)</li>
+        <li>CC = 30, coverage = 0% &rarr; CRAP = 930 (complex, untested)</li>
+        <li>Useful as a quality gate: reject code above a CRAP threshold</li>
+      </ul>
+    </div>
+    <div>
+      <div class="formula" style="font-size: 1em; padding: 16px;">Risk = Complexity &times; Churn</div>
+      <p style="margin-top: 0.6em; font-size: 0.82em;"><strong>Hotspot analysis</strong> (Adam Tornhill) &mdash; files that are both complex and frequently changed are the highest-risk targets in a codebase.</p>
+      <ul style="font-size: 0.78em; margin-top: 0.4em;">
+        <li>Complex + rarely changed = stable (low risk)</li>
+        <li>Simple + frequently changed = fine (low risk)</li>
+        <li>Complex + frequently changed = <strong>hotspot</strong> (refactor here)</li>
+        <li>Agents can compute this from git log + static analysis</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="font-size: 0.75em; padding: 10px 14px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #6366f1; margin-top: 1em;">
+    Both metrics are <strong>agent-computable</strong> &mdash; no human judgment required. Perfect for automated quality gates in the agent loop.
+  </div>
 </section>
 
 <!-- ============================================ -->
@@ -1051,27 +1196,22 @@ Phases complete → merge worktrees → quality gate → done</code></pre>
 <!-- ============================================ -->
 <section>
   <h2>What Makes Code High Quality?</h2>
-  <h3>Three views</h3>
 
-  <div style="font-size: 0.82em;">
-    <strong>The traditionalist</strong>
-    <p style="color: var(--muted); margin: 0.2em 0 0.6em;">Correctness, readability, maintainability, performance. "Good code works and someone else can understand it."</p>
-
-    <strong>The pragmatist</strong>
-    <p style="color: var(--muted); margin: 0.2em 0 0.6em;">Ships, doesn't break, easy to change. DORA metrics &gt; code metrics.</p>
-
-    <strong>The AI-era view</strong>
-    <p style="color: var(--muted); margin: 0.2em 0 0.6em;">Code that AI can <strong>also</strong> understand and safely modify. Small files, clear naming, explicit types, minimal magic. New metric: <strong>AI-navigability</strong>.</p>
-  </div>
-
-  <hr>
-
-  <blockquote style="border-left-color: var(--accent);">
+  <blockquote style="border-left-color: var(--accent); margin-top: 0.8em;">
     Quality = human-readable AND machine-readable.<br>
     Quality = correct today AND changeable tomorrow.<br>
     Quality = minimum complexity for current requirements (YAGNI).<br>
     The best code is code that both humans and agents can reason about confidently.
   </blockquote>
+
+  <hr>
+
+  <ul>
+    <li>Small files, clear naming, explicit types, minimal magic</li>
+    <li>Code that ships, doesn't break, and is easy to change</li>
+    <li>New metric worth thinking about: <strong>AI-navigability</strong> &mdash; how quickly can an agent locate, understand, and safely modify this code?</li>
+    <li>DORA metrics (deploy frequency, change failure rate, time to recovery) matter more than code metrics alone</li>
+  </ul>
 </section>
 
 <!-- ============================================ -->
