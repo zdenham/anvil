@@ -6,6 +6,7 @@ import {
   type LogInsertResponse,
   type LogErrorResponse,
 } from './types/logs.js';
+import { IdentitySchema } from './types/identity.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -20,7 +21,6 @@ const clickhouse = createClient({
 const TABLE = process.env.CLICKHOUSE_TABLE ?? 'logs';
 
 fastify.post<{ Body: unknown }>('/logs', async (request, reply) => {
-  // Validate request body with Zod
   const parseResult = LogBatchSchema.safeParse(request.body);
 
   if (!parseResult.success) {
@@ -38,31 +38,72 @@ fastify.post<{ Body: unknown }>('/logs', async (request, reply) => {
   }
 
   try {
+    // Assign log_id to any rows missing one
+    const logsWithIds = logs.map((log) => ({
+      ...log,
+      log_id: log.log_id ?? crypto.randomUUID(),
+    }));
+
+    // Insert log rows (without properties)
+    const logRows = logsWithIds.map(({ properties, ...row }) => row);
+
     const result = await clickhouse.insert({
       table: TABLE,
-      values: logs,
+      values: logRows,
       format: 'JSONEachRow',
     });
 
-    // Verify the insert actually succeeded by checking the summary
-    const writtenRows = Number(result.summary?.written_rows ?? 0);
-    if (writtenRows !== logs.length) {
-      request.log.error(
-        { expected: logs.length, actual: writtenRows, summary: result.summary },
-        'Insert verification failed: row count mismatch'
-      );
-      reply.status(500);
-      return {
-        status: 'error',
-        message: `Insert verification failed: expected ${logs.length} rows, got ${writtenRows}`,
-      } satisfies LogErrorResponse;
+    // Decompose properties into EAV rows
+    const propRows = logsWithIds.flatMap((log) =>
+      Object.entries(log.properties ?? {}).map(([key, value]) => ({
+        log_id: log.log_id,
+        device_id: log.device_id,
+        timestamp: log.timestamp,
+        key,
+        value_string: typeof value === "string" ? value : "",
+        value_number: typeof value === "number" ? value : 0,
+        value_bool: typeof value === "boolean" ? (value ? 1 : 0) : 0,
+      }))
+    );
+
+    if (propRows.length > 0) {
+      await clickhouse.insert({
+        table: "log_properties",
+        values: propRows,
+        format: "JSONEachRow",
+      });
     }
 
+    const writtenRows = Number(result.summary?.written_rows ?? 0);
     return { status: 'ok', inserted: writtenRows } satisfies LogInsertResponse;
   } catch (error) {
     request.log.error(error);
     reply.status(500);
     return { status: 'error', message: String(error) } satisfies LogErrorResponse;
+  }
+});
+
+fastify.post<{ Body: unknown }>("/identity", async (request, reply) => {
+  const parseResult = IdentitySchema.safeParse(request.body);
+  if (!parseResult.success) {
+    reply.status(400);
+    return { status: "error", message: parseResult.error.message };
+  }
+
+  const { device_id, github_handle } = parseResult.data;
+
+  try {
+    await clickhouse.insert({
+      table: "identities",
+      values: [{ device_id, github_handle }],
+      format: "JSONEachRow",
+    });
+
+    return { status: "ok" };
+  } catch (error) {
+    request.log.error(error);
+    reply.status(500);
+    return { status: "error", message: String(error) };
   }
 });
 

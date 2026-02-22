@@ -19,6 +19,7 @@ mod file_watcher;
 mod filesystem;
 mod git_commands;
 mod icons;
+mod identity;
 mod logging;
 mod mort_commands;
 mod panels;
@@ -952,6 +953,8 @@ pub fn run() {
             file_watcher::start_watch,
             file_watcher::stop_watch,
             file_watcher::list_watches,
+            // Identity commands
+            identity::get_github_handle,
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
@@ -988,6 +991,14 @@ pub fn run() {
 
             // Initialize config module (uses consolidated .mort/settings/ directory)
             config::initialize();
+
+            // Auto-identify via gh CLI (best-effort, don't block startup)
+            std::thread::spawn(|| {
+                match identity::identify() {
+                    Ok(handle) => tracing::info!(github_handle = %handle, "Auto-identified via gh CLI"),
+                    Err(e) => tracing::warn!(error = %e, "Auto-identify failed (gh CLI not available or not authenticated)"),
+                }
+            });
 
             // Run TypeScript migrations (spawns Node.js process)
             if let Err(e) = run_ts_migrations(app) {

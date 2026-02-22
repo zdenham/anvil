@@ -54,3 +54,6 @@ export * from "./pipeline.js";
 
 // Diagnostic logging types - per-module diagnostic toggle config
 export * from "./diagnostic-logging.js";
+
+// Identity types - device-to-person mapping
+export * from "./identity.js";

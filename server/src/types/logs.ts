@@ -7,10 +7,15 @@ export type LogLevel = z.infer<typeof LogLevelSchema>;
  * Individual log row - matches ClickHouse schema exactly.
  */
 export const LogRowSchema = z.object({
+  log_id: z.string().uuid().optional(),
   timestamp: z.number(), // DateTime64(3) as milliseconds since epoch
   device_id: z.string(), // Unique device identifier for tracking
   level: LogLevelSchema,
   message: z.string(),
+  properties: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean()])
+  ).optional(),
 });
 
 export type LogRow = z.infer<typeof LogRowSchema>;
