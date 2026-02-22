@@ -25,11 +25,12 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
 # Install node modules
-COPY package.json pnpm-lock.yaml ./
+COPY server/package.json server/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod=false
 
-# Copy application code
-COPY . .
+# Copy application code and core types needed by tsconfig
+COPY server/ .
+COPY core/types/ ../core/types/
 
 # Build application
 RUN pnpm run build
