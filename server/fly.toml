@@ -7,7 +7,6 @@ app = 'mort-server'
 primary_region = 'sjc'
 
 [build]
-  dockerfile = "server/Dockerfile"
 
 [http_service]
   internal_port = 3000

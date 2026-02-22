@@ -1,8 +1,0 @@
-# Only send server/ and core/types/ to Docker build context
-*
-!server/
-!core/types/
-server/node_modules
-server/.env
-server/dist
-.git

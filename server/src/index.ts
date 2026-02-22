@@ -133,20 +133,25 @@ fastify.get('/health', async (request, reply) => {
 
 const start = async () => {
   try {
-    // Verify ClickHouse connection and auth before starting server
-    fastify.log.info('Verifying ClickHouse connection...');
-    const result = await clickhouse.query({
-      query: `SELECT 1 as ok FROM ${TABLE} LIMIT 1`,
-      format: 'JSONEachRow',
-    });
-    await result.json(); // Consume the result to ensure query completed
-    fastify.log.info('ClickHouse connection verified');
-
     const port = Number(process.env.PORT) || 3000;
     await fastify.listen({ port, host: '0.0.0.0' });
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
+  }
+
+  // Verify ClickHouse connection after server is listening (non-fatal)
+  try {
+    fastify.log.info('Verifying ClickHouse connection...');
+    const result = await clickhouse.query({
+      query: `SELECT 1 as ok FROM ${TABLE} LIMIT 1`,
+      format: 'JSONEachRow',
+    });
+    await result.json();
+    fastify.log.info('ClickHouse connection verified');
+  } catch (err) {
+    fastify.log.warn('ClickHouse connection check failed — server is running but ClickHouse may be unreachable');
+    fastify.log.warn(err);
   }
 };
 
