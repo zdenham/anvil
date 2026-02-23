@@ -57,3 +57,6 @@ export * from "./diagnostic-logging.js";
 
 // Identity types - device-to-person mapping
 export * from "./identity.js";
+
+// Gateway event types - shared between server and SSE client
+export * from "./gateway-events.js";
