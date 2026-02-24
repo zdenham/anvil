@@ -95,7 +95,7 @@ export const PLAN_MODE: PermissionModeDefinition = {
   name: "Plan",
   description: "Can read everything, write only to plans/, Bash allowed",
   rules: [
-    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch)$", decision: "allow" },
+    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch|TodoWrite|ExitPlanMode|EnterPlanMode|AskUserQuestion)$", decision: "allow" },
     { toolPattern: "^Bash$", decision: "allow" },
     { toolPattern: "^Task$", decision: "allow" },
     { toolPattern: "^(Write|Edit|NotebookEdit)$", pathPattern: "^plans/", decision: "allow" },
@@ -117,7 +117,7 @@ export const APPROVE_MODE: PermissionModeDefinition = {
   name: "Approve",
   description: "Read/Bash auto-approved, file edits require approval with diff preview",
   rules: [
-    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch)$", decision: "allow" },
+    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch|TodoWrite|ExitPlanMode|EnterPlanMode|AskUserQuestion)$", decision: "allow" },
     { toolPattern: "^Bash$", decision: "allow" },
     { toolPattern: "^Task$", decision: "allow" },
     { toolPattern: "^(Write|Edit|NotebookEdit)$", decision: "ask" },

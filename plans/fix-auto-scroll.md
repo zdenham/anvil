@@ -2,10 +2,10 @@
 
 ## Phases
 
-- [ ] Simplify auto-scroll in message-list.tsx (remove ResizeObserver, rely on Virtuoso)
-- [ ] Increase atBottomThreshold from 50px to 300px
-- [ ] Fix isAtBottom re-engagement on scroll-to-bottom click
-- [ ] Remove double-rAF scroll-on-mount hack in thread-content.tsx
+- [x] Simplify auto-scroll in message-list.tsx (remove ResizeObserver, rely on Virtuoso)
+- [x] Increase atBottomThreshold from 50px to 300px
+- [x] Fix isAtBottom re-engagement on scroll-to-bottom click
+- [x] Remove double-rAF scroll-on-mount hack in thread-content.tsx
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

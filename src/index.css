@@ -12,6 +12,8 @@ body,
   margin: 0;
   padding: 0;
   background-color: #141514; /* surface-900 */
+  overscroll-behavior: none;
+  overflow: hidden;
 }
 
 /* Transparent background for panels that need it (spotlight, etc.) */

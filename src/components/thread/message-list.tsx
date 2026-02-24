@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo, useEffect, type RefCallback } from "react";
+import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo, useEffect } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { Turn } from "@/lib/utils/turn-grouping";
@@ -54,7 +54,6 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const footerRef = useRef<HTMLDivElement | null>(null);
   const mountTimeRef = useRef<number>(Date.now());
   const hasLoggedMount = useRef(false);
   const hasLoggedFirstRender = useRef(false);
@@ -90,19 +89,6 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     }
   }, [turns.length, threadId]);
 
-  // ResizeObserver: scroll to bottom when Footer grows during streaming
-  useEffect(() => {
-    if (!isStreaming || !isAtBottom) return;
-    const footer = footerRef.current;
-    if (!footer) return;
-
-    const observer = new ResizeObserver(() => {
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "smooth" });
-    });
-    observer.observe(footer);
-    return () => observer.disconnect();
-  }, [isStreaming, isAtBottom]);
-
   // Show working indicator when streaming but no assistant content yet
   const showWorkingIndicator = useMemo(() => {
     if (!isStreaming || turns.length === 0) return false;
@@ -113,7 +99,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   const scrollToBottom = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({
       index: "LAST",
-      behavior: "smooth",
+      behavior: "auto",
     });
   }, []);
 
@@ -169,17 +155,12 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     }
   );
 
-  // Callback ref for the Footer wrapper — keeps footerRef in sync across Virtuoso re-renders
-  const footerRefCallback: RefCallback<HTMLDivElement> = useCallback((node) => {
-    footerRef.current = node;
-  }, []);
-
   // Footer component for streaming content / working indicator (renders at end of virtualized list)
   const Footer = useCallback(() => {
     // Show streaming content when we have live blocks from the agent
     if (hasStreamingContent) {
       return (
-        <div ref={footerRefCallback} className="px-4 py-2 w-full max-w-[900px] mx-auto">
+        <div className="px-4 py-2 w-full max-w-[900px] mx-auto">
           <article role="article" aria-label="Assistant response" className="group">
             <div className="flex gap-3">
               <div className="flex-1 min-w-0 space-y-1.5">
@@ -201,7 +182,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     }
 
     return null;
-  }, [hasStreamingContent, showWorkingIndicator, threadId, workingDirectory, footerRefCallback]);
+  }, [hasStreamingContent, showWorkingIndicator, threadId, workingDirectory]);
 
   return (
     <div
@@ -223,7 +204,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
           return false;
         }}
         atBottomStateChange={setIsAtBottom}
-        atBottomThreshold={50}
+        atBottomThreshold={300}
         style={{ height: "100%" }}
         overscan={200}
       />

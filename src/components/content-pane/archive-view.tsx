@@ -5,13 +5,17 @@
  * Accessible from the tree panel header dropdown.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArchiveRestore, Loader2 } from "lucide-react";
 import { threadService } from "@/entities/threads/service";
 import { navigationService } from "@/stores/navigation-service";
-import { useRelativeTime } from "@/hooks/use-relative-time";
+import { formatRelativeTime } from "@/lib/utils/time-format";
 import { logger } from "@/lib/logger-client";
 import type { ThreadMetadata } from "@/entities/threads/types";
+
+const ROW_HEIGHT = 44;
+const OVERSCAN = 15;
 
 export function ArchiveView() {
   const [threads, setThreads] = useState<ThreadMetadata[]>([]);
@@ -33,6 +37,22 @@ export function ArchiveView() {
   useEffect(() => {
     loadArchived();
   }, [loadArchived]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [now, setNow] = useState(Date.now);
+
+  const virtualizer = useVirtualizer({
+    count: threads.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
+  // Single timer for relative timestamps instead of per-row timers
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleUnarchive = useCallback(async (threadId: string) => {
     setUnarchiving((prev) => new Set(prev).add(threadId));
@@ -73,16 +93,31 @@ export function ArchiveView() {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-3 space-y-0.5">
-        {threads.map((thread) => (
-          <ArchivedThreadRow
-            key={thread.id}
-            thread={thread}
-            isUnarchiving={unarchiving.has(thread.id)}
-            onUnarchive={handleUnarchive}
-          />
-        ))}
+    <div ref={scrollRef} className="h-full overflow-y-auto">
+      <div
+        className="relative p-3"
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const thread = threads[virtualRow.index];
+          return (
+            <div
+              key={thread.id}
+              className="absolute left-0 right-0 px-3"
+              style={{
+                height: virtualRow.size,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <ArchivedThreadRow
+                thread={thread}
+                now={now}
+                isUnarchiving={unarchiving.has(thread.id)}
+                onUnarchive={handleUnarchive}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -90,14 +125,16 @@ export function ArchiveView() {
 
 function ArchivedThreadRow({
   thread,
+  now,
   isUnarchiving,
   onUnarchive,
 }: {
   thread: ThreadMetadata;
+  now: number;
   isUnarchiving: boolean;
   onUnarchive: (id: string) => void;
 }) {
-  const relativeTime = useRelativeTime(thread.updatedAt);
+  const relativeTime = formatRelativeTime(thread.updatedAt, now);
 
   const label = thread.name
     ?? thread.turns[0]?.prompt?.slice(0, 80)

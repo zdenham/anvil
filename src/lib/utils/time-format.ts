@@ -1,8 +1,8 @@
 /**
  * Format timestamp as relative time ("2m ago", "1h ago").
  */
-export function formatRelativeTime(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+export function formatRelativeTime(timestamp: number, now = Date.now()): string {
+  const seconds = Math.floor((now - timestamp) / 1000);
 
   if (seconds < 60) return "just now";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;

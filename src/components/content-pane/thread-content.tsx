@@ -157,7 +157,6 @@ export function ThreadContent({
 
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
-  const hasScrolledOnMount = useRef(false);
 
   // Find-in-page state
   const [findBarOpen, setFindBarOpen] = useState(false);
@@ -457,11 +456,6 @@ export function ThreadContent({
     ]
   );
 
-  // Reset scroll tracking when threadId changes
-  useEffect(() => {
-    hasScrolledOnMount.current = false;
-  }, [threadId]);
-
   // Reset optimistic messages when thread changes
   useEffect(() => {
     setOptimisticMessages([]);
@@ -525,23 +519,6 @@ export function ThreadContent({
       return () => clearTimeout(timer);
     }
   }, [autoFocus, threadId]);
-
-  // Auto-scroll to bottom ONLY on initial mount when opening panel with messages
-  useEffect(() => {
-    if (
-      !hasScrolledOnMount.current &&
-      messages.length > 0 &&
-      messageListRef.current
-    ) {
-      hasScrolledOnMount.current = true;
-      // Use double-rAF to wait for Virtuoso to finish layout
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          messageListRef.current?.scrollToBottom();
-        });
-      });
-    }
-  }, [messages.length]);
 
   // Log at render time to see what's actually being rendered
   logger.debug(`[ThreadContent] RENDER`, {

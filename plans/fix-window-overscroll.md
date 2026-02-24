@@ -10,8 +10,8 @@ The `html`, `body`, and `#root` elements in `src/index.css` (lines 7–15) are m
 
 ## Phases
 
-- [ ] Add `overscroll-behavior: none` to root elements in `src/index.css`
-- [ ] Add `overflow: hidden` to `html` and `body` to prevent any root-level scrolling
+- [x] Add `overscroll-behavior: none` to root elements in `src/index.css`
+- [x] Add `overflow: hidden` to `html` and `body` to prevent any root-level scrolling
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
