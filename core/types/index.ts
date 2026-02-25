@@ -60,3 +60,9 @@ export * from "./identity.js";
 
 // Gateway event types - shared between server and SSE client
 export * from "./gateway-events.js";
+
+// Pull request types - shared between frontend and agents
+export * from "./pull-request.js";
+
+// Gateway channel types - persisted channel metadata
+export * from "./gateway-channel.js";

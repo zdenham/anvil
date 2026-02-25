@@ -193,6 +193,15 @@ export const fsCommands = {
   getHomeDir: () => invoke<string>("fs_get_home_dir"),
 
   /**
+   * Get the mort data directory (e.g., ~/.mort or ~/.mort-dev).
+   * Uses the Tauri backend to resolve the suffix-aware path.
+   */
+  getDataDir: async (): Promise<string> => {
+    const info = await invoke<{ data_dir: string }>("get_paths_info");
+    return info.data_dir;
+  },
+
+  /**
    * List file/directory names in a directory (just names, not full entries).
    */
   listDir: (path: string) => invoke<string[]>("fs_list_dir_names", { path }),
@@ -432,8 +441,7 @@ export const repoCommands = {
    * Used when removing a repository from Mort.
    */
   removeRepositoryData: async (repoSlug: string): Promise<void> => {
-    const homeDir = await fsCommands.getHomeDir();
-    const mortDir = `${homeDir}/.mort`;
+    const mortDir = await fsCommands.getDataDir();
     return invoke<void>("remove_repository_data", { repoSlug, mortDir });
   },
 };

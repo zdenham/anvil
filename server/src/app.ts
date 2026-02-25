@@ -9,7 +9,7 @@ export interface AppOptions {
 }
 
 export async function buildApp(options: AppOptions) {
-  const fastify = Fastify({ logger: !options.gatewayOnly });
+  const fastify = Fastify({ logger: !options.gatewayOnly, trustProxy: true });
 
   if (!options.gatewayOnly) {
     await fastify.register(clickhousePlugin, {

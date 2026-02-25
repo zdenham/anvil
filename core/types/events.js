@@ -80,6 +80,14 @@ export const EventName = {
     USER_MESSAGE_SENT: "user:message-sent",
     // Thread naming
     THREAD_NAME_GENERATED: "thread:name:generated",
+    // Pull request lifecycle
+    PR_CREATED: "pr:created",
+    PR_UPDATED: "pr:updated",
+    PR_ARCHIVED: "pr:archived",
+    // Gateway events
+    GATEWAY_EVENT: "gateway:event",
+    GATEWAY_STATUS: "gateway:status",
+    GITHUB_WEBHOOK_EVENT: "github:webhook-event",
     // Streaming
     OPTIMISTIC_STREAM: "optimistic:stream",
 };
@@ -201,6 +209,12 @@ export const EventNameSchema = z.enum([
     EventName.RELATION_UPDATED,
     EventName.USER_MESSAGE_SENT,
     EventName.THREAD_NAME_GENERATED,
+    EventName.PR_CREATED,
+    EventName.PR_UPDATED,
+    EventName.PR_ARCHIVED,
+    EventName.GATEWAY_EVENT,
+    EventName.GATEWAY_STATUS,
+    EventName.GITHUB_WEBHOOK_EVENT,
     EventName.OPTIMISTIC_STREAM,
 ]);
 /**

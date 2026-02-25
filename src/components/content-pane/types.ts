@@ -20,7 +20,8 @@ export type ContentPaneView =
   | { type: "logs" }
   | { type: "archive" }
   | { type: "terminal"; terminalId: string }
-  | { type: "file"; filePath: string; repoId?: string; worktreeId?: string };
+  | { type: "file"; filePath: string; repoId?: string; worktreeId?: string }
+  | { type: "pull-request"; prId: string };
 
 /**
  * Represents a single content pane instance.
@@ -73,6 +74,12 @@ export interface TerminalContentProps {
   onClose?: () => void;
   /** Called when user archives the terminal (kills PTY) */
   onArchive?: () => void;
+}
+
+export interface PullRequestContentProps {
+  prId: string;
+  /** Called when content should be popped out to separate window */
+  onPopOut?: () => void;
 }
 
 /**

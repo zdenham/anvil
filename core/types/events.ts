@@ -1,6 +1,7 @@
 import type { ThreadStatus } from "./threads.js";
 import type { RelationType } from "./relations.js";
 import type { PermissionModeId } from "./permissions.js";
+import type { GatewayEvent } from "./gateway-events.js";
 import { z } from "zod";
 
 // WorktreeState is defined in src/entities/repositories/types.ts
@@ -102,6 +103,16 @@ export const EventName = {
 
   // Thread naming
   THREAD_NAME_GENERATED: "thread:name:generated",
+
+  // Pull request lifecycle
+  PR_CREATED: "pr:created",
+  PR_UPDATED: "pr:updated",
+  PR_ARCHIVED: "pr:archived",
+
+  // Gateway events
+  GATEWAY_EVENT: "gateway:event",
+  GATEWAY_STATUS: "gateway:status",
+  GITHUB_WEBHOOK_EVENT: "github:webhook-event",
 
   // Streaming
   OPTIMISTIC_STREAM: "optimistic:stream",
@@ -216,6 +227,20 @@ export interface EventPayloads {
 
   // Thread naming
   [EventName.THREAD_NAME_GENERATED]: { threadId: string; name: string };
+
+  // Pull request events
+  [EventName.PR_CREATED]: { prId: string; repoId: string; worktreeId: string };
+  [EventName.PR_UPDATED]: { prId: string };
+  [EventName.PR_ARCHIVED]: { prId: string; originInstanceId?: string | null };
+
+  // Gateway events
+  [EventName.GATEWAY_EVENT]: GatewayEvent;
+  [EventName.GATEWAY_STATUS]: { status: "disconnected" | "connecting" | "connected" };
+  [EventName.GITHUB_WEBHOOK_EVENT]: {
+    channelId: string;
+    githubEventType: string;
+    payload: Record<string, unknown>;
+  };
 
   // Streaming
   [EventName.OPTIMISTIC_STREAM]: OptimisticStreamPayload;
@@ -351,6 +376,12 @@ export const EventNameSchema = z.enum([
   EventName.RELATION_UPDATED,
   EventName.USER_MESSAGE_SENT,
   EventName.THREAD_NAME_GENERATED,
+  EventName.PR_CREATED,
+  EventName.PR_UPDATED,
+  EventName.PR_ARCHIVED,
+  EventName.GATEWAY_EVENT,
+  EventName.GATEWAY_STATUS,
+  EventName.GITHUB_WEBHOOK_EVENT,
   EventName.OPTIMISTIC_STREAM,
 ]);
 

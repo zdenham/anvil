@@ -749,6 +749,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_http::init())
         .manage(mort_commands::LockManager::new())
         .manage(agent_hub.diagnostic_config())
         .manage(agent_hub.clone())

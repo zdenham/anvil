@@ -51,6 +51,14 @@ export const navigationService = {
   },
 
   /**
+   * Navigate to a pull request - updates both content pane AND tree selection.
+   */
+  async navigateToPullRequest(prId: string): Promise<void> {
+    await treeMenuService.setSelectedItem(prId);
+    await contentPanesService.setActivePaneView({ type: "pull-request", prId });
+  },
+
+  /**
    * Navigate to a view - clears tree selection for non-item views.
    */
   async navigateToView(view: ContentPaneView): Promise<void> {
@@ -63,6 +71,8 @@ export const navigationService = {
         repoId: view.repoId,
         worktreeId: view.worktreeId,
       });
+    } else if (view.type === "pull-request") {
+      await this.navigateToPullRequest(view.prId);
     } else {
       // For settings, logs, empty - clear tree selection
       await treeMenuService.setSelectedItem(null);

@@ -98,10 +98,12 @@ async function bootstrap() {
   await setupIncomingBridge();
 
   // Hydrate entity stores from disk
-  await hydrateEntities();
+  // Not the main window — skip gateway SSE connection to avoid duplicate event processing
+  await hydrateEntities({ isMainWindow: false });
 
   // Set up entity listeners after bridge and stores are ready
-  setupEntityListeners();
+  // Not the main window — skip gateway/PR webhook listeners
+  setupEntityListeners({ isMainWindow: false });
 
   logger.log("[control-panel-main] Bootstrap complete");
 }

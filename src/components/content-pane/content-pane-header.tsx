@@ -30,6 +30,7 @@ import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
 import { Breadcrumb } from "./breadcrumb";
 import { useBreadcrumbContext } from "./use-breadcrumb-context";
+import { PullRequestHeader } from "./pull-request-header";
 import type { ContentPaneHeaderProps } from "./types";
 
 function getStatusVariant(
@@ -89,6 +90,12 @@ export function ContentPaneHeader({
         terminalId={view.terminalId}
         onClose={onClose}
       />
+    );
+  }
+
+  if (view.type === "pull-request") {
+    return (
+      <PullRequestHeader prId={view.prId} onClose={onClose} onPopOut={onPopOut} />
     );
   }
 

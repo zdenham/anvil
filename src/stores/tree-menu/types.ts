@@ -46,11 +46,11 @@ export interface RepoWorktreeSection {
 }
 
 /**
- * Individual tree item (thread, plan, or terminal).
+ * Individual tree item (thread, plan, terminal, or pull request).
  */
 export interface TreeItemNode {
-  type: "thread" | "plan" | "terminal";
-  /** UUID of the thread or plan */
+  type: "thread" | "plan" | "terminal" | "pull-request";
+  /** UUID of the thread, plan, terminal, or pull request */
   id: string;
   /** Display title (thread name or plan filename) */
   title: string;
@@ -76,9 +76,16 @@ export interface TreeItemNode {
   isSubAgent?: boolean;
   /** Agent type (for threads only) - e.g., "Explore", "Plan", etc. */
   agentType?: string;
+  /** PR number for pull-request items */
+  prNumber?: number;
+  /** Whether the PR has been viewed by the user (for new-PR indicator) */
+  isViewed?: boolean;
+  /** Review status icon hint for pull-request items */
+  reviewIcon?: "approved" | "changes-requested" | "review-required" | "draft" | "merged" | "closed";
 }
 
 /**
  * Discriminated union for all tree node types.
+ * Covers repo/worktree sections and individual items (threads, plans, terminals, pull requests).
  */
 export type TreeNode = RepoWorktreeSection | TreeItemNode;

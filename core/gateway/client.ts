@@ -24,6 +24,8 @@ export interface GatewayClientOptions {
   onEvent: (event: GatewayEvent) => void;
   /** Called on connection state changes */
   onStatus?: (status: ConnectionStatus) => void;
+  /** Custom fetch implementation (e.g. Tauri HTTP plugin). Defaults to globalThis.fetch. */
+  fetch?: typeof globalThis.fetch;
 }
 
 /** Backoff config: 1s, 2s, 4s, 8s, 16s, 30s cap */
@@ -83,7 +85,8 @@ export class GatewayClient {
       const headers: Record<string, string> = { Accept: "text/event-stream" };
       if (lastEventId) headers["Last-Event-ID"] = lastEventId;
 
-      const response = await fetch(url, {
+      const fetchFn = this.options.fetch ?? globalThis.fetch;
+      const response = await fetchFn(url, {
         headers,
         signal: this.abortController.signal,
       });
