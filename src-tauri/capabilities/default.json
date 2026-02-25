@@ -39,6 +39,16 @@
           "name": "pnpm",
           "cmd": "pnpm",
           "args": true
+        },
+        {
+          "name": "gh",
+          "cmd": "gh",
+          "args": true
+        },
+        {
+          "name": "git",
+          "cmd": "git",
+          "args": true
         }
       ]
     },
@@ -69,11 +79,27 @@
           "name": "open",
           "cmd": "open",
           "args": true
+        },
+        {
+          "name": "gh",
+          "cmd": "gh",
+          "args": true
+        },
+        {
+          "name": "git",
+          "cmd": "git",
+          "args": true
         }
       ]
     },
     "shell:allow-stdin-write",
     "shell:allow-kill",
-    "shell:allow-open"
+    "shell:allow-open",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://mort-server.fly.dev/*" }
+      ]
+    }
   ]
 }

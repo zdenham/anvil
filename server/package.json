@@ -6,17 +6,21 @@
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "migrate": "tsx --env-file=.env src/migrate.ts"
+    "migrate": "tsx --env-file=.env src/migrate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@clickhouse/client": "^1.0.0",
     "fastify": "^5.0.0",
+    "ioredis": "^5.9.3",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@flydotio/dockerfile": "^0.7.10",
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   }
 }

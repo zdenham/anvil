@@ -11,7 +11,6 @@ use std::thread;
 use std::time::Duration;
 use tiny_http::{Response, Server};
 
-use crate::logging::buffer::ServerLogBuffer;
 use crate::logging::log_server::LogRow;
 
 /// Mock HTTP server that tracks received log batches
@@ -101,8 +100,10 @@ impl Drop for MockLogServer {
 fn make_test_log(index: i64) -> LogRow {
     LogRow {
         timestamp: chrono::Utc::now().timestamp_millis() + index,
+        device_id: "test-device".to_string(),
         level: "INFO".to_string(),
         message: format!("Test message {}", index),
+        properties: None,
     }
 }
 
@@ -172,53 +173,19 @@ fn test_mock_server_recovery() {
 }
 
 #[test]
-fn test_buffer_integration_with_mock_server() {
+fn test_retry_pattern() {
     let mock = MockLogServer::new();
-    let mut buffer = ServerLogBuffer::new(100, 5);
-
-    // Add logs to buffer
-    for i in 0..5 {
-        buffer.push(make_test_log(i));
-    }
-
-    assert!(buffer.should_flush());
-
-    // Drain and send
-    let logs = buffer.drain();
-    let result = send_logs_to_server(&mock.url(), &logs);
-    assert!(result.is_ok());
-
-    thread::sleep(Duration::from_millis(50));
-    assert_eq!(mock.received_log_count(), 5);
-    assert!(buffer.is_empty());
-}
-
-#[test]
-fn test_retry_pattern_with_buffer() {
-    let mock = MockLogServer::new();
-    let mut buffer = ServerLogBuffer::new(100, 3);
-
-    // Fill buffer
-    for i in 0..3 {
-        buffer.push(make_test_log(i));
-    }
+    let logs: Vec<LogRow> = (0..3).map(make_test_log).collect();
 
     // First attempt fails
     mock.set_should_fail(true);
-    let logs = buffer.clone_contents();
     let result1 = send_logs_to_server(&mock.url(), &logs);
     assert!(result1.is_err());
-    // Buffer should retain logs for retry
-    assert_eq!(buffer.len(), 3);
 
     // Second attempt succeeds
     mock.set_should_fail(false);
     let result2 = send_logs_to_server(&mock.url(), &logs);
     assert!(result2.is_ok());
-
-    // Now clear buffer after success
-    buffer.clear();
-    assert!(buffer.is_empty());
 
     thread::sleep(Duration::from_millis(50));
     assert_eq!(mock.received_log_count(), 3);
@@ -252,24 +219,6 @@ fn test_empty_batch_handling() {
     assert_eq!(mock.received_log_count(), 0);
 }
 
-#[test]
-fn test_buffer_overflow_preserves_recent() {
-    let mut buffer = ServerLogBuffer::new(5, 10);
-
-    // Add 10 logs to a buffer of size 5
-    for i in 0..10 {
-        buffer.push(make_test_log(i));
-    }
-
-    // Buffer should have the 5 most recent
-    assert_eq!(buffer.len(), 5);
-    let logs = buffer.clone_contents();
-
-    // Messages should be 5, 6, 7, 8, 9 (oldest 0-4 dropped)
-    for (idx, log) in logs.iter().enumerate() {
-        assert_eq!(log.message, format!("Test message {}", idx + 5));
-    }
-}
 
 #[test]
 fn test_server_count_reset() {

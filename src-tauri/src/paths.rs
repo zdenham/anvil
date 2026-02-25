@@ -355,8 +355,6 @@ pub fn drain_database() -> PathBuf {
     databases_dir().join("drain.db")
 }
 
-
-
 /// Get current paths info for debugging/display
 pub fn get_paths_info() -> PathsInfo {
     PathsInfo {

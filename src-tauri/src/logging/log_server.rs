@@ -6,6 +6,7 @@
 
 use super::config::LogServerConfig;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use tracing_subscriber::Layer;
@@ -18,6 +19,8 @@ pub struct LogRow {
     pub device_id: String, // Unique device identifier for tracking
     pub level: String,     // TRACE, DEBUG, INFO, WARN, ERROR
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub properties: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Batch of logs to send to the server
@@ -259,9 +262,10 @@ where
             }
         }
 
-        let mut message = String::new();
-        let mut visitor = MessageVisitor(&mut message);
+        let mut visitor = FieldVisitor::default();
         event.record(&mut visitor);
+
+        let message = visitor.message;
 
         // Skip logs with noisy message content (e.g., TLS handshake details from log crate)
         for prefix in EXCLUDED_MESSAGE_PREFIXES {
@@ -275,11 +279,18 @@ where
             }
         }
 
+        let properties = if visitor.properties.is_empty() {
+            None
+        } else {
+            Some(visitor.properties)
+        };
+
         let row = LogRow {
             timestamp: chrono::Utc::now().timestamp_millis(),
             device_id: self.device_id.clone(),
             level: event.metadata().level().to_string(),
             message,
+            properties,
         };
 
         // Non-blocking send - if channel is full, drop the log rather than blocking
@@ -291,24 +302,49 @@ where
     }
 }
 
-/// Simple visitor that extracts only the message field
-struct MessageVisitor<'a>(&'a mut String);
+/// Visitor that extracts the message and all structured fields as properties.
+#[derive(Default)]
+struct FieldVisitor {
+    message: String,
+    properties: HashMap<String, serde_json::Value>,
+}
 
-impl tracing::field::Visit for MessageVisitor<'_> {
+impl tracing::field::Visit for FieldVisitor {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
-            *self.0 = format!("{:?}", value);
+            self.message = format!("{:?}", value);
             // Remove surrounding quotes if present (from debug formatting)
-            if self.0.starts_with('"') && self.0.ends_with('"') && self.0.len() >= 2 {
-                *self.0 = self.0[1..self.0.len() - 1].to_string();
+            if self.message.starts_with('"') && self.message.ends_with('"') && self.message.len() >= 2 {
+                self.message = self.message[1..self.message.len() - 1].to_string();
             }
+        } else {
+            let formatted = format!("{:?}", value);
+            self.properties.insert(field.name().to_string(), serde_json::Value::String(formatted));
         }
     }
 
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
         if field.name() == "message" {
-            *self.0 = value.to_string();
+            self.message = value.to_string();
+        } else {
+            self.properties.insert(field.name().to_string(), serde_json::Value::String(value.to_string()));
         }
+    }
+
+    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
+        self.properties.insert(field.name().to_string(), serde_json::json!(value));
+    }
+
+    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
+        self.properties.insert(field.name().to_string(), serde_json::json!(value));
+    }
+
+    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
+        self.properties.insert(field.name().to_string(), serde_json::json!(value));
+    }
+
+    fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
+        self.properties.insert(field.name().to_string(), serde_json::json!(value));
     }
 }
 
@@ -317,12 +353,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_log_row_serialization() {
+    fn test_log_row_serialization_no_properties() {
         let row = LogRow {
             timestamp: 1234567890123,
             device_id: "test-device-id".to_string(),
             level: "INFO".to_string(),
             message: "test message".to_string(),
+            properties: None,
         };
 
         let json = serde_json::to_string(&row).unwrap();
@@ -330,6 +367,28 @@ mod tests {
         assert!(json.contains("\"device_id\":\"test-device-id\""));
         assert!(json.contains("\"level\":\"INFO\""));
         assert!(json.contains("\"message\":\"test message\""));
+        assert!(!json.contains("\"properties\""));
+    }
+
+    #[test]
+    fn test_log_row_serialization_with_properties() {
+        let mut props = HashMap::new();
+        props.insert("data_dir".to_string(), serde_json::Value::String("/home/user/.mort".to_string()));
+        props.insert("count".to_string(), serde_json::json!(42));
+
+        let row = LogRow {
+            timestamp: 1234567890123,
+            device_id: "test-device-id".to_string(),
+            level: "INFO".to_string(),
+            message: "test message".to_string(),
+            properties: Some(props),
+        };
+
+        let json = serde_json::to_string(&row).unwrap();
+        assert!(json.contains("\"properties\""));
+        assert!(json.contains("\"data_dir\""));
+        assert!(json.contains("\"/home/user/.mort\""));
+        assert!(json.contains("\"count\":42"));
     }
 
     #[test]
@@ -341,12 +400,14 @@ mod tests {
                     device_id: "device-1".to_string(),
                     level: "INFO".to_string(),
                     message: "message 1".to_string(),
+                    properties: None,
                 },
                 LogRow {
                     timestamp: 1234567890124,
                     device_id: "device-1".to_string(),
                     level: "ERROR".to_string(),
                     message: "message 2".to_string(),
+                    properties: None,
                 },
             ],
         };

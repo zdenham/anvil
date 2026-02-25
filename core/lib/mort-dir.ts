@@ -6,5 +6,9 @@ import { homedir } from "os";
  * Uses MORT_DATA_DIR env var if set, otherwise defaults to ~/.mort
  */
 export function getMortDir(): string {
-  return process.env.MORT_DATA_DIR ?? join(homedir(), ".mort");
+  const dir = process.env.MORT_DATA_DIR;
+  if (!dir) {
+    console.warn("[getMortDir] MORT_DATA_DIR not set, falling back to ~/.mort");
+  }
+  return dir ?? join(homedir(), ".mort");
 }

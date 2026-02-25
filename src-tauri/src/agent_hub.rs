@@ -19,6 +19,7 @@ use tauri::{AppHandle, Emitter};
 
 /// Message structure for socket communication between agents and the hub.
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg(test)]
 pub struct SocketMessage {
     #[serde(rename = "senderId")]
     pub sender_id: String,

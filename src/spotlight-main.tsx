@@ -42,7 +42,8 @@ async function bootstrap() {
   logger.log("[spotlight-main] Starting bootstrap...");
 
   // Hydrate entity stores from disk (spotlight runs in separate JS context)
-  await hydrateEntities();
+  // Not the main window — skip gateway SSE connection to avoid duplicate event processing
+  await hydrateEntities({ isMainWindow: false });
   logger.log("[spotlight-main] Hydration complete");
 
   // Outgoing: for broadcasting events TO other windows (spotlight spawns agents)
@@ -55,7 +56,8 @@ async function bootstrap() {
   logger.log("[spotlight-main] Incoming bridge setup complete");
 
   // Entity listeners: react to events by updating stores
-  setupEntityListeners();
+  // Not the main window — skip gateway/PR webhook listeners
+  setupEntityListeners({ isMainWindow: false });
   logger.log("[spotlight-main] Entity listeners setup complete");
 
   logger.log("[spotlight-main] Bootstrap complete");

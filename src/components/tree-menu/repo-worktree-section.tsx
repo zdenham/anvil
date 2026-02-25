@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, ChevronDown, Plus, MessageSquarePlus, FolderGit2, GitBranch, Archive, Pencil, ExternalLink, Loader2, Terminal, Pin, EyeOff } from "lucide-react";
+import { ChevronRight, ChevronDown, Plus, MessageSquarePlus, FolderGit2, GitBranch, GitPullRequest, Archive, Pencil, ExternalLink, Loader2, Terminal, Pin, EyeOff } from "lucide-react";
 import { Command } from "@tauri-apps/plugin-shell";
 import { logger } from "@/lib/logger-client";
 import { worktreeService } from "@/entities/worktrees/service";
@@ -9,16 +9,19 @@ import type { RepoWorktreeSection as RepoWorktreeSectionType } from "@/stores/tr
 import { ThreadItem } from "./thread-item";
 import { PlanItem } from "./plan-item";
 import { TerminalItem } from "./terminal-item";
+import { PullRequestItem } from "./pull-request-item";
 import { FilesItem } from "./files-item";
 
 interface RepoWorktreeSectionProps {
   section: RepoWorktreeSectionType;
   selectedItemId: string | null;
   onToggle: (sectionId: string) => void;
-  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal") => void;
+  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => void;
   showDivider: boolean;
   /** Called when user wants to create a new thread in this worktree */
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  /** Called when user wants to create a PR for this worktree */
+  onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   /** Called when user wants to create a new terminal in this worktree */
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   /** Called when user wants to create a new worktree in this repo */
@@ -55,6 +58,7 @@ export function RepoWorktreeSection({
   onItemSelect,
   showDivider,
   onNewThread,
+  onCreatePr,
   onNewTerminal,
   onNewWorktree,
   onNewRepo,
@@ -168,6 +172,11 @@ export function RepoWorktreeSection({
     onNewTerminal?.(section.worktreeId, section.worktreePath);
   };
 
+  const handleCreatePr = () => {
+    setShowMenu(false);
+    onCreatePr?.(section.repoId, section.worktreeId, section.worktreePath);
+  };
+
   const handleNewWorktree = () => {
     setShowMenu(false);
     onNewWorktree?.(section.repoName);
@@ -195,6 +204,11 @@ export function RepoWorktreeSection({
   const handleContextNewTerminal = () => {
     setShowContextMenu(false);
     onNewTerminal?.(section.worktreeId, section.worktreePath);
+  };
+
+  const handleContextCreatePr = () => {
+    setShowContextMenu(false);
+    onCreatePr?.(section.repoId, section.worktreeId, section.worktreePath);
   };
 
   const handleContextNewWorktree = () => {
@@ -425,6 +439,19 @@ export function RepoWorktreeSection({
                       <span className="flex-1">New terminal in {section.worktreeName}</span>
                     </button>
                   )}
+                  {onCreatePr && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCreatePr();
+                      }}
+                      className="w-full px-2.5 py-1 text-left text-xs text-surface-200 hover:bg-surface-800 rounded flex items-center gap-2 whitespace-nowrap"
+                    >
+                      <GitPullRequest size={11} className="flex-shrink-0" />
+                      <span className="flex-1">Create pull request</span>
+                    </button>
+                  )}
                   {onNewWorktree && (
                     <button
                       type="button"
@@ -533,6 +560,19 @@ export function RepoWorktreeSection({
               New terminal
             </button>
           )}
+          {onCreatePr && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleContextCreatePr();
+              }}
+              className="w-full px-2.5 py-1 text-left text-xs text-surface-200 hover:bg-surface-800 rounded flex items-center gap-2 whitespace-nowrap"
+            >
+              <GitPullRequest size={11} className="flex-shrink-0" />
+              Create pull request
+            </button>
+          )}
           {onNewWorktree && (
             <button
               type="button"
@@ -616,6 +656,20 @@ export function RepoWorktreeSection({
           if (item.type !== "terminal") return null;
           return (
             <TerminalItem
+              key={item.id}
+              item={item}
+              isSelected={selectedItemId === item.id}
+              onSelect={onItemSelect}
+              itemIndex={index}
+            />
+          );
+        })}
+
+        {/* PR items pinned after terminals */}
+        {section.items.map((item, index) => {
+          if (item.type !== "pull-request") return null;
+          return (
+            <PullRequestItem
               key={item.id}
               item={item}
               isSelected={selectedItemId === item.id}

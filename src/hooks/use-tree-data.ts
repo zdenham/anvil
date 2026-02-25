@@ -3,14 +3,30 @@ import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
 import { usePermissionStore } from "@/entities/permissions/store";
+import { usePullRequestStore } from "@/entities/pull-requests/store";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { relationService } from "@/entities/relations/service";
 import { getThreadStatusVariant, getPlanStatusVariant } from "@/utils/thread-colors";
+import { derivePrStatusDot } from "@/utils/pr-status";
+import type { PullRequestDetails } from "@/entities/pull-requests/types";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
 import type { TerminalSession } from "@/entities/terminal-sessions/types";
+import type { PullRequestMetadata } from "@/entities/pull-requests/types";
 import type { RepoWorktreeSection, TreeItemNode } from "@/stores/tree-menu/types";
+
+function deriveReviewIcon(
+  details: PullRequestDetails | undefined,
+): TreeItemNode["reviewIcon"] {
+  if (!details) return undefined;
+  if (details.state === "MERGED") return "merged";
+  if (details.state === "CLOSED") return "closed";
+  if (details.isDraft) return "draft";
+  if (details.reviewDecision === "APPROVED") return "approved";
+  if (details.reviewDecision === "CHANGES_REQUESTED") return "changes-requested";
+  return "review-required";
+}
 
 /**
  * Get display title for a plan.
@@ -44,12 +60,36 @@ function buildSectionItems(
   threads: ThreadMetadata[],
   plans: PlanMetadata[],
   terminals: TerminalSession[],
+  pullRequests: PullRequestMetadata[],
   sectionId: string,
   expandedSections: Record<string, boolean>,
   runningThreadIds: Set<string>,
   threadsWithPendingInput: Set<string>,
 ): TreeItemNode[] {
   const items: TreeItemNode[] = [];
+
+  // 1. PR items pinned at top (sorted by prNumber desc, newest first)
+  const sortedPrs = [...pullRequests].sort((a, b) => b.prNumber - a.prNumber);
+  for (const pr of sortedPrs) {
+    const details = usePullRequestStore.getState().getPrDetails(pr.id);
+    items.push({
+      type: "pull-request" as const,
+      id: pr.id,
+      title: details
+        ? `PR #${pr.prNumber}: ${details.title}`
+        : `PR #${pr.prNumber}`,
+      status: derivePrStatusDot(details),
+      updatedAt: pr.updatedAt,
+      createdAt: pr.createdAt,
+      sectionId,
+      depth: 0,
+      isFolder: false,
+      isExpanded: false,
+      prNumber: pr.prNumber,
+      isViewed: pr.isViewed ?? true,
+      reviewIcon: deriveReviewIcon(details),
+    });
+  }
 
   // Group plans by parent
   const planChildrenMap = new Map<string | undefined, PlanMetadata[]>();
@@ -205,12 +245,13 @@ interface RepoWithWorktrees {
 
 /**
  * Builds tree structure from entity stores.
- * Groups threads, plans, and terminals by their repo/worktree association.
+ * Groups threads, plans, terminals, and pull requests by their repo/worktree association.
  * Handles nested plans via buildSectionItems.
  *
  * @param threads - All threads from store
  * @param plans - All plans from store
  * @param terminals - All terminals from store
+ * @param pullRequests - All pull requests from store
  * @param expandedSections - Expansion state from tree menu store
  * @param runningThreadIds - Set of thread IDs with running status
  * @param allRepos - All known repos with their worktrees (for showing empty sections)
@@ -222,6 +263,7 @@ export function buildTreeFromEntities(
   threads: ThreadMetadata[],
   plans: PlanMetadata[],
   terminals: TerminalSession[],
+  pullRequests: PullRequestMetadata[],
   expandedSections: Record<string, boolean>,
   runningThreadIds: Set<string>,
   allRepos: RepoWithWorktrees[],
@@ -230,10 +272,11 @@ export function buildTreeFromEntities(
   getWorktreePath: (repoId: string, worktreeId: string) => string,
   threadsWithPendingInput: Set<string> = new Set(),
 ): RepoWorktreeSection[] {
-  // Group threads, plans, and terminals by "repoId:worktreeId"
+  // Group threads, plans, terminals, and pull requests by "repoId:worktreeId"
   const threadsBySection = new Map<string, ThreadMetadata[]>();
   const plansBySection = new Map<string, PlanMetadata[]>();
   const terminalsBySection = new Map<string, TerminalSession[]>();
+  const prsBySection = new Map<string, PullRequestMetadata[]>();
   const sectionInfo = new Map<string, {
     repoId: string;
     worktreeId: string;
@@ -258,6 +301,7 @@ export function buildTreeFromEntities(
       threadsBySection.set(sectionId, []);
       plansBySection.set(sectionId, []);
       terminalsBySection.set(sectionId, []);
+      prsBySection.set(sectionId, []);
     }
     return sectionId;
   };
@@ -306,12 +350,24 @@ export function buildTreeFromEntities(
     }
   }
 
+  // Group pull requests by section
+  for (const pr of pullRequests) {
+    const sectionId = ensureSection(pr.repoId, pr.worktreeId);
+    prsBySection.get(sectionId)!.push(pr);
+
+    const info = sectionInfo.get(sectionId)!;
+    if (pr.createdAt < info.earliestCreated) {
+      info.earliestCreated = pr.createdAt;
+    }
+  }
+
   // Build sections using the new buildSectionItems helper
   const sections: RepoWorktreeSection[] = [];
   for (const [sectionId, info] of sectionInfo) {
     const sectionThreads = threadsBySection.get(sectionId) || [];
     const sectionPlans = plansBySection.get(sectionId) || [];
     const sectionTerminals = terminalsBySection.get(sectionId) || [];
+    const sectionPrs = prsBySection.get(sectionId) || [];
 
     // Use buildSectionItems for proper nested plan handling
     // Note: buildSectionItems already sorts top-level items by createdAt descending
@@ -320,6 +376,7 @@ export function buildTreeFromEntities(
       sectionThreads,
       sectionPlans,
       sectionTerminals,
+      sectionPrs,
       sectionId,
       expandedSections,
       runningThreadIds,
@@ -368,6 +425,9 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
   const threads = useThreadStore((state) => state._threadsArray);
   const plans = usePlanStore((state) => state.getAll());
   const terminals = useTerminalSessionStore((state) => state._sessionsArray);
+  const pullRequests = usePullRequestStore((state) => state._prsArray);
+  // Subscribe to prDetails so tree re-renders when details load
+  const prDetails = usePullRequestStore((state) => state.prDetails);
   const expandedSections = useTreeMenuStore((state) => state.expandedSections);
   const pinnedSectionId = useTreeMenuStore((state) => state.pinnedSectionId);
   const hiddenSectionIds = useTreeMenuStore((state) => state.hiddenSectionIds);
@@ -414,6 +474,7 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
       threads,
       plans,
       terminals,
+      pullRequests,
       expandedSections,
       runningThreadIds,
       allRepos,
@@ -441,7 +502,7 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
 
     // Otherwise, filter out hidden sections
     return allSections.filter(s => !hiddenSectionIds.includes(s.id));
-  }, [threads, plans, terminals, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath, skipFiltering, pinnedSectionId, hiddenSectionIds, threadsWithPendingInput]);
+  }, [threads, plans, terminals, pullRequests, prDetails, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath, skipFiltering, pinnedSectionId, hiddenSectionIds, threadsWithPendingInput]);
 }
 
 /**

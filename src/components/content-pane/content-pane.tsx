@@ -16,6 +16,7 @@ import { ThreadContent } from "./thread-content";
 import { PlanContent } from "./plan-content";
 import { TerminalContent } from "./terminal-content";
 import { FileContent } from "./file-content";
+import { PullRequestContent } from "./pull-request-content";
 import { ArchiveView } from "./archive-view";
 import { EmptyPaneContent } from "./empty-pane-content";
 import { ChangesTab } from "../control-panel/changes-tab";
@@ -156,6 +157,9 @@ export function ContentPane({
             repoId={view.repoId}
             worktreeId={view.worktreeId}
           />
+        )}
+        {view.type === "pull-request" && (
+          <PullRequestContent prId={view.prId} onPopOut={onPopOut} />
         )}
       </div>
     </div>

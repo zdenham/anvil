@@ -27,6 +27,15 @@ vi.mock("@/entities/relations/service", () => ({
   },
 }));
 
+// Mock the pull request store - no PRs in these tests
+vi.mock("@/entities/pull-requests/store", () => ({
+  usePullRequestStore: {
+    getState: vi.fn().mockReturnValue({
+      getPrDetails: vi.fn().mockReturnValue(undefined),
+    }),
+  },
+}));
+
 // Constants for test data
 const REPO_ID = "repo-1";
 const WORKTREE_ID = "worktree-1";
@@ -182,12 +191,14 @@ describe("buildTreeFromEntities", () => {
       const sections = buildTreeFromEntities(
         threads,
         plans,
+        [],
+        [],
         expandedSections,
         runningThreadIds,
         allRepos,
         getRepoName,
         getWorktreeName,
-        getWorktreePath
+        getWorktreePath,
       );
 
       expect(sections).toHaveLength(1);
@@ -281,12 +292,14 @@ describe("buildTreeFromEntities", () => {
       const sections = buildTreeFromEntities(
         threads,
         plans,
+        [],
+        [],
         expandedSections,
         runningThreadIds,
         allRepos,
         getRepoName,
         getWorktreeName,
-        getWorktreePath
+        getWorktreePath,
       );
 
       const items = sections[0].items;

@@ -37,7 +37,7 @@ export function LogsPage() {
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
     if (autoScroll && filteredLogs.length > 0) {
-      queueMicrotask(() => {
+      requestAnimationFrame(() => {
         virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
       });
     }
@@ -58,7 +58,7 @@ export function LogsPage() {
   const scrollToBottom = useCallback(() => {
     setAutoScroll(true);
     if (filteredLogs.length > 0) {
-      queueMicrotask(() => {
+      requestAnimationFrame(() => {
         virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
       });
     }

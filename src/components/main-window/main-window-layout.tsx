@@ -42,6 +42,7 @@ import { useFileBrowserPanel } from "@/hooks/use-file-browser-panel";
 import { FileBrowserPanel } from "@/components/file-browser/file-browser-panel";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
+import { handleCreatePr } from "@/lib/pr-actions";
 import type { ContentPaneView } from "@/components/content-pane/types";
 
 // Valid navigation targets from macOS menu
@@ -276,7 +277,7 @@ export function MainWindowLayout() {
   // Tree Selection Handler
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleItemSelect = useCallback(async (itemId: string, itemType: "thread" | "plan" | "terminal") => {
+  const handleItemSelect = useCallback(async (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => {
     logger.info(`[MainWindowLayout] Item selected: ${itemType} ${itemId}`);
 
     if (itemType === "thread") {
@@ -285,6 +286,8 @@ export function MainWindowLayout() {
       await navigationService.navigateToPlan(itemId);
     } else if (itemType === "terminal") {
       await navigationService.navigateToView({ type: "terminal", terminalId: itemId });
+    } else if (itemType === "pull-request") {
+      await navigationService.navigateToView({ type: "pull-request", prId: itemId });
     }
   }, []);
 
@@ -327,6 +330,13 @@ export function MainWindowLayout() {
       logger.error(`[MainWindowLayout] Failed to create thread:`, err);
     }
   }, []);
+
+  const handleCreatePrCallback = useCallback(
+    (repoId: string, worktreeId: string, worktreePath: string) => {
+      handleCreatePr(repoId, worktreeId, worktreePath);
+    },
+    [],
+  );
 
   const handleNewTerminal = useCallback(async (worktreeId: string, worktreePath: string) => {
     logger.info(`[MainWindowLayout] Creating new terminal for worktree ${worktreeId}`);
@@ -531,6 +541,7 @@ export function MainWindowLayout() {
           <TreeMenu
             onItemSelect={handleItemSelect}
             onNewThread={handleNewThread}
+            onCreatePr={handleCreatePrCallback}
             onNewTerminal={handleNewTerminal}
             onNewWorktree={handleNewWorktree}
             onNewRepo={handleNewRepo}

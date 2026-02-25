@@ -21,6 +21,8 @@ pub struct AppConfig {
     /// Current migration version (0 = no migrations run yet)
     #[serde(default)]
     pub migration_version: u32,
+    #[serde(default)]
+    pub github_handle: Option<String>,
 }
 
 fn generate_device_id() -> String {
@@ -35,6 +37,7 @@ impl Default for AppConfig {
             clipboard_hotkey: default_clipboard_hotkey(),
             onboarded: false,
             migration_version: 0,
+            github_handle: None,
         }
     }
 }
@@ -202,6 +205,18 @@ pub fn set_clipboard_hotkey(hotkey: &str) -> Result<(), String> {
 /// Gets the device ID (UUID generated on first run and persisted)
 pub fn get_device_id() -> String {
     load_config().device_id
+}
+
+/// Gets the GitHub handle from config, if set
+pub fn get_github_handle() -> Option<String> {
+    load_config().github_handle
+}
+
+/// Saves the GitHub handle to config
+pub fn set_github_handle(handle: &str) -> Result<(), String> {
+    let mut config = load_config();
+    config.github_handle = Some(handle.to_string());
+    save_config(&config)
 }
 
 // Note: get_migration_version() and set_migration_version() were removed.

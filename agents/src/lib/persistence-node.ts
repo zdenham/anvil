@@ -24,6 +24,9 @@ export class NodePersistence extends MortPersistence {
     super();
     // Priority: constructor arg > MORT_DATA_DIR env var > default ~/.mort
     this.mortDir = mortDir ?? process.env.MORT_DATA_DIR ?? join(homedir(), ".mort");
+    if (!mortDir && !process.env.MORT_DATA_DIR) {
+      console.warn("[NodePersistence] No mortDir or MORT_DATA_DIR provided, falling back to ~/.mort");
+    }
   }
 
   private resolvePath(path: string): string {
