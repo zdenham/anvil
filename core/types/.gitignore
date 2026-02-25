@@ -1,0 +1,4 @@
+# tsc output — source .ts files are consumed directly via path aliases
+*.js
+*.d.ts
+*.js.map

@@ -37,4 +37,4 @@ sdk-runner.mjs.map
 sdk-types.d.ts
 
 # Generated icon assets (copied from node_modules by postinstall)
-public/material-icons/test-diagnostics/
+public/material-icons/
