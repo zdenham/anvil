@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { treeMenuService } from "@/stores/tree-menu/service";
-import type { TreeItemNode } from "@/stores/tree-menu/types";
+import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
 
 /**
  * Focus a tree item by its index using data attribute.
@@ -16,7 +16,7 @@ interface UseTreeKeyboardNavOptions {
   /** Flat list of visible tree items */
   items: TreeItemNode[];
   /** Callback when an item is selected */
-  onSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => void;
+  onSelect: (itemId: string, itemType: EntityItemType) => void;
   /** Get the current selected item index */
   getCurrentIndex: () => number;
 }
@@ -62,7 +62,7 @@ export function useTreeKeyboardNav({
                 if (nextItem.depth > currentItem.depth) {
                   focusItem(nextIndex);
                   await treeMenuService.setSelectedItem(nextItem.id);
-                  onSelect(nextItem.id, nextItem.type);
+                  onSelect(nextItem.id, nextItem.type as EntityItemType);
                 }
               }
             }
@@ -84,7 +84,7 @@ export function useTreeKeyboardNav({
               focusItem(parentIndex);
               const parentItem = items[parentIndex];
               await treeMenuService.setSelectedItem(parentItem.id);
-              onSelect(parentItem.id, parentItem.type);
+              onSelect(parentItem.id, parentItem.type as EntityItemType);
             }
           }
           break;
@@ -96,7 +96,7 @@ export function useTreeKeyboardNav({
             const prevItem = items[prevIndex];
             focusItem(prevIndex);
             await treeMenuService.setSelectedItem(prevItem.id);
-            onSelect(prevItem.id, prevItem.type);
+            onSelect(prevItem.id, prevItem.type as EntityItemType);
           }
           break;
 
@@ -107,7 +107,7 @@ export function useTreeKeyboardNav({
             const nextItem = items[nextIndex];
             focusItem(nextIndex);
             await treeMenuService.setSelectedItem(nextItem.id);
-            onSelect(nextItem.id, nextItem.type);
+            onSelect(nextItem.id, nextItem.type as EntityItemType);
           }
           break;
 
@@ -115,7 +115,7 @@ export function useTreeKeyboardNav({
         case " ":
           e.preventDefault();
           await treeMenuService.setSelectedItem(currentItem.id);
-          onSelect(currentItem.id, currentItem.type);
+          onSelect(currentItem.id, currentItem.type as EntityItemType);
           break;
       }
     },
@@ -151,7 +151,7 @@ export function useTreeItemKeyboardNav(
                 const nextItem = items[nextIndex];
                 focusItem(nextIndex);
                 await treeMenuService.setSelectedItem(nextItem.id);
-                onSelect(nextItem.id, nextItem.type);
+                onSelect(nextItem.id, nextItem.type as EntityItemType);
               }
             }
           }
@@ -167,7 +167,7 @@ export function useTreeItemKeyboardNav(
               const parentItem = items[parentIndex];
               focusItem(parentIndex);
               await treeMenuService.setSelectedItem(parentItem.id);
-              onSelect(parentItem.id, parentItem.type);
+              onSelect(parentItem.id, parentItem.type as EntityItemType);
             }
           }
           break;
@@ -178,7 +178,7 @@ export function useTreeItemKeyboardNav(
             const prevItem = items[index - 1];
             focusItem(index - 1);
             await treeMenuService.setSelectedItem(prevItem.id);
-            onSelect(prevItem.id, prevItem.type);
+            onSelect(prevItem.id, prevItem.type as EntityItemType);
           }
           break;
 
@@ -188,7 +188,7 @@ export function useTreeItemKeyboardNav(
             const nextItem = items[index + 1];
             focusItem(index + 1);
             await treeMenuService.setSelectedItem(nextItem.id);
-            onSelect(nextItem.id, nextItem.type);
+            onSelect(nextItem.id, nextItem.type as EntityItemType);
           }
           break;
 
@@ -196,7 +196,7 @@ export function useTreeItemKeyboardNav(
         case " ":
           e.preventDefault();
           await treeMenuService.setSelectedItem(item.id);
-          onSelect(item.id, item.type);
+          onSelect(item.id, item.type as EntityItemType);
           break;
       }
     },

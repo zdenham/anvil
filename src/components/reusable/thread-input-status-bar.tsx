@@ -13,6 +13,7 @@ import { BUILTIN_MODES } from "@core/types/permissions.js";
 import { ContextMeter } from "@/components/content-pane/context-meter";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useHeartbeatStore } from "@/stores/heartbeat-store";
 
 interface ThreadInputStatusBarProps {
   threadId?: string;
@@ -41,31 +42,54 @@ export function ThreadInputStatusBar({
   const colorClass = MODE_COLORS[permissionMode];
   const tooltip = MODE_TOOLTIPS[permissionMode];
 
+  const heartbeat = useHeartbeatStore(
+    (s) => (threadId ? s.heartbeats[threadId] : undefined)
+  );
+  const showHeartbeatDot = heartbeat && heartbeat.status !== "healthy";
+
   return (
     <div className="flex items-center justify-between px-1 pb-1 text-xs font-mono">
-      {/* Left: Mode label (clickable) with tooltip */}
-      <Tooltip
-        content={
-          <div className="max-w-[240px]">
-            <p className="font-semibold">{modeDefinition.name}</p>
-            <p className="font-normal mt-0.5">{tooltip}</p>
-          </div>
-        }
-        side="top"
-        delayDuration={400}
-      >
-        <button
-          type="button"
-          onClick={onCycleMode}
-          className={cn(
-            "font-medium cursor-pointer transition-colors",
-            colorClass,
-          )}
+      {/* Left: Heartbeat warning dot + Mode label */}
+      <div className="flex items-center gap-1.5">
+        {showHeartbeatDot && (
+          <Tooltip
+            content={
+              heartbeat.status === "stale"
+                ? "Agent heartbeat lost — recovering from disk"
+                : "Agent heartbeat degraded — missed heartbeats"
+            }
+            side="top"
+            delayDuration={200}
+          >
+            <span
+              className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse"
+              aria-label={`Heartbeat ${heartbeat.status}`}
+            />
+          </Tooltip>
+        )}
+        <Tooltip
+          content={
+            <div className="max-w-[240px]">
+              <p className="font-semibold">{modeDefinition.name}</p>
+              <p className="font-normal mt-0.5">{tooltip}</p>
+            </div>
+          }
+          side="top"
+          delayDuration={400}
         >
-          {modeDefinition.name}
-          <span className="text-surface-500 ml-1.5">(shift+tab to cycle)</span>
-        </button>
-      </Tooltip>
+          <button
+            type="button"
+            onClick={onCycleMode}
+            className={cn(
+              "font-medium cursor-pointer transition-colors",
+              colorClass,
+            )}
+          >
+            {modeDefinition.name}
+            <span className="text-surface-500 ml-1.5">(shift+tab to cycle)</span>
+          </button>
+        </Tooltip>
+      </div>
 
       {/* Right: Context meter (only when thread exists) */}
       {threadId && <ContextMeter threadId={threadId} />}

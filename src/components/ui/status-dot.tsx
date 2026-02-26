@@ -15,7 +15,7 @@ interface StatusDotProps {
  * - running: Green with glow animation (uses .status-dot-running CSS class)
  * - unread: Blue (bg-blue-500)
  * - read: Grey (bg-zinc-400)
- * - stale: Amber/yellow (bg-amber-500) - plan file not found
+ * - stale: Red (bg-red-500) - plan file not found / deleted
  */
 export function StatusDot({ variant, className, ...props }: StatusDotProps) {
   return (
@@ -26,7 +26,7 @@ export function StatusDot({ variant, className, ...props }: StatusDotProps) {
         variant === "needs-input" && "status-dot-needs-input",
         variant === "unread" && "bg-blue-500",
         variant === "read" && "bg-zinc-400",
-        variant === "stale" && "bg-amber-500",
+        variant === "stale" && "bg-red-500",
         className
       )}
       {...props}

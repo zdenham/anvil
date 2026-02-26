@@ -5,6 +5,9 @@ import type {
   SDKToolProgressMessage,
   SDKPartialAssistantMessage,
   SDKMessage,
+  SDKTaskStartedMessage,
+  SDKTaskProgressMessage,
+  SDKTaskNotificationMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { StreamAccumulator } from "../lib/stream-accumulator.js";
 import {
@@ -54,6 +57,12 @@ export class MessageHandler {
 
   /** Context window size (populated from result message) */
   private contextWindow: number | null = null;
+
+  /** Active background task count — tracks task_started / task_notification */
+  private activeBackgroundTasks = 0;
+
+  /** Whether we've already emitted `complete` on the first result:success */
+  private foregroundCompleted = false;
 
   /**
    * Create a MessageHandler.
@@ -107,7 +116,20 @@ export class MessageHandler {
     if (msg.subtype === "init") {
       logger.info(`[MessageHandler] Session started: ${msg.session_id}`);
       await setSessionId(msg.session_id);
+      return true;
     }
+
+    // Background task lifecycle messages (SDK v0.2.45+)
+    if (msg.subtype === "task_started") {
+      return this.handleTaskStarted(msg as unknown as SDKTaskStartedMessage);
+    }
+    if (msg.subtype === "task_progress") {
+      return this.handleTaskProgress(msg as unknown as SDKTaskProgressMessage);
+    }
+    if (msg.subtype === "task_notification") {
+      return this.handleTaskNotification(msg as unknown as SDKTaskNotificationMessage);
+    }
+
     return true;
   }
 
@@ -228,14 +250,31 @@ export class MessageHandler {
     if (contextWindow) this.contextWindow = contextWindow;
 
     switch (msg.subtype) {
-      case "success":
-        await complete({
-          durationApiMs: msg.duration_api_ms,
-          totalCostUsd: msg.total_cost_usd,
-          numTurns: msg.num_turns,
-          contextWindow,
-        });
+      case "success": {
+        // On SDK v0.2.45+, the iterator emits TWO result:success messages when
+        // background tasks are running: one when foreground finishes, one when
+        // all background tasks complete. We must NOT break on the first one.
+        if (!this.foregroundCompleted) {
+          // First result:success — foreground agent is done
+          this.foregroundCompleted = true;
+          await complete({
+            durationApiMs: msg.duration_api_ms,
+            totalCostUsd: msg.total_cost_usd,
+            numTurns: msg.num_turns,
+            contextWindow,
+          });
+
+          if (this.activeBackgroundTasks > 0) {
+            // Background tasks still running — keep iterating
+            logger.info(
+              `[MessageHandler] Foreground done, ${this.activeBackgroundTasks} background task(s) still active — keeping iterator open`
+            );
+            return true;
+          }
+        }
+        // Either no bg tasks, or this is the second result:success — done
         break;
+      }
       case "error_during_execution": {
         const errorMsg = "errors" in msg && msg.errors.length > 0
           ? msg.errors[0]
@@ -277,6 +316,96 @@ export class MessageHandler {
     }
 
     return true;
+  }
+
+  // ============================================================================
+  // Background Task Handlers (SDK v0.2.45+)
+  // ============================================================================
+
+  private handleTaskStarted(msg: SDKTaskStartedMessage): boolean {
+    this.activeBackgroundTasks++;
+    logger.info(
+      `[MessageHandler] Background task started: task_id=${msg.task_id}, ` +
+      `tool_use_id=${msg.tool_use_id ?? "none"}, ` +
+      `description="${msg.description}", ` +
+      `active=${this.activeBackgroundTasks}`
+    );
+
+    // Update child thread metadata to "running" if we can correlate via tool_use_id
+    if (msg.tool_use_id && this.mortDir) {
+      const childThreadId = getChildThreadId(msg.tool_use_id);
+      if (childThreadId) {
+        this.updateChildMetadataField(childThreadId, { status: "running" });
+      }
+    }
+
+    // Emit event for frontend
+    emitEvent(EventName.THREAD_UPDATED, {
+      threadId: msg.tool_use_id ?? msg.task_id,
+    });
+
+    return true;
+  }
+
+  private handleTaskProgress(msg: SDKTaskProgressMessage): boolean {
+    logger.debug(
+      `[MessageHandler] Background task progress: task_id=${msg.task_id}, ` +
+      `last_tool=${msg.last_tool_name ?? "none"}, ` +
+      `tokens=${msg.usage.total_tokens}, tools=${msg.usage.tool_uses}, ` +
+      `duration=${msg.usage.duration_ms}ms`
+    );
+    return true;
+  }
+
+  private handleTaskNotification(msg: SDKTaskNotificationMessage): boolean {
+    this.activeBackgroundTasks = Math.max(0, this.activeBackgroundTasks - 1);
+    logger.info(
+      `[MessageHandler] Background task ${msg.status}: task_id=${msg.task_id}, ` +
+      `tool_use_id=${msg.tool_use_id ?? "none"}, ` +
+      `summary="${msg.summary}", ` +
+      `active=${this.activeBackgroundTasks}`
+    );
+
+    // Update child thread metadata with final status
+    if (msg.tool_use_id && this.mortDir) {
+      const childThreadId = getChildThreadId(msg.tool_use_id);
+      if (childThreadId) {
+        const metadataStatus = msg.status === "completed" ? "completed"
+          : msg.status === "failed" ? "error"
+          : "completed"; // "stopped" → treat as completed
+
+        this.updateChildMetadataField(childThreadId, {
+          status: metadataStatus,
+          updatedAt: Date.now(),
+        });
+
+        emitEvent(EventName.THREAD_STATUS_CHANGED, {
+          threadId: childThreadId,
+          status: metadataStatus,
+        });
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Update specific fields on a child thread's metadata.json.
+   */
+  private updateChildMetadataField(
+    childThreadId: string,
+    fields: Record<string, unknown>,
+  ): void {
+    const metadataPath = join(this.mortDir!, "threads", childThreadId, "metadata.json");
+    try {
+      if (!existsSync(metadataPath)) return;
+      const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+      Object.assign(metadata, fields);
+      if (!fields.updatedAt) metadata.updatedAt = Date.now();
+      writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+    } catch (err) {
+      logger.warn(`[MessageHandler] Failed to update child metadata ${childThreadId}: ${err}`);
+    }
   }
 
   /** Count content blocks of a given type in an assistant message */

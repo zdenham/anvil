@@ -284,9 +284,8 @@ function ControlPanelWindowContent({
 
     try {
       await sendToAgent(threadId, {
-        type: "event",
-        name: EventName.PERMISSION_MODE_CHANGED,
-        payload: { threadId, modeId: nextMode },
+        type: "permission_mode_changed",
+        payload: { modeId: nextMode },
       });
     } catch {
       // Agent may not be connected (idle thread) - that's OK,

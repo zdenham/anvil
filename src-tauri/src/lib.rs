@@ -27,6 +27,7 @@ mod paths;
 mod process_commands;
 mod profiling;
 mod repo_commands;
+mod search;
 mod shell;
 mod terminal;
 mod thread_commands;
@@ -891,6 +892,16 @@ pub fn run() {
             git_commands::git_ls_files_untracked,
             git_commands::git_get_head_commit,
             git_commands::git_diff_files,
+            git_commands::git_get_branch_commits,
+            git_commands::git_diff_commit,
+            git_commands::git_diff_range,
+            git_commands::git_diff_uncommitted,
+            git_commands::git_get_merge_base,
+            git_commands::git_get_remote_branch_commit,
+            git_commands::git_show_file,
+            git_commands::git_grep,
+            // Search commands
+            search::search_threads,
             // Mort-specific commands
             mort_commands::fs_get_repo_dir,
             mort_commands::fs_get_repo_source_path,
@@ -943,6 +954,8 @@ pub fn run() {
             #[cfg(unix)]
             profiling::capture_cpu_profile,
             profiling::start_trace,
+            profiling::write_memory_snapshot,
+            profiling::get_process_memory,
             // Terminal commands
             terminal::spawn_terminal,
             terminal::write_terminal,

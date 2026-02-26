@@ -85,6 +85,10 @@ export const EventName = {
   PERMISSION_RESPONSE: "permission:response",
   PERMISSION_MODE_CHANGED: "permission:mode-changed",
 
+  // Question flow (AskUserQuestion hook gate)
+  QUESTION_REQUEST: "question:request",
+  QUESTION_RESPONSE: "question:response",
+
   // Queued message acknowledgement
   QUEUED_MESSAGE_ACK: "queued-message:ack",
 
@@ -191,6 +195,7 @@ export interface EventPayloads {
     threadId: string;
     toolName: string;
     toolInput: Record<string, unknown>;
+    toolUseId?: string;
     timestamp: number;
   };
 
@@ -204,6 +209,21 @@ export interface EventPayloads {
   [EventName.PERMISSION_MODE_CHANGED]: {
     threadId: string;
     modeId: PermissionModeId;
+  };
+
+  // Question flow (AskUserQuestion hook gate)
+  [EventName.QUESTION_REQUEST]: {
+    requestId: string;
+    threadId: string;
+    toolUseId: string;
+    toolInput: Record<string, unknown>;
+    timestamp: number;
+  };
+
+  [EventName.QUESTION_RESPONSE]: {
+    requestId: string;
+    threadId: string;
+    answers: Record<string, string>;
   };
 
   // Queued message acknowledgement
@@ -367,6 +387,8 @@ export const EventNameSchema = z.enum([
   EventName.PERMISSION_REQUEST,
   EventName.PERMISSION_RESPONSE,
   EventName.PERMISSION_MODE_CHANGED,
+  EventName.QUESTION_REQUEST,
+  EventName.QUESTION_RESPONSE,
   EventName.QUEUED_MESSAGE_ACK,
   EventName.PLAN_DETECTED,
   EventName.PLAN_CREATED,

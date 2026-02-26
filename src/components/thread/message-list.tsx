@@ -176,7 +176,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     if (showWorkingIndicator) {
       return (
         <div className="w-full max-w-[900px] mx-auto">
-          <WorkingIndicator threadId={threadId} />
+          <WorkingIndicator />
         </div>
       );
     }

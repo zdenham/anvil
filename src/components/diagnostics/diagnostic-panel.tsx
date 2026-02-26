@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger-client";
 import { cn } from "@/lib/utils";
 import type { DiagnosticLoggingConfig } from "@core/types/diagnostic-logging.js";
 import { DEFAULT_DIAGNOSTIC_LOGGING } from "@core/types/diagnostic-logging.js";
+import { MemorySection } from "./memory-section";
 
 // ============================================================================
 // Constants
@@ -217,6 +218,9 @@ export function DiagnosticPanel() {
           </div>
         )}
       </section>
+
+      {/* Memory */}
+      <MemorySection />
 
       {/* Diagnostic Module Toggles */}
       <section>

@@ -99,12 +99,12 @@ export function useFileContents(
             logger.log(`[useFileContents] Fetching deleted file from git HEAD:`, {
               cwd: workingDirectory,
               path,
-              ref: "HEAD",
+              gitRef: "HEAD",
             });
             content = await invoke<string>("git_show_file", {
               cwd: workingDirectory,
               path,
-              ref: "HEAD",
+              gitRef: "HEAD",
             });
             logger.log(`[useFileContents] git_show_file returned:`, {
               path,

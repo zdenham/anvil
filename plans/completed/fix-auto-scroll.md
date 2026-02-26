@@ -1,194 +1,102 @@
 # Fix Auto-Scroll Behavior
 
-Two scroll issues reported:
-1. **Auto-scroll doesn't follow streaming output** — content grows but viewport stays put
-2. **Opening a thread doesn't snap to the last message** — requires manual scroll-down every time
-
 ## Phases
 
-- [x] Fix streaming auto-scroll (Virtuoso `followOutput` + Footer interaction)
-- [x] Fix scroll-to-bottom on thread open
-- [x] Verify both fixes work together
+- [x] Simplify auto-scroll in message-list.tsx (remove ResizeObserver, rely on Virtuoso)
+- [x] Increase atBottomThreshold from 50px to 300px
+- [x] Fix isAtBottom re-engagement on scroll-to-bottom click
+- [x] Remove double-rAF scroll-on-mount hack in thread-content.tsx
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
-## Diagnosis
+## Current State (Audit Summary)
 
-### Issue 1: Streaming auto-scroll is broken
+The auto-scroll system spans 3 files:
 
-**Root cause: Virtuoso's `followOutput` only tracks item count changes, not Footer height changes.**
+1. **`message-list.tsx`** — Virtuoso list with `followOutput`, `atBottomThreshold`, and a ResizeObserver
+2. **`thread-content.tsx`** — double-`requestAnimationFrame` scroll-on-mount hack
+3. **`use-trickle-text.ts`** — character-by-character reveal animation that continuously grows DOM height
 
-In `message-list.tsx:191`:
+### How It Works Today
+
+The `<Virtuoso>` component has two built-in auto-scroll mechanisms:
+- **`followOutput`** — When new data items are appended OR the last item grows, Virtuoso auto-scrolls if user is "at bottom". Returns `"smooth"` when streaming + at bottom.
+- **`atBottomStateChange` + `atBottomThreshold={50}`** — Fires a callback when user crosses the 50px-from-bottom boundary, updating `isAtBottom` state.
+
+On top of Virtuoso's built-in behavior, there's a **manual ResizeObserver** (lines 93-104):
 ```tsx
-followOutput={isStreaming && isAtBottom ? "smooth" : false}
-```
-
-The conditions `isStreaming && isAtBottom` are correct in principle — but `followOutput` in react-virtuoso triggers scrolling when **the data array length changes** (i.e., a new turn is appended to `turns`). It does NOT trigger when the **Footer component** grows in height.
-
-Streaming content is rendered inside a `Footer` component (`message-list.tsx:150-176`), which lives *outside* the virtualized item list. As the `StreamingContent` component receives new text blocks from `useStreamingStore`, the Footer grows taller — but Virtuoso doesn't detect this as a data change, so `followOutput` never fires.
-
-The streaming content only gets promoted into the `turns` array when a full `AGENT_STATE` event arrives (persisting the message). Between those events, all incremental text is in the Footer, invisible to `followOutput`.
-
-**Evidence:** The `data` prop is `turns`, and turns only update when `activeState.messages` changes (via store). Streaming blocks update the Footer via a separate store (`useStreamingStore`), completely bypassing Virtuoso's change detection.
-
-### Issue 2: Opening a thread doesn't scroll to bottom
-
-**Root cause: Broken `useEffect` dependency + `key={threadId}` remounting race condition.**
-
-In `thread-content.tsx:476-489`:
-```tsx
-useEffect(() => {
-  if (!hasScrolledOnMount.current && messages.length > 0 && messageListRef.current) {
-    hasScrolledOnMount.current = true;
-    const timer = setTimeout(() => {
-      messageListRef.current?.scrollToBottom();
-    }, 100);
-    return () => clearTimeout(timer);
-  }
-}, [messages.length > 0]);  // ← boolean dependency
-```
-
-Two problems:
-
-1. **Boolean dependency `[messages.length > 0]`** — This evaluates to `true` or `false`. When switching from one thread-with-messages to another thread-with-messages, the value stays `true` → the effect doesn't re-run → no scroll.
-
-2. **`key={threadId}` on ThreadView (line 506) causes a full remount** of the `MessageList`, which destroys the old `virtuosoRef`. The `hasScrolledOnMount` ref is reset by the effect at line 408, but by the time the scroll effect runs (100ms later), the new `MessageList` may not have finished its Virtuoso initialization. The 100ms timeout is a guess that may be too short for threads with many messages.
-
-Additionally, Virtuoso's own `initialTopMostItemIndex` prop is not set, so on mount it defaults to showing the top of the list (index 0) rather than the bottom.
-
----
-
-## Proposed Fixes
-
-### Fix 1: Streaming auto-scroll
-
-**Option A (Recommended): Use Virtuoso's `autoscrollToBottom` or manual scroll on Footer growth**
-
-Add an effect in `MessageList` that detects Footer content changes and manually scrolls:
-
-```tsx
-// In message-list.tsx
-const prevStreamingRef = useRef(false);
-
-useEffect(() => {
-  // When streaming starts or content updates while at bottom, scroll down
-  if (isStreaming && isAtBottom && hasStreamingContent) {
-    virtuosoRef.current?.scrollToIndex({
-      index: "LAST",
-      align: "end",
-    });
-  }
-}, [isStreaming, isAtBottom, hasStreamingContent]);
-```
-
-However, this only fires on discrete changes to `hasStreamingContent` (boolean), not on every text chunk. A more robust approach:
-
-**Option B: Use `scrollerRef` + `ResizeObserver` on the Footer**
-
-Wrap the Footer in a ref and observe its height. When it grows, if `isAtBottom`, scroll down:
-
-```tsx
-// In message-list.tsx, add a ref to the footer wrapper
-const footerRef = useRef<HTMLDivElement>(null);
-
-// ResizeObserver to detect footer height changes
 useEffect(() => {
   if (!isStreaming || !isAtBottom) return;
   const footer = footerRef.current;
   if (!footer) return;
-
   const observer = new ResizeObserver(() => {
-    virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end" });
+    virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "smooth" });
   });
   observer.observe(footer);
   return () => observer.disconnect();
 }, [isStreaming, isAtBottom]);
-
-// Update Footer to wrap in ref
-const Footer = useCallback(() => {
-  if (hasStreamingContent) {
-    return (
-      <div ref={footerRef} className="...">
-        <StreamingContent ... />
-      </div>
-    );
-  }
-  // ...
-}, [hasStreamingContent, ...]);
 ```
 
-**Concern with Option B:** Assigning a ref inside a `useCallback` Footer component is tricky because Virtuoso manages the Footer lifecycle. The ref may not persist correctly.
+This ResizeObserver fires `scrollToIndex("LAST")` every time the footer's height changes during streaming. Since trickle-text grows the footer height continuously (every ~16ms), this fires **constantly** during streaming.
 
-**Option C (Simplest, likely best): Use Virtuoso's `followOutput` as a function**
+### Problems Identified
 
-Virtuoso's `followOutput` can accept a **callback function** instead of a string. The callback fires whenever the list content changes (including footer). Change:
+#### 1. The 50px threshold is way too small
+`atBottomThreshold={50}` means the user is only considered "at bottom" within 50px of the scroll end. A single new paragraph or code block can easily push the scroll position beyond 50px from bottom, causing `isAtBottom` to flip to `false` and auto-scroll to disengage. This is the "large message undoes auto-scroll" bug — when a big chunk of content arrives, the DOM grows by more than 50px between scroll updates, and suddenly the user isn't "at bottom" anymore.
+
+#### 2. ResizeObserver fights with Virtuoso's `followOutput`
+Both systems try to scroll to bottom independently:
+- Virtuoso's `followOutput` scrolls when it detects output growth while at bottom
+- The ResizeObserver also scrolls on every footer resize
+
+These create redundant scroll operations. Worse, the ResizeObserver has a **stale closure bug**: the `useEffect` captures `isAtBottom` at the time it runs. If `isAtBottom` changes while the observer is active, the observer keeps firing (or doesn't fire) based on the stale value. The effect only re-runs when `isStreaming` or `isAtBottom` changes, but between those changes, the observer is working with potentially outdated state.
+
+When `isAtBottom` flips to `false` (because the threshold is too small), the ResizeObserver disconnects (effect cleanup), and Virtuoso's `followOutput` also returns `false`. Now **nothing** is auto-scrolling — and the content keeps growing below the viewport. The user sees the scroll-to-bottom button appear even though they never scrolled away.
+
+#### 3. The scroll-to-bottom button click doesn't reliably re-engage auto-scroll
+`scrollToBottom` calls `scrollToIndex({ index: "LAST", behavior: "smooth" })`. This smooth-scrolls to the last item. But the smooth scroll animation takes time, and during that animation, the footer is still growing. The scroll may never reach "bottom" because the target keeps moving, so `isAtBottom` never flips back to `true`, and auto-scroll never re-engages.
+
+#### 4. Double-rAF mount scroll is fragile
+`thread-content.tsx` uses `requestAnimationFrame(() => requestAnimationFrame(() => scrollToBottom()))` to scroll on mount. This is a timing hack that works most of the time but can fail if Virtuoso takes longer than 2 frames to layout.
+
+## Proposed Fix
+
+### Strategy: Trust Virtuoso, increase the threshold, remove the ResizeObserver
+
+Virtuoso's `followOutput` is designed exactly for this use case. The ResizeObserver is redundant and creates race conditions. The real fix is:
+
+### Phase 1: Remove ResizeObserver, rely on Virtuoso
+Delete the ResizeObserver effect (lines 93-104 of `message-list.tsx`). Virtuoso's `followOutput` already handles scrolling when the footer content grows — that's what it's for. The footer is a Virtuoso component, so Virtuoso is already aware of its size changes.
+
+Also remove the `footerRef`, `footerRefCallback`, and the `ref={footerRefCallback}` on the footer div, since they exist only for the ResizeObserver.
+
+### Phase 2: Increase atBottomThreshold from 50px to 300px
+Change `atBottomThreshold={50}` to `atBottomThreshold={300}`. This means:
+- User is considered "at bottom" if within 300px (~4-5 lines of text) of the end
+- Large content chunks arriving won't accidentally disengage auto-scroll
+- The scroll-to-bottom button only appears when the user has meaningfully scrolled up
+- 300px is generous enough to absorb burst content growth between frames
+
+Also update `followOutput` to match — it receives Virtuoso's internal `atBottom` which uses the same threshold, so this should just work.
+
+### Phase 3: Fix scroll-to-bottom button re-engagement
+When the user clicks "scroll to bottom", use `behavior: "auto"` (instant) instead of `"smooth"`. Smooth scrolling races with growing content and may never reach bottom. Instant scroll guarantees the viewport reaches the end, which re-triggers `atBottomStateChange(true)`, which re-engages `followOutput`.
 
 ```tsx
-followOutput={isStreaming && isAtBottom ? () => "smooth" : false}
+const scrollToBottom = useCallback(() => {
+  virtuosoRef.current?.scrollToIndex({
+    index: "LAST",
+    behavior: "auto",
+  });
+}, []);
 ```
 
-Actually, the real fix is simpler. The `followOutput` prop does support Footer changes but only when it returns `"smooth"` or `"auto"` from a **function**. According to Virtuoso docs, passing a function instead of a static value enables the "follow" behavior on *any* scroll-relevant change including footer resizing. Let's try:
+### Phase 4: Remove double-rAF hack
+Replace the double-rAF in `thread-content.tsx` with Virtuoso's `initialTopMostItemIndex` which already exists in `message-list.tsx` (line 220). The `initialTopMostItemIndex={turns.length - 1}` already handles showing the last message on mount. The double-rAF is redundant and can be removed entirely along with the `hasScrolledOnMount` ref.
 
-```tsx
-followOutput={(isAtBottom) => {
-  if (isStreaming && isAtBottom) return "smooth";
-  return false;
-}}
-```
+## Files Changed
 
-Wait — `followOutput` as a function receives `isAtBottom` as its argument. But the actual Virtuoso behavior for Footer tracking needs investigation. The safest approach combines options:
-
-**Recommended implementation:**
-
-1. Set `initialTopMostItemIndex` to `"LAST"` (fixes initial position)
-2. Use `followOutput` as a function callback
-3. Add a `ResizeObserver`-based scroll-kick for Footer growth during streaming, as a safety net
-
-### Fix 2: Scroll-to-bottom on thread open
-
-**Replace the broken effect with Virtuoso's `initialTopMostItemIndex`:**
-
-In `message-list.tsx`, add the prop:
-```tsx
-<Virtuoso
-  initialTopMostItemIndex={turns.length > 0 ? turns.length - 1 : 0}
-  // ... rest of props
-/>
-```
-
-This tells Virtuoso to render from the bottom on mount, which is exactly what we want when opening a thread. No `setTimeout` hack needed.
-
-**Also fix the dependency array** in `thread-content.tsx` as a belt-and-suspenders:
-
-```diff
-- }, [messages.length > 0]);
-+ }, [messages.length]);
-```
-
-This ensures the effect re-fires when message count changes (not just the 0→N transition).
-
-And increase the timeout or use `requestAnimationFrame` chaining:
-```tsx
-useEffect(() => {
-  if (!hasScrolledOnMount.current && messages.length > 0 && messageListRef.current) {
-    hasScrolledOnMount.current = true;
-    // Use rAF to wait for Virtuoso to finish layout
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        messageListRef.current?.scrollToBottom();
-      });
-    });
-  }
-}, [messages.length]);
-```
-
----
-
-## Summary of Changes
-
-| File | Change |
-|---|---|
-| `src/components/thread/message-list.tsx` | Add `initialTopMostItemIndex={turns.length - 1}` to Virtuoso. Add ResizeObserver on footer for streaming scroll-kick. Change `followOutput` to function form. |
-| `src/components/content-pane/thread-content.tsx` | Fix dependency array from `[messages.length > 0]` to `[messages.length]`. Replace `setTimeout(100)` with double-rAF for more reliable timing. |
+- `src/components/thread/message-list.tsx` — Remove ResizeObserver, increase threshold, fix scrollToBottom
+- `src/components/content-pane/thread-content.tsx` — Remove double-rAF mount scroll hack

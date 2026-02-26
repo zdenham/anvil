@@ -6,11 +6,17 @@ import { logger } from "@/lib/logger-client";
 import { worktreeService } from "@/entities/worktrees/service";
 import { cn } from "@/lib/utils";
 import type { RepoWorktreeSection as RepoWorktreeSectionType } from "@/stores/tree-menu/types";
+import type { TreeItemNode } from "@/stores/tree-menu/types";
+import { navigationService } from "@/stores/navigation-service";
+import { useCommitStore } from "@/stores/commit-store";
 import { ThreadItem } from "./thread-item";
 import { PlanItem } from "./plan-item";
 import { TerminalItem } from "./terminal-item";
 import { PullRequestItem } from "./pull-request-item";
 import { FilesItem } from "./files-item";
+import { ChangesItem } from "./changes-item";
+import { UncommittedItem } from "./uncommitted-item";
+import { CommitItem } from "./commit-item";
 
 interface RepoWorktreeSectionProps {
   section: RepoWorktreeSectionType;
@@ -311,6 +317,41 @@ export function RepoWorktreeSection({
       handleRenameCancel();
     }
   }, [handleRenameSubmit, handleRenameCancel]);
+
+  // Changes navigation handlers (bypass onItemSelect, call navigationService directly)
+  const handleChangesClick = async (itemId: string) => {
+    await navigationService.navigateToChanges(section.repoId, section.worktreeId, {
+      treeItemId: itemId,
+    });
+  };
+
+  const handleUncommittedClick = async (itemId: string) => {
+    await navigationService.navigateToChanges(section.repoId, section.worktreeId, {
+      uncommittedOnly: true,
+      treeItemId: itemId,
+    });
+  };
+
+  const handleCommitClick = async (item: TreeItemNode) => {
+    await navigationService.navigateToChanges(section.repoId, section.worktreeId, {
+      commitHash: item.commitHash!,
+      treeItemId: item.id,
+    });
+  };
+
+  // Fetch commits when the Changes folder is expanded
+  const changesItem = section.changesItems.find(i => i.type === "changes");
+  const isChangesExpanded = changesItem?.isExpanded ?? false;
+
+  useEffect(() => {
+    if (isChangesExpanded && section.worktreePath) {
+      useCommitStore.getState().fetchCommits(
+        section.id,
+        section.worktreePath,
+        section.worktreeName,
+      );
+    }
+  }, [isChangesExpanded, section.id, section.worktreePath, section.worktreeName]);
 
   return (
     <div role="group" aria-label={`${section.repoName} / ${section.worktreeName}`}>
@@ -651,7 +692,42 @@ export function RepoWorktreeSection({
           />
         )}
 
-        {/* Terminals pinned after Files */}
+        {/* "Changes" folder with commit sub-items */}
+        {section.changesItems.map((item) => {
+          if (item.type === "changes") {
+            return (
+              <ChangesItem
+                key={item.id}
+                item={item}
+                isSelected={selectedItemId === item.id}
+                onNavigate={() => handleChangesClick(item.id)}
+              />
+            );
+          }
+          if (item.type === "uncommitted") {
+            return (
+              <UncommittedItem
+                key={item.id}
+                item={item}
+                isSelected={selectedItemId === item.id}
+                onNavigate={() => handleUncommittedClick(item.id)}
+              />
+            );
+          }
+          if (item.type === "commit") {
+            return (
+              <CommitItem
+                key={item.id}
+                item={item}
+                isSelected={selectedItemId === item.id}
+                onNavigate={() => handleCommitClick(item)}
+              />
+            );
+          }
+          return null;
+        })}
+
+        {/* Terminals pinned after Changes */}
         {section.items.map((item, index) => {
           if (item.type !== "terminal") return null;
           return (

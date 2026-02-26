@@ -33,6 +33,32 @@ export const WorktreeInfoSchema = z.object({
 export type WorktreeInfo = z.infer<typeof WorktreeInfoSchema>;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Search Types
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface GrepMatch {
+  filePath: string;
+  lineNumber: number;
+  lineContent: string;
+}
+
+export interface GrepResponse {
+  matches: GrepMatch[];
+  truncated: boolean;
+}
+
+export interface ThreadContentMatch {
+  threadId: string;
+  lineContent: string;
+  matchIndex: number;
+}
+
+export interface ThreadSearchResponse {
+  matches: ThreadContentMatch[];
+  truncated: boolean;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Git Commands
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -145,6 +171,56 @@ export const gitCommands = {
     fileRequests?: Array<{ path: string; operation: string }>
   ) =>
     invoke<string>("git_diff_files", { repoPath, baseCommit, filePaths, fileRequests }),
+
+  /**
+   * Get branch commits for the commit list.
+   * Note: useGitCommits hook calls invoke() directly with Zod validation,
+   * but this wrapper is provided for other callers.
+   */
+  getBranchCommits: (workingDirectory: string, branchName: string, limit?: number) =>
+    invoke<unknown>("git_get_branch_commits", { workingDirectory, branchName, limit }),
+
+  /**
+   * Get the diff introduced by a single commit.
+   * Returns raw unified diff string for parseDiff().
+   */
+  diffCommit: (workingDirectory: string, commitHash: string) =>
+    invoke<string>("git_diff_commit", { workingDirectory, commitHash }),
+
+  /**
+   * Get the diff between a base commit and the current working tree.
+   * Includes staged, unstaged, and untracked file changes.
+   */
+  diffRange: (workingDirectory: string, baseCommit: string) =>
+    invoke<string>("git_diff_range", { workingDirectory, baseCommit }),
+
+  /**
+   * Get the diff of uncommitted changes (HEAD to working tree).
+   * Includes staged, unstaged, and untracked file changes.
+   */
+  diffUncommitted: (workingDirectory: string) =>
+    invoke<string>("git_diff_uncommitted", { workingDirectory }),
+
+  /**
+   * Find the merge base between two branches.
+   * Returns the commit hash of the common ancestor.
+   */
+  getMergeBase: (workingDirectory: string, branchA: string, branchB: string) =>
+    invoke<string>("git_get_merge_base", { workingDirectory, branchA, branchB }),
+
+  /**
+   * Get the commit hash that a remote branch points to.
+   * Used for GitHub-style fallback when on the default branch.
+   */
+  getRemoteBranchCommit: (workingDirectory: string, remote: string, branch: string) =>
+    invoke<string>("git_get_remote_branch_commit", { workingDirectory, remote, branch }),
+
+  /**
+   * Get a file's contents at a specific git ref.
+   * Used for viewing historical file versions in commit diffs.
+   */
+  showFile: (cwd: string, path: string, gitRef: string) =>
+    invoke<string>("git_show_file", { cwd, path, gitRef }),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -444,4 +520,46 @@ export const repoCommands = {
     const mortDir = await fsCommands.getDataDir();
     return invoke<void>("remove_repository_data", { repoSlug, mortDir });
   },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Search Commands
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const searchCommands = {
+  /**
+   * Search file contents using git grep.
+   * Returns matches with file path, line number, and line content.
+   * Uses fixed-string matching (literal, not regex).
+   */
+  grep: (repoPath: string, query: string, opts?: {
+    maxResults?: number;
+    includePatterns?: string[];
+    excludePatterns?: string[];
+    caseSensitive?: boolean;
+  }) =>
+    invoke<GrepResponse>("git_grep", {
+      repoPath,
+      query,
+      maxResults: opts?.maxResults,
+      includePatterns: opts?.includePatterns,
+      excludePatterns: opts?.excludePatterns,
+      caseSensitive: opts?.caseSensitive,
+    }),
+
+  /**
+   * Search thread conversation content by grepping state.json files.
+   * Searches ~/.mort/threads/ for the query string.
+   * Returns matched snippets with thread IDs.
+   */
+  searchThreads: (mortDir: string, query: string, opts?: {
+    maxResults?: number;
+    caseSensitive?: boolean;
+  }) =>
+    invoke<ThreadSearchResponse>("search_threads", {
+      mortDir,
+      query,
+      maxResults: opts?.maxResults,
+      caseSensitive: opts?.caseSensitive,
+    }),
 };

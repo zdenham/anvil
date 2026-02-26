@@ -12,13 +12,10 @@
  * - EmptyPaneContent: For creating new threads from the empty state
  */
 
-import { forwardRef, useCallback } from "react";
+import { forwardRef } from "react";
 import { ThreadInput, type ThreadInputRef } from "./thread-input";
 import { ThreadInputStatusBar } from "./thread-input-status-bar";
 import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
-import { PermissionRequestBlock } from "@/components/permission/permission-request-block";
-import { usePermissionStore } from "@/entities/permissions/store";
-import { permissionService } from "@/entities/permissions/service";
 import type { PermissionModeId } from "@core/types/permissions.js";
 
 export interface ThreadInputSectionProps {
@@ -51,32 +48,8 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
     },
     ref
   ) {
-    // Get pending permission request for this thread
-    const pendingRequest = usePermissionStore(
-      useCallback(
-        (s) => (threadId ? s.getNextRequestForThread(threadId) : undefined),
-        [threadId],
-      ),
-    );
-
-    const handlePermissionRespond = useCallback(
-      (_requestId: string, decision: "approve" | "deny") => {
-        if (!pendingRequest) return;
-        permissionService.respond(pendingRequest, decision);
-      },
-      [pendingRequest],
-    );
-
     return (
       <div className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-1 pb-1">
-        {/* Permission request block - pinned above everything when pending */}
-        {pendingRequest && pendingRequest.status === "pending" && (
-          <PermissionRequestBlock
-            request={pendingRequest}
-            onRespond={handlePermissionRespond}
-          />
-        )}
-
         <QuickActionsPanel contextType={contextType} />
 
         <ThreadInput

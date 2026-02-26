@@ -24,3 +24,4 @@ export { SKILL_PATTERN, SKILL_PATTERN_COMPAT } from './patterns.js';
 export { parseFrontmatter, stripFrontmatter } from './parse-frontmatter.js';
 export type { ParsedFrontmatter } from './parse-frontmatter.js';
 export { extractSkillMatches } from './extract-matches.js';
+export { scoreMatch } from './score-match.js';

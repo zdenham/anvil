@@ -21,7 +21,16 @@ export type ContentPaneView =
   | { type: "archive" }
   | { type: "terminal"; terminalId: string }
   | { type: "file"; filePath: string; repoId?: string; worktreeId?: string }
-  | { type: "pull-request"; prId: string };
+  | { type: "pull-request"; prId: string }
+  | {
+      type: "changes";
+      repoId: string;
+      worktreeId: string;
+      /** If true, show only uncommitted changes (HEAD to working tree) */
+      uncommittedOnly?: boolean;
+      /** If set, show diff for this single commit */
+      commitHash?: string;
+    };
 
 /**
  * Represents a single content pane instance.
@@ -80,6 +89,13 @@ export interface PullRequestContentProps {
   prId: string;
   /** Called when content should be popped out to separate window */
   onPopOut?: () => void;
+}
+
+export interface ChangesContentProps {
+  repoId: string;
+  worktreeId: string;
+  uncommittedOnly?: boolean;
+  commitHash?: string;
 }
 
 /**

@@ -7,14 +7,15 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use std::sync::OnceLock;
-use std::time::Instant;
+use std::collections::HashSet;
+use std::sync::RwLock;
+use std::time::{Duration, Instant};
 
 use crate::icons;
 use crate::panels::MAX_VISIBLE_RESULTS;
 
-/// Global app index, built once at startup
-static APP_INDEX: OnceLock<Vec<IndexedApp>> = OnceLock::new();
+/// Global app index, rebuilt when applications change
+static APP_INDEX: RwLock<Vec<IndexedApp>> = RwLock::new(Vec::new());
 
 /// An indexed application entry (stored in memory)
 #[derive(Debug, Clone)]
@@ -41,17 +42,97 @@ struct AppInfoPlist {
     ls_background_only: Option<bool>,
 }
 
-/// Initializes the app index. Should be called once during app setup.
+/// Initializes the app index and starts watching for changes.
 pub fn initialize() {
-    // Build index in background to not block startup
     std::thread::spawn(|| {
-        let _span = tracing::info_span!("app_search_index").entered();
-        let start = Instant::now();
-        let apps = build_app_index();
-        let count = apps.len();
-        let _ = APP_INDEX.set(apps);
-        tracing::info!(apps = count, duration_ms = start.elapsed().as_millis() as u64, "App index built");
+        rebuild_app_index(); // Initial build
+        watch_app_directories(); // Blocks forever, rebuilds on changes
     });
+}
+
+/// Rebuilds the app index and extracts icons for any newly discovered apps.
+fn rebuild_app_index() {
+    let _span = tracing::info_span!("app_search_index").entered();
+    let start = Instant::now();
+    let new_apps = build_app_index();
+    let count = new_apps.len();
+
+    // Collect new app paths before swapping, so we can extract their icons
+    let new_paths: Vec<String> = {
+        let old = APP_INDEX.read().unwrap();
+        let old_set: HashSet<&str> = old.iter().map(|a| a.path.as_str()).collect();
+        new_apps
+            .iter()
+            .filter(|a| !old_set.contains(a.path.as_str()))
+            .map(|a| a.path.clone())
+            .collect()
+    };
+
+    // Swap in the new index
+    *APP_INDEX.write().unwrap() = new_apps;
+    tracing::info!(
+        apps = count,
+        new = new_paths.len(),
+        duration_ms = start.elapsed().as_millis() as u64,
+        "App index rebuilt"
+    );
+
+    // Extract icons for newly discovered apps
+    if !new_paths.is_empty() {
+        icons::extract_icons_for_paths(&new_paths);
+    }
+}
+
+/// Watches /Applications and ~/Applications for top-level changes.
+/// Blocks the calling thread. Rebuilds the index when .app entries are added/removed.
+/// Uses leading-edge cooldown: fires immediately, then ignores events for 60s.
+fn watch_app_directories() {
+    use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
+    use std::sync::mpsc;
+
+    let (tx, rx) = mpsc::channel::<Event>();
+
+    let mut watcher = match RecommendedWatcher::new(
+        move |result: Result<Event, notify::Error>| {
+            if let Ok(event) = result {
+                let _ = tx.send(event);
+            }
+        },
+        notify::Config::default(),
+    ) {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::warn!("Failed to create app directory watcher: {e}");
+            return;
+        }
+    };
+
+    // Watch /Applications (non-recursive — only top-level .app additions/removals)
+    let _ = watcher.watch(Path::new("/Applications"), RecursiveMode::NonRecursive);
+
+    // Watch ~/Applications if it exists
+    if let Some(home) = dirs::home_dir() {
+        let user_apps = home.join("Applications");
+        if user_apps.exists() {
+            let _ = watcher.watch(&user_apps, RecursiveMode::NonRecursive);
+        }
+    }
+
+    tracing::info!("Watching /Applications for changes (non-recursive, 60s leading-edge cooldown)");
+
+    let cooldown = Duration::from_secs(60);
+    let mut last_rebuild = Instant::now() - cooldown; // Allow immediate first fire
+
+    // Block and rebuild on first event, then ignore for cooldown period
+    while rx.recv().is_ok() {
+        if last_rebuild.elapsed() >= cooldown {
+            tracing::info!("Applications directory changed, rebuilding index");
+            rebuild_app_index();
+            last_rebuild = Instant::now();
+        }
+        // Drain any queued events that arrived during the rebuild
+        while rx.try_recv().is_ok() {}
+    }
 }
 
 /// Searches for applications matching the query using the pre-built index.
@@ -61,10 +142,10 @@ pub fn search_applications(query: String) -> Vec<AppResult> {
         return Vec::new();
     }
 
-    let Some(index) = APP_INDEX.get() else {
-        // Index not ready yet, return empty
+    let index = APP_INDEX.read().unwrap();
+    if index.is_empty() {
         return Vec::new();
-    };
+    }
 
     let query_lower = query.to_lowercase();
 

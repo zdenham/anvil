@@ -42,6 +42,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "registry"] }
 ureq = { version = "2", features = ["json"] }
 fs2 = "0.4"
+notify = "8"
 notify-debouncer-mini = "0.7"
 shellexpand = "3.1"
 clap = { version = "4", features = ["derive"] }

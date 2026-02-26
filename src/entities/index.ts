@@ -98,6 +98,7 @@ import { logger } from "@/lib/logger-client";
 import { setupThreadListeners } from "./threads/listeners";
 import { setupRepositoryListeners } from "./repositories/listeners";
 import { setupPermissionListeners } from "./permissions/listeners";
+import { setupQuestionListeners } from "./questions/listeners";
 import { setupPlanListeners } from "./plans/listeners";
 import { setupRelationListeners } from "./relations/listeners";
 import { setupTreeMenuListeners } from "@/stores/tree-menu/listeners";
@@ -228,6 +229,7 @@ export function setupEntityListeners(options: EntityInitOptions = {}): void {
   setupThreadListeners();
   setupRepositoryListeners();
   setupPermissionListeners();
+  setupQuestionListeners();
   setupPlanListeners();
   setupRelationListeners();
   setupTreeMenuListeners();

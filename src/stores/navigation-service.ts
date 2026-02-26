@@ -59,6 +59,27 @@ export const navigationService = {
   },
 
   /**
+   * Navigate to the Changes view for a worktree.
+   * Default mode: all changes from merge base.
+   */
+  async navigateToChanges(repoId: string, worktreeId: string, options?: {
+    uncommittedOnly?: boolean;
+    commitHash?: string;
+    /** Tree item ID to select (the "changes" parent or "commit" child item) */
+    treeItemId?: string;
+  }): Promise<void> {
+    const { treeItemId, ...viewOptions } = options ?? {};
+    // Select the corresponding tree item so it highlights in the sidebar
+    await treeMenuService.setSelectedItem(treeItemId ?? null);
+    await contentPanesService.setActivePaneView({
+      type: "changes",
+      repoId,
+      worktreeId,
+      ...viewOptions,
+    });
+  },
+
+  /**
    * Navigate to a view - clears tree selection for non-item views.
    */
   async navigateToView(view: ContentPaneView): Promise<void> {
@@ -73,6 +94,11 @@ export const navigationService = {
       });
     } else if (view.type === "pull-request") {
       await this.navigateToPullRequest(view.prId);
+    } else if (view.type === "changes") {
+      // Changes views are navigated via navigateToChanges with explicit treeItemId,
+      // but navigateToView doesn't know the tree item ID, so just set the view directly.
+      await treeMenuService.setSelectedItem(null);
+      await contentPanesService.setActivePaneView(view);
     } else {
       // For settings, logs, empty - clear tree selection
       await treeMenuService.setSelectedItem(null);

@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -8,6 +9,7 @@ import {
   Globe,
   GitBranch,
   Wrench,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getToolDisplayName } from "@/lib/utils/tool-icons";
@@ -18,6 +20,8 @@ import { useToolDiff } from "./use-tool-diff";
 import { ToolStatusIcon } from "./tool-status-icon";
 import type { ToolStatus } from "./tool-status-icon";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { usePermissionStore } from "@/entities/permissions/store";
+import { InlinePermissionApproval } from "./inline-permission-approval";
 
 interface ToolUseBlockProps {
   /** Unique tool use ID */
@@ -72,6 +76,7 @@ function getToolIconComponent(toolName: string) {
 /**
  * Collapsible card displaying tool execution details.
  * Renders inline diffs for Edit/Write tools when applicable.
+ * Shows inline permission approval UI when a pending request exists.
  */
 export function ToolUseBlock({
   id,
@@ -92,6 +97,21 @@ export function ToolUseBlock({
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
   const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
 
+  // Check for pending permission request for this tool use
+  const permissionRequest = usePermissionStore(
+    useCallback((s) => s.getRequestByToolUseId(id), [id]),
+  );
+  const hasPendingPermission = permissionRequest?.status === "pending";
+
+  // Auto-expand when a permission request arrives
+  const prevHadPermission = useRef(false);
+  useEffect(() => {
+    if (hasPendingPermission && !prevHadPermission.current) {
+      setToolExpanded(threadId, id, true);
+    }
+    prevHadPermission.current = !!hasPendingPermission;
+  }, [hasPendingPermission, setToolExpanded, threadId, id]);
+
   const Icon = getToolIconComponent(name);
   const displayName = getToolDisplayName(name);
   const formatted = formatToolInput(name, input);
@@ -110,17 +130,19 @@ export function ToolUseBlock({
 
   return (
     <details
-      open={isExpanded}
+      open={isExpanded || hasPendingPermission}
       onToggle={(e) => setIsExpanded(e.currentTarget.open)}
       className={cn(
         "group rounded-lg border",
-        status === "error" || isError
-          ? "border-red-500/30 bg-red-950/20"
-          : "border-zinc-700 bg-zinc-900/50"
+        hasPendingPermission
+          ? "border-amber-500/50 bg-amber-950/10"
+          : status === "error" || isError
+            ? "border-red-500/30 bg-red-950/20"
+            : "border-zinc-700 bg-zinc-900/50"
       )}
-      aria-label={`Tool: ${displayName}, status: ${status}`}
+      aria-label={`Tool: ${displayName}, status: ${hasPendingPermission ? "awaiting approval" : status}`}
       data-testid={`tool-use-${id}`}
-      data-tool-status={status}
+      data-tool-status={hasPendingPermission ? "pending_approval" : status}
     >
       <summary
         className={cn(
@@ -130,7 +152,7 @@ export function ToolUseBlock({
         )}
       >
         {/* Expand icon */}
-        {isExpanded ? (
+        {isExpanded || hasPendingPermission ? (
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         ) : (
           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -150,29 +172,46 @@ export function ToolUseBlock({
 
         {/* Status indicator */}
         <span className="ml-auto flex items-center gap-2">
-          {durationMs !== undefined && status !== "running" && (
+          {durationMs !== undefined && status !== "running" && !hasPendingPermission && (
             <span className="text-xs text-muted-foreground">
               {formatDuration(durationMs)}
             </span>
           )}
-          <ToolStatusIcon status={status} isError={isError} />
+          {hasPendingPermission ? (
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+          ) : (
+            <ToolStatusIcon status={status} isError={isError} />
+          )}
         </span>
 
         {/* Screen reader status */}
         <span className="sr-only">
-          {status === "running"
-            ? "In progress"
-            : status === "pending"
-              ? "Pending approval"
-              : isError
-                ? "Failed"
-                : "Completed"}
+          {hasPendingPermission
+            ? "Awaiting approval"
+            : status === "running"
+              ? "In progress"
+              : status === "pending"
+                ? "Pending approval"
+                : isError
+                  ? "Failed"
+                  : "Completed"}
         </span>
       </summary>
 
       <div className="px-3 pb-3 space-y-3">
-        {/* Inline diff display for Edit/Write tools */}
-        {diffData && (
+        {/* Inline permission approval UI */}
+        {hasPendingPermission && permissionRequest && (
+          <InlinePermissionApproval
+            request={permissionRequest}
+            diffData={diffData}
+            name={name}
+            input={input}
+            onOpenDiff={onOpenDiff}
+          />
+        )}
+
+        {/* Inline diff display for Edit/Write tools (when NOT in permission flow) */}
+        {!hasPendingPermission && diffData && (
           <InlineDiffBlock
             filePath={diffData.filePath}
             diff={diffData.diff}
@@ -186,8 +225,8 @@ export function ToolUseBlock({
           />
         )}
 
-        {/* Input section - only show if no diff or when expanded */}
-        {(!diffData || isExpanded) && (
+        {/* Input section - only show if no diff/permission or when expanded */}
+        {!hasPendingPermission && (!diffData || isExpanded) && (
           <div role="region" aria-label="Tool input">
             <h4 className="text-xs font-medium text-muted-foreground mb-1">
               Input
@@ -209,8 +248,8 @@ export function ToolUseBlock({
           </div>
         )}
 
-        {/* Output section - only show if no diff or when expanded, and has result */}
-        {result !== undefined && (!diffData || isExpanded) && (
+        {/* Output section */}
+        {!hasPendingPermission && result !== undefined && (!diffData || isExpanded) && (
           <div role="region" aria-label="Tool output">
             <h4 className="text-xs font-medium text-muted-foreground mb-1">
               Output

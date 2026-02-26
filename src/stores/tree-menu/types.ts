@@ -43,13 +43,15 @@ export interface RepoWorktreeSection {
   items: TreeItemNode[];
   /** Whether this section is expanded */
   isExpanded: boolean;
+  /** Synthetic "Changes" folder items (changes parent + uncommitted + commits) */
+  changesItems: TreeItemNode[];
 }
 
 /**
  * Individual tree item (thread, plan, terminal, or pull request).
  */
 export interface TreeItemNode {
-  type: "thread" | "plan" | "terminal" | "pull-request";
+  type: "thread" | "plan" | "terminal" | "pull-request" | "changes" | "uncommitted" | "commit";
   /** UUID of the thread, plan, terminal, or pull request */
   id: string;
   /** Display title (thread name or plan filename) */
@@ -82,7 +84,21 @@ export interface TreeItemNode {
   isViewed?: boolean;
   /** Review status icon hint for pull-request items */
   reviewIcon?: "approved" | "changes-requested" | "review-required" | "draft" | "merged" | "closed";
+  /** Full commit hash (for "commit" type items) */
+  commitHash?: string;
+  /** First line of commit message (for "commit" type items) */
+  commitMessage?: string;
+  /** Author name (for "commit" type items) */
+  commitAuthor?: string;
+  /** Relative date string like "3 days ago" (for "commit" type items) */
+  commitRelativeDate?: string;
 }
+
+/** Convenience alias for the TreeItemNode.type union */
+export type TreeItemType = TreeItemNode["type"];
+
+/** Subset of item types backed by entity stores (used by onItemSelect callbacks) */
+export type EntityItemType = "thread" | "plan" | "terminal" | "pull-request";
 
 /**
  * Discriminated union for all tree node types.

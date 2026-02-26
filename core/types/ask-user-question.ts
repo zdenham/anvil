@@ -72,33 +72,45 @@ export interface NormalizedQuestion {
 }
 
 /**
- * Parse input and normalize to common format.
- * Tries Claude Code schema first, falls back to flat schema.
+ * Parse input and normalize ALL questions to common format.
+ * Returns the full array for multi-question carousel support.
  */
-export function parseAskUserQuestionInput(
-  input: unknown
-): NormalizedQuestion | null {
+export function parseAllQuestions(
+  input: unknown,
+): NormalizedQuestion[] | null {
   // Try Claude Code nested schema first
   const nestedResult = AskUserQuestionInputSchema.safeParse(input);
   if (nestedResult.success && nestedResult.data.questions.length > 0) {
-    const item = nestedResult.data.questions[0];
-    return {
+    return nestedResult.data.questions.map((item) => ({
       question: item.question,
       header: item.header,
       options: item.options,
       multiSelect: item.multiSelect,
-    };
+    }));
   }
 
-  // Fall back to flat schema
+  // Fall back to flat schema (single question)
   const flatResult = FlatAskUserQuestionSchema.safeParse(input);
   if (flatResult.success) {
-    return {
-      question: flatResult.data.question,
-      options: flatResult.data.options.map((label) => ({ label })),
-      multiSelect: flatResult.data.allow_multiple ?? false,
-    };
+    return [
+      {
+        question: flatResult.data.question,
+        options: flatResult.data.options.map((label) => ({ label })),
+        multiSelect: flatResult.data.allow_multiple ?? false,
+      },
+    ];
   }
 
   return null;
+}
+
+/**
+ * Parse input and normalize to common format (first question only).
+ * For backward compatibility — prefer parseAllQuestions for multi-question support.
+ */
+export function parseAskUserQuestionInput(
+  input: unknown,
+): NormalizedQuestion | null {
+  const all = parseAllQuestions(input);
+  return all?.[0] ?? null;
 }

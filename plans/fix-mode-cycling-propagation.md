@@ -74,9 +74,9 @@ Even when the mode appears to change (e.g., restarting the agent), the mode pers
 
 ## Phases
 
-- [ ] Fix the `sendToAgent` call in `thread-content.tsx` to use `TauriToAgentMessage` format
-- [ ] Fix the identical `sendToAgent` call in `control-panel-window.tsx`
-- [ ] Add a `default` warning case to the runner's message switch for future debugging
+- [x] Fix the `sendToAgent` call in `thread-content.tsx` to use `TauriToAgentMessage` format
+- [x] Fix the identical `sendToAgent` call in `control-panel-window.tsx`
+- [x] Add a `default` warning case to the runner's message switch for future debugging
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

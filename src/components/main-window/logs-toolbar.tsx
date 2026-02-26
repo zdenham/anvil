@@ -3,6 +3,7 @@ import { Activity, Check, ChevronDown, Copy, Loader2, Search, Trash2 } from "luc
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
 import type { LogEntry, LogFilter, LogLevel } from "@/entities/logs";
+import { captureMemorySnapshot } from "@/lib/memory-snapshot";
 import { cn } from "@/lib/utils";
 
 const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
@@ -75,7 +76,7 @@ export function LogsToolbar({
   const listRef = useRef<HTMLDivElement>(null);
 
   // Profiling state
-  const [profilingType, setProfilingType] = useState<"cpu" | "trace" | null>(null);
+  const [profilingType, setProfilingType] = useState<"cpu" | "trace" | "memory" | null>(null);
   const [profilingResult, setProfilingResult] = useState<string | null>(null);
   const [profilingError, setProfilingError] = useState<string | null>(null);
   const [showProfilingMenu, setShowProfilingMenu] = useState(false);
@@ -111,16 +112,24 @@ export function LogsToolbar({
   }, [isCopied]);
 
   // Profiling handler
-  const startProfiling = useCallback(async (type: "cpu" | "trace") => {
+  const startProfiling = useCallback(async (type: "cpu" | "trace" | "memory") => {
     setShowProfilingMenu(false);
     setProfilingType(type);
     setProfilingResult(null);
     setProfilingError(null);
 
     try {
-      const command = type === "cpu" ? "capture_cpu_profile" : "start_trace";
-      const path = await invoke<string>(command, { durationSecs: 10 });
-      setProfilingResult(path);
+      if (type === "memory") {
+        const snapshot = await captureMemorySnapshot();
+        const path = await invoke<string>("write_memory_snapshot", {
+          snapshotJson: JSON.stringify(snapshot, null, 2),
+        });
+        setProfilingResult(path);
+      } else {
+        const command = type === "cpu" ? "capture_cpu_profile" : "start_trace";
+        const path = await invoke<string>(command, { durationSecs: 10 });
+        setProfilingResult(path);
+      }
     } catch (e) {
       setProfilingError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -378,12 +387,12 @@ export function LogsToolbar({
             )}
             title={
               profilingType
-                ? `Capturing ${profilingType === "cpu" ? "CPU flamegraph" : "chrome trace"}...`
+                ? `Capturing ${profilingType === "cpu" ? "CPU flamegraph" : profilingType === "trace" ? "chrome trace" : "memory snapshot"}...`
                 : profilingError
                   ? `Profiling error: ${profilingError}`
                   : profilingResult
                     ? "Profiling complete"
-                    : "Profile CPU"
+                    : "Profile"
             }
           >
             {profilingType ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
@@ -404,6 +413,13 @@ export function LogsToolbar({
               >
                 Chrome Trace
                 <span className="ml-auto text-surface-500">10s</span>
+              </button>
+              <button
+                onClick={() => startProfiling("memory")}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-surface-200 hover:bg-surface-700 cursor-pointer"
+              >
+                Memory Snapshot
+                <span className="ml-auto text-surface-500">instant</span>
               </button>
             </div>
           )}

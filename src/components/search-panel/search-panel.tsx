@@ -1,0 +1,197 @@
+/**
+ * SearchPanel
+ *
+ * VS Code-style content search panel. Searches both file contents (via git grep)
+ * and thread conversation content in parallel. Results are displayed grouped by
+ * thread/file with collapsible match lines.
+ */
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { FileResultGroup } from "./file-result-group";
+import { ThreadResultGroup } from "./thread-result-group";
+import { useSearch } from "./use-search";
+import { SearchHeader, SearchInput, FileScope, FilterFields, SummaryBar, useWorktreeOptions } from "./search-controls";
+import type { GrepMatch } from "@/lib/tauri-commands";
+
+export interface SearchPanelProps {
+  onClose: () => void;
+  onNavigateToFile: (filePath: string, lineNumber: number, worktreePath: string, isPlan: boolean) => void;
+  onNavigateToThread: (threadId: string, searchQuery: string) => void;
+}
+
+export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: SearchPanelProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Controls state
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [includeFiles, setIncludeFiles] = useState(true);
+  const [includePatterns, setIncludePatterns] = useState("");
+  const [excludePatterns, setExcludePatterns] = useState("archive, *.lock, dist, build");
+
+  // Worktree selection
+  const worktreeOptions = useWorktreeOptions();
+  const [selectedWorktreeIdx, setSelectedWorktreeIdx] = useState(0);
+  const selectedWorktree = worktreeOptions[selectedWorktreeIdx] ?? worktreeOptions[0];
+  const worktreePath = selectedWorktree?.path ?? "";
+
+  // Search execution
+  const search = useSearch({ includeFiles, worktreePath, caseSensitive, includePatterns, excludePatterns });
+
+  // Auto-focus on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Escape key: clear input or close panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (search.query) {
+          search.setQuery("");
+          inputRef.current?.focus();
+        } else {
+          onClose();
+        }
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
+  }, [search.query, onClose]);
+
+  // Collapse/expand all
+  const handleCollapseAll = useCallback(() => {
+    search.setFileGroups((prev) => prev.map((g) => ({ ...g, isCollapsed: true })));
+    search.setThreadGroups((prev) => prev.map((g) => ({ ...g, isCollapsed: true })));
+  }, []);
+
+  const handleExpandAll = useCallback(() => {
+    search.setFileGroups((prev) => prev.map((g) => ({ ...g, isCollapsed: false })));
+    search.setThreadGroups((prev) => prev.map((g) => ({ ...g, isCollapsed: false })));
+  }, []);
+
+  const handleFileMatchClick = useCallback((match: GrepMatch, filePath: string, isPlan: boolean) => {
+    onNavigateToFile(filePath, match.lineNumber, worktreePath, isPlan);
+  }, [worktreePath, onNavigateToFile]);
+
+  const handleThreadClick = useCallback((threadId: string) => {
+    onNavigateToThread(threadId, search.query);
+  }, [search.query, onNavigateToThread]);
+
+  // Summary counts
+  const threadCount = search.threadGroups.length;
+  const fileCount = search.fileGroups.length;
+  const hasResults = threadCount > 0 || fileCount > 0;
+  const hasQuery = search.query.length >= 2;
+
+  return (
+    <div className="flex flex-col h-full">
+      <SearchHeader onClose={onClose} />
+      <SearchInput
+        ref={inputRef}
+        value={search.query}
+        onChange={search.setQuery}
+        caseSensitive={caseSensitive}
+        onToggleCase={() => setCaseSensitive((v) => !v)}
+        showFilters={showFilters}
+        onToggleFilters={() => setShowFilters((v) => !v)}
+      />
+      <FileScope
+        includeFiles={includeFiles}
+        onToggleInclude={() => setIncludeFiles((v) => !v)}
+        worktreeOptions={worktreeOptions}
+        selectedIdx={selectedWorktreeIdx}
+        onSelectWorktree={setSelectedWorktreeIdx}
+      />
+      {showFilters && (
+        <FilterFields
+          includePatterns={includePatterns}
+          excludePatterns={excludePatterns}
+          onIncludeChange={setIncludePatterns}
+          onExcludeChange={setExcludePatterns}
+        />
+      )}
+      {hasQuery && (
+        <SummaryBar
+          threadCount={threadCount}
+          fileMatchCount={search.totalFileMatches}
+          fileCount={fileCount}
+          onCollapseAll={handleCollapseAll}
+          onExpandAll={handleExpandAll}
+        />
+      )}
+      <div className="flex-1 overflow-y-auto">
+        <SearchResultsList
+          search={search}
+          hasQuery={hasQuery}
+          hasResults={hasResults}
+          caseSensitive={caseSensitive}
+          onFileMatchClick={handleFileMatchClick}
+          onThreadClick={handleThreadClick}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SearchResultsList({ search, hasQuery, hasResults, caseSensitive, onFileMatchClick, onThreadClick }: {
+  search: ReturnType<typeof useSearch>;
+  hasQuery: boolean;
+  hasResults: boolean;
+  caseSensitive: boolean;
+  onFileMatchClick: (match: GrepMatch, filePath: string, isPlan: boolean) => void;
+  onThreadClick: (threadId: string) => void;
+}) {
+  if (!hasQuery) {
+    return <EmptyState text="Type to search files and threads" />;
+  }
+  if (search.isSearching && !hasResults) {
+    return <EmptyState text="Searching..." />;
+  }
+  if (!hasResults && !search.isSearching) {
+    return <EmptyState text="No results" />;
+  }
+
+  return (
+    <div className="py-1">
+      {search.threadGroups.map((group) => (
+        <ThreadResultGroup
+          key={group.threadId}
+          group={group}
+          query={search.query}
+          caseSensitive={caseSensitive}
+          onToggle={() => search.setThreadGroups((prev) =>
+            prev.map((g) => g.threadId === group.threadId ? { ...g, isCollapsed: !g.isCollapsed } : g)
+          )}
+          onMatchClick={() => onThreadClick(group.threadId)}
+        />
+      ))}
+      {search.fileGroups.map((group) => (
+        <FileResultGroup
+          key={group.filePath}
+          group={group}
+          query={search.query}
+          caseSensitive={caseSensitive}
+          onToggle={() => search.setFileGroups((prev) =>
+            prev.map((g) => g.filePath === group.filePath ? { ...g, isCollapsed: !g.isCollapsed } : g)
+          )}
+          onMatchClick={(match) => onFileMatchClick(match, group.filePath, group.isPlan)}
+        />
+      ))}
+      {(search.fileTruncated || search.threadTruncated) && (
+        <div className="px-3 py-1.5 text-xs text-amber-400">
+          Results truncated. Refine your search for more specific results.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="flex items-center justify-center h-full text-surface-500 text-xs">
+      {text}
+    </div>
+  );
+}

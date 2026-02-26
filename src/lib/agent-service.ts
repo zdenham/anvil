@@ -220,6 +220,16 @@ function routeAgentEvent(threadId: string, eventName: string, payload: unknown):
       });
       break;
 
+    case EventName.QUESTION_REQUEST:
+      eventBus.emit(EventName.QUESTION_REQUEST, payload as {
+        requestId: string;
+        threadId: string;
+        toolUseId: string;
+        toolInput: Record<string, unknown>;
+        timestamp: number;
+      });
+      break;
+
     case EventName.THREAD_CREATED:
     case EventName.THREAD_UPDATED:
     case EventName.THREAD_STATUS_CHANGED:
@@ -512,6 +522,8 @@ export interface SpawnSimpleAgentOptions {
   sourcePath: string;
   /** Permission mode for tool execution (defaults to "implement" if not provided) */
   permissionMode?: PermissionModeId;
+  /** Skip worktree/thread naming (for setup threads) */
+  skipNaming?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -581,6 +593,7 @@ const SpawnOptionsSchema = z.object({
   prompt: z.string(),
   sourcePath: z.string(),
   permissionMode: z.enum(["plan", "implement", "approve"]).optional(),
+  skipNaming: z.boolean().optional(),
 });
 
 /**
@@ -758,6 +771,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     "--prompt", parsed.prompt,
     "--mort-dir", mortDir,
     ...(parsed.permissionMode ? ["--permission-mode", parsed.permissionMode] : []),
+    ...(parsed.skipNaming ? ["--skip-naming"] : []),
   ];
 
   logger.info("[agent-service] spawnSimpleAgent command:", {

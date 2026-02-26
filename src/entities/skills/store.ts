@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { scoreMatch } from '@core/skills/index.js';
 import type { SkillMetadata, SkillSource } from './types.js';
 
 interface SkillsState {
@@ -55,11 +56,11 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
 
   search: (query) => {
     const q = query.toLowerCase();
-    return get().getAll().filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      s.slug.toLowerCase().includes(q) ||
-      s.description.toLowerCase().includes(q)
-    );
+    return get().getAll()
+      .map(skill => ({ skill, score: scoreMatch(skill, q) }))
+      .filter(({ score }) => score < Infinity)
+      .sort((a, b) => a.score - b.score)
+      .map(({ skill }) => skill);
   },
 
   hydrate: (skills, repoPath) => set({

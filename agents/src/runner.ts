@@ -26,6 +26,7 @@ import { HubClient, type TauriToAgentMessage } from "./lib/hub/index.js";
 import { SocketMessageStream } from "./lib/hub/message-stream.js";
 import { PermissionEvaluator, GLOBAL_OVERRIDES } from "./lib/permission-evaluator.js";
 import { PermissionGate } from "./lib/permission-gate.js";
+import { QuestionGate } from "./lib/question-gate.js";
 import { BUILTIN_MODES } from "@core/types/permissions.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
 
@@ -173,6 +174,9 @@ async function main(): Promise<void> {
   // Create permission gate for async approval flow
   const permissionGate = new PermissionGate();
 
+  // Create question gate for AskUserQuestion async answer flow
+  const questionGate = new QuestionGate();
+
   // Permission evaluator — created after context is available, but referenced in handler
   let permissionEvaluator: PermissionEvaluator | undefined;
 
@@ -194,6 +198,12 @@ async function main(): Promise<void> {
           const { requestId, decision, reason } = msg.payload;
           logger.info(`[runner] Received permission response: ${requestId} -> ${decision}`);
           permissionGate.resolve(requestId, decision === "approve", reason);
+          break;
+        }
+        case "question_response": {
+          const { requestId, answers } = msg.payload;
+          logger.info(`[runner] Received question response: ${requestId}`);
+          questionGate.resolve(requestId, answers);
           break;
         }
         case "permission_mode_changed": {
@@ -240,6 +250,9 @@ async function main(): Promise<void> {
         case "cancel":
           logger.info("[runner] Received cancel message from Tauri, aborting...");
           abortController.abort();
+          break;
+        default:
+          logger.warn(`[runner] Unhandled message type: ${(msg as { type: string }).type}`);
           break;
       }
     });
@@ -358,6 +371,7 @@ async function main(): Promise<void> {
       messageStream,
       permissionEvaluator,
       permissionGate,
+      questionGate,
     });
 
     // Clean up on successful completion

@@ -3,6 +3,7 @@ import { useTreeData } from "@/hooks/use-tree-data";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import type { EntityItemType } from "@/stores/tree-menu/types";
 import { RepoWorktreeSection } from "./repo-worktree-section";
 
 interface TreeMenuProps {
@@ -58,7 +59,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr,
 
   // Build flat list of focusable items for keyboard navigation
   const focusableItems = useMemo(() => {
-    const items: Array<{ type: "section" | "item"; id: string; sectionId?: string; itemType?: "thread" | "plan" | "terminal" | "pull-request" }> = [];
+    const items: Array<{ type: "section" | "item"; id: string; sectionId?: string; itemType?: EntityItemType }> = [];
 
     for (const section of sections) {
       items.push({ type: "section", id: section.id });
@@ -68,7 +69,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr,
             type: "item",
             id: item.id,
             sectionId: section.id,
-            itemType: item.type,
+            itemType: item.type as EntityItemType,
           });
         }
       }
@@ -130,7 +131,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr,
               if (section?.isExpanded && section.items.length > 0) {
                 const firstItem = section.items[0];
                 await treeMenuService.setSelectedItem(firstItem.id);
-                onItemSelect(firstItem.id, firstItem.type);
+                onItemSelect(firstItem.id, firstItem.type as EntityItemType);
               }
             }
           }

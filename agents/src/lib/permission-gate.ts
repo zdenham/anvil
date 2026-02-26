@@ -29,6 +29,7 @@ export class PermissionGate {
       threadId: string;
       toolName: string;
       toolInput: unknown;
+      toolUseId?: string;
       reason: string;
       signal: AbortSignal;
     },
@@ -40,6 +41,7 @@ export class PermissionGate {
       threadId: context.threadId,
       toolName: context.toolName,
       toolInput: context.toolInput as Record<string, unknown>,
+      ...(context.toolUseId ? { toolUseId: context.toolUseId } : {}),
       timestamp: Date.now(),
     });
 

@@ -229,6 +229,9 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         case "--permission-mode":
           config.permissionMode = args[++i] as RunnerConfig["permissionMode"];
           break;
+        case "--skip-naming":
+          config.skipNaming = true;
+          break;
         // Ignore deprecated arguments for backwards compatibility
         case "--worktree-renamed":
           // Deprecated: now read from disk instead of CLI arg
@@ -419,22 +422,26 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         worktreeId,
       });
 
-      // Start thread naming in parallel (fire and forget)
-      this.initiateThreadNaming(threadId, prompt, threadPath);
-
-      // Start worktree naming in parallel (fire and forget)
-      // Only trigger if the worktree hasn't already been renamed from its initial animal name
-      // and this is not the main worktree (which should never be renamed)
-      const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
-      const mainWorktree = isMainWorktree(mortDir, repoId, worktreeId);
-
-      if (mainWorktree) {
-        emitLog("INFO", `[worktree_rename] Skipping worktree naming - this is the main worktree (worktreeId=${worktreeId})`);
-      } else if (!alreadyRenamed) {
-        emitLog("INFO", `[worktree_rename] New thread created, worktree not yet renamed - initiating worktree naming for worktreeId=${worktreeId}`);
-        this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
+      if (config.skipNaming) {
+        emitLog("INFO", `[naming] Skipping thread and worktree naming — setup thread`);
       } else {
-        emitLog("INFO", `[worktree_rename] Skipping worktree naming - worktree already renamed (worktreeId=${worktreeId})`);
+        // Start thread naming in parallel (fire and forget)
+        this.initiateThreadNaming(threadId, prompt, threadPath);
+
+        // Start worktree naming in parallel (fire and forget)
+        // Only trigger if the worktree hasn't already been renamed from its initial animal name
+        // and this is not the main worktree (which should never be renamed)
+        const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
+        const mainWorktree = isMainWorktree(mortDir, repoId, worktreeId);
+
+        if (mainWorktree) {
+          emitLog("INFO", `[worktree_rename] Skipping worktree naming - this is the main worktree (worktreeId=${worktreeId})`);
+        } else if (!alreadyRenamed) {
+          emitLog("INFO", `[worktree_rename] New thread created, worktree not yet renamed - initiating worktree naming for worktreeId=${worktreeId}`);
+          this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
+        } else {
+          emitLog("INFO", `[worktree_rename] Skipping worktree naming - worktree already renamed (worktreeId=${worktreeId})`);
+        }
       }
     }
 

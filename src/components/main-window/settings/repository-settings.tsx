@@ -1,12 +1,17 @@
 import { useState, useEffect } from "react";
-import { Folder, Check, AlertCircle, FolderOpen } from "lucide-react";
+import { Folder, Check, AlertCircle, FolderOpen, Terminal } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { SettingsSection } from "../settings-section";
 import { useRepoStore, repoService, type Repository } from "@/entities/repositories";
 import { worktreeService } from "@/entities/worktrees";
 import { threadService } from "@/entities/threads";
-import { appData } from "@/lib/app-data-store";
+import { appData, loadSettings, saveSettings } from "@/lib/app-data-store";
 import { repoCommands } from "@/lib/tauri-commands";
+import { logger } from "@/lib/logger-client";
+
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
 
 interface RepoStatus {
   worktreeCount: number;
@@ -18,6 +23,10 @@ export function RepositorySettings() {
   const repositoriesMap = useRepoStore((state) => state.repositories);
   const repositories = Object.values(repositoriesMap);
   const [locateError, setLocateError] = useState<string | null>(null);
+
+  // Setup prompt editing state
+  const [editingSetupPrompt, setEditingSetupPrompt] = useState<string | null>(null);
+  const [setupPromptValue, setSetupPromptValue] = useState("");
 
   // Status for each repo
   const [repoStatuses, setRepoStatuses] = useState<Record<string, RepoStatus>>({});
@@ -100,6 +109,35 @@ export function RepositorySettings() {
     return `${start}...${end}`;
   };
 
+  const handleToggleSetupPrompt = async (repoName: string) => {
+    if (editingSetupPrompt === repoName) {
+      setEditingSetupPrompt(null);
+      return;
+    }
+
+    try {
+      const slug = slugify(repoName);
+      const settings = await loadSettings(slug);
+      setSetupPromptValue(settings.worktreeSetupPrompt ?? "");
+      setEditingSetupPrompt(repoName);
+    } catch (err) {
+      logger.error(`[RepositorySettings] Failed to load setup prompt for ${repoName}:`, err);
+    }
+  };
+
+  const handleSaveSetupPrompt = async (repoName: string) => {
+    try {
+      const slug = slugify(repoName);
+      const settings = await loadSettings(slug);
+      const trimmed = setupPromptValue.trim();
+      settings.worktreeSetupPrompt = trimmed.length > 0 ? trimmed : null;
+      await saveSettings(slug, settings);
+      logger.debug(`[RepositorySettings] Saved setup prompt for ${repoName}`);
+    } catch (err) {
+      logger.error(`[RepositorySettings] Failed to save setup prompt for ${repoName}:`, err);
+    }
+  };
+
   return (
     <SettingsSection
       title="Repositories"
@@ -153,7 +191,7 @@ export function RepositorySettings() {
                   ) : null}
                 </div>
 
-                {/* Status badges */}
+                {/* Status badges and setup button */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {status && (
                     <>
@@ -175,8 +213,36 @@ export function RepositorySettings() {
                       )}
                     </>
                   )}
+                  <button
+                    onClick={() => handleToggleSetupPrompt(repo.name)}
+                    className="text-surface-400 hover:text-surface-200 flex items-center gap-1 flex-shrink-0"
+                    title="Configure worktree setup prompt"
+                  >
+                    <Terminal size={12} />
+                    <span>Setup</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Setup prompt editor */}
+              {editingSetupPrompt === repo.name && (
+                <div className="flex flex-col gap-1.5 pt-1 border-t border-surface-700/50">
+                  <label className="text-xs text-surface-400">
+                    Worktree setup prompt
+                  </label>
+                  <textarea
+                    className="w-full bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-xs text-surface-200 placeholder-surface-600 resize-y min-h-[60px] focus:outline-none focus:border-accent-500"
+                    placeholder="e.g., Copy .env from the main worktree, run npm install, run db:migrate..."
+                    value={setupPromptValue}
+                    onChange={(e) => setSetupPromptValue(e.target.value)}
+                    onBlur={() => handleSaveSetupPrompt(repo.name)}
+                    rows={3}
+                  />
+                  <p className="text-[11px] text-surface-600">
+                    Runs automatically when a new worktree is created. Leave blank to disable.
+                  </p>
+                </div>
+              )}
             </div>
           );
         })}

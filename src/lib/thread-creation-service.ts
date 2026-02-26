@@ -29,6 +29,8 @@ export interface CreateThreadOptions {
   worktreePath: string;
   /** Permission mode for tool execution (defaults to "implement" if not provided) */
   permissionMode?: PermissionModeId;
+  /** Skip worktree/thread naming (for setup threads) */
+  skipNaming?: boolean;
 }
 
 export interface CreateThreadResult {
@@ -155,6 +157,7 @@ export async function createThread(
     prompt,
     sourcePath: worktreePath,
     permissionMode: options.permissionMode,
+    skipNaming: options.skipNaming,
   })
     .then(() => {
       logger.info("[thread-creation-service] Agent spawned successfully", {

@@ -13,7 +13,41 @@ export interface FileSearchOptions {
   maxResults?: number; // Default: 20
 }
 
+interface CacheEntry {
+  files: Array<{ path: string; tracked: boolean }>;
+  loadedAt: number;
+}
+
 export class FileSearchService {
+  private cache = new Map<string, CacheEntry>();
+
+  async load(rootPath: string): Promise<void> {
+    if (this.cache.has(rootPath)) {
+      return;
+    }
+
+    const [trackedFiles, untrackedFiles] = await Promise.all([
+      gitCommands.lsFiles(rootPath),
+      gitCommands.lsFilesUntracked(rootPath).catch(() => []),
+    ]);
+
+    this.cache.set(rootPath, {
+      files: [
+        ...trackedFiles.map((f) => ({ path: f, tracked: true })),
+        ...untrackedFiles.map((f) => ({ path: f, tracked: false })),
+      ],
+      loadedAt: Date.now(),
+    });
+  }
+
+  invalidate(rootPath?: string): void {
+    if (rootPath) {
+      this.cache.delete(rootPath);
+    } else {
+      this.cache.clear();
+    }
+  }
+
   async search(
     rootPath: string,
     query: string,
@@ -26,49 +60,48 @@ export class FileSearchService {
     }
 
     try {
-      // Run both git commands in parallel to get tracked and untracked files
-      const [trackedFiles, untrackedFiles] = await Promise.all([
-        gitCommands.lsFiles(rootPath),
-        gitCommands.lsFilesUntracked(rootPath).catch(() => []) // Fallback to empty array if untracked fails
-      ]);
-
-      // Combine all files with tracking status
-      const allFiles = [
-        ...trackedFiles.map(f => ({ path: f, tracked: true })),
-        ...untrackedFiles.map(f => ({ path: f, tracked: false }))
-      ];
+      await this.load(rootPath);
+      const allFiles = this.cache.get(rootPath)!.files;
 
       // Early return for empty query - show first N files (prioritize tracked)
       if (!query.trim()) {
-        const sortedFiles = this.prioritizeTrackedFiles(allFiles);
+        const sortedFiles = this.prioritizeTrackedFiles([...allFiles]);
         return sortedFiles
           .slice(0, maxResults)
           .map((f) => this.toResult(f.path, 0, f.tracked));
       }
 
-      // Score and sort by match quality (fuzzy subsequence matching)
-      const scoredFiles = allFiles
-        .map((f) => ({
-          path: f.path,
-          tracked: f.tracked,
-          score: this.score(f.path, query)
-        }))
-        .filter((f) => f.score > 0)
-        .sort((a, b) => {
-          // First sort by score, then prioritize tracked files for ties
-          if (a.score === b.score) {
-            return a.tracked === b.tracked ? 0 : (a.tracked ? -1 : 1);
-          }
-          return b.score - a.score;
-        })
-        .slice(0, maxResults);
-
-      return scoredFiles.map((f) => this.toResult(f.path, f.score, f.tracked));
+      return this.scoreAndSort(allFiles, query, maxResults);
     } catch (error) {
       // Not a git repo or git not available
       logger.warn(`git ls-files failed in ${rootPath}:`, error);
       return [];
     }
+  }
+
+  private scoreAndSort(
+    allFiles: Array<{ path: string; tracked: boolean }>,
+    query: string,
+    maxResults: number
+  ): FileSearchResult[] {
+    // Score and sort by match quality (fuzzy subsequence matching)
+    const scoredFiles = allFiles
+      .map((f) => ({
+        path: f.path,
+        tracked: f.tracked,
+        score: this.score(f.path, query),
+      }))
+      .filter((f) => f.score > 0)
+      .sort((a, b) => {
+        // First sort by score, then prioritize tracked files for ties
+        if (a.score === b.score) {
+          return a.tracked === b.tracked ? 0 : a.tracked ? -1 : 1;
+        }
+        return b.score - a.score;
+      })
+      .slice(0, maxResults);
+
+    return scoredFiles.map((f) => this.toResult(f.path, f.score, f.tracked));
   }
 
   private prioritizeTrackedFiles(files: { path: string; tracked: boolean }[]): { path: string; tracked: boolean }[] {

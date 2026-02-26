@@ -3,5 +3,8 @@ export { TreePanelHeader } from "./tree-panel-header";
 export { RepoWorktreeSection } from "./repo-worktree-section";
 export { ThreadItem } from "./thread-item";
 export { PlanItem } from "./plan-item";
+export { ChangesItem } from "./changes-item";
+export { UncommittedItem } from "./uncommitted-item";
+export { CommitItem } from "./commit-item";
 export { SectionDivider } from "./section-divider";
 export { useTreeKeyboardNav, useTreeItemKeyboardNav } from "./use-tree-keyboard-nav";

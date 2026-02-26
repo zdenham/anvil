@@ -33,6 +33,16 @@ pub fn initialize(app_handle: &tauri::AppHandle) {
     });
 }
 
+/// Extracts icons for a list of app paths (called when new apps are discovered).
+pub fn extract_icons_for_paths(app_paths: &[String]) {
+    let Some(cache_dir) = CACHE_DIR.get() else {
+        return;
+    };
+    for app_path in app_paths {
+        extract_icon_if_needed(cache_dir, app_path);
+    }
+}
+
 /// Returns the cached icon path for an application, or None if not cached.
 pub fn get_cached_icon_path(app_path: &str) -> Option<String> {
     let cache_dir = CACHE_DIR.get()?;

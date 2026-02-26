@@ -5,12 +5,10 @@ import type {
   WebSearchToolResultBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
-import { parseAskUserQuestionInput } from "@core/types/ask-user-question.js";
-import { logger } from "@/lib/logger-client";
 import { TextBlock } from "./text-block";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolUseBlock } from "./tool-use-block";
-import { AskUserQuestionBlock } from "./ask-user-question-block";
+import { LiveAskUserQuestion } from "./live-ask-user-question";
 import { getSpecializedToolBlock } from "./tool-blocks";
 
 interface AssistantMessageProps {
@@ -78,38 +76,14 @@ export function AssistantMessage({
 
                 // Handle AskUserQuestion specially with interactive UI
                 if (block.name === "AskUserQuestion") {
-                  const parsed = parseAskUserQuestionInput(block.input);
-
-                  if (!parsed) {
-                    logger.warn("[AssistantMessage] Invalid AskUserQuestion input", {
-                      input: block.input,
-                    });
-                    // Graceful fallback: render as generic tool block
-                    return (
-                      <ToolUseBlock
-                        key={block.id}
-                        id={block.id}
-                        name={block.name}
-                        input={block.input as Record<string, unknown>}
-                        result={state.result}
-                        isError={state.isError}
-                        status={state.status}
-                        threadId={threadId}
-                      />
-                    );
-                  }
-
                   return (
-                    <AskUserQuestionBlock
+                    <LiveAskUserQuestion
                       key={block.id}
-                      id={block.id}
-                      question={parsed.question}
-                      header={parsed.header}
-                      options={parsed.options}
-                      allowMultiple={parsed.multiSelect}
-                      status={state.status === "complete" ? "answered" : "pending"}
-                      result={state.result}
-                      onSubmit={(response) => onToolResponse?.(block.id, response)}
+                      blockId={block.id}
+                      blockInput={block.input}
+                      toolState={state}
+                      threadId={threadId}
+                      onToolResponse={onToolResponse}
                     />
                   );
                 }

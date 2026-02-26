@@ -40,11 +40,13 @@ export function getPlanPreviewContent(content: string | null): string | null {
  * Represents an item that can be previewed in the command palette.
  */
 export interface PreviewableItem {
-  type: "thread" | "plan";
+  type: "thread" | "plan" | "file";
   id: string;
   name: string;
   preview: string | null;
   updatedAt: number;
   repoId: string;
   worktreeId: string;
+  /** Relative file path — only set for type: "file" */
+  filePath?: string;
 }

@@ -99,6 +99,18 @@ export function ContentPaneHeader({
     );
   }
 
+  if (view.type === "changes") {
+    return (
+      <ChangesHeader
+        repoId={view.repoId}
+        worktreeId={view.worktreeId}
+        uncommittedOnly={view.uncommittedOnly}
+        commitHash={view.commitHash}
+        onClose={onClose}
+      />
+    );
+  }
+
   // Settings, logs - simple headers
   return <SimpleHeader title={view.type} onClose={onClose} />;
 }
@@ -429,6 +441,57 @@ function TerminalHeader({
           className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane (terminal stays alive)"
           title="Close pane (terminal stays alive)"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Header for Changes view mode.
+ * Breadcrumb format:
+ * - All changes: repoName / worktreeName / changes / All Changes
+ * - Uncommitted: repoName / worktreeName / changes / Uncommitted
+ * - Single commit: repoName / worktreeName / changes / abc1234
+ */
+function ChangesHeader({
+  repoId,
+  worktreeId,
+  uncommittedOnly,
+  commitHash,
+  onClose,
+}: {
+  repoId: string;
+  worktreeId: string;
+  uncommittedOnly?: boolean;
+  commitHash?: string;
+  onClose: () => void;
+}) {
+  const { repoName, worktreeName } = useBreadcrumbContext(repoId, worktreeId);
+
+  const itemLabel = (() => {
+    if (commitHash) return commitHash.slice(0, 7);
+    if (uncommittedOnly) return "Uncommitted";
+    return "All Changes";
+  })();
+
+  return (
+    <div className="@container flex items-center gap-2.5 pl-3 pr-2 py-2 border-b border-surface-700">
+      <Breadcrumb
+        repoName={repoName}
+        worktreeName={worktreeName}
+        category="changes"
+        itemLabel={itemLabel}
+        onCategoryClick={onClose}
+      />
+
+      <div className="ml-auto">
+        <button
+          onClick={onClose}
+          className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+          aria-label="Close pane"
         >
           <X size={12} />
         </button>

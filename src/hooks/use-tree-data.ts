@@ -6,6 +6,7 @@ import { usePermissionStore } from "@/entities/permissions/store";
 import { usePullRequestStore } from "@/entities/pull-requests/store";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { useCommitStore } from "@/stores/commit-store";
 import { relationService } from "@/entities/relations/service";
 import { getThreadStatusVariant, getPlanStatusVariant } from "@/utils/thread-colors";
 import { derivePrStatusDot } from "@/utils/pr-status";
@@ -237,6 +238,78 @@ function buildSectionItems(
   return items;
 }
 
+/**
+ * Build the "Changes" folder item and its children (uncommitted + commits)
+ * for a section. Always returns at least the Changes parent item.
+ * When expanded, also includes the Uncommitted child + up to 20 commits.
+ * Reads commits synchronously from the commit store.
+ */
+export function buildChangesItems(
+  sectionId: string,
+  expandedSections: Record<string, boolean>,
+): TreeItemNode[] {
+  const items: TreeItemNode[] = [];
+
+  const changesItemId = `changes:${sectionId}`;
+  const isExpanded = expandedSections[changesItemId] ?? false;
+
+  items.push({
+    type: "changes",
+    id: changesItemId,
+    title: "Changes",
+    status: "read",
+    updatedAt: 0,
+    createdAt: 0,
+    sectionId,
+    depth: 0,
+    isFolder: true,
+    isExpanded,
+  });
+
+  if (!isExpanded) return items;
+
+  // Always add "Uncommitted Changes" as first child
+  const uncommittedItemId = `uncommitted:${sectionId}`;
+  items.push({
+    type: "uncommitted",
+    id: uncommittedItemId,
+    title: "Uncommitted Changes",
+    status: "read",
+    updatedAt: 0,
+    createdAt: 0,
+    sectionId,
+    depth: 1,
+    isFolder: false,
+    isExpanded: false,
+    parentId: changesItemId,
+  });
+
+  // Read commits from commit store (synchronous getState())
+  const { commitsBySection } = useCommitStore.getState();
+  const commits = commitsBySection[sectionId] ?? [];
+  for (const commit of commits.slice(0, 20)) {
+    items.push({
+      type: "commit",
+      id: `commit:${sectionId}:${commit.hash}`,
+      title: commit.message,
+      status: "read",
+      updatedAt: 0,
+      createdAt: 0,
+      sectionId,
+      depth: 1,
+      isFolder: false,
+      isExpanded: false,
+      parentId: changesItemId,
+      commitHash: commit.hash,
+      commitMessage: commit.message,
+      commitAuthor: commit.author,
+      commitRelativeDate: commit.relativeDate,
+    });
+  }
+
+  return items;
+}
+
 interface RepoWithWorktrees {
   repoId: string;
   repoName: string;
@@ -393,6 +466,7 @@ export function buildTreeFromEntities(
       worktreePath: info.worktreePath,
       items,
       isExpanded: expandedSections[sectionId] ?? true, // Default to expanded
+      changesItems: buildChangesItems(sectionId, expandedSections),
     });
   }
 
@@ -429,6 +503,8 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
   // Subscribe to prDetails so tree re-renders when details load
   const prDetails = usePullRequestStore((state) => state.prDetails);
   const expandedSections = useTreeMenuStore((state) => state.expandedSections);
+  // Subscribe to commit store so tree re-renders when commits arrive
+  const commitsBySection = useCommitStore((state) => state.commitsBySection);
   const pinnedSectionId = useTreeMenuStore((state) => state.pinnedSectionId);
   const hiddenSectionIds = useTreeMenuStore((state) => state.hiddenSectionIds);
 
@@ -502,7 +578,7 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
 
     // Otherwise, filter out hidden sections
     return allSections.filter(s => !hiddenSectionIds.includes(s.id));
-  }, [threads, plans, terminals, pullRequests, prDetails, expandedSections, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath, skipFiltering, pinnedSectionId, hiddenSectionIds, threadsWithPendingInput]);
+  }, [threads, plans, terminals, pullRequests, prDetails, expandedSections, commitsBySection, runningThreadIds, allRepos, getRepoName, getWorktreeName, getWorktreePath, skipFiltering, pinnedSectionId, hiddenSectionIds, threadsWithPendingInput]);
 }
 
 /**

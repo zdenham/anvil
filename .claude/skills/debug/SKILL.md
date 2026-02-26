@@ -45,6 +45,7 @@ pnpm test:harness
 
 ### Query Logs
 
+**Local dev logs:**
 ```bash
 # View live dev logs
 tail -f logs/dev.log
@@ -62,6 +63,8 @@ tail -100 logs/dev.log | grep -A5 -B5 "pattern"
 grep "agent_hub" logs/dev.log | tail -20
 grep "hub::client" logs/dev.log | tail -20
 ```
+
+**Production/staging logs:** Use `/query-clickhouse` to query ClickHouse observability logs over HTTP API (errors, sessions, performance, etc.).
 
 ## Test Infrastructure Overview
 

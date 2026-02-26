@@ -2701,6 +2701,7 @@ dependencies = [
  "dirs 5.0.1",
  "fs2",
  "nix 0.29.0",
+ "notify",
  "notify-debouncer-mini",
  "objc2 0.6.3",
  "objc2-app-kit",

@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { parseDiff } from "@/lib/diff-parser";
 import { sanitizeTestId } from "@/lib/utils/index";
 import { AnnotatedLineRow } from "../diff-viewer/annotated-line-row";
@@ -9,6 +9,7 @@ import {
 } from "../diff-viewer/use-collapsed-regions";
 import { InlineDiffHeader } from "./inline-diff-header";
 import { InlineDiffActions } from "./inline-diff-actions";
+import { CollapsibleOutputBlock } from "../ui/collapsible-output-block";
 import type { AnnotatedLine, ParsedDiffFile } from "../diff-viewer/types";
 
 interface InlineDiffBlockProps {
@@ -32,12 +33,21 @@ interface InlineDiffBlockProps {
   onAccept?: () => void;
   /** Callback when user rejects (only shown when isPending) */
   onReject?: () => void;
+  /** Whether to start collapsed for large diffs (auto-detected if not set) */
+  defaultCollapsed?: boolean;
 }
+
+/** Threshold: diffs with more lines than this start collapsed */
+const LARGE_DIFF_LINE_THRESHOLD = 40;
+/** Max height in pixels when collapsed */
+const COLLAPSED_MAX_HEIGHT = 200;
 
 /**
  * Inline diff display for Edit/Write tool results.
  * Shows file changes in a compact format within the thread.
+ * Auto-collapses large diffs (>40 lines) when pending approval.
  */
+
 export const InlineDiffBlock = memo(function InlineDiffBlock({
   filePath,
   diff,
@@ -49,6 +59,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   isPending,
   onAccept,
   onReject,
+  defaultCollapsed,
 }: InlineDiffBlockProps) {
   // Parse diff and build annotated lines
   const { lines, stats, error } = useMemo(() => {
@@ -110,6 +121,11 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
     collapsedRegions.expanded
   );
 
+  // Auto-collapse large diffs
+  const isLargeDiff = lines.length > LARGE_DIFF_LINE_THRESHOLD;
+  const shouldStartCollapsed = defaultCollapsed ?? (isPending && isLargeDiff);
+  const [isDiffExpanded, setIsDiffExpanded] = useState(!shouldStartCollapsed);
+
   // Extract filename for display
   const fileName = filePath.split("/").pop() ?? filePath;
   const testId = `inline-diff-${sanitizeTestId(filePath)}`;
@@ -159,39 +175,20 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
         onCollapseAll={collapsedRegions.collapseAll}
       />
 
-      {/* Diff content */}
-      <div
-        role="table"
-        aria-label="Diff content"
-        className="bg-surface-900/50 overflow-x-auto"
-      >
-        <div role="rowgroup">
-          {renderItems.map((item) => {
-            if (item.type === "line") {
-              return (
-                <AnnotatedLineRow
-                  key={`line-${item.lineIndex}`}
-                  line={item.line}
-                />
-              );
-            }
-
-            // Collapsed region placeholder
-            const regionId = `${testId}-region-${item.regionIndex}`;
-            const isExpanded = collapsedRegions.isExpanded(item.regionIndex);
-
-            return (
-              <CollapsedRegionPlaceholder
-                key={`region-${item.regionIndex}`}
-                region={item.region}
-                regionId={regionId}
-                isExpanded={isExpanded}
-                onToggle={() => collapsedRegions.toggle(item.regionIndex)}
-              />
-            );
-          })}
-        </div>
-      </div>
+      {/* Diff content — wrapped in collapsible container for large diffs */}
+      {shouldStartCollapsed ? (
+        <CollapsibleOutputBlock
+          isExpanded={isDiffExpanded}
+          onToggle={() => setIsDiffExpanded((v) => !v)}
+          isLongContent={isLargeDiff}
+          maxCollapsedHeight={COLLAPSED_MAX_HEIGHT}
+          className="border-0 rounded-none"
+        >
+          <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
+        </CollapsibleOutputBlock>
+      ) : (
+        <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
+      )}
 
       {/* Actions for pending edits */}
       {isPending && (
@@ -204,3 +201,48 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
     </div>
   );
 });
+
+/** Extracted diff content to avoid duplication between collapsed and non-collapsed paths */
+function DiffContent({
+  renderItems,
+  testId,
+  collapsedRegions,
+}: {
+  renderItems: ReturnType<typeof buildRenderItems>;
+  testId: string;
+  collapsedRegions: ReturnType<typeof useCollapsedRegions>;
+}) {
+  return (
+    <div
+      role="table"
+      aria-label="Diff content"
+      className="bg-surface-900/50 overflow-x-auto"
+    >
+      <div role="rowgroup">
+        {renderItems.map((item) => {
+          if (item.type === "line") {
+            return (
+              <AnnotatedLineRow
+                key={`line-${item.lineIndex}`}
+                line={item.line}
+              />
+            );
+          }
+
+          const regionId = `${testId}-region-${item.regionIndex}`;
+          const isExpanded = collapsedRegions.isExpanded(item.regionIndex);
+
+          return (
+            <CollapsedRegionPlaceholder
+              key={`region-${item.regionIndex}`}
+              region={item.region}
+              regionId={regionId}
+              isExpanded={isExpanded}
+              onToggle={() => collapsedRegions.toggle(item.regionIndex)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}

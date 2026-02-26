@@ -381,6 +381,8 @@ export interface AgentLoopOptions {
   permissionEvaluator?: PermissionEvaluator;
   /** Permission gate for async approval flow (ask decisions) */
   permissionGate?: PermissionGate;
+  /** Question gate for AskUserQuestion async answer flow */
+  questionGate?: import("../lib/question-gate.js").QuestionGate;
 }
 
 /**
@@ -477,10 +479,72 @@ export async function runAgentLoop(
   const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
 
   // Build hooks for state tracking and side effects
-  const { permissionEvaluator, permissionGate } = options;
+  const { permissionEvaluator, permissionGate, questionGate } = options;
+
+  // Shared stash for two-phase AskUserQuestion flow:
+  // PreToolUse hook stashes answers here, canUseTool picks them up.
+  // Keyed by toolUseId so the correct answers are matched.
+  const answerStash = new Map<string, Record<string, string>>();
 
   const hooks = {
     PreToolUse: [
+      // AskUserQuestion hook — two-phase approach:
+      // 1. Hook does the long async wait (up to 1 hour), stashes answers
+      // 2. Returns "ask" to force fall-through to canUseTool
+      // 3. canUseTool delivers answers via official updatedInput.answers path
+      ...(questionGate
+        ? [
+            {
+              matcher: "AskUserQuestion" as const,
+              timeout: 3600, // 1 hour — user may take time to answer
+              hooks: [
+                async (
+                  hookInput: unknown,
+                  toolUseId: string | undefined,
+                  { signal }: { signal: AbortSignal },
+                ) => {
+                  const input = hookInput as PreToolUseHookInput;
+                  const toolInput = input.tool_input as Record<string, unknown>;
+                  const requestId = crypto.randomUUID();
+
+                  const response = await questionGate.waitForAnswer(
+                    requestId,
+                    {
+                      threadId: context.threadId,
+                      toolUseId,
+                      toolInput,
+                      signal,
+                    },
+                    emitEvent,
+                  );
+
+                  if (response === "timeout" || signal.aborted) {
+                    return {
+                      hookSpecificOutput: {
+                        hookEventName: "PreToolUse" as const,
+                        permissionDecision: "deny" as const,
+                        permissionDecisionReason: "Question timed out",
+                      },
+                    };
+                  }
+
+                  // Stash answers for canUseTool to pick up
+                  if (toolUseId) {
+                    answerStash.set(toolUseId, response.answers);
+                  }
+
+                  // Return "ask" to force fall-through to canUseTool
+                  return {
+                    hookSpecificOutput: {
+                      hookEventName: "PreToolUse" as const,
+                      permissionDecision: "ask" as const,
+                    },
+                  };
+                },
+              ],
+            },
+          ]
+        : []),
       // Permission hook — matches ALL tools, evaluated before the Task hook
       ...(permissionEvaluator && permissionGate
         ? [
@@ -494,6 +558,17 @@ export async function runAgentLoop(
                   { signal }: { signal: AbortSignal },
                 ) => {
                   const input = hookInput as PreToolUseHookInput;
+
+                  // Skip AskUserQuestion — handled by dedicated question gate hook
+                  if (input.tool_name === "AskUserQuestion") {
+                    return {
+                      hookSpecificOutput: {
+                        hookEventName: "PreToolUse" as const,
+                        permissionDecision: "allow" as const,
+                      },
+                    };
+                  }
+
                   const evalStart = Date.now();
 
                   // Start tool timer for duration tracking
@@ -566,6 +641,7 @@ export async function runAgentLoop(
                       threadId,
                       toolName: input.tool_name,
                       toolInput: input.tool_input,
+                      toolUseId,
                       reason,
                       signal,
                     },
@@ -911,6 +987,9 @@ export async function runAgentLoop(
             }
 
             // Handle Task tool completion: mark thread completed, add response to state.json
+            // For background tasks (run_in_background: true), the tool result is an
+            // async_launched marker — the task hasn't finished yet. Skip premature completion;
+            // the real completion arrives via task_notification system messages.
             if (input.tool_name === "Task") {
               try {
                 const toolUseId = input.tool_use_id;
@@ -924,6 +1003,19 @@ export async function runAgentLoop(
                 const taskResponse = typeof input.tool_response === "string"
                   ? JSON.parse(input.tool_response)
                   : input.tool_response;
+
+                // Detect background tasks: the SDK returns an output_file path and
+                // task_id when a task is launched in background, instead of the full result.
+                const isBackground = !!(taskResponse.task_id || taskResponse.output_file);
+                if (isBackground) {
+                  logger.info(
+                    `[PostToolUse:Task] Background task detected for ${childThreadId} — ` +
+                    `skipping premature completion (task_id=${taskResponse.task_id})`
+                  );
+                  // Leave status as "running", don't clean up the map.
+                  // task_notification will handle real completion.
+                  return { continue: true };
+                }
 
                 const childThreadPath = join(config.mortDir, "threads", childThreadId);
                 const metadataPath = join(childThreadPath, "metadata.json");
@@ -1020,7 +1112,7 @@ export async function runAgentLoop(
                   status: "completed",
                 });
 
-                // Cleanup the map
+                // Cleanup the map (foreground tasks only — bg tasks cleaned up by task_notification)
                 toolUseIdToChildThreadId.delete(toolUseId);
                 logger.info(`[PostToolUse:Task] Completed thread ${childThreadId}, cleaned up mapping`);
 
@@ -1151,6 +1243,9 @@ export async function runAgentLoop(
     : query({
         prompt,
         options: {
+          // Strip CLAUDECODE env var to prevent "nested session" error on SDK v0.2.59+.
+          // The bundled CLI refuses to start if this variable is present.
+          env: { ...process.env, CLAUDECODE: undefined },
           cwd: context.workingDir,
           additionalDirectories: [config.mortDir],
           plugins: [{ type: "local" as const, path: config.mortDir }],
@@ -1170,6 +1265,31 @@ export async function runAgentLoop(
           ...(priorSessionId && { resume: priorSessionId }),
           abortController,
           hooks,
+          // Two-phase AskUserQuestion: canUseTool picks up stashed answers
+          // and delivers them via the official updatedInput.answers path.
+          // For all other tools, auto-allow (replicates bypassPermissions).
+          ...(questionGate && {
+            canUseTool: async (
+              toolName: string,
+              input: Record<string, unknown>,
+              options: { toolUseID: string },
+            ) => {
+              if (toolName === "AskUserQuestion") {
+                const answers = answerStash.get(options.toolUseID);
+                if (answers) {
+                  answerStash.delete(options.toolUseID);
+                  return {
+                    behavior: "allow" as const,
+                    updatedInput: { ...input, answers },
+                  };
+                }
+                // No stashed answers — shouldn't happen, but deny gracefully
+                return { behavior: "deny" as const, message: "No answers available" };
+              }
+              // All other tools: auto-allow (bypassPermissions behavior)
+              return { behavior: "allow" as const, updatedInput: input };
+            },
+          }),
           // Custom agent definitions - override built-in agents or define new ones
           // The manager agent can spawn sub-agents via the Task tool
           agents: {
@@ -1195,15 +1315,6 @@ export async function runAgentLoop(
   let loopError: string | undefined;
   try {
     for await (const message of result) {
-      // === DEBUG: Pretty print each streamed message (RAW JSON) ===
-      console.log(`\n${"=".repeat(60)}`);
-      console.log(`[STREAM] Message type: ${message.type}`);
-      console.log(`${"=".repeat(60)}`);
-      console.log(`RAW MESSAGE:`);
-      console.log(JSON.stringify(message, null, 2));
-      console.log(`${"=".repeat(60)}\n`);
-      // === END DEBUG ===
-
       // Capture session_id from init message for message stream
       if (options.messageStream && message.type === "system" && (message as { subtype?: string }).subtype === "init") {
         const sessionId = (message as { session_id: string }).session_id;
@@ -1235,6 +1346,12 @@ export async function runAgentLoop(
     if (permissionGate) {
       permissionGate.clear();
       logger.debug("[runAgentLoop] Cleared permission gate");
+    }
+    // Clean up pending question requests
+    if (questionGate) {
+      questionGate.clear();
+      answerStash.clear();
+      logger.debug("[runAgentLoop] Cleared question gate and answer stash");
     }
   }
 }

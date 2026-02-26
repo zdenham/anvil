@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Archive, Loader2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
-import type { TreeItemNode } from "@/stores/tree-menu/types";
+import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
 import { treeMenuService } from "@/stores/tree-menu/service";
@@ -41,7 +41,7 @@ function focusTreeItem(index: number) {
 interface ThreadItemProps {
   item: TreeItemNode;
   isSelected: boolean;
-  onSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => void;
+  onSelect: (itemId: string, itemType: EntityItemType) => void;
   tabIndex?: number;
   /** Index in the flat list for keyboard navigation */
   itemIndex?: number;
@@ -140,7 +140,7 @@ export function ThreadItem({
               const nextItem = allItems[nextIndex];
               focusTreeItem(nextIndex);
               await treeMenuService.setSelectedItem(nextItem.id);
-              onSelect(nextItem.id, nextItem.type);
+              onSelect(nextItem.id, nextItem.type as EntityItemType);
             }
           }
         }
@@ -158,7 +158,7 @@ export function ThreadItem({
             const parentItem = allItems[parentIndex];
             focusTreeItem(parentIndex);
             await treeMenuService.setSelectedItem(parentItem.id);
-            onSelect(parentItem.id, parentItem.type);
+            onSelect(parentItem.id, parentItem.type as EntityItemType);
           }
         }
         break;
@@ -169,7 +169,7 @@ export function ThreadItem({
           const prevItem = allItems[itemIndex - 1];
           focusTreeItem(itemIndex - 1);
           await treeMenuService.setSelectedItem(prevItem.id);
-          onSelect(prevItem.id, prevItem.type);
+          onSelect(prevItem.id, prevItem.type as EntityItemType);
         }
         break;
 
@@ -179,7 +179,7 @@ export function ThreadItem({
           const nextItem = allItems[itemIndex + 1];
           focusTreeItem(itemIndex + 1);
           await treeMenuService.setSelectedItem(nextItem.id);
-          onSelect(nextItem.id, nextItem.type);
+          onSelect(nextItem.id, nextItem.type as EntityItemType);
         }
         break;
     }

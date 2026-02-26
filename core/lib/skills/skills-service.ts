@@ -1,6 +1,6 @@
 import type { FSAdapter, DirEntry } from '@core/services/fs-adapter.js';
 import type { SkillMetadata, SkillSource, SkillContent } from '@core/types/skills.js';
-import { parseFrontmatter, SOURCE_PRIORITY } from '@core/skills/index.js';
+import { parseFrontmatter, SOURCE_PRIORITY, scoreMatch } from '@core/skills/index.js';
 
 interface SkillLocation {
   getPath: (repoPath: string, homeDir: string, mortDataDir: string) => string;
@@ -164,10 +164,11 @@ export class SkillsService {
    */
   search(query: string): SkillMetadata[] {
     const q = query.toLowerCase();
-    return this.getAll().filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      s.description.toLowerCase().includes(q)
-    );
+    return this.getAll()
+      .map(skill => ({ skill, score: scoreMatch(skill, q) }))
+      .filter(({ score }) => score < Infinity)
+      .sort((a, b) => a.score - b.score)
+      .map(({ skill }) => skill);
   }
 
   /**

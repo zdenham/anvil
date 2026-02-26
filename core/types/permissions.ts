@@ -21,6 +21,7 @@ export const PermissionRequestSchema = z.object({
   threadId: z.string(),
   toolName: z.string(),
   toolInput: z.record(z.string(), z.unknown()),
+  toolUseId: z.string().optional(),
   timestamp: z.number(),
 });
 
@@ -117,9 +118,10 @@ export const APPROVE_MODE: PermissionModeDefinition = {
   name: "Approve",
   description: "Read/Bash auto-approved, file edits require approval with diff preview",
   rules: [
-    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch|TodoWrite|ExitPlanMode|EnterPlanMode|AskUserQuestion)$", decision: "allow" },
+    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch)$", decision: "allow" },
     { toolPattern: "^Bash$", decision: "allow" },
     { toolPattern: "^Task$", decision: "allow" },
+    { toolPattern: "^(TodoWrite|AskUserQuestion|EnterPlanMode|ExitPlanMode|Skill|SendMessage|TeamCreate|TeamDelete|TaskOutput|TaskStop)$", decision: "allow" },
     { toolPattern: "^(Write|Edit|NotebookEdit)$", decision: "ask" },
   ],
   defaultDecision: "ask",

@@ -26,6 +26,8 @@ export interface RunnerConfig {
   parentThreadId?: string;
   /** Permission mode for tool execution (e.g., "plan", "implement", "approve") */
   permissionMode?: PermissionModeId;
+  /** Skip worktree and thread naming (used by setup threads that shouldn't influence names) */
+  skipNaming?: boolean;
 }
 
 /**

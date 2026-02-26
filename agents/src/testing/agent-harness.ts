@@ -140,6 +140,8 @@ export class AgentTestHarness {
           ...this.runnerConfig.env,
           ...opts.env,
           MORT_HUB_SOCKET_PATH: socketPath,
+          // Strip CLAUDECODE to prevent "nested session" error on SDK v0.2.59+
+          CLAUDECODE: undefined,
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       });

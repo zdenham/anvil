@@ -8,7 +8,9 @@ import {
   type PreviewableItem,
 } from "@/lib/preview-content";
 import { navigationService } from "@/stores/navigation-service";
-import { cn } from "@/lib/utils";
+import { getFileSearchService } from "@/lib/triggers/file-search-service";
+import { useMRUWorktree } from "@/hooks/use-mru-worktree";
+import { CommandPaletteItem } from "./command-palette-item";
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -19,8 +21,12 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mouseMovedSinceOpen, setMouseMovedSinceOpen] = useState(false);
+  const [fileItems, setFileItems] = useState<PreviewableItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Get MRU worktree for file search context
+  const { workingDirectory, repoId, worktreeId } = useMRUWorktree();
 
   // Get all threads and plans
   const threads = useThreadStore((s) => s.getAllThreads());
@@ -56,17 +62,19 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     );
   }, [threads, plans]);
 
-  // Filter by query
+  // Filter by query; append file results when query is non-empty
   const filteredItems = useMemo(() => {
     if (!query.trim()) return items;
 
     const lowerQuery = query.toLowerCase();
-    return items.filter((item) => {
+    const matched = items.filter((item) => {
       const nameMatch = item.name.toLowerCase().includes(lowerQuery);
       const previewMatch = item.preview?.toLowerCase().includes(lowerQuery);
       return nameMatch || previewMatch;
     });
-  }, [items, query]);
+
+    return [...matched, ...fileItems];
+  }, [items, query, fileItems]);
 
   // Selected item for preview
   const selectedItem = filteredItems[selectedIndex] ?? null;
@@ -79,22 +87,65 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   // Get preview for selected item
   const selectedPreview = useMemo(() => {
     if (!selectedItem) return null;
-    if (selectedItem.type === "thread") {
-      return selectedItem.preview;
-    }
+    if (selectedItem.type === "thread") return selectedItem.preview;
+    if (selectedItem.type === "file") return `File — ${selectedItem.filePath}`;
     return getPlanPreviewContent(planContent);
   }, [selectedItem, planContent]);
 
-  // Reset state when opened
+  // Reset state when opened; eagerly load file search cache
   useEffect(() => {
-    if (isOpen) {
-      setQuery("");
-      setSelectedIndex(0);
-      setMouseMovedSinceOpen(false);
-      // Focus with a slight delay to ensure the modal is rendered
-      setTimeout(() => inputRef.current?.focus(), 0);
+    if (!isOpen) return;
+
+    setQuery("");
+    setSelectedIndex(0);
+    setMouseMovedSinceOpen(false);
+    setFileItems([]);
+    setTimeout(() => inputRef.current?.focus(), 0);
+
+    if (workingDirectory) {
+      getFileSearchService().load(workingDirectory);
     }
-  }, [isOpen]);
+  }, [isOpen, workingDirectory]);
+
+  // Invalidate file search cache on close/unmount
+  useEffect(() => {
+    return () => {
+      if (workingDirectory) {
+        getFileSearchService().invalidate(workingDirectory);
+      }
+    };
+  }, [workingDirectory]);
+
+  // Search files when query changes
+  useEffect(() => {
+    if (!query.trim() || !workingDirectory) {
+      setFileItems([]);
+      return;
+    }
+
+    let cancelled = false;
+    getFileSearchService()
+      .search(workingDirectory, query, { maxResults: 20 })
+      .then((results) => {
+        if (cancelled) return;
+        setFileItems(
+          results.map((r) => ({
+            type: "file" as const,
+            id: r.path,
+            name: r.path,
+            filePath: r.path,
+            preview: null,
+            updatedAt: 0,
+            repoId: repoId ?? "",
+            worktreeId: worktreeId ?? "",
+          }))
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, workingDirectory, repoId, worktreeId]);
 
   // Keep selectedIndex in bounds
   useEffect(() => {
@@ -117,12 +168,17 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     async (item: PreviewableItem) => {
       if (item.type === "thread") {
         await navigationService.navigateToThread(item.id);
+      } else if (item.type === "file" && item.filePath) {
+        await navigationService.navigateToFile(item.filePath, {
+          repoId: repoId ?? undefined,
+          worktreeId: worktreeId ?? undefined,
+        });
       } else {
         await navigationService.navigateToPlan(item.id);
       }
       onClose();
     },
-    [onClose]
+    [onClose, repoId, worktreeId]
   );
 
   // Keyboard navigation handler
@@ -213,7 +269,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search threads and plans..."
+            placeholder="Search threads, plans, and files..."
             className="w-full bg-transparent text-surface-200 placeholder-surface-500 outline-none text-sm"
             autoFocus
             autoCorrect="off"
@@ -262,50 +318,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             <div className="text-sm text-surface-500">No item selected</div>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-interface CommandPaletteItemProps {
-  item: PreviewableItem;
-  isSelected: boolean;
-  onClick: () => void;
-  onHover: () => void;
-}
-
-function CommandPaletteItem({
-  item,
-  isSelected,
-  onClick,
-  onHover,
-}: CommandPaletteItemProps) {
-  return (
-    <div
-      data-selected={isSelected}
-      className={cn(
-        "px-3 py-1.5 cursor-pointer flex items-center gap-2",
-        isSelected && "bg-surface-700"
-      )}
-      onClick={onClick}
-      onMouseEnter={onHover}
-    >
-      {/* Type indicator */}
-      <div
-        className={cn(
-          "w-1.5 h-1.5 rounded-full flex-shrink-0",
-          item.type === "thread" ? "bg-accent-500" : "bg-blue-500"
-        )}
-      />
-
-      {/* Name */}
-      <div className="flex-1 min-w-0 text-sm text-surface-200 truncate">
-        {item.name}
-      </div>
-
-      {/* Type label */}
-      <div className="text-xs text-surface-500 flex-shrink-0">
-        {item.type === "thread" ? "Thread" : "Plan"}
       </div>
     </div>
   );

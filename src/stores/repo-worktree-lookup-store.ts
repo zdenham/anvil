@@ -3,9 +3,16 @@ import { appData } from "@/lib/app-data-store";
 import { RepositorySettingsSchema } from "@core/types/repositories.js";
 import { logger } from "@/lib/logger-client";
 
+interface WorktreeLookupInfo {
+  name: string;
+  path: string;
+  currentBranch: string | null;
+}
+
 interface RepoInfo {
   name: string;
-  worktrees: Map<string, { name: string; path: string }>;
+  defaultBranch: string;
+  worktrees: Map<string, WorktreeLookupInfo>;
 }
 
 interface RepoWorktreeLookupState {
@@ -24,6 +31,12 @@ interface RepoWorktreeLookupState {
 
   /** Get worktree path by repo ID and worktree ID. Returns empty string if not found. */
   getWorktreePath: (repoId: string, worktreeId: string) => string;
+
+  /** Get default branch for a repo. Returns "main" if not found. */
+  getDefaultBranch: (repoId: string) => string;
+
+  /** Get current branch for a worktree. Returns null if not found. */
+  getCurrentBranch: (repoId: string, worktreeId: string) => string | null;
 }
 
 const REPOS_DIR = "repositories";
@@ -46,14 +59,19 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
 
           if (result?.success) {
             const settings = result.data;
-            const worktreeMap = new Map<string, { name: string; path: string }>();
+            const worktreeMap = new Map<string, WorktreeLookupInfo>();
 
             for (const wt of settings.worktrees) {
-              worktreeMap.set(wt.id, { name: wt.name, path: wt.path });
+              worktreeMap.set(wt.id, {
+                name: wt.name,
+                path: wt.path,
+                currentBranch: wt.currentBranch ?? null,
+              });
             }
 
             repos.set(settings.id, {
               name: settings.name,
+              defaultBranch: settings.defaultBranch,
               worktrees: worktreeMap,
             });
           }
@@ -82,5 +100,14 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
   getWorktreePath: (repoId: string, worktreeId: string): string => {
     const repo = get().repos.get(repoId);
     return repo?.worktrees.get(worktreeId)?.path ?? "";
+  },
+
+  getDefaultBranch: (repoId: string): string => {
+    return get().repos.get(repoId)?.defaultBranch ?? "main";
+  },
+
+  getCurrentBranch: (repoId: string, worktreeId: string): string | null => {
+    const repo = get().repos.get(repoId);
+    return repo?.worktrees.get(worktreeId)?.currentBranch ?? null;
   },
 }));

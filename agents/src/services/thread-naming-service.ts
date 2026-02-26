@@ -8,16 +8,23 @@ Rules:
 - Use the user's actual words as much as possible - don't abstract or summarize
 - Extract the most distinctive/memorable phrase from their message
 - Keep their original phrasing and word choice
-- Lowercase is fine, match the user's style
+- lowercase is fine, match the user's style
 - No quotes or special characters
-- Use natural spaces, not kebab-case
+- NEVER use kebab-case (no-dashes-between-words) — always use natural spaces
 - If the message is a question, preserve key question words
 - Prefer specific details over generic descriptions
+- If the message is vague, find concrete nouns (file names, features, components) and use those instead
 
-Examples:
+Good examples:
 - "Can you help me fix the login bug?" → "fix the login bug"
 - "What's the best way to implement caching?" → "implement caching"
 - "I need to refactor the auth system" → "refactor the auth system"
+- "Implement this plan for credit billing" → "implement credit billing"
+- "Work on the thread naming improvements" → "thread naming improvements"
+
+Bad examples (NEVER do these):
+- "implement this plan" — too generic, no distinguishing info
+- "fix-the-login-bug" — never use kebab-case
 
 Respond with ONLY the thread name, nothing else.`;
 

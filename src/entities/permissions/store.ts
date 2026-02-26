@@ -46,6 +46,9 @@ interface PermissionStoreActions {
   getNextRequestForThread: (
     threadId: string
   ) => (PermissionRequest & { status: PermissionStatus }) | undefined;
+  getRequestByToolUseId: (
+    toolUseId: string
+  ) => (PermissionRequest & { status: PermissionStatus }) | undefined;
   getFocusedRequest: () =>
     | (PermissionRequest & { status: PermissionStatus })
     | undefined;
@@ -172,6 +175,9 @@ export const usePermissionStore = create<
     const requests = get().getRequestsByThread(threadId);
     return requests.find((r) => r.status === "pending");
   },
+
+  getRequestByToolUseId: (toolUseId) =>
+    Object.values(get().requests).find((r) => r.toolUseId === toolUseId),
 
   getFocusedRequest: () => {
     const pending = get().getPendingRequests();

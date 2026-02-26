@@ -1,6 +1,6 @@
-//! On-demand CPU profiling commands.
+//! On-demand profiling commands.
 //!
-//! Both commands are triggered explicitly via IPC — nothing runs at startup.
+//! All commands are triggered explicitly via IPC — nothing runs at startup.
 //! The profilers activate for a bounded duration, write results to disk, then stop.
 
 use std::sync::Mutex;
@@ -150,4 +150,104 @@ pub async fn start_trace(
     let path_str = trace_path.to_string_lossy().to_string();
     tracing::info!(path = %path_str, "Trace capture complete");
     Ok(path_str)
+}
+
+/// Writes a memory snapshot JSON string to the logs directory.
+/// Returns the file path for the UI to open.
+#[tauri::command]
+pub async fn write_memory_snapshot(
+    app: tauri::AppHandle,
+    snapshot_json: String,
+) -> Result<String, String> {
+    use std::fs;
+    use std::io::Write;
+
+    let logs_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("logs");
+    fs::create_dir_all(&logs_dir).map_err(|e| e.to_string())?;
+
+    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+    let path = logs_dir.join(format!("memory-snapshot-{}.json", timestamp));
+
+    let mut file =
+        fs::File::create(&path).map_err(|e| format!("Failed to create snapshot file: {}", e))?;
+    file.write_all(snapshot_json.as_bytes())
+        .map_err(|e| format!("Failed to write snapshot: {}", e))?;
+
+    let path_str = path.to_string_lossy().to_string();
+    tracing::info!(path = %path_str, "Memory snapshot written");
+    Ok(path_str)
+}
+
+/// Returns the resident set size (RSS) of the current process in bytes.
+/// Uses macOS `proc_pidinfo` for lightweight, zero-dependency memory lookup.
+#[tauri::command]
+pub fn get_process_memory() -> Result<u64, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::mem;
+
+        extern "C" {
+            fn proc_pidinfo(
+                pid: i32,
+                flavor: i32,
+                arg: u64,
+                buffer: *mut std::ffi::c_void,
+                buffersize: i32,
+            ) -> i32;
+        }
+
+        // PROC_PIDTASKINFO = 4
+        const PROC_PIDTASKINFO: i32 = 4;
+
+        #[repr(C)]
+        struct ProcTaskInfo {
+            pti_virtual_size: u64,
+            pti_resident_size: u64,
+            pti_total_user: u64,
+            pti_total_system: u64,
+            pti_threads_user: u64,
+            pti_threads_system: u64,
+            pti_policy: i32,
+            pti_faults: i32,
+            pti_pageins: i32,
+            pti_cow_faults: i32,
+            pti_messages_sent: i32,
+            pti_messages_received: i32,
+            pti_syscalls_mach: i32,
+            pti_syscalls_unix: i32,
+            pti_csw: i32,
+            pti_threadnum: i32,
+            pti_numrunning: i32,
+            pti_priority: i32,
+        }
+
+        let pid = std::process::id() as i32;
+        let mut info: ProcTaskInfo = unsafe { mem::zeroed() };
+        let size = mem::size_of::<ProcTaskInfo>() as i32;
+
+        let ret = unsafe {
+            proc_pidinfo(
+                pid,
+                PROC_PIDTASKINFO,
+                0,
+                &mut info as *mut _ as *mut std::ffi::c_void,
+                size,
+            )
+        };
+
+        if ret <= 0 {
+            return Err("proc_pidinfo failed".to_string());
+        }
+
+        Ok(info.pti_resident_size)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("get_process_memory only supported on macOS".to_string())
+    }
 }

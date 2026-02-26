@@ -1,18 +1,16 @@
 # Approve Mode Improvements
 
-Four issues with the current approve mode UX:
+Three issues with the current approve mode UX:
 
 1. **Permission block is pinned above input**, not inline in the chat where the tool use happens
-2. **No syntax highlighting** in the diff preview shown in the permission block
-3. **Non-destructive tools prompt unnecessarily** — `TodoWrite`, `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `Skill`, `SendMessage`, and similar tools fall through to `defaultDecision: "ask"` because they don't match any explicit rule
-4. **Large diffs overwhelm the approval UI** — a big edit shows the entire diff expanded, pushing the approve/deny controls far off-screen
+2. **Non-destructive tools prompt unnecessarily** — `TodoWrite`, `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `Skill`, `SendMessage`, and similar tools fall through to `defaultDecision: "ask"` because they don't match any explicit rule
+3. **Large diffs overwhelm the approval UI** — a big edit shows the entire diff expanded, pushing the approve/deny controls far off-screen
 
 ## Phases
 
-- [ ] Auto-allow non-destructive tools in approve mode rules
-- [ ] Move permission request block inline into the chat stream
-- [ ] Add syntax highlighting to the permission diff preview
-- [ ] Auto-collapse large diffs in the approval preview
+- [x] Auto-allow non-destructive tools in approve mode rules
+- [x] Move permission request block inline into the chat stream
+- [x] Auto-collapse large diffs in the approval preview
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -99,33 +97,7 @@ When a permission request appears inline in the chat, the message list should au
 
 ---
 
-## Phase 3: Syntax highlighting in diff preview
-
-**Problem:** The diff preview in the permission block shows plain monochrome text. The rest of the app uses Shiki for syntax highlighting (code blocks, full diff viewer).
-
-**Approach:** The `InlineDiffBlock` already supports `tokens` on `AnnotatedLine` objects (via `AnnotatedLineRow` → `TokenizedContent`). The issue is that `useToolDiff` doesn't run the lines through Shiki before returning them.
-
-### Changes
-
-**1. Highlight diff lines in `useToolDiff`**
-
-`src/components/thread/use-tool-diff.ts` — After building `AnnotatedLine[]` from the tool input, run them through the existing `highlightDiff()` function from `src/lib/highlight-diff.ts`. This will populate the `tokens` field on each line.
-
-The language can be inferred from the file extension (the file path is available in the tool input).
-
-**2. Use `useCodeHighlight` pattern for async loading**
-
-Since Shiki highlighting is async, follow the same pattern used in `code-block.tsx`:
-- Return unhighlighted lines immediately (current behavior = no regression)
-- Kick off async highlighting
-- Update lines with tokens once available
-- The `AnnotatedLineRow` component already handles both cases (renders `TokenizedContent` when tokens exist, falls back to plain text otherwise)
-
-This means the diff preview will flash in plain text briefly then get syntax-colored — same as code blocks in the chat do during streaming.
-
----
-
-## Phase 4: Auto-collapse large diffs in the approval preview
+## Phase 3: Auto-collapse large diffs in the approval preview
 
 **Problem:** When an Edit or Write tool produces a large diff (e.g. 200+ changed lines), the entire diff renders expanded in the permission approval block. This pushes the approve/deny controls far below the viewport, requiring the user to scroll past a wall of code just to respond. It should behave like tool-use blocks do — default collapsed past a threshold, with a click to expand.
 

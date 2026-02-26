@@ -35,15 +35,22 @@ import { logger } from "@/lib/logger-client";
 import { generateUniqueWorktreeName } from "@/lib/random-name";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { terminalSessionService } from "@/entities/terminal-sessions";
+import { createThread } from "@/lib/thread-creation-service";
+import { loadSettings } from "@/lib/app-data-store";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
-import { useFileBrowserPanel } from "@/hooks/use-file-browser-panel";
+import { useRightPanel } from "@/hooks/use-right-panel";
 import { FileBrowserPanel } from "@/components/file-browser/file-browser-panel";
+import { SearchPanel } from "@/components/search-panel";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
 import { handleCreatePr } from "@/lib/pr-actions";
 import type { ContentPaneView } from "@/components/content-pane/types";
+
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
 
 // Valid navigation targets from macOS menu
 type NavTarget = "settings" | "logs";
@@ -63,15 +70,10 @@ export function MainWindowLayout() {
   useQuickActionHotkeys();
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // File Browser Panel (right-side slide-out)
+  // Right Panel (file browser / search)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const {
-    fileBrowserContext,
-    handleOpenFileBrowser,
-    closeFileBrowser,
-    fileBrowserWorktreeId,
-  } = useFileBrowserPanel();
+  const rightPanel = useRightPanel();
 
   // Track whether listeners have been initialized (prevents duplicate registration)
   const listenersInitialized = useRef(false);
@@ -110,6 +112,18 @@ export function MainWindowLayout() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Listen for Command+Shift+F to open search panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "f") {
+        e.preventDefault();
+        rightPanel.openSearch();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [rightPanel.openSearch]);
 
   // Listen for Command+N / Ctrl+N to create new thread
   // Priority: 1) Selected thread/plan's worktree, 2) Most recent worktree
@@ -184,6 +198,31 @@ export function MainWindowLayout() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Listen for Command+T / Ctrl+T to create new terminal in MRU worktree
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "t") {
+        e.preventDefault();
+
+        const sections = treeSectionsRef.current;
+        if (sections.length === 0) {
+          logger.warn("[MainWindowLayout] Command+T: No worktrees available");
+          return;
+        }
+
+        const mostRecent = sections[0];
+        logger.info(
+          `[MainWindowLayout] Command+T: Creating terminal in worktree "${mostRecent.worktreeName}"`
+        );
+
+        await handleNewTerminal(mostRecent.worktreeId, mostRecent.worktreePath);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleNewTerminal]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Store Initialization
@@ -373,6 +412,33 @@ export function MainWindowLayout() {
       await useRepoWorktreeLookupStore.getState().hydrate();
 
       await treeMenuService.hydrate();
+
+      // Auto-run setup thread if repo has a worktreeSetupPrompt
+      try {
+        const slug = slugify(repoName);
+        const settings = await loadSettings(slug);
+        if (settings.worktreeSetupPrompt) {
+          // Find the newly created worktree from the synced list
+          const syncedWorktrees = await worktreeService.sync(repoName);
+          const newWorktree = syncedWorktrees.find(w => w.name === worktreeName);
+          if (newWorktree) {
+            logger.info(`[MainWindowLayout] Auto-creating setup thread for worktree "${worktreeName}"`);
+            await createThread({
+              prompt: settings.worktreeSetupPrompt,
+              repoId: settings.id,
+              worktreeId: newWorktree.id,
+              worktreePath: newWorktree.path,
+              permissionMode: "implement",
+              skipNaming: true,
+            });
+            logger.info(`[MainWindowLayout] Setup thread created for worktree "${worktreeName}"`);
+          }
+        }
+      } catch (setupErr) {
+        // Don't fail worktree creation if setup thread fails
+        logger.warn(`[MainWindowLayout] Failed to create setup thread (non-fatal):`, setupErr);
+      }
+
       logger.info(`[MainWindowLayout] Created worktree "${worktreeName}" in ${repoName}`);
     } catch (error) {
       logger.error(`[MainWindowLayout] Failed to create worktree:`, error);
@@ -517,6 +583,32 @@ export function MainWindowLayout() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Search Navigation Handlers
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleSearchNavigateToThread = useCallback(async (threadId: string, _searchQuery: string) => {
+    await navigationService.navigateToThread(threadId);
+  }, []);
+
+  const handleSearchNavigateToFile = useCallback(async (
+    filePath: string,
+    _lineNumber: number,
+    worktreePath: string,
+    isPlan: boolean,
+  ) => {
+    if (isPlan) {
+      const plans = planService.getAll();
+      const plan = plans.find((p) => p.relativePath === filePath);
+      if (plan) {
+        await navigationService.navigateToPlan(plan.id);
+        return;
+      }
+    }
+    const absolutePath = `${worktreePath}/${filePath}`;
+    await navigationService.navigateToFile(absolutePath);
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Render
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -550,8 +642,8 @@ export function MainWindowLayout() {
             onPinToggle={handlePinToggle}
             onHide={handleHideSection}
             pinnedSectionId={pinnedSectionId}
-            onOpenFiles={handleOpenFileBrowser}
-            fileBrowserWorktreeId={fileBrowserWorktreeId}
+            onOpenFiles={rightPanel.openFileBrowser}
+            fileBrowserWorktreeId={rightPanel.fileBrowserWorktreeId}
             className="flex-1 min-h-0"
           />
           <div className="px-3 py-2 border-t border-surface-800">
@@ -562,24 +654,42 @@ export function MainWindowLayout() {
         {/* Center Panel: Content Pane */}
         <ContentPaneContainer />
 
-        {/* Right Panel: File Browser */}
-        {fileBrowserContext && (
+        {/* Right Panel: File Browser or Search */}
+        {rightPanel.state.type === "file-browser" && (
           <ResizablePanel
             position="right"
             minWidth={180}
             maxWidth={Math.floor(window.innerWidth * 0.5)}
             defaultWidth={250}
-            persistKey="file-browser-panel-width"
+            persistKey="right-panel-width"
             closeThreshold={120}
-            onClose={closeFileBrowser}
+            onClose={rightPanel.close}
             className="bg-surface-950 border-l border-surface-700"
           >
             <FileBrowserPanel
-              key={fileBrowserContext.worktreeId}
-              rootPath={fileBrowserContext.rootPath}
-              repoId={fileBrowserContext.repoId}
-              worktreeId={fileBrowserContext.worktreeId}
-              onClose={closeFileBrowser}
+              key={rightPanel.state.worktreeId}
+              rootPath={rightPanel.state.rootPath}
+              repoId={rightPanel.state.repoId}
+              worktreeId={rightPanel.state.worktreeId}
+              onClose={rightPanel.close}
+            />
+          </ResizablePanel>
+        )}
+        {rightPanel.state.type === "search" && (
+          <ResizablePanel
+            position="right"
+            minWidth={180}
+            maxWidth={Math.floor(window.innerWidth * 0.5)}
+            defaultWidth={250}
+            persistKey="right-panel-width"
+            closeThreshold={120}
+            onClose={rightPanel.close}
+            className="bg-surface-950 border-l border-surface-700"
+          >
+            <SearchPanel
+              onClose={rightPanel.close}
+              onNavigateToFile={handleSearchNavigateToFile}
+              onNavigateToThread={handleSearchNavigateToThread}
             />
           </ResizablePanel>
         )}

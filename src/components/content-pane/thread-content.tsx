@@ -34,7 +34,7 @@ import {
   sendToAgent,
 } from "@/lib/agent-service";
 import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions.js";
-import { EventName } from "@core/types/events.js";
+
 import { type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { ThreadView } from "@/components/thread/thread-view";
@@ -223,9 +223,8 @@ export function ThreadContent({
     // Emit event to agent process via hub socket
     try {
       await sendToAgent(threadId, {
-        type: "event",
-        name: EventName.PERMISSION_MODE_CHANGED,
-        payload: { threadId, modeId: nextMode },
+        type: "permission_mode_changed",
+        payload: { modeId: nextMode },
       });
     } catch {
       // Agent may not be connected (idle thread) - that's OK,

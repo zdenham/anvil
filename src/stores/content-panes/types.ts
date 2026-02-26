@@ -20,6 +20,7 @@ export const ContentPaneViewSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("terminal"), terminalId: z.string() }),
   z.object({ type: z.literal("file"), filePath: z.string(), repoId: z.string().optional(), worktreeId: z.string().optional() }),
   z.object({ type: z.literal("pull-request"), prId: z.string() }),
+  z.object({ type: z.literal("changes"), repoId: z.string(), worktreeId: z.string(), uncommittedOnly: z.boolean().optional(), commitHash: z.string().optional() }),
 ]);
 
 /**
