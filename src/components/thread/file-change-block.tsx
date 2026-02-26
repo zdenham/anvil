@@ -1,5 +1,5 @@
-import { FilePlus, FileEdit, FileMinus, FileSymlink, File } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getFileIconUrl } from "@/components/file-browser/file-icons";
 import type { FileChange } from "@/lib/types/agent-messages";
 
 interface FileChangeBlockProps {
@@ -15,28 +15,24 @@ interface FileChangeBlockProps {
 
 const OPERATION_CONFIG = {
   create: {
-    icon: FilePlus,
     label: "Created",
     color: "text-green-400",
     bg: "bg-green-950/30",
     border: "border-green-500/30",
   },
   modify: {
-    icon: FileEdit,
     label: "Modified",
     color: "text-accent-400",
     bg: "bg-accent-950/30",
     border: "border-accent-500/30",
   },
   delete: {
-    icon: FileMinus,
     label: "Deleted",
     color: "text-red-400",
     bg: "bg-red-950/30",
     border: "border-red-500/30",
   },
   rename: {
-    icon: FileSymlink,
     label: "Renamed",
     color: "text-yellow-400",
     bg: "bg-yellow-950/30",
@@ -55,14 +51,11 @@ export function FileChangeBlock({
   onClick,
 }: FileChangeBlockProps) {
   const config = OPERATION_CONFIG[operation] || {
-    icon: File,
     label: "Changed",
     color: "text-muted-foreground",
     bg: "bg-zinc-900",
     border: "border-zinc-700",
   };
-
-  const Icon = config.icon;
 
   // Extract filename from path
   const filename = path.split("/").pop() || path;
@@ -79,7 +72,12 @@ export function FileChangeBlock({
       )}
       disabled={!onClick}
     >
-      <Icon className={cn("h-4 w-4 shrink-0", config.color)} aria-hidden="true" />
+      <img
+        src={getFileIconUrl(filename)}
+        alt=""
+        className="h-4 w-4 shrink-0"
+        aria-hidden="true"
+      />
 
       <span className="flex-1 min-w-0">
         {operation === "rename" && oldPath ? (

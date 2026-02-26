@@ -191,7 +191,6 @@ describe("AskUserQuestion Integration", () => {
     );
 
     expect(screen.getByText("Which database?")).toBeInTheDocument();
-    expect(screen.getByText("Database")).toBeInTheDocument();
     expect(screen.getByText("PostgreSQL")).toBeInTheDocument();
     expect(screen.getByText("Relational DB")).toBeInTheDocument();
     expect(screen.getByText("MongoDB")).toBeInTheDocument();

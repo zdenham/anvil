@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, FileCode, FilePlus, FileMinus, FileX2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { getFileIconUrl } from "../file-browser/file-icons";
 import { cn } from "../../lib/utils";
 
 export interface FileJumpItem {
@@ -18,17 +19,16 @@ interface FileJumpDropdownProps {
   onJumpToFile: (index: number) => void;
 }
 
-function getFileIcon(type: FileJumpItem["type"]) {
-  switch (type) {
-    case "added":
-      return <FilePlus className="h-4 w-4 text-emerald-400" />;
-    case "deleted":
-      return <FileMinus className="h-4 w-4 text-red-400" />;
-    case "renamed":
-      return <FileX2 className="h-4 w-4 text-accent-400" />;
-    default:
-      return <FileCode className="h-4 w-4 text-amber-400" />;
-  }
+function getFileIcon(path: string) {
+  const filename = path.split("/").pop() ?? "file";
+  return (
+    <img
+      src={getFileIconUrl(filename)}
+      alt=""
+      className="h-4 w-4 flex-shrink-0"
+      aria-hidden="true"
+    />
+  );
 }
 
 export function FileJumpDropdown({
@@ -139,7 +139,7 @@ export function FileJumpDropdown({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        {currentFile && getFileIcon(currentFile.type)}
+        {currentFile && getFileIcon(currentFile.path)}
         <span className="truncate">{fileName}</span>
         <ChevronDown
           className={cn("h-4 w-4 text-surface-400 transition-transform", isOpen && "rotate-180")}
@@ -173,7 +173,7 @@ export function FileJumpDropdown({
                 index === currentFileIndex && "font-medium"
               )}
             >
-              {getFileIcon(file.type)}
+              {getFileIcon(file.path)}
               <span className="flex-1 truncate">{file.path}</span>
               <span className="flex items-center gap-2 text-xs tabular-nums">
                 {file.additions > 0 && (

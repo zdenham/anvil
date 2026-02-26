@@ -2,13 +2,12 @@
  * SearchPanel
  *
  * VS Code-style content search panel. Searches both file contents (via git grep)
- * and thread conversation content in parallel. Results are displayed grouped by
- * thread/file with collapsible match lines.
+ * and thread conversation content in parallel. Results are virtualized for
+ * efficient rendering of large result sets.
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { FileResultGroup } from "./file-result-group";
-import { ThreadResultGroup } from "./thread-result-group";
+import { VirtualizedResults } from "./virtualized-results";
 import { useSearch } from "./use-search";
 import { SearchHeader, SearchInput, FileScope, FilterFields, SummaryBar, useWorktreeOptions } from "./search-controls";
 import type { GrepMatch } from "@/lib/tauri-commands";
@@ -75,15 +74,36 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
     onNavigateToFile(filePath, match.lineNumber, worktreePath, isPlan);
   }, [worktreePath, onNavigateToFile]);
 
-  const handleThreadClick = useCallback((threadId: string) => {
+  const handleThreadMatchClick = useCallback((threadId: string) => {
     onNavigateToThread(threadId, search.query);
   }, [search.query, onNavigateToThread]);
+
+  const handleToggleThread = useCallback((threadId: string) => {
+    search.setThreadGroups((prev) =>
+      prev.map((g) => g.threadId === threadId ? { ...g, isCollapsed: !g.isCollapsed } : g)
+    );
+  }, []);
+
+  const handleToggleFile = useCallback((filePath: string) => {
+    search.setFileGroups((prev) =>
+      prev.map((g) => g.filePath === filePath ? { ...g, isCollapsed: !g.isCollapsed } : g)
+    );
+  }, []);
 
   // Summary counts
   const threadCount = search.threadGroups.length;
   const fileCount = search.fileGroups.length;
   const hasResults = threadCount > 0 || fileCount > 0;
   const hasQuery = search.query.length >= 2;
+  const isTruncated = search.fileTruncated || search.threadTruncated;
+
+  const emptyText = !hasQuery
+    ? "Type to search files and threads"
+    : search.isSearching && !hasResults
+      ? "Searching..."
+      : !hasResults
+        ? "No results"
+        : null;
 
   return (
     <div className="flex flex-col h-full">
@@ -121,68 +141,20 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
           onExpandAll={handleExpandAll}
         />
       )}
-      <div className="flex-1 overflow-y-auto">
-        <SearchResultsList
-          search={search}
-          hasQuery={hasQuery}
-          hasResults={hasResults}
+      {emptyText ? (
+        <EmptyState text={emptyText} />
+      ) : (
+        <VirtualizedResults
+          threadGroups={search.threadGroups}
+          fileGroups={search.fileGroups}
+          query={search.query}
           caseSensitive={caseSensitive}
+          isTruncated={isTruncated}
+          onToggleThread={handleToggleThread}
+          onToggleFile={handleToggleFile}
+          onThreadMatchClick={handleThreadMatchClick}
           onFileMatchClick={handleFileMatchClick}
-          onThreadClick={handleThreadClick}
         />
-      </div>
-    </div>
-  );
-}
-
-function SearchResultsList({ search, hasQuery, hasResults, caseSensitive, onFileMatchClick, onThreadClick }: {
-  search: ReturnType<typeof useSearch>;
-  hasQuery: boolean;
-  hasResults: boolean;
-  caseSensitive: boolean;
-  onFileMatchClick: (match: GrepMatch, filePath: string, isPlan: boolean) => void;
-  onThreadClick: (threadId: string) => void;
-}) {
-  if (!hasQuery) {
-    return <EmptyState text="Type to search files and threads" />;
-  }
-  if (search.isSearching && !hasResults) {
-    return <EmptyState text="Searching..." />;
-  }
-  if (!hasResults && !search.isSearching) {
-    return <EmptyState text="No results" />;
-  }
-
-  return (
-    <div className="py-1">
-      {search.threadGroups.map((group) => (
-        <ThreadResultGroup
-          key={group.threadId}
-          group={group}
-          query={search.query}
-          caseSensitive={caseSensitive}
-          onToggle={() => search.setThreadGroups((prev) =>
-            prev.map((g) => g.threadId === group.threadId ? { ...g, isCollapsed: !g.isCollapsed } : g)
-          )}
-          onMatchClick={() => onThreadClick(group.threadId)}
-        />
-      ))}
-      {search.fileGroups.map((group) => (
-        <FileResultGroup
-          key={group.filePath}
-          group={group}
-          query={search.query}
-          caseSensitive={caseSensitive}
-          onToggle={() => search.setFileGroups((prev) =>
-            prev.map((g) => g.filePath === group.filePath ? { ...g, isCollapsed: !g.isCollapsed } : g)
-          )}
-          onMatchClick={(match) => onFileMatchClick(match, group.filePath, group.isPlan)}
-        />
-      ))}
-      {(search.fileTruncated || search.threadTruncated) && (
-        <div className="px-3 py-1.5 text-xs text-amber-400">
-          Results truncated. Refine your search for more specific results.
-        </div>
       )}
     </div>
   );

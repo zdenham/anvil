@@ -478,6 +478,7 @@ export function RepoWorktreeSection({
                     >
                       <Terminal size={11} className="flex-shrink-0" />
                       <span className="flex-1">New terminal in {section.worktreeName}</span>
+                      <span className="text-surface-500 ml-2">⌘T</span>
                     </button>
                   )}
                   {onCreatePr && (
@@ -598,7 +599,8 @@ export function RepoWorktreeSection({
               className="w-full px-2.5 py-1 text-left text-xs text-surface-200 hover:bg-surface-800 rounded flex items-center gap-2 whitespace-nowrap"
             >
               <Terminal size={11} className="flex-shrink-0" />
-              New terminal
+              <span className="flex-1">New terminal</span>
+              <span className="text-surface-500 ml-2">⌘T</span>
             </button>
           )}
           {onCreatePr && (

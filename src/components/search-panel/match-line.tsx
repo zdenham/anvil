@@ -17,7 +17,7 @@ export function MatchLine({ text, query, caseSensitive }: MatchLineProps) {
   const parts = useMemo(() => splitByQuery(text, query, caseSensitive), [text, query, caseSensitive]);
 
   return (
-    <span className="text-xs whitespace-pre-wrap break-all">
+    <span className="text-[11px] text-surface-200 whitespace-nowrap overflow-hidden text-ellipsis">
       {parts.map((part, i) =>
         part.isMatch ? (
           <mark key={i} className="bg-amber-500/30 text-surface-200 rounded-sm px-0">

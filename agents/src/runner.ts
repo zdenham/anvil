@@ -206,6 +206,12 @@ async function main(): Promise<void> {
           questionGate.resolve(requestId, answers);
           break;
         }
+        case "question_cancelled": {
+          const { requestId } = msg.payload;
+          logger.info(`[runner] Received question cancelled: ${requestId}`);
+          questionGate.cancel(requestId);
+          break;
+        }
         case "permission_mode_changed": {
           const newModeId = msg.payload.modeId as PermissionModeId;
           const newMode = BUILTIN_MODES[newModeId];

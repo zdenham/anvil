@@ -523,7 +523,9 @@ export async function runAgentLoop(
                       hookSpecificOutput: {
                         hookEventName: "PreToolUse" as const,
                         permissionDecision: "deny" as const,
-                        permissionDecisionReason: "Question timed out",
+                        permissionDecisionReason: signal.aborted
+                          ? "Question timed out"
+                          : "Question cancelled — user sent a message instead",
                       },
                     };
                   }

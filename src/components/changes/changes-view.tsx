@@ -6,9 +6,11 @@
  */
 
 import { useMemo, useEffect, useRef } from "react";
+import { PanelRight } from "lucide-react";
 import type { ChangesContentProps } from "@/components/content-pane/types";
 import { useChangesData } from "./use-changes-data";
 import { ChangesDiffContent, type ChangesDiffContentRef } from "./changes-diff-content";
+import { ChangesFileList } from "./changes-file-list";
 import { MAX_DISPLAYED_FILES } from "./changes-diff-fetcher";
 import { useChangesViewStore } from "@/stores/changes-view-store";
 
@@ -16,6 +18,8 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
   const data = useChangesData({ repoId, worktreeId, uncommittedOnly, commitHash });
   const diffContentRef = useRef<ChangesDiffContentRef>(null);
   const selectedFilePath = useChangesViewStore((s) => s.selectedFilePath);
+  const isFilePaneOpen = useChangesViewStore((s) => s.isFilePaneOpen);
+  const toggleFilePane = useChangesViewStore((s) => s.toggleFilePane);
 
   // Sync changed file paths to the cross-component store
   useEffect(() => {
@@ -59,20 +63,31 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
         files={data.files}
         mergeBase={data.mergeBase}
         defaultBranch={data.defaultBranch}
+        branchName={data.branchName}
         uncommittedOnly={uncommittedOnly}
         commitHash={commitHash}
+        isFilePaneOpen={isFilePaneOpen}
+        onToggleFilePane={toggleFilePane}
       />
 
-      <div className="flex-1 min-h-0">
-        <ChangesDiffContent
-          ref={diffContentRef}
-          files={data.files}
-          rawDiffsByFile={data.rawDiffsByFile}
-          totalFileCount={data.totalFileCount}
-          worktreePath={data.worktreePath}
-          commitHash={commitHash}
-          uncommittedOnly={uncommittedOnly}
-        />
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-w-0">
+          <ChangesDiffContent
+            ref={diffContentRef}
+            files={data.files}
+            rawDiffsByFile={data.rawDiffsByFile}
+            totalFileCount={data.totalFileCount}
+            worktreePath={data.worktreePath}
+            commitHash={commitHash}
+            uncommittedOnly={uncommittedOnly}
+          />
+        </div>
+        {isFilePaneOpen && (
+          <ChangesFileList
+            files={data.files}
+            onSelectFile={(path) => useChangesViewStore.getState().selectFile(path)}
+          />
+        )}
       </div>
 
       {data.totalFileCount > MAX_DISPLAYED_FILES && (
@@ -123,8 +138,11 @@ interface SummaryHeaderProps {
   files: { stats: { additions: number; deletions: number } }[];
   mergeBase: string | null;
   defaultBranch: string | null;
+  branchName: string | null;
   uncommittedOnly?: boolean;
   commitHash?: string;
+  isFilePaneOpen: boolean;
+  onToggleFilePane: () => void;
 }
 
 function SummaryHeader({
@@ -132,8 +150,11 @@ function SummaryHeader({
   files,
   mergeBase,
   defaultBranch,
+  branchName,
   uncommittedOnly,
   commitHash,
+  isFilePaneOpen,
+  onToggleFilePane,
 }: SummaryHeaderProps) {
   const { totalAdditions, totalDeletions } = useMemo(() => {
     let adds = 0;
@@ -145,22 +166,33 @@ function SummaryHeader({
     return { totalAdditions: adds, totalDeletions: dels };
   }, [files]);
 
-  const subtext = getSubtext({ mergeBase, defaultBranch, uncommittedOnly, commitHash });
+  const subtext = getSubtext({ mergeBase, defaultBranch, branchName, uncommittedOnly, commitHash });
 
   return (
-    <div className="px-4 py-3 border-b border-surface-700 flex-shrink-0">
-      <div className="text-sm text-surface-200">
-        {fileCount} file{fileCount !== 1 ? "s" : ""} changed
-        {totalAdditions > 0 && (
-          <span className="text-green-400 ml-2">+{totalAdditions}</span>
-        )}
-        {totalDeletions > 0 && (
-          <span className="text-red-400 ml-2">-{totalDeletions}</span>
+    <div className="px-4 py-3 border-b border-surface-700 flex-shrink-0 flex items-center justify-between">
+      <div>
+        <div className="text-sm text-surface-200">
+          {fileCount} file{fileCount !== 1 ? "s" : ""} changed
+          {totalAdditions > 0 && (
+            <span className="text-green-400 ml-2">+{totalAdditions}</span>
+          )}
+          {totalDeletions > 0 && (
+            <span className="text-red-400 ml-2">-{totalDeletions}</span>
+          )}
+        </div>
+        {subtext && (
+          <div className="text-xs text-surface-500 mt-0.5">{subtext}</div>
         )}
       </div>
-      {subtext && (
-        <div className="text-xs text-surface-500 mt-0.5">{subtext}</div>
-      )}
+      <button
+        type="button"
+        onClick={onToggleFilePane}
+        className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+        aria-label={isFilePaneOpen ? "Hide file list" : "Show file list"}
+        title={isFilePaneOpen ? "Hide file list" : "Show file list"}
+      >
+        <PanelRight size={16} />
+      </button>
     </div>
   );
 }
@@ -168,10 +200,11 @@ function SummaryHeader({
 function getSubtext(params: {
   mergeBase: string | null;
   defaultBranch: string | null;
+  branchName: string | null;
   uncommittedOnly?: boolean;
   commitHash?: string;
 }): string | null {
-  const { mergeBase, defaultBranch, uncommittedOnly, commitHash } = params;
+  const { mergeBase, defaultBranch, branchName, uncommittedOnly, commitHash } = params;
 
   if (commitHash) {
     return `Commit ${commitHash.slice(0, 8)}`;
@@ -179,8 +212,8 @@ function getSubtext(params: {
   if (uncommittedOnly) {
     return "relative to HEAD";
   }
-  if (mergeBase) {
-    return `from ${mergeBase.slice(0, 8)} (merge base with ${defaultBranch ?? "main"})`;
+  if (mergeBase && branchName) {
+    return `${branchName} \u2192 ${defaultBranch ?? "main"}`;
   }
   return null;
 }

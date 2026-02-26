@@ -67,7 +67,12 @@ export function AssistantMessage({
 
               case "thinking":
                 return (
-                  <ThinkingBlock key={`thinking-${index}`} content={block.thinking} />
+                  <ThinkingBlock
+                    key={`thinking-${index}`}
+                    content={block.thinking}
+                    threadId={threadId}
+                    blockKey={`thinking-${index}`}
+                  />
                 );
 
               case "tool_use": {

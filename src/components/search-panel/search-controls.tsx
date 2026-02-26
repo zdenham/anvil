@@ -12,9 +12,9 @@ import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store"
 export function SearchHeader({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex items-center justify-between px-3 py-2 border-b border-surface-700">
-      <span className="text-sm font-medium text-surface-300">Search</span>
+      <span className="text-xs font-medium text-surface-300">Search</span>
       <button onClick={onClose} className="p-1 hover:bg-surface-800 rounded">
-        <X size={14} className="text-surface-400" />
+        <X size={12} className="text-surface-400" />
       </button>
     </div>
   );
@@ -36,6 +36,10 @@ export const SearchInput = forwardRef<HTMLInputElement, {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder="Search..."
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
       className="flex-1 bg-transparent text-xs text-surface-200 outline-none placeholder:text-surface-600"
     />
     <button
@@ -70,26 +74,40 @@ export function FileScope({ includeFiles, onToggleInclude, worktreeOptions, sele
   selectedIdx: number;
   onSelectWorktree: (idx: number) => void;
 }) {
+  const selected = worktreeOptions[selectedIdx] ?? worktreeOptions[0];
+  const hasMultiple = worktreeOptions.length > 1;
+
+  const parts = selected?.label.split("/") ?? [];
+  const repoName = parts[0] ?? "";
+  const worktreeName = parts.length > 1 ? parts.slice(1).join("/") : "";
+
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-800">
-      <label className="flex items-center gap-1.5 text-xs text-surface-400 cursor-pointer">
+      <label className="flex items-center gap-1.5 text-xs text-surface-400 cursor-pointer shrink-0">
         <input type="checkbox" checked={includeFiles} onChange={onToggleInclude} className="rounded" />
         Files
       </label>
-      {worktreeOptions.length > 1 ? (
-        <select
-          value={selectedIdx}
-          onChange={(e) => onSelectWorktree(Number(e.target.value))}
-          disabled={!includeFiles}
-          className="text-xs bg-surface-900 text-surface-300 border border-surface-700 rounded px-1 py-0.5 flex-1 min-w-0 disabled:opacity-50"
-        >
-          {worktreeOptions.map((opt, i) => (
-            <option key={opt.worktreeId} value={i}>{opt.label}</option>
-          ))}
-        </select>
-      ) : worktreeOptions.length === 1 ? (
-        <span className="text-xs text-surface-500 truncate">{worktreeOptions[0].label}</span>
-      ) : null}
+      {selected && (
+        <div className="flex items-center gap-1 min-w-0 text-xs text-surface-500 truncate">
+          <span className="truncate">{repoName}</span>
+          {hasMultiple && worktreeName && (
+            <>
+              <span className="shrink-0">/</span>
+              <select
+                value={selectedIdx}
+                onChange={(e) => onSelectWorktree(Number(e.target.value))}
+                disabled={!includeFiles}
+                className="bg-surface-900 text-surface-300 border border-surface-700 rounded px-1 py-0.5 min-w-0 disabled:opacity-50 text-xs"
+              >
+                {worktreeOptions.map((opt, i) => {
+                  const wtName = opt.label.split("/").slice(1).join("/") || opt.label;
+                  return <option key={opt.worktreeId} value={i}>{wtName}</option>;
+                })}
+              </select>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -137,14 +155,16 @@ export function SummaryBar({ threadCount, fileMatchCount, fileCount, onCollapseA
   return (
     <div className="flex items-center justify-between px-3 py-1 border-b border-surface-800">
       <span className="text-xs text-surface-500">{summary}</span>
-      <div className="flex items-center gap-0.5">
-        <button onClick={onCollapseAll} className="p-0.5 hover:bg-surface-800 rounded" title="Collapse All">
-          <ChevronsDownUp size={12} className="text-surface-500" />
-        </button>
-        <button onClick={onExpandAll} className="p-0.5 hover:bg-surface-800 rounded" title="Expand All">
-          <ChevronsUpDown size={12} className="text-surface-500" />
-        </button>
-      </div>
+      {(threadCount > 0 || fileCount > 0) && (
+        <div className="flex items-center gap-0.5">
+          <button onClick={onCollapseAll} className="p-0.5 hover:bg-surface-800 rounded" title="Collapse All">
+            <ChevronsDownUp size={12} className="text-surface-500" />
+          </button>
+          <button onClick={onExpandAll} className="p-0.5 hover:bg-surface-800 rounded" title="Expand All">
+            <ChevronsUpDown size={12} className="text-surface-500" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

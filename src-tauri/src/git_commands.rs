@@ -34,7 +34,7 @@ pub async fn git_grep(
     exclude_patterns: Option<Vec<String>>,
     case_sensitive: Option<bool>,
 ) -> Result<GrepResponse, String> {
-    let max = max_results.unwrap_or(500) as usize;
+    let max = max_results.unwrap_or(5000) as usize;
     let case_sensitive = case_sensitive.unwrap_or(false);
 
     let mut args = vec![

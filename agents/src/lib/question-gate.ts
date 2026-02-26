@@ -79,6 +79,18 @@ export class QuestionGate {
     pending.resolve({ answers });
   }
 
+  /**
+   * Cancel a pending question (e.g., user sent a message instead).
+   * Resolves with "timeout" to trigger the deny path in the hook.
+   */
+  cancel(requestId: string): void {
+    const pending = this.pending.get(requestId);
+    if (!pending) return;
+    this.pending.delete(requestId);
+    logger.info(`[QuestionGate] Cancelled ${requestId}`);
+    pending.resolve("timeout");
+  }
+
   /** Clean up all pending requests (e.g., on agent shutdown). */
   clear(): void {
     for (const [id] of this.pending) {

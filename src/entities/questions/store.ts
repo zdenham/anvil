@@ -6,7 +6,7 @@ export interface QuestionRequest {
   toolUseId: string;
   toolInput: Record<string, unknown>;
   timestamp: number;
-  status: "pending" | "answered";
+  status: "pending" | "answered" | "cancelled";
   answers?: Record<string, string>;
 }
 
@@ -17,6 +17,8 @@ interface QuestionStoreState {
 interface QuestionStoreActions {
   addRequest: (req: QuestionRequest) => void;
   markAnswered: (requestId: string, answers: Record<string, string>) => void;
+  markCancelled: (requestId: string) => void;
+  getPendingForThread: (threadId: string) => QuestionRequest[];
   getRequestByToolUseId: (toolUseId: string) => QuestionRequest | undefined;
   _applyClearThread: (threadId: string) => void;
 }
@@ -41,6 +43,22 @@ export const useQuestionStore = create<QuestionStoreState & QuestionStoreActions
         },
       }));
     },
+
+    markCancelled: (requestId) => {
+      const request = get().requests[requestId];
+      if (!request) return;
+      set((state) => ({
+        requests: {
+          ...state.requests,
+          [requestId]: { ...request, status: "cancelled" as const },
+        },
+      }));
+    },
+
+    getPendingForThread: (threadId) =>
+      Object.values(get().requests).filter(
+        (r) => r.threadId === threadId && r.status === "pending",
+      ),
 
     getRequestByToolUseId: (toolUseId) =>
       Object.values(get().requests).find((r) => r.toolUseId === toolUseId),

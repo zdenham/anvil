@@ -1,3 +1,4 @@
+import { GitCommit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
@@ -6,6 +7,13 @@ interface CommitItemProps {
   item: TreeItemNode;
   isSelected: boolean;
   onNavigate: () => void;
+}
+
+/** Shorten a git author name: first name only, or full string if no spaces. */
+function shortAuthor(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed.includes(" ")) return trimmed;
+  return trimmed.split(" ")[0];
 }
 
 /**
@@ -26,6 +34,9 @@ export function CommitItem({ item, isSelected, onNavigate }: CommitItemProps) {
   };
 
   const indentPx = TREE_INDENT_BASE + TREE_INDENT_STEP;
+  const displayAuthor = item.commitAuthor
+    ? shortAuthor(item.commitAuthor)
+    : undefined;
 
   return (
     <div
@@ -44,13 +55,14 @@ export function CommitItem({ item, isSelected, onNavigate }: CommitItemProps) {
           : "text-surface-400 hover:text-surface-200 hover:bg-accent-500/10"
       )}
     >
+      <GitCommit size={12} className="flex-shrink-0 w-3 h-3" />
       <span className="truncate flex-1" title={item.commitMessage}>
         {item.commitMessage}
       </span>
-      {(item.commitAuthor || item.commitRelativeDate) && (
-        <span className="flex-shrink-0 text-surface-500 text-xs truncate max-w-[120px]">
-          {item.commitAuthor}
-          {item.commitAuthor && item.commitRelativeDate && " \u00B7 "}
+      {(displayAuthor || item.commitRelativeDate) && (
+        <span className="flex-shrink-0 text-surface-500 text-xs whitespace-nowrap">
+          {displayAuthor}
+          {displayAuthor && item.commitRelativeDate && " \u00B7 "}
           {item.commitRelativeDate}
         </span>
       )}

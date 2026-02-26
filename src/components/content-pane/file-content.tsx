@@ -11,7 +11,7 @@
  * - Binary/missing files: error message
  */
 
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { FilesystemClient } from "@/lib/filesystem-client";
 import { getLanguageFromPath } from "@/lib/language-detection";
@@ -28,6 +28,8 @@ interface FileContentProps {
   filePath: string;
   repoId?: string;
   worktreeId?: string;
+  lineNumber?: number;
+  searchQuery?: string;
 }
 
 type FileState =
@@ -41,9 +43,10 @@ function isBinaryContent(content: string): boolean {
   return content.includes("\0");
 }
 
-export function FileContent({ filePath }: FileContentProps) {
+export function FileContent({ filePath, lineNumber }: FileContentProps) {
   const [fileState, setFileState] = useState<FileState>({ status: "loading" });
   const [viewMode, setViewMode] = useState<"rendered" | "source">("rendered");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFileState({ status: "loading" });
@@ -95,6 +98,30 @@ export function FileContent({ filePath }: FileContentProps) {
     return () => { cancelled = true; };
   }, [filePath]);
 
+  // Scroll to the target line after content renders
+  useEffect(() => {
+    if (!lineNumber || fileState.status !== "loaded") return;
+
+    // Allow a frame for the DOM to render before scrolling
+    const frameId = requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      const targetEl = container.querySelector(
+        `[data-line-number="${lineNumber}"]`
+      ) as HTMLElement | null;
+
+      if (targetEl) {
+        targetEl.scrollIntoView({ block: "center", behavior: "smooth" });
+        // Flash highlight on the target line
+        targetEl.classList.add("bg-amber-500/20");
+        setTimeout(() => targetEl.classList.remove("bg-amber-500/20"), 2000);
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [lineNumber, fileState.status]);
+
   if (fileState.status === "loading") {
     return <CenteredMessage>Loading...</CenteredMessage>;
   }
@@ -137,7 +164,7 @@ export function FileContent({ filePath }: FileContentProps) {
   return (
     <div className="flex flex-col h-full">
       {isMarkdown && <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
         <HighlightedFileView content={content} language={language} />
       </div>
     </div>
@@ -223,7 +250,7 @@ const FileLine = memo(function FileLine({
   gutterWidth: string;
 }) {
   return (
-    <div className="flex hover:bg-surface-800/50">
+    <div data-line-number={lineNumber} className="flex hover:bg-surface-800/50 transition-colors duration-300">
       <span
         className="text-zinc-500 select-none text-right pr-2 font-mono text-xs shrink-0 pt-px"
         style={{ width: gutterWidth }}
@@ -250,7 +277,7 @@ function PlainFileView({ lines, gutterWidth }: { lines: string[]; gutterWidth: s
   return (
     <div className="font-mono text-sm leading-relaxed">
       {lines.map((line, i) => (
-        <div key={i} className="flex hover:bg-surface-800/50">
+        <div key={i} data-line-number={i + 1} className="flex hover:bg-surface-800/50 transition-colors duration-300">
           <span
             className="text-zinc-500 select-none text-right pr-2 font-mono text-xs shrink-0 pt-px"
             style={{ width: gutterWidth }}

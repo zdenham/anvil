@@ -1,4 +1,4 @@
-import { Circle, Square, CheckSquare } from "lucide-react";
+import { ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OptionItemProps {
@@ -6,7 +6,7 @@ interface OptionItemProps {
   index: number;
   /** Display label */
   label: string;
-  /** Optional description (shown below label) */
+  /** Optional description (shown inline after label) */
   description?: string;
   /** Whether this option is selected */
   isSelected: boolean;
@@ -30,8 +30,6 @@ export function OptionItem({
   disabled,
   onActivate,
 }: OptionItemProps) {
-  const displayNumber = index + 1;
-
   return (
     <div
       role={variant === "radio" ? "radio" : "checkbox"}
@@ -40,46 +38,27 @@ export function OptionItem({
       data-testid={`option-item-${index}`}
       onClick={disabled ? undefined : onActivate}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors rounded-md",
-        isFocused && "ring-2 ring-accent-500/50 bg-surface-800",
-        isSelected && !isFocused && "bg-accent-500/10",
-        disabled && "opacity-50 cursor-not-allowed"
+        "flex items-center gap-2 px-2 py-1 cursor-pointer transition-colors rounded font-mono text-sm",
+        isFocused && !disabled && "bg-surface-800",
+        isSelected && !isFocused && "text-accent-400",
+        disabled && "opacity-50 cursor-not-allowed",
+        !disabled && !isFocused && !isSelected && "text-surface-300"
       )}
     >
-      <SelectionIcon variant={variant} isSelected={isSelected} />
-      <div className="flex-1 min-w-0">
-        <span className="text-sm text-surface-200">{label}</span>
-        {description && (
-          <p className="text-xs text-surface-400 mt-0.5">{description}</p>
-        )}
-      </div>
-      <kbd className="px-1.5 py-0.5 text-xs font-mono bg-surface-700 rounded text-surface-400">
-        {displayNumber}
-      </kbd>
+      {/* Chevron indicator for focused item, check for selected in multi-select */}
+      <span className="w-4 shrink-0 flex items-center justify-center">
+        {variant === "checkbox" && isSelected ? (
+          <Check className="w-3.5 h-3.5 text-accent-400" />
+        ) : isFocused ? (
+          <ChevronRight className="w-3.5 h-3.5 text-accent-400" />
+        ) : null}
+      </span>
+      <span className={cn(isFocused && "text-surface-100")}>
+        {label}
+      </span>
+      {description && (
+        <span className="text-surface-500 text-xs ml-1">{description}</span>
+      )}
     </div>
-  );
-}
-
-function SelectionIcon({
-  variant,
-  isSelected,
-}: {
-  variant: "radio" | "checkbox";
-  isSelected: boolean;
-}) {
-  if (variant === "radio") {
-    return isSelected ? (
-      <div className="w-4 h-4 rounded-full bg-accent-500 flex items-center justify-center">
-        <div className="w-2 h-2 rounded-full bg-white" />
-      </div>
-    ) : (
-      <Circle className="w-4 h-4 text-surface-500" />
-    );
-  }
-
-  return isSelected ? (
-    <CheckSquare className="w-4 h-4 text-accent-500" />
-  ) : (
-    <Square className="w-4 h-4 text-surface-500" />
   );
 }

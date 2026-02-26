@@ -102,6 +102,15 @@ export function ContentPane({
     return () => window.removeEventListener("keydown", handler);
   }, [isSearchable]);
 
+  // Auto-open find bar with search query for file views navigated from search panel
+  const fileSearchQuery = view.type === "file" ? view.searchQuery : undefined;
+  useEffect(() => {
+    if (fileSearchQuery) {
+      setFindBarOpen(true);
+      search.setQuery(fileSearchQuery);
+    }
+  }, [fileSearchQuery]);
+
   const closeFindBar = useCallback(() => {
     search.clear();
     setFindBarOpen(false);
@@ -130,6 +139,7 @@ export function ContentPane({
               onPopOut={onPopOut}
               autoFocus={view.autoFocus}
               initialPrompt={initialPrompt}
+              initialSearchQuery={view.initialSearchQuery}
             />
           )}
           {view.type === "thread" && threadTab === "changes" && activeMetadata && (
@@ -158,6 +168,8 @@ export function ContentPane({
             filePath={view.filePath}
             repoId={view.repoId}
             worktreeId={view.worktreeId}
+            lineNumber={view.lineNumber}
+            searchQuery={view.searchQuery}
           />
         )}
         {view.type === "pull-request" && (

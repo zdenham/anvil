@@ -17,6 +17,36 @@ interface LiveAskUserQuestionProps {
 }
 
 /**
+ * Extract the user's answer from toolState.result, which may be
+ * raw JSON like {"questions":[...],"answers":{"Q":"A"}} or a plain string.
+ */
+function extractAnswer(result: string | undefined, question: string): string | undefined {
+  if (!result) return undefined;
+
+  try {
+    const parsed = JSON.parse(result);
+    if (parsed?.answers && typeof parsed.answers === "object") {
+      return parsed.answers[question] ?? Object.values(parsed.answers)[0] as string;
+    }
+  } catch {
+    // Not JSON — return as-is
+  }
+
+  return result;
+}
+
+/** Extract answers from blockInput when they're embedded (e.g. completed questions). */
+function extractAnswerFromInput(blockInput: unknown, question: string): string | undefined {
+  if (!blockInput || typeof blockInput !== "object") return undefined;
+  const input = blockInput as Record<string, unknown>;
+  if (input.answers && typeof input.answers === "object") {
+    const answers = input.answers as Record<string, string>;
+    return answers[question] ?? Object.values(answers)[0];
+  }
+  return undefined;
+}
+
+/**
  * Renders an AskUserQuestion tool_use block with live question store integration.
  *
  * When a QUESTION_REQUEST is pending in the store for this tool_use block,
@@ -34,6 +64,12 @@ export function LiveAskUserQuestion({
     useCallback((s) => s.getRequestByToolUseId(blockId), [blockId]),
   );
   const isLivePending = questionRequest?.status === "pending";
+  const isCancelled = questionRequest?.status === "cancelled";
+
+  // Cancelled question — hide the interactive UI entirely
+  if (isCancelled) {
+    return null;
+  }
 
   // Live pending question — render from store with service callback
   if (isLivePending && questionRequest) {
@@ -108,6 +144,10 @@ export function LiveAskUserQuestion({
     );
   }
 
+  // Extract clean answer from result JSON or answers embedded in blockInput
+  const cleanResult = extractAnswer(toolState.result, parsed.question)
+    ?? extractAnswerFromInput(blockInput, parsed.question);
+
   return (
     <AskUserQuestionBlock
       id={blockId}
@@ -116,7 +156,7 @@ export function LiveAskUserQuestion({
       options={parsed.options}
       allowMultiple={parsed.multiSelect}
       status={toolState.status === "complete" ? "answered" : "pending"}
-      result={toolState.result}
+      result={cleanResult}
       onSubmit={(response) => onToolResponse?.(blockId, response)}
     />
   );

@@ -52,12 +52,12 @@ export function ThreadResultGroup({
 
       {/* Match snippets */}
       {!group.isCollapsed && (
-        <div className="ml-5">
+        <div className="ml-4">
           {group.matches.map((match, i) => (
             <button
               key={`${match.matchIndex}-${i}`}
               onClick={onMatchClick}
-              className="flex items-baseline w-full px-2 py-0.5 hover:bg-surface-800 text-left"
+              className="flex items-baseline w-full px-2 py-0.5 hover:bg-surface-800 text-left overflow-hidden min-w-0"
             >
               <MatchLine text={match.lineContent} query={query} caseSensitive={caseSensitive} />
             </button>

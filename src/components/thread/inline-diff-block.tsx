@@ -10,6 +10,7 @@ import {
 import { InlineDiffHeader } from "./inline-diff-header";
 import { InlineDiffActions } from "./inline-diff-actions";
 import { CollapsibleOutputBlock } from "../ui/collapsible-output-block";
+import { useDiffHighlight } from "@/hooks/use-diff-highlight";
 import type { AnnotatedLine, ParsedDiffFile } from "../diff-viewer/types";
 
 interface InlineDiffBlockProps {
@@ -113,10 +114,13 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
     }
   }, [diff, precomputedLines, precomputedStats]);
 
+  // Add syntax highlighting tokens
+  const highlightedLines = useDiffHighlight(lines, filePath);
+
   // Manage collapsed regions
-  const collapsedRegions = useCollapsedRegions(lines, fileType);
+  const collapsedRegions = useCollapsedRegions(highlightedLines, fileType);
   const renderItems = buildRenderItems(
-    lines,
+    highlightedLines,
     collapsedRegions.regions,
     collapsedRegions.expanded
   );
@@ -125,6 +129,9 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   const isLargeDiff = lines.length > LARGE_DIFF_LINE_THRESHOLD;
   const shouldStartCollapsed = defaultCollapsed ?? (isPending && isLargeDiff);
   const [isDiffExpanded, setIsDiffExpanded] = useState(!shouldStartCollapsed);
+
+  // File-level collapse (header chevron toggle)
+  const [isFileCollapsed, setIsFileCollapsed] = useState(false);
 
   // Extract filename for display
   const fileName = filePath.split("/").pop() ?? filePath;
@@ -169,29 +176,36 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
         filePath={filePath}
         stats={stats}
         onExpand={onExpand}
+        isFileCollapsed={isFileCollapsed}
+        onToggleFileCollapse={() => setIsFileCollapsed((v) => !v)}
         hasCollapsedRegions={collapsedRegions.regions.length > 0}
         allExpanded={collapsedRegions.expanded.size === collapsedRegions.regions.length}
         onExpandAll={collapsedRegions.expandAll}
         onCollapseAll={collapsedRegions.collapseAll}
       />
 
-      {/* Diff content — wrapped in collapsible container for large diffs */}
-      {shouldStartCollapsed ? (
-        <CollapsibleOutputBlock
-          isExpanded={isDiffExpanded}
-          onToggle={() => setIsDiffExpanded((v) => !v)}
-          isLongContent={isLargeDiff}
-          maxCollapsedHeight={COLLAPSED_MAX_HEIGHT}
-          className="border-0 rounded-none"
-        >
-          <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
-        </CollapsibleOutputBlock>
-      ) : (
-        <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
+      {/* Diff content — hidden when file is collapsed */}
+      {!isFileCollapsed && (
+        <>
+          {/* Wrapped in collapsible container for large diffs */}
+          {shouldStartCollapsed ? (
+            <CollapsibleOutputBlock
+              isExpanded={isDiffExpanded}
+              onToggle={() => setIsDiffExpanded((v) => !v)}
+              isLongContent={isLargeDiff}
+              maxCollapsedHeight={COLLAPSED_MAX_HEIGHT}
+              className="border-0 rounded-none"
+            >
+              <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
+            </CollapsibleOutputBlock>
+          ) : (
+            <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
+          )}
+        </>
       )}
 
       {/* Actions for pending edits */}
-      {isPending && (
+      {!isFileCollapsed && isPending && (
         <InlineDiffActions
           onAccept={onAccept}
           onReject={onReject}

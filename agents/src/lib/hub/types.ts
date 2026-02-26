@@ -57,4 +57,5 @@ export type TauriToAgentMessage =
   | { type: "question_response"; payload: { requestId: string; answers: Record<string, string> } }
   | { type: "queued_message"; payload: { content: string } }
   | { type: "diagnostic_config"; payload: { pipeline: boolean; heartbeat: boolean; sequenceGaps: boolean; socketHealth: boolean } }
+  | { type: "question_cancelled"; payload: { requestId: string } }
   | { type: "cancel" };

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { HelpCircle, CheckCircle } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OptionItem } from "./option-item";
 import { useQuestionKeyboard } from "./use-question-keyboard";
@@ -26,7 +26,6 @@ interface AskUserQuestionBlockProps {
 export function AskUserQuestionBlock({
   id,
   question,
-  header,
   options,
   allowMultiple = false,
   status,
@@ -75,7 +74,6 @@ export function AskUserQuestionBlock({
     // For single-select, use the directly passed index/option to avoid async state issues
     if (indexOrOption !== undefined) {
       setIsSubmitting(true);
-      // If it's a number, look up the option label; if string, use directly
       const response = typeof indexOrOption === "number"
         ? options[indexOrOption].label
         : indexOrOption;
@@ -119,76 +117,56 @@ export function AskUserQuestionBlock({
       role="group"
       aria-label={`Question: ${question}`}
       tabIndex={isPending ? 0 : -1}
-      className={cn(
-        "rounded-lg border p-4",
-        isPending
-          ? "border-accent-500/50 bg-accent-950/20"
-          : "border-zinc-700 bg-zinc-900/50"
-      )}
+      className="py-1"
       data-testid={`ask-user-question-${id}`}
       data-status={status}
     >
-      {/* Question header */}
-      <div className="flex items-start gap-3 mb-4">
-        <HelpCircle className="h-5 w-5 text-accent-400 shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          {header && (
-            <span className="inline-block px-2 py-0.5 mb-2 text-xs font-medium bg-accent-500/20 text-accent-400 rounded">
-              {header}
-            </span>
-          )}
-          <p className="text-sm text-surface-200 font-medium">{question}</p>
-        </div>
-      </div>
+      {/* Question text */}
+      <p className={cn(
+        "font-mono text-sm mb-1",
+        isPending ? "text-accent-400" : "text-surface-400"
+      )}>
+        {question}
+      </p>
 
       {/* Options list */}
-      <div className="space-y-2 ml-8" role="listbox" aria-label="Options">
-        {options.map((option, index) => (
-          <OptionItem
-            key={index}
-            index={index}
-            label={option.label}
-            description={option.description}
-            isSelected={selectedIndices.has(index)}
-            isFocused={focusedIndex === index}
-            variant={variant}
-            disabled={!isPending}
-            onActivate={() => {
-              toggleOption(index);
-              if (!allowMultiple) handleSubmit(option.label);
-            }}
-          />
-        ))}
-      </div>
+      {isPending && (
+        <div className="space-y-0" role="listbox" aria-label="Options">
+          {options.map((option, index) => (
+            <OptionItem
+              key={index}
+              index={index}
+              label={option.label}
+              description={option.description}
+              isSelected={selectedIndices.has(index)}
+              isFocused={focusedIndex === index}
+              variant={variant}
+              disabled={!isPending}
+              onActivate={() => {
+                toggleOption(index);
+                if (!allowMultiple) handleSubmit(option.label);
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Keyboard hints */}
-      {isPending && (
-        <div className="flex items-center justify-between text-xs text-surface-400 mt-3 pt-3 border-t border-surface-700 ml-8">
-          {allowMultiple ? (
-            <>
-              <span>
-                <kbd className="px-1 bg-surface-700 rounded">a</kbd> All{" "}
-                <kbd className="px-1 bg-surface-700 rounded">n</kbd> None
-              </span>
-              <span>
-                Submit ({selectedIndices.size}){" "}
-                <kbd className="px-1 bg-surface-700 rounded">Enter</kbd>
-              </span>
-            </>
-          ) : (
-            <span className="ml-auto">
-              Press 1-{Math.min(options.length, 9)} or{" "}
-              <kbd className="px-1 bg-surface-700 rounded">Enter</kbd>
-            </span>
-          )}
+      {isPending && allowMultiple && (
+        <div className="flex items-center gap-3 text-xs text-surface-500 mt-1 ml-6 font-mono">
+          <span>
+            <kbd className="text-surface-400">a</kbd> all{" "}
+            <kbd className="text-surface-400">n</kbd> none{" "}
+            <kbd className="text-surface-400">enter</kbd> submit ({selectedIndices.size})
+          </span>
         </div>
       )}
 
       {/* Answered state */}
       {status === "answered" && result && (
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-surface-700 ml-8">
-          <CheckCircle className="h-4 w-4 text-green-400" />
-          <span className="text-sm text-green-300">{result}</span>
+        <div className="flex items-center gap-1.5 font-mono text-sm">
+          <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />
+          <span className="text-green-400">{result}</span>
         </div>
       )}
     </div>

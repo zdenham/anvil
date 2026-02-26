@@ -53,9 +53,9 @@ describe("AskUserQuestionBlock - Schema Validation", () => {
   });
 
   /**
-   * Test that header chip is rendered when provided
+   * Test that header prop does not render a badge (compact design)
    */
-  it("renders header chip when provided", () => {
+  it("does not render header badge", () => {
     render(
       <AskUserQuestionBlock
         id="test"
@@ -67,7 +67,7 @@ describe("AskUserQuestionBlock - Schema Validation", () => {
       />
     );
 
-    expect(screen.getByText("Category")).toBeInTheDocument();
+    expect(screen.queryByText("Category")).not.toBeInTheDocument();
   });
 });
 

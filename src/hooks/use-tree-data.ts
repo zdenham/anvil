@@ -287,7 +287,7 @@ export function buildChangesItems(
   // Read commits from commit store (synchronous getState())
   const { commitsBySection } = useCommitStore.getState();
   const commits = commitsBySection[sectionId] ?? [];
-  for (const commit of commits.slice(0, 20)) {
+  for (const commit of commits.slice(0, 5)) {
     items.push({
       type: "commit",
       id: `commit:${sectionId}:${commit.hash}`,

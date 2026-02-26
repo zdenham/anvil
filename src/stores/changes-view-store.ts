@@ -7,6 +7,8 @@ interface ChangesViewState {
   changedFilePaths: Set<string>;
   /** Currently selected file path for scroll-to, or null */
   selectedFilePath: string | null;
+  /** Whether the inline file list sidebar is open */
+  isFilePaneOpen: boolean;
 }
 
 interface ChangesViewActions {
@@ -16,12 +18,15 @@ interface ChangesViewActions {
   clearActive: () => void;
   /** Called by FileBrowserPanel when a file is clicked during Changes view */
   selectFile: (filePath: string | null) => void;
+  /** Toggle the inline file list sidebar */
+  toggleFilePane: () => void;
 }
 
 export const useChangesViewStore = create<ChangesViewState & ChangesViewActions>((set) => ({
   activeWorktreeId: null,
   changedFilePaths: new Set(),
   selectedFilePath: null,
+  isFilePaneOpen: true,
 
   setActive: (worktreeId: string, changedPaths: string[]) => {
     set({
@@ -36,10 +41,15 @@ export const useChangesViewStore = create<ChangesViewState & ChangesViewActions>
       activeWorktreeId: null,
       changedFilePaths: new Set(),
       selectedFilePath: null,
+      isFilePaneOpen: true,
     });
   },
 
   selectFile: (filePath: string | null) => {
     set({ selectedFilePath: filePath });
+  },
+
+  toggleFilePane: () => {
+    set((state) => ({ isFilePaneOpen: !state.isFilePaneOpen }));
   },
 }));

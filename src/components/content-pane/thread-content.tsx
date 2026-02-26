@@ -48,6 +48,8 @@ import { useDraftSync, clearCurrentDraft } from "@/hooks/useDraftSync";
 import { useInputStore } from "@/stores/input-store";
 
 import { navigationService } from "@/stores/navigation-service";
+import { useQuestionStore } from "@/entities/questions/store";
+import { questionService } from "@/entities/questions/service";
 import type { ThreadContentProps } from "./types";
 
 /** Map entity ThreadStatus to ThreadView's expected status type */
@@ -100,6 +102,7 @@ export function ThreadContent({
   onPopOut: _onPopOut,
   initialPrompt,
   autoFocus,
+  initialSearchQuery,
 }: ThreadContentProps) {
   // Note: onPopOut is available for future use (pop-out functionality wired in Phase 4)
   void _onPopOut;
@@ -329,7 +332,7 @@ export function ThreadContent({
   // Cmd+F handler for find-in-page
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "f") {
         e.preventDefault();
         setFindBarOpen((prev) => {
           if (prev) searchClearRef.current();
@@ -340,6 +343,14 @@ export function ThreadContent({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // Auto-open find bar with search query from search panel navigation
+  useEffect(() => {
+    if (initialSearchQuery) {
+      setFindBarOpen(true);
+      threadSearch.setQuery(initialSearchQuery);
+    }
+  }, [initialSearchQuery]);
 
   const closeFindBar = useCallback(() => {
     threadSearch.clear();
@@ -388,6 +399,12 @@ export function ThreadContent({
 
       // Queue message if agent is currently running
       if (canQueueMessages) {
+        // If there are pending questions, cancel them — user is overriding with their message
+        const pendingQuestions = useQuestionStore.getState().getPendingForThread(threadId);
+        for (const req of pendingQuestions) {
+          questionService.cancel(threadId, req.requestId);
+        }
+
         try {
           await sendQueuedMessage(threadId, userPrompt);
         } catch (error) {

@@ -54,14 +54,6 @@ describe("AskUserQuestionBlock", () => {
       expect(screen.getAllByRole("checkbox")).toHaveLength(3);
     });
 
-    it("shows single-select keyboard hint", () => {
-      render(
-        <AskUserQuestionBlock {...createDefaultProps({ options: toOptions(["A", "B"]) })} />
-      );
-
-      expect(screen.getByText(/Press 1-2/)).toBeInTheDocument();
-    });
-
     it("shows multi-select keyboard hints", () => {
       render(
         <AskUserQuestionBlock
@@ -69,13 +61,12 @@ describe("AskUserQuestionBlock", () => {
         />
       );
 
-      // The text is split across kbd and text nodes: "<kbd>a</kbd> All <kbd>n</kbd> None"
-      expect(screen.getByText(/All/)).toBeInTheDocument();
-      expect(screen.getByText(/None/)).toBeInTheDocument();
-      expect(screen.getByText(/Submit \(0\)/)).toBeInTheDocument();
+      expect(screen.getByText(/all/)).toBeInTheDocument();
+      expect(screen.getByText(/none/)).toBeInTheDocument();
+      expect(screen.getByText(/submit \(0\)/)).toBeInTheDocument();
     });
 
-    it("hides keyboard hints when answered", () => {
+    it("hides options when answered", () => {
       render(
         <AskUserQuestionBlock
           {...createDefaultProps({
@@ -86,7 +77,7 @@ describe("AskUserQuestionBlock", () => {
         />
       );
 
-      expect(screen.queryByText(/Press 1-2/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     });
   });
 
@@ -211,13 +202,13 @@ describe("AskUserQuestionBlock", () => {
     it("updates selection count in hint", () => {
       render(<AskUserQuestionBlock {...multiSelectProps} />);
 
-      expect(screen.getByText(/Submit \(0\)/)).toBeInTheDocument();
+      expect(screen.getByText(/submit \(0\)/)).toBeInTheDocument();
 
       fireEvent.keyDown(window, { key: "1" });
-      expect(screen.getByText(/Submit \(1\)/)).toBeInTheDocument();
+      expect(screen.getByText(/submit \(1\)/)).toBeInTheDocument();
 
       fireEvent.keyDown(window, { key: "2" });
-      expect(screen.getByText(/Submit \(2\)/)).toBeInTheDocument();
+      expect(screen.getByText(/submit \(2\)/)).toBeInTheDocument();
     });
 
     it("selects all with 'a' key", () => {
@@ -241,7 +232,7 @@ describe("AskUserQuestionBlock", () => {
         "aria-checked",
         "true"
       );
-      expect(screen.getByText(/Submit \(4\)/)).toBeInTheDocument();
+      expect(screen.getByText(/submit \(4\)/)).toBeInTheDocument();
     });
 
     it("deselects all with 'n' key", () => {
@@ -259,7 +250,7 @@ describe("AskUserQuestionBlock", () => {
         "aria-checked",
         "false"
       );
-      expect(screen.getByText(/Submit \(0\)/)).toBeInTheDocument();
+      expect(screen.getByText(/submit \(0\)/)).toBeInTheDocument();
     });
 
     it("submits comma-separated values on Enter", () => {

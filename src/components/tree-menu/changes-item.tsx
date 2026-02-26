@@ -17,19 +17,23 @@ interface ChangesItemProps {
  * Clicking the chevron toggles expansion.
  */
 export function ChangesItem({ item, isSelected, onNavigate }: ChangesItemProps) {
-  const handleClick = () => {
-    onNavigate();
+  const handleClick = async () => {
+    if (isSelected) {
+      await treeMenuService.toggleSection(item.id);
+    } else {
+      onNavigate();
+    }
   };
 
-  const handleChevronClick = async (e: React.MouseEvent) => {
+  const handleChevronToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     await treeMenuService.toggleSection(item.id);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = async (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onNavigate();
+      await handleClick();
     }
   };
 
@@ -51,24 +55,27 @@ export function ChangesItem({ item, isSelected, onNavigate }: ChangesItemProps) 
           : "text-surface-400 hover:text-surface-200"
       )}
     >
-      {/* Chevron for expand/collapse */}
-      <button
-        type="button"
-        className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"
-        onClick={handleChevronClick}
-        aria-label={item.isExpanded ? "Collapse changes" : "Expand changes"}
-      >
-        <ChevronRight
-          size={12}
-          className={cn(
-            "transition-transform duration-150",
-            item.isExpanded && "rotate-90"
-          )}
-        />
-      </button>
-      <span className="flex-shrink-0 w-3 flex items-center justify-center">
-        <GitCompare size={11} />
-      </span>
+      {/* Chevron (when selected) or GitCompare icon - both use same fixed width */}
+      {isSelected ? (
+        <button
+          type="button"
+          className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"
+          onClick={handleChevronToggle}
+          aria-label={item.isExpanded ? "Collapse changes" : "Expand changes"}
+        >
+          <ChevronRight
+            size={12}
+            className={cn(
+              "tree-chevron transition-transform duration-150",
+              item.isExpanded && "rotate-90"
+            )}
+          />
+        </button>
+      ) : (
+        <span className="flex-shrink-0 w-3 flex items-center justify-center">
+          <GitCompare size={11} />
+        </span>
+      )}
       <span className="truncate">Changes</span>
     </div>
   );

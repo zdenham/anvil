@@ -1,12 +1,7 @@
 import { memo } from "react";
-import {
-  File,
-  FilePlus,
-  FileMinus,
-  FileEdit,
-  ArrowRight,
-  FileQuestion,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { getFileIconUrl } from "../file-browser/file-icons";
+import { CopyButton } from "../ui/copy-button";
 import type { ParsedDiffFile } from "./types";
 
 interface FileHeaderProps {
@@ -22,9 +17,14 @@ export const FileHeader = memo(function FileHeader({ file }: FileHeaderProps) {
   const isRename = file.type === "renamed" && file.oldPath;
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-1.5 bg-surface-800 sticky top-0 z-10">
+    <div className="group flex items-center gap-2.5 px-3 py-1.5 bg-surface-800 sticky top-0 z-10">
       {/* File icon */}
-      <FileIcon type={file.type} className="w-4 h-4 flex-shrink-0" />
+      <img
+        src={getFileIconUrl((file.newPath ?? file.oldPath ?? "file").split("/").pop() ?? "file")}
+        alt=""
+        className="w-4 h-4 flex-shrink-0"
+        aria-hidden="true"
+      />
 
       {/* File path(s) */}
       <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -45,6 +45,9 @@ export const FileHeader = memo(function FileHeader({ file }: FileHeaderProps) {
         )}
       </div>
 
+      {/* Copy path */}
+      <CopyButton text={path} label="Copy path" />
+
       {/* Operation badge */}
       <OperationBadge type={file.type} similarity={file.similarity} />
 
@@ -62,45 +65,6 @@ export const FileHeader = memo(function FileHeader({ file }: FileHeaderProps) {
     </div>
   );
 });
-
-interface FileIconProps {
-  type: ParsedDiffFile["type"];
-  className?: string;
-}
-
-function FileIcon({ type, className }: FileIconProps) {
-  const iconClass = `${className} ${getFileIconColor(type)}`;
-
-  switch (type) {
-    case "added":
-      return <FilePlus className={iconClass} aria-hidden="true" />;
-    case "deleted":
-      return <FileMinus className={iconClass} aria-hidden="true" />;
-    case "modified":
-      return <FileEdit className={iconClass} aria-hidden="true" />;
-    case "renamed":
-      return <ArrowRight className={iconClass} aria-hidden="true" />;
-    case "binary":
-      return <FileQuestion className={iconClass} aria-hidden="true" />;
-    default:
-      return <File className={iconClass} aria-hidden="true" />;
-  }
-}
-
-function getFileIconColor(type: ParsedDiffFile["type"]): string {
-  switch (type) {
-    case "added":
-      return "text-emerald-400";
-    case "deleted":
-      return "text-red-400";
-    case "modified":
-      return "text-amber-400";
-    case "renamed":
-      return "text-accent-400";
-    default:
-      return "text-surface-400";
-  }
-}
 
 interface OperationBadgeProps {
   type: ParsedDiffFile["type"];

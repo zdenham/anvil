@@ -199,31 +199,6 @@ export function MainWindowLayout() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Listen for Command+T / Ctrl+T to create new terminal in MRU worktree
-  useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "t") {
-        e.preventDefault();
-
-        const sections = treeSectionsRef.current;
-        if (sections.length === 0) {
-          logger.warn("[MainWindowLayout] Command+T: No worktrees available");
-          return;
-        }
-
-        const mostRecent = sections[0];
-        logger.info(
-          `[MainWindowLayout] Command+T: Creating terminal in worktree "${mostRecent.worktreeName}"`
-        );
-
-        await handleNewTerminal(mostRecent.worktreeId, mostRecent.worktreePath);
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleNewTerminal]);
-
   // ═══════════════════════════════════════════════════════════════════════════
   // Store Initialization
   // ═══════════════════════════════════════════════════════════════════════════
@@ -324,7 +299,7 @@ export function MainWindowLayout() {
     } else if (itemType === "plan") {
       await navigationService.navigateToPlan(itemId);
     } else if (itemType === "terminal") {
-      await navigationService.navigateToView({ type: "terminal", terminalId: itemId });
+      await navigationService.navigateToTerminal(itemId);
     } else if (itemType === "pull-request") {
       await navigationService.navigateToView({ type: "pull-request", prId: itemId });
     }
@@ -391,6 +366,65 @@ export function MainWindowLayout() {
       logger.error(`[MainWindowLayout] Failed to create terminal:`, err);
     }
   }, []);
+
+  // Listen for Command+T / Ctrl+T to create new terminal
+  // Priority: 1) Selected thread/plan's worktree, 2) Most recent worktree
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "t") {
+        e.preventDefault();
+
+        let worktreeId: string | undefined;
+        let worktreePath: string | undefined;
+
+        // 1. Check if a thread or plan is currently selected
+        const selectedItemId = useTreeMenuStore.getState().selectedItemId;
+        if (selectedItemId) {
+          const selectedThread = threadService.get(selectedItemId);
+          if (selectedThread) {
+            const section = treeSectionsRef.current.find(
+              s => s.repoId === selectedThread.repoId && s.worktreeId === selectedThread.worktreeId
+            );
+            if (section) {
+              worktreeId = section.worktreeId;
+              worktreePath = section.worktreePath;
+              logger.info(`[MainWindowLayout] Command+T: Creating terminal in selected thread's worktree "${section.worktreeName}"`);
+            }
+          } else {
+            const selectedPlan = planService.get(selectedItemId);
+            if (selectedPlan) {
+              const section = treeSectionsRef.current.find(
+                s => s.repoId === selectedPlan.repoId && s.worktreeId === selectedPlan.worktreeId
+              );
+              if (section) {
+                worktreeId = section.worktreeId;
+                worktreePath = section.worktreePath;
+                logger.info(`[MainWindowLayout] Command+T: Creating terminal in selected plan's worktree "${section.worktreeName}"`);
+              }
+            }
+          }
+        }
+
+        // 2. Fallback to most recently used worktree
+        if (!worktreeId || !worktreePath) {
+          const sections = treeSectionsRef.current;
+          if (sections.length === 0) {
+            logger.warn("[MainWindowLayout] Command+T: No worktrees available");
+            return;
+          }
+          const mostRecent = sections[0];
+          worktreeId = mostRecent.worktreeId;
+          worktreePath = mostRecent.worktreePath;
+          logger.info(`[MainWindowLayout] Command+T: Creating terminal in most recent worktree "${mostRecent.worktreeName}"`);
+        }
+
+        await handleNewTerminal(worktreeId, worktreePath);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleNewTerminal]);
 
   const handleNewWorktree = useCallback(async (repoName: string) => {
     logger.info(`[MainWindowLayout] New worktree requested for repo ${repoName}`);
@@ -586,13 +620,13 @@ export function MainWindowLayout() {
   // Search Navigation Handlers
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleSearchNavigateToThread = useCallback(async (threadId: string, _searchQuery: string) => {
-    await navigationService.navigateToThread(threadId);
+  const handleSearchNavigateToThread = useCallback(async (threadId: string, searchQuery: string) => {
+    await navigationService.navigateToThread(threadId, { initialSearchQuery: searchQuery });
   }, []);
 
   const handleSearchNavigateToFile = useCallback(async (
     filePath: string,
-    _lineNumber: number,
+    lineNumber: number,
     worktreePath: string,
     isPlan: boolean,
   ) => {
@@ -605,7 +639,7 @@ export function MainWindowLayout() {
       }
     }
     const absolutePath = `${worktreePath}/${filePath}`;
-    await navigationService.navigateToFile(absolutePath);
+    await navigationService.navigateToFile(absolutePath, { lineNumber });
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════

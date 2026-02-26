@@ -1,5 +1,7 @@
 import { memo } from "react";
-import { FileEdit, ArrowUpRight, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { ArrowUpRight, ChevronRight, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { getFileIconUrl } from "@/components/file-browser/file-icons";
+import { cn } from "@/lib/utils";
 
 interface InlineDiffHeaderProps {
   /** File path being changed */
@@ -16,6 +18,10 @@ interface InlineDiffHeaderProps {
   onExpandAll?: () => void;
   /** Callback to collapse all regions */
   onCollapseAll?: () => void;
+  /** Whether the file diff body is collapsed */
+  isFileCollapsed?: boolean;
+  /** Callback to toggle file collapse */
+  onToggleFileCollapse?: () => void;
 }
 
 /**
@@ -30,14 +36,38 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
   allExpanded,
   onExpandAll,
   onCollapseAll,
+  isFileCollapsed,
+  onToggleFileCollapse,
 }: InlineDiffHeaderProps) {
   // Extract just the filename for compact display
   const fileName = filePath.split("/").pop() ?? filePath;
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-surface-800 border-b border-surface-700">
+      {/* Collapse/expand chevron */}
+      {onToggleFileCollapse && (
+        <button
+          type="button"
+          onClick={onToggleFileCollapse}
+          className="flex-shrink-0 p-0.5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+          aria-label={isFileCollapsed ? "Expand file diff" : "Collapse file diff"}
+        >
+          <ChevronRight
+            className={cn(
+              "w-3.5 h-3.5 transition-transform duration-150",
+              !isFileCollapsed && "rotate-90"
+            )}
+          />
+        </button>
+      )}
+
       {/* File icon */}
-      <FileEdit className="w-4 h-4 text-amber-400 flex-shrink-0" aria-hidden="true" />
+      <img
+        src={getFileIconUrl(fileName)}
+        alt=""
+        className="w-4 h-4 flex-shrink-0"
+        aria-hidden="true"
+      />
 
       {/* File name with tooltip for full path */}
       <span

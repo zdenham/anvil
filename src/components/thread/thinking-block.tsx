@@ -1,64 +1,65 @@
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Brain } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Brain } from "lucide-react";
+import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { CollapsibleBlock } from "@/components/ui/collapsible-block";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 
 interface ThinkingBlockProps {
   /** Thinking/reasoning content */
   content: string;
-  /** Whether to show expanded by default */
-  defaultExpanded?: boolean;
+  /** Thread ID for persisting expand state across virtualization */
+  threadId: string;
+  /** Unique key for expand state persistence */
+  blockKey: string;
 }
 
 /**
  * Collapsible block for agent extended thinking.
- * Collapsed by default to reduce visual noise.
+ * Uses the same layout as specialized tool blocks.
  */
 export function ThinkingBlock({
   content,
-  defaultExpanded = false,
+  threadId,
+  blockKey,
 }: ThinkingBlockProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const isExpanded = useToolExpandStore((state) =>
+    state.isToolExpanded(threadId, blockKey)
+  );
+  const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
+  const setIsExpanded = (expanded: boolean) =>
+    setToolExpanded(threadId, blockKey, expanded);
 
-  // Truncate preview to first 100 characters
   const preview =
     content.length > 100 ? content.slice(0, 100) + "..." : content;
 
-  return (
-    <details
-      open={isExpanded}
-      onToggle={(e) => setIsExpanded(e.currentTarget.open)}
-      className="group"
-      aria-label="Assistant reasoning"
-    >
-      <summary
-        className={cn(
-          "flex items-center gap-2 cursor-pointer select-none",
-          "text-sm text-muted-foreground hover:text-foreground",
-          "list-none [&::-webkit-details-marker]:hidden"
-        )}
-      >
-        {isExpanded ? (
-          <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-        )}
-        <Brain className="h-4 w-4 shrink-0 text-secondary-400" aria-hidden="true" />
-        <span className="font-medium">Thinking</span>
-        {!isExpanded && (
-          <span className="truncate opacity-60 italic">{preview}</span>
-        )}
-      </summary>
-
-      <div
-        role="region"
-        aria-label="Thinking content"
-        className={cn(
-          "mt-2 pl-6 text-sm text-muted-foreground italic",
-          "border-l-2 border-secondary-400/30"
-        )}
-      >
-        <p className="whitespace-pre-wrap">{content}</p>
+  const header = (
+    <>
+      {/* First line: chevron + description */}
+      <div className="flex items-center gap-2">
+        <ExpandChevron isExpanded={isExpanded} size="md" />
+        <span className="text-sm text-zinc-200">Thinking</span>
       </div>
-    </details>
+
+      {/* Second line: icon + preview */}
+      <div className="flex items-center gap-1 mt-0.5">
+        <Brain className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+        <span className="text-xs text-zinc-500 truncate min-w-0 flex-1 italic">
+          {preview}
+        </span>
+      </div>
+    </>
+  );
+
+  return (
+    <CollapsibleBlock
+      isExpanded={isExpanded}
+      onToggle={() => setIsExpanded(!isExpanded)}
+      ariaLabel="Assistant reasoning"
+      className="py-0.5"
+      header={header}
+    >
+      <pre className="mt-2 ml-5 text-xs text-zinc-400 p-2 rounded bg-zinc-950 overflow-x-auto max-h-64 overflow-y-auto">
+        <code className="whitespace-pre-wrap">{content}</code>
+      </pre>
+    </CollapsibleBlock>
   );
 }
