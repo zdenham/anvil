@@ -83,16 +83,34 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
         aria-hidden="true"
       />
 
-      {/* File name with tooltip for full path */}
+      {/* File name + copy button, left-justified */}
       <span
-        className="font-mono text-sm text-surface-200 truncate flex-1 min-w-0"
+        className="font-mono text-sm text-surface-200 truncate min-w-0"
         title={filePath}
       >
         {fileName}
       </span>
+      <CopyButton text={filePath} label="Copy path" alwaysVisible />
 
-      {/* Copy path — right next to file name */}
-      <CopyButton text={filePath} label="Copy path" />
+      {/* Spacer pushes stats and actions to the right */}
+      <div className="flex-1" />
+
+      {/* Show full file toggle */}
+      {hasCollapsedRegions && (
+        <Tooltip content={allExpanded ? "Show hunks only" : "Show full file"}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); (allExpanded ? onCollapseAll : onExpandAll)?.(); }}
+            className={cn(
+              "p-1 hover:bg-zinc-700 rounded shrink-0",
+              allExpanded && "text-accent-400",
+            )}
+            aria-label={allExpanded ? "Show hunks only" : "Show full file"}
+          >
+            <FileCode className="h-3.5 w-3.5 text-zinc-400" />
+          </button>
+        </Tooltip>
+      )}
 
       {/* Stats */}
       {(stats.additions > 0 || stats.deletions > 0) && (
@@ -104,24 +122,6 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
             <span className="text-red-400">-{stats.deletions}</span>
           )}
         </div>
-      )}
-
-      {/* Show full file toggle */}
-      {hasCollapsedRegions && (
-        <Tooltip content={allExpanded ? "Show hunks only" : "Show full file"}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); (allExpanded ? onCollapseAll : onExpandAll)?.(); }}
-            className={cn(
-              "p-1 hover:bg-zinc-700 rounded transition-opacity shrink-0",
-              "opacity-0 group-hover:opacity-100",
-              allExpanded && "opacity-100 text-accent-400",
-            )}
-            aria-label={allExpanded ? "Show hunks only" : "Show full file"}
-          >
-            <FileCode className="h-3.5 w-3.5 text-zinc-400" />
-          </button>
-        </Tooltip>
       )}
 
       {/* Open in full diff viewer */}
