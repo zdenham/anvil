@@ -14,13 +14,13 @@
  */
 export type ContentPaneView =
   | { type: "empty" }
-  | { type: "thread"; threadId: string; autoFocus?: boolean; initialSearchQuery?: string }
+  | { type: "thread"; threadId: string; autoFocus?: boolean }
   | { type: "plan"; planId: string }
   | { type: "settings" }
   | { type: "logs" }
   | { type: "archive" }
   | { type: "terminal"; terminalId: string }
-  | { type: "file"; filePath: string; repoId?: string; worktreeId?: string; lineNumber?: number; searchQuery?: string }
+  | { type: "file"; filePath: string; repoId?: string; worktreeId?: string; lineNumber?: number }
   | { type: "pull-request"; prId: string }
   | {
       type: "changes";
@@ -69,8 +69,6 @@ export interface ThreadContentProps {
   initialPrompt?: string;
   /** Auto-focus the input on mount (for newly created threads) */
   autoFocus?: boolean;
-  /** Pre-fill find bar with this query on mount (for search panel navigation) */
-  initialSearchQuery?: string;
 }
 
 export interface PlanContentProps {

@@ -48,6 +48,7 @@ import { useDraftSync, clearCurrentDraft } from "@/hooks/useDraftSync";
 import { useInputStore } from "@/stores/input-store";
 
 import { navigationService } from "@/stores/navigation-service";
+import { useSearchState } from "@/stores/search-state";
 import { useQuestionStore } from "@/entities/questions/store";
 import { questionService } from "@/entities/questions/service";
 import type { ThreadContentProps } from "./types";
@@ -102,7 +103,6 @@ export function ThreadContent({
   onPopOut: _onPopOut,
   initialPrompt,
   autoFocus,
-  initialSearchQuery,
 }: ThreadContentProps) {
   // Note: onPopOut is available for future use (pop-out functionality wired in Phase 4)
   void _onPopOut;
@@ -344,13 +344,14 @@ export function ThreadContent({
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Auto-open find bar with search query from search panel navigation
+  // Auto-open FindBar from global search panel via searchState store
+  const { isEnabled: searchEnabled, searchQuery: globalSearchQuery, targetMatchIndex, nonce: searchNonce } = useSearchState();
   useEffect(() => {
-    if (initialSearchQuery) {
+    if (searchEnabled && globalSearchQuery) {
       setFindBarOpen(true);
-      threadSearch.setQuery(initialSearchQuery);
+      threadSearch.setQueryAndNavigate(globalSearchQuery, targetMatchIndex ?? 0);
     }
-  }, [initialSearchQuery]);
+  }, [searchEnabled, globalSearchQuery, searchNonce]);
 
   const closeFindBar = useCallback(() => {
     threadSearch.clear();

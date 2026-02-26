@@ -33,7 +33,7 @@ interface VirtualizedResultsProps {
   isTruncated: boolean;
   onToggleThread: (threadId: string) => void;
   onToggleFile: (filePath: string) => void;
-  onThreadMatchClick: (threadId: string) => void;
+  onThreadMatchClick: (threadId: string, matchIndex: number) => void;
   onFileMatchClick: (match: GrepMatch, filePath: string, isPlan: boolean) => void;
 }
 
@@ -119,7 +119,7 @@ function VirtualRow({
   caseSensitive: boolean;
   onToggleThread: (threadId: string) => void;
   onToggleFile: (filePath: string) => void;
-  onThreadMatchClick: (threadId: string) => void;
+  onThreadMatchClick: (threadId: string, matchIndex: number) => void;
   onFileMatchClick: (match: GrepMatch, filePath: string, isPlan: boolean) => void;
 }) {
   switch (item.type) {
@@ -131,7 +131,7 @@ function VirtualRow({
           match={item.match}
           query={query}
           caseSensitive={caseSensitive}
-          onClick={() => onThreadMatchClick(item.group.threadId)}
+          onClick={() => onThreadMatchClick(item.group.threadId, item.matchIndex)}
         />
       );
     case "file-header":

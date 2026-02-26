@@ -11,7 +11,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { logger } from "@/lib/logger-client";
-import { fetchRawDiff, processParsedDiff } from "./changes-diff-fetcher";
+import { fetchRawDiff, processParsedDiff, fetchFileContents } from "./changes-diff-fetcher";
+import type { FileContentEntry } from "./changes-diff-fetcher";
 import type { ParsedDiff, ParsedDiffFile } from "@/lib/diff-parser";
 
 interface UseChangesDataOptions {
@@ -24,6 +25,7 @@ interface UseChangesDataOptions {
 interface UseChangesDataResult {
   parsedDiff: ParsedDiff | null;
   rawDiffsByFile: Record<string, string>;
+  fileContents: Record<string, FileContentEntry>;
   totalFileCount: number;
   files: ParsedDiffFile[];
   changedFilePaths: string[];
@@ -46,10 +48,12 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
   const [parsedDiff, setParsedDiff] = useState<ParsedDiff | null>(null);
   const [rawDiffString, setRawDiffString] = useState<string | null>(null);
   const [mergeBase, setMergeBase] = useState<string | null>(null);
+  const [fileContents, setFileContents] = useState<Record<string, FileContentEntry>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const generationRef = useRef(0);
+  const contentGenRef = useRef(0);
 
   const refresh = useCallback(() => setRefreshCounter((c) => c + 1), []);
 
@@ -99,9 +103,33 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
     [parsedDiff, rawDiffString]
   );
 
+  // Fetch full file contents for syntax highlighting (runs after diff loads)
+  useEffect(() => {
+    const gen = ++contentGenRef.current;
+    if (processed.files.length === 0 || !worktreePath) {
+      setFileContents({});
+      return;
+    }
+
+    fetchFileContents({
+      worktreePath,
+      files: processed.files,
+      mergeBase,
+      commitHash,
+      uncommittedOnly,
+    }).then((contents) => {
+      if (contentGenRef.current === gen) {
+        setFileContents(contents);
+      }
+    }).catch((err) => {
+      logger.warn("[useChangesData] file content fetch failed:", err);
+    });
+  }, [processed.files, worktreePath, mergeBase, commitHash, uncommittedOnly]);
+
   return {
     parsedDiff,
     rawDiffsByFile: processed.rawDiffsByFile,
+    fileContents,
     totalFileCount: processed.totalFileCount,
     files: processed.files,
     changedFilePaths: processed.changedFilePaths,

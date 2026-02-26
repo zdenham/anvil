@@ -144,6 +144,7 @@ async function fetchFileContents(
 export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }: ChangesTabProps) {
   const [diffResult, setDiffResult] = useState<ThreadDiffResult | null>(null);
   const [annotatedFiles, setAnnotatedFiles] = useState<AnnotatedFile[]>([]);
+  const [fullFileContents, setFullFileContents] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Track whether the initial load has completed (isLoadingThreadState went from true to false, OR we received state)
@@ -289,6 +290,8 @@ export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }
             filePaths: Object.keys(fileContents),
           });
 
+          setFullFileContents(fileContents);
+
           // Build annotated files with full content
           logger.info(`[FC-DEBUG] Building annotated files`);
           const annotated = buildAnnotatedFiles(result.diff, fileContents);
@@ -392,6 +395,7 @@ export function ChangesTab({ threadMetadata, threadState, isLoadingThreadState }
                   lines={annotatedFile.lines}
                   stats={annotatedFile.file.stats}
                   fileType={annotatedFile.file.type}
+                  newContent={fullFileContents[filePath]?.join("\n")}
                 />
               );
             })

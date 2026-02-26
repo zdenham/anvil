@@ -4,11 +4,11 @@ The global search panel and content pane local search currently have disconnecte
 
 ## Phases
 
-- [ ] Create `searchState` zustand store with global→local search handoff
-- [ ] Wire file navigation through `searchState` (replace ephemeral flash)
-- [ ] Wire thread navigation through `searchState` with auto-scroll
-- [ ] Pass per-match index from search panel for targeted navigation
-- [ ] Handle re-navigation to same content with same query (nonce)
+- [x] Create `searchState` zustand store with global→local search handoff
+- [x] Wire file navigation through `searchState` (replace ephemeral flash)
+- [x] Wire thread navigation through `searchState` with auto-scroll
+- [x] Pass per-match index from search panel for targeted navigation
+- [x] Handle re-navigation to same content with same query (nonce)
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

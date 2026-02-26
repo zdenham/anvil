@@ -5,7 +5,7 @@
  * and parsing/splitting raw diffs into per-file chunks.
  */
 
-import { gitCommands } from "@/lib/tauri-commands";
+import { gitCommands, fsCommands } from "@/lib/tauri-commands";
 import { parseDiff, type ParsedDiff, type ParsedDiffFile } from "@/lib/diff-parser";
 import { logger } from "@/lib/logger-client";
 
@@ -149,4 +149,106 @@ function extractPerFileDiffs(
   }
 
   return result;
+}
+
+// ─── File content fetching ───────────────────────────────────────────────────
+
+export interface FileContentEntry {
+  oldContent?: string;
+  newContent?: string;
+}
+
+/**
+ * Fetch full file contents (old + new) for syntax highlighting.
+ *
+ * Modes:
+ * - commitHash: old = git show <hash>~1:<path>, new = git show <hash>:<path>
+ * - uncommittedOnly: old = git show HEAD:<path>, new = read from disk
+ * - default (mergeBase): old = git show <mergeBase>:<path>, new = read from disk
+ */
+export async function fetchFileContents(params: {
+  worktreePath: string;
+  files: ParsedDiffFile[];
+  mergeBase: string | null;
+  commitHash?: string;
+  uncommittedOnly?: boolean;
+}): Promise<Record<string, FileContentEntry>> {
+  const { worktreePath, files, mergeBase, commitHash, uncommittedOnly } = params;
+  const result: Record<string, FileContentEntry> = {};
+
+  const fetches = files.map(async (file) => {
+    const filePath = file.newPath ?? file.oldPath;
+    if (!filePath) return;
+
+    const entry: FileContentEntry = {};
+
+    try {
+      if (commitHash) {
+        await fetchCommitFileContent(worktreePath, filePath, file.type, commitHash, entry);
+      } else if (uncommittedOnly) {
+        await fetchUncommittedFileContent(worktreePath, filePath, file.type, entry);
+      } else if (mergeBase) {
+        await fetchRangeFileContent(worktreePath, filePath, file.type, mergeBase, entry);
+      }
+    } catch (err) {
+      logger.warn(`[fetchFileContents] failed for ${filePath}:`, err);
+    }
+
+    result[filePath] = entry;
+  });
+
+  await Promise.all(fetches);
+  return result;
+}
+
+async function fetchCommitFileContent(
+  cwd: string, filePath: string, type: ParsedDiffFile["type"],
+  commitHash: string, entry: FileContentEntry,
+): Promise<void> {
+  const [oldContent, newContent] = await Promise.all([
+    type !== "added" ? safeShowFile(cwd, filePath, `${commitHash}~1`) : undefined,
+    type !== "deleted" ? safeShowFile(cwd, filePath, commitHash) : undefined,
+  ]);
+  entry.oldContent = oldContent;
+  entry.newContent = newContent;
+}
+
+async function fetchUncommittedFileContent(
+  cwd: string, filePath: string, type: ParsedDiffFile["type"],
+  entry: FileContentEntry,
+): Promise<void> {
+  const [oldContent, newContent] = await Promise.all([
+    type !== "added" ? safeShowFile(cwd, filePath, "HEAD") : undefined,
+    type !== "deleted" ? safeReadFile(cwd, filePath) : undefined,
+  ]);
+  entry.oldContent = oldContent;
+  entry.newContent = newContent;
+}
+
+async function fetchRangeFileContent(
+  cwd: string, filePath: string, type: ParsedDiffFile["type"],
+  mergeBase: string, entry: FileContentEntry,
+): Promise<void> {
+  const [oldContent, newContent] = await Promise.all([
+    type !== "added" ? safeShowFile(cwd, filePath, mergeBase) : undefined,
+    type !== "deleted" ? safeReadFile(cwd, filePath) : undefined,
+  ]);
+  entry.oldContent = oldContent;
+  entry.newContent = newContent;
+}
+
+async function safeShowFile(cwd: string, path: string, ref: string): Promise<string | undefined> {
+  try {
+    return await gitCommands.showFile(cwd, path, ref);
+  } catch {
+    return undefined;
+  }
+}
+
+async function safeReadFile(cwd: string, path: string): Promise<string | undefined> {
+  try {
+    return await fsCommands.readFile(`${cwd}/${path}`);
+  } catch {
+    return undefined;
+  }
 }

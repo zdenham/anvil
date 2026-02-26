@@ -26,10 +26,7 @@ const filesystemClient = new FilesystemClient();
 
 interface FileContentProps {
   filePath: string;
-  repoId?: string;
-  worktreeId?: string;
   lineNumber?: number;
-  searchQuery?: string;
 }
 
 type FileState =
@@ -113,9 +110,6 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
 
       if (targetEl) {
         targetEl.scrollIntoView({ block: "center", behavior: "smooth" });
-        // Flash highlight on the target line
-        targetEl.classList.add("bg-amber-500/20");
-        setTimeout(() => targetEl.classList.remove("bg-amber-500/20"), 2000);
       }
     });
 

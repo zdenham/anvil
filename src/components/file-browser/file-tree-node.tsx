@@ -1,6 +1,7 @@
 import { ChevronRight, ChevronDown, Loader2, Copy, FileText, Folder, ExternalLink } from "lucide-react";
 import { Command } from "@tauri-apps/plugin-shell";
 import type { DirEntry } from "@/lib/filesystem-client";
+import { useChangesViewStore } from "@/stores/changes-view-store";
 import { getFileIconUrl } from "./file-icons";
 import type { FileTreeState } from "./use-file-tree";
 import { getTreeIndentPx } from "@/lib/tree-indent";
@@ -154,10 +155,35 @@ function FileTreeEntry({
           alt=""
           className="w-3 h-3 flex-shrink-0"
         />
-        <span className="truncate">{entry.name}</span>
+        <span className="truncate flex-1 text-left">{entry.name}</span>
+        <DiffStats entryPath={entry.path} rootPath={rootPath} />
       </button>
       <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} />
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DiffStats — +/- indicators shown in diff mode
+// ---------------------------------------------------------------------------
+
+function DiffStats({ entryPath, rootPath }: { entryPath: string; rootPath: string }) {
+  const fileStats = useChangesViewStore((s) => s.fileStats);
+  if (fileStats.size === 0) return null;
+
+  const prefix = rootPath.endsWith("/") ? rootPath : rootPath + "/";
+  const relativePath = entryPath.startsWith(prefix)
+    ? entryPath.slice(prefix.length)
+    : entryPath;
+  const stats = fileStats.get(relativePath);
+  if (!stats || (stats.additions === 0 && stats.deletions === 0)) return null;
+
+  return (
+    <span className="text-[10px] flex-shrink-0 ml-auto mr-1">
+      {stats.additions > 0 && <span className="text-green-400">+{stats.additions}</span>}
+      {stats.additions > 0 && stats.deletions > 0 && " "}
+      {stats.deletions > 0 && <span className="text-red-400">-{stats.deletions}</span>}
+    </span>
   );
 }
 

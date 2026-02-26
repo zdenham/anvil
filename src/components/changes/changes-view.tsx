@@ -6,11 +6,10 @@
  */
 
 import { useMemo, useEffect, useRef } from "react";
-import { PanelRight } from "lucide-react";
 import type { ChangesContentProps } from "@/components/content-pane/types";
+import type { FileStats } from "@/stores/changes-view-store";
 import { useChangesData } from "./use-changes-data";
 import { ChangesDiffContent, type ChangesDiffContentRef } from "./changes-diff-content";
-import { ChangesFileList } from "./changes-file-list";
 import { MAX_DISPLAYED_FILES } from "./changes-diff-fetcher";
 import { useChangesViewStore } from "@/stores/changes-view-store";
 
@@ -18,16 +17,26 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
   const data = useChangesData({ repoId, worktreeId, uncommittedOnly, commitHash });
   const diffContentRef = useRef<ChangesDiffContentRef>(null);
   const selectedFilePath = useChangesViewStore((s) => s.selectedFilePath);
-  const isFilePaneOpen = useChangesViewStore((s) => s.isFilePaneOpen);
-  const toggleFilePane = useChangesViewStore((s) => s.toggleFilePane);
 
-  // Sync changed file paths to the cross-component store
+  // Build per-file stats map from parsed diff files
+  const fileStatsMap = useMemo(() => {
+    const map = new Map<string, FileStats>();
+    for (const file of data.files) {
+      const path = file.newPath ?? file.oldPath;
+      if (path) {
+        map.set(path, { additions: file.stats.additions, deletions: file.stats.deletions });
+      }
+    }
+    return map;
+  }, [data.files]);
+
+  // Sync changed file paths + stats to the cross-component store
   useEffect(() => {
-    useChangesViewStore.getState().setActive(worktreeId, data.changedFilePaths);
+    useChangesViewStore.getState().setActive(worktreeId, data.changedFilePaths, fileStatsMap);
     return () => {
       useChangesViewStore.getState().clearActive();
     };
-  }, [worktreeId, data.changedFilePaths]);
+  }, [worktreeId, data.changedFilePaths, fileStatsMap]);
 
   // Scroll to file when selected from the file browser
   useEffect(() => {
@@ -66,28 +75,19 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
         branchName={data.branchName}
         uncommittedOnly={uncommittedOnly}
         commitHash={commitHash}
-        isFilePaneOpen={isFilePaneOpen}
-        onToggleFilePane={toggleFilePane}
       />
 
-      <div className="flex-1 min-h-0 flex">
-        <div className="flex-1 min-w-0">
-          <ChangesDiffContent
-            ref={diffContentRef}
-            files={data.files}
-            rawDiffsByFile={data.rawDiffsByFile}
-            totalFileCount={data.totalFileCount}
-            worktreePath={data.worktreePath}
-            commitHash={commitHash}
-            uncommittedOnly={uncommittedOnly}
-          />
-        </div>
-        {isFilePaneOpen && (
-          <ChangesFileList
-            files={data.files}
-            onSelectFile={(path) => useChangesViewStore.getState().selectFile(path)}
-          />
-        )}
+      <div className="flex-1 min-h-0">
+        <ChangesDiffContent
+          ref={diffContentRef}
+          files={data.files}
+          rawDiffsByFile={data.rawDiffsByFile}
+          fileContents={data.fileContents}
+          totalFileCount={data.totalFileCount}
+          worktreePath={data.worktreePath}
+          commitHash={commitHash}
+          uncommittedOnly={uncommittedOnly}
+        />
       </div>
 
       {data.totalFileCount > MAX_DISPLAYED_FILES && (
@@ -141,8 +141,6 @@ interface SummaryHeaderProps {
   branchName: string | null;
   uncommittedOnly?: boolean;
   commitHash?: string;
-  isFilePaneOpen: boolean;
-  onToggleFilePane: () => void;
 }
 
 function SummaryHeader({
@@ -153,8 +151,6 @@ function SummaryHeader({
   branchName,
   uncommittedOnly,
   commitHash,
-  isFilePaneOpen,
-  onToggleFilePane,
 }: SummaryHeaderProps) {
   const { totalAdditions, totalDeletions } = useMemo(() => {
     let adds = 0;
@@ -184,15 +180,6 @@ function SummaryHeader({
           <div className="text-xs text-surface-500 mt-0.5">{subtext}</div>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onToggleFilePane}
-        className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-        aria-label={isFilePaneOpen ? "Hide file list" : "Show file list"}
-        title={isFilePaneOpen ? "Hide file list" : "Show file list"}
-      >
-        <PanelRight size={16} />
-      </button>
     </div>
   );
 }

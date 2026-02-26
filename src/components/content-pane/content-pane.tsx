@@ -24,6 +24,7 @@ import { SettingsPage } from "../main-window/settings-page";
 import { LogsPage } from "../main-window/logs-page";
 import { useContentSearch } from "./use-content-search";
 import { InputStoreProvider } from "@/stores/input-store";
+import { useSearchState } from "@/stores/search-state";
 import { logger } from "@/lib/logger-client";
 import type { ContentPaneProps, ContentPaneView } from "./types";
 
@@ -102,14 +103,14 @@ export function ContentPane({
     return () => window.removeEventListener("keydown", handler);
   }, [isSearchable]);
 
-  // Auto-open find bar with search query for file views navigated from search panel
-  const fileSearchQuery = view.type === "file" ? view.searchQuery : undefined;
+  // Auto-open FindBar from global search panel via searchState store
+  const { isEnabled: searchEnabled, searchQuery: globalSearchQuery, nonce: searchNonce } = useSearchState();
   useEffect(() => {
-    if (fileSearchQuery) {
+    if (searchEnabled && globalSearchQuery && isSearchable) {
       setFindBarOpen(true);
-      search.setQuery(fileSearchQuery);
+      search.setQuery(globalSearchQuery);
     }
-  }, [fileSearchQuery]);
+  }, [searchEnabled, globalSearchQuery, searchNonce, isSearchable]);
 
   const closeFindBar = useCallback(() => {
     search.clear();
@@ -139,7 +140,6 @@ export function ContentPane({
               onPopOut={onPopOut}
               autoFocus={view.autoFocus}
               initialPrompt={initialPrompt}
-              initialSearchQuery={view.initialSearchQuery}
             />
           )}
           {view.type === "thread" && threadTab === "changes" && activeMetadata && (
@@ -166,10 +166,7 @@ export function ContentPane({
         {view.type === "file" && (
           <FileContent
             filePath={view.filePath}
-            repoId={view.repoId}
-            worktreeId={view.worktreeId}
             lineNumber={view.lineNumber}
-            searchQuery={view.searchQuery}
           />
         )}
         {view.type === "pull-request" && (

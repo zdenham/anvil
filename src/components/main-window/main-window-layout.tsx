@@ -620,8 +620,8 @@ export function MainWindowLayout() {
   // Search Navigation Handlers
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleSearchNavigateToThread = useCallback(async (threadId: string, searchQuery: string) => {
-    await navigationService.navigateToThread(threadId, { initialSearchQuery: searchQuery });
+  const handleSearchNavigateToThread = useCallback(async (threadId: string) => {
+    await navigationService.navigateToThread(threadId);
   }, []);
 
   const handleSearchNavigateToFile = useCallback(async (

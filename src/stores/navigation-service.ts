@@ -16,7 +16,7 @@ export const navigationService = {
   /**
    * Navigate to a thread - updates both content pane AND tree selection.
    */
-  async navigateToThread(threadId: string, options?: { autoFocus?: boolean; initialSearchQuery?: string }): Promise<void> {
+  async navigateToThread(threadId: string, options?: { autoFocus?: boolean }): Promise<void> {
     // Update tree selection first (so UI updates together)
     await treeMenuService.setSelectedItem(threadId);
     // Then update content pane
@@ -24,7 +24,6 @@ export const navigationService = {
       type: "thread",
       threadId,
       autoFocus: options?.autoFocus,
-      initialSearchQuery: options?.initialSearchQuery,
     });
   },
 
@@ -41,7 +40,7 @@ export const navigationService = {
    */
   async navigateToFile(
     filePath: string,
-    context?: { repoId?: string; worktreeId?: string; lineNumber?: number; searchQuery?: string }
+    context?: { repoId?: string; worktreeId?: string; lineNumber?: number }
   ): Promise<void> {
     await treeMenuService.setSelectedItem(null);
     await contentPanesService.setActivePaneView({
@@ -93,7 +92,7 @@ export const navigationService = {
    */
   async navigateToView(view: ContentPaneView): Promise<void> {
     if (view.type === "thread") {
-      await this.navigateToThread(view.threadId, { autoFocus: view.autoFocus, initialSearchQuery: view.initialSearchQuery });
+      await this.navigateToThread(view.threadId, { autoFocus: view.autoFocus });
     } else if (view.type === "plan") {
       await this.navigateToPlan(view.planId);
     } else if (view.type === "file") {
@@ -101,7 +100,6 @@ export const navigationService = {
         repoId: view.repoId,
         worktreeId: view.worktreeId,
         lineNumber: view.lineNumber,
-        searchQuery: view.searchQuery,
       });
     } else if (view.type === "terminal") {
       await this.navigateToTerminal(view.terminalId);

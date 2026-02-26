@@ -98,11 +98,16 @@ function findMatches(
   return matches;
 }
 
+export interface UseThreadSearchReturn extends UseContentSearchReturn {
+  /** Set query and auto-navigate to a specific match once results are found */
+  setQueryAndNavigate: (query: string, matchIndex: number) => void;
+}
+
 export function useThreadSearch(
   messages: MessageParam[],
   messageListRef: RefObject<MessageListRef | null>,
   scrollerRef: RefObject<HTMLElement | null>,
-): UseContentSearchReturn {
+): UseThreadSearchReturn {
   const [query, setQuery] = useState("");
   const [matchCount, setMatchCount] = useState(0);
   const [currentMatch, setCurrentMatch] = useState(0);
@@ -111,6 +116,10 @@ export function useThreadSearch(
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const queryRef = useRef(query);
   queryRef.current = query;
+
+  // Track pending navigation from global search (cleared after first navigation)
+  const initialNavRef = useRef<number | null>(null);
+  const navigateToMatchRef = useRef<(matchIdx: number) => void>(() => {});
 
   // Memoize segments from message data
   const segments = useMemo(() => buildSegments(messages), [messages]);
@@ -263,11 +272,19 @@ export function useThreadSearch(
     setMatchCount(results.length);
 
     if (results.length > 0) {
-      setCurrentMatch(1);
-      // Only highlight visible matches — no scrolling on typing
-      requestAnimationFrame(() => {
-        applyHighlights(0);
-      });
+      // If global search requested navigation to a specific match, do it
+      if (initialNavRef.current !== null) {
+        const targetIdx = Math.min(initialNavRef.current, results.length - 1);
+        initialNavRef.current = null;
+        setCurrentMatch(targetIdx + 1);
+        navigateToMatchRef.current(targetIdx);
+      } else {
+        setCurrentMatch(1);
+        // Only highlight visible matches — no scrolling on typing
+        requestAnimationFrame(() => {
+          applyHighlights(0);
+        });
+      }
     } else {
       setCurrentMatch(0);
     }
@@ -330,6 +347,7 @@ export function useThreadSearch(
     },
     [messageListRef, scrollToCurrentMatch],
   );
+  navigateToMatchRef.current = navigateToMatch;
 
   const goToNext = useCallback(() => {
     const matches = matchesRef.current;
@@ -361,5 +379,10 @@ export function useThreadSearch(
     clearHighlights();
   }, [clearHighlights]);
 
-  return { query, setQuery, matchCount, currentMatch, goToNext, goToPrevious, clear };
+  const setQueryAndNavigate = useCallback((q: string, matchIdx: number) => {
+    initialNavRef.current = matchIdx;
+    setQuery(q);
+  }, []);
+
+  return { query, setQuery, matchCount, currentMatch, goToNext, goToPrevious, clear, setQueryAndNavigate };
 }

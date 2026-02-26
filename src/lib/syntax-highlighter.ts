@@ -30,7 +30,7 @@ const THEME = "github-dark";
 
 // Cache for highlighted code to avoid re-highlighting on remount
 const highlightCache = new Map<string, ThemedToken[][]>();
-const MAX_CACHE_SIZE = 100;
+const MAX_CACHE_SIZE = 200;
 
 /**
  * Initialize the Shiki highlighter with preloaded languages.

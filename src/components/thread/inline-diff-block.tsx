@@ -24,6 +24,10 @@ interface InlineDiffBlockProps {
   stats?: { additions: number; deletions: number };
   /** File operation type for determining collapse behavior */
   fileType?: ParsedDiffFile["type"];
+  /** Full old-side file content for syntax highlighting */
+  oldContent?: string;
+  /** Full new-side file content for syntax highlighting */
+  newContent?: string;
   /** Whether this block is currently focused for keyboard nav */
   isFocused?: boolean;
   /** Callback when user wants to open full diff viewer */
@@ -36,6 +40,10 @@ interface InlineDiffBlockProps {
   onReject?: () => void;
   /** Whether to start collapsed for large diffs (auto-detected if not set) */
   defaultCollapsed?: boolean;
+  /** Controlled file-level collapse state (overrides internal state) */
+  isFileCollapsed?: boolean;
+  /** Controlled file-level collapse toggle (overrides internal state) */
+  onToggleFileCollapse?: () => void;
 }
 
 /** Threshold: diffs with more lines than this start collapsed */
@@ -55,12 +63,16 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   lines: precomputedLines,
   stats: precomputedStats,
   fileType = "modified",
+  oldContent,
+  newContent,
   isFocused,
   onExpand,
   isPending,
   onAccept,
   onReject,
   defaultCollapsed,
+  isFileCollapsed: controlledFileCollapsed,
+  onToggleFileCollapse: controlledToggleFileCollapse,
 }: InlineDiffBlockProps) {
   // Parse diff and build annotated lines
   const { lines, stats, error } = useMemo(() => {
@@ -115,7 +127,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   }, [diff, precomputedLines, precomputedStats]);
 
   // Add syntax highlighting tokens
-  const highlightedLines = useDiffHighlight(lines, filePath);
+  const highlightedLines = useDiffHighlight(lines, filePath, oldContent, newContent);
 
   // Manage collapsed regions
   const collapsedRegions = useCollapsedRegions(highlightedLines, fileType);
@@ -130,8 +142,10 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   const shouldStartCollapsed = defaultCollapsed ?? (isPending && isLargeDiff);
   const [isDiffExpanded, setIsDiffExpanded] = useState(!shouldStartCollapsed);
 
-  // File-level collapse (header chevron toggle)
-  const [isFileCollapsed, setIsFileCollapsed] = useState(false);
+  // File-level collapse — use controlled props when provided, else internal state
+  const [internalFileCollapsed, setInternalFileCollapsed] = useState(false);
+  const isFileCollapsed = controlledFileCollapsed ?? internalFileCollapsed;
+  const handleToggleFileCollapse = controlledToggleFileCollapse ?? (() => setInternalFileCollapsed((v) => !v));
 
   // Extract filename for display
   const fileName = filePath.split("/").pop() ?? filePath;
@@ -177,7 +191,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
         stats={stats}
         onExpand={onExpand}
         isFileCollapsed={isFileCollapsed}
-        onToggleFileCollapse={() => setIsFileCollapsed((v) => !v)}
+        onToggleFileCollapse={handleToggleFileCollapse}
         hasCollapsedRegions={collapsedRegions.regions.length > 0}
         allExpanded={collapsedRegions.expanded.size === collapsedRegions.regions.length}
         onExpandAll={collapsedRegions.expandAll}

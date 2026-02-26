@@ -10,12 +10,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { VirtualizedResults } from "./virtualized-results";
 import { useSearch } from "./use-search";
 import { SearchHeader, SearchInput, FileScope, FilterFields, SummaryBar, useWorktreeOptions } from "./search-controls";
+import { useSearchState } from "@/stores/search-state";
 import type { GrepMatch } from "@/lib/tauri-commands";
 
 export interface SearchPanelProps {
   onClose: () => void;
   onNavigateToFile: (filePath: string, lineNumber: number, worktreePath: string, isPlan: boolean) => void;
-  onNavigateToThread: (threadId: string, searchQuery: string) => void;
+  onNavigateToThread: (threadId: string) => void;
 }
 
 export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: SearchPanelProps) {
@@ -37,9 +38,12 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
   // Search execution
   const search = useSearch({ includeFiles, worktreePath, caseSensitive, includePatterns, excludePatterns });
 
-  // Auto-focus on mount
+  // Auto-focus on mount; deactivate search on unmount
   useEffect(() => {
     inputRef.current?.focus();
+    return () => {
+      useSearchState.getState().deactivateSearch();
+    };
   }, []);
 
   // Escape key: clear input or close panel
@@ -72,10 +76,12 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
 
   const handleFileMatchClick = useCallback((match: GrepMatch, filePath: string, isPlan: boolean) => {
     onNavigateToFile(filePath, match.lineNumber, worktreePath, isPlan);
-  }, [worktreePath, onNavigateToFile]);
+    useSearchState.getState().activateSearch(search.query);
+  }, [worktreePath, onNavigateToFile, search.query]);
 
-  const handleThreadMatchClick = useCallback((threadId: string) => {
-    onNavigateToThread(threadId, search.query);
+  const handleThreadMatchClick = useCallback((threadId: string, matchIndex: number) => {
+    onNavigateToThread(threadId);
+    useSearchState.getState().activateSearch(search.query, matchIndex);
   }, [search.query, onNavigateToThread]);
 
   const handleToggleThread = useCallback((threadId: string) => {

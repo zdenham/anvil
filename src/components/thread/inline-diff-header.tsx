@@ -1,6 +1,8 @@
 import { memo } from "react";
-import { ArrowUpRight, ChevronRight, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { ArrowUpRight, ChevronRight, FileCode } from "lucide-react";
 import { getFileIconUrl } from "@/components/file-browser/file-icons";
+import { CopyButton } from "@/components/ui/copy-button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface InlineDiffHeaderProps {
@@ -22,11 +24,13 @@ interface InlineDiffHeaderProps {
   isFileCollapsed?: boolean;
   /** Callback to toggle file collapse */
   onToggleFileCollapse?: () => void;
+  /** Additional CSS classes for the root element */
+  className?: string;
 }
 
 /**
  * Compact header for inline diff display.
- * Shows file name, change stats, and optional expand button.
+ * Click anywhere on the header (besides buttons) to collapse/expand.
  */
 export const InlineDiffHeader = memo(function InlineDiffHeader({
   filePath,
@@ -38,27 +42,37 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
   onCollapseAll,
   isFileCollapsed,
   onToggleFileCollapse,
+  className,
 }: InlineDiffHeaderProps) {
   // Extract just the filename for compact display
   const fileName = filePath.split("/").pop() ?? filePath;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-surface-800 border-b border-surface-700">
-      {/* Collapse/expand chevron */}
+    <div
+      className={cn(
+        "group flex items-center gap-2 px-3 py-2 bg-surface-800 border-b border-surface-700",
+        onToggleFileCollapse && "cursor-pointer select-none",
+        className,
+      )}
+      role={onToggleFileCollapse ? "button" : undefined}
+      tabIndex={onToggleFileCollapse ? 0 : undefined}
+      onClick={onToggleFileCollapse}
+      onKeyDown={onToggleFileCollapse ? (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggleFileCollapse();
+        }
+      } : undefined}
+    >
+      {/* Collapse chevron */}
       {onToggleFileCollapse && (
-        <button
-          type="button"
-          onClick={onToggleFileCollapse}
-          className="flex-shrink-0 p-0.5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label={isFileCollapsed ? "Expand file diff" : "Collapse file diff"}
-        >
-          <ChevronRight
-            className={cn(
-              "w-3.5 h-3.5 transition-transform duration-150",
-              !isFileCollapsed && "rotate-90"
-            )}
-          />
-        </button>
+        <ChevronRight
+          className={cn(
+            "w-3.5 h-3.5 text-surface-400 transition-transform duration-150 flex-shrink-0",
+            !isFileCollapsed && "rotate-90",
+          )}
+          aria-hidden="true"
+        />
       )}
 
       {/* File icon */}
@@ -77,6 +91,9 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
         {fileName}
       </span>
 
+      {/* Copy path — right next to file name */}
+      <CopyButton text={filePath} label="Copy path" />
+
       {/* Stats */}
       {(stats.additions > 0 || stats.deletions > 0) && (
         <div className="flex items-center gap-1.5 text-xs font-mono flex-shrink-0">
@@ -89,48 +106,39 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
         </div>
       )}
 
-      {/* Expand/Collapse all button */}
+      {/* Show full file toggle */}
       {hasCollapsedRegions && (
-        <button
-          type="button"
-          onClick={allExpanded ? onCollapseAll : onExpandAll}
-          className="
-            text-xs text-surface-400 hover:text-surface-200
-            flex items-center gap-1
-            px-1.5 py-0.5 rounded
-            hover:bg-surface-700
-            transition-colors
-            focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500
-          "
-          aria-label={allExpanded ? "Collapse unchanged regions" : "Expand unchanged regions"}
-          title={allExpanded ? "Collapse unchanged regions" : "Expand unchanged regions"}
-        >
-          {allExpanded ? (
-            <ChevronsDownUp className="w-3.5 h-3.5" aria-hidden="true" />
-          ) : (
-            <ChevronsUpDown className="w-3.5 h-3.5" aria-hidden="true" />
-          )}
-          <span>{allExpanded ? "Collapse" : "Expand"}</span>
-        </button>
+        <Tooltip content={allExpanded ? "Show hunks only" : "Show full file"}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); (allExpanded ? onCollapseAll : onExpandAll)?.(); }}
+            className={cn(
+              "p-1 hover:bg-zinc-700 rounded transition-opacity shrink-0",
+              "opacity-0 group-hover:opacity-100",
+              allExpanded && "opacity-100 text-accent-400",
+            )}
+            aria-label={allExpanded ? "Show hunks only" : "Show full file"}
+          >
+            <FileCode className="h-3.5 w-3.5 text-zinc-400" />
+          </button>
+        </Tooltip>
       )}
 
-      {/* Expand button */}
+      {/* Open in full diff viewer */}
       {onExpand && (
-        <button
-          type="button"
-          onClick={onExpand}
-          className="
-            p-1 rounded
-            text-surface-400 hover:text-surface-200
-            hover:bg-surface-700
-            transition-colors
-            focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500
-          "
-          aria-label="Expand to full diff view"
-          title="Open in full diff viewer"
-        >
-          <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
-        </button>
+        <Tooltip content="Open in full diff viewer">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onExpand(); }}
+            className={cn(
+              "p-1 hover:bg-zinc-700 rounded transition-opacity shrink-0",
+              "opacity-0 group-hover:opacity-100",
+            )}
+            aria-label="Open in full diff viewer"
+          >
+            <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400" />
+          </button>
+        </Tooltip>
       )}
     </div>
   );
