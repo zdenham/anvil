@@ -98,9 +98,43 @@ function findMatches(
   return matches;
 }
 
+/**
+ * Find the frontend match whose surrounding text contains the backend snippet.
+ * The backend snippet is a cleaned ~200-char window from state.json grep.
+ * We normalize both sides (collapse whitespace, strip leading "..." ) and
+ * check direct substring containment against each match's segment text.
+ */
+function resolveMatchIndex(
+  matches: SearchMatch[],
+  segments: SearchableSegment[],
+  snippet: string,
+): number {
+  if (matches.length === 0) return 0;
+
+  const norm = (s: string) =>
+    s.replace(/\\.n/g, "\n").replace(/\\"/g, '"').replace(/\s+/g, " ").toLowerCase().trim();
+  const normSnippet = norm(snippet.replace(/^\.\.\./, "").replace(/\.\.\.$/, ""));
+
+  for (let i = 0; i < matches.length; i++) {
+    const seg = segments[matches[i].segmentIndex];
+    if (norm(seg.text).includes(normSnippet)) return i;
+  }
+
+  // Snippet may be truncated — try matching a shorter prefix (first 60 chars)
+  const shortSnippet = normSnippet.slice(0, 60);
+  if (shortSnippet.length >= 10) {
+    for (let i = 0; i < matches.length; i++) {
+      const seg = segments[matches[i].segmentIndex];
+      if (norm(seg.text).includes(shortSnippet)) return i;
+    }
+  }
+
+  return 0;
+}
+
 export interface UseThreadSearchReturn extends UseContentSearchReturn {
   /** Set query and auto-navigate to a specific match once results are found */
-  setQueryAndNavigate: (query: string, matchIndex: number) => void;
+  setQueryAndNavigate: (query: string, matchIndex: number, snippet?: string) => void;
 }
 
 export function useThreadSearch(
@@ -119,6 +153,7 @@ export function useThreadSearch(
 
   // Track pending navigation from global search (cleared after first navigation)
   const initialNavRef = useRef<number | null>(null);
+  const snippetRef = useRef<string | null>(null);
   const navigateToMatchRef = useRef<(matchIdx: number) => void>(() => {});
 
   // Memoize segments from message data
@@ -274,7 +309,13 @@ export function useThreadSearch(
     if (results.length > 0) {
       // If global search requested navigation to a specific match, do it
       if (initialNavRef.current !== null) {
-        const targetIdx = Math.min(initialNavRef.current, results.length - 1);
+        let targetIdx: number;
+        if (snippetRef.current) {
+          targetIdx = resolveMatchIndex(results, segments, snippetRef.current);
+          snippetRef.current = null;
+        } else {
+          targetIdx = Math.min(initialNavRef.current, results.length - 1);
+        }
         initialNavRef.current = null;
         setCurrentMatch(targetIdx + 1);
         navigateToMatchRef.current(targetIdx);
@@ -379,8 +420,9 @@ export function useThreadSearch(
     clearHighlights();
   }, [clearHighlights]);
 
-  const setQueryAndNavigate = useCallback((q: string, matchIdx: number) => {
+  const setQueryAndNavigate = useCallback((q: string, matchIdx: number, snippet?: string) => {
     initialNavRef.current = matchIdx;
+    snippetRef.current = snippet ?? null;
     setQuery(q);
   }, []);
 

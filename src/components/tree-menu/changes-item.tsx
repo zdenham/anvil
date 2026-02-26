@@ -55,8 +55,7 @@ export function ChangesItem({ item, isSelected, onNavigate }: ChangesItemProps) 
           : "text-surface-400 hover:text-surface-200"
       )}
     >
-      {/* Chevron (when selected) or GitCompare icon - both use same fixed width */}
-      {isSelected ? (
+      {isSelected || item.isExpanded ? (
         <button
           type="button"
           className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"

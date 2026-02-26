@@ -237,7 +237,7 @@ export class MockHubServer {
       type: "permission_response",
       payload: {
         requestId,
-        decision: allowed ? "allow" : "deny",
+        decision: allowed ? "approve" : "deny",
       },
     });
   }

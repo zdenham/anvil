@@ -216,6 +216,7 @@ function routeAgentEvent(threadId: string, eventName: string, payload: unknown):
         threadId: string;
         toolName: string;
         toolInput: Record<string, unknown>;
+        toolUseId?: string;
         timestamp: number;
       });
       break;

@@ -273,7 +273,7 @@ export function buildChangesItems(
   items.push({
     type: "uncommitted",
     id: uncommittedItemId,
-    title: "Uncommitted Changes",
+    title: "Uncommitted",
     status: "read",
     updatedAt: 0,
     createdAt: 0,

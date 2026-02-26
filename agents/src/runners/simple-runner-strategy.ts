@@ -422,12 +422,12 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         worktreeId,
       });
 
-      if (config.skipNaming) {
-        emitLog("INFO", `[naming] Skipping thread and worktree naming — setup thread`);
-      } else {
-        // Start thread naming in parallel (fire and forget)
-        this.initiateThreadNaming(threadId, prompt, threadPath);
+      // Start thread naming in parallel (fire and forget)
+      this.initiateThreadNaming(threadId, prompt, threadPath);
 
+      if (config.skipNaming) {
+        emitLog("INFO", `[naming] Skipping worktree naming — setup thread`);
+      } else {
         // Start worktree naming in parallel (fire and forget)
         // Only trigger if the worktree hasn't already been renamed from its initial animal name
         // and this is not the main worktree (which should never be renamed)

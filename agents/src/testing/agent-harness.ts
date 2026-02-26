@@ -64,6 +64,14 @@ export class AgentTestHarness {
   }
 
   /**
+   * Get the MockHubServer instance for reactive message handling.
+   * Returns null if run() has not been called yet.
+   */
+  getMockHub(): MockHubServer | null {
+    return this.mockHub;
+  }
+
+  /**
    * Run an agent and capture all stdout output.
    *
    * Creates temporary test resources (mort directory, repository),

@@ -101,19 +101,21 @@ describe("SimpleRunnerStrategy --skip-naming", () => {
   }
 
   describe("setup with skipNaming", () => {
-    it("skips thread and worktree naming when skipNaming is true", async () => {
+    it("skips worktree naming but still names thread when skipNaming is true", async () => {
       const config = strategy.parseArgs(buildArgs(["--skip-naming"]));
 
       await strategy.setup(config);
 
-      // Should log skip message
+      // Should log skip message for worktree naming
       expect(emitLog).toHaveBeenCalledWith(
         "INFO",
-        expect.stringContaining("Skipping thread and worktree naming")
+        expect.stringContaining("Skipping worktree naming")
       );
 
-      // Should NOT have called naming services
-      expect(generateThreadName).not.toHaveBeenCalled();
+      // Should still call thread naming
+      expect(generateThreadName).toHaveBeenCalledWith("test prompt", "test-key");
+
+      // Should NOT have called worktree naming
       expect(generateWorktreeName).not.toHaveBeenCalled();
     });
 

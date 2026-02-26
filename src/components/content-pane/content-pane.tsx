@@ -91,7 +91,7 @@ export function ContentPane({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "f" && isSearchable) {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "f" && isSearchable) {
         e.preventDefault();
         setFindBarOpen((prev) => {
           if (prev) searchClearRef.current();
@@ -104,11 +104,15 @@ export function ContentPane({
   }, [isSearchable]);
 
   // Auto-open FindBar from global search panel via searchState store
-  const { isEnabled: searchEnabled, searchQuery: globalSearchQuery, nonce: searchNonce } = useSearchState();
+  const { isEnabled: searchEnabled, searchQuery: globalSearchQuery, targetMatchIndex, nonce: searchNonce } = useSearchState();
   useEffect(() => {
     if (searchEnabled && globalSearchQuery && isSearchable) {
       setFindBarOpen(true);
-      search.setQuery(globalSearchQuery);
+      if (targetMatchIndex !== null) {
+        search.setQueryAndNavigate(globalSearchQuery, targetMatchIndex);
+      } else {
+        search.setQuery(globalSearchQuery);
+      }
     }
   }, [searchEnabled, globalSearchQuery, searchNonce, isSearchable]);
 

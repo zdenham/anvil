@@ -8,6 +8,7 @@ import type { ToolExecutionState } from "@/lib/types/agent-messages";
 import { TextBlock } from "./text-block";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolUseBlock } from "./tool-use-block";
+import { ToolPermissionWrapper } from "./tool-permission-wrapper";
 import { LiveAskUserQuestion } from "./live-ask-user-question";
 import { getSpecializedToolBlock } from "./tool-blocks";
 
@@ -97,16 +98,23 @@ export function AssistantMessage({
                 const SpecializedBlock = getSpecializedToolBlock(block.name);
                 if (SpecializedBlock) {
                   return (
-                    <SpecializedBlock
+                    <ToolPermissionWrapper
                       key={block.id}
-                      id={block.id}
-                      name={block.name}
-                      input={block.input as Record<string, unknown>}
-                      result={state.result}
-                      isError={state.isError}
-                      status={state.status}
+                      toolUseId={block.id}
+                      toolName={block.name}
+                      toolInput={block.input as Record<string, unknown>}
                       threadId={threadId}
-                    />
+                    >
+                      <SpecializedBlock
+                        id={block.id}
+                        name={block.name}
+                        input={block.input as Record<string, unknown>}
+                        result={state.result}
+                        isError={state.isError}
+                        status={state.status}
+                        threadId={threadId}
+                      />
+                    </ToolPermissionWrapper>
                   );
                 }
 

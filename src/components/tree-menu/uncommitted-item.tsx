@@ -1,3 +1,4 @@
+import { FilePenLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
@@ -43,6 +44,7 @@ export function UncommittedItem({ item, isSelected, onNavigate }: UncommittedIte
           : "text-surface-400 hover:text-surface-200 hover:bg-accent-500/10"
       )}
     >
+      <FilePenLine size={10} className="flex-shrink-0 w-2.5 h-2.5" />
       <span className="truncate">{item.title}</span>
     </div>
   );

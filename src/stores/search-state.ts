@@ -19,13 +19,15 @@ interface SearchState {
   searchQuery: string;
   /** Target match index within the content (0-based, from global search click) */
   targetMatchIndex: number | null;
+  /** Backend snippet for heuristic match resolution in threads */
+  targetSnippet: string | null;
   /** Nonce to force re-navigation when query/target haven't changed */
   nonce: number;
 }
 
 interface SearchActions {
   /** Called by global search panel on result click */
-  activateSearch: (query: string, targetMatchIndex?: number) => void;
+  activateSearch: (query: string, targetMatchIndex?: number, snippet?: string) => void;
   /** Called when the search panel closes/unmounts */
   deactivateSearch: () => void;
 }
@@ -34,13 +36,15 @@ export const useSearchState = create<SearchState & SearchActions>((set) => ({
   isEnabled: false,
   searchQuery: "",
   targetMatchIndex: null,
+  targetSnippet: null,
   nonce: 0,
 
-  activateSearch: (query: string, targetMatchIndex?: number) => {
+  activateSearch: (query: string, targetMatchIndex?: number, snippet?: string) => {
     set((state) => ({
       isEnabled: true,
       searchQuery: query,
       targetMatchIndex: targetMatchIndex ?? null,
+      targetSnippet: snippet ?? null,
       nonce: state.nonce + 1,
     }));
   },
@@ -50,6 +54,7 @@ export const useSearchState = create<SearchState & SearchActions>((set) => ({
       isEnabled: false,
       searchQuery: "",
       targetMatchIndex: null,
+      targetSnippet: null,
     });
   },
 }));

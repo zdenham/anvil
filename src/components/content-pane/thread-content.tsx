@@ -345,11 +345,11 @@ export function ThreadContent({
   }, []);
 
   // Auto-open FindBar from global search panel via searchState store
-  const { isEnabled: searchEnabled, searchQuery: globalSearchQuery, targetMatchIndex, nonce: searchNonce } = useSearchState();
+  const { isEnabled: searchEnabled, searchQuery: globalSearchQuery, targetMatchIndex, targetSnippet, nonce: searchNonce } = useSearchState();
   useEffect(() => {
     if (searchEnabled && globalSearchQuery) {
       setFindBarOpen(true);
-      threadSearch.setQueryAndNavigate(globalSearchQuery, targetMatchIndex ?? 0);
+      threadSearch.setQueryAndNavigate(globalSearchQuery, targetMatchIndex ?? 0, targetSnippet ?? undefined);
     }
   }, [searchEnabled, globalSearchQuery, searchNonce]);
 

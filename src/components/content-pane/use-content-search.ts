@@ -17,6 +17,8 @@ const DEBOUNCE_MS = 150;
 export interface UseContentSearchReturn {
   query: string;
   setQuery: (q: string) => void;
+  /** Set query and navigate to a specific match (0-based index) */
+  setQueryAndNavigate: (q: string, matchIndex: number) => void;
   matchCount: number;
   currentMatch: number; // 1-indexed, 0 when no matches
   goToNext: () => void;
@@ -35,6 +37,9 @@ export function useContentSearch(
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const queryRef = useRef(query);
   queryRef.current = query;
+
+  /** When set, runSearch will navigate to this 0-based index instead of 0 */
+  const initialNavRef = useRef<number | null>(null);
 
   const clearHighlights = useCallback(() => {
     if (typeof CSS !== "undefined" && CSS.highlights) {
@@ -111,9 +116,17 @@ export function useContentSearch(
           return clamped;
         });
       } else {
-        setCurrentMatch(1);
-        updateCurrentHighlight(0);
-        scrollToMatch(0);
+        const targetIdx = initialNavRef.current;
+        initialNavRef.current = null;
+        if (targetIdx !== null && targetIdx >= 0 && targetIdx < ranges.length) {
+          setCurrentMatch(targetIdx + 1); // 1-indexed
+          updateCurrentHighlight(targetIdx);
+          scrollToMatch(targetIdx);
+        } else {
+          setCurrentMatch(1);
+          updateCurrentHighlight(0);
+          scrollToMatch(0);
+        }
       }
     } else {
       setMatchCount(0);
@@ -181,6 +194,20 @@ export function useContentSearch(
     });
   }, [updateCurrentHighlight, scrollToMatch]);
 
+  const setQueryAndNavigate = useCallback((q: string, matchIndex: number) => {
+    initialNavRef.current = matchIndex;
+    // If query is unchanged, ranges are already built — navigate directly
+    if (q === queryRef.current && rangesRef.current.length > 0) {
+      const idx = Math.min(matchIndex, rangesRef.current.length - 1);
+      setCurrentMatch(idx + 1);
+      updateCurrentHighlight(idx);
+      scrollToMatch(idx);
+      initialNavRef.current = null;
+    } else {
+      setQuery(q);
+    }
+  }, [updateCurrentHighlight, scrollToMatch]);
+
   const clear = useCallback(() => {
     setQuery("");
     setMatchCount(0);
@@ -188,5 +215,5 @@ export function useContentSearch(
     clearHighlights();
   }, [clearHighlights]);
 
-  return { query, setQuery, matchCount, currentMatch, goToNext, goToPrevious, clear };
+  return { query, setQuery, setQueryAndNavigate, matchCount, currentMatch, goToNext, goToPrevious, clear };
 }

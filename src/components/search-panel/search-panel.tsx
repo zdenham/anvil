@@ -46,6 +46,17 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
     };
   }, []);
 
+  // Re-focus input on repeated Cmd+Shift+F while panel is open
+  useEffect(() => {
+    const handleFocus = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "f") {
+        inputRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleFocus);
+    return () => document.removeEventListener("keydown", handleFocus);
+  }, []);
+
   // Escape key: clear input or close panel
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,14 +85,14 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
     search.setThreadGroups((prev) => prev.map((g) => ({ ...g, isCollapsed: false })));
   }, []);
 
-  const handleFileMatchClick = useCallback((match: GrepMatch, filePath: string, isPlan: boolean) => {
+  const handleFileMatchClick = useCallback((match: GrepMatch, filePath: string, isPlan: boolean, matchIndex: number) => {
     onNavigateToFile(filePath, match.lineNumber, worktreePath, isPlan);
-    useSearchState.getState().activateSearch(search.query);
+    useSearchState.getState().activateSearch(search.query, matchIndex);
   }, [worktreePath, onNavigateToFile, search.query]);
 
-  const handleThreadMatchClick = useCallback((threadId: string, matchIndex: number) => {
+  const handleThreadMatchClick = useCallback((threadId: string, matchIndex: number, snippet: string) => {
     onNavigateToThread(threadId);
-    useSearchState.getState().activateSearch(search.query, matchIndex);
+    useSearchState.getState().activateSearch(search.query, matchIndex, snippet);
   }, [search.query, onNavigateToThread]);
 
   const handleToggleThread = useCallback((threadId: string) => {

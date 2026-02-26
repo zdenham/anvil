@@ -169,7 +169,11 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       if (item.type === "thread") {
         await navigationService.navigateToThread(item.id);
       } else if (item.type === "file" && item.filePath) {
-        await navigationService.navigateToFile(item.filePath, {
+        // File search returns relative paths; resolve to absolute for FileContent
+        const absolutePath = workingDirectory
+          ? `${workingDirectory}/${item.filePath}`
+          : item.filePath;
+        await navigationService.navigateToFile(absolutePath, {
           repoId: repoId ?? undefined,
           worktreeId: worktreeId ?? undefined,
         });
