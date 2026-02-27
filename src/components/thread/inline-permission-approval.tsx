@@ -1,114 +1,140 @@
-import { useCallback, useEffect, useRef } from "react";
-import { AlertTriangle } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { CheckCircle, XCircle } from "lucide-react";
 import type { PermissionRequest, PermissionStatus } from "@core/types/permissions.js";
-import { isDangerousTool } from "@core/types/permissions.js";
 import { permissionService } from "@/entities/permissions/service";
-import { InlineDiffBlock } from "./inline-diff-block";
-import { PermissionInputDisplay } from "@/components/permission/permission-input-display";
-import type { useToolDiff } from "./use-tool-diff";
+import { OptionItem } from "./option-item";
 
 interface InlinePermissionApprovalProps {
   request: PermissionRequest & { status: PermissionStatus };
-  diffData: ReturnType<typeof useToolDiff>;
   name: string;
-  input: Record<string, unknown>;
-  onOpenDiff?: (filePath: string) => void;
 }
 
-/**
- * Inline permission approval UI rendered inside the tool-use block.
- * Shows diff preview for Write/Edit, fallback input display for others.
- */
+const OPTIONS = [
+  { label: "Allow", description: "approve this action" },
+  { label: "Deny", description: "reject this action" },
+];
+
 export function InlinePermissionApproval({
   request,
-  diffData,
   name,
-  input,
-  onOpenDiff,
 }: InlinePermissionApprovalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isDangerous = isDangerousTool(name);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [resolved, setResolved] = useState<"approved" | "denied" | null>(null);
 
   const handleApprove = useCallback(() => {
+    if (resolved) return;
+    setResolved("approved");
     permissionService.respond(request, "approve");
-  }, [request]);
+  }, [request, resolved]);
 
   const handleDeny = useCallback(() => {
+    if (resolved) return;
+    setResolved("denied");
     permissionService.respond(request, "deny");
-  }, [request]);
+  }, [request, resolved]);
 
-  // Keyboard handling
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "y" || e.key === "Y") {
-        e.preventDefault();
-        handleApprove();
-      } else if (e.key === "n" || e.key === "N") {
-        e.preventDefault();
-        handleDeny();
-      }
+  const handleActivate = useCallback(
+    (index: number) => {
+      if (index === 0) handleApprove();
+      else handleDeny();
     },
     [handleApprove, handleDeny],
   );
 
-  // Auto-focus and scroll into view
+  useEffect(() => {
+    if (resolved) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowDown":
+        case "j":
+          e.preventDefault();
+          setFocusedIndex((i) => Math.min(i + 1, OPTIONS.length - 1));
+          return;
+        case "ArrowUp":
+        case "k":
+          e.preventDefault();
+          setFocusedIndex((i) => Math.max(i - 1, 0));
+          return;
+        case " ":
+        case "Enter":
+          e.preventDefault();
+          handleActivate(focusedIndex);
+          return;
+        case "y":
+        case "Y":
+          e.preventDefault();
+          handleApprove();
+          return;
+        case "n":
+        case "N":
+          e.preventDefault();
+          handleDeny();
+          return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [resolved, focusedIndex, handleActivate, handleApprove, handleDeny]);
+
   useEffect(() => {
     containerRef.current?.focus();
     containerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [request.requestId]);
 
+  if (resolved) {
+    const isApproved = resolved === "approved";
+    return (
+      <div className="flex items-center gap-1.5 font-mono text-sm py-1">
+        {isApproved ? (
+          <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />
+        ) : (
+          <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+        )}
+        <span className={isApproved ? "text-green-400" : "text-red-400"}>
+          {isApproved ? "Allowed" : "Denied"}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
       tabIndex={0}
-      onKeyDown={handleKeyDown}
-      className="outline-none"
-      role="alertdialog"
-      aria-label={`Permission request: Allow ${name}?`}
+      className="outline-none pt-3 pb-1"
+      role="group"
+      aria-label={`Permission: Allow ${name}?`}
     >
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-2">
-        {isDangerous && (
-          <AlertTriangle className="text-amber-500 flex-shrink-0" size={16} />
-        )}
-        <span className="text-sm font-medium text-surface-100">
-          Allow {name}?
-        </span>
+      <p className="font-mono text-sm mb-1 text-accent-400">
+        Allow {name}?
+      </p>
+
+      <div className="space-y-0" role="listbox" aria-label="Permission options">
+        {OPTIONS.map((option, index) => (
+          <OptionItem
+            key={option.label}
+            index={index}
+            label={option.label}
+            description={option.description}
+            isSelected={false}
+            isFocused={focusedIndex === index}
+            variant="radio"
+            onActivate={() => handleActivate(index)}
+          />
+        ))}
       </div>
-
-      {/* Diff preview for Write/Edit tools */}
-      {diffData ? (
-        <InlineDiffBlock
-          filePath={diffData.filePath}
-          diff={diffData.diff}
-          lines={diffData.lines}
-          stats={diffData.stats}
-          isPending
-          onAccept={handleApprove}
-          onReject={handleDeny}
-          onExpand={() => onOpenDiff?.(diffData.filePath)}
-        />
-      ) : (
-        <PermissionInputDisplay toolName={name} toolInput={input} />
-      )}
-
-      {/* Approve/Deny controls (only if no diff — diff block has its own actions) */}
-      {!diffData && (
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            onClick={handleApprove}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-green-600/20 text-green-400 hover:bg-green-600/30 transition-colors border border-green-600/30"
-          >
-            Approve <kbd className="ml-1 text-[10px] opacity-60">y</kbd>
-          </button>
-          <button
-            onClick={handleDeny}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors border border-red-600/30"
-          >
-            Deny <kbd className="ml-1 text-[10px] opacity-60">n</kbd>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

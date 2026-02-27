@@ -64,60 +64,6 @@ describe("ToolUseBlock", () => {
       expect(screen.getByText("const x = 2;")).toBeInTheDocument();
     });
 
-    it("renders accept/reject buttons for pending Edit", () => {
-      const onAccept = vi.fn();
-      const onReject = vi.fn();
-
-      render(
-        <ToolUseBlock
-          id="tool-1"
-          name="Edit"
-          input={{ file_path: "/src/foo.ts", old_string: "const x = 1;", new_string: "const x = 2;" }}
-          status="pending"
-          onAccept={onAccept}
-          onReject={onReject}
-        />
-      );
-
-      // Should show accept/reject buttons
-      expect(screen.getByRole("button", { name: /accept/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /reject/i })).toBeInTheDocument();
-    });
-
-    it("calls onAccept when accept clicked", () => {
-      const onAccept = vi.fn();
-
-      render(
-        <ToolUseBlock
-          id="tool-1"
-          name="Edit"
-          input={{ file_path: "/src/foo.ts", old_string: "const x = 1;", new_string: "const x = 2;" }}
-          status="pending"
-          onAccept={onAccept}
-        />
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: /accept/i }));
-      expect(onAccept).toHaveBeenCalledTimes(1);
-    });
-
-    it("calls onReject when reject clicked", () => {
-      const onReject = vi.fn();
-
-      render(
-        <ToolUseBlock
-          id="tool-1"
-          name="Edit"
-          input={{ file_path: "/src/foo.ts", old_string: "const x = 1;", new_string: "const x = 2;" }}
-          status="pending"
-          onReject={onReject}
-        />
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: /reject/i }));
-      expect(onReject).toHaveBeenCalledTimes(1);
-    });
-
     it("does not render inline diff when Edit input is invalid", () => {
       render(
         <ToolUseBlock

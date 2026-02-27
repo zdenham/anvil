@@ -1,6 +1,6 @@
 [package]
 name = "mort"
-version = "0.0.46"
+version = "0.0.48"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

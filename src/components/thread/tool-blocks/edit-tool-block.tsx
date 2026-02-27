@@ -8,6 +8,8 @@ import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
 import { FileDiff } from "lucide-react";
+import { InlineDiffBlock } from "../inline-diff-block";
+import { useToolPermission } from "../tool-permission-context";
 import type { ToolBlockProps } from "./index";
 
 interface EditToolInput {
@@ -67,6 +69,8 @@ export function EditToolBlock({
   const replaceAll = editInput?.replace_all ?? false;
 
   const isRunning = status === "running";
+  const permissionCtx = useToolPermission();
+  const isPendingPermission = permissionCtx?.isPending && permissionCtx?.diffData;
 
   // Determine if diff is long enough to need expand/collapse
   const diffLineCount = Math.max(
@@ -146,52 +150,61 @@ export function EditToolBlock({
       {/* Expanded Content */}
       {isExpanded && (
         <div className="relative mt-2 ml-5">
-          {/* Diff display */}
-          <CollapsibleOutputBlock
-            isExpanded={isDiffExpanded}
-            onToggle={() => setIsDiffExpanded(!isDiffExpanded)}
-            isLongContent={isLongDiff}
-            maxCollapsedHeight={200}
-            variant={isError ? "error" : "default"}
-          >
-            <div className="p-2 space-y-2">
-              {/* Old string (removed) */}
-              <div className="relative">
-                <div className="absolute top-1 right-1 z-10">
-                  <CopyButton text={oldString} label="Copy old text" />
-                </div>
-                <div className="text-xs font-mono">
-                  <div className="text-zinc-500 mb-1">old_string:</div>
-                  <pre className="text-red-300 bg-red-950/30 p-2 rounded whitespace-pre-wrap break-words border border-red-900/30">
-                    {oldString || <span className="text-zinc-600 italic">(empty)</span>}
-                  </pre>
-                </div>
-              </div>
-
-              {/* New string (added) */}
-              <div className="relative">
-                <div className="absolute top-1 right-1 z-10">
-                  <CopyButton text={newString} label="Copy new text" />
-                </div>
-                <div className="text-xs font-mono">
-                  <div className="text-zinc-500 mb-1">new_string:</div>
-                  <pre className="text-green-300 bg-green-950/30 p-2 rounded whitespace-pre-wrap break-words border border-green-900/30">
-                    {newString || <span className="text-zinc-600 italic">(empty)</span>}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Error message (only shown on errors) */}
-              {isError && result && (
-                <div className="text-xs font-mono">
-                  <div className="text-zinc-500 mb-1">Error:</div>
-                  <div className="p-2 rounded border text-red-300 bg-red-950/20 border-red-900/30">
-                    {result}
+          {isPendingPermission ? (
+            <InlineDiffBlock
+              filePath={permissionCtx.diffData!.filePath}
+              diff={permissionCtx.diffData!.diff}
+              lines={permissionCtx.diffData!.lines}
+              stats={permissionCtx.diffData!.stats}
+              isPending
+            />
+          ) : (
+            <CollapsibleOutputBlock
+              isExpanded={isDiffExpanded}
+              onToggle={() => setIsDiffExpanded(!isDiffExpanded)}
+              isLongContent={isLongDiff}
+              maxCollapsedHeight={200}
+              variant={isError ? "error" : "default"}
+            >
+              <div className="p-2 space-y-2">
+                {/* Old string (removed) */}
+                <div className="relative">
+                  <div className="absolute top-1 right-1 z-10">
+                    <CopyButton text={oldString} label="Copy old text" />
+                  </div>
+                  <div className="text-xs font-mono">
+                    <div className="text-zinc-500 mb-1">old_string:</div>
+                    <pre className="text-red-300 bg-red-950/30 p-2 rounded whitespace-pre-wrap break-words border border-red-900/30">
+                      {oldString || <span className="text-zinc-600 italic">(empty)</span>}
+                    </pre>
                   </div>
                 </div>
-              )}
-            </div>
-          </CollapsibleOutputBlock>
+
+                {/* New string (added) */}
+                <div className="relative">
+                  <div className="absolute top-1 right-1 z-10">
+                    <CopyButton text={newString} label="Copy new text" />
+                  </div>
+                  <div className="text-xs font-mono">
+                    <div className="text-zinc-500 mb-1">new_string:</div>
+                    <pre className="text-green-300 bg-green-950/30 p-2 rounded whitespace-pre-wrap break-words border border-green-900/30">
+                      {newString || <span className="text-zinc-600 italic">(empty)</span>}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Error message (only shown on errors) */}
+                {isError && result && (
+                  <div className="text-xs font-mono">
+                    <div className="text-zinc-500 mb-1">Error:</div>
+                    <div className="p-2 rounded border text-red-300 bg-red-950/20 border-red-900/30">
+                      {result}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleOutputBlock>
+          )}
         </div>
       )}
 

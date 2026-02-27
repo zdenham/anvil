@@ -19,9 +19,9 @@ describe("RepositorySettingsSchema — worktreeSetupPrompt", () => {
     completedDirectory: "plans/completed/",
   };
 
-  it("defaults to null when worktreeSetupPrompt is missing", () => {
+  it("defaults to undefined when worktreeSetupPrompt is missing", () => {
     const result = RepositorySettingsSchema.parse(baseSettings);
-    expect(result.worktreeSetupPrompt).toBeNull();
+    expect(result.worktreeSetupPrompt).toBeUndefined();
   });
 
   it("accepts null for worktreeSetupPrompt", () => {

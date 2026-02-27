@@ -40,12 +40,6 @@ interface ToolUseBlockProps {
   durationMs?: number;
   /** Callback when user wants to expand diff to full viewer */
   onOpenDiff?: (filePath: string) => void;
-  /** Callback when user accepts pending edit */
-  onAccept?: () => void;
-  /** Callback when user rejects pending edit */
-  onReject?: () => void;
-  /** Whether this block is focused for keyboard navigation */
-  isFocused?: boolean;
   /** Thread ID for persisting expand state across virtualization */
   threadId: string;
 }
@@ -87,9 +81,6 @@ export function ToolUseBlock({
   status,
   durationMs,
   onOpenDiff,
-  onAccept,
-  onReject,
-  isFocused,
   threadId,
 }: ToolUseBlockProps) {
   // Use Zustand store for expand state to persist across virtualization remounts
@@ -203,10 +194,7 @@ export function ToolUseBlock({
         {hasPendingPermission && permissionRequest && (
           <InlinePermissionApproval
             request={permissionRequest}
-            diffData={diffData}
             name={name}
-            input={input}
-            onOpenDiff={onOpenDiff}
           />
         )}
 
@@ -217,10 +205,6 @@ export function ToolUseBlock({
             diff={diffData.diff}
             lines={diffData.lines}
             stats={diffData.stats}
-            isPending={status === "pending"}
-            onAccept={onAccept}
-            onReject={onReject}
-            isFocused={isFocused}
             onExpand={() => onOpenDiff?.(diffData.filePath)}
           />
         )}

@@ -12,7 +12,7 @@ import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
 import { useGatewayChannelStore } from "./store";
 import { GATEWAY_BASE_URL } from "@/lib/constants";
-import { logger } from "@/lib/logger-client";
+
 
 const CHECKPOINT_PATH = "gateway-channels/checkpoint";
 

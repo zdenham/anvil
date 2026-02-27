@@ -146,100 +146,21 @@ index abc123..def456 100644
   // ============================================================================
 
   describe("pending mode", () => {
-    it("does not show action buttons when not pending", () => {
+    it("renders normally when isPending is true (actions handled externally)", () => {
       render(
         <InlineDiffBlock
           filePath="/src/foo.ts"
           lines={sampleLines}
           stats={{ additions: 2, deletions: 1 }}
-          isPending={false}
+          isPending={true}
         />
       );
 
+      // Diff content should still render
+      expect(screen.getByText("const y = 3;")).toBeInTheDocument();
+      // No action buttons rendered inside InlineDiffBlock
       expect(screen.queryByRole("button", { name: /accept/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /reject/i })).not.toBeInTheDocument();
-    });
-
-    it("shows accept button when pending with onAccept", () => {
-      const onAccept = vi.fn();
-      render(
-        <InlineDiffBlock
-          filePath="/src/foo.ts"
-          lines={sampleLines}
-          stats={{ additions: 2, deletions: 1 }}
-          isPending={true}
-          onAccept={onAccept}
-        />
-      );
-
-      expect(screen.getByRole("button", { name: /accept/i })).toBeInTheDocument();
-    });
-
-    it("shows reject button when pending with onReject", () => {
-      const onReject = vi.fn();
-      render(
-        <InlineDiffBlock
-          filePath="/src/foo.ts"
-          lines={sampleLines}
-          stats={{ additions: 2, deletions: 1 }}
-          isPending={true}
-          onReject={onReject}
-        />
-      );
-
-      expect(screen.getByRole("button", { name: /reject/i })).toBeInTheDocument();
-    });
-
-    it("calls onAccept when accept button clicked", () => {
-      const onAccept = vi.fn();
-      render(
-        <InlineDiffBlock
-          filePath="/src/foo.ts"
-          lines={sampleLines}
-          stats={{ additions: 2, deletions: 1 }}
-          isPending={true}
-          onAccept={onAccept}
-        />
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: /accept/i }));
-
-      expect(onAccept).toHaveBeenCalledTimes(1);
-    });
-
-    it("calls onReject when reject button clicked", () => {
-      const onReject = vi.fn();
-      render(
-        <InlineDiffBlock
-          filePath="/src/foo.ts"
-          lines={sampleLines}
-          stats={{ additions: 2, deletions: 1 }}
-          isPending={true}
-          onReject={onReject}
-        />
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: /reject/i }));
-
-      expect(onReject).toHaveBeenCalledTimes(1);
-    });
-
-    it("shows keyboard hints when focused", () => {
-      render(
-        <InlineDiffBlock
-          filePath="/src/foo.ts"
-          lines={sampleLines}
-          stats={{ additions: 2, deletions: 1 }}
-          isPending={true}
-          isFocused={true}
-          onAccept={vi.fn()}
-          onReject={vi.fn()}
-        />
-      );
-
-      // Should show keyboard shortcuts
-      expect(screen.getByText("y")).toBeInTheDocument();
-      expect(screen.getByText("n")).toBeInTheDocument();
     });
   });
 
@@ -589,22 +510,3 @@ describe("InlineDiffHeader", () => {
   });
 });
 
-describe("InlineDiffActions", () => {
-  it("renders both buttons when both callbacks provided", () => {
-    render(
-      <InlineDiffBlock
-        filePath="/src/foo.ts"
-        lines={[
-          { type: "addition", content: "test", oldLineNumber: null, newLineNumber: 1 },
-        ]}
-        stats={{ additions: 1, deletions: 0 }}
-        isPending={true}
-        onAccept={vi.fn()}
-        onReject={vi.fn()}
-      />
-    );
-
-    expect(screen.getByRole("button", { name: /accept/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /reject/i })).toBeInTheDocument();
-  });
-});

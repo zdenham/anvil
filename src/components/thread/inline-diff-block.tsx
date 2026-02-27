@@ -8,7 +8,7 @@ import {
   buildRenderItems,
 } from "../diff-viewer/use-collapsed-regions";
 import { InlineDiffHeader } from "./inline-diff-header";
-import { InlineDiffActions } from "./inline-diff-actions";
+
 import { CollapsibleOutputBlock } from "../ui/collapsible-output-block";
 import { useDiffHighlight } from "@/hooks/use-diff-highlight";
 import type { AnnotatedLine, ParsedDiffFile } from "../diff-viewer/types";
@@ -28,16 +28,10 @@ interface InlineDiffBlockProps {
   oldContent?: string;
   /** Full new-side file content for syntax highlighting */
   newContent?: string;
-  /** Whether this block is currently focused for keyboard nav */
-  isFocused?: boolean;
   /** Callback when user wants to open full diff viewer */
   onExpand?: () => void;
   /** Whether this edit is pending user approval */
   isPending?: boolean;
-  /** Callback when user accepts (only shown when isPending) */
-  onAccept?: () => void;
-  /** Callback when user rejects (only shown when isPending) */
-  onReject?: () => void;
   /** Whether to start collapsed for large diffs (auto-detected if not set) */
   defaultCollapsed?: boolean;
   /** Controlled file-level collapse state (overrides internal state) */
@@ -65,11 +59,8 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   fileType = "modified",
   oldContent,
   newContent,
-  isFocused,
   onExpand,
   isPending,
-  onAccept,
-  onReject,
   defaultCollapsed,
   isFileCollapsed: controlledFileCollapsed,
   onToggleFileCollapse: controlledToggleFileCollapse,
@@ -218,14 +209,6 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
         </>
       )}
 
-      {/* Actions for pending edits */}
-      {!isFileCollapsed && isPending && (
-        <InlineDiffActions
-          onAccept={onAccept}
-          onReject={onReject}
-          isFocused={isFocused}
-        />
-      )}
     </div>
   );
 });

@@ -9,6 +9,7 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
 import { InlineDiffBlock } from "../inline-diff-block";
 import { useToolDiff } from "../use-tool-diff";
+import { useToolPermission } from "../tool-permission-context";
 import { FilePlus } from "lucide-react";
 import type { ToolBlockProps } from "./index";
 
@@ -66,6 +67,8 @@ export function WriteToolBlock({
 
   const isRunning = status === "running";
   const hasDiff = diffData !== null;
+  const permissionCtx = useToolPermission();
+  const isPendingPermission = permissionCtx?.isPending && permissionCtx?.diffData;
 
   return (
     <div
@@ -124,7 +127,18 @@ export function WriteToolBlock({
       </div>
 
       {/* Expanded diff */}
-      {isExpanded && hasDiff && (
+      {isExpanded && isPendingPermission && (
+        <div className="relative mt-2">
+          <InlineDiffBlock
+            filePath={permissionCtx.diffData!.filePath}
+            diff={permissionCtx.diffData!.diff}
+            lines={permissionCtx.diffData!.lines}
+            stats={permissionCtx.diffData!.stats}
+            isPending
+          />
+        </div>
+      )}
+      {isExpanded && hasDiff && !isPendingPermission && (
         <div className="relative mt-2">
           <CollapsibleOutputBlock
             isExpanded={isDiffOutputExpanded}

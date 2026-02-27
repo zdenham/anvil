@@ -90,7 +90,7 @@ export const RepositorySettingsSchema = z.object({
   /** Directory for completed/archived plans (relative to repo root) */
   completedDirectory: z.string().default('plans/completed/'),
   /** Optional prompt sent to an agent to set up new worktrees (install deps, copy env vars, etc.) */
-  worktreeSetupPrompt: z.string().nullable().default(null),
+  worktreeSetupPrompt: z.string().nullable().optional(),
 });
 export type RepositorySettings = z.infer<typeof RepositorySettingsSchema>;
 
