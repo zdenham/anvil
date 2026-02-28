@@ -82,7 +82,7 @@ fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
         let timeout = flush_backoff.saturating_sub(elapsed);
 
         if timeout.is_zero() {
-            eprintln!(
+            tracing::error!(
                 "[log_server] spin-loop avoided: elapsed={:?} backoff={:?}, resetting timer",
                 elapsed, flush_backoff
             );
@@ -142,7 +142,7 @@ fn try_flush(url: &str, buffer: &mut Vec<LogRow>) -> bool {
             }
             Err(e) => {
                 if attempt < MAX_RETRIES - 1 {
-                    eprintln!(
+                    tracing::error!(
                         "Log server flush attempt {} failed: {}. Retrying in {:?}...",
                         attempt + 1,
                         e,
@@ -156,7 +156,7 @@ fn try_flush(url: &str, buffer: &mut Vec<LogRow>) -> bool {
     }
 
     // All retries failed - buffer is retained for next attempt
-    eprintln!(
+    tracing::info!(
         "Log server temporarily unavailable. {} logs buffered.",
         buffer.len()
     );

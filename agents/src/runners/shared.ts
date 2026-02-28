@@ -19,7 +19,6 @@ import {
   relayEventsFromToolOutput,
   updateFileChange,
   getHubClient,
-  writeUsageToMetadata,
 } from "../output.js";
 import { NodePersistence } from "../lib/persistence-node.js";
 import { EventName } from "@core/types/events.js";
@@ -113,8 +112,6 @@ export function emitEvent(
   name: string,
   payload: Record<string, unknown>
 ): void {
-  logger.info(`[shared] emitEvent: name="${name}" payload=${JSON.stringify(payload)}`);
-
   const hub = getHubClient();
   if (hub?.isConnected) {
     hub.sendEvent(name, payload);
@@ -239,13 +236,10 @@ export function setupSignalHandlers(
     isShuttingDown = true;
 
     logger.info(`[runner] Received ${signal}, initiating shutdown...`);
-    logger.info(`[runner] AbortController present: ${!!abortController}`);
 
     if (abortController) {
       // Signal abort - let the main loop handle graceful exit
-      logger.info(`[runner] Calling abortController.abort()...`);
       abortController.abort();
-      logger.info(`[runner] abortController.abort() called, waiting for SDK to handle...`);
       // Note: Don't exit here - let the abort propagate through the SDK
       // The main loop catch block will call cleanup and exit with code 130
     } else {
@@ -319,16 +313,12 @@ async function processPlanMentions(
           'mentioned'
         );
 
-        logger.info(`[processPlanMentions] Created/found relation for ${relativePath}: ${relation.type}`);
-
         // Emit relation event
         emitEvent(EventName.RELATION_CREATED, {
           planId: plan.id,
           threadId: context.threadId,
           type: relation.type,
         });
-      } else {
-        logger.info(`[processPlanMentions] Plan not found for path: ${relativePath}`);
       }
     } catch (err) {
       logger.warn(`[processPlanMentions] Failed to process mention ${relativePath}: ${err}`);
@@ -423,17 +413,11 @@ export async function runAgentLoop(
 ): Promise<void> {
   const { messages: priorMessages, sessionId: priorSessionId, toolStates: priorToolStates, lastCallUsage, cumulativeUsage, fileChanges: priorFileChanges } = priorState;
 
-  // Log prior state for debugging
-  logger.info(`[runAgentLoop] Starting with ${priorMessages.length} prior messages`);
-  if (priorSessionId) {
-    logger.info(`[runAgentLoop] Resuming SDK session: ${priorSessionId}`);
-  }
-  if (priorToolStates) {
-    logger.info(`[runAgentLoop] Preserving ${Object.keys(priorToolStates).length} prior tool states`);
-  }
-  if (priorMessages.length > 0) {
-    logger.info(`[runAgentLoop] Prior message roles: ${priorMessages.map(m => m.role).join(", ")}`);
-  }
+  logger.info(`[runAgentLoop] Starting`, {
+    priorMessages: priorMessages.length,
+    toolStates: priorToolStates ? Object.keys(priorToolStates).length : 0,
+    resuming: !!priorSessionId,
+  });
 
   // Create drain manager for analytics event emission
   const drainManager = new DrainManager(getHubClient());
@@ -470,10 +454,6 @@ export async function runAgentLoop(
   });
 
   const systemPrompt = baseSystemPrompt;
-
-  logger.info(
-    `[runner] System prompt: ${systemPrompt.length} chars, cwd=${context.workingDir}`
-  );
 
   // Tools that modify files and should be tracked for diffing
   const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
@@ -721,16 +701,6 @@ export async function runAgentLoop(
             const input = hookInput as PreToolUseHookInput;
             const taskInput = input.tool_input as { prompt?: string; subagent_type?: string };
 
-            // === DEBUG: Pretty print PreToolUse:Task hook ===
-            console.log(`\n${"#".repeat(60)}`);
-            console.log(`[HOOK] PreToolUse:Task`);
-            console.log(`${"#".repeat(60)}`);
-            console.log(`RAW INPUT:`);
-            console.log(JSON.stringify(input, null, 2));
-            console.log(`toolUseIdToChildThreadId size before: ${toolUseIdToChildThreadId.size}`);
-            console.log(`${"#".repeat(60)}\n`);
-            // === END DEBUG ===
-
             // Skip if missing required context for thread creation
             if (!context.repoId || !context.worktreeId) {
               logger.warn(`[PreToolUse:Task] Cannot create sub-agent thread: missing repoId or worktreeId`);
@@ -850,15 +820,6 @@ export async function runAgentLoop(
         hooks: [
           async (hookInput: unknown) => {
             const input = hookInput as PostToolUseHookInput;
-
-            // === DEBUG: Pretty print PostToolUse hook ===
-            console.log(`\n${"#".repeat(60)}`);
-            console.log(`[HOOK] PostToolUse`);
-            console.log(`${"#".repeat(60)}`);
-            console.log(`RAW INPUT:`);
-            console.log(JSON.stringify(input, null, 2));
-            console.log(`${"#".repeat(60)}\n`);
-            // === END DEBUG ===
 
             // Mark tool as complete in state
             const toolResponse =
@@ -1134,15 +1095,6 @@ export async function runAgentLoop(
           async (hookInput: unknown) => {
             const input = hookInput as PostToolUseFailureHookInput;
 
-            // === DEBUG: Pretty print PostToolUseFailure hook ===
-            console.log(`\n${"#".repeat(60)}`);
-            console.log(`[HOOK] PostToolUseFailure`);
-            console.log(`${"#".repeat(60)}`);
-            console.log(`RAW INPUT:`);
-            console.log(JSON.stringify(input, null, 2));
-            console.log(`${"#".repeat(60)}\n`);
-            // === END DEBUG ===
-
             // Mark tool as error in state
             await markToolComplete(input.tool_use_id, input.error, true);
 
@@ -1193,35 +1145,6 @@ export async function runAgentLoop(
     prompt = config.prompt;
     logger.info(`[runAgentLoop] Using plain string prompt`);
   }
-
-  // ---- [SKILL-DEBUG] Diagnostic logging for plugin/skill loading ----
-  const plugins = [{ type: "local" as const, path: config.mortDir }];
-  logger.info(`[SKILL-DEBUG] Plugin config: ${JSON.stringify(plugins)}`);
-  logger.info(`[SKILL-DEBUG] mortDir: ${config.mortDir}`);
-  const pluginJsonPath = join(config.mortDir, '.claude-plugin', 'plugin.json');
-  const skillsDir = join(config.mortDir, 'skills');
-  logger.info(`[SKILL-DEBUG] Plugin JSON path: ${pluginJsonPath}`);
-  logger.info(`[SKILL-DEBUG] Plugin JSON exists: ${existsSync(pluginJsonPath)}`);
-  logger.info(`[SKILL-DEBUG] Skills dir exists: ${existsSync(skillsDir)}`);
-  if (existsSync(skillsDir)) {
-    try {
-      const skillEntries = readdirSync(skillsDir);
-      logger.info(`[SKILL-DEBUG] Skills found: ${JSON.stringify(skillEntries)}`);
-    } catch (e) {
-      logger.warn(`[SKILL-DEBUG] Failed to read skills dir: ${e}`);
-    }
-  }
-  if (existsSync(pluginJsonPath)) {
-    try {
-      const pluginContent = readFileSync(pluginJsonPath, 'utf-8');
-      logger.info(`[SKILL-DEBUG] Plugin JSON content: ${pluginContent}`);
-    } catch (e) {
-      logger.warn(`[SKILL-DEBUG] Failed to read plugin JSON: ${e}`);
-    }
-  }
-  // Note: DEBUG_CLAUDE_AGENT_SDK=1 env var is not settable via query() options;
-  // set it in the process environment before launching the agent if needed.
-  // ---- End [SKILL-DEBUG] ----
 
   // Run the agent (real or mock)
   // Note: Mock mode does NOT support message streams - it uses scripted responses.

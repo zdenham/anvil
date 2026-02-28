@@ -23,6 +23,9 @@ import { TreeMenu, TreePanelHeader } from "@/components/tree-menu";
 import { ContentPaneContainer } from "@/components/content-pane";
 import { CommandPalette } from "@/components/command-palette";
 import { MainWindowProvider } from "./main-window-context";
+import { DebugPanel } from "@/components/debug-panel";
+import { ResizablePanelVertical } from "@/components/ui/resizable-panel-vertical";
+import { useDebugPanelStore, debugPanelService } from "@/stores/debug-panel";
 import { contentPanesService, setupContentPanesListeners } from "@/stores/content-panes";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { navigationService } from "@/stores/navigation-service";
@@ -125,6 +128,18 @@ export function MainWindowLayout() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [rightPanel.openSearch]);
 
+  // Listen for Command+Shift+D to toggle debug panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "d") {
+        e.preventDefault();
+        debugPanelService.toggle();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Listen for Command+N / Ctrl+N to create new thread
   // Priority: 1) Selected thread/plan's worktree, 2) Most recent worktree
   useEffect(() => {
@@ -217,6 +232,7 @@ export function MainWindowLayout() {
           contentPanesService.hydrate(),
           treeMenuService.hydrate(),
           layoutService.hydrate(),
+          debugPanelService.hydrate(),
         ]);
         logger.debug("[MainWindowLayout] Stores initialized");
       } catch (err) {
@@ -241,23 +257,9 @@ export function MainWindowLayout() {
 
   useEffect(() => {
     const unlisten = listen<ContentPaneView>("set-content-pane-view", async (event) => {
-      const eventReceivedAt = Date.now();
       const view = event.payload;
-      const threadId = view.type === "thread" ? view.threadId : undefined;
-      logger.info("[MainWindowLayout:TIMING] Received set-content-pane-view event", {
-        view,
-        threadId,
-        timestamp: new Date(eventReceivedAt).toISOString(),
-      });
-
       // Update both tree selection and content pane via navigation service
       await navigationService.navigateToView(view);
-      logger.info(`[MainWindowLayout:TIMING] navigateToView completed`, {
-        viewType: view.type,
-        threadId,
-        elapsedMs: Date.now() - eventReceivedAt,
-        timestamp: new Date().toISOString(),
-      });
     });
 
     return () => {
@@ -292,8 +294,6 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleItemSelect = useCallback(async (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => {
-    logger.info(`[MainWindowLayout] Item selected: ${itemType} ${itemId}`);
-
     if (itemType === "thread") {
       await navigationService.navigateToThread(itemId);
     } else if (itemType === "plan") {
@@ -326,8 +326,6 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleNewThread = useCallback(async (repoId: string, worktreeId: string, _worktreePath: string) => {
-    logger.info(`[MainWindowLayout] Creating new thread for worktree ${worktreeId} in repo ${repoId}`);
-
     try {
       const thread = await threadService.create({
         repoId,
@@ -338,8 +336,6 @@ export function MainWindowLayout() {
       // Refresh tree menu to show new thread, then navigate to it
       await treeMenuService.hydrate();
       await navigationService.navigateToThread(thread.id, { autoFocus: true });
-
-      logger.info(`[MainWindowLayout] Created new thread ${thread.id}`);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to create thread:`, err);
     }
@@ -353,15 +349,11 @@ export function MainWindowLayout() {
   );
 
   const handleNewTerminal = useCallback(async (worktreeId: string, worktreePath: string) => {
-    logger.info(`[MainWindowLayout] Creating new terminal for worktree ${worktreeId}`);
-
     try {
       const session = await terminalSessionService.create(worktreeId, worktreePath);
 
       // Navigate to terminal pane
       await navigationService.navigateToView({ type: "terminal", terminalId: session.id });
-
-      logger.info(`[MainWindowLayout] Created new terminal ${session.id}`);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to create terminal:`, err);
     }
@@ -388,7 +380,6 @@ export function MainWindowLayout() {
             if (section) {
               worktreeId = section.worktreeId;
               worktreePath = section.worktreePath;
-              logger.info(`[MainWindowLayout] Command+T: Creating terminal in selected thread's worktree "${section.worktreeName}"`);
             }
           } else {
             const selectedPlan = planService.get(selectedItemId);
@@ -399,7 +390,6 @@ export function MainWindowLayout() {
               if (section) {
                 worktreeId = section.worktreeId;
                 worktreePath = section.worktreePath;
-                logger.info(`[MainWindowLayout] Command+T: Creating terminal in selected plan's worktree "${section.worktreeName}"`);
               }
             }
           }
@@ -415,7 +405,6 @@ export function MainWindowLayout() {
           const mostRecent = sections[0];
           worktreeId = mostRecent.worktreeId;
           worktreePath = mostRecent.worktreePath;
-          logger.info(`[MainWindowLayout] Command+T: Creating terminal in most recent worktree "${mostRecent.worktreeName}"`);
         }
 
         await handleNewTerminal(worktreeId, worktreePath);
@@ -643,89 +632,125 @@ export function MainWindowLayout() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Debug Panel State
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const debugPanelOpen = useDebugPanelStore((s) => s.isOpen);
+  const debugPanelHeight = useDebugPanelStore((s) => s.panelHeight);
+
+  const handleDebugPanelHeightChange = useCallback((height: number) => {
+    debugPanelService.setPanelHeight(height);
+  }, []);
+
+  const handleDebugPanelDragEnd = useCallback((height: number) => {
+    debugPanelService.setPanelHeight(height);
+  }, []);
+
+  const handleDebugPanelClose = useCallback(() => {
+    debugPanelService.close();
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Render
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
     <MainWindowProvider>
-      <div className={`flex h-full bg-surface-900 ${isFullscreen ? "pt-3" : ""}`}>
-        {/* Left Panel: Tree Menu */}
-        <ResizablePanel
-          position="left"
-          minWidth={200}
-          defaultWidth="1/3"
-          persistKey="tree-panel-width"
-          className="bg-surface-950 border-r border-surface-700 flex flex-col"
-        >
-          <TreePanelHeader
-            onSettingsClick={handleSettingsClick}
-            onLogsClick={handleLogsClick}
-            onArchiveClick={handleArchiveClick}
-            onUnhideAll={handleUnhideAll}
-            hasHiddenOrPinned={pinnedSectionId !== null || hiddenSectionIds.length > 0}
-          />
-          <TreeMenu
-            onItemSelect={handleItemSelect}
-            onNewThread={handleNewThread}
-            onCreatePr={handleCreatePrCallback}
-            onNewTerminal={handleNewTerminal}
-            onNewWorktree={handleNewWorktree}
-            onNewRepo={handleNewRepo}
-            onArchiveWorktree={handleArchiveWorktree}
-            creatingWorktreeForRepo={creatingWorktreeForRepo}
-            onPinToggle={handlePinToggle}
-            onHide={handleHideSection}
-            pinnedSectionId={pinnedSectionId}
-            onOpenFiles={rightPanel.openFileBrowser}
-            fileBrowserWorktreeId={rightPanel.fileBrowserWorktreeId}
-            className="flex-1 min-h-0"
-          />
-          <div className="px-3 py-2 border-t border-surface-800">
-            <StatusLegend />
-          </div>
-        </ResizablePanel>
-
-        {/* Center Panel: Content Pane */}
-        <ContentPaneContainer />
-
-        {/* Right Panel: File Browser or Search */}
-        {rightPanel.state.type === "file-browser" && (
+      <div className={`flex flex-col h-full bg-surface-900 ${isFullscreen ? "pt-3" : ""}`}>
+        {/* Main horizontal layout */}
+        <div className="flex flex-1 min-h-0">
+          {/* Left Panel: Tree Menu */}
           <ResizablePanel
-            position="right"
-            minWidth={180}
-            maxWidth={Math.floor(window.innerWidth * 0.5)}
-            defaultWidth={250}
-            persistKey="right-panel-width"
-            closeThreshold={120}
-            onClose={rightPanel.close}
-            className="bg-surface-950 border-l border-surface-700"
+            position="left"
+            minWidth={200}
+            defaultWidth="1/3"
+            persistKey="tree-panel-width"
+            className="bg-surface-950 border-r border-surface-700 flex flex-col"
           >
-            <FileBrowserPanel
-              key={rightPanel.state.worktreeId}
-              rootPath={rightPanel.state.rootPath}
-              repoId={rightPanel.state.repoId}
-              worktreeId={rightPanel.state.worktreeId}
-              onClose={rightPanel.close}
+            <TreePanelHeader
+              onSettingsClick={handleSettingsClick}
+              onLogsClick={handleLogsClick}
+              onArchiveClick={handleArchiveClick}
+              onUnhideAll={handleUnhideAll}
+              hasHiddenOrPinned={pinnedSectionId !== null || hiddenSectionIds.length > 0}
             />
+            <TreeMenu
+              onItemSelect={handleItemSelect}
+              onNewThread={handleNewThread}
+              onCreatePr={handleCreatePrCallback}
+              onNewTerminal={handleNewTerminal}
+              onNewWorktree={handleNewWorktree}
+              onNewRepo={handleNewRepo}
+              onArchiveWorktree={handleArchiveWorktree}
+              creatingWorktreeForRepo={creatingWorktreeForRepo}
+              onPinToggle={handlePinToggle}
+              onHide={handleHideSection}
+              pinnedSectionId={pinnedSectionId}
+              onOpenFiles={rightPanel.openFileBrowser}
+              fileBrowserWorktreeId={rightPanel.fileBrowserWorktreeId}
+              className="flex-1 min-h-0"
+            />
+            <div className="px-3 py-2 border-t border-surface-800">
+              <StatusLegend />
+            </div>
           </ResizablePanel>
-        )}
-        {rightPanel.state.type === "search" && (
-          <ResizablePanel
-            position="right"
-            minWidth={180}
-            maxWidth={Math.floor(window.innerWidth * 0.5)}
-            defaultWidth={250}
-            persistKey="right-panel-width"
-            closeThreshold={120}
-            onClose={rightPanel.close}
-            className="bg-surface-950 border-l border-surface-700"
+
+          {/* Center Panel: Content Pane */}
+          <ContentPaneContainer />
+
+          {/* Right Panel: File Browser or Search */}
+          {rightPanel.state.type === "file-browser" && (
+            <ResizablePanel
+              position="right"
+              minWidth={180}
+              maxWidth={Math.floor(window.innerWidth * 0.5)}
+              defaultWidth={250}
+              persistKey="right-panel-width"
+              closeThreshold={120}
+              onClose={rightPanel.close}
+              className="bg-surface-950 border-l border-surface-700"
+            >
+              <FileBrowserPanel
+                key={rightPanel.state.worktreeId}
+                rootPath={rightPanel.state.rootPath}
+                repoId={rightPanel.state.repoId}
+                worktreeId={rightPanel.state.worktreeId}
+                onClose={rightPanel.close}
+              />
+            </ResizablePanel>
+          )}
+          {rightPanel.state.type === "search" && (
+            <ResizablePanel
+              position="right"
+              minWidth={180}
+              maxWidth={Math.floor(window.innerWidth * 0.5)}
+              defaultWidth={250}
+              persistKey="right-panel-width"
+              closeThreshold={120}
+              onClose={rightPanel.close}
+              className="bg-surface-950 border-l border-surface-700"
+            >
+              <SearchPanel
+                onClose={rightPanel.close}
+                onNavigateToFile={handleSearchNavigateToFile}
+                onNavigateToThread={handleSearchNavigateToThread}
+              />
+            </ResizablePanel>
+          )}
+        </div>
+
+        {/* Debug Panel (Cmd+Shift+D) */}
+        {debugPanelOpen && (
+          <ResizablePanelVertical
+            height={debugPanelHeight}
+            onHeightChange={handleDebugPanelHeightChange}
+            onDragEnd={handleDebugPanelDragEnd}
+            minHeight={150}
+            closeThreshold={100}
+            onClose={handleDebugPanelClose}
           >
-            <SearchPanel
-              onClose={rightPanel.close}
-              onNavigateToFile={handleSearchNavigateToFile}
-              onNavigateToThread={handleSearchNavigateToThread}
-            />
-          </ResizablePanel>
+            <DebugPanel />
+          </ResizablePanelVertical>
         )}
 
         {/* Command Palette (Command+P) */}

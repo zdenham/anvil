@@ -58,11 +58,6 @@ export class MessageHandler {
   /** Context window size (populated from result message) */
   private contextWindow: number | null = null;
 
-  /** Active background task count — tracks task_started / task_notification */
-  private activeBackgroundTasks = 0;
-
-  /** Whether we've already emitted `complete` on the first result:success */
-  private foregroundCompleted = false;
 
   /**
    * Create a MessageHandler.
@@ -251,28 +246,12 @@ export class MessageHandler {
 
     switch (msg.subtype) {
       case "success": {
-        // On SDK v0.2.45+, the iterator emits TWO result:success messages when
-        // background tasks are running: one when foreground finishes, one when
-        // all background tasks complete. We must NOT break on the first one.
-        if (!this.foregroundCompleted) {
-          // First result:success — foreground agent is done
-          this.foregroundCompleted = true;
-          await complete({
-            durationApiMs: msg.duration_api_ms,
-            totalCostUsd: msg.total_cost_usd,
-            numTurns: msg.num_turns,
-            contextWindow,
-          });
-
-          if (this.activeBackgroundTasks > 0) {
-            // Background tasks still running — keep iterating
-            logger.info(
-              `[MessageHandler] Foreground done, ${this.activeBackgroundTasks} background task(s) still active — keeping iterator open`
-            );
-            return true;
-          }
-        }
-        // Either no bg tasks, or this is the second result:success — done
+        await complete({
+          durationApiMs: msg.duration_api_ms,
+          totalCostUsd: msg.total_cost_usd,
+          numTurns: msg.num_turns,
+          contextWindow,
+        });
         break;
       }
       case "error_during_execution": {
@@ -323,12 +302,10 @@ export class MessageHandler {
   // ============================================================================
 
   private handleTaskStarted(msg: SDKTaskStartedMessage): boolean {
-    this.activeBackgroundTasks++;
     logger.info(
-      `[MessageHandler] Background task started: task_id=${msg.task_id}, ` +
+      `[MessageHandler] Task started: task_id=${msg.task_id}, ` +
       `tool_use_id=${msg.tool_use_id ?? "none"}, ` +
-      `description="${msg.description}", ` +
-      `active=${this.activeBackgroundTasks}`
+      `description="${msg.description}"`
     );
 
     // Update child thread metadata to "running" if we can correlate via tool_use_id
@@ -358,12 +335,10 @@ export class MessageHandler {
   }
 
   private handleTaskNotification(msg: SDKTaskNotificationMessage): boolean {
-    this.activeBackgroundTasks = Math.max(0, this.activeBackgroundTasks - 1);
     logger.info(
-      `[MessageHandler] Background task ${msg.status}: task_id=${msg.task_id}, ` +
+      `[MessageHandler] Task ${msg.status}: task_id=${msg.task_id}, ` +
       `tool_use_id=${msg.tool_use_id ?? "none"}, ` +
-      `summary="${msg.summary}", ` +
-      `active=${this.activeBackgroundTasks}`
+      `summary="${msg.summary}"`
     );
 
     // Update child thread metadata with final status

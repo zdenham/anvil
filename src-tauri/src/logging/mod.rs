@@ -404,7 +404,7 @@ pub fn initialize() {
     let json_layer = match setup_json_layer() {
         Ok(layer) => Some(layer),
         Err(e) => {
-            eprintln!("Warning: Could not set up JSON logging: {}", e);
+            tracing::warn!("Could not set up JSON logging: {}", e);
             None
         }
     };
@@ -412,7 +412,7 @@ pub fn initialize() {
     // Optional log server layer - only enabled if configured
     let log_server_layer = LogServerConfig::from_env().map(|config| {
         let device_id = crate::config::get_device_id();
-        eprintln!("Log server logging enabled: {} (device: {})", config.url, device_id);
+        tracing::warn!("Log server logging enabled: {} (device: {})", config.url, device_id);
         LogServerLayer::new(config, device_id)
     });
 
@@ -468,6 +468,25 @@ pub fn log_from_web(level: &str, message: &str, source: &str) {
         "info" => tracing::info!(target: "web", "{}", prefixed),
         "debug" => tracing::debug!(target: "web", "{}", prefixed),
         _ => tracing::info!(target: "web", "{}", prefixed),
+    }
+}
+
+/// A single log entry from a batched web frontend flush.
+#[derive(serde::Deserialize)]
+pub struct WebLogEntry {
+    pub level: String,
+    pub message: String,
+    pub source: String,
+    /// Milliseconds since epoch, captured at log creation time on the frontend.
+    #[allow(dead_code)]
+    pub timestamp: f64,
+}
+
+/// Process a batch of log entries from the web frontend.
+/// Each entry carries its own creation-time timestamp for correct ordering.
+pub fn log_batch_from_web(entries: Vec<WebLogEntry>) {
+    for entry in entries {
+        log_from_web(&entry.level, &entry.message, &entry.source);
     }
 }
 

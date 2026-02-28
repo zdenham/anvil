@@ -83,12 +83,12 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
         aria-hidden="true"
       />
 
-      {/* File name + copy button, left-justified */}
+      {/* File path + copy button, left-justified */}
       <span
         className="font-mono text-sm text-surface-200 truncate min-w-0"
         title={filePath}
       >
-        {fileName}
+        {filePath}
       </span>
       <CopyButton text={filePath} label="Copy path" alwaysVisible />
 

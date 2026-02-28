@@ -14,6 +14,7 @@
  */
 
 import type { PullRequestDetails } from "@core/types/pull-request.js";
+import { logger } from "@/lib/logger-client";
 import { execGh } from "./executor";
 import {
   getCurrentBranchPr,
@@ -39,7 +40,12 @@ export class GhCli {
     try {
       await execGh(["auth", "status"], this.cwd);
       return true;
-    } catch {
+    } catch (error) {
+      logger.warn("[GhCli] isAvailable check failed", {
+        error: error instanceof Error ? error.message : String(error),
+        kind: (error as Record<string, unknown>)?.kind ?? "unknown",
+        cwd: this.cwd,
+      });
       return false;
     }
   }

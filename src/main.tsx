@@ -9,6 +9,7 @@ import { logger, setLogSource } from "./lib/logger-client";
 import { initWebErrorCapture } from "./lib/web-error-capture";
 import { setupOutgoingBridge, setupIncomingBridge } from "./lib/event-bridge";
 import { initHomeDir } from "./lib/utils/path-display";
+import { startFrameRateMonitor } from "./lib/frame-rate-monitor";
 
 // Set log source before any logging occurs
 setLogSource("main");
@@ -18,6 +19,9 @@ initHomeDir();
 
 // Capture browser errors early, before anything else runs
 initWebErrorCapture("main");
+
+// Start frame rate monitoring (always-on, essentially free)
+startFrameRateMonitor();
 
 // Set up event bridge early, before React mounts
 // This ensures events (e.g., repository:created) can be broadcast during onboarding

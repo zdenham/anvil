@@ -177,6 +177,12 @@ fn web_log(level: &str, message: &str, source: Option<&str>) {
     logging::log_from_web(level, message, source.unwrap_or("web"));
 }
 
+/// Receives a batch of log messages from the web frontend
+#[tauri::command]
+fn web_log_batch(entries: Vec<logging::WebLogEntry>) {
+    logging::log_batch_from_web(entries);
+}
+
 /// Sends a message to a connected agent via the AgentHub socket.
 #[tauri::command]
 fn send_to_agent(
@@ -216,14 +222,9 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
     );
 
     // Unregister all existing shortcuts first
-    tracing::info!("register_hotkey_internal: unregistering all existing shortcuts");
     let _ = app.global_shortcut().unregister_all();
 
     // Parse the spotlight hotkey string into a Shortcut
-    tracing::info!(
-        hotkey = %hotkey,
-        "register_hotkey_internal: parsing hotkey string into Shortcut"
-    );
     let shortcut: Shortcut = hotkey
         .parse()
         .map_err(|e| {
@@ -235,16 +236,10 @@ fn register_hotkey_internal(app: &AppHandle, hotkey: &str) -> Result<(), String>
             format!("Failed to parse hotkey '{}': {:?}", hotkey, e)
         })?;
 
-    tracing::info!(
-        shortcut = ?shortcut,
-        "register_hotkey_internal: parsed shortcut successfully"
-    );
-
     // Clone app handle for the spotlight closure
     let app_handle = app.clone();
 
     // Register the spotlight shortcut
-    tracing::info!("register_hotkey_internal: registering spotlight shortcut with global_shortcut");
     app.global_shortcut()
         .on_shortcut(shortcut, move |_app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
@@ -289,9 +284,7 @@ fn save_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
         "save_hotkey: received hotkey from frontend"
     );
 
-    tracing::info!("save_hotkey: calling config::set_spotlight_hotkey");
     config::set_spotlight_hotkey(&hotkey)?;
-    tracing::info!("save_hotkey: config saved, calling register_hotkey_internal");
 
     let result = register_hotkey_internal(&app, &hotkey);
     tracing::info!(success = result.is_ok(), "save_hotkey: completed");
@@ -341,7 +334,6 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
     let _ = app.set_activation_policy(ActivationPolicy::Regular);
 
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        tracing::info!("Found main window, showing and focusing");
         window.show().map_err(|e| {
             tracing::error!(error = %e, "Failed to show main window");
             e.to_string()
@@ -350,10 +342,8 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
             tracing::error!(error = %e, "Failed to focus main window");
             e.to_string()
         })?;
-        tracing::info!("Main window shown and focused");
     } else {
         // Window was destroyed - recreate it
-        tracing::info!("Main window not found, recreating...");
         let app_for_nav = app.clone();
         let window = tauri::WebviewWindowBuilder::new(
             &app,
@@ -381,7 +371,6 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
             tracing::error!(error = %e, "Failed to focus recreated main window");
             e.to_string()
         })?;
-        tracing::info!("Main window recreated, shown, and focused");
     }
     Ok(())
 }
@@ -820,6 +809,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             web_log,
+            web_log_batch,
             // Logging commands
             logging::get_buffered_logs,
             logging::clear_logs,
@@ -900,6 +890,7 @@ pub fn run() {
             git_commands::git_get_remote_branch_commit,
             git_commands::git_show_file,
             git_commands::git_grep,
+            git_commands::git_rm,
             // Search commands
             search::search_threads,
             // Mort-specific commands

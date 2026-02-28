@@ -2,11 +2,25 @@ import { invoke } from "@tauri-apps/api/core";
 
 type LogLevel = "log" | "info" | "warn" | "error" | "debug";
 
+type BatchEntry = {
+  level: LogLevel;
+  message: string;
+  source: string;
+  timestamp: number;
+};
+
 /**
  * Source identifier for the current window (e.g., "main", "spotlight", "task-panel").
  * Defaults to "web" for backwards compatibility.
  */
 let logSource = "web";
+
+const queue: BatchEntry[] = [];
+const FLUSH_INTERVAL_MS = 500;
+
+let flushTimer: ReturnType<typeof setInterval> | null = null;
+
+window.addEventListener("beforeunload", () => flushQueue());
 
 /**
  * Sets the source identifier for all logs from this window.
@@ -30,12 +44,35 @@ function formatArgs(...args: unknown[]): string {
     .join(" ");
 }
 
-function sendLog(level: LogLevel, ...args: unknown[]): void {
-  const message = formatArgs(...args);
-  // Fire and forget - don't block on logging
-  invoke("web_log", { level, message, source: logSource }).catch(() => {
+function flushQueue(): void {
+  if (queue.length === 0) return;
+  const entries = queue.splice(0);
+  invoke("web_log_batch", { entries }).catch(() => {
     // Silently ignore if Tauri isn't ready
   });
+}
+
+function startFlushTimer(): void {
+  if (flushTimer !== null) return;
+  flushTimer = setInterval(() => {
+    flushQueue();
+    if (queue.length === 0 && flushTimer !== null) {
+      clearInterval(flushTimer);
+      flushTimer = null;
+    }
+  }, FLUSH_INTERVAL_MS);
+}
+
+function sendLog(level: LogLevel, ...args: unknown[]): void {
+  const message = formatArgs(...args);
+  queue.push({ level, message, source: logSource, timestamp: Date.now() });
+
+  if (level === "error") {
+    flushQueue();
+    return;
+  }
+
+  startFlushTimer();
 }
 
 /**

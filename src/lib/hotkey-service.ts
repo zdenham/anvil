@@ -8,10 +8,8 @@ import type { ContentPaneView } from "@/components/content-pane/types";
  * @param hotkey - The hotkey string from HotkeyRecorder (e.g., "Command+Space")
  */
 export const registerGlobalHotkey = async (hotkey: string): Promise<void> => {
-  logger.debug(`[hotkey-service] Registering hotkey: ${hotkey}`);
   try {
     await invoke("register_hotkey", { hotkey });
-    logger.debug("[hotkey-service] Hotkey registered successfully");
   } catch (err) {
     logger.error("[hotkey-service] Failed to register hotkey:", err);
     throw err;
@@ -23,14 +21,8 @@ export const registerGlobalHotkey = async (hotkey: string): Promise<void> => {
  * @param hotkey - The hotkey string to save and register
  */
 export const saveHotkey = async (hotkey: string): Promise<void> => {
-  logger.info(`[hotkey-service] saveHotkey called`, {
-    hotkey,
-    hotkeyLength: hotkey.length,
-    hotkeyCharCodes: [...hotkey].map(c => c.charCodeAt(0)),
-  });
   try {
     await invoke("save_hotkey", { hotkey });
-    logger.info("[hotkey-service] saveHotkey completed successfully", { hotkey });
   } catch (err) {
     logger.error("[hotkey-service] saveHotkey failed:", { hotkey, error: err });
     throw err;

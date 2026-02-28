@@ -93,21 +93,13 @@ export function setupThreadListeners(): void {
 
   // Agent state updates - refresh metadata (for usage) + state if active thread
   eventBus.on(EventName.AGENT_STATE, async ({ threadId }: EventPayloads[typeof EventName.AGENT_STATE]) => {
-    logger.info(`[FC-DEBUG] AGENT_STATE event received`, {
-      threadId,
-      activeThreadId: useThreadStore.getState().activeThreadId,
-      isActiveThread: useThreadStore.getState().activeThreadId === threadId,
-    });
     try {
       // Always refresh metadata (usage data lives there now)
       await threadService.refreshById(threadId);
 
       const store = useThreadStore.getState();
       if (store.activeThreadId === threadId) {
-        logger.info(`[FC-DEBUG] Thread is active, calling loadThreadState`);
         await threadService.loadThreadState(threadId);
-      } else {
-        logger.info(`[FC-DEBUG] Thread is NOT active, skipping loadThreadState`);
       }
 
       // Clear streaming content AFTER replacement data is in the store

@@ -16,6 +16,7 @@ import { NotebookEditToolBlock } from "./notebook-edit-tool-block";
 import { ReadToolBlock } from "./read-tool-block";
 import { SkillToolBlock } from "./skill-tool-block";
 import { TaskOutputToolBlock } from "./taskoutput-tool-block";
+import { TaskStopToolBlock } from "./taskstop-tool-block";
 import { TaskToolBlock } from "./task-tool-block";
 import { TodoWriteToolBlock } from "./todowrite-tool-block";
 import { WebFetchToolBlock } from "./web-fetch-tool-block";
@@ -63,6 +64,7 @@ const TOOL_BLOCK_REGISTRY: Record<string, ToolBlockComponent> = {
   skill: SkillToolBlock,
   task: TaskToolBlock,
   taskoutput: TaskOutputToolBlock,
+  taskstop: TaskStopToolBlock,
   todowrite: TodoWriteToolBlock,
   webfetch: WebFetchToolBlock,
   websearch: WebSearchToolBlock, // Client tool name (WebSearch -> websearch)
@@ -94,6 +96,7 @@ export {
   ReadToolBlock,
   SkillToolBlock,
   TaskOutputToolBlock,
+  TaskStopToolBlock,
   TaskToolBlock,
   TodoWriteToolBlock,
   WebFetchToolBlock,

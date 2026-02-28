@@ -97,7 +97,7 @@ export function useWindowDrag(options: UseWindowDragOptions = {}): UseWindowDrag
       getCurrentWindow()
         .startDragging()
         .catch((err) => {
-          console.error("[useWindowDrag] startDragging failed:", err);
+          logger.error("[useWindowDrag] startDragging failed:", err);
         });
 
       // Listen for mouseup to know when drag ended

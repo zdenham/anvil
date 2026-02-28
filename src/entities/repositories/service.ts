@@ -86,20 +86,14 @@ export const repoService = {
    * Supports both settings.json (new) and metadata.json (legacy) formats.
    */
   async hydrate(): Promise<void> {
-    // Log the absolute path we're searching in
-    const absoluteReposDir = await appData.getAbsolutePath(REPOS_DIR);
     logger.log(`[repo:hydrate] Starting hydration`);
-    logger.log(`[repo:hydrate] Searching in: ${absoluteReposDir}`);
 
     await appData.ensureDir(REPOS_DIR);
     const repoDirs = await appData.listDir(REPOS_DIR);
-    logger.log(`[repo:hydrate] Found ${repoDirs.length} directories:`, repoDirs);
 
     const repositories: Record<string, Repository> = {};
 
     for (const repoName of repoDirs) {
-      logger.log(`[repo:hydrate] Processing directory: ${repoName}`);
-
       // Try settings.json first (new format), fall back to metadata.json (legacy)
       let metadata: RepositoryMetadata | null = null;
 
@@ -109,7 +103,6 @@ export const repoService = {
 
       if (settingsResult?.success) {
         const settings = settingsResult.data;
-        logger.log(`[repo:hydrate] ${repoName}: Found settings.json (name: "${settings.name}")`);
         metadata = {
           name: settings.name,
           originalUrl: settings.originalUrl,
@@ -126,7 +119,6 @@ export const repoService = {
         }
         // Fall back to legacy metadata.json
         const metadataPath = `${REPOS_DIR}/${repoName}/metadata.json`;
-        logger.log(`[repo:hydrate] ${repoName}: No valid settings.json, trying metadata.json`);
         const rawMetadata = await appData.readJson(metadataPath);
         const metadataResult = rawMetadata ? LegacyMetadataSchema.safeParse(rawMetadata) : null;
 
@@ -139,7 +131,6 @@ export const repoService = {
             useWorktrees: legacyData.useWorktrees ?? false,
             createdAt: legacyData.createdAt ?? Date.now(),
           };
-          logger.log(`[repo:hydrate] ${repoName}: Found metadata.json (name: "${metadata.name}")`);
         }
       }
 
@@ -148,7 +139,6 @@ export const repoService = {
         const slug = slugify(metadata.name);
         const versions = await detectWorktrees(`${REPOS_DIR}/${repoName}`, slug);
         repositories[metadata.name] = { ...metadata, versions };
-        logger.log(`[repo:hydrate] ${repoName}: Loaded as "${metadata.name}" with ${versions.length} worktrees`);
       } else {
         logger.warn(`[repo:hydrate] ${repoName}: SKIPPED - no settings.json or metadata.json found!`);
       }

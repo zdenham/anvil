@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { appData } from "@/lib/app-data-store";
 import { usePlanStore } from "./store";
 import { PlanMetadataSchema } from "./types";
@@ -204,8 +205,6 @@ class PlanService {
       updatedAt: now,
     };
 
-    logger.debug(`[planService:create] Creating plan: ${plan.id}`);
-
     // Optimistic update with rollback
     const rollback = usePlanStore.getState()._applyCreate(plan);
 
@@ -246,8 +245,6 @@ class PlanService {
       isRead: input.isRead ?? false,
     };
 
-    logger.debug(`[planService:update] Updating plan: ${id}`, updates);
-
     // Optimistic update with rollback
     const rollback = usePlanStore.getState()._applyUpdate(id, updates);
 
@@ -275,8 +272,6 @@ class PlanService {
     const plan = usePlanStore.getState().getPlan(id);
     if (!plan) return;
 
-    logger.debug(`[planService:delete] Deleting plan: ${id}`);
-
     // Optimistic update with rollback
     const rollback = usePlanStore.getState()._applyDelete(id);
 
@@ -286,6 +281,110 @@ class PlanService {
     } catch (err) {
       logger.error(`[planService:delete] Failed to delete plan, rolling back:`, err);
       rollback();
+      throw err;
+    }
+  }
+
+  /**
+   * Delete a plan's markdown file from disk and remove its metadata.
+   * If the plan is a folder (has children), cascades to all descendants.
+   */
+  async deletePlanFile(planId: string): Promise<void> {
+    const plan = this.get(planId);
+    if (!plan) return;
+
+    // If this plan has children, cascade-delete them first
+    const descendants = this.getDescendants(planId);
+    for (const descendant of descendants.reverse()) {
+      await this._deleteSinglePlanFile(descendant.id);
+    }
+
+    await this._deleteSinglePlanFile(planId);
+  }
+
+  /**
+   * Delete a plan's markdown file via `git rm` (removes from git tracking AND disk),
+   * then remove its metadata. Falls back to regular file deletion if git rm fails
+   * (e.g., file is untracked).
+   * If the plan is a folder (has children), cascades to all descendants.
+   */
+  async deletePlanFileAndUntrack(planId: string): Promise<void> {
+    const plan = this.get(planId);
+    if (!plan) return;
+
+    // If this plan has children, cascade-delete them first
+    const descendants = this.getDescendants(planId);
+    for (const descendant of descendants.reverse()) {
+      await this._deleteSinglePlanFileAndUntrack(descendant.id);
+    }
+
+    await this._deleteSinglePlanFileAndUntrack(planId);
+  }
+
+  private async _deleteSinglePlanFile(planId: string): Promise<void> {
+    const plan = this.get(planId);
+    if (!plan) return;
+
+    const rollback = usePlanStore.getState()._applyDelete(planId);
+
+    try {
+      const { resolvePlanPath } = await import("./utils");
+      const absolutePath = await resolvePlanPath(plan);
+      const fs = new FilesystemClient();
+
+      try {
+        await fs.remove(absolutePath);
+      } catch {
+        // File may already be deleted — that's fine
+        logger.warn(`[planService:_deleteSinglePlanFile] File may not exist: ${absolutePath}`);
+      }
+
+      // Remove metadata
+      await appData.removeDir(`${PLANS_DIRECTORY}/${planId}`);
+      eventBus.emit(EventName.PLAN_ARCHIVED, { planId });
+      logger.info(`[planService:_deleteSinglePlanFile] Deleted plan ${planId}`);
+    } catch (err) {
+      rollback();
+      logger.error(`[planService:_deleteSinglePlanFile] Failed:`, err);
+      throw err;
+    }
+  }
+
+  private async _deleteSinglePlanFileAndUntrack(planId: string): Promise<void> {
+    const plan = this.get(planId);
+    if (!plan) return;
+
+    const rollback = usePlanStore.getState()._applyDelete(planId);
+
+    try {
+      const { resolveWorktreePath } = await import("./utils");
+      const worktreePath = await resolveWorktreePath(plan);
+
+      try {
+        await invoke("git_rm", {
+          workingDirectory: worktreePath,
+          filePath: plan.relativePath,
+        });
+      } catch (gitErr) {
+        // git rm failed (file may be untracked) — fall back to regular delete
+        logger.warn(`[planService:_deleteSinglePlanFileAndUntrack] git rm failed, falling back to file delete:`, gitErr);
+        const { resolvePlanPath } = await import("./utils");
+        const absolutePath = await resolvePlanPath(plan);
+        const fs = new FilesystemClient();
+        try {
+          await fs.remove(absolutePath);
+        } catch {
+          // File may already be deleted
+        }
+      }
+
+      // Remove metadata
+      await appData.removeDir(`${PLANS_DIRECTORY}/${planId}`);
+      eventBus.emit(EventName.PLAN_ARCHIVED, { planId });
+      logger.info(`[planService:_deleteSinglePlanFileAndUntrack] Deleted plan ${planId}`);
+    } catch (err) {
+      rollback();
+      logger.error(`[planService:_deleteSinglePlanFileAndUntrack] Failed:`, err);
       throw err;
     }
   }

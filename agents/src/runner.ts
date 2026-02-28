@@ -37,18 +37,13 @@ import type { PermissionModeId } from "@core/types/permissions.js";
 function loadPriorState(historyFile: string | undefined): PriorState {
   const emptyState: PriorState = { messages: [] };
 
-  // Always log the history file path for debugging
-  logger.info(`[runner] loadPriorState called with historyFile=${historyFile ?? "undefined"}`);
+  logger.info(`[runner] Loading prior state from ${historyFile ?? "none"}`);
 
   if (!historyFile) {
-    logger.info("[runner] No history file provided (first run)");
     return emptyState;
   }
 
-  const fileExists = existsSync(historyFile);
-  logger.info(`[runner] History file exists: ${fileExists}, path: ${historyFile}`);
-
-  if (!fileExists) {
+  if (!existsSync(historyFile)) {
     logger.warn(`[runner] History file does not exist at path: ${historyFile}`);
     return emptyState;
   }
@@ -62,7 +57,6 @@ function loadPriorState(historyFile: string | undefined): PriorState {
     // Load messages for UI history display
     if (Array.isArray(state.messages)) {
       result.messages = state.messages;
-      logger.info(`[runner] Loaded ${state.messages.length} prior messages from history`);
     } else {
       logger.warn(`[runner] state.messages is not an array: ${typeof state.messages}`);
     }
@@ -70,34 +64,32 @@ function loadPriorState(historyFile: string | undefined): PriorState {
     // Load sessionId for SDK resume (enables conversation continuity)
     if (typeof state.sessionId === "string") {
       result.sessionId = state.sessionId;
-      logger.info(`[runner] Loaded prior sessionId: ${state.sessionId}`);
-    } else {
-      logger.info("[runner] No prior sessionId found (will start new SDK session)");
     }
 
     // Load toolStates for UI rendering (so prior tool calls show as complete, not spinning)
     if (state.toolStates && typeof state.toolStates === "object") {
       result.toolStates = state.toolStates;
-      logger.info(`[runner] Loaded ${Object.keys(state.toolStates).length} prior tool states from history`);
-    } else {
-      logger.info("[runner] No prior toolStates found");
     }
 
     // Load token usage so context meter stays visible during resume
     if (state.lastCallUsage && typeof state.lastCallUsage === "object") {
       result.lastCallUsage = state.lastCallUsage;
-      logger.info("[runner] Loaded prior lastCallUsage from history");
     }
     if (state.cumulativeUsage && typeof state.cumulativeUsage === "object") {
       result.cumulativeUsage = state.cumulativeUsage;
-      logger.info("[runner] Loaded prior cumulativeUsage from history");
     }
 
     // Load prior file changes so diffs accumulate across turns
     if (Array.isArray(state.fileChanges)) {
       result.fileChanges = state.fileChanges;
-      logger.info(`[runner] Loaded ${state.fileChanges.length} prior file changes`);
     }
+
+    logger.info("[runner] Loaded prior state", {
+      messageCount: result.messages.length,
+      toolStateCount: result.toolStates ? Object.keys(result.toolStates).length : 0,
+      hasFileChanges: !!result.fileChanges,
+      hasSessionId: !!result.sessionId,
+    });
 
     return result;
   } catch (err) {
@@ -162,8 +154,6 @@ async function main(): Promise<void> {
 
   // Create abort controller for cancellation support
   const abortController = new AbortController();
-  logger.info(`[runner] Created AbortController, pid=${process.pid}`);
-
   // Create message stream for queued messages (will be passed to runAgentLoop)
   const messageStream = new SocketMessageStream();
   // Set event emitter for ack events (emits via socket or stdout fallback)
@@ -379,6 +369,14 @@ async function main(): Promise<void> {
       permissionGate,
       questionGate,
     });
+
+    // Safety timeout: if cleanup or process.exit hangs, force exit.
+    // unref() ensures this timer doesn't prevent natural Node.js exit.
+    const exitGuard = setTimeout(() => {
+      logger.warn("[runner] Post-loop cleanup timed out after 10s, forcing exit");
+      process.exit(1);
+    }, 10_000);
+    exitGuard.unref();
 
     // Clean up on successful completion
     await strategy.cleanup(context, "completed");

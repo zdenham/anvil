@@ -92,7 +92,6 @@ export function stopRecoveryPolling(threadId: string): void {
 export function stopAllRecoveryPolling(): void {
   for (const [threadId, interval] of activePollers) {
     clearInterval(interval);
-    logger.debug(`[state-recovery] Stopped polling for thread ${threadId}`);
   }
   activePollers.clear();
 }

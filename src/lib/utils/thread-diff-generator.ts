@@ -42,16 +42,8 @@ export async function generateThreadDiff(
   fileChanges: FileChangeInfo[],
   workingDirectory: string
 ): Promise<ThreadDiffResult> {
-  logger.info(`[FC-DEBUG] generateThreadDiff called`, {
-    initialCommitHash,
-    fileChangesCount: fileChanges.length,
-    fileChanges,
-    workingDirectory,
-  });
-
   // No files to diff
   if (fileChanges.length === 0) {
-    logger.info(`[FC-DEBUG] generateThreadDiff: no files to diff`);
     return {
       diff: { files: [] },
       initialCommit: initialCommitHash,
@@ -66,12 +58,6 @@ export async function generateThreadDiff(
       operation: f.operation,
     }));
 
-    logger.info(`[FC-DEBUG] Calling gitCommands.diffFiles with fileRequests`, {
-      workingDirectory,
-      initialCommitHash,
-      fileRequests,
-    });
-
     // Call the Rust backend which handles both tracked files (git diff)
     // and untracked files (synthetic diff generation)
     const rawDiff = await gitCommands.diffFiles(
@@ -81,22 +67,8 @@ export async function generateThreadDiff(
       fileRequests
     );
 
-    logger.info(`[FC-DEBUG] gitCommands.diffFiles returned`, {
-      rawDiffLength: rawDiff.length,
-      rawDiffPreview: rawDiff.substring(0, 500),
-    });
-
     // Parse the diff output
     const parsedDiff = parseDiff(rawDiff);
-    logger.info(`[FC-DEBUG] parseDiff returned`, {
-      fileCount: parsedDiff.files.length,
-      files: parsedDiff.files.map((f) => ({
-        oldPath: f.oldPath,
-        newPath: f.newPath,
-        type: f.type,
-        hunkCount: f.hunks.length,
-      })),
-    });
 
     return {
       diff: parsedDiff,
@@ -104,7 +76,7 @@ export async function generateThreadDiff(
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    logger.error(`[FC-DEBUG] generateThreadDiff error`, { errorMessage, err });
+    logger.error(`generateThreadDiff error`, { errorMessage, err });
     return {
       diff: { files: [] },
       initialCommit: initialCommitHash,
@@ -128,14 +100,7 @@ export function extractFileChanges(
       }>
     | undefined
 ): FileChangeInfo[] {
-  logger.info(`[FC-DEBUG] extractFileChanges called`, {
-    hasFileChanges: !!fileChanges,
-    fileChangesCount: fileChanges?.length ?? 0,
-    fileChanges: fileChanges?.map((c) => ({ path: c.path, operation: c.operation })) ?? [],
-  });
-
   if (!fileChanges || fileChanges.length === 0) {
-    logger.info(`[FC-DEBUG] extractFileChanges: no file changes, returning empty array`);
     return [];
   }
 
@@ -152,10 +117,6 @@ export function extractFileChanges(
   }
 
   const result = Array.from(changeMap.values());
-  logger.info(`[FC-DEBUG] extractFileChanges returning`, {
-    count: result.length,
-    changes: result,
-  });
   return result;
 }
 

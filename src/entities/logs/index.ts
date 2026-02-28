@@ -3,9 +3,12 @@ import { useLogStore } from "./store";
 import type { LogFilter } from "./types";
 
 export function useFilteredLogs(filter: LogFilter) {
-  const logs = useLogStore((s) => s.logs);
+  // Subscribe to logCount (primitive) instead of logs (array ref) to avoid
+  // re-renders on every mutation. The array is mutated in place.
+  const logCount = useLogStore((s) => s.logCount);
 
   const filteredLogs = useMemo(() => {
+    const logs = useLogStore.getState().logs;
     return logs.filter((log) => {
       // Level filter
       if (filter.levels.length > 0 && !filter.levels.includes(log.level)) {
@@ -23,9 +26,9 @@ export function useFilteredLogs(filter: LogFilter) {
       }
       return true;
     });
-  }, [logs, filter.levels, filter.search]);
+  }, [logCount, filter.levels, filter.search]);
 
-  return { filteredLogs, totalCount: logs.length };
+  return { filteredLogs, totalCount: logCount };
 }
 
 export { useLogStore } from "./store";

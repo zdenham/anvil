@@ -58,10 +58,8 @@ class AppDataStore {
    */
   async writeJson<T>(path: string, data: T): Promise<void> {
     const fullPath = await this.resolvePath(path);
-    logger.debug(`[appData.writeJson] path=${path}, fullPath=${fullPath}`);
     try {
       await this.fs.writeJsonFile(fullPath, data);
-      logger.debug(`[appData.writeJson] Successfully wrote to ${fullPath}`);
     } catch (err) {
       logger.error(`[appData.writeJson] Failed to write to ${fullPath}:`, err);
       throw err;
@@ -75,13 +73,11 @@ class AppDataStore {
   async readText(path: string): Promise<string | null> {
     const fullPath = await this.resolvePath(path);
     const exists = await this.fs.exists(fullPath);
-    logger.debug(`[appData.readText] path=${path}, fullPath=${fullPath}, exists=${exists}`);
     if (!exists) {
       return null;
     }
     try {
       const content = await this.fs.readFile(fullPath);
-      logger.debug(`[appData.readText] Read ${content?.length ?? 0} chars`);
       return content;
     } catch (e) {
       logger.error(`[appData.readText] Error reading file:`, e);
@@ -139,10 +135,8 @@ class AppDataStore {
    */
   async ensureDir(path: string): Promise<void> {
     const fullPath = await this.resolvePath(path);
-    logger.debug(`[appData.ensureDir] path=${path}, fullPath=${fullPath}`);
     try {
       await this.fs.mkdir(fullPath);
-      logger.debug(`[appData.ensureDir] Successfully ensured ${fullPath}`);
     } catch (err) {
       logger.error(`[appData.ensureDir] Failed to ensure ${fullPath}:`, err);
       throw err;
@@ -155,7 +149,6 @@ class AppDataStore {
   async exists(path: string): Promise<boolean> {
     const fullPath = await this.resolvePath(path);
     const result = await this.fs.exists(fullPath);
-    logger.debug(`[appData.exists] path=${path}, fullPath=${fullPath}, exists=${result}`);
     return result;
   }
 
@@ -260,10 +253,8 @@ class AppDataStore {
    * Checks if an absolute path is a git repository.
    */
   async isGitRepo(absolutePath: string): Promise<boolean> {
-    logger.debug(`[appData.isGitRepo] Checking: ${absolutePath}`);
     try {
       const result = await this.fs.isGitRepo(absolutePath);
-      logger.debug(`[appData.isGitRepo] ${absolutePath} isGitRepo=${result}`);
       return result;
     } catch (err) {
       logger.error(`[appData.isGitRepo] Failed to check ${absolutePath}:`, err);
@@ -275,10 +266,8 @@ class AppDataStore {
    * Checks if an absolute path exists.
    */
   async absolutePathExists(absolutePath: string): Promise<boolean> {
-    logger.debug(`[appData.absolutePathExists] Checking: ${absolutePath}`);
     try {
       const result = await this.fs.exists(absolutePath);
-      logger.debug(`[appData.absolutePathExists] ${absolutePath} exists=${result}`);
       return result;
     } catch (err) {
       logger.error(`[appData.absolutePathExists] Failed to check ${absolutePath}:`, err);
@@ -389,9 +378,7 @@ export async function saveSettings(
   repoName: string,
   settings: RepositorySettings
 ): Promise<void> {
-  logger.debug(`[saveSettings] Saving settings for repo: ${repoName}`);
   const settingsPath = `${REPOS_DIR}/${repoName}/${SETTINGS_FILE}`;
-  logger.debug(`[saveSettings] Settings path: ${settingsPath}`);
   try {
     await appData.writeJson(settingsPath, settings);
     logger.debug(`[saveSettings] Successfully saved settings for ${repoName}`);

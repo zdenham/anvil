@@ -3,8 +3,6 @@ import { ChevronRight, ChevronLeft, MessageSquare } from "lucide-react";
 import { ThreadView } from "@/components/thread/thread-view";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
-import { logger } from "@/lib/logger-client";
-
 type ThreadStatus = "idle" | "loading" | "running" | "completed" | "error";
 
 interface ChatPaneProps {
@@ -42,9 +40,6 @@ export function ChatPane({
   width = DEFAULT_CHAT_PANE_WIDTH,
   toolStates,
 }: ChatPaneProps) {
-  // Debug: Log props on every render
-  logger.log(`[ChatPane] RENDER - threadId: ${threadId}, messages: ${messages.length}, isStreaming: ${isStreaming}, status: ${status}`);
-
   // Internal state for uncontrolled mode
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;

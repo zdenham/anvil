@@ -2691,7 +2691,7 @@ dependencies = [
 
 [[package]]
 name = "mort"
-version = "0.0.48"
+version = "0.0.51"
 dependencies = [
  "arboard",
  "chrono",

@@ -9,12 +9,14 @@
  * gateway webhook (pull_request.opened) -- see listeners.ts.
  */
 
+import { invoke } from "@tauri-apps/api/core";
 import { Command } from "@tauri-apps/plugin-shell";
 import { GhCli } from "./gh-cli";
 import { pullRequestService } from "@/entities/pull-requests";
 import { createThread } from "@/lib/thread-creation-service";
 import { contentPanesService } from "@/stores/content-panes";
 import { logger } from "./logger-client";
+import { toast } from "./toast";
 
 /**
  * Handle "Create pull request" action from the plus menu.
@@ -34,8 +36,7 @@ export async function handleCreatePr(
     logger.warn("[pr-actions] gh CLI not available or not authenticated", {
       worktreePath,
     });
-    // TODO: Show error banner with "Install GitHub CLI" / "Authenticate" button
-    // (depends on pr-ui error banner pattern from pr-entity.md Phase 2)
+    toast.error("GitHub CLI not available — install or authenticate `gh` to create PRs");
     return;
   }
 
@@ -109,10 +110,13 @@ async function spawnCreatePrAgent(
 async function getBranchInfo(
   worktreePath: string,
 ): Promise<{ head: string; base: string }> {
+  const shellPath = await invoke<string>("get_shell_path");
+  const env = { PATH: shellPath };
+
   const headResult = await Command.create(
     "git",
     ["rev-parse", "--abbrev-ref", "HEAD"],
-    { cwd: worktreePath },
+    { cwd: worktreePath, env },
   ).execute();
   const head = headResult.stdout.trim();
 
@@ -121,7 +125,7 @@ async function getBranchInfo(
     const baseResult = await Command.create(
       "git",
       ["rev-parse", "--abbrev-ref", "origin/HEAD"],
-      { cwd: worktreePath },
+      { cwd: worktreePath, env },
     ).execute();
     const base = baseResult.stdout.trim().replace("origin/", "");
     return { head, base };

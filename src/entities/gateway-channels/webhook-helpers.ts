@@ -29,7 +29,6 @@ export async function createGitHubWebhook(
     }
 
     // Check if a webhook already exists for this URL
-    logger.info(`${tag} Listing existing webhooks...`);
     const existing = await ghCli.listWebhooks();
     logger.info(`${tag} Found ${existing.length} existing webhook(s)`);
 

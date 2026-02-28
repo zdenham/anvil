@@ -54,6 +54,29 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     checkExistingRepo();
   }, []);
 
+  // Shared setup completion logic used by both Enter key and Next button
+  const completeSetup = useCallback(async () => {
+    setIsRegistering(true);
+    setError(null);
+    try {
+      logger.debug("[OnboardingFlow] Completing setup...");
+      await saveHotkey(hotkey);
+      // Create the repository with worktrees before marking onboarding complete
+      // Skip if using an existing repository (already set up)
+      if (selectedRepository && !existingRepoName) {
+        await repoService.createFromFolder(selectedRepository);
+      }
+      onComplete();
+    } catch (err) {
+      logger.error("[OnboardingFlow] Failed to complete setup:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to complete setup"
+      );
+    } finally {
+      setIsRegistering(false);
+    }
+  }, [hotkey, selectedRepository, existingRepoName, onComplete]);
+
   // Handle Enter key to advance
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -89,40 +112,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
           if (nextStep) {
             setCurrentStep(nextStep);
           } else {
-            // Final step: save the hotkey and repository, then complete onboarding
-            setIsRegistering(true);
-            setError(null);
-            (async () => {
-              try {
-                logger.debug("[OnboardingFlow] Starting setup completion via Enter key");
-                logger.debug(`[OnboardingFlow] Saving hotkey: ${hotkey}`);
-                await saveHotkey(hotkey);
-                logger.debug("[OnboardingFlow] Hotkey saved successfully");
-                // Create the repository with worktrees before marking onboarding complete
-                // Skip if using an existing repository (already set up)
-                if (selectedRepository && !existingRepoName) {
-                  logger.debug(`[OnboardingFlow] Creating repository from folder: ${selectedRepository}`);
-                  await repoService.createFromFolder(selectedRepository);
-                  logger.debug("[OnboardingFlow] Repository created successfully");
-                } else {
-                  logger.debug(`[OnboardingFlow] Skipping repo creation (existing: ${existingRepoName})`);
-                }
-                logger.debug("[OnboardingFlow] Calling onComplete");
-                onComplete();
-              } catch (err) {
-                logger.error("[OnboardingFlow] Failed to complete setup:", err);
-                if (err instanceof Error) {
-                  logger.error("[OnboardingFlow] Error name:", err.name);
-                  logger.error("[OnboardingFlow] Error message:", err.message);
-                  logger.error("[OnboardingFlow] Error stack:", err.stack);
-                }
-                setError(
-                  err instanceof Error ? err.message : "Failed to complete setup"
-                );
-              } finally {
-                setIsRegistering(false);
-              }
-            })();
+            completeSetup();
           }
         }
       }
@@ -130,7 +120,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentStep, hotkey, selectedRepository, existingRepoName, isRegistering, onComplete, isEditingHotkey]);
+  }, [currentStep, selectedRepository, isRegistering, isEditingHotkey, accessibilityGranted, completeSetup]);
 
   const getNextStep = (): OnboardingStepName | null => {
     if (currentStep === 'welcome') return 'permissions';
@@ -159,38 +149,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     }
 
     // Final step: save the hotkey and repository, then complete onboarding
-    setIsRegistering(true);
-    setError(null);
-
-    try {
-      logger.debug("[OnboardingFlow] Starting setup completion via handleNext");
-      logger.debug(`[OnboardingFlow] Saving hotkey: ${hotkey}`);
-      await saveHotkey(hotkey);
-      logger.debug("[OnboardingFlow] Hotkey saved successfully");
-      // Create the repository with worktrees before marking onboarding complete
-      // Skip if using an existing repository (already set up)
-      if (selectedRepository && !existingRepoName) {
-        logger.debug(`[OnboardingFlow] Creating repository from folder: ${selectedRepository}`);
-        await repoService.createFromFolder(selectedRepository);
-        logger.debug("[OnboardingFlow] Repository created successfully");
-      } else {
-        logger.debug(`[OnboardingFlow] Skipping repo creation (existing: ${existingRepoName})`);
-      }
-      logger.debug("[OnboardingFlow] Calling onComplete");
-      onComplete();
-    } catch (err) {
-      logger.error("[OnboardingFlow] Failed to complete setup:", err);
-      if (err instanceof Error) {
-        logger.error("[OnboardingFlow] Error name:", err.name);
-        logger.error("[OnboardingFlow] Error message:", err.message);
-        logger.error("[OnboardingFlow] Error stack:", err.stack);
-      }
-      setError(
-        err instanceof Error ? err.message : "Failed to complete setup"
-      );
-    } finally {
-      setIsRegistering(false);
-    }
+    await completeSetup();
   };
 
   const handleBack = () => {

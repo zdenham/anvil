@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualList } from "@/hooks/use-virtual-list";
 import { ArchiveRestore, Loader2 } from "lucide-react";
 import { threadService } from "@/entities/threads/service";
 import { navigationService } from "@/stores/navigation-service";
@@ -15,7 +15,7 @@ import { logger } from "@/lib/logger-client";
 import type { ThreadMetadata } from "@/entities/threads/types";
 
 const ROW_HEIGHT = 44;
-const OVERSCAN = 15;
+const OVERSCAN = 660; // ~15 rows
 
 export function ArchiveView() {
   const [threads, setThreads] = useState<ThreadMetadata[]>([]);
@@ -41,10 +41,12 @@ export function ArchiveView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(Date.now);
 
-  const virtualizer = useVirtualizer({
+  const getScrollElement = useCallback(() => scrollRef.current, []);
+
+  const { items, totalHeight } = useVirtualList({
     count: threads.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    getScrollElement,
+    itemHeight: ROW_HEIGHT,
     overscan: OVERSCAN,
   });
 
@@ -96,17 +98,17 @@ export function ArchiveView() {
     <div ref={scrollRef} className="h-full overflow-y-auto">
       <div
         className="relative p-3"
-        style={{ height: virtualizer.getTotalSize() }}
+        style={{ height: totalHeight }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const thread = threads[virtualRow.index];
+        {items.map((item) => {
+          const thread = threads[item.index];
           return (
             <div
               key={thread.id}
               className="absolute left-0 right-0 px-3"
               style={{
-                height: virtualRow.size,
-                transform: `translateY(${virtualRow.start}px)`,
+                height: item.size,
+                transform: `translateY(${item.start}px)`,
               }}
             >
               <ArchivedThreadRow

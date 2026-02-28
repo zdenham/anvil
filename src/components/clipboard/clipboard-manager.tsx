@@ -45,8 +45,6 @@ export const ClipboardManager = () => {
   const loadEntries = useCallback(async (searchQuery?: string) => {
     const controller = controllerRef.current;
     const requestId = ++loadRequestIdRef.current;
-    logger.log("[clipboard] loadEntries called", { searchQuery, requestId });
-
     const results = await controller.getHistory(searchQuery);
 
     // Only update state if this is still the latest request
@@ -58,10 +56,6 @@ export const ClipboardManager = () => {
       return;
     }
 
-    logger.log("[clipboard] loadEntries completed", {
-      requestId,
-      resultCount: results.length,
-    });
     setEntries(results);
     setSelectedIndex((prevIndex) =>
       prevIndex >= results.length ? Math.max(0, results.length - 1) : prevIndex
@@ -102,10 +96,6 @@ export const ClipboardManager = () => {
   // Refresh entries when new clipboard entry is added via eventBus
   useEffect(() => {
     const handleClipboardEntryAdded = () => {
-      logger.log(
-        "[clipboard] clipboard-entry-added received",
-        new Date().toISOString()
-      );
       const searchQuery = query.trim() || undefined;
       loadEntries(searchQuery);
     };
@@ -120,7 +110,6 @@ export const ClipboardManager = () => {
   // Focus input when panel gains focus via eventBus
   useEffect(() => {
     const handleFocusChanged = ({ focused }: { focused: boolean }) => {
-      logger.log("[clipboard] focus changed", { focused });
       if (focused) {
         inputRef.current?.focus();
       }

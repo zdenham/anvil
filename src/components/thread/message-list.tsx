@@ -1,5 +1,5 @@
-import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo, useEffect } from "react";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo } from "react";
+import { useVirtualList } from "@/hooks/use-virtual-list";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { Turn } from "@/lib/utils/turn-grouping";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
@@ -8,7 +8,6 @@ import { TurnRenderer } from "./turn-renderer";
 import { WorkingIndicator } from "./working-indicator";
 import { StreamingContent } from "./streaming-content";
 import { useStreamingStore } from "@/stores/streaming-store";
-import { logger } from "@/lib/logger-client";
 
 interface MessageListProps {
   /** Thread ID for persisting expand state across virtualization */
@@ -36,12 +35,9 @@ export interface MessageListRef {
 /**
  * Virtualized scrollable message list.
  *
- * Uses react-virtuoso for efficient rendering of variable-height items
- * with automatic scroll anchoring during streaming.
+ * Uses a custom VirtualList engine for efficient rendering of variable-height
+ * items with automatic scroll anchoring during streaming.
  */
-// Track mount times for timing analysis
-const messageListMountTimes = new Map<string, number>();
-
 export const MessageList = forwardRef<MessageListRef, MessageListProps>(function MessageList({
   threadId,
   turns,
@@ -51,43 +47,8 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   onToolResponse,
   workingDirectory,
 }, ref) {
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const scrollerElRef = useRef<HTMLElement | null>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const mountTimeRef = useRef<number>(Date.now());
-  const hasLoggedMount = useRef(false);
-  const hasLoggedFirstRender = useRef(false);
-
-  // Log on first render (synchronous)
-  if (!hasLoggedMount.current) {
-    const now = Date.now();
-    mountTimeRef.current = now;
-    messageListMountTimes.set(threadId, now);
-    logger.info(`[MessageList:TIMING] FIRST RENDER`, {
-      threadId,
-      turnCount: turns.length,
-      messageCount: messages.length,
-      isStreaming,
-      renderTime: now,
-      timestamp: new Date(now).toISOString(),
-    });
-    hasLoggedMount.current = true;
-  }
-
-  // Log after first DOM paint using useEffect
-  useEffect(() => {
-    if (!hasLoggedFirstRender.current && turns.length > 0) {
-      const now = Date.now();
-      const mountTime = messageListMountTimes.get(threadId) ?? mountTimeRef.current;
-      logger.info(`[MessageList:TIMING] useEffect after render (DOM committed)`, {
-        threadId,
-        turnCount: turns.length,
-        elapsedSinceMount: now - mountTime,
-        timestamp: new Date(now).toISOString(),
-      });
-      hasLoggedFirstRender.current = true;
-    }
-  }, [turns.length, threadId]);
 
   // Show working indicator when streaming but no assistant content yet
   const showWorkingIndicator = useMemo(() => {
@@ -96,56 +57,40 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     return lastTurn?.type === "user";
   }, [isStreaming, turns]);
 
+  const getScrollElement = useCallback(() => scrollerRef.current, []);
+
+  const followOutput = useCallback(
+    (atBottom: boolean) => {
+      if (isStreaming && atBottom) return "smooth" as ScrollBehavior;
+      return false as const;
+    },
+    [isStreaming],
+  );
+
+  const { items, totalHeight, scrollToIndex: scrollTo, measureRef } = useVirtualList({
+    count: turns.length,
+    getScrollElement,
+    estimateHeight: 100,
+    overscan: 200,
+    atBottomThreshold: 300,
+    onAtBottomChange: setIsAtBottom,
+    followOutput,
+  });
+
   const scrollToBottom = useCallback(() => {
-    virtuosoRef.current?.scrollToIndex({
-      index: "LAST",
-      behavior: "auto",
-    });
-  }, []);
+    scrollTo({ index: "LAST", behavior: "auto" });
+  }, [scrollTo]);
 
   const scrollToIndex = useCallback((index: number) => {
-    virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "auto" });
-  }, []);
+    scrollTo({ index, align: "center", behavior: "auto" });
+  }, [scrollTo]);
 
   // Expose scroll functions and scroller element through ref
   useImperativeHandle(ref, () => ({
     scrollToBottom,
     scrollToIndex,
-    getScrollerElement: () => scrollerElRef.current,
+    getScrollerElement: () => scrollerRef.current,
   }), [scrollToBottom, scrollToIndex]);
-
-  // Render individual turn
-  const itemContent = useCallback(
-    (index: number, turn: Turn) => {
-      // Only log the first turn render for timing purposes (avoid log spam)
-      if (index === 0) {
-        const now = Date.now();
-        const mountTime = messageListMountTimes.get(threadId) ?? mountTimeRef.current;
-        logger.info(`[MessageList:TIMING] itemContent callback for turn 0`, {
-          threadId,
-          turnType: turn.type,
-          elapsedSinceMount: now - mountTime,
-          timestamp: new Date(now).toISOString(),
-        });
-      }
-      return (
-        <div data-turn-index={index} className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", index === 0 && "pt-12")}>
-          <TurnRenderer
-            turn={turn}
-            turnIndex={index}
-            messages={messages}
-            isLast={index === turns.length - 1}
-            isStreaming={isStreaming}
-            toolStates={toolStates}
-            onToolResponse={onToolResponse}
-            threadId={threadId}
-            workingDirectory={workingDirectory}
-          />
-        </div>
-      );
-    },
-    [messages, turns.length, isStreaming, toolStates, onToolResponse, threadId, workingDirectory]
-  );
 
   // Check if we have active streaming data for this thread
   const hasStreamingContent = useStreamingStore(
@@ -155,34 +100,12 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     }
   );
 
-  // Footer component for streaming content / working indicator (renders at end of virtualized list)
-  const Footer = useCallback(() => {
-    // Show streaming content when we have live blocks from the agent
-    if (hasStreamingContent) {
-      return (
-        <div className="px-4 py-2 w-full max-w-[900px] mx-auto">
-          <article role="article" aria-label="Assistant response" className="group">
-            <div className="flex gap-3">
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <StreamingContent threadId={threadId} workingDirectory={workingDirectory} />
-              </div>
-            </div>
-          </article>
-        </div>
-      );
-    }
-
-    // Show working indicator when streaming but no content yet (waiting for first token)
-    if (showWorkingIndicator) {
-      return (
-        <div className="w-full max-w-[900px] mx-auto">
-          <WorkingIndicator />
-        </div>
-      );
-    }
-
-    return null;
-  }, [hasStreamingContent, showWorkingIndicator, threadId, workingDirectory]);
+  // Scroll to bottom on mount if we have turns
+  const mountedRef = useRef(false);
+  if (!mountedRef.current && turns.length > 0) {
+    mountedRef.current = true;
+    // Deferred to after first paint via rAF in the effect below
+  }
 
   return (
     <div
@@ -192,22 +115,58 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
       aria-live="polite"
       aria-relevant="additions"
     >
-      <Virtuoso
-        ref={virtuosoRef}
-        scrollerRef={(el) => { scrollerElRef.current = el as HTMLElement | null; }}
-        data={turns}
-        itemContent={itemContent}
-        components={{ Footer }}
-        initialTopMostItemIndex={turns.length > 0 ? turns.length - 1 : 0}
-        followOutput={(atBottom) => {
-          if (isStreaming && atBottom) return "smooth";
-          return false;
-        }}
-        atBottomStateChange={setIsAtBottom}
-        atBottomThreshold={300}
-        style={{ height: "100%" }}
-        overscan={200}
-      />
+      <div
+        ref={scrollerRef}
+        style={{ height: "100%", overflow: "auto" }}
+      >
+        <div ref={measureRef} style={{ height: totalHeight, position: "relative" }}>
+          {items.map((item) => (
+            <div
+              key={item.key}
+              data-index={item.index}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${item.start}px)`,
+              }}
+            >
+              <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", item.index === 0 && "pt-12")}>
+                <TurnRenderer
+                  turn={turns[item.index]}
+                  turnIndex={item.index}
+                  messages={messages}
+                  isLast={item.index === turns.length - 1}
+                  isStreaming={isStreaming}
+                  toolStates={toolStates}
+                  onToolResponse={onToolResponse}
+                  threadId={threadId}
+                  workingDirectory={workingDirectory}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer — rendered after the spacer, outside the virtual list */}
+        {hasStreamingContent && (
+          <div className="px-4 py-2 w-full max-w-[900px] mx-auto">
+            <article role="article" aria-label="Assistant response" className="group">
+              <div className="flex gap-3">
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <StreamingContent threadId={threadId} workingDirectory={workingDirectory} />
+                </div>
+              </div>
+            </article>
+          </div>
+        )}
+        {!hasStreamingContent && showWorkingIndicator && (
+          <div className="w-full max-w-[900px] mx-auto">
+            <WorkingIndicator />
+          </div>
+        )}
+      </div>
 
       {/* Scroll to bottom button */}
       {!isAtBottom && (

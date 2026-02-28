@@ -1,10 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useLogStore } from "./store";
+import type { LogEntry } from "./types";
 import { normalizeLogEntry, type RawLogEntry } from "./types";
+
+const FLUSH_INTERVAL_MS = 150;
 
 let unlistenFn: UnlistenFn | null = null;
 let idCounter = 0;
+let buffer: LogEntry[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushBuffer(): void {
+  flushTimer = null;
+  if (buffer.length === 0) return;
+  const batch = buffer;
+  buffer = [];
+  useLogStore.getState().addLogs(batch);
+}
+
+function bufferLog(log: LogEntry): void {
+  buffer.push(log);
+  if (!flushTimer) {
+    flushTimer = setTimeout(flushBuffer, FLUSH_INTERVAL_MS);
+  }
+}
 
 export const logService = {
   /**
@@ -21,10 +41,10 @@ export const logService = {
     );
     useLogStore.getState().hydrate(logs);
 
-    // Subscribe to live log events
+    // Subscribe to live log events — buffer and flush in batches
     unlistenFn = await listen<RawLogEntry>("log-event", (event) => {
       const log = normalizeLogEntry(event.payload, `log-${idCounter++}`);
-      useLogStore.getState().addLog(log);
+      bufferLog(log);
     });
   },
 
@@ -33,6 +53,11 @@ export const logService = {
    */
   async clear(): Promise<void> {
     await invoke("clear_logs");
+    buffer = [];
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
     useLogStore.getState().clear();
   },
 
@@ -40,6 +65,7 @@ export const logService = {
    * Cleanup subscription (call on app unmount if needed).
    */
   destroy(): void {
+    flushBuffer();
     if (unlistenFn) {
       unlistenFn();
       unlistenFn = null;

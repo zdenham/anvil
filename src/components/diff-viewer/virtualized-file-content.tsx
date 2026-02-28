@@ -1,5 +1,5 @@
-import { useRef, useMemo } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRef, useMemo, useCallback } from "react";
+import { useVirtualList } from "@/hooks/use-virtual-list";
 import type { AnnotatedFile, CollapsedRegion } from "./types";
 import { buildRenderItems, type RenderItem } from "./use-collapsed-regions";
 import { AnnotatedLineRow } from "./annotated-line-row";
@@ -27,8 +27,8 @@ interface VirtualizedFileContentProps {
 /** Line height in pixels */
 const LINE_HEIGHT = 24;
 
-/** Number of extra items to render above/below viewport */
-const OVERSCAN = 20;
+/** Extra pixels to render above/below viewport */
+const OVERSCAN = 480; // ~20 rows
 
 /** Threshold for when to use virtualization */
 export const VIRTUALIZATION_THRESHOLD = 1000;
@@ -37,7 +37,7 @@ export const VIRTUALIZATION_THRESHOLD = 1000;
  * Virtualized file content using windowed rendering.
  * Used for large files (>1000 lines) to maintain performance.
  *
- * Uses @tanstack/react-virtual for efficient rendering of only visible lines.
+ * Uses a custom VirtualList engine for efficient rendering of only visible lines.
  */
 export function VirtualizedFileContent({
   file,
@@ -57,11 +57,12 @@ export function VirtualizedFileContent({
     [file.lines, regions, expandedRegions]
   );
 
-  // Set up virtualizer
-  const virtualizer = useVirtualizer({
+  const getScrollElement = useCallback(() => parentRef.current, []);
+
+  const { items, totalHeight } = useVirtualList({
     count: renderItems.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => LINE_HEIGHT,
+    getScrollElement,
+    itemHeight: LINE_HEIGHT,
     overscan: OVERSCAN,
   });
 
@@ -76,24 +77,24 @@ export function VirtualizedFileContent({
       <div
         role="rowgroup"
         style={{
-          height: `${virtualizer.getTotalSize()}px`,
+          height: totalHeight,
           width: "100%",
           position: "relative",
         }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const item = renderItems[virtualRow.index];
+        {items.map((vItem) => {
+          const item = renderItems[vItem.index];
 
           return (
             <div
-              key={virtualRow.key}
+              key={vItem.key}
               style={{
                 position: "absolute",
                 top: 0,
                 left: 0,
                 width: "100%",
-                height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
+                height: vItem.size,
+                transform: `translateY(${vItem.start}px)`,
               }}
             >
               <RenderItemComponent

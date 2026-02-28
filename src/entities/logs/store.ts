@@ -1,44 +1,36 @@
 import { create } from "zustand";
 import type { LogEntry } from "./types";
 
-const MAX_LOGS = 10000;
+const MAX_LOGS = 2500;
 
 interface LogState {
   logs: LogEntry[];
+  /** Incremented on mutation — subscribe to this instead of `logs` to trigger re-renders. */
+  logCount: number;
   _hydrated: boolean;
 }
 
 interface LogActions {
   hydrate: (logs: LogEntry[]) => void;
-  addLog: (entry: LogEntry) => void;
   addLogs: (entries: LogEntry[]) => void;
   clear: () => void;
 }
 
 export const useLogStore = create<LogState & LogActions>((set) => ({
   logs: [],
+  logCount: 0,
   _hydrated: false,
 
-  hydrate: (logs) => set({ logs, _hydrated: true }),
-
-  addLog: (entry) =>
-    set((state) => {
-      const newLogs = [...state.logs, entry];
-      // Circular buffer: drop oldest if exceeding max
-      if (newLogs.length > MAX_LOGS) {
-        return { logs: newLogs.slice(-MAX_LOGS) };
-      }
-      return { logs: newLogs };
-    }),
+  hydrate: (logs) => set({ logs, logCount: logs.length, _hydrated: true }),
 
   addLogs: (entries) =>
     set((state) => {
-      const newLogs = [...state.logs, ...entries];
-      if (newLogs.length > MAX_LOGS) {
-        return { logs: newLogs.slice(-MAX_LOGS) };
+      state.logs.push(...entries);
+      if (state.logs.length > MAX_LOGS) {
+        state.logs.splice(0, state.logs.length - MAX_LOGS);
       }
-      return { logs: newLogs };
+      return { logCount: state.logs.length };
     }),
 
-  clear: () => set({ logs: [] }),
+  clear: () => set({ logs: [], logCount: 0 }),
 }));

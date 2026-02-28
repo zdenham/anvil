@@ -67,6 +67,7 @@ export class TestStores {
 
     useLogStore.setState({
       logs: [],
+      logCount: 0,
       _hydrated: false,
     });
 

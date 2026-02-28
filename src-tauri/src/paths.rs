@@ -73,9 +73,7 @@ fn capture_shell_path() -> String {
 /// Should be called when user clicks "Grant Documents Access" in the UI.
 /// Returns true if a valid PATH was captured from the shell.
 pub fn run_login_shell_initialization() -> bool {
-    tracing::info!("═══════════════════════════════════════════════════════════════");
-    tracing::info!("run_login_shell_initialization: START");
-    tracing::info!("═══════════════════════════════════════════════════════════════");
+    tracing::info!("run_login_shell_initialization: starting");
 
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     tracing::info!(shell = %shell, "Detected user shell from $SHELL env var");
@@ -139,7 +137,6 @@ pub fn run_login_shell_initialization() -> bool {
                                 match lock.write() {
                                     Ok(mut guard) => {
                                         *guard = path.to_string();
-                                        tracing::info!("Updated SHELL_PATH global with captured PATH");
                                     }
                                     Err(e) => {
                                         tracing::error!(error = %e, "Failed to acquire write lock on SHELL_PATH");
@@ -154,7 +151,6 @@ pub fn run_login_shell_initialization() -> bool {
                                 match lock.write() {
                                     Ok(mut guard) => {
                                         *guard = true;
-                                        tracing::info!("Marked shell as initialized");
                                     }
                                     Err(e) => {
                                         tracing::error!(error = %e, "Failed to acquire write lock on SHELL_INITIALIZED");
@@ -164,9 +160,7 @@ pub fn run_login_shell_initialization() -> bool {
                                 tracing::error!("SHELL_INITIALIZED OnceLock not initialized");
                             }
 
-                            tracing::info!("═══════════════════════════════════════════════════════════════");
-                            tracing::info!("run_login_shell_initialization: SUCCESS");
-                            tracing::info!("═══════════════════════════════════════════════════════════════");
+                            tracing::info!("run_login_shell_initialization: success");
                             return true;
                         } else {
                             tracing::warn!("Login shell returned empty PATH");
@@ -209,9 +203,7 @@ pub fn run_login_shell_initialization() -> bool {
         }
     }
 
-    tracing::info!("═══════════════════════════════════════════════════════════════");
-    tracing::info!("run_login_shell_initialization: FAILED (using fallback PATH)");
-    tracing::info!("═══════════════════════════════════════════════════════════════");
+    tracing::info!("run_login_shell_initialization: failed (using fallback PATH)");
     false
 }
 

@@ -12,6 +12,7 @@ import {
 import { join, dirname } from "path";
 import { homedir } from "os";
 import { MortPersistence } from "../core/persistence.js";
+import { logger } from "./logger.js";
 
 /**
  * Node.js filesystem implementation of MortPersistence.
@@ -25,7 +26,7 @@ export class NodePersistence extends MortPersistence {
     // Priority: constructor arg > MORT_DATA_DIR env var > default ~/.mort
     this.mortDir = mortDir ?? process.env.MORT_DATA_DIR ?? join(homedir(), ".mort");
     if (!mortDir && !process.env.MORT_DATA_DIR) {
-      console.warn("[NodePersistence] No mortDir or MORT_DATA_DIR provided, falling back to ~/.mort");
+      logger.warn("[NodePersistence] No mortDir or MORT_DATA_DIR provided, falling back to ~/.mort");
     }
   }
 

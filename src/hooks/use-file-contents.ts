@@ -35,24 +35,8 @@ export function useFileContents(
 
   useEffect(() => {
     const pathsToLoad = Array.from(fileChanges.keys());
-    const fileChangesArray = Array.from(fileChanges.entries()).map(([path, change]) => ({
-      path,
-      operation: change.operation,
-    }));
-
-    logger.log("[useFileContents] ========== EFFECT TRIGGERED ==========");
-    logger.log("[useFileContents] Input params:", {
-      fileChangesSize: fileChanges.size,
-      workingDirectory,
-      workingDirectoryType: typeof workingDirectory,
-      workingDirectoryLength: workingDirectory?.length ?? 0,
-      pathsToLoad,
-    });
-    logger.log("[useFileContents] File changes detail:", fileChangesArray);
-
     // Nothing to load
     if (pathsToLoad.length === 0) {
-      logger.log("[useFileContents] No files to load - fileChanges is empty");
       setContents({});
       setLoading(false);
       return;
@@ -68,75 +52,35 @@ export function useFileContents(
     let cancelled = false;
 
     async function loadContents() {
-      logger.log("[useFileContents] Starting async loadContents()");
       setLoading(true);
       setError(null);
 
       const newContents: Record<string, string[]> = {};
 
       for (const path of pathsToLoad) {
-        if (cancelled) {
-          logger.log(`[useFileContents] Cancelled before loading ${path}`);
-          break;
-        }
+        if (cancelled) break;
 
         const change = fileChanges.get(path);
-        if (!change) {
-          logger.warn(`[useFileContents] No change found for path: ${path}`);
-          continue;
-        }
-
-        logger.log(`[useFileContents] Loading file: ${path}`, {
-          operation: change.operation,
-          workingDirectory,
-        });
+        if (!change) continue;
 
         try {
           let content: string;
 
           if (change.operation === "delete") {
             // Deleted file: get content from git HEAD
-            logger.log(`[useFileContents] Fetching deleted file from git HEAD:`, {
-              cwd: workingDirectory,
-              path,
-              gitRef: "HEAD",
-            });
             content = await invoke<string>("git_show_file", {
               cwd: workingDirectory,
               path,
               gitRef: "HEAD",
             });
-            logger.log(`[useFileContents] git_show_file returned:`, {
-              path,
-              contentLength: content?.length ?? 0,
-              contentType: typeof content,
-              preview: content?.substring(0, 200) ?? "(null/undefined)",
-            });
           } else {
             // Added/modified/renamed: read from disk
             const fullPath = await join(workingDirectory, path);
-            logger.log(`[useFileContents] Reading from disk:`, {
-              workingDirectory,
-              relativePath: path,
-              fullPath,
-            });
             content = await fsCommands.readFile(fullPath);
-            logger.log(`[useFileContents] readTextFile returned:`, {
-              path,
-              fullPath,
-              contentLength: content?.length ?? 0,
-              contentType: typeof content,
-              preview: content?.substring(0, 200) ?? "(null/undefined)",
-            });
           }
 
           const lines = content.split("\n");
           newContents[path] = lines;
-          logger.log(`[useFileContents] ✓ Successfully loaded ${path}:`, {
-            lineCount: lines.length,
-            firstLine: lines[0]?.substring(0, 100) ?? "(empty)",
-            lastLine: lines[lines.length - 1]?.substring(0, 100) ?? "(empty)",
-          });
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
           const errorStack = err instanceof Error ? err.stack : undefined;
@@ -151,20 +95,8 @@ export function useFileContents(
       }
 
       if (!cancelled) {
-        logger.log("[useFileContents] ========== LOAD COMPLETE ==========");
-        logger.log("[useFileContents] Final results:", {
-          loadedPaths: Object.keys(newContents),
-          totalFiles: Object.keys(newContents).length,
-          fileSummary: Object.entries(newContents).map(([p, lines]) => ({
-            path: p,
-            lineCount: lines.length,
-            isEmpty: lines.length === 0,
-          })),
-        });
         setContents(newContents);
         setLoading(false);
-      } else {
-        logger.log("[useFileContents] Load was cancelled, not updating state");
       }
     }
 
@@ -177,7 +109,6 @@ export function useFileContents(
     });
 
     return () => {
-      logger.log("[useFileContents] Cleanup: setting cancelled=true");
       cancelled = true;
     };
   }, [fileChanges, workingDirectory]);

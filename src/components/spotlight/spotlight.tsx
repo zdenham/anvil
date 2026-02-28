@@ -220,13 +220,6 @@ export class SpotlightController {
     options?: { useNSPanel?: boolean; permissionMode?: PermissionModeId }
   ): Promise<void> {
     const useNSPanel = options?.useNSPanel ?? true; // Default to NSPanel for backward compatibility
-    const startTime = Date.now();
-    logger.info("[spotlight:createSimpleThread] START", {
-      repoName: repo.name,
-      worktreePath: worktreePath ?? "NOT PROVIDED",
-      contentLength: content.length,
-      useNSPanel,
-    });
 
     // Determine working directory: worktree path if provided, otherwise source repo
     const workingDir = worktreePath ?? repo.sourcePath;
@@ -270,22 +263,11 @@ export class SpotlightController {
     // Spotlight-specific: Route to appropriate window
     // ═══════════════════════════════════════════════════════════════════════════
 
-    logger.info("[spotlight:createSimpleThread] Routing to window", {
-      threadId,
-      useNSPanel,
-      elapsedMs: Date.now() - startTime,
-    });
-
     if (useNSPanel) {
       await openControlPanel(threadId, taskId, content);
     } else {
       await showMainWindowWithView({ type: "thread", threadId });
     }
-
-    logger.info("[spotlight:createSimpleThread] SUCCESS", {
-      threadId,
-      totalElapsedMs: Date.now() - startTime,
-    });
   }
 
   /**
@@ -294,23 +276,17 @@ export class SpotlightController {
    */
   async openRepository(): Promise<boolean> {
     try {
-      logger.log("Opening folder picker dialog...");
       const selectedPath = await open({
         directory: true,
         multiple: false,
         title: "Select a repository folder",
       });
 
-      logger.log("Dialog closed, selectedPath:", selectedPath);
-
       if (!selectedPath) {
-        logger.log("No folder selected");
         return false;
       }
 
-      logger.log("Creating repository from folder:", selectedPath);
       await repoService.createFromFolder(selectedPath);
-      logger.log("Repository created successfully");
       return true;
     } catch (error) {
       logger.error("Failed to open repository:", error);
@@ -606,52 +582,13 @@ export const Spotlight = () => {
 
         // Handle thread creation error (shared between simple and full flow)
         const handleThreadError = (error: unknown) => {
-          logger.error("═══════════════════════════════════════════════════════════════");
-          logger.error("[Spotlight] THREAD CREATION ERROR");
-          logger.error("═══════════════════════════════════════════════════════════════");
-          logger.error("[Spotlight] Error (raw):", error);
-          logger.error("[Spotlight] Error type:", typeof error);
-          logger.error(
-            "[Spotlight] Error constructor:",
-            (error as Error)?.constructor?.name
-          );
-          if (error instanceof Error) {
-            logger.error("[Spotlight] Error message:", error.message);
-            logger.error("[Spotlight] Error stack:", error.stack);
-          }
-          if (typeof error === "object" && error !== null) {
-            logger.error("[Spotlight] Error keys:", Object.keys(error));
-            try {
-              logger.error(
-                "[Spotlight] Error JSON:",
-                JSON.stringify(error, null, 2)
-              );
-            } catch (jsonError) {
-              logger.error("[Spotlight] Could not stringify error:", jsonError);
-            }
-          }
-
-          // Log context about the failed thread creation attempt
-          logger.error("[Spotlight] Context at failure:", {
-            selectedRepo: selected?.repoName ?? "NONE",
-            selectedWorktreePath: selected?.worktree?.path ?? "NONE",
-            promptLength: result.data.query?.length ?? 0,
-          });
+          logger.error("[Spotlight] Thread creation failed:", error);
 
           const threadError = error as ThreadCreationError;
           const message = formatThreadCreationError(threadError);
           const stack = error instanceof Error ? error.stack : undefined;
-          // Show error in dedicated error panel (appears above other panels)
-          logger.error("[Spotlight] Thread creation failed, showing error panel:", {
-            message,
-            stack: stack?.substring(0, 500),
-          });
-          logger.error("═══════════════════════════════════════════════════════════════");
 
           invoke("show_error_panel", { message, stack })
-            .then(() => {
-              logger.info("[Spotlight] show_error_panel invoke completed");
-            })
             .catch((err) => {
               logger.error("[Spotlight] show_error_panel invoke failed:", err);
             });
@@ -677,11 +614,8 @@ export const Spotlight = () => {
         await controller.openRepository();
       } else if (result.type === "action" && result.data.action === "open-mort") {
         try {
-          logger.info("[spotlight] Opening main window...");
           await showMainWindow();
-          logger.info("[spotlight] Main window opened, hiding spotlight...");
           await controller.hideSpotlight();
-          logger.info("[spotlight] Spotlight hidden");
         } catch (error) {
           logger.error("[spotlight] Failed to open main window:", error);
         }
@@ -698,28 +632,16 @@ export const Spotlight = () => {
         logger.warn("[spotlight] open-threads action not implemented - show_threads_panel command does not exist");
       } else if (result.type === "action" && result.data.action === "refresh") {
         // Full rebuild: agents + rust, then restart app
-        logger.info("[spotlight] === REFRESH START ===");
-        logger.info(`[spotlight] Project root: ${__PROJECT_ROOT__}`);
 
         // Build agents
         try {
           logger.info("[spotlight] [1/4] Building agents...");
-          logger.info(`[spotlight] Running: pnpm build:agents in ${__PROJECT_ROOT__}`);
           const agentsCmd = Command.create("pnpm", ["build:agents"], {
             cwd: __PROJECT_ROOT__,
           });
           const agentsOutput = await agentsCmd.execute();
-          logger.info(`[spotlight] Agents build exit code: ${agentsOutput.code}`);
-          if (agentsOutput.stdout) {
-            logger.info(`[spotlight] Agents stdout: ${agentsOutput.stdout}`);
-          }
-          if (agentsOutput.stderr) {
-            logger.info(`[spotlight] Agents stderr: ${agentsOutput.stderr}`);
-          }
-          if (agentsOutput.code === 0) {
-            logger.info("[spotlight] [1/4] Agents rebuilt successfully ✓");
-          } else {
-            logger.error("[spotlight] [1/4] Agent build FAILED ✗");
+          if (agentsOutput.code !== 0) {
+            logger.error("[spotlight] [1/4] Agent build FAILED", { code: agentsOutput.code });
           }
         } catch (error) {
           logger.error("[spotlight] [1/4] Agent build exception:", error);
@@ -728,22 +650,12 @@ export const Spotlight = () => {
         // Build Rust
         try {
           logger.info("[spotlight] [2/4] Building Rust...");
-          logger.info(`[spotlight] Running: cargo build --package mort in ${__PROJECT_ROOT__}/src-tauri`);
           const cargoCmd = Command.create("cargo", ["build", "--package", "mort"], {
             cwd: `${__PROJECT_ROOT__}/src-tauri`,
           });
           const cargoOutput = await cargoCmd.execute();
-          logger.info(`[spotlight] Cargo build exit code: ${cargoOutput.code}`);
-          if (cargoOutput.stdout) {
-            logger.info(`[spotlight] Cargo stdout: ${cargoOutput.stdout}`);
-          }
-          if (cargoOutput.stderr) {
-            logger.info(`[spotlight] Cargo stderr: ${cargoOutput.stderr}`);
-          }
-          if (cargoOutput.code === 0) {
-            logger.info("[spotlight] [2/4] Rust rebuilt successfully ✓");
-          } else {
-            logger.error("[spotlight] [2/4] Rust build FAILED ✗");
+          if (cargoOutput.code !== 0) {
+            logger.error("[spotlight] [2/4] Rust build FAILED", { code: cargoOutput.code });
           }
         } catch (error) {
           logger.error("[spotlight] [2/4] Rust build exception:", error);
@@ -756,7 +668,6 @@ export const Spotlight = () => {
 
           // Kill any existing process on the Vite port first
           // The old Vite from tauri dev is still running
-          logger.info(`[spotlight] Killing any process on port ${vitePort}...`);
           try {
             // Use lsof to find PIDs on the port
             const lsofCmd = Command.create("lsof", ["-ti", `:${vitePort}`]);
@@ -764,23 +675,18 @@ export const Spotlight = () => {
             const pids = (lsofResult.stdout || "").trim().split("\n").filter(Boolean);
 
             if (pids.length > 0) {
-              logger.info(`[spotlight] Found processes on port: ${pids.join(", ")}`);
               // Kill each process using node (since we can't directly call kill)
               for (const pid of pids) {
                 try {
                   const killCmd = Command.create("node", ["-e", `process.kill(${pid}, 'SIGTERM')`]);
                   await killCmd.execute();
-                  logger.info(`[spotlight] Killed process ${pid}`);
                 } catch {
-                  logger.info(`[spotlight] Could not kill process ${pid}`);
+                  // Process may already be dead
                 }
               }
-            } else {
-              logger.info("[spotlight] No process found on port");
             }
-          } catch (killError) {
+          } catch {
             // lsof returns exit code 1 if no process found - that's ok
-            logger.info("[spotlight] No process to kill on port");
           }
 
           // Small delay to ensure port is released
@@ -798,11 +704,9 @@ export const Spotlight = () => {
           });
 
           // Use spawn() instead of execute() so it runs in background
-          const viteProcess = await viteCmd.spawn();
-          logger.info(`[spotlight] Vite spawned with pid: ${viteProcess.pid}`);
+          await viteCmd.spawn();
 
           // Wait for Vite to be ready (poll the port)
-          logger.info("[spotlight] Waiting for Vite to be ready...");
           let viteReady = false;
           for (let i = 0; i < 50; i++) {
             try {
@@ -817,9 +721,7 @@ export const Spotlight = () => {
             await new Promise((resolve) => setTimeout(resolve, 100));
           }
 
-          if (viteReady) {
-            logger.info("[spotlight] [3/4] Vite is ready ✓");
-          } else {
+          if (!viteReady) {
             logger.warn("[spotlight] [3/4] Vite may not be ready, proceeding anyway...");
           }
         } catch (error) {
@@ -838,17 +740,6 @@ export const Spotlight = () => {
   useEffect(() => {
     controllerRef.current.initialize();
 
-    // Log background colors for debugging border-radius transparency
-    const html = document.documentElement;
-    const body = document.body;
-    const root = document.getElementById("root");
-    logger.info("[Spotlight] Background colors:", {
-      html: html ? getComputedStyle(html).backgroundColor : "N/A",
-      body: body ? getComputedStyle(body).backgroundColor : "N/A",
-      root: root ? getComputedStyle(root).backgroundColor : "N/A",
-      hasSpotlightContainer: !!html?.querySelector(".spotlight-container"),
-    });
-
     // Fetch app suffix for visual differentiation
     invoke<unknown>("get_paths_info")
       .then((raw) => {
@@ -866,7 +757,6 @@ export const Spotlight = () => {
     const repos = controller.getRepositories();
 
     if (repos.length === 0) {
-      logger.info("[Spotlight] No repositories, skipping worktree load");
       setState((prev) => ({
         ...prev,
         repoWorktrees: [],
@@ -879,7 +769,6 @@ export const Spotlight = () => {
 
     for (const repo of repos) {
       try {
-        logger.info(`[Spotlight] Syncing worktrees for ${repo.name}`);
         const worktrees = await worktreeService.sync(repo.name);
         for (const wt of worktrees) {
           allRepoWorktrees.push({
@@ -897,9 +786,6 @@ export const Spotlight = () => {
     allRepoWorktrees.sort((a, b) =>
       (b.worktree.lastAccessedAt ?? 0) - (a.worktree.lastAccessedAt ?? 0)
     );
-
-    logger.info(`[Spotlight] Loaded ${allRepoWorktrees.length} worktrees across ${repos.length} repos:`,
-      allRepoWorktrees.map(rw => `${rw.repoName}/${rw.worktree.name}`));
 
     setState((prev) => ({
       ...prev,
@@ -1117,7 +1003,6 @@ export const Spotlight = () => {
   // Uses eventBus for Tauri panel events (global emit, not emit_to for NSPanels)
   useEffect(() => {
     const handleSpotlightShown = () => {
-      logger.info("[Spotlight] Spotlight shown - focusing input and refreshing worktrees");
       inputRef.current?.focus();
       // Asynchronously refresh worktrees from git when spotlight opens
       // This runs in the background so it doesn't block the UI

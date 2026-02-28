@@ -148,13 +148,6 @@ export async function emitState(): Promise<void> {
   state.timestamp = Date.now();
   const payload = { ...state };
 
-  logger.info(`[FC-DEBUG] emitState called`, {
-    fileChangesCount: state.fileChanges.length,
-    fileChangePaths: state.fileChanges.map((c) => c.path),
-    status: state.status,
-    messageCount: state.messages.length,
-  });
-
   // Write to disk FIRST (await completion)
   if (threadWriter) {
     try {
@@ -266,19 +259,10 @@ export async function updateFileChange(change: FileChange, workingDirectory?: st
     path: normalizedPath,
   };
 
-  logger.info(`[FC-DEBUG] updateFileChange called`, {
-    originalPath: change.path,
-    normalizedPath,
-    operation: change.operation,
-    currentFileChangesCount: state.fileChanges.length,
-  });
-
   const idx = state.fileChanges.findIndex((c) => c.path === normalizedPath);
   if (idx >= 0) {
-    logger.info(`[FC-DEBUG] Updating existing file change at index ${idx}`);
     state.fileChanges[idx] = normalizedChange;
   } else {
-    logger.info(`[FC-DEBUG] Adding new file change, new count will be ${state.fileChanges.length + 1}`);
     state.fileChanges.push(normalizedChange);
   }
   await emitState();

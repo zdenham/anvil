@@ -976,6 +976,31 @@ pub async fn git_show_file(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Git file management commands
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Remove a file from git tracking and delete it from the working tree.
+/// Uses `git rm --force` to handle both tracked and staged files.
+#[tauri::command]
+pub async fn git_rm(working_directory: String, file_path: String) -> Result<(), String> {
+    let output = shell::command("git")
+        .args(["rm", "--force", &file_path])
+        .current_dir(&working_directory)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to git rm {}: {}",
+            file_path,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Private helpers for diff commands
 // ═══════════════════════════════════════════════════════════════════════════
 

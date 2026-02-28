@@ -104,6 +104,27 @@ export async function resolveCompletedPlanPath(plan: PlanMetadata): Promise<stri
 }
 
 /**
+ * Resolve the worktree path for a plan.
+ * Returns the worktree directory path (without the relativePath appended).
+ *
+ * @throws Error if the repository or worktree cannot be found
+ */
+export async function resolveWorktreePath(plan: PlanMetadata): Promise<string> {
+  const result = await findRepoByIdFromSettings(plan.repoId);
+  if (!result) {
+    throw new Error(`Repository not found: ${plan.repoId}`);
+  }
+
+  const { settings } = result;
+  const worktree = findWorktreeById(settings, plan.worktreeId);
+  if (!worktree) {
+    throw new Error(`Worktree not found: ${plan.worktreeId}`);
+  }
+
+  return worktree.path;
+}
+
+/**
  * Get the display name for a plan (filename from relative path).
  */
 export function getPlanDisplayName(plan: PlanMetadata): string {

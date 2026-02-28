@@ -36,26 +36,41 @@ function getStandaloneThreadPath(threadId: string): string {
   return `${THREADS_DIR}/${threadId}`;
 }
 
+/** Cache of threadId → resolved directory path. Stable except on archive/delete. */
+const threadPathCache = new Map<string, string>();
+
 /**
  * Finds the path to a thread by its UUID.
  * Checks new top-level location first, falls back to legacy task-nested location.
  * Returns the directory path (not including /metadata.json).
+ * Results are cached — invalidate via invalidateThreadPathCache() on archive/delete.
  */
 async function findThreadPath(threadId: string): Promise<string | undefined> {
+  const cached = threadPathCache.get(threadId);
+  if (cached !== undefined) return cached;
+
   // Check new location first
   const newPath = `${THREADS_DIR}/${threadId}/metadata.json`;
   if (await appData.exists(newPath)) {
-    return `${THREADS_DIR}/${threadId}`;
+    const result = `${THREADS_DIR}/${threadId}`;
+    threadPathCache.set(threadId, result);
+    return result;
   }
 
   // Fall back to legacy task-nested location
   const legacyPattern = `${LEGACY_TASKS_DIR}/*/threads/*-${threadId}/metadata.json`;
   const matches = await appData.glob(legacyPattern);
   if (matches.length > 0) {
-    return matches[0].replace(/\/metadata\.json$/, "");
+    const result = matches[0].replace(/\/metadata\.json$/, "");
+    threadPathCache.set(threadId, result);
+    return result;
   }
 
   return undefined;
+}
+
+function invalidateThreadPathCache(threadId: string): void {
+  threadPathCache.delete(threadId);
 }
 
 export const threadService = {
@@ -425,6 +440,8 @@ export const threadService = {
     const thread = useThreadStore.getState().threads[id];
     if (!thread) return;
 
+    invalidateThreadPathCache(id);
+
     // Find thread path (supports both new and legacy locations)
     const threadPath = await findThreadPath(id);
     if (!threadPath) {
@@ -718,6 +735,7 @@ export const threadService = {
 
       // Archive each thread (parent + all descendants)
       for (const id of allThreadIds) {
+        invalidateThreadPathCache(id);
         const sourcePath = await findThreadPath(id);
         if (!sourcePath) {
           logger.warn(`[threadService.archive] Thread ${id} not found on disk, skipping`);
@@ -782,6 +800,7 @@ export const threadService = {
    * Adds the thread back to the Zustand store and emits THREAD_CREATED.
    */
   async unarchive(threadId: string): Promise<void> {
+    invalidateThreadPathCache(threadId);
     const archivePath = `${ARCHIVE_THREADS_DIR}/${threadId}`;
     const metadataPath = `${archivePath}/metadata.json`;
 

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { DiagnosticLoggingConfig } from "@core/types/diagnostic-logging.js";
 import { DEFAULT_DIAGNOSTIC_LOGGING } from "@core/types/diagnostic-logging.js";
 import { MemorySection } from "./memory-section";
+import { FpsSection } from "./fps-section";
 
 // ============================================================================
 // Constants
@@ -218,6 +219,9 @@ export function DiagnosticPanel() {
           </div>
         )}
       </section>
+
+      {/* Frame Rate */}
+      <FpsSection />
 
       {/* Memory */}
       <MemorySection />

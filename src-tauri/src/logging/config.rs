@@ -39,8 +39,8 @@ impl LogServerConfig {
 
         // Validate URL format
         if !url.starts_with("http://") && !url.starts_with("https://") {
-            eprintln!(
-                "Warning: LOG_SERVER_URL should include protocol (http:// or https://). Got: {}",
+            tracing::warn!(
+                "LOG_SERVER_URL should include protocol (http:// or https://). Got: {}",
                 url
             );
         }

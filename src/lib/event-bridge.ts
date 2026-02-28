@@ -119,21 +119,21 @@ if (import.meta.env.DEV) {
   // Check LOCAL_EVENTS vs BROADCAST_EVENTS
   for (const event of LOCAL_EVENTS) {
     if (broadcastSet.has(event)) {
-      console.error(`[event-bridge] CRITICAL: "${event}" is in both BROADCAST_EVENTS and LOCAL_EVENTS!`);
+      logger.error(`[event-bridge] CRITICAL: "${event}" is in both BROADCAST_EVENTS and LOCAL_EVENTS!`);
     }
   }
 
   // Check WINDOW_API_EVENTS vs BROADCAST_EVENTS
   for (const event of WINDOW_API_EVENTS) {
     if (broadcastSet.has(event)) {
-      console.error(`[event-bridge] CRITICAL: "${event}" is in both BROADCAST_EVENTS and WINDOW_API_EVENTS!`);
+      logger.error(`[event-bridge] CRITICAL: "${event}" is in both BROADCAST_EVENTS and WINDOW_API_EVENTS!`);
     }
   }
 
   // Check WINDOW_API_EVENTS vs LOCAL_EVENTS
   for (const event of WINDOW_API_EVENTS) {
     if (localSet.has(event)) {
-      console.error(`[event-bridge] CRITICAL: "${event}" is in both LOCAL_EVENTS and WINDOW_API_EVENTS!`);
+      logger.error(`[event-bridge] CRITICAL: "${event}" is in both LOCAL_EVENTS and WINDOW_API_EVENTS!`);
     }
   }
 }

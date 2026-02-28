@@ -116,7 +116,6 @@ pub async fn worktree_delete(repo_name: String, name: String) -> Result<(), Stri
     tracing::info!(repo_name = %repo_name, worktree_name = %name, "Starting worktree deletion");
 
     let mut settings = load_settings(&repo_name)?;
-    tracing::debug!(repo_name = %repo_name, "Loaded settings for worktree deletion");
 
     let mut worktrees: Vec<WorktreeState> = settings
         .get("worktrees")
@@ -143,8 +142,6 @@ pub async fn worktree_delete(repo_name: String, name: String) -> Result<(), Stri
         })?
         .to_string();
 
-    tracing::info!(repo_name = %repo_name, source_path = %source_path, worktree_path = %worktree_path, "Calling git worktree remove");
-
     // Call existing git primitive
     git_commands::git_remove_worktree(source_path, worktree_path.clone()).await.map_err(|e| {
         tracing::error!(repo_name = %repo_name, worktree_path = %worktree_path, error = %e, "Git worktree remove failed");
@@ -157,8 +154,6 @@ pub async fn worktree_delete(repo_name: String, name: String) -> Result<(), Stri
     worktrees.remove(index);
     settings["worktrees"] = serde_json::to_value(&worktrees).map_err(|e| e.to_string())?;
     save_settings(&repo_name, &settings)?;
-
-    tracing::info!(repo_name = %repo_name, worktree_name = %name, "Worktree deletion completed successfully");
 
     Ok(())
 }

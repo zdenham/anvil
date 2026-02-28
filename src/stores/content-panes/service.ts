@@ -131,15 +131,6 @@ export const contentPanesService = {
    * Sets the view for a pane.
    */
   async setPaneView(paneId: string, view: ContentPaneView): Promise<void> {
-    const startTime = Date.now();
-    const threadId = view.type === "thread" ? view.threadId : undefined;
-    logger.info(`[contentPanesService:TIMING] setPaneView START`, {
-      paneId,
-      viewType: view.type,
-      threadId,
-      timestamp: new Date(startTime).toISOString(),
-    });
-
     const store = useContentPanesStore.getState();
     if (!store.panes[paneId]) {
       logger.warn(`[contentPanesService] Pane ${paneId} not found`);
@@ -150,20 +141,8 @@ export const contentPanesService = {
       const state = getPersistedState();
       state.panes[paneId] = { ...state.panes[paneId], view };
       await appData.ensureDir("ui");
-      const writeStart = Date.now();
       await appData.writeJson(UI_STATE_PATH, state);
-      logger.debug(`[contentPanesService:TIMING] appData.writeJson completed in ${Date.now() - writeStart}ms`);
-
-      const applyStart = Date.now();
       store._applySetPaneView(paneId, view);
-      logger.info(`[contentPanesService:TIMING] _applySetPaneView completed`, {
-        paneId,
-        viewType: view.type,
-        threadId,
-        applyElapsedMs: Date.now() - applyStart,
-        totalElapsedMs: Date.now() - startTime,
-        timestamp: new Date().toISOString(),
-      });
     } catch (err) {
       logger.error("[contentPanesService] Failed to set pane view:", err);
       throw err;

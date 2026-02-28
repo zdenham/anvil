@@ -61,11 +61,9 @@ fn paste_to_active_app() -> Result<(), String> {
     key_up.set_flags(CGEventFlags::CGEventFlagCommand);
 
     // Post events to the HID event tap (goes to frontmost app)
-    tracing::info!("paste_to_active_app: posting key events to HID");
     key_down.post(CGEventTapLocation::HID);
     key_up.post(CGEventTapLocation::HID);
 
-    tracing::info!("paste_to_active_app: completed successfully");
     Ok(())
 }
 
@@ -182,8 +180,6 @@ pub fn paste_clipboard_entry(app: AppHandle, id: String) -> Result<(), String> {
             "Entry not found".to_string()
         })?;
 
-    tracing::debug!(content_len = content.len(), "paste_clipboard_entry: retrieved content");
-
     // Set clipboard
     let mut clipboard = Clipboard::new().map_err(|e| {
         tracing::error!(error = %e, "paste_clipboard_entry: failed to create clipboard");
@@ -194,8 +190,6 @@ pub fn paste_clipboard_entry(app: AppHandle, id: String) -> Result<(), String> {
         e.to_string()
     })?;
 
-    tracing::info!("paste_clipboard_entry: clipboard set successfully");
-
     // Hide the clipboard panel
     if let Err(e) = panels::hide_clipboard(&app) {
         tracing::warn!(error = %e, "paste_clipboard_entry: failed to hide panel (continuing anyway)");
@@ -204,7 +198,6 @@ pub fn paste_clipboard_entry(app: AppHandle, id: String) -> Result<(), String> {
     // Paste into the active app (NSPanel doesn't steal focus, so it's still frontmost)
     paste_to_active_app()?;
 
-    tracing::info!("paste_clipboard_entry: completed successfully");
     Ok(())
 }
 

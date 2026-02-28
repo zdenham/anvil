@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualList } from "@/hooks/use-virtual-list";
 import { logService, useFilteredLogs, useLogStore } from "@/entities/logs";
 import type { LogFilter } from "@/entities/logs";
 import { LogEntryRow } from "./log-entry";
@@ -8,8 +8,8 @@ import { LogsToolbar } from "./logs-toolbar";
 /** Height of each log entry row in pixels */
 const ROW_HEIGHT = 24;
 
-/** Number of extra items to render above/below viewport */
-const OVERSCAN = 10;
+/** Extra pixels to render above/below viewport */
+const OVERSCAN = 240; // ~10 rows
 
 export function LogsPage() {
   const [filter, setFilter] = useState<LogFilter>({ search: "", levels: ["error"] });
@@ -19,11 +19,12 @@ export function LogsPage() {
 
   const { filteredLogs, totalCount } = useFilteredLogs(filter);
 
-  // Set up virtualizer
-  const virtualizer = useVirtualizer({
+  const getScrollElement = useCallback(() => scrollRef.current, []);
+
+  const { items, totalHeight, scrollToIndex } = useVirtualList({
     count: filteredLogs.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    getScrollElement,
+    itemHeight: ROW_HEIGHT,
     overscan: OVERSCAN,
   });
 
@@ -38,10 +39,10 @@ export function LogsPage() {
   useEffect(() => {
     if (autoScroll && filteredLogs.length > 0) {
       requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
+        scrollToIndex({ index: "LAST", align: "end" });
       });
     }
-  }, [filteredLogs.length, autoScroll, virtualizer]);
+  }, [filteredLogs.length, autoScroll, scrollToIndex]);
 
   // Detect manual scroll to disable auto-scroll
   const handleScroll = useCallback(() => {
@@ -59,10 +60,10 @@ export function LogsPage() {
     setAutoScroll(true);
     if (filteredLogs.length > 0) {
       requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(filteredLogs.length - 1, { align: "end" });
+        scrollToIndex({ index: "LAST", align: "end" });
       });
     }
-  }, [filteredLogs.length, virtualizer]);
+  }, [filteredLogs.length, scrollToIndex]);
 
   return (
     <div className="flex flex-col h-full">
@@ -91,13 +92,13 @@ export function LogsPage() {
         ) : (
           <div
             style={{
-              height: `${virtualizer.getTotalSize()}px`,
+              height: totalHeight,
               width: "100%",
               position: "relative",
             }}
           >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const log = filteredLogs[virtualRow.index];
+            {items.map((item) => {
+              const log = filteredLogs[item.index];
               return (
                 <div
                   key={log.id}
@@ -106,8 +107,8 @@ export function LogsPage() {
                     top: 0,
                     left: 0,
                     width: "100%",
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
+                    height: item.size,
+                    transform: `translateY(${item.start}px)`,
                   }}
                 >
                   <LogEntryRow log={log} />

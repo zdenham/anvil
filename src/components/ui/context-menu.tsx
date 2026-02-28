@@ -100,6 +100,32 @@ export function ContextMenuItem({ icon: Icon, label, onClick }: ContextMenuItemP
 }
 
 // ---------------------------------------------------------------------------
+// ContextMenuItemDanger (red styling for destructive actions)
+// ---------------------------------------------------------------------------
+
+interface ContextMenuItemDangerProps {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}
+
+export function ContextMenuItemDanger({ icon: Icon, label, onClick }: ContextMenuItemDangerProps) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="w-full px-2.5 py-1 text-left text-xs text-red-400 hover:bg-red-500/10 rounded flex items-center gap-2 whitespace-nowrap"
+    >
+      <Icon size={11} className="flex-shrink-0" />
+      {label}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ContextMenuDivider
 // ---------------------------------------------------------------------------
 

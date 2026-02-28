@@ -380,12 +380,6 @@ pub fn resize_spotlight(
     input_expanded: bool,
     compact: bool,
 ) -> Result<(), String> {
-    tracing::info!(
-        "[SPOTLIGHT-HEIGHT] resize_spotlight called: result_count={}, input_expanded={}, compact={}",
-        result_count,
-        input_expanded,
-        compact
-    );
     if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
         let base_height = if input_expanded {
             SPOTLIGHT_HEIGHT_EXPANDED
@@ -401,17 +395,14 @@ pub fn resize_spotlight(
         let results_height = visible_results as f64 * item_height;
         let new_height = base_height + results_height;
 
-        tracing::info!(
-            "[SPOTLIGHT-HEIGHT] calculating: base_height={}, visible_results={}, item_height={}, results_height={}, new_height={}",
-            base_height,
-            visible_results,
-            item_height,
-            results_height,
-            new_height
-        );
-
         panel.set_content_size(SPOTLIGHT_WIDTH, new_height);
-        tracing::info!("[SPOTLIGHT-HEIGHT] set_content_size called with width={}, height={}", SPOTLIGHT_WIDTH, new_height);
+        tracing::debug!(
+            result_count,
+            input_expanded,
+            compact,
+            new_height,
+            "Spotlight resized"
+        );
     } else {
         tracing::warn!("[SPOTLIGHT-HEIGHT] Failed to get spotlight panel");
     }
@@ -875,28 +866,22 @@ pub fn show_control_panel(
     tracing::info!("[ControlPanel] show_control_panel called: thread_id={}, task_id={}", thread_id, task_id);
 
     // Store pending control panel BEFORE showing panel (Pull Model for HMR resilience)
-    tracing::info!("[ControlPanel] Storing pending control panel...");
     set_pending_control_panel(PendingControlPanel {
         thread_id: thread_id.to_string(),
         task_id: task_id.to_string(),
         prompt: prompt.map(|s| s.to_string()),
     });
-    tracing::info!("[ControlPanel] Pending control panel stored");
 
-    tracing::info!("[ControlPanel] Getting panel with label: {}", CONTROL_PANEL_LABEL);
     match app.get_webview_panel(CONTROL_PANEL_LABEL) {
         Ok(panel) => {
             // Reset panel size to default (may have been resized by user)
             panel.set_content_size(CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT);
 
-            tracing::info!("[ControlPanel] Got panel, calculating position...");
             // Reposition panel to center of the screen where the cursor is
             let (x, y) = calculate_centered_panel_position_cocoa(app, CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT);
-            tracing::info!("[ControlPanel] Position: ({}, {}), setting frame...", x, y);
             panel
                 .as_panel()
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
-            tracing::info!("[ControlPanel] Frame set");
 
             // Emit event to frontend with task info
             let payload = serde_json::json!({
@@ -904,17 +889,14 @@ pub fn show_control_panel(
                 "taskId": task_id,
                 "prompt": prompt
             });
-            tracing::info!("[ControlPanel] Emitting open-control-panel event...");
             let _ = app.emit("open-control-panel", &payload);
-            tracing::info!("[ControlPanel] Event emitted");
 
             // Show the panel and ensure it's focused
             // Note: show_and_make_key() already calls makeKeyAndOrderFront internally,
             // so we don't need a redundant call. Calling it twice causes focus flickering
             // and can trigger spurious blur events during task navigation.
-            tracing::info!("[PanelFocus] show_control_panel: SHOWING control-panel");
             panel.show_and_make_key();
-            tracing::info!("[PanelFocus] show_control_panel: control-panel now KEY");
+            tracing::info!("[ControlPanel] Panel positioned at ({}, {}), event emitted, now visible and key", x, y);
 
             Ok(())
         }

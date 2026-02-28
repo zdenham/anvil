@@ -95,9 +95,6 @@ function BackToParentButton({
   );
 }
 
-// Track component mount times for timing analysis
-const componentMountTimes = new Map<string, number>();
-
 export function ThreadContent({
   threadId,
   onPopOut: _onPopOut,
@@ -107,39 +104,9 @@ export function ThreadContent({
   // Note: onPopOut is available for future use (pop-out functionality wired in Phase 4)
   void _onPopOut;
 
-  // Timing: Track mount time for this specific threadId
-  const mountTimeRef = useRef<number>(Date.now());
-  const hasLoggedMount = useRef(false);
-
-  // Log on first render (synchronous timing)
-  if (!hasLoggedMount.current) {
-    const now = Date.now();
-    mountTimeRef.current = now;
-    componentMountTimes.set(threadId, now);
-    logger.info(`[ThreadContent:TIMING] FIRST RENDER (sync)`, {
-      threadId,
-      hasInitialPrompt: !!initialPrompt,
-      initialPromptLength: initialPrompt?.length ?? 0,
-      renderTime: now,
-      timestamp: new Date(now).toISOString(),
-    });
-    hasLoggedMount.current = true;
-  }
-
   // Use useCallback to ensure Zustand creates a new subscription when threadId changes
   const activeState = useThreadStore(
-    useCallback((s) => {
-      const state = s.threadStates[threadId];
-      const now = Date.now();
-      const mountTime = componentMountTimes.get(threadId) ?? mountTimeRef.current;
-      logger.debug(`[ThreadContent:TIMING] activeState selector ran`, {
-        threadId,
-        hasMessages: !!(state?.messages?.length),
-        messageCount: state?.messages?.length ?? 0,
-        elapsedSinceMount: now - mountTime,
-      });
-      return state;
-    }, [threadId])
+    useCallback((s) => s.threadStates[threadId], [threadId])
   );
   const activeMetadata = useThreadStore(
     useCallback((s) => s.threads[threadId], [threadId])
@@ -263,58 +230,21 @@ export function ThreadContent({
 
   // Compute messages with optimistic message support
   const messages = useMemo((): MessageParam[] => {
-    const now = Date.now();
-    const mountTime = componentMountTimes.get(threadId) ?? mountTimeRef.current;
-    const elapsed = now - mountTime;
-
     const realMessages = activeState?.messages ?? [];
 
     // If no real messages, check initialPrompt first (for thread-creation-service path)
     // and also check if there are no local optimistic messages
     if (realMessages.length === 0 && initialPrompt && optimisticMessages.length === 0) {
-      logger.info(`[ThreadContent:TIMING] messages useMemo - using INITIAL_PROMPT`, {
-        threadId,
-        promptLength: initialPrompt.length,
-        elapsedSinceMount: elapsed,
-        timestamp: new Date(now).toISOString(),
-      });
       return [{ role: "user", content: initialPrompt }];
     }
 
     // Append any optimistic messages to real messages
     if (optimisticMessages.length > 0) {
-      logger.info(`[ThreadContent:TIMING] messages useMemo - appending OPTIMISTIC messages`, {
-        threadId,
-        realMessageCount: realMessages.length,
-        optimisticMessageCount: optimisticMessages.length,
-        optimisticPreview: optimisticMessages.map(m =>
-          typeof m.content === 'string' ? m.content.slice(0, 30) : '[complex]'
-        ),
-        elapsedSinceMount: elapsed,
-        timestamp: new Date(now).toISOString(),
-      });
       return [...realMessages, ...optimisticMessages];
     }
 
-    // Just real messages (or empty)
-    if (realMessages.length > 0) {
-      logger.info(`[ThreadContent:TIMING] messages useMemo - using STORE messages`, {
-        threadId,
-        messageCount: realMessages.length,
-        elapsedSinceMount: elapsed,
-        timestamp: new Date(now).toISOString(),
-      });
-    } else {
-      logger.info(`[ThreadContent:TIMING] messages useMemo - returning EMPTY array`, {
-        threadId,
-        hasActiveState: !!activeState,
-        hasInitialPrompt: !!initialPrompt,
-        elapsedSinceMount: elapsed,
-        timestamp: new Date(now).toISOString(),
-      });
-    }
     return realMessages;
-  }, [activeState?.messages, initialPrompt, optimisticMessages, threadId]);
+  }, [activeState?.messages, initialPrompt, optimisticMessages]);
 
   // Keep scrollerRef in sync with MessageList's scroller element
   useEffect(() => {
@@ -536,16 +466,6 @@ export function ThreadContent({
       return () => clearTimeout(timer);
     }
   }, [autoFocus, threadId]);
-
-  // Log at render time to see what's actually being rendered
-  logger.debug(`[ThreadContent] RENDER`, {
-    threadId,
-    messageCount: messages.length,
-    optimisticCount: optimisticMessages.length,
-    hasActiveState: !!activeState,
-    realMessageCount: activeState?.messages?.length ?? 0,
-    firstMessagePreview: messages[0]?.content?.toString().slice(0, 30),
-  });
 
   return (
       <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">

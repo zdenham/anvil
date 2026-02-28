@@ -1,13 +1,13 @@
 /**
  * VirtualizedResults
  *
- * Renders search results using @tanstack/react-virtual for efficient rendering
+ * Renders search results using a custom VirtualList engine for efficient rendering
  * of large result sets. Flattens thread/file groups into a single virtual list
  * with header and match row types.
  */
 
 import { useRef, useMemo, useCallback } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualList } from "@/hooks/use-virtual-list";
 import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
 import { getFileIconUrl } from "@/components/file-browser/file-icons";
 import { MatchLine } from "./match-line";
@@ -17,7 +17,7 @@ import type { GrepMatch, ThreadContentMatch } from "@/lib/tauri-commands";
 
 const HEADER_HEIGHT = 24;
 const MATCH_HEIGHT = 22;
-const OVERSCAN = 15;
+const OVERSCAN = 330; // ~15 rows
 
 type FlatItem =
   | { type: "thread-header"; group: ThreadGroup }
@@ -52,7 +52,7 @@ export function VirtualizedResults({
 
   const flatItems = useMemo(() => buildFlatItems(threadGroups, fileGroups), [threadGroups, fileGroups]);
 
-  const estimateSize = useCallback(
+  const itemHeight = useCallback(
     (index: number) => {
       const item = flatItems[index];
       return item.type === "thread-header" || item.type === "file-header" ? HEADER_HEIGHT : MATCH_HEIGHT;
@@ -60,27 +60,29 @@ export function VirtualizedResults({
     [flatItems],
   );
 
-  const virtualizer = useVirtualizer({
+  const getScrollElement = useCallback(() => parentRef.current, []);
+
+  const { items, totalHeight } = useVirtualList({
     count: flatItems.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize,
+    getScrollElement,
+    itemHeight,
     overscan: OVERSCAN,
   });
 
   return (
     <div ref={parentRef} className="flex-1 overflow-y-auto">
-      <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const item = flatItems[virtualRow.index];
+      <div style={{ height: totalHeight, position: "relative" }}>
+        {items.map((vItem) => {
+          const item = flatItems[vItem.index];
           return (
             <div
-              key={virtualRow.key}
+              key={vItem.key}
               style={{
                 position: "absolute",
                 top: 0,
                 left: 0,
                 width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${vItem.start}px)`,
               }}
             >
               <VirtualRow

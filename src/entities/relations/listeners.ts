@@ -13,8 +13,6 @@ import { logger } from "@/lib/logger-client";
  * - Mark plans as unread when relations are created/upgraded to 'modified'
  */
 export function setupRelationListeners(): void {
-  logger.log("[relations:listeners] Setting up relation listeners...");
-
   // When thread is updated (e.g., refreshed from disk), refresh its relations
   eventBus.on(EventName.THREAD_UPDATED, async ({ threadId }) => {
     logger.debug(`[relations:listeners] THREAD_UPDATED: refreshing relations for ${threadId}`);

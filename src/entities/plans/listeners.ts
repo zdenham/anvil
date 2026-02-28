@@ -8,8 +8,6 @@ import { logger } from "@/lib/logger-client";
  * Called once at app startup to wire up plan detection events.
  */
 export function setupPlanListeners(): void {
-  logger.info("[plans:listener] 📋 Registering plan listeners...");
-
   // Handle plan detection from agent
   eventBus.on(EventName.PLAN_DETECTED, async ({ planId }) => {
     logger.info(`[plans:listener] 📋 PLAN_DETECTED handler called! planId=${planId}`);

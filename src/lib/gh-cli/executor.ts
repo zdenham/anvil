@@ -3,6 +3,7 @@
  * Uses Tauri shell plugin (Command.create) to run gh commands.
  */
 
+import { invoke } from "@tauri-apps/api/core";
 import { Command } from "@tauri-apps/plugin-shell";
 import { logger } from "@/lib/logger-client";
 import { classifyGhError } from "./errors";
@@ -26,7 +27,11 @@ export async function execGh(
 ): Promise<GhExecResult> {
   logger.debug(`[GhCli] Executing: gh ${args.join(" ")}`, { cwd });
 
-  const command = Command.create("gh", args, { cwd });
+  const shellPath = await invoke<string>("get_shell_path");
+  const command = Command.create("gh", args, {
+    cwd,
+    env: { PATH: shellPath },
+  });
   const output = await command.execute();
 
   const result: GhExecResult = {
