@@ -238,9 +238,21 @@ export function ThreadContent({
       return [{ role: "user", content: initialPrompt }];
     }
 
-    // Append any optimistic messages to real messages
+    // Append optimistic messages, filtering out any already present in real state
+    // to prevent a single-frame flash where the message appears in two places
     if (optimisticMessages.length > 0) {
-      return [...realMessages, ...optimisticMessages];
+      const realContent = new Set(
+        realMessages
+          .filter((m) => m.role === "user")
+          .map((m) => typeof m.content === "string" ? m.content : JSON.stringify(m.content))
+      );
+      const pending = optimisticMessages.filter((m) => {
+        const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+        return !realContent.has(content);
+      });
+      if (pending.length > 0) {
+        return [...realMessages, ...pending];
+      }
     }
 
     return realMessages;

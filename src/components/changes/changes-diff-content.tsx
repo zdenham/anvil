@@ -43,7 +43,7 @@ export const ChangesDiffContent = forwardRef<
 
   const getScrollElement = useCallback(() => scrollerRef.current, []);
 
-  const { items, totalHeight, scrollToIndex, measureRef } = useVirtualList({
+  const { items, totalHeight, scrollToIndex, measureItem } = useVirtualList({
     count: files.length,
     getScrollElement,
     estimateHeight: 200,
@@ -75,7 +75,7 @@ export const ChangesDiffContent = forwardRef<
   return (
     <div className="h-full">
       <div ref={scrollerRef} style={{ height: "100%", overflow: "auto" }}>
-        <div ref={measureRef} style={{ height: totalHeight, position: "relative" }}>
+        <div style={{ height: totalHeight, position: "relative" }}>
           {items.map((item) => {
             const file = files[item.index];
             const filePath = file.newPath ?? file.oldPath ?? "unknown";
@@ -87,6 +87,7 @@ export const ChangesDiffContent = forwardRef<
             return (
               <div
                 key={item.key}
+                ref={measureItem}
                 data-index={item.index}
                 style={{
                   position: "absolute",

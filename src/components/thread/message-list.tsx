@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo } from "react";
+import { useRef, useCallback, useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useVirtualList } from "@/hooks/use-virtual-list";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { Turn } from "@/lib/utils/turn-grouping";
@@ -67,7 +67,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     [isStreaming],
   );
 
-  const { items, totalHeight, scrollToIndex: scrollTo, measureRef } = useVirtualList({
+  const { items, totalHeight, scrollToIndex: scrollTo, measureItem } = useVirtualList({
     count: turns.length,
     getScrollElement,
     estimateHeight: 100,
@@ -107,6 +107,43 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     // Deferred to after first paint via rAF in the effect below
   }
 
+  // Auto-scroll when streaming content grows.
+  // The streaming footer lives outside the virtual list, so VirtualList's
+  // own subscribers never fire as it expands. We observe the footer div
+  // with a ResizeObserver and scroll to bottom on each resize.
+  const isStreamingRef = useRef(isStreaming);
+  isStreamingRef.current = isStreaming;
+  const isAtBottomRef = useRef(isAtBottom);
+  isAtBottomRef.current = isAtBottom;
+  const streamingRoRef = useRef<ResizeObserver | null>(null);
+
+  const streamingContentRef = useCallback(
+    (el: HTMLElement | null) => {
+      if (streamingRoRef.current) {
+        streamingRoRef.current.disconnect();
+        streamingRoRef.current = null;
+      }
+      if (!el) return;
+
+      const ro = new ResizeObserver(() => {
+        if (!isStreamingRef.current || !isAtBottomRef.current) return;
+        const scrollEl = scrollerRef.current;
+        if (!scrollEl) return;
+        const gap = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+        if (gap > 1) {
+          scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "auto" });
+        }
+      });
+      ro.observe(el);
+      streamingRoRef.current = ro;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => streamingRoRef.current?.disconnect();
+  }, []);
+
   return (
     <div
       data-testid="message-list"
@@ -119,10 +156,11 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         ref={scrollerRef}
         style={{ height: "100%", overflow: "auto" }}
       >
-        <div ref={measureRef} style={{ height: totalHeight, position: "relative" }}>
+        <div style={{ height: totalHeight, position: "relative" }}>
           {items.map((item) => (
             <div
               key={item.key}
+              ref={measureItem}
               data-index={item.index}
               style={{
                 position: "absolute",
@@ -151,7 +189,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
 
         {/* Footer — rendered after the spacer, outside the virtual list */}
         {hasStreamingContent && (
-          <div className="px-4 py-2 w-full max-w-[900px] mx-auto">
+          <div ref={streamingContentRef} className="px-4 py-2 w-full max-w-[900px] mx-auto">
             <article role="article" aria-label="Assistant response" className="group">
               <div className="flex gap-3">
                 <div className="flex-1 min-w-0 space-y-1.5">

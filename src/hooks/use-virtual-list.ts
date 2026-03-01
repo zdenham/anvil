@@ -31,14 +31,14 @@ export interface UseVirtualListResult {
   items: VirtualItem[];
   totalHeight: number;
   scrollToIndex: (opts: ScrollToOptions) => void;
-  /** Ref callback — attach to the item container div (variable-height mode only) */
-  measureRef: (el: HTMLElement | null) => void;
+  /** Ref callback — attach to each virtual item element for height measurement */
+  measureItem: (el: HTMLElement | null) => void;
   isAtBottom: boolean;
   /** The VirtualList instance, for escape hatches */
   list: VirtualList;
 }
 
-// Snapshot identity cache — avoids re-renders when items haven't changed
+// Snapshot identity cache — avoids re-renders when nothing changed
 function itemsEqual(a: VirtualItem[], b: VirtualItem[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -47,6 +47,20 @@ function itemsEqual(a: VirtualItem[], b: VirtualItem[]): boolean {
     }
   }
   return true;
+}
+
+interface VirtualSnapshot {
+  items: VirtualItem[];
+  totalHeight: number;
+  isAtBottom: boolean;
+}
+
+function snapshotEqual(a: VirtualSnapshot, b: VirtualSnapshot): boolean {
+  return (
+    a.totalHeight === b.totalHeight &&
+    a.isAtBottom === b.isAtBottom &&
+    itemsEqual(a.items, b.items)
+  );
 }
 
 export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResult {
@@ -87,22 +101,30 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   }
   prevOptsRef.current = opts;
 
-  // -- useSyncExternalStore for items --
-  const snapshotRef = useRef<VirtualItem[]>(list.items);
+  // -- useSyncExternalStore for reactive snapshot (items + totalHeight + isAtBottom) --
+  const snapshotRef = useRef<VirtualSnapshot>({
+    items: list.items,
+    totalHeight: list.totalHeight,
+    isAtBottom: list.isAtBottom,
+  });
 
   const subscribe = useCallback(
     (cb: () => void) => list.subscribe(cb),
     [list],
   );
 
-  const getSnapshot = useCallback(() => {
-    const next = list.items;
-    if (itemsEqual(snapshotRef.current, next)) return snapshotRef.current;
+  const getSnapshot = useCallback((): VirtualSnapshot => {
+    const next: VirtualSnapshot = {
+      items: list.items,
+      totalHeight: list.totalHeight,
+      isAtBottom: list.isAtBottom,
+    };
+    if (snapshotEqual(snapshotRef.current, next)) return snapshotRef.current;
     snapshotRef.current = next;
     return next;
   }, [list]);
 
-  const items = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   // -- Scroll listener on the scroll element --
   useEffect(() => {
@@ -132,73 +154,62 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     return () => ro.disconnect();
   }, [list, opts.getScrollElement]);
 
-  // -- Variable-height measurement via ResizeObserver on item container --
-  const measureElRef = useRef<HTMLElement | null>(null);
-  const measureRoRef = useRef<ResizeObserver | null>(null);
+  // -- Per-item height measurement via a single shared ResizeObserver --
+  // Items self-register by attaching `measureItem` as a ref callback.
+  // No MutationObserver needed — React tells us about mounts directly.
+  const roRef = useRef<ResizeObserver | null>(null);
+  const observedRef = useRef(new Map<number, HTMLElement>());
 
-  const measureRef = useCallback(
-    (el: HTMLElement | null) => {
-      // Tear down old observer
-      if (measureRoRef.current) {
-        measureRoRef.current.disconnect();
-        measureRoRef.current = null;
+  if (!roRef.current && opts.itemHeight === undefined) {
+    roRef.current = new ResizeObserver((entries) => {
+      const heightEntries: Array<{ index: number; height: number }> = [];
+      for (const entry of entries) {
+        const target = entry.target as HTMLElement;
+        const dataIndex = target.getAttribute("data-index");
+        if (dataIndex === null) continue;
+        const index = parseInt(dataIndex, 10);
+        const height = Math.round(
+          entry.borderBoxSize?.[0]?.blockSize ?? target.offsetHeight,
+        );
+        if (!isNaN(index) && height > 0) {
+          heightEntries.push({ index, height });
+        }
       }
-
-      measureElRef.current = el;
-      if (!el) return;
-
-      // Only set up measurement if we're in variable-height mode
-      if (opts.itemHeight !== undefined) return;
-
-      const ro = new ResizeObserver(() => {
+      if (heightEntries.length > 0) {
         requestAnimationFrame(() => {
-          if (!measureElRef.current) return;
-          const children = measureElRef.current.children;
-          const entries: Array<{ index: number; height: number }> = [];
-
-          for (let i = 0; i < children.length; i++) {
-            const child = children[i] as HTMLElement;
-            const dataIndex = child.getAttribute("data-index");
-            if (dataIndex === null) continue;
-            const index = parseInt(dataIndex, 10);
-            const height = child.offsetHeight;
-            if (!isNaN(index) && height > 0) {
-              entries.push({ index, height });
-            }
-          }
-
-          if (entries.length > 0) {
-            list.setItemHeights(entries);
-          }
+          list.setItemHeights(heightEntries);
         });
-      });
+      }
+    });
+  }
 
+  useEffect(() => {
+    return () => {
+      roRef.current?.disconnect();
+      roRef.current = null;
+      observedRef.current.clear();
+    };
+  }, []);
+
+  const measureItem = useCallback(
+    (el: HTMLElement | null) => {
+      const ro = roRef.current;
+      if (!ro || !el) return;
+
+      const dataIndex = el.getAttribute("data-index");
+      if (dataIndex === null) return;
+      const index = parseInt(dataIndex, 10);
+      if (isNaN(index)) return;
+
+      // If the DOM element changed for this index, swap observation
+      const prev = observedRef.current.get(index);
+      if (prev === el) return;
+      if (prev) ro.unobserve(prev);
+
+      observedRef.current.set(index, el);
       ro.observe(el);
-      measureRoRef.current = ro;
-
-      // Initial measurement
-      requestAnimationFrame(() => {
-        if (!measureElRef.current) return;
-        const children = measureElRef.current.children;
-        const entries: Array<{ index: number; height: number }> = [];
-
-        for (let i = 0; i < children.length; i++) {
-          const child = children[i] as HTMLElement;
-          const dataIndex = child.getAttribute("data-index");
-          if (dataIndex === null) continue;
-          const index = parseInt(dataIndex, 10);
-          const height = child.offsetHeight;
-          if (!isNaN(index) && height > 0) {
-            entries.push({ index, height });
-          }
-        }
-
-        if (entries.length > 0) {
-          list.setItemHeights(entries);
-        }
-      });
     },
-    [list, opts.itemHeight],
+    [],
   );
 
   // -- scrollToIndex --
@@ -214,14 +225,13 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
   // -- atBottomChange callback --
   const prevAtBottomRef = useRef<boolean | undefined>(undefined);
-  const isAtBottom = list.isAtBottom;
 
   useEffect(() => {
-    if (prevAtBottomRef.current !== undefined && prevAtBottomRef.current !== isAtBottom) {
-      opts.onAtBottomChange?.(isAtBottom);
+    if (prevAtBottomRef.current !== undefined && prevAtBottomRef.current !== snapshot.isAtBottom) {
+      opts.onAtBottomChange?.(snapshot.isAtBottom);
     }
-    prevAtBottomRef.current = isAtBottom;
-  }, [isAtBottom, opts.onAtBottomChange]);
+    prevAtBottomRef.current = snapshot.isAtBottom;
+  }, [snapshot.isAtBottom, opts.onAtBottomChange]);
 
   // -- followOutput: auto-scroll when count increases while at bottom --
   const prevFollowCountRef = useRef(opts.count);
@@ -234,7 +244,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     prevFollowCountRef.current = opts.count;
 
     // Check if we were at bottom before the count change
-    const result = opts.followOutput(isAtBottom);
+    const result = opts.followOutput(snapshot.isAtBottom);
     if (result === false) return;
 
     const el = opts.getScrollElement();
@@ -243,7 +253,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     requestAnimationFrame(() => {
       el.scrollTo({ top: el.scrollHeight, behavior: result });
     });
-  }, [opts.count, opts.followOutput, opts.getScrollElement, isAtBottom]);
+  }, [opts.count, opts.followOutput, opts.getScrollElement, snapshot.isAtBottom]);
 
   // -- followOutput: also follow height changes (streaming content growing) --
   useEffect(() => {
@@ -268,11 +278,11 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   }, [list, opts.followOutput, opts.getScrollElement]);
 
   return {
-    items,
-    totalHeight: list.totalHeight,
+    items: snapshot.items,
+    totalHeight: snapshot.totalHeight,
     scrollToIndex,
-    measureRef,
-    isAtBottom,
+    measureItem,
+    isAtBottom: snapshot.isAtBottom,
     list,
   };
 }
