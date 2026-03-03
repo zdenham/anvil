@@ -66,3 +66,6 @@ export * from "./pull-request.js";
 
 // Gateway channel types - persisted channel metadata
 export * from "./gateway-channel.js";
+
+// Comments - inline diff comment annotations
+export * from "./comments.js";

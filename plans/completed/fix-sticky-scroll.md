@@ -20,10 +20,10 @@ Replace the position-based `isAtBottom` auto-scroll trigger with an explicit `is
 
 ## Phases
 
-- [ ] Add sticky state tracking to `useVirtualList` hook
-- [ ] Update `followOutput` subscribers to use sticky flag instead of `isAtBottom`
-- [ ] Update `MessageList` streaming ResizeObserver to use sticky flag
-- [ ] Ensure re-engagement works (scroll-to-bottom button, manual scroll to bottom)
+- [x] Add sticky state tracking to `useVirtualList` hook
+- [x] Update `followOutput` subscribers to use sticky flag instead of `isAtBottom`
+- [x] Update `MessageList` streaming ResizeObserver to use sticky flag
+- [x] Ensure re-engagement works (scroll-to-bottom button, manual scroll to bottom)
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

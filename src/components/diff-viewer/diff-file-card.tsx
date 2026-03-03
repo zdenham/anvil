@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { AnnotatedFile } from "./types";
 import {
   useCollapsedRegions,
@@ -9,6 +9,12 @@ import { FileHeader } from "./file-header";
 import { AnnotatedLineRow } from "./annotated-line-row";
 import { CollapsedRegionPlaceholder } from "./collapsed-region-placeholder";
 import { BinaryFilePlaceholder } from "./binary-file-placeholder";
+import { useOptionalDiffCommentStore, useDiffCommentStore } from "@/contexts/diff-comment-context";
+import { useCommentStore } from "@/entities/comments/store";
+import { commentService } from "@/entities/comments/service";
+import { InlineCommentForm } from "./inline-comment-form";
+import { InlineCommentDisplay } from "./inline-comment-display";
+import type { InlineComment } from "@core/types/comments.js";
 
 interface DiffFileCardProps {
   /** The annotated file to display */
@@ -26,11 +32,6 @@ interface DiffFileCardProps {
 /**
  * Single file card in the diff viewer.
  * Displays file header and content with collapsible unchanged regions.
- *
- * Accessibility features:
- * - Region role with aria-label
- * - Table semantics for diff content
- * - Keyboard-accessible collapsed regions
  */
 export const DiffFileCard = memo(function DiffFileCard({
   file,
@@ -193,6 +194,9 @@ function DiffFileCardContent({
     [highlightedLines, regions, expanded]
   );
 
+  const commentStore = useOptionalDiffCommentStore();
+  const isCommentable = commentStore !== null;
+
   const handleLineClick = onLineClick
     ? (lineNumber: number) => onLineClick(filePath, lineNumber)
     : undefined;
@@ -213,39 +217,140 @@ function DiffFileCardContent({
         onToggleFullFile={regions.length > 0 ? handleToggleFullFile : undefined}
       />
 
-      {/* Diff content with table semantics */}
+      {/* Diff content */}
       {!isFileCollapsed && (
-        <div
-          role="table"
-          aria-label="Diff content"
-          className="bg-surface-900/50 overflow-x-auto"
-        >
-          <div role="rowgroup">
-            {renderItems.map((item) => {
-              if (item.type === "collapsed") {
-                const regionId = `${fileId}-region-${item.regionIndex}`;
+        isCommentable ? (
+          <DiffLinesWithComments
+            renderItems={renderItems}
+            fileId={fileId}
+            filePath={filePath}
+            isExpanded={isExpanded}
+            toggle={toggle}
+            onLineClick={handleLineClick}
+          />
+        ) : (
+          <div
+            role="table"
+            aria-label="Diff content"
+            className="bg-surface-900/50 overflow-x-auto"
+          >
+            <div role="rowgroup">
+              {renderItems.map((item) => {
+                if (item.type === "collapsed") {
+                  const regionId = `${fileId}-region-${item.regionIndex}`;
+                  return (
+                    <CollapsedRegionPlaceholder
+                      key={`collapsed-${item.regionIndex}`}
+                      region={item.region}
+                      regionId={regionId}
+                      isExpanded={isExpanded(item.regionIndex)}
+                      onToggle={() => toggle(item.regionIndex)}
+                    />
+                  );
+                }
+
                 return (
-                  <CollapsedRegionPlaceholder
-                    key={`collapsed-${item.regionIndex}`}
-                    region={item.region}
-                    regionId={regionId}
-                    isExpanded={isExpanded(item.regionIndex)}
-                    onToggle={() => toggle(item.regionIndex)}
+                  <AnnotatedLineRow
+                    key={`line-${item.lineIndex}`}
+                    line={item.line}
+                    onLineClick={handleLineClick}
                   />
                 );
-              }
-
-              return (
-                <AnnotatedLineRow
-                  key={`line-${item.lineIndex}`}
-                  line={item.line}
-                  onLineClick={handleLineClick}
-                />
-              );
-            })}
+              })}
+            </div>
           </div>
-        </div>
+        )
       )}
+    </div>
+  );
+}
+
+/** Diff lines with comment support (inside DiffCommentProvider) */
+function DiffLinesWithComments({
+  renderItems,
+  fileId,
+  filePath,
+  isExpanded,
+  toggle,
+  onLineClick: _existingLineClick,
+}: {
+  renderItems: ReturnType<typeof buildRenderItems>;
+  fileId: string;
+  filePath: string;
+  isExpanded: (index: number) => boolean;
+  toggle: (index: number) => void;
+  onLineClick?: (lineNumber: number) => void;
+}) {
+  const worktreeId = useDiffCommentStore((s) => s.worktreeId);
+  const threadId = useDiffCommentStore((s) => s.threadId);
+  const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null);
+
+  // Lazy-load comments for this worktree
+  useEffect(() => {
+    commentService.loadForWorktree(worktreeId);
+  }, [worktreeId]);
+
+  // Subscribe to comments for this file
+  const comments = useCommentStore(
+    useCallback(
+      (s) => s.getByFile(worktreeId, filePath, threadId),
+      [worktreeId, filePath, threadId],
+    ),
+  );
+
+  // Pre-compute comments by line number
+  const commentsByLine = useMemo(() => {
+    const map = new Map<number, InlineComment[]>();
+    for (const c of comments) {
+      const existing = map.get(c.lineNumber) ?? [];
+      existing.push(c);
+      map.set(c.lineNumber, existing);
+    }
+    return map;
+  }, [comments]);
+
+  const handleCommentClick = useCallback((lineNumber: number) => {
+    setActiveCommentLine((prev) => (prev === lineNumber ? null : lineNumber));
+  }, []);
+
+  return (
+    <div className="bg-surface-900/50 overflow-x-auto">
+      {renderItems.map((item) => {
+        if (item.type === "collapsed") {
+          const regionId = `${fileId}-region-${item.regionIndex}`;
+          return (
+            <CollapsedRegionPlaceholder
+              key={`collapsed-${item.regionIndex}`}
+              region={item.region}
+              regionId={regionId}
+              isExpanded={isExpanded(item.regionIndex)}
+              onToggle={() => toggle(item.regionIndex)}
+            />
+          );
+        }
+
+        const lineNumber = item.line.newLineNumber ?? item.line.oldLineNumber ?? 0;
+        const lineComments = commentsByLine.get(lineNumber) ?? [];
+
+        return (
+          <div key={`line-${item.lineIndex}`}>
+            <AnnotatedLineRow
+              line={item.line}
+              onLineClick={handleCommentClick}
+              hasComments={lineComments.length > 0}
+            />
+            {activeCommentLine === lineNumber && (
+              <InlineCommentForm
+                filePath={filePath}
+                lineNumber={lineNumber}
+                lineType={item.line.type === "unchanged" ? "unchanged" : item.line.type}
+                onClose={() => setActiveCommentLine(null)}
+              />
+            )}
+            <InlineCommentDisplay comments={lineComments} />
+          </div>
+        );
+      })}
     </div>
   );
 }

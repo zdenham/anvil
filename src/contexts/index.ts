@@ -9,3 +9,9 @@ export {
   useGlobalError,
 } from "./global-error-context";
 
+export {
+  DiffCommentProvider,
+  useDiffCommentStore,
+  useOptionalDiffCommentStore,
+} from "./diff-comment-context";
+

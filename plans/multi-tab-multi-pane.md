@@ -80,11 +80,12 @@ User clicks sidebar item
 | `src/components/content-pane/content-pane-header.tsx` | Per-view headers |
 | `src/components/main-window/main-window-layout.tsx` | Root layout + store init |
 | `src/components/ui/resizable-panel.tsx` | Draggable resize (left/right only) |
+| `src/hooks/use-tree-data.ts` | Computes display labels for all sidebar items |
 
 ### Existing Infrastructure We Can Build On
 
-- **dnd-kit** (`@dnd-kit/core`, `@dnd-kit/sortable`) - already in package.json, used for quick-action reordering
-- **UUID-based pane system** - `Record<string, ContentPaneData>` already supports multiple panes
+- **dnd-kit** (`@dnd-kit/core@^6.3.1`, `@dnd-kit/sortable@^10.0.0`) — already in package.json, used for quick-action reordering. Proven for sortable lists and cross-container drag. Custom collision detection needed for directional drop zones (see DnD Strategy below).
+- **UUID-based pane system** — `Record<string, ContentPaneData>` already supports multiple panes
 - **Disk-as-truth** + Zod validation for persistence
 - **ResizablePanel** component for drag-to-resize
 - **TabButton** component (`src/components/workspace/tab-button.tsx`) for tab styling
@@ -96,7 +97,7 @@ User clicks sidebar item
 
 ### Core Concepts
 
-**PaneGroup** — A container holding one or more tabs. Has a tab bar and renders the active tab's content. Analogous to a VS Code "editor group."
+**PaneGroup** — A container holding one or more tabs, keyed by UUID. Has a tab bar and renders the active tab's content. Analogous to a VS Code "editor group." Max 5 tabs per group — when opening a 6th, close the least-recently-used tab.
 
 **Tab** — A single content view within a pane group. Each tab holds a `ContentPaneView`. Tabs can be reordered within a group or dragged between groups.
 
@@ -118,6 +119,8 @@ SplitNode (recursive tree)
 │ (unchanged) │ ┌──────────────────┬─────────────────────┐ │
 │             │ │ PaneGroup A      │ PaneGroup B         │ │
 │             │ │ [Tab1|Tab2|Tab3] │ [Tab4|Tab5]         │ │
+│             │ │ ───────────────  │ ────────────        │ │
+│             │ │ ContentPaneHeader│ ContentPaneHeader    │ │
 │             │ │ ───────────────  │ ────────────        │ │
 │             │ │ <ContentPane>    │ <ContentPane>       │ │
 │             │ │                  │                     │ │
@@ -142,14 +145,14 @@ type SplitNode =
 
 interface PaneGroup {
   id: string;                    // UUID
-  tabs: TabItem[];               // Ordered list of tabs
+  tabs: TabItem[];               // Ordered list of tabs (max 5)
   activeTabId: string;           // Currently visible tab
+  // No tabHistory — on close, activate the tab to the left
 }
 
 interface TabItem {
   id: string;                    // UUID
   view: ContentPaneView;         // What content this tab shows
-  label?: string;                // Override display label (derived from view if not set)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -158,11 +161,35 @@ interface TabItem {
 
 interface PaneLayoutState {
   root: SplitNode;               // The split tree
-  groups: Record<string, PaneGroup>; // All pane groups
+  groups: Record<string, PaneGroup>; // All pane groups, keyed by UUID
   activeGroupId: string;         // Which group has focus
   _hydrated: boolean;
 }
 ```
+
+### Default State
+
+When no persisted state exists (or on first boot), the default state is a single group with an empty tab:
+
+```typescript
+const DEFAULT_GROUP_ID = crypto.randomUUID();
+const DEFAULT_TAB_ID = crypto.randomUUID();
+
+const DEFAULT_STATE: PaneLayoutState = {
+  root: { type: "leaf", groupId: DEFAULT_GROUP_ID },
+  groups: {
+    [DEFAULT_GROUP_ID]: {
+      id: DEFAULT_GROUP_ID,
+      tabs: [{ id: DEFAULT_TAB_ID, view: { type: "empty" } }],
+      activeTabId: DEFAULT_TAB_ID,
+    },
+  },
+  activeGroupId: DEFAULT_GROUP_ID,
+  _hydrated: false,
+};
+```
+
+No migration from the old `content-panes.json` format — we start fresh with default state.
 
 ### Persistence (`~/.mort/ui/pane-layout.json`)
 
@@ -172,68 +199,56 @@ interface PaneLayoutState {
     "type": "split",
     "direction": "horizontal",
     "children": [
-      { "type": "leaf", "groupId": "group-1" },
-      { "type": "leaf", "groupId": "group-2" }
+      { "type": "leaf", "groupId": "a1b2c3d4-..." },
+      { "type": "leaf", "groupId": "e5f6g7h8-..." }
     ],
     "sizes": [50, 50]
   },
   "groups": {
-    "group-1": {
-      "id": "group-1",
+    "a1b2c3d4-...": {
+      "id": "a1b2c3d4-...",
       "tabs": [
-        { "id": "tab-1", "view": { "type": "thread", "threadId": "abc" } },
-        { "id": "tab-2", "view": { "type": "plan", "planId": "xyz" } }
+        { "id": "t1-...", "view": { "type": "thread", "threadId": "abc" } },
+        { "id": "t2-...", "view": { "type": "plan", "planId": "xyz" } }
       ],
-      "activeTabId": "tab-1"
+      "activeTabId": "t1-..."
     },
-    "group-2": {
-      "id": "group-2",
+    "e5f6g7h8-...": {
+      "id": "e5f6g7h8-...",
       "tabs": [
-        { "id": "tab-3", "view": { "type": "file", "filePath": "/src/main.ts" } }
+        { "id": "t3-...", "view": { "type": "file", "filePath": "/src/main.ts" } }
       ],
-      "activeTabId": "tab-3"
+      "activeTabId": "t3-..."
     }
   },
-  "activeGroupId": "group-1"
+  "activeGroupId": "a1b2c3d4-..."
 }
 ```
 
+Don't persist ephemeral view properties (`autoFocus`, etc.).
+
 ---
 
-## Migration Strategy
-
-### Backwards Compatibility
-
-The current `content-panes.json` uses `{ panes: Record<string, {id, view}>, activePaneId }`. We need to migrate this to the new layout format on first load:
-
-```typescript
-// In hydrate():
-// 1. Try loading pane-layout.json (new format)
-// 2. If not found, load content-panes.json (old format)
-// 3. Convert: single pane → single group with one tab → leaf layout
-// 4. Write pane-layout.json, delete content-panes.json
-```
-
-The migration is a one-shot transform:
-- Old `panes["main"].view` → New `groups["default"].tabs[0].view`
-- Old `activePaneId` → New `activeGroupId`
-
-### Navigation Service Changes
+## Navigation Service Changes
 
 The `navigationService` currently calls `contentPanesService.setActivePaneView(view)`. After the refactor:
 
-- **Regular click**: Replace the active tab's view in the active group (same behavior as today)
-- **Cmd+Click**: Open a new tab in the active group
-- **Drag to split**: Create a new group in a new split
+- **Regular click**: Find existing tab with this view across all groups → focus it. If not found, replace active tab's view.
+- **Cmd+Click**: Open a new tab in the active group (always, even if duplicate exists).
+- **Drag to split**: Create a new group in a new split.
 
 ```typescript
 // navigationService changes:
 async navigateToThread(threadId, options?) {
   await treeMenuService.setSelectedItem(threadId);
+  const view = { type: "thread", threadId, autoFocus: options?.autoFocus };
+
   if (options?.newTab) {
-    await paneLayoutService.openTabInActiveGroup({ type: "thread", threadId });
+    await paneLayoutService.openTab(view);
   } else {
-    await paneLayoutService.setActiveTabView({ type: "thread", threadId });
+    // Default: find existing tab with this thread across ALL groups, focus it.
+    // If not found, replace the active tab's view.
+    await paneLayoutService.findOrOpenTab(view);
   }
 }
 ```
@@ -251,7 +266,7 @@ src/components/split-layout/
 ├── split-layout-container.tsx    // Root: reads layout tree, renders recursively
 ├── split-node-renderer.tsx       // Recursive: renders leaf or nested split
 ├── split-resize-handle.tsx       // Drag handle between split children
-├── pane-group.tsx                // Tab bar + active tab content
+├── pane-group.tsx                // Tab bar + sub-header + active tab content
 ├── tab-bar.tsx                   // Horizontal tab strip with DnD
 ├── tab-item.tsx                  // Individual tab (draggable, closeable)
 ├── drop-zone-overlay.tsx         // Visual overlay for drop targets during drag
@@ -263,7 +278,10 @@ src/components/split-layout/
 ```
 ┌────────────────────────────────────────┐
 │ TabBar                                 │
-│ [Thread: main ×] [plan.md ×] [+ ]     │
+│ [● main ×] [fix-bug.md ×] [+ ]        │
+├────────────────────────────────────────┤
+│ ContentPaneHeader (sub-header)         │
+│ (view-specific controls, e.g. toggle)  │
 ├────────────────────────────────────────┤
 │                                        │
 │ ContentPane (existing component)       │
@@ -273,32 +291,64 @@ src/components/split-layout/
 ```
 
 - Tab bar at top with horizontal scrolling for overflow
-- Each tab shows: icon (by view type) + label + close button
+- Each tab shows: status indicator (streaming dot) + label + close button
 - Active group has a visual indicator (e.g. accent border)
 - Clicking a tab makes it active; clicking its close button removes it
 - "+" button at the end to open empty tab
-- Double-click tab to rename (optional, low priority)
+- `ContentPaneHeader` kept as a sub-header below tabs for view-specific controls (thread conversation/changes toggle, etc.)
+- Max 5 tabs per group; opening a 6th closes the LRU tab
 
-### 3. Tab Labels (Derived from View)
+### 3. Tab Labels (Derived from Sidebar)
+
+Tab labels mirror exactly what the sidebar shows, using the same data sources as `useTreeData()`:
 
 ```typescript
-function getTabLabel(view: ContentPaneView): string {
+function useTabLabel(view: ContentPaneView): string {
+  // Pull from the same stores that useTreeData() uses
   switch (view.type) {
     case "empty": return "New Tab";
-    case "thread": return threadName ?? "Thread";  // lookup from threadStore
-    case "plan": return planName ?? "Plan";
+    case "thread": {
+      // Same as sidebar: thread.name ?? "New Thread"
+      const thread = useThreadStore(s => s.threads[view.threadId]);
+      return thread?.name ?? "New Thread";
+    }
+    case "plan": {
+      // Same as sidebar: getPlanTitle(plan.relativePath)
+      // For readme.md → parent directory name, otherwise filename
+      const plan = usePlanStore(s => s.plans[view.planId]);
+      return plan ? getPlanTitle(plan.relativePath) : "Plan";
+    }
+    case "terminal": {
+      // Same as sidebar: terminal.lastCommand ?? dirName ?? "terminal"
+      const terminal = useTerminalSessionStore(s => s.sessions[view.terminalId]);
+      return terminal?.lastCommand ?? terminal?.worktreePath.split("/").pop() ?? "Terminal";
+    }
+    case "file": return basename(view.filePath);
+    case "pull-request": {
+      // Same as sidebar: "PR #N: title" or "PR #N"
+      const pr = usePullRequestStore(s => s.pullRequests[view.prId]);
+      const details = pr?.details;
+      return details ? `PR #${pr.prNumber}: ${details.title}` : `PR #${pr?.prNumber ?? "?"}`;
+    }
     case "settings": return "Settings";
     case "logs": return "Logs";
     case "archive": return "Archive";
-    case "terminal": return "Terminal";
-    case "file": return basename(view.filePath);
-    case "pull-request": return `PR #${prNumber}`;
     case "changes": return "Changes";
   }
 }
 ```
 
-### 4. Split Resize Handles
+### 4. Tab Status Indicators
+
+Tabs show a status dot matching the sidebar indicators:
+
+- **Streaming (pulsing dot)**: Thread is actively receiving agent output
+- **Running (solid dot)**: Agent is working but not streaming text yet
+- **Idle**: No indicator
+
+These use the same `ThreadMetadata.status` / streaming state that the sidebar already tracks. All visible thread tabs stay actively updated — not just the focused one.
+
+### 5. Split Resize Handles
 
 Extend the existing `ResizablePanel` pattern for internal splits:
 
@@ -308,7 +358,7 @@ Extend the existing `ResizablePanel` pattern for internal splits:
 - Min size per child: ~15% (prevents invisible groups)
 - Double-click handle to reset to equal sizes
 
-### 5. Drop Zone Overlay
+### 6. Drop Zone Overlay
 
 When dragging a tab, show drop zones on hover over pane groups:
 
@@ -324,7 +374,15 @@ When dragging a tab, show drop zones on hover over pane groups:
 └──────────────────────┘
 ```
 
-Use dnd-kit's `DndContext` + custom collision detection for these zones.
+### DnD Strategy
+
+**Library**: Keep `@dnd-kit` for tab reordering within groups and cross-container tab moves. It's already installed (v6.3.1 core, v10.0.0 sortable), proven in the codebase for quick-action sorting, and handles use cases 1 & 2 well.
+
+**Architecture**: A single `DndContext` wrapping the entire `SplitLayoutContainer` so all tab bars and pane groups share the same drag context.
+
+**Edge drop zones (drag-to-split)**: Implement as a custom overlay with mouse position detection rather than relying on dnd-kit's collision algorithms. When a tab drag is active, each `PaneGroup` shows directional drop zone overlays. Mouse proximity to pane edges (~30px threshold) determines the drop zone direction. This separation keeps tab reordering (dnd-kit) and split creation (custom) cleanly decoupled.
+
+**Why not switch to Pragmatic DnD or others**: dnd-kit is already working, the migration cost isn't justified, and the hybrid approach (dnd-kit for sortable + custom for edge zones) gives us the best of both worlds without fighting the library's collision detection.
 
 ---
 
@@ -365,15 +423,13 @@ interface PaneLayoutActions {
 
 ### New Service: `src/stores/pane-layout/service.ts`
 
-Key methods:
-
 ```typescript
 const paneLayoutService = {
   // Lifecycle
   hydrate(): Promise<void>;
   persistState(): Promise<void>;
 
-  // Tab management
+  // Tab management (enforces max 5 tabs per group — closes leftmost if at cap)
   openTab(view: ContentPaneView, groupId?: string): Promise<string>;
   closeTab(groupId: string, tabId: string): Promise<void>;
   setActiveTab(groupId: string, tabId: string): Promise<void>;
@@ -387,7 +443,7 @@ const paneLayoutService = {
   // Split management
   updateSplitSizes(path: number[], sizes: number[]): Promise<void>;
 
-  // Dedup: find existing tab with same view, or open new
+  // Dedup: find existing tab with same view across ALL groups, focus it. Otherwise replace active tab.
   findOrOpenTab(view: ContentPaneView, options?: { groupId?: string; newTab?: boolean }): Promise<void>;
 
   // Convenience
@@ -396,23 +452,17 @@ const paneLayoutService = {
 };
 ```
 
-### Navigation Service Updates
+### Tab Close Behavior
+
+When closing a tab, activate the tab to the left — or to the right if the leftmost tab was closed:
 
 ```typescript
-// src/stores/navigation-service.ts
-// Change from contentPanesService → paneLayoutService
-
-async navigateToThread(threadId, options?) {
-  await treeMenuService.setSelectedItem(threadId);
-  const view = { type: "thread", threadId, autoFocus: options?.autoFocus };
-
-  if (options?.newTab) {
-    await paneLayoutService.openTab(view);
-  } else {
-    // Default: find existing tab with this thread, or replace active tab
-    await paneLayoutService.findOrOpenTab(view);
-  }
-}
+// On close:
+// 1. Remove tabId from group.tabs
+// 2. If the closed tab was active:
+//    a. If index > 0, activate tab at index - 1 (left neighbor)
+//    b. If index === 0, activate new tab at index 0 (right neighbor)
+// 3. If no tabs remain, remove the group and collapse the split
 ```
 
 ---
@@ -423,28 +473,15 @@ async navigateToThread(threadId, options?) {
 
 | Action | Behavior |
 |--------|----------|
-| Click sidebar item | Replace active tab's view (current behavior preserved) |
-| Cmd+Click sidebar item | Open in new tab in active group |
+| Click sidebar item | Find existing tab across all groups → focus it. If not found, replace active tab's view |
+| Cmd+Click sidebar item | Open in new tab in active group (even if duplicate) |
 | Middle-click sidebar item | Open in new tab in active group |
-| Cmd+T | New empty tab in active group |
 | Cmd+W | Close active tab |
-| Cmd+Shift+T | Reopen last closed tab |
-
-### Switching Tabs
-
-| Action | Behavior |
-|--------|----------|
-| Click tab | Activate that tab |
-| Cmd+1-9 | Switch to tab N in active group |
-| Cmd+Option+Left/Right | Switch to prev/next tab |
-| Cmd+Shift+[ / ] | Switch to prev/next tab (VS Code style) |
 
 ### Splitting Panes
 
 | Action | Behavior |
 |--------|----------|
-| Cmd+\ | Split active group right (horizontal) |
-| Cmd+Shift+\ | Split active group down (vertical) |
 | Drag tab to edge drop zone | Split in that direction |
 | Drag tab to center of group | Move tab to that group |
 
@@ -452,6 +489,7 @@ async navigateToThread(threadId, options?) {
 
 | Action | Behavior |
 |--------|----------|
+| Close tab | Activate left neighbor (or right if leftmost closed) |
 | Close last tab in group | Remove the group, collapse the split |
 | Close last group | Reset to single empty group (never empty screen) |
 | Drag resize to 0 | Collapse that group (same as closing all tabs) |
@@ -461,26 +499,35 @@ async navigateToThread(threadId, options?) {
 | Action | Behavior |
 |--------|----------|
 | Click in a pane group | That group becomes the active group |
-| Cmd+Option+Up/Down/Left/Right | Move focus between adjacent groups |
 | Active group shows accent border | Visual indicator of which group has focus |
 
 ---
 
 ## Edge Cases & Gotchas
 
-### 1. Duplicate Views
+### 1. Tab Deduplication
 
-**Problem**: User opens the same thread in two tabs. Which one does the sidebar highlight?
+**Problem**: User clicks a sidebar item that's already open in another group.
 
-**Solution**: Sidebar highlights the tab in the *active group*. If the active tab in the active group matches, highlight it. If not, don't change sidebar selection. The `findOrOpenTab` method should check all groups for an existing tab before creating a new one and activate the existing one instead.
+**Solution**: `findOrOpenTab` searches all groups for a tab with a matching view. If found, focus that group and tab. If not found, replace the active tab's view. Cmd+Click bypasses dedup and always opens a new tab.
 
-### 2. Thread State Coupling
+### 2. Thread State — All Visible Threads Stay Active
 
 **Problem**: `useThreadStore.activeThreadId` is a single value. With multiple thread tabs, which one is "active"?
 
-**Solution**: `activeThreadId` tracks which thread's *state is loaded* (conversation content, streaming). When switching tabs/groups to a different thread tab, update `activeThreadId`. When switching to a non-thread tab, leave it as-is (the thread content stays cached).
+**Solution**: All thread tabs that are currently *visible* (i.e., the active tab in any rendered pane group) should actively receive updates. The `threadStates` record already supports multiple threads being loaded simultaneously. Instead of a single `activeThreadId`, we track the set of visible thread IDs derived from the layout state:
 
-The `threadStates` record already supports multiple threads being loaded simultaneously, so no structural change is needed — just update the "active" pointer on tab/group focus change.
+```typescript
+// Computed from layout state:
+function getVisibleThreadIds(state: PaneLayoutState): string[] {
+  return Object.values(state.groups)
+    .map(g => g.tabs.find(t => t.id === g.activeTabId))
+    .filter(t => t?.view.type === "thread")
+    .map(t => t.view.threadId);
+}
+```
+
+The existing `activeThreadId` continues to track which thread has *keyboard focus* (i.e., the active tab in the active group). But streaming, status updates, and state syncing apply to all visible threads.
 
 ### 3. Input Store Provider Scoping
 
@@ -488,11 +535,11 @@ The `threadStates` record already supports multiple threads being loaded simulta
 
 **Solution**: Each `PaneGroup` wraps its content in an `InputStoreProvider`. The `active` prop is only `true` for the active group's active tab. This is already the pattern — just needs to be applied at the group level.
 
-### 4. Streaming in Background Tabs
+### 4. Streaming Indicators in Tabs
 
 **Problem**: A thread might be streaming while the user is looking at another tab.
 
-**Solution**: Streaming continues via the agent process regardless of which tab is visible. The `StreamingStore` already stores streams keyed by thread ID. When the user switches back to that tab, the stream content is still there. Add a visual indicator (pulsing dot) on the tab to show it's actively streaming.
+**Solution**: Streaming continues via the agent process regardless of which tab is visible. Tab items show a status indicator (pulsing dot for streaming, solid dot for running) matching the sidebar's thread status. When the user switches to that tab, the stream content is already there.
 
 ### 5. Content Search (Find Bar)
 
@@ -500,43 +547,37 @@ The `threadStates` record already supports multiple threads being loaded simulta
 
 **Solution**: Find bar is scoped to the active group's active tab (same as VS Code). The `ContentPane` component already manages find bar state locally, so this works naturally.
 
-### 6. Layout Persistence Size
+### 6. Max Tabs Per Group
 
-**Problem**: With many tabs, the persisted JSON could grow.
+**Problem**: Too many tabs clutters the tab bar and is hard to navigate.
 
-**Solution**: Cap at a reasonable number of tabs per group (e.g., 20). When opening the 21st, close the least-recently-used tab. Also, don't persist `autoFocus` or other ephemeral view properties.
+**Solution**: Cap at 5 tabs per group. When opening the 6th, close the leftmost tab. This keeps things manageable.
 
-### 7. Keyboard Shortcut Conflicts
-
-**Problem**: Cmd+1-9 currently mapped to quick actions. Tab switching also wants Cmd+1-9.
-
-**Solution**: Use Cmd+Option+1-9 for tab switching, keep Cmd+1-9 for quick actions. Or: Cmd+1-9 for tabs (VS Code default), Cmd+Shift+1-9 for quick actions. **Decision needed from user.**
-
-### 8. Right Panel Interaction
+### 7. Right Panel Interaction
 
 **Problem**: The right panel (file browser, search) currently exists at the same level as the center content. Does it participate in the split layout?
 
 **Solution**: No. Keep the right panel as a separate resizable panel outside the split layout, same as VS Code's sidebar panels. The split layout only governs the center content area.
 
-### 9. Tree Selection Ambiguity
+### 8. Tree Selection Sync
 
 **Problem**: With multiple groups showing different items, which one does the sidebar track?
 
 **Solution**: Sidebar always reflects the active group's active tab. When the active group or active tab changes, update sidebar selection accordingly. This is a one-way sync: sidebar selection follows the active tab.
 
-### 10. Pop-Out / Standalone Windows
+### 9. Pop-Out / Standalone Windows
 
 **Problem**: Current pop-out opens a new window. How does this interact with tabs?
 
 **Solution**: Pop-out behavior stays the same — it opens the view in a standalone Tauri window. The tab remains in the group (or can be closed if desired). The standalone window is independent of the tab layout.
 
-### 11. Archive Events
+### 10. Archive Events
 
 **Problem**: `THREAD_ARCHIVED` / `PLAN_ARCHIVED` events clear panes showing archived content. With multiple tabs, need to clear all matching tabs.
 
 **Solution**: The listener iterates all groups and all tabs, closing any tab whose view references the archived entity. If that leaves a group empty, collapse the group.
 
-### 12. Max Split Constraints
+### 11. Max Split Constraints
 
 **Problem**: Preventing infinite nesting. Limit: 4 wide, 3 high.
 
@@ -545,7 +586,7 @@ The `threadStates` record already supports multiple threads being loaded simulta
 - Count consecutive `vertical` splits for height (max 3 children)
 - If at limit, refuse the split and show a toast notification
 
-### 13. Resize Handle Minimum Sizes
+### 12. Resize Handle Minimum Sizes
 
 **Problem**: Users could resize a group to be impossibly small.
 
@@ -559,7 +600,7 @@ The `threadStates` record already supports multiple threads being loaded simulta
 
 1. **`content-panes/` store + service** → Replace with `pane-layout/` store + service. The current single-pane-with-UUID system becomes groups-with-tabs.
 
-2. **`navigation-service.ts`** → Update all `navigateTo*` methods to use `paneLayoutService` instead of `contentPanesService`. Add `newTab` option support.
+2. **`navigation-service.ts`** → Update all `navigateTo*` methods to use `paneLayoutService` instead of `contentPanesService`. Add `newTab` option support. Default behavior is find-and-focus existing tab (dedup).
 
 3. **`ContentPaneContainer`** → Replace with `SplitLayoutContainer` that renders the recursive split tree.
 
@@ -571,17 +612,15 @@ The `threadStates` record already supports multiple threads being loaded simulta
 
 6. **`ContentPane` component** → No structural change, but receives a `groupId` prop so it knows which group it belongs to (for InputStoreProvider scoping).
 
-7. **`ContentPaneHeader`** → May be absorbed into the tab bar (the header info moves into the tab label). Or kept as a secondary header below the tab bar for view-specific controls.
-
-8. **Keyboard handlers** in `main-window-layout.tsx` → Add tab/group navigation shortcuts.
+7. **`ContentPaneHeader`** → Kept as a sub-header below the tab bar for view-specific controls (thread conversation/changes toggle, etc.).
 
 ### Can Stay As-Is
 
-9. **`tree-menu/` store + service** → No changes. Still tracks `selectedItemId`.
-10. **`layout/` store** → Still tracks panel widths for left/right panels. Split sizes are in the new layout store.
-11. **All entity stores** (threads, plans, etc.) → No changes.
-12. **Individual content components** (ThreadContent, PlanContent, etc.) → No changes.
-13. **ResizablePanel** → Still used for left/right panels. Split resize handles are a new component.
+8. **`tree-menu/` store + service** → No changes. Still tracks `selectedItemId`.
+9. **`layout/` store** → Still tracks panel widths for left/right panels. Split sizes are in the new layout store.
+10. **All entity stores** (threads, plans, etc.) → No changes.
+11. **Individual content components** (ThreadContent, PlanContent, etc.) → No changes.
+12. **ResizablePanel** → Still used for left/right panels. Split resize handles are a new component.
 
 ---
 
@@ -611,24 +650,29 @@ src/components/split-layout/
 
 ## Phases
 
-- [ ] Create pane-layout store, service, types with Zod schemas and migration from content-panes format
+- [ ] Create pane-layout store, service, types with Zod schemas and default state
 - [ ] Build SplitLayoutContainer and SplitNodeRenderer for recursive layout rendering (single group first, no splits)
-- [ ] Build PaneGroup, TabBar, and TabItem components with tab switching, closing, and opening
-- [ ] Wire navigation service to pane-layout service; add Cmd+Click for new tab support
+- [ ] Build PaneGroup, TabBar, and TabItem components with tab switching, closing (left-neighbor), status dots, and sidebar-matching labels
+- [ ] Wire navigation service to pane-layout service; add Cmd+Click for new tab; implement find-and-focus dedup
 - [ ] Implement split operations: split group, resize handles, collapse on empty
-- [ ] Add drag-and-drop for tab reordering within groups and moving between groups
-- [ ] Add drop zone overlay for drag-to-split (drop on edge creates new split)
-- [ ] Add keyboard shortcuts for tab and group navigation
-- [ ] Add split depth constraints (4 wide, 3 high) and edge case handling (archive events, streaming indicators)
-- [ ] Update persistence, test migration from old format, and verify disk-as-truth round-trips
+- [ ] Add drag-and-drop for tab reordering within groups and moving between groups (dnd-kit with single DndContext)
+- [ ] Add drop zone overlay for drag-to-split (custom edge detection, ~30px threshold)
+- [ ] Add split depth constraints (4 wide, 3 high) and edge case handling (archive events, streaming indicators, max 5 tabs)
+- [ ] Wire up all visible thread tabs to stay actively updated (not just focused one)
+- [ ] Verify persistence round-trips and default state bootstrapping
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
-## Open Questions
+## Decisions Made
 
-1. **Cmd+1-9 conflict**: Should tab switching use Cmd+1-9 (VS Code default, conflicts with quick actions) or Cmd+Option+1-9?
-2. **Tab deduplication**: When navigating to a thread that's already open in another group, should we focus that tab or open a duplicate? (VS Code focuses existing by default, but allows duplicates via Cmd+Click)
-3. **Header vs Tab Bar**: Should the current `ContentPaneHeader` be merged into the tab bar, or kept as a sub-header below tabs for view-specific controls (like the thread conversation/changes toggle)?
-4. **Tab close behavior**: When closing a tab, should the previously-active tab become active (MRU order) or the adjacent tab?
+1. **Keyboard shortcuts**: Out of scope for now. No tab switching shortcuts, no split shortcuts.
+2. **Tab deduplication**: Default click finds and focuses existing tab across all groups. Cmd+Click always opens new tab (even if duplicate).
+3. **Header placement**: `ContentPaneHeader` kept as sub-header below tab bar for view-specific controls.
+4. **Tab close behavior**: Activate left neighbor (or right if leftmost closed). MRU history is out of scope (separate workflow).
+5. **Tab labels**: Mirror sidebar labels exactly (same data sources as `useTreeData()`).
+6. **Max tabs**: 5 per group, LRU eviction.
+7. **No migration**: Fresh default state, no backwards compatibility with `content-panes.json`.
+8. **DnD library**: Keep dnd-kit for tab reorder/cross-container. Custom edge detection for drag-to-split zones.
+9. **Visible threads**: All visible thread tabs (active tab in any rendered group) stay actively updated with streaming/status.

@@ -4,6 +4,7 @@
 import { useCallback, useMemo } from "react";
 import { useTerminalSessionStore } from "./store";
 import { terminalSessionService } from "./service";
+import { getOutputBuffer } from "./output-buffer";
 import type { TerminalSession } from "./types";
 
 /**
@@ -39,9 +40,10 @@ export function useTerminalSession(
 
 /**
  * Hook to get the output buffer for a terminal.
+ * Reads from the plain Map (not Zustand) — snapshot at call time.
  */
 export function useTerminalOutputBuffer(id: string): string {
-  return useTerminalSessionStore((state) => state.outputBuffers[id] || "");
+  return getOutputBuffer(id);
 }
 
 /**

@@ -80,6 +80,11 @@ export type {
   CreatePullRequestInput,
 } from "./pull-requests/types";
 
+// Comments
+export { useCommentStore } from "./comments/store";
+export { commentService } from "./comments/service";
+export type { InlineComment } from "./comments/types";
+
 // Gateway Channels
 export { useGatewayChannelStore } from "./gateway-channels/store";
 export { gatewayChannelService } from "./gateway-channels/service";
@@ -111,6 +116,8 @@ import { draftService } from "./drafts/service";
 import { setupTerminalListeners } from "./terminal-sessions/listeners";
 import { syncManagedSkills } from "@/lib/skill-sync";
 import { setupStreamingListeners } from "@/stores/streaming-store";
+import { setupApiHealthListeners } from "./api-health/listeners";
+import { setupCommentListeners } from "./comments/listeners";
 import { pullRequestService } from "./pull-requests/service";
 import { setupPullRequestListeners } from "./pull-requests/listeners";
 import { gatewayChannelService } from "./gateway-channels/service";
@@ -145,6 +152,9 @@ export async function hydrateEntities(options: EntityInitOptions = {}): Promise<
       relationService.hydrate(),
     ]);
     logger.log("[entities:hydrate] Core entities hydrated successfully");
+
+    // Clean up orphaned relation edges (both sides missing → delete, one side → archive)
+    await relationService.cleanupOrphaned();
 
     // After plans are hydrated, refresh parent relationships for all repos
     // This ensures the isFolder and parentId fields are up-to-date
@@ -237,6 +247,8 @@ export function setupEntityListeners(options: EntityInitOptions = {}): void {
   setupQuickActionListeners();
   setupTerminalListeners();
   setupStreamingListeners();
+  setupApiHealthListeners();
+  setupCommentListeners();
 
   // Gateway event routing + PR webhook handlers: main window only.
   // These listeners process SSE events and spawn agents — running them in

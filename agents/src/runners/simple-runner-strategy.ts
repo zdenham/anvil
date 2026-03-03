@@ -554,7 +554,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     }
 
     generateThreadName(prompt, apiKey)
-      .then(async (name) => {
+      .then(async ({ name, usedFallback }) => {
         // Update thread metadata with name
         const threadMetadataPath = join(threadPath, "metadata.json");
         if (existsSync(threadMetadataPath)) {
@@ -569,19 +569,24 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
                 updatedAt: Date.now(),
               };
               writeFileSync(threadMetadataPath, JSON.stringify(updated, null, 2));
-              emitLog("INFO", `[thread-naming] Generated name: "${name}"`);
+              emitLog("INFO", `[thread-naming] Generated name: "${name}"${usedFallback ? " (fallback model)" : ""}`);
             }
           } catch (err) {
             emitLog("ERROR", `[thread-naming] Failed to update metadata: ${err}`);
           }
         }
 
+        if (usedFallback) {
+          events.apiDegraded("thread-naming", "Haiku unavailable, used Sonnet fallback for thread naming");
+        }
+
         // Broadcast event for UI
         events.threadNameGenerated(threadId, name);
       })
       .catch((error) => {
-        // Log error but don't fail the main agent flow
+        // Both models failed — notify UI
         emitLog("WARN", `[thread-naming] Failed to generate name: ${error instanceof Error ? error.message : String(error)}`);
+        events.apiDegraded("thread-naming", "Thread naming failed — Anthropic API may be down");
       });
   }
 
@@ -606,8 +611,8 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     emitLog("INFO", "[worktree_rename] API key present, calling generateWorktreeName...");
 
     generateWorktreeName(prompt, apiKey)
-      .then((name) => {
-        emitLog("INFO", `[worktree_rename] generateWorktreeName resolved with name: "${name}"`);
+      .then(({ name, usedFallback }) => {
+        emitLog("INFO", `[worktree_rename] generateWorktreeName resolved with name: "${name}"${usedFallback ? " (fallback model)" : ""}`);
 
         // Write to disk FIRST (same pattern as thread naming)
         try {
@@ -618,17 +623,22 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
           // Continue to emit event anyway - frontend listener can serve as backup
         }
 
+        if (usedFallback) {
+          events.apiDegraded("worktree-naming", "Haiku unavailable, used Sonnet fallback for worktree naming");
+        }
+
         // Emit event for UI refresh
         emitLog("INFO", `[worktree_rename] Emitting worktree:name:generated event for worktreeId=${worktreeId}, repoId=${repoId}, name="${name}"`);
         events.worktreeNameGenerated(worktreeId, repoId, name);
         emitLog("INFO", `[worktree_rename] Event emitted successfully`);
       })
       .catch((error) => {
-        // Log error but don't fail the main agent flow
+        // Both models failed — notify UI
         emitLog("WARN", `[worktree_rename] generateWorktreeName failed: ${error instanceof Error ? error.message : String(error)}`);
         if (error instanceof Error && error.stack) {
           emitLog("WARN", `[worktree_rename] Stack trace: ${error.stack}`);
         }
+        events.apiDegraded("worktree-naming", "Worktree naming failed — Anthropic API may be down");
       });
   }
 

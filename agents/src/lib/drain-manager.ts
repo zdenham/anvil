@@ -23,6 +23,7 @@ export class DrainManager {
   emit<E extends DrainEventNameType>(
     event: E,
     properties: DrainEventPayloads[E],
+    source?: string,
   ): void {
     if (!this.hub?.isConnected) return;
 
@@ -34,7 +35,7 @@ export class DrainManager {
         flat[k] = v as string | number | boolean;
       }
     }
-    this.hub.sendDrain(event, flat);
+    this.hub.sendDrain(event, flat, source);
   }
 
   /**

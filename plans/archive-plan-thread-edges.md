@@ -43,9 +43,9 @@ After hydration completes, scan all loaded relations and remove any where **neit
 
 ## Phases
 
-- [ ] Update `archiveByPlan` and `archiveByThread` to move files to archive dir and remove from store
-- [ ] Add `cleanupOrphaned()` method that removes relations with no active plan or thread
-- [ ] Call `cleanupOrphaned()` during hydration in `hydrateEntities()`
+- [x] Update `archiveByPlan` and `archiveByThread` to move files to archive dir and remove from store
+- [x] Add `cleanupOrphaned()` method that removes relations with no active plan or thread
+- [x] Call `cleanupOrphaned()` during hydration in `hydrateEntities()`
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

@@ -1,6 +1,8 @@
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join, isAbsolute, relative } from "path";
 import { z } from "zod";
+import { compare } from "fast-json-patch";
+import { nanoid } from "nanoid";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ThreadWriter } from "./services/thread-writer.js";
 import { logger } from "./lib/logger.js";
@@ -43,6 +45,12 @@ let metadataPath: string;
 let state: ThreadState;
 let threadWriter: ThreadWriter | null = null;
 let hubClient: HubClient | null = null;
+
+/** Previous emitted state snapshot for computing JSON Patch diffs. */
+let previousEmittedState: ThreadState | null = null;
+
+/** Last event chain ID for linking sequential state emissions. */
+let lastEventId: string | null = null;
 
 /** Track last logged connection state to avoid spamming on every write. */
 let lastLoggedConnectionState: string | null = null;
@@ -119,6 +127,11 @@ export async function initState(
   statePath = join(threadPath, "state.json");
   metadataPath = join(threadPath, "metadata.json");
   threadWriter = writer ?? null;
+
+  // Reset event chain so first emission sends full state snapshot
+  previousEmittedState = null;
+  lastEventId = null;
+
   state = {
     messages: priorMessages,
     fileChanges: priorFileChanges ?? [],
@@ -135,7 +148,10 @@ export async function initState(
 
 /**
  * Emit current state to socket and write to file.
- * Each emission is a complete state snapshot.
+ *
+ * Computes JSON Patch diffs between previous and current state, then sends
+ * a StateEvent with patches (or full state on first emission). Each event
+ * carries a unique ID and a pointer to the previous event for gap detection.
  *
  * IMPORTANT: Disk write completes BEFORE socket emit (disk-as-truth pattern).
  * This ensures UI can safely read from disk when it receives the event signal.
@@ -146,24 +162,51 @@ export async function initState(
  */
 export async function emitState(): Promise<void> {
   state.timestamp = Date.now();
-  const payload = { ...state };
+  const snapshot = structuredClone(state);
 
-  // Write to disk FIRST (await completion)
+  // Write to disk FIRST (await completion) — full state, disk-as-truth preserved
+  await writeStateToDisk(snapshot);
+
+  // Build and emit state event with patch diffs
+  const eventId = nanoid();
+  const previousEventId = lastEventId;
+
+  if (previousEmittedState) {
+    const patches = compare(previousEmittedState, snapshot);
+    emitViaSocket(() => hubClient?.sendStateEvent({
+      id: eventId,
+      previousEventId,
+      patches,
+    }));
+  } else {
+    // First emit or after reset — send full state
+    emitViaSocket(() => hubClient?.sendStateEvent({
+      id: eventId,
+      previousEventId: null,
+      patches: [],
+      full: snapshot,
+    }));
+  }
+
+  previousEmittedState = snapshot;
+  lastEventId = eventId;
+}
+
+/**
+ * Write state to disk via ThreadWriter or direct sync write.
+ * Extracted from emitState to keep function size manageable.
+ */
+async function writeStateToDisk(payload: ThreadState): Promise<void> {
   if (threadWriter) {
     try {
       await threadWriter.writeState(payload);
     } catch (err) {
       logger.warn(`[output] Failed to write state via ThreadWriter: ${err}`);
-      // Fallback to direct write if ThreadWriter fails
       writeFileSync(statePath, JSON.stringify(payload, null, 2));
     }
   } else {
-    // No ThreadWriter - use direct sync write
     writeFileSync(statePath, JSON.stringify(payload, null, 2));
   }
-
-  // Emit via socket — HubClient handles queueing during reconnection
-  emitViaSocket(() => hubClient?.sendState(payload));
 }
 
 /**

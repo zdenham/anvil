@@ -25,6 +25,7 @@ import { LogsPage } from "../main-window/logs-page";
 import { useContentSearch } from "./use-content-search";
 import { InputStoreProvider } from "@/stores/input-store";
 import { useSearchState } from "@/stores/search-state";
+import { DiffCommentProvider } from "@/contexts/diff-comment-context";
 import { logger } from "@/lib/logger-client";
 import type { ContentPaneProps, ContentPaneView } from "./types";
 
@@ -138,20 +139,43 @@ export function ContentPane({
         )}
         <InputStoreProvider active>
           {view.type === "empty" && <EmptyPaneContent />}
-          {view.type === "thread" && threadTab === "conversation" && (
-            <ThreadContent
-              threadId={view.threadId}
-              onPopOut={onPopOut}
-              autoFocus={view.autoFocus}
-              initialPrompt={initialPrompt}
-            />
+          {view.type === "thread" && activeMetadata?.worktreeId && (
+            <DiffCommentProvider worktreeId={activeMetadata.worktreeId} threadId={view.threadId}>
+              {threadTab === "conversation" && (
+                <ThreadContent
+                  threadId={view.threadId}
+                  onPopOut={onPopOut}
+                  autoFocus={view.autoFocus}
+                  initialPrompt={initialPrompt}
+                />
+              )}
+              {threadTab === "changes" && activeMetadata && (
+                <ChangesTab
+                  threadMetadata={activeMetadata}
+                  threadState={activeState}
+                  isLoadingThreadState={isLoadingThreadState}
+                />
+              )}
+            </DiffCommentProvider>
           )}
-          {view.type === "thread" && threadTab === "changes" && activeMetadata && (
-            <ChangesTab
-              threadMetadata={activeMetadata}
-              threadState={activeState}
-              isLoadingThreadState={isLoadingThreadState}
-            />
+          {view.type === "thread" && !activeMetadata?.worktreeId && (
+            <>
+              {threadTab === "conversation" && (
+                <ThreadContent
+                  threadId={view.threadId}
+                  onPopOut={onPopOut}
+                  autoFocus={view.autoFocus}
+                  initialPrompt={initialPrompt}
+                />
+              )}
+              {threadTab === "changes" && activeMetadata && (
+                <ChangesTab
+                  threadMetadata={activeMetadata}
+                  threadState={activeState}
+                  isLoadingThreadState={isLoadingThreadState}
+                />
+              )}
+            </>
           )}
           {view.type === "plan" && (
             <PlanContent planId={view.planId} onPopOut={onPopOut} />

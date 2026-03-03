@@ -15,7 +15,7 @@ export class ReconnectQueue {
 
   constructor(private maxSize = DEFAULT_MAX_SIZE) {}
 
-  /** Enqueue a message with smart dedup for state messages. */
+  /** Enqueue a message with smart dedup for state and state_event messages. */
   push(msg: SocketMessage): void {
     if (msg.type === "state") {
       const idx = this.queue.findIndex(
@@ -27,9 +27,22 @@ export class ReconnectQueue {
       }
     }
 
+    if (msg.type === "state_event") {
+      const idx = this.queue.findIndex(
+        (m) => m.type === "state_event" && m.threadId === msg.threadId,
+      );
+      if (idx >= 0) {
+        // Replace with latest event, force full resync after reconnect
+        this.queue[idx] = { ...msg, previousEventId: null };
+        return;
+      }
+    }
+
     if (this.queue.length >= this.maxSize) {
-      // Drop oldest non-state message to make room
-      const dropIdx = this.queue.findIndex((m) => m.type !== "state");
+      // Drop oldest non-state/non-state_event message to make room
+      const dropIdx = this.queue.findIndex(
+        (m) => m.type !== "state" && m.type !== "state_event",
+      );
       if (dropIdx >= 0) {
         this.queue.splice(dropIdx, 1);
       } else {

@@ -221,6 +221,12 @@ export const gitCommands = {
    */
   showFile: (cwd: string, path: string, gitRef: string) =>
     invoke<string>("git_show_file", { cwd, path, gitRef }),
+
+  /**
+   * Fetch from a remote to update refs.
+   */
+  fetch: (repoPath: string, remote?: string) =>
+    invoke<void>("git_fetch", { repoPath, remote }),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

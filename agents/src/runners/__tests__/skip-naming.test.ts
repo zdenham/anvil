@@ -11,12 +11,12 @@ vi.mock("../shared.js", () => ({
 
 // Mock thread-naming-service
 vi.mock("../../services/thread-naming-service.js", () => ({
-  generateThreadName: vi.fn().mockResolvedValue("mock-name"),
+  generateThreadName: vi.fn().mockResolvedValue({ name: "mock-name", usedFallback: false }),
 }));
 
 // Mock worktree-naming-service
 vi.mock("../../services/worktree-naming-service.js", () => ({
-  generateWorktreeName: vi.fn().mockResolvedValue("mock-worktree"),
+  generateWorktreeName: vi.fn().mockResolvedValue({ name: "mock-worktree", usedFallback: false }),
 }));
 
 // Mock events module
@@ -24,6 +24,7 @@ vi.mock("../../lib/events.js", () => ({
   events: {
     threadNameGenerated: vi.fn(),
     worktreeNameGenerated: vi.fn(),
+    apiDegraded: vi.fn(),
   },
 }));
 

@@ -69,6 +69,15 @@ const BROADCAST_EVENTS = [
 
   // Thread naming
   EventName.THREAD_NAME_GENERATED,
+
+  // API health
+  EventName.API_DEGRADED,
+
+  // Comments
+  EventName.COMMENT_ADDED,
+  EventName.COMMENT_UPDATED,
+  EventName.COMMENT_RESOLVED,
+  EventName.COMMENT_DELETED,
 ] as const;
 
 /**

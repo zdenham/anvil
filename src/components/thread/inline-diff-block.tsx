@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { parseDiff } from "@/lib/diff-parser";
 import { sanitizeTestId } from "@/lib/utils/index";
 import { AnnotatedLineRow } from "../diff-viewer/annotated-line-row";
@@ -11,7 +11,13 @@ import { InlineDiffHeader } from "./inline-diff-header";
 
 import { CollapsibleOutputBlock } from "../ui/collapsible-output-block";
 import { useDiffHighlight } from "@/hooks/use-diff-highlight";
+import { useOptionalDiffCommentStore, useDiffCommentStore } from "@/contexts/diff-comment-context";
+import { useCommentStore } from "@/entities/comments/store";
+import { commentService } from "@/entities/comments/service";
+import { InlineCommentForm } from "../diff-viewer/inline-comment-form";
+import { InlineCommentDisplay } from "../diff-viewer/inline-comment-display";
 import type { AnnotatedLine, ParsedDiffFile } from "../diff-viewer/types";
+import type { InlineComment } from "@core/types/comments.js";
 
 interface InlineDiffBlockProps {
   /** Absolute file path */
@@ -189,7 +195,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
         onCollapseAll={collapsedRegions.collapseAll}
       />
 
-      {/* Diff content — hidden when file is collapsed */}
+      {/* Diff content -- hidden when file is collapsed */}
       {!isFileCollapsed && (
         <>
           {/* Wrapped in collapsible container for large diffs */}
@@ -201,10 +207,10 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
               maxCollapsedHeight={COLLAPSED_MAX_HEIGHT}
               className="border-0 rounded-none"
             >
-              <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
+              <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} filePath={filePath} />
             </CollapsibleOutputBlock>
           ) : (
-            <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />
+            <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} filePath={filePath} />
           )}
         </>
       )}
@@ -215,6 +221,35 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
 
 /** Extracted diff content to avoid duplication between collapsed and non-collapsed paths */
 function DiffContent({
+  renderItems,
+  testId,
+  collapsedRegions,
+  filePath,
+}: {
+  renderItems: ReturnType<typeof buildRenderItems>;
+  testId: string;
+  collapsedRegions: ReturnType<typeof useCollapsedRegions>;
+  filePath: string;
+}) {
+  const commentStore = useOptionalDiffCommentStore();
+  const isCommentable = commentStore !== null;
+
+  if (!isCommentable) {
+    return <DiffContentPlain renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} />;
+  }
+
+  return (
+    <DiffContentWithComments
+      renderItems={renderItems}
+      testId={testId}
+      collapsedRegions={collapsedRegions}
+      filePath={filePath}
+    />
+  );
+}
+
+/** Plain rendering (no comment provider present) */
+function DiffContentPlain({
   renderItems,
   testId,
   collapsedRegions,
@@ -254,6 +289,94 @@ function DiffContent({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** Rendering with comment support (inside DiffCommentProvider) */
+function DiffContentWithComments({
+  renderItems,
+  testId,
+  collapsedRegions,
+  filePath,
+}: {
+  renderItems: ReturnType<typeof buildRenderItems>;
+  testId: string;
+  collapsedRegions: ReturnType<typeof useCollapsedRegions>;
+  filePath: string;
+}) {
+  const worktreeId = useDiffCommentStore((s) => s.worktreeId);
+  const threadId = useDiffCommentStore((s) => s.threadId);
+  const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null);
+
+  // Lazy-load comments for this worktree
+  useEffect(() => {
+    commentService.loadForWorktree(worktreeId);
+  }, [worktreeId]);
+
+  // Subscribe to comments for this file
+  const comments = useCommentStore(
+    useCallback(
+      (s) => s.getByFile(worktreeId, filePath, threadId),
+      [worktreeId, filePath, threadId],
+    ),
+  );
+
+  // Pre-compute comments by line number
+  const commentsByLine = useMemo(() => {
+    const map = new Map<number, InlineComment[]>();
+    for (const c of comments) {
+      const existing = map.get(c.lineNumber) ?? [];
+      existing.push(c);
+      map.set(c.lineNumber, existing);
+    }
+    return map;
+  }, [comments]);
+
+  const handleCommentClick = useCallback((lineNumber: number) => {
+    setActiveCommentLine((prev) => (prev === lineNumber ? null : lineNumber));
+  }, []);
+
+  return (
+    <div className="bg-surface-900/50 overflow-x-auto">
+      {renderItems.map((item) => {
+        if (item.type === "collapsed") {
+          const regionId = `${testId}-region-${item.regionIndex}`;
+          const isExpanded = collapsedRegions.isExpanded(item.regionIndex);
+
+          return (
+            <CollapsedRegionPlaceholder
+              key={`region-${item.regionIndex}`}
+              region={item.region}
+              regionId={regionId}
+              isExpanded={isExpanded}
+              onToggle={() => collapsedRegions.toggle(item.regionIndex)}
+            />
+          );
+        }
+
+        const lineNumber = item.line.newLineNumber ?? item.line.oldLineNumber ?? 0;
+        const lineComments = commentsByLine.get(lineNumber) ?? [];
+
+        return (
+          <div key={`line-${item.lineIndex}`}>
+            <AnnotatedLineRow
+              line={item.line}
+              onLineClick={handleCommentClick}
+              hasComments={lineComments.length > 0}
+            />
+            {activeCommentLine === lineNumber && (
+              <InlineCommentForm
+                filePath={filePath}
+                lineNumber={lineNumber}
+                lineType={item.line.type === "unchanged" ? "unchanged" : item.line.type}
+                onClose={() => setActiveCommentLine(null)}
+              />
+            )}
+            <InlineCommentDisplay comments={lineComments} />
+          </div>
+        );
+      })}
     </div>
   );
 }

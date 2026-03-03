@@ -11,6 +11,18 @@ import { logger } from "@/lib/logger-client";
  * Coordinates between the Rust PTY backend and the frontend store.
  */
 class TerminalSessionService {
+  private readonly encoder = new TextEncoder();
+  private readonly numericIds = new Map<string, number>();
+
+  private getNumericId(id: string): number {
+    let n = this.numericIds.get(id);
+    if (n === undefined) {
+      n = parseInt(id, 10);
+      this.numericIds.set(id, n);
+    }
+    return n;
+  }
+
   /**
    * Creates a new terminal session.
    */
@@ -67,7 +79,8 @@ class TerminalSessionService {
     logger.info("[TerminalService] Archiving terminal", { terminalId: id });
 
     try {
-      await invoke("kill_terminal", { id: parseInt(id, 10) });
+      await invoke("kill_terminal", { id: this.getNumericId(id) });
+      this.numericIds.delete(id);
       useTerminalSessionStore.getState().removeSession(id);
 
       logger.info("[TerminalService] Terminal archived", { terminalId: id });
@@ -84,8 +97,8 @@ class TerminalSessionService {
    * Writes data to a terminal's PTY.
    */
   async write(id: string, data: string): Promise<void> {
-    const bytes = Array.from(new TextEncoder().encode(data));
-    await invoke("write_terminal", { id: parseInt(id, 10), data: bytes });
+    const bytes = Array.from(this.encoder.encode(data));
+    await invoke("write_terminal", { id: this.getNumericId(id), data: bytes });
   }
 
   /**
@@ -93,7 +106,7 @@ class TerminalSessionService {
    */
   async resize(id: string, cols: number, rows: number): Promise<void> {
     await invoke("resize_terminal", {
-      id: parseInt(id, 10),
+      id: this.getNumericId(id),
       cols,
       rows,
     });

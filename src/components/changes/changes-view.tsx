@@ -12,6 +12,7 @@ import { useChangesData } from "./use-changes-data";
 import { ChangesDiffContent, type ChangesDiffContentRef } from "./changes-diff-content";
 import { MAX_DISPLAYED_FILES } from "./changes-diff-fetcher";
 import { useChangesViewStore } from "@/stores/changes-view-store";
+import { DiffCommentProvider } from "@/contexts/diff-comment-context";
 
 function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: ChangesContentProps) {
   const data = useChangesData({ repoId, worktreeId, uncommittedOnly, commitHash });
@@ -66,36 +67,38 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <SummaryHeader
-        fileCount={data.totalFileCount}
-        files={data.files}
-        mergeBase={data.mergeBase}
-        defaultBranch={data.defaultBranch}
-        branchName={data.branchName}
-        uncommittedOnly={uncommittedOnly}
-        commitHash={commitHash}
-      />
-
-      <div className="flex-1 min-h-0">
-        <ChangesDiffContent
-          ref={diffContentRef}
+    <DiffCommentProvider worktreeId={worktreeId}>
+      <div className="flex flex-col h-full">
+        <SummaryHeader
+          fileCount={data.totalFileCount}
           files={data.files}
-          rawDiffsByFile={data.rawDiffsByFile}
-          fileContents={data.fileContents}
-          totalFileCount={data.totalFileCount}
-          worktreePath={data.worktreePath}
-          commitHash={commitHash}
+          mergeBase={data.mergeBase}
+          defaultBranch={data.defaultBranch}
+          branchName={data.branchName}
           uncommittedOnly={uncommittedOnly}
+          commitHash={commitHash}
         />
-      </div>
 
-      {data.totalFileCount > MAX_DISPLAYED_FILES && (
-        <div className="px-4 py-2 text-xs text-surface-500 border-t border-surface-700">
-          Showing {MAX_DISPLAYED_FILES} of {data.totalFileCount} files
+        <div className="flex-1 min-h-0">
+          <ChangesDiffContent
+            ref={diffContentRef}
+            files={data.files}
+            rawDiffsByFile={data.rawDiffsByFile}
+            fileContents={data.fileContents}
+            totalFileCount={data.totalFileCount}
+            worktreePath={data.worktreePath}
+            commitHash={commitHash}
+            uncommittedOnly={uncommittedOnly}
+          />
         </div>
-      )}
-    </div>
+
+        {data.totalFileCount > MAX_DISPLAYED_FILES && (
+          <div className="px-4 py-2 text-xs text-surface-500 border-t border-surface-700">
+            Showing {MAX_DISPLAYED_FILES} of {data.totalFileCount} files
+          </div>
+        )}
+      </div>
+    </DiffCommentProvider>
   );
 }
 

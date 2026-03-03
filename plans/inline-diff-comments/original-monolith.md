@@ -7,14 +7,14 @@ Add the ability to leave inline comments on any line in a diff view, persist the
 - [ ] Define types and disk schema for inline comments
 - [ ] Create comment store and service (entity layer)
 - [ ] Add event definitions for comment lifecycle
-- [ ] Add diff context provider (worktreeId + optional threadId)
+- [ ] Add Zustand-in-context provider for diff comment scope
 - [ ] Build UI: comment gutter button and inline comment form
 - [ ] Build UI: comment display and resolution controls
 - [ ] Wire diff components to render comments via context
 - [ ] Add "Address Comments" agent spawn flow
 - [ ] Add agent-side comment resolution protocol
 - [ ] Hook up agent event listener to mark comments resolved in store
-- [ ] Write tests for comment store, service, and resolver
+- [ ] Write tests for comment store, service, resolver, and archiving
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -49,6 +49,49 @@ Worktree (primary key)
 - The UI filters by threadId when viewing a specific thread's changes
 - The standalone worktree changes view shows all comments for that worktree
 - "Address Comments" in a thread context sends only that thread's comments to the agent; in worktree context it sends all unresolved comments (or prompts the user to pick a thread to route to)
+
+### Performance and Lifecycle
+
+Comments can accumulate over time. The following strategies keep things performant:
+
+**1. Archive resolved comments on load**
+
+When `commentService.loadForWorktree()` reads from disk, it separates resolved comments older than 7 days into an archive file (`comments/{worktreeId}.archive.json`). The archive is append-only and never loaded into the store — it exists purely for historical reference. The active file keeps only unresolved comments and recently resolved ones (< 7 days).
+
+```typescript
+const RESOLVED_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function partitionStale(comments: InlineComment[]): {
+  active: InlineComment[];
+  stale: InlineComment[];
+} {
+  const cutoff = Date.now() - RESOLVED_TTL_MS;
+  const active: InlineComment[] = [];
+  const stale: InlineComment[] = [];
+  for (const c of comments) {
+    if (c.resolved && c.resolvedAt !== null && c.resolvedAt <= cutoff) {
+      stale.push(c);
+    } else {
+      active.push(c);
+    }
+  }
+  return { active, stale };
+}
+```
+
+This runs only at load time (not on every mutation), so the cost is bounded to one pass per diff view open. Stale comments are appended to the archive file and removed from the active file.
+
+**2. Worktree lifecycle cleanup**
+
+Comments are cleaned up on `WORKTREE_RELEASED` (see Phase 2 listeners). When a worktree is archived/deleted, both the active and archive files are removed from disk and the store is cleared. This is the primary cleanup mechanism — most worktrees are short-lived.
+
+**3. Comment cap per worktree**
+
+If a worktree file exceeds 200 unresolved comments, the service logs a warning and the UI shows a notice suggesting the user resolve or delete stale comments. This is a soft cap — no automatic deletion of unresolved comments.
+
+**4. Memoized selectors in components**
+
+Components that read comments use selectors with `useDiffCommentStore()` (Zustand-in-context) to avoid re-renders from unrelated store changes. Per-line comment lookups are pre-computed in the parent diff component (`Map<lineNumber, InlineComment[]>`) via `useMemo` and passed as props, not recomputed per row.
 
 ---
 
@@ -290,8 +333,48 @@ import { EventName } from "@core/types/events.js";
 import { CommentsFileSchema, type InlineComment } from "@core/types/comments.js";
 import { useCommentStore } from "./store";
 
+const RESOLVED_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const UNRESOLVED_WARN_THRESHOLD = 200;
+
 function commentsPath(worktreeId: string): string {
   return `comments/${worktreeId}.json`;
+}
+
+function archivePath(worktreeId: string): string {
+  return `comments/${worktreeId}.archive.json`;
+}
+
+/** Separate stale resolved comments from active ones. */
+function partitionStale(comments: InlineComment[]): {
+  active: InlineComment[];
+  stale: InlineComment[];
+} {
+  const cutoff = Date.now() - RESOLVED_TTL_MS;
+  const active: InlineComment[] = [];
+  const stale: InlineComment[] = [];
+  for (const c of comments) {
+    if (c.resolved && c.resolvedAt !== null && c.resolvedAt <= cutoff) {
+      stale.push(c);
+    } else {
+      active.push(c);
+    }
+  }
+  return { active, stale };
+}
+
+/** Append stale comments to the archive file (never loaded into store). */
+async function appendToArchive(
+  worktreeId: string,
+  stale: InlineComment[],
+): Promise<void> {
+  const path = archivePath(worktreeId);
+  const raw = await appData.readJson<unknown>(path);
+  const parsed = raw ? CommentsFileSchema.safeParse(raw) : null;
+  const existing = parsed?.success ? parsed.data.comments : [];
+  await appData.writeJson(path, {
+    version: 1,
+    comments: [...existing, ...stale],
+  });
 }
 
 /** Read-modify-write helper. Reads current file, applies mutation, writes back. */
@@ -328,7 +411,26 @@ export const commentService = {
       return;
     }
 
-    useCommentStore.getState().hydrate(worktreeId, parsed.data.comments);
+    // Archive stale resolved comments to separate file
+    const { active, stale } = partitionStale(parsed.data.comments);
+    if (stale.length > 0) {
+      await appendToArchive(worktreeId, stale);
+      await appData.writeJson(commentsPath(worktreeId), {
+        version: 1,
+        comments: active,
+      });
+    }
+
+    // Warn if unresolved count is high
+    const unresolvedCount = active.filter((c) => !c.resolved).length;
+    if (unresolvedCount >= UNRESOLVED_WARN_THRESHOLD) {
+      logger.warn("[CommentService] High unresolved comment count", {
+        worktreeId,
+        unresolvedCount,
+      });
+    }
+
+    useCommentStore.getState().hydrate(worktreeId, active);
   },
 
   async create(params: {
@@ -443,6 +545,7 @@ export const commentService = {
   async clearWorktree(worktreeId: string): Promise<void> {
     useCommentStore.getState()._applyClearWorktree(worktreeId);
     await appData.deleteFile(commentsPath(worktreeId));
+    await appData.deleteFile(archivePath(worktreeId));
   },
 };
 ```
@@ -544,25 +647,39 @@ Event payloads are intentionally minimal (just IDs) per the event bridge pattern
 
 ---
 
-## Phase 4: Diff Context Provider
+## Phase 4: Zustand-in-Context Provider
 
 **Files:**
 - `src/contexts/diff-comment-context.tsx` (new)
 - `src/components/content-pane/content-pane.tsx` (modify)
 - `src/components/changes/changes-view.tsx` (modify)
 
-### DiffCommentContext Provider
+### DiffCommentStore (Zustand-in-Context)
+
+Uses `createStore` (not `create`) to produce per-provider store instances, held in a React context. This gives selector-based subscriptions (no re-renders from unrelated changes) while scoping `worktreeId` + `threadId` to the diff subtree without prop drilling.
 
 ```typescript
 // src/contexts/diff-comment-context.tsx
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useRef, type ReactNode } from "react";
+import { createStore, useStore, type StoreApi } from "zustand";
 
-interface DiffCommentContextValue {
+interface DiffCommentState {
   worktreeId: string;
-  threadId: string | null; // null when viewing standalone worktree changes
+  threadId: string | null;
 }
 
-const DiffCommentContext = createContext<DiffCommentContextValue | null>(null);
+function createDiffCommentStore(
+  worktreeId: string,
+  threadId: string | null,
+): StoreApi<DiffCommentState> {
+  return createStore<DiffCommentState>(() => ({
+    worktreeId,
+    threadId,
+  }));
+}
+
+const DiffCommentStoreContext =
+  createContext<StoreApi<DiffCommentState> | null>(null);
 
 export function DiffCommentProvider({
   worktreeId,
@@ -573,40 +690,46 @@ export function DiffCommentProvider({
   threadId?: string | null;
   children: ReactNode;
 }) {
-  const value = useMemo(
-    () => ({ worktreeId, threadId: threadId ?? null }),
-    [worktreeId, threadId],
-  );
+  const storeRef = useRef<StoreApi<DiffCommentState>>(null);
+  if (storeRef.current === null) {
+    storeRef.current = createDiffCommentStore(worktreeId, threadId ?? null);
+  }
   return (
-    <DiffCommentContext.Provider value={value}>
+    <DiffCommentStoreContext.Provider value={storeRef.current}>
       {children}
-    </DiffCommentContext.Provider>
+    </DiffCommentStoreContext.Provider>
   );
 }
 
-/** Throws if not inside a DiffCommentProvider. */
-export function useDiffCommentContext(): DiffCommentContextValue {
-  const ctx = useContext(DiffCommentContext);
-  if (!ctx)
+/** Hook with selector support. Throws if not inside a DiffCommentProvider. */
+export function useDiffCommentStore<T>(
+  selector: (state: DiffCommentState) => T,
+): T {
+  const store = useContext(DiffCommentStoreContext);
+  if (!store) {
     throw new Error(
-      "useDiffCommentContext must be used within DiffCommentProvider",
+      "useDiffCommentStore must be used within DiffCommentProvider",
     );
-  return ctx;
+  }
+  return useStore(store, selector);
 }
 
-/** Returns null if not inside a DiffCommentProvider. */
-export function useOptionalDiffCommentContext(): DiffCommentContextValue | null {
-  return useContext(DiffCommentContext);
+/** Returns null if not inside a DiffCommentProvider (for optional usage). */
+export function useOptionalDiffCommentStore(): StoreApi<DiffCommentState> | null {
+  return useContext(DiffCommentStoreContext);
 }
 ```
 
-### Why a plain context (not Zustand-in-context)?
+### Why Zustand-in-context (not plain context or props)?
 
-`worktreeId` and `threadId` are stable for the lifetime of a diff view — they don't change while viewing a diff. A plain React context with `useMemo` is simpler and sufficient. No need for Zustand's selector pattern to avoid re-renders.
+- **Consistent with codebase patterns**: All domain data access uses Zustand stores with selector-based subscriptions. A plain `React.createContext` would be a new pattern.
+- **Selector subscriptions**: Components can select just `worktreeId` or just `threadId` without re-rendering when the other changes (though both are stable, this establishes the right pattern).
+- **No prop drilling**: `worktreeId` and `threadId` are needed deep in the diff tree (comment gutter button, comment form, comment display). Passing them through every intermediate component is noisy.
+- **Per-provider isolation**: Each diff view gets its own store instance via `createStore`. Thread changes tab and standalone worktree changes each get independent scopes.
 
 ### Integration Points
 
-**Thread views** — in `content-pane.tsx`, wrap thread content in the provider:
+**Thread views** — in `content-pane.tsx`, wrap thread content:
 
 ```typescript
 {view.type === "thread" && activeMetadata && (
@@ -617,7 +740,7 @@ export function useOptionalDiffCommentContext(): DiffCommentContextValue | null 
 )}
 ```
 
-**Standalone worktree changes view** — in `changes-view.tsx`, wrap the view in the provider (no threadId):
+**Standalone worktree changes view** — in `changes-view.tsx`:
 
 ```typescript
 <DiffCommentProvider worktreeId={worktreeId}>
@@ -640,7 +763,7 @@ Also update `src/contexts/index.ts` to export the new context.
 A small `+` icon button that appears on hover in the gutter area of each line row. Clicking it opens the inline comment form below that line.
 
 - Rendered inside `AnnotatedLineRow` as an absolutely-positioned overlay on the old-line-number cell
-- Only visible when `useOptionalDiffCommentContext()` returns a value (diff viewer is in "commentable" mode)
+- Only visible when `onLineClick` prop is provided (diff viewer is in "commentable" mode)
 - Shows on hover via CSS (`opacity-0 group-hover:opacity-100`)
 - `AnnotatedLineRow` currently has: `[old-line-no] [new-line-no] [+/-] [content]`
 
@@ -651,7 +774,7 @@ A small textarea that appears below the target line when the gutter button is cl
 - Spans the full width of the diff area
 - Submit on `Cmd+Enter` or button click
 - Cancel on `Escape`
-- Gets `worktreeId` and `threadId` from `useDiffCommentContext()` and calls `commentService.create()` on submit
+- Reads `worktreeId` and `threadId` from `useDiffCommentStore()`, calls `commentService.create()` on submit
 - Auto-focuses textarea on mount
 - Renders **outside** the `role="table"` structure to preserve ARIA semantics (see Phase 7)
 
@@ -673,13 +796,13 @@ For each line that has comments, render a comment block below the line row:
 - "Delete" button → calls `commentService.delete()`
 - Resolved comments shown with dimmed styling and a "Reopen" button (calls `commentService.unresolve()`)
 - Unresolved comments shown with accent left-border (amber/yellow)
-- When in a thread view, only shows comments for that thread (filtered by `threadId`)
+- When in a thread view, only shows comments for that thread (filtered by `threadId` from `useDiffCommentStore()`)
 - When in standalone worktree view, shows all comments
 - Renders **outside** the `role="table"` structure (see Phase 7)
 
 ### Comment Count Badge
 
-In the `InlineDiffHeader` component (`src/components/thread/inline-diff-header.tsx`), show a badge with unresolved comment count per file (e.g., "3 comments"). Uses `useOptionalDiffCommentContext()` + `useCommentStore.getByFile()`.
+In the `InlineDiffHeader` component (`src/components/thread/inline-diff-header.tsx`), show a badge with unresolved comment count per file. Reads `worktreeId` and `threadId` from `useDiffCommentStore()`, reads count from `useCommentStore` with a selective subscription.
 
 Similarly in `FileHeader` (`src/components/diff-viewer/file-header.tsx`).
 
@@ -700,7 +823,7 @@ Two distinct rendering paths both need comment support:
 
 2. **`DiffFileCard`** (`src/components/diff-viewer/diff-file-card.tsx`) — Used by `DiffViewer`. Has `DiffFileCardContent` that also renders `AnnotatedLineRow`.
 
-Both use `AnnotatedLineRow` at the leaf level. The comment gutter button lives in `AnnotatedLineRow` and activates only when `useOptionalDiffCommentContext()` provides a value.
+Both use `AnnotatedLineRow` at the leaf level. The comment gutter button lives in `AnnotatedLineRow` and activates only when `useOptionalDiffCommentStore()` returns a store (i.e., inside a `DiffCommentProvider`).
 
 ### Accessibility: Comments Outside Table Structure
 
@@ -709,55 +832,66 @@ Both rendering paths use `role="table"` → `role="rowgroup"` → `role="row"` f
 **Solution:** Restructure the rendering so each line + its comments are grouped together:
 
 ```tsx
-{renderItems.map((item) => (
-  <div key={item.key}>
-    {/* Table row stays inside role="table" */}
-    <AnnotatedLineRow line={item.line} onLineClick={handleCommentClick} />
-    {/* Comment UI renders outside the table */}
-    {commentContext && (
-      <>
-        {activeCommentLine === lineNumber && (
-          <InlineCommentForm ... />
-        )}
-        <InlineCommentDisplay
-          comments={commentsForLine}
-          onResolve={...}
-          onDelete={...}
-        />
-      </>
-    )}
-  </div>
-))}
+{renderItems.map((item) => {
+  const lineNumber = item.line.newLineNumber ?? item.line.oldLineNumber;
+  const commentsForLine = commentsByLine.get(lineNumber) ?? [];
+  return (
+    <div key={item.key}>
+      {/* Table row stays inside role="table" */}
+      <AnnotatedLineRow line={item.line} onLineClick={handleCommentClick} />
+      {/* Comment UI renders outside the table */}
+      {isCommentable && (
+        <>
+          {activeCommentLine === lineNumber && (
+            <InlineCommentForm
+              filePath={filePath}
+              lineNumber={lineNumber}
+              lineType={item.line.type}
+              onClose={() => setActiveCommentLine(null)}
+            />
+          )}
+          <InlineCommentDisplay comments={commentsForLine} />
+        </>
+      )}
+    </div>
+  );
+})}
 ```
+
+Note: `InlineCommentForm` and `InlineCommentDisplay` read `worktreeId`/`threadId` from `useDiffCommentStore()` internally — no need to pass them as props.
 
 The `role="table"` wrapper moves to wrap only the `AnnotatedLineRow` elements, or each line group uses `role="row"` only on the line itself (not the wrapping div).
 
 ### Changes
 
-1. **`AnnotatedLineRow`** (modify): Add hover overlay for `CommentGutterButton`. Uses `useOptionalDiffCommentContext()` to decide whether to show. Repurpose the existing `onLineClick` prop (currently unused in most contexts) as the comment trigger:
-   - `onLineClick?: (lineNumber: number) => void` — already exists, used for opening comment form
+1. **`AnnotatedLineRow`** (modify): Add hover overlay for `CommentGutterButton`. Uses `useOptionalDiffCommentStore()` to decide whether to show (returns null when not inside a provider):
+   - `onLineClick?: (lineNumber: number) => void` — already exists, repurposed for opening comment form
    - Add `hasComments?: boolean` — shows a small indicator dot in the gutter when true
    - Add `className="group"` to enable `group-hover:` CSS for the gutter button
 
-2. **`InlineDiffBlock`** (modify its inner `DiffContent`): When `useOptionalDiffCommentContext()` returns a value:
+2. **`InlineDiffBlock`** (modify its inner `DiffContent`): When `useOptionalDiffCommentStore()` returns a store:
+   - Reads `worktreeId` and `threadId` from `useDiffCommentStore()`
    - Calls `commentService.loadForWorktree(worktreeId)` on mount (lazy loading, via `useEffect`)
-   - Reads comments for this file from `useCommentStore.getByFile(worktreeId, filePath, threadId)`
+   - Reads comments for this file from `useCommentStore` with a selective subscription
+   - Pre-computes `commentsByLine: Map<number, InlineComment[]>` via `useMemo` — avoids per-row filtering
    - Manages `activeCommentLine` local state
    - Renders `InlineCommentForm` and `InlineCommentDisplay` after each `AnnotatedLineRow`
    - Passes `onLineClick` and `hasComments` to each `AnnotatedLineRow`
 
-3. **`DiffFileCardContent`** (modify): Same pattern as `InlineDiffBlock` — reads from comment store when in diff comment context, manages local comment form state, renders comment UI after line rows.
+3. **`DiffFileCardContent`** (modify): Same pattern as `InlineDiffBlock` — reads from `useDiffCommentStore()` for scope, reads from `useCommentStore` for data, manages local comment form state, renders comment UI after line rows.
 
 4. **`DiffViewer`** (no changes needed): Stays a pure component. The `DiffCommentProvider` wraps it upstream.
 
-### Props vs Context
+### Data Flow Summary
 
 | Data | Mechanism | Reason |
 |---|---|---|
-| `worktreeId` + `threadId` | `useDiffCommentContext()` | Stable for entire subtree, avoids drilling |
+| `worktreeId` + `threadId` | `useDiffCommentStore()` (Zustand-in-context) | Consistent Zustand pattern, avoids prop drilling |
+| Comment data | `useCommentStore` (global Zustand store) | Standard entity store access |
 | `onLineClick` | Existing prop from parent | Per-file UI callback |
-| `hasComments` | New prop from parent | Derived per-line, computed in parent |
+| `hasComments` | New prop from parent | Derived per-line, computed in parent via `commentsByLine` Map |
 | `activeCommentLine` | Local state in parent | Ephemeral UI state |
+| `commentsByLine` | `useMemo` in parent | Pre-computed Map for O(1) per-row lookup |
 
 ---
 
@@ -914,6 +1048,10 @@ Mock `appData` and test:
 - `loadForWorktree()` handles missing file (empty hydration)
 - `loadForWorktree()` handles corrupted file (warns, empty hydration)
 - `loadForWorktree()` no-ops if already hydrated
+- `loadForWorktree()` archives resolved comments older than 7 days to `.archive.json`
+- `loadForWorktree()` preserves recently resolved comments (< 7 days old) in active file
+- `loadForWorktree()` logs warning when unresolved count >= 200
+- `clearWorktree()` deletes both active and archive files
 - `create()` writes to disk via read-modify-write, updates store, emits event
 - `resolve()` sets resolved fields, persists, emits event
 - `delete()` removes from disk and store, emits event
@@ -966,9 +1104,17 @@ Comments are only relevant when viewing a diff. Loading all comments at startup 
 
 The entity stores pattern requires a single copy of each entity keyed by unique ID: `comments: Record<string, InlineComment>`. This enables O(1) lookup by comment ID (needed for resolve/delete operations) and prevents duplicate state. Worktree/thread/file filtering is done via selector methods that iterate the record.
 
-### Why DiffCommentContext instead of separate contexts?
+### Why Zustand-in-context (not plain context or props)?
 
-A single `DiffCommentContext` carries both `worktreeId` (always present) and `threadId` (present only in thread views). This works in both diff contexts with one provider and keeps the context surface minimal.
+The codebase uses Zustand for all domain data access with selector-based subscriptions. A plain `React.createContext` would introduce a different pattern. Using `createStore` + context gives per-provider store instances with selector support — consistent with the existing Zustand approach. Prop drilling was considered but `worktreeId`/`threadId` are needed deep in the diff tree (comment gutter button, comment form, comment display), making the context approach cleaner.
+
+### Why archive resolved comments to a separate file instead of deleting?
+
+Resolved comments have historical value — they document what feedback was given and addressed. Rather than deleting them, stale resolved comments (> 7 days) are moved to `comments/{worktreeId}.archive.json` on load. The archive file is append-only and never loaded into the store, so it doesn't affect runtime performance. It's cleaned up along with the active file when the worktree is released.
+
+### Why a soft cap (200) instead of hard limit?
+
+Unresolved comments represent active review feedback. Automatically deleting them could lose user intent. The 200-comment threshold triggers a warning (logger + optional UI notice) but doesn't block or delete. This matches the terminal buffer pattern (hard cap for output, not for user-created data).
 
 ### Why read-modify-write for every mutation?
 

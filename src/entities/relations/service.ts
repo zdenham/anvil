@@ -2,14 +2,21 @@ import { appData } from "@/lib/app-data-store";
 import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
 import { useRelationStore } from "./store";
+import { usePlanStore } from "../plans/store";
+import { useThreadStore } from "../threads/store";
 import type { PlanThreadRelation, RelationType } from "@core/types/relations.js";
 import { RELATION_TYPE_PRECEDENCE, PlanThreadRelationSchema } from "@core/types/relations.js";
 import { logger } from "@/lib/logger-client";
 
 const RELATIONS_DIR = "plan-thread-edges";
+const ARCHIVE_RELATIONS_DIR = "archive/plan-thread-edges";
 
 function getRelationPath(planId: string, threadId: string): string {
   return `${RELATIONS_DIR}/${planId}-${threadId}.json`;
+}
+
+function getArchiveRelationPath(planId: string, threadId: string): string {
+  return `${ARCHIVE_RELATIONS_DIR}/${planId}-${threadId}.json`;
 }
 
 function makeKey(planId: string, threadId: string): string {
@@ -118,53 +125,28 @@ class RelationService {
 
   /**
    * Archive relations for a thread.
-   * Per Decision #14: Relations are preserved when threads are archived.
-   * Sets archived=true but does NOT delete.
+   * Moves relation files to archive dir and removes from store.
    */
   async archiveByThread(threadId: string): Promise<void> {
     const store = useRelationStore.getState();
     const relations = store.getByThread(threadId);
 
     for (const relation of relations) {
-      const filePath = getRelationPath(relation.planId, relation.threadId);
-      const updates = { archived: true, updatedAt: Date.now() };
-
-      const rollback = store._applyUpdate(relation.planId, relation.threadId, updates);
-      try {
-        const raw = await appData.readJson<PlanThreadRelation>(filePath);
-        const merged = { ...(raw ?? relation), ...updates };
-        await appData.writeJson(filePath, merged);
-      } catch (error) {
-        rollback();
-        logger.error(`[relationService:archiveByThread] Failed to archive relation:`, error);
-        throw error;
-      }
+      await this.moveToArchive(relation);
     }
     logger.debug(`[relationService:archiveByThread] Archived ${relations.length} relations for thread ${threadId}`);
   }
 
   /**
    * Archive relations for a plan.
-   * Per Decision #14: Relations are preserved when plans are archived.
+   * Moves relation files to archive dir and removes from store.
    */
   async archiveByPlan(planId: string): Promise<void> {
     const store = useRelationStore.getState();
     const relations = store.getByPlan(planId);
 
     for (const relation of relations) {
-      const filePath = getRelationPath(relation.planId, relation.threadId);
-      const updates = { archived: true, updatedAt: Date.now() };
-
-      const rollback = store._applyUpdate(relation.planId, relation.threadId, updates);
-      try {
-        const raw = await appData.readJson<PlanThreadRelation>(filePath);
-        const merged = { ...(raw ?? relation), ...updates };
-        await appData.writeJson(filePath, merged);
-      } catch (error) {
-        rollback();
-        logger.error(`[relationService:archiveByPlan] Failed to archive relation:`, error);
-        throw error;
-      }
+      await this.moveToArchive(relation);
     }
     logger.debug(`[relationService:archiveByPlan] Archived ${relations.length} relations for plan ${planId}`);
   }
@@ -195,6 +177,59 @@ class RelationService {
    */
   getByThreadIncludingArchived(threadId: string): PlanThreadRelation[] {
     return useRelationStore.getState().getByThreadIncludingArchived(threadId);
+  }
+
+  /**
+   * Move a single relation file to the archive directory and remove from store.
+   * No-op if the file was already moved (handles double-archive race).
+   */
+  private async moveToArchive(relation: PlanThreadRelation): Promise<void> {
+    const store = useRelationStore.getState();
+    const activePath = getRelationPath(relation.planId, relation.threadId);
+    const archivePath = getArchiveRelationPath(relation.planId, relation.threadId);
+
+    const archived = { ...relation, archived: true, updatedAt: Date.now() };
+
+    store._applyDelete(relation.planId, relation.threadId);
+    try {
+      await appData.ensureDir(ARCHIVE_RELATIONS_DIR);
+      await appData.writeJson(archivePath, archived);
+      await appData.deleteFile(activePath);
+    } catch (error) {
+      logger.error(`[relationService:moveToArchive] Failed for ${relation.planId}-${relation.threadId}:`, error);
+    }
+  }
+
+  /**
+   * Remove orphaned relations where both plan and thread are missing from active stores.
+   * Archive relations where only one side is missing.
+   * Called after hydration to clean up stale edges.
+   */
+  async cleanupOrphaned(): Promise<void> {
+    const store = useRelationStore.getState();
+    const all = store.getAll();
+    let archived = 0;
+    let deleted = 0;
+
+    for (const relation of all) {
+      const planExists = !!usePlanStore.getState().getPlan(relation.planId);
+      const threadExists = !!useThreadStore.getState().getThread(relation.threadId);
+
+      if (!planExists && !threadExists) {
+        // Both missing — delete completely
+        store._applyDelete(relation.planId, relation.threadId);
+        await appData.deleteFile(getRelationPath(relation.planId, relation.threadId));
+        deleted++;
+      } else if (!planExists || !threadExists) {
+        // One side missing — archive
+        await this.moveToArchive(relation);
+        archived++;
+      }
+    }
+
+    if (archived > 0 || deleted > 0) {
+      logger.log(`[relationService:cleanupOrphaned] Archived ${archived}, deleted ${deleted} orphaned relations`);
+    }
   }
 
   /**

@@ -57,4 +57,8 @@ export const events = {
 
   worktreeNameGenerated: (worktreeId: string, repoId: string, name: string) =>
     emitEvent(EventName.WORKTREE_NAME_GENERATED, { worktreeId, repoId, name }),
+
+  // API health
+  apiDegraded: (service: string, message: string) =>
+    emitEvent(EventName.API_DEGRADED, { service, message }),
 };

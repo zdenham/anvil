@@ -1,12 +1,15 @@
 import { memo } from "react";
 import type { ThemedToken } from "shiki";
 import type { AnnotatedLine } from "./types";
+import { CommentGutterButton } from "./comment-gutter-button";
 
 interface AnnotatedLineRowProps {
   /** The annotated line data */
   line: AnnotatedLine;
-  /** Callback when line is clicked (for future features like navigation) */
+  /** Callback when line is clicked (for comment form opening) */
   onLineClick?: (lineNumber: number) => void;
+  /** Whether this line has comments (shows indicator dot) */
+  hasComments?: boolean;
 }
 
 /**
@@ -16,6 +19,7 @@ interface AnnotatedLineRowProps {
 export const AnnotatedLineRow = memo(function AnnotatedLineRow({
   line,
   onLineClick,
+  hasComments,
 }: AnnotatedLineRowProps) {
   const lineNumber = line.newLineNumber ?? line.oldLineNumber ?? 0;
 
@@ -60,11 +64,17 @@ export const AnnotatedLineRow = memo(function AnnotatedLineRow({
         role="cell"
         aria-label="Old line number"
         className={`
-          w-12 flex-shrink-0 px-2 text-right select-none
+          relative w-12 flex-shrink-0 px-2 text-right select-none
           ${getLineNumberColor(line.type)}
           border-r border-surface-700/50
         `}
       >
+        {onLineClick && (
+          <CommentGutterButton onClick={() => onLineClick(lineNumber)} />
+        )}
+        {hasComments && !onLineClick && (
+          <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-amber-400" />
+        )}
         {line.oldLineNumber ?? ""}
       </span>
 

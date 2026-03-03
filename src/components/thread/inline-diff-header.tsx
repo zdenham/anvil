@@ -1,9 +1,13 @@
-import { memo } from "react";
-import { ArrowUpRight, ChevronRight, FileCode } from "lucide-react";
+import { memo, useCallback } from "react";
+import { ArrowUpRight, ChevronRight, FileCode, MessageSquare } from "lucide-react";
 import { getFileIconUrl } from "@/components/file-browser/file-icons";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useOptionalDiffCommentStore } from "@/contexts/diff-comment-context";
+import { useCommentStore } from "@/entities/comments/store";
+import { AddressCommentsButton } from "@/components/diff-viewer/address-comments-button";
+import { useStore } from "zustand";
 
 interface InlineDiffHeaderProps {
   /** File path being changed */
@@ -95,6 +99,12 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
       {/* Spacer pushes stats and actions to the right */}
       <div className="flex-1" />
 
+      {/* Comment count badge */}
+      <CommentCountBadge filePath={filePath} />
+
+      {/* Address Comments button */}
+      <AddressCommentsSlot />
+
       {/* Show full file toggle */}
       {hasCollapsedRegions && (
         <Tooltip content={allExpanded ? "Show hunks only" : "Show full file"}>
@@ -143,3 +153,49 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
     </div>
   );
 });
+
+/** Badge showing unresolved comment count for a file, if inside a DiffCommentProvider. */
+function CommentCountBadge({ filePath }: { filePath: string }) {
+  const store = useOptionalDiffCommentStore();
+  if (!store) return null;
+  return <CommentCountBadgeInner filePath={filePath} store={store} />;
+}
+
+function CommentCountBadgeInner({
+  filePath,
+  store,
+}: {
+  filePath: string;
+  store: NonNullable<ReturnType<typeof useOptionalDiffCommentStore>>;
+}) {
+  const { worktreeId, threadId } = useStore(store);
+
+  const count = useCommentStore(
+    useCallback(
+      (s) => {
+        const comments = s.getByFile(worktreeId, filePath, threadId);
+        return comments.filter((c) => !c.resolved).length;
+      },
+      [worktreeId, filePath, threadId],
+    ),
+  );
+
+  if (count === 0) return null;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/20 text-amber-400 flex-shrink-0"
+      title={`${count} unresolved comment${count !== 1 ? "s" : ""}`}
+    >
+      <MessageSquare className="w-2.5 h-2.5" />
+      {count}
+    </span>
+  );
+}
+
+/** Renders AddressCommentsButton only when inside a DiffCommentProvider. */
+function AddressCommentsSlot() {
+  const store = useOptionalDiffCommentStore();
+  if (!store) return null;
+  return <AddressCommentsButton />;
+}

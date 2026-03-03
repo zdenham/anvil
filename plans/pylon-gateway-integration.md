@@ -1,6 +1,6 @@
 # Pylon Gateway Integration
 
-Add Pylon (customer service platform) as a second gateway integration alongside GitHub. When a support ticket is assigned to the current user, automatically spawn an agent that researches the customer and prepares a draft response + action plan. Provide a skill to send the response via email.
+Add Pylon (customer service platform) as a second gateway integration alongside GitHub. When support tickets are assigned to the current user, automatically spawn agents that research customers and prepare draft responses as internal notes. All Pylon-specific logic lives in skills, not in core product code.
 
 ## API Research Summary
 
@@ -28,15 +28,21 @@ Add Pylon (customer service platform) as a second gateway integration alongside 
 | `/issues/{id}/followers` | GET/POST | Manage issue followers |
 | `/issues/{id}/external-issues` | POST | Link to external issues (GitHub, Linear, etc.) |
 
-### Webhooks (two systems)
+### Webhooks (two systems — we use Triggers)
 
-1. **Trigger-based webhooks** (in-app): Create a Trigger with "Send webhook" action. Configurable "When"/"If" conditions. Custom payload with template variables. Set up via Pylon UI.
+1. **Trigger-based webhooks** (in-app) — **our approach**: Create a Trigger with "Send webhook" action. Configurable "When"/"If" conditions with custom payload via template variables (`{{ variableName }}`). Set up via Pylon UI. Available kickoff events include:
+   - **"Assignee changed"** — fires when assignee on an issue changes (our primary trigger)
+   - **"New issue created"** — fires on new issue creation
+   - **"Issue updated"** — fires on any field change
+   - **"Team assigned"**, **"Issue reaction added"**, **"Message is internal note"**
+   - Kickoff conditions can be combined with OR logic
+   - Payload is fully user-defined — we define a standard shape in the setup instructions
 
-2. **API webhook destinations** (developer): Register a destination URL in API settings, select event types. Includes `Pylon-Webhook-Signature` (HMAC-SHA256) and `Pylon-Webhook-Timestamp` headers for verification. Retries up to 5 attempts with exponential backoff. Destinations go inactive after 7 days without successful delivery.
+2. **API webhook destinations** (developer): Traditional event subscription model. Includes `Pylon-Webhook-Signature` (HMAC-SHA256), `Pylon-Webhook-Timestamp`, `Pylon-Webhook-Version` headers. Retries up to 5 attempts. **However, the event type list is not publicly documented** — only visible in Pylon app settings. Less suitable for our guided setup flow.
 
 ### Key Findings
 
-- **Replying to tickets is fully supported** via `POST /issues/{id}/reply` with `body_html`, supports `email_info` (to/cc/bcc) for email delivery
+- **Internal notes are supported** via `POST /issues/{id}/note` — we'll use this for draft responses instead of sending replies automatically
 - **Customer research is feasible** via `/contacts/{id}`, `/accounts/{id}`, and `/issues/search` (filter by requester to see history)
 - **Assignment filtering works** via `/issues/search` with `assignee_id` filter + `/me` to get current user ID
 - **Webhook delivery to our gateway is feasible** — Pylon supports custom webhook destinations with signature verification
@@ -45,11 +51,9 @@ Add Pylon (customer service platform) as a second gateway integration alongside 
 
 - [ ] Extend gateway types and server to support `pylon` channel type
 - [ ] Add Pylon webhook listener and event routing (parallel to GitHub pattern)
-- [ ] Build Pylon entity layer (service, store, types) for tickets
-- [ ] Create Pylon API client for agent-side operations
-- [ ] Implement `pylon-triage` agent skill (research customer, draft response + action plan)
-- [ ] Implement `pylon-reply` skill (send response via API)
-- [ ] Add configuration UI for Pylon API key and username
+- [ ] Build `pylon-triage-all` skill (batch triage all assigned tickets)
+- [ ] Build `pylon-triage-single` skill (deep-dive on one ticket: research customer, draft response)
+- [ ] Add generic integration configuration UI for Pylon
 - [ ] Write integration tests for Pylon event handling and API client
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
@@ -66,12 +70,12 @@ The existing gateway is hardcoded to `z.literal("github")`. We need to make it p
 ```ts
 // Add to schema:
 pylonConfig: z.object({
-  apiKey: z.string(),        // Pylon bearer token
-  username: z.string(),      // User's Pylon username/email
   userId: z.string(),        // Resolved via /me on setup
   webhookSecret: z.string(), // For signature verification
 }).optional(),
 ```
+
+The API key is stored in the system keychain via Tauri's Stronghold plugin, keyed by channel ID. It is NOT stored in the channel metadata on disk.
 
 **`core/types/gateway-events.ts`** — Change `ChannelSchema.type` from `z.literal("github")` to `z.enum(["github", "pylon"])`.
 
@@ -79,7 +83,7 @@ pylonConfig: z.object({
 
 ## Phase 2: Pylon Webhook Listener & Event Routing
 
-Mirror the GitHub pattern: raw gateway events → typed Pylon events.
+Mirror the GitHub pattern: raw gateway events → typed Pylon events. No Pylon entity layer — events are routed directly to skill invocations.
 
 ### Changes
 
@@ -103,185 +107,174 @@ PYLON_WEBHOOK_EVENT: {
 };
 ```
 
-### Pylon Webhook Setup
+**`src/entities/gateway-channels/pylon-event-handler.ts`** — Lightweight handler that listens for `PYLON_WEBHOOK_EVENT` and, when a ticket is assigned to the current user (matching `pylonConfig.userId`), spawns an agent thread with the `pylon-triage-single` skill. No entity store, no cached ticket state — the skill fetches what it needs directly from the Pylon API.
 
-The user configures a webhook destination in their Pylon admin settings (API Settings → Webhooks) pointing at the gateway `webhookUrl`. They select relevant event types (at minimum: issue created, issue updated/assigned). We store the webhook secret in `pylonConfig.webhookSecret` for the gateway server to verify signatures.
+### Pylon Webhook Setup (Trigger-Based)
 
-This is manual setup (unlike GitHub where we auto-create via `gh` CLI) because Pylon's webhook creation is done through their UI, not a public API endpoint. We guide the user through it in the configuration flow.
+The user creates a **Trigger** in Pylon (Settings → Triggers) with our guided instructions:
 
-## Phase 3: Pylon Entity Layer
+1. **When**: "Assignee changed" OR "New issue created"
+2. **If** (optional filter): assignee matches the user
+3. **Action**: "Send webhook" to the gateway `webhookUrl`
+4. **Payload**: We provide a standard JSON template for the user to paste:
+```json
+{
+  "event": "assignee_changed",
+  "issue_id": "{{ issue.id }}",
+  "issue_number": "{{ issue.number }}",
+  "title": "{{ issue.title }}",
+  "assignee_id": "{{ issue.assignee.id }}",
+  "assignee_email": "{{ issue.assignee.email }}",
+  "requester_id": "{{ issue.requester.id }}",
+  "account_id": "{{ issue.account.id }}",
+  "state": "{{ issue.state }}",
+  "link": "{{ issue.link }}"
+}
+```
+5. The user adds a custom `Authorization` header with a shared secret for verification
 
-Create a new entity for Pylon tickets, following the PR entity pattern.
+Since the trigger-based system doesn't use Pylon's HMAC signature verification (that's the API destination system), we authenticate via a shared secret in the `Authorization` header that the gateway server validates. Store this in `pylonConfig.webhookSecret`.
 
-### New Files
+This is manual setup (unlike GitHub where we auto-create via `gh` CLI) because Pylon's Trigger creation is done through their UI. We provide step-by-step instructions with screenshots/descriptions in the configuration flow.
 
-**`src/entities/pylon-tickets/types.ts`** — Zod schemas for PylonTicket metadata:
-```ts
-PylonTicketMetadataSchema = z.object({
-  id: z.string(),              // Pylon issue ID
-  number: z.number(),          // Pylon issue number
-  title: z.string(),
-  state: z.string(),           // new, waiting_on_you, waiting_on_customer, etc.
-  assigneeId: z.string().nullable(),
-  requesterId: z.string().nullable(),
-  requesterEmail: z.string().nullable(),
-  accountId: z.string().nullable(),
-  accountName: z.string().nullable(),
-  priority: z.enum(["urgent", "high", "medium", "low"]).nullable(),
-  link: z.string().url(),      // Direct Pylon URL
-  channelId: z.string(),       // Gateway channel
-  createdAt: z.number(),
-  updatedAt: z.number(),
-})
+## Phase 3: `pylon-triage-all` Skill
+
+A user-invocable skill that batch-triages all tickets currently assigned to the user. Good for morning stand-up or catching up after being away.
+
+### Skill Structure: `.claude/skills/pylon-triage-all/`
+
+**`SKILL.md`**:
+```markdown
+---
+name: Pylon Triage All
+description: Triage all Pylon support tickets assigned to you
+user-invocable: true
+argument-hint: "[optional: filter like 'urgent only' or 'last 24h']"
+---
+
+# Pylon Triage All
+
+Fetch and summarize all open tickets assigned to you in Pylon.
+
+## Steps
+
+1. Read the Pylon API key from the system keychain (channel config)
+2. Call GET /me to confirm identity
+3. Call POST /issues/search with assignee_id filter, state: open
+4. For each ticket, produce a brief summary:
+   - Ticket number + title + priority + state
+   - Requester name/company
+   - Last message preview
+   - How long it's been waiting
+5. Output a prioritized list with recommendations on which to tackle first
+6. For any ticket that needs immediate attention, suggest running /pylon-triage-single {ticket-id}
 ```
 
-**`src/entities/pylon-tickets/store.ts`** — Zustand store following entity store pattern.
-
-**`src/entities/pylon-tickets/service.ts`** — PylonTicketService with CRUD, hydration, and auto-triage triggering.
-
-**`src/entities/pylon-tickets/gateway-handler.ts`** — Handle incoming Pylon events:
-- `issue.created` / `issue.assigned` → Check if assigned to current user → spawn triage agent
-- `issue.updated` → Refresh cached ticket state
-- `issue.closed` → Clean up / mark inactive
-
-**`src/entities/pylon-tickets/listeners.ts`** — Subscribe to `PYLON_WEBHOOK_EVENT`, call gateway handler.
-
-## Phase 4: Pylon API Client (Agent-Side)
-
-A lightweight HTTP client for agent processes to call Pylon APIs. Lives in `agents/` since it's used by agent skills.
-
-### New File: `agents/src/lib/pylon-client.ts`
+**`pylon-client.ts`** — Lightweight Pylon API client used by both skills. Lives in the skill folder since Pylon logic stays out of core. Shared between skills via relative import or extracted to a shared skill lib.
 
 ```ts
 class PylonClient {
   constructor(private apiKey: string) {}
 
-  // Identity
   async getMe(): Promise<PylonUser>
-
-  // Issues
   async getIssue(id: string): Promise<PylonIssue>
   async searchIssues(filter: PylonFilter): Promise<PylonIssue[]>
-  async replyToIssue(id: string, body: ReplyBody): Promise<void>
-  async updateIssue(id: string, updates: IssueUpdates): Promise<void>
-
-  // Customer research
   async getContact(id: string): Promise<PylonContact>
   async getAccount(id: string): Promise<PylonAccount>
   async getIssueMessages(id: string): Promise<PylonMessage[]>
-  async searchContactIssues(contactId: string): Promise<PylonIssue[]>
 }
 ```
 
-Types are Zod-validated at the boundary (API responses). Keep the client under 250 lines — split types into a separate `pylon-types.ts` if needed.
+**`pylon-types.ts`** — Zod schemas for Pylon API responses, validated at the boundary.
 
-## Phase 5: `pylon-triage` Agent Skill
+### Shared Skill Code
 
-When a ticket is assigned to the user, this skill kicks off automatically. The agent:
+Since both `pylon-triage-all` and `pylon-triage-single` need the API client and types, we have two options:
+- **Option A**: Place `pylon-client.ts` and `pylon-types.ts` in `.claude/skills/pylon-shared/` and import from both skills
+- **Option B**: Duplicate the client in each skill folder (simpler, but drift risk)
 
-1. **Fetches ticket details** — full issue body, messages, metadata
-2. **Researches the customer** — contact info, account details, past ticket history (via `/issues/search` filtered by `requester_id`)
-3. **Generates a brief plan file** at `plans/pylon-tickets/{ticket-number}.md` containing:
-   - Customer context (name, account, history summary)
-   - Ticket summary
-   - Proposed RESPONSE (draft reply HTML)
-   - Action plan (next steps, escalation needs, related issues)
+Recommend Option A — a shared utility folder that both skills reference.
 
-### Skill File: `.claude/skills/pylon-triage/SKILL.md`
+## Phase 4: `pylon-triage-single` Skill
 
+Deep-dive triage on a single ticket. Auto-invoked when a ticket is assigned (via webhook), or manually via `/pylon-triage-single {ticket-id}`.
+
+### Skill Structure: `.claude/skills/pylon-triage-single/`
+
+**`SKILL.md`**:
 ```markdown
 ---
-description: Triage a Pylon support ticket — research customer, draft response and action plan
-userInvocable: true
-disableModelInvocation: false
+name: Pylon Triage Single
+description: Deep-triage a single Pylon ticket — research customer, draft response as internal note
+user-invocable: true
+argument-hint: "<ticket-id or ticket-number>"
 ---
 
-# Pylon Ticket Triage
+# Pylon Triage Single
 
-You are triaging a customer support ticket from Pylon.
+Deep-dive triage on a single customer support ticket.
 
 ## Steps
 
-1. Read the ticket details provided in context
-2. Use the Pylon API to research:
-   - Customer contact details (GET /contacts/{id})
-   - Customer account details (GET /accounts/{id})
-   - Customer's ticket history (POST /issues/search filtered by requester_id)
-   - Full message thread (GET /issues/{id}/messages)
-3. Create a brief plan file at plans/pylon-tickets/{ticket-number}.md with:
+1. Read the Pylon API key from the system keychain (channel config)
+2. Fetch full ticket details: GET /issues/{id}
+3. Fetch the complete message thread: GET /issues/{id}/messages
+4. Research the customer:
+   - GET /contacts/{requester_id} — contact info
+   - GET /accounts/{account_id} — company details
+   - POST /issues/search filtered by requester_id — past ticket history
+5. Analyze the ticket and produce:
    - **Customer Context**: name, company, past interactions summary
    - **Ticket Summary**: what they need, urgency assessment
    - **Draft Response**: professional, helpful reply in HTML
-   - **Action Plan**: concrete next steps
-4. Keep the plan concise — aim for under 100 lines
+   - **Action Plan**: concrete next steps, escalation needs
+6. Post the draft response as an **internal note** on the ticket via POST /issues/{id}/note
+   - This lets the user review and edit before sending to the customer
+7. Output a summary to the thread so the user can review
 ```
 
 ### Auto-Spawn Logic
 
-In `src/entities/pylon-tickets/gateway-handler.ts`, when a ticket is assigned to the current user (matching `pylonConfig.userId`):
+In `src/entities/gateway-channels/pylon-event-handler.ts`, when a ticket is assigned to the current user (matching `pylonConfig.userId`):
 1. Create a thread for this ticket (reuse existing if ticket already tracked)
-2. Spawn an agent with the `pylon-triage` skill injected
-3. Pass ticket ID and channel config as context
+2. Spawn an agent with the `pylon-triage-single` skill
+3. Pass ticket ID and channel ID as context
 
-## Phase 6: `pylon-reply` Skill
+The agent posts its draft as an internal note on the Pylon ticket. The user reviews the note in Pylon's UI and can edit/send from there — no agentic reply.
 
-A user-invocable skill that sends the draft response from the triage plan.
+## Phase 5: Generic Integration Configuration UI
 
-### Skill File: `.claude/skills/pylon-reply/SKILL.md`
-
-```markdown
----
-description: Send a reply to a Pylon support ticket via email
-userInvocable: true
-disableModelInvocation: false
----
-
-# Pylon Reply
-
-Send a customer-facing reply to a Pylon support ticket.
-
-## Steps
-
-1. Read the triage plan at plans/pylon-tickets/{ticket-number}.md
-2. Use the draft response from the plan (or user-provided edits)
-3. Call POST /issues/{id}/reply with:
-   - body_html: the response content
-   - email_info: { to_emails: [requester email] }
-4. Update the issue state to "waiting_on_customer" via PATCH /issues/{id}
-5. Mark the triage plan phase as complete
-```
-
-This gives the user a review step — the triage agent drafts, the user reviews/edits the plan file, then invokes `/pylon-reply` to send.
-
-## Phase 7: Configuration UI
-
-Add a settings section for Pylon configuration.
+A minimal, generic settings section that works for Pylon (and future integrations).
 
 ### UX Flow
 
-1. User navigates to Settings → Integrations → Pylon
-2. Enters their Pylon API key and email/username
-3. App calls `GET /me` to validate the key and resolve `userId`
-4. App creates a gateway channel (type: `pylon`)
-5. App displays the `webhookUrl` and instructions for the user to configure in Pylon's webhook settings (select event types, paste URL, copy secret for signature verification)
-6. Once configured, activate the channel to start receiving events
+1. User navigates to Settings → Integrations
+2. Sees a list of available integrations (GitHub already present, add Pylon)
+3. For Pylon:
+   - Enters API key → stored in Stronghold (system keychain)
+   - App calls `GET /me` to validate the key and resolve `userId`
+   - App creates a gateway channel (type: `pylon`, single channel only)
+   - App displays the `webhookUrl` and step-by-step instructions for configuring the webhook in Pylon's admin UI
+   - User confirms webhook is configured → activate channel
+4. Show connection status (connected/disconnected) and a way to disconnect
 
-### Changes
+### Design Principles
 
-- Add Pylon section to settings/integrations UI
-- Store API key securely in `pylonConfig` on the channel metadata
-- Validate connectivity on save via `/me` endpoint
+- Keep the UI generic — a card per integration with name, status, configure/disconnect actions
+- Pylon-specific setup instructions render as markdown within the generic card
+- API key management through Stronghold, never exposed in metadata files
+- No Pylon-specific React components if avoidable — use the same integration card pattern as GitHub
 
-## Phase 8: Integration Tests
+## Phase 6: Integration Tests
 
-### Agent-side tests (`agents/src/lib/__tests__/pylon-client.test.ts`)
+### Pylon client tests (`.claude/skills/pylon-shared/__tests__/pylon-client.test.ts`)
 - Mock HTTP responses for all PylonClient methods
 - Test Zod validation on API response boundaries
 - Test error handling for rate limits and auth failures
 
-### Entity-side tests
-- Test gateway event routing for `pylon.*` events
-- Test ticket assignment matching logic
+### Event routing tests
+- Test gateway event routing for `pylon.*` events in listeners
+- Test pylon-event-handler assignment matching logic
 - Test auto-triage spawn conditions
 
 ### Live API test (guarded by env var)
@@ -289,12 +282,9 @@ Add a settings section for Pylon configuration.
 - Validate `/me` returns expected shape
 - Validate `/issues/search` with a basic filter
 
-## Open Questions
+## Resolved Questions
 
-1. **API key storage**: The GitHub integration uses `gh` CLI auth (no key stored). For Pylon we need to store a bearer token. Should we use the system keychain (via Tauri's `stronghold` plugin) or is disk storage (`pylonConfig` in metadata.json) acceptable for MVP?
-
-2. **Gateway server changes**: The gateway server (mort-server on Fly) needs to accept `type: "pylon"` and add Pylon signature verification. This is a server-side deploy — confirm we can make this change.
-
-3. **Webhook event types**: Pylon's developer webhook system lets you select event types when creating a destination. We need to confirm which event types map to ticket assignment changes. The trigger-based system is more flexible but requires in-app setup by the user.
-
-4. **Multi-channel**: Should a user be able to have multiple Pylon channels (e.g., different teams/workspaces)? The current architecture supports it but the UI would need to handle it.
+1. **API key storage**: Using Tauri's Stronghold plugin (system keychain). API key never written to disk in plaintext.
+2. **Gateway server changes**: Confirmed — we'll add `type: "pylon"` support and Pylon signature verification to mort-server.
+3. **Webhook event types**: Resolved. Using Pylon's **Trigger-based webhooks** (not API destinations). The "Assignee changed" kickoff event targets assignment changes directly. The API destination event type list is not publicly documented, making triggers the better choice since we control the payload shape and can provide exact setup instructions to users.
+4. **Multi-channel**: Single Pylon channel for now. UI enforces one active Pylon integration.

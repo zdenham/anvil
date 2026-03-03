@@ -19,13 +19,9 @@ import "@xterm/xterm/css/xterm.css";
 
 import { terminalSessionService } from "@/entities/terminal-sessions";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions";
+import { getOutputBuffer, onOutput } from "@/entities/terminal-sessions/output-buffer";
 import { logger } from "@/lib/logger-client";
 import type { TerminalContentProps } from "./types";
-
-interface TerminalOutputPayload {
-  id: number;
-  data: number[];
-}
 
 interface TerminalExitPayload {
   id: number;
@@ -70,11 +66,7 @@ export function TerminalContent({
   const isInitializedRef = useRef(false);
 
   // Capture initial buffer value once for reconnection scenarios.
-  // Using useState with initializer function ensures we only read from store once at mount,
-  // preventing re-renders when outputBuffer changes during live usage.
-  const [initialBuffer] = useState(
-    () => useTerminalSessionStore.getState().outputBuffers[terminalId] || ""
-  );
+  const [initialBuffer] = useState(() => getOutputBuffer(terminalId));
 
   // Write to PTY when user types
   const handleInput = useCallback(
@@ -178,12 +170,6 @@ export function TerminalContent({
 
     // Restore scrollback buffer if we have one (only at mount time)
     if (initialBuffer) {
-      logger.info("[TerminalContent] Writing initialBuffer to xterm", {
-        terminalId,
-        instanceId,
-        bufferLength: initialBuffer.length,
-        bufferPreview: initialBuffer.slice(0, 100),
-      });
       terminal.write(initialBuffer);
     }
 
@@ -197,42 +183,12 @@ export function TerminalContent({
     });
     resizeObserver.observe(containerRef.current);
 
-    // Listen for PTY output
-    let outputUnlisten: UnlistenFn | undefined;
+    // Subscribe to decoded output from the shared output-buffer module.
+    // No Tauri listener, no TextDecoder, no Uint8Array — already decoded in listeners.ts.
     let disposed = false;
-    listen<TerminalOutputPayload>("terminal:output", (event) => {
-      const { id, data } = event.payload;
-      const eventTerminalId = String(id);
-      if (eventTerminalId === terminalId) {
-        if (disposed) {
-          logger.warn("[TerminalContent] LEAK: Received output after dispose!", {
-            terminalId,
-            instanceId,
-            eventTerminalId,
-            dataLength: data.length,
-          });
-          return;
-        }
-        const text = new TextDecoder().decode(new Uint8Array(data));
-        logger.debug("[TerminalContent] Writing PTY output", {
-          terminalId,
-          instanceId,
-          dataLength: data.length,
-          textPreview: text.slice(0, 60),
-        });
-        terminal.write(text);
-      }
-    }).then((unlisten) => {
-      if (disposed) {
-        // Component already unmounted before listener registered — immediately clean up
-        logger.warn("[TerminalContent] Listener registered after dispose, cleaning up", {
-          terminalId,
-          instanceId,
-        });
-        unlisten();
-        return;
-      }
-      outputUnlisten = unlisten;
+    const unsubOutput = onOutput(terminalId, (text) => {
+      if (disposed) return;
+      terminal.write(text);
     });
 
     // Listen for PTY exit
@@ -265,10 +221,9 @@ export function TerminalContent({
       logger.info("[TerminalContent] Disposing terminal", {
         terminalId,
         instanceId,
-        hadOutputUnlisten: !!outputUnlisten,
         hadExitUnlisten: !!exitUnlisten,
       });
-      outputUnlisten?.();
+      unsubOutput();
       exitUnlisten?.();
       resizeObserver.disconnect();
       if (resizeTimeoutRef.current) {

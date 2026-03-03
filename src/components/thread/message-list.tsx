@@ -67,7 +67,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     [isStreaming],
   );
 
-  const { items, totalHeight, scrollToIndex: scrollTo, measureItem } = useVirtualList({
+  const { items, totalHeight, scrollToIndex: scrollTo, measureItem, isSticky, setSticky } = useVirtualList({
     count: turns.length,
     getScrollElement,
     estimateHeight: 100,
@@ -75,11 +75,13 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     atBottomThreshold: 300,
     onAtBottomChange: setIsAtBottom,
     followOutput,
+    sticky: true,
   });
 
   const scrollToBottom = useCallback(() => {
+    setSticky(true);
     scrollTo({ index: "LAST", behavior: "auto" });
-  }, [scrollTo]);
+  }, [scrollTo, setSticky]);
 
   const scrollToIndex = useCallback((index: number) => {
     scrollTo({ index, align: "center", behavior: "auto" });
@@ -113,8 +115,8 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   // with a ResizeObserver and scroll to bottom on each resize.
   const isStreamingRef = useRef(isStreaming);
   isStreamingRef.current = isStreaming;
-  const isAtBottomRef = useRef(isAtBottom);
-  isAtBottomRef.current = isAtBottom;
+  const isStickyRef = useRef(isSticky);
+  isStickyRef.current = isSticky;
   const streamingRoRef = useRef<ResizeObserver | null>(null);
 
   const streamingContentRef = useCallback(
@@ -126,7 +128,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
       if (!el) return;
 
       const ro = new ResizeObserver(() => {
-        if (!isStreamingRef.current || !isAtBottomRef.current) return;
+        if (!isStreamingRef.current || !isStickyRef.current) return;
         const scrollEl = scrollerRef.current;
         if (!scrollEl) return;
         const gap = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;

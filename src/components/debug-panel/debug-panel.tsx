@@ -1,13 +1,15 @@
 import { useCallback } from "react";
-import { X, ScrollText, Activity } from "lucide-react";
+import { X, ScrollText, Activity, Radio } from "lucide-react";
 import { useDebugPanelStore, debugPanelService, type DebugPanelTab } from "@/stores/debug-panel";
 import { LogsPage } from "@/components/main-window/logs-page";
-import { DiagnosticPanel } from "@/components/diagnostics/diagnostic-panel";
+import { FpsSection } from "@/components/diagnostics/fps-section";
+import { EventDebugger } from "@/components/debug-panel/event-debugger";
 import { cn } from "@/lib/utils";
 
 const TABS: { id: DebugPanelTab; label: string; icon: typeof ScrollText }[] = [
   { id: "logs", label: "Logs", icon: ScrollText },
-  { id: "diagnostics", label: "Diagnostics", icon: Activity },
+  { id: "diagnostics", label: "Frame Rate", icon: Activity },
+  { id: "events", label: "Events", icon: Radio },
 ];
 
 export function DebugPanel() {
@@ -60,10 +62,11 @@ export function DebugPanel() {
       <div className="flex-1 min-h-0 overflow-auto">
         {activeTab === "logs" && <LogsPage />}
         {activeTab === "diagnostics" && (
-          <div className="p-2 overflow-auto h-full">
-            <DiagnosticPanel />
+          <div className="p-4">
+            <FpsSection />
           </div>
         )}
+        {activeTab === "events" && <EventDebugger />}
       </div>
     </div>
   );

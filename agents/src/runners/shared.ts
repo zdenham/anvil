@@ -40,6 +40,7 @@ import type { SocketMessageStream } from "../lib/hub/message-stream.js";
 import type { PermissionEvaluator } from "../lib/permission-evaluator.js";
 import type { PermissionGate } from "../lib/permission-gate.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
+import { createCommentResolutionHook } from "../hooks/comment-resolution-hook.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -110,11 +111,12 @@ function classifyError(
  */
 export function emitEvent(
   name: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  source?: string,
 ): void {
   const hub = getHubClient();
   if (hub?.isConnected) {
-    hub.sendEvent(name, payload);
+    hub.sendEvent(name, payload, source);
   } else {
     logger.warn(`[shared] Hub not connected, skipping event: ${name}`);
   }
@@ -318,7 +320,7 @@ async function processPlanMentions(
           planId: plan.id,
           threadId: context.threadId,
           type: relation.type,
-        });
+        }, "processPlanMentions:relation");
       }
     } catch (err) {
       logger.warn(`[processPlanMentions] Failed to process mention ${relativePath}: ${err}`);
@@ -426,7 +428,7 @@ export async function runAgentLoop(
   // Emit thread lifecycle started
   drainManager.emit(DrainEventName.THREAD_LIFECYCLE, {
     transition: "started",
-  });
+  }, "runAgentLoop:lifecycle");
 
   // Initialize state with prior messages (for UI), sessionId (for resume), toolStates (for UI rendering),
   // and token usage (so context meter stays visible during resume)
@@ -527,6 +529,17 @@ export async function runAgentLoop(
             },
           ]
         : []),
+      // Comment resolution hook — intercepts mort-resolve-comment Bash calls
+      // Must be before the catch-all permission hook so it gets first look at Bash calls
+      {
+        matcher: "Bash" as const,
+        hooks: [
+          createCommentResolutionHook({
+            worktreeId: orchestrationContext.worktreeId,
+            emitEvent,
+          }),
+        ],
+      },
       // Permission hook — matches ALL tools, evaluated before the Task hook
       ...(permissionEvaluator && permissionGate
         ? [
@@ -571,14 +584,14 @@ export async function runAgentLoop(
                       reason,
                       modeId: permissionEvaluator.getModeId(),
                       evaluationTimeMs,
-                    });
+                    }, "PreToolUse:permission");
                     drainManager.emit(DrainEventName.TOOL_STARTED, {
                       toolUseId: toolUseId ?? "unknown",
                       toolName: input.tool_name,
                       toolInput: JSON.stringify(input.tool_input).slice(0, 2000),
                       permissionDecision: "allow",
                       permissionReason: reason,
-                    });
+                    }, "PreToolUse:allow");
                     return {
                       hookSpecificOutput: {
                         hookEventName: "PreToolUse" as const,
@@ -597,13 +610,13 @@ export async function runAgentLoop(
                       reason,
                       modeId: permissionEvaluator.getModeId(),
                       evaluationTimeMs,
-                    });
+                    }, "PreToolUse:permission");
                     drainManager.emit(DrainEventName.TOOL_DENIED, {
                       toolUseId: toolUseId ?? "unknown",
                       toolName: input.tool_name,
                       reason: reason ?? "Permission denied",
                       deniedBy: "rule",
-                    });
+                    }, "PreToolUse:deny");
                     return {
                       hookSpecificOutput: {
                         hookEventName: "PreToolUse" as const,
@@ -640,7 +653,7 @@ export async function runAgentLoop(
                       evaluationTimeMs,
                       waitTimeMs: Date.now() - askStart,
                       userDecision: "timeout",
-                    });
+                    }, "PreToolUse:permission");
                     return {
                       continue: false,
                       stopReason: "Permission request timed out — agent stopped",
@@ -661,7 +674,7 @@ export async function runAgentLoop(
                     evaluationTimeMs,
                     waitTimeMs,
                     userDecision,
-                  });
+                  }, "PreToolUse:permission");
 
                   if (userDecision === "allow") {
                     drainManager.emit(DrainEventName.TOOL_STARTED, {
@@ -670,14 +683,14 @@ export async function runAgentLoop(
                       toolInput: JSON.stringify(input.tool_input).slice(0, 2000),
                       permissionDecision: "allow",
                       permissionReason: response.reason ?? "User approved",
-                    });
+                    }, "PreToolUse:allow");
                   } else {
                     drainManager.emit(DrainEventName.TOOL_DENIED, {
                       toolUseId: toolUseId ?? "unknown",
                       toolName: input.tool_name,
                       reason: response.reason ?? "User denied",
                       deniedBy: "user",
-                    });
+                    }, "PreToolUse:deny");
                   }
 
                   return {
@@ -771,7 +784,7 @@ export async function runAgentLoop(
                 threadId: childThreadId,
                 repoId: context.repoId,
                 worktreeId: context.worktreeId,
-              });
+              }, "runAgentLoop:subagent-spawn");
 
               logger.info(`[PreToolUse:Task] Created child thread: ${childThreadId} for toolUseId: ${toolUseId}`);
 
@@ -782,13 +795,13 @@ export async function runAgentLoop(
                 agentType,
                 toolUseId,
                 promptLength: taskPrompt.length,
-              });
+              }, "PreToolUse:subagent-spawn");
 
               // Fire-and-forget: generate thread name
               const apiKey = process.env.ANTHROPIC_API_KEY;
               if (apiKey) {
                 generateThreadName(taskPrompt, apiKey)
-                  .then((generatedName) => {
+                  .then(({ name: generatedName, usedFallback }) => {
                     const metadataPath = join(childThreadPath, "metadata.json");
                     if (existsSync(metadataPath)) {
                       const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
@@ -798,12 +811,22 @@ export async function runAgentLoop(
                       emitEvent(EventName.THREAD_NAME_GENERATED, {
                         threadId: childThreadId,
                         name: generatedName,
-                      });
-                      logger.info(`[PreToolUse:Task] Generated name for thread ${childThreadId}: ${generatedName}`);
+                      }, "runAgentLoop:name-generation");
+                      logger.info(`[PreToolUse:Task] Generated name for thread ${childThreadId}: ${generatedName}${usedFallback ? " (fallback model)" : ""}`);
+                    }
+                    if (usedFallback) {
+                      emitEvent(EventName.API_DEGRADED, {
+                        service: "thread-naming",
+                        message: "Haiku unavailable, used Sonnet fallback for thread naming",
+                      }, "runAgentLoop:name-generation");
                     }
                   })
                   .catch((err) => {
                     logger.warn(`[PreToolUse:Task] Failed to generate name: ${err}`);
+                    emitEvent(EventName.API_DEGRADED, {
+                      service: "thread-naming",
+                      message: "Thread naming failed — Anthropic API may be down",
+                    }, "runAgentLoop:name-generation");
                   });
               }
             } catch (err) {
@@ -837,7 +860,7 @@ export async function runAgentLoop(
               durationMs: toolDurationMs,
               resultLength: toolResponse.length,
               resultTruncated: toolResponse.length > 10000,
-            });
+            }, "PostToolUse:complete");
 
             // Side effect: relay embedded events to stdout
             relayEventsFromToolOutput(toolResponse);
@@ -895,7 +918,7 @@ export async function runAgentLoop(
                         phaseInfo
                       );
                       logger.info(`[PostToolUse] 📋 About to emit PLAN_DETECTED event: planId=${planId}`);
-                      emitEvent(EventName.PLAN_DETECTED, { planId });
+                      emitEvent(EventName.PLAN_DETECTED, { planId }, "PostToolUse:plan-detection");
                       logger.info(`[PostToolUse] 📋 PLAN_DETECTED event emitted to stdout: ${filePath} -> ${planId}`);
 
                       // Write plan-thread relation directly to disk
@@ -913,7 +936,7 @@ export async function runAgentLoop(
                           planId,
                           threadId: context.threadId,
                           type: relation.type,
-                        });
+                        }, "PostToolUse:plan-relation");
                       } catch (relErr) {
                         logger.warn(`[PostToolUse] Failed to create relation: ${relErr}`);
                       }
@@ -930,7 +953,7 @@ export async function runAgentLoop(
                           // Emit thread:updated so frontend refreshes
                           emitEvent(EventName.THREAD_UPDATED, {
                             threadId: context.threadId,
-                          });
+                          }, "PostToolUse:plan-association");
                           logger.info(`[PostToolUse] Associated thread ${context.threadId} with plan ${planId}`);
                         }
                       } catch (metaErr) {
@@ -1067,13 +1090,13 @@ export async function runAgentLoop(
                   agentType: childAgentType,
                   durationMs: subagentDurationMs,
                   resultLength: toolResponse.length,
-                });
+                }, "PostToolUse:subagent");
 
                 // Emit THREAD_STATUS_CHANGED
                 emitEvent(EventName.THREAD_STATUS_CHANGED, {
                   threadId: childThreadId,
                   status: "completed",
-                });
+                }, "PostToolUse:subagent");
 
                 // Cleanup the map (foreground tasks only — bg tasks cleaned up by task_notification)
                 toolUseIdToChildThreadId.delete(toolUseId);
@@ -1106,7 +1129,7 @@ export async function runAgentLoop(
               durationMs: failDurationMs,
               error: input.error.slice(0, 1000),
               errorType: classifyError(input.error),
-            });
+            }, "PostToolUse:fail");
 
             logger.debug(
               `[PostToolUseFailure] ${input.tool_name}: ${input.error}`
@@ -1260,7 +1283,7 @@ export async function runAgentLoop(
       transition: loopError ? "errored" : "completed",
       durationMs: Date.now() - loopStartTime,
       error: loopError,
-    });
+    }, "runAgentLoop:lifecycle");
 
     // Clean up message stream on completion
     if (options.messageStream) {

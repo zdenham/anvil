@@ -1,4 +1,5 @@
 import type { PipelineStamp } from "@core/types/pipeline.js";
+import type { Operation } from "fast-json-patch";
 
 /**
  * Base message structure for all socket communication.
@@ -9,6 +10,8 @@ export interface SocketMessage {
   type: string;
   /** Pipeline stamps for end-to-end delivery tracking */
   pipeline?: PipelineStamp[];
+  /** Origin within the agent runner, e.g. "shared:PreToolUse", "PostToolUse:plan-detection" */
+  source?: string;
   [key: string]: unknown;
 }
 
@@ -49,6 +52,31 @@ export interface DrainMessage extends SocketMessage {
 export interface HeartbeatMessage extends SocketMessage {
   type: "heartbeat";
   timestamp: number;
+}
+
+/**
+ * Application-level state event for patch-based state emission.
+ * Contains JSON Patch diffs and event chain IDs for gap detection.
+ * `threadId` is stamped by HubClient.send(), so not required here.
+ */
+export interface StateEvent {
+  id: string;
+  previousEventId: string | null;
+  patches: Operation[];
+  /** Full state snapshot — included when previousEventId is null (first emit or resync). */
+  full?: unknown;
+}
+
+/**
+ * Wire format for state events sent over the socket.
+ * Extends SocketMessage (which adds threadId, senderId, pipeline).
+ */
+export interface StateEventMessage extends SocketMessage {
+  type: "state_event";
+  id: string;
+  previousEventId: string | null;
+  patches: Operation[];
+  full?: unknown;
 }
 
 export type TauriToAgentMessage =

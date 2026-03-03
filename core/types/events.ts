@@ -120,6 +120,15 @@ export const EventName = {
 
   // Streaming
   OPTIMISTIC_STREAM: "optimistic:stream",
+
+  // API health
+  API_DEGRADED: "api:degraded",
+
+  // Comments
+  COMMENT_ADDED: "comment:added",
+  COMMENT_UPDATED: "comment:updated",
+  COMMENT_RESOLVED: "comment:resolved",
+  COMMENT_DELETED: "comment:deleted",
 } as const;
 
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
@@ -264,6 +273,18 @@ export interface EventPayloads {
 
   // Streaming
   [EventName.OPTIMISTIC_STREAM]: OptimisticStreamPayload;
+
+  // API health
+  [EventName.API_DEGRADED]: {
+    service: string;
+    message: string;
+  };
+
+  // Comments
+  [EventName.COMMENT_ADDED]: { worktreeId: string; commentId: string };
+  [EventName.COMMENT_UPDATED]: { worktreeId: string; commentId: string };
+  [EventName.COMMENT_RESOLVED]: { worktreeId: string; commentId: string };
+  [EventName.COMMENT_DELETED]: { worktreeId: string; commentId: string };
 }
 
 // ============================================================================
@@ -405,6 +426,10 @@ export const EventNameSchema = z.enum([
   EventName.GATEWAY_STATUS,
   EventName.GITHUB_WEBHOOK_EVENT,
   EventName.OPTIMISTIC_STREAM,
+  EventName.COMMENT_ADDED,
+  EventName.COMMENT_UPDATED,
+  EventName.COMMENT_RESOLVED,
+  EventName.COMMENT_DELETED,
 ]);
 
 /**

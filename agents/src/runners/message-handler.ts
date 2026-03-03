@@ -170,7 +170,7 @@ export class MessageHandler {
           toolUseCount: this.countBlocks(msg, "tool_use"),
           thinkingBlockCount: this.countBlocks(msg, "thinking"),
           textBlockCount: this.countBlocks(msg, "text"),
-        });
+        }, "MessageHandler:api-call");
 
         // Track cumulative input tokens for context pressure
         this.cumulativeInputTokens += totalInput;
@@ -222,7 +222,7 @@ export class MessageHandler {
       // msg.uuid carries the queued message ID from socket message stream
       // Emit via socket or stdout fallback
       if (msg.uuid) {
-        emitEvent("queued-message:ack", { messageId: msg.uuid });
+        emitEvent("queued-message:ack", { messageId: msg.uuid }, "MessageHandler:queued-ack");
         logger.info(`[MessageHandler] Emitted ack for queued message: ${msg.uuid}`);
       }
 
@@ -319,7 +319,7 @@ export class MessageHandler {
     // Emit event for frontend
     emitEvent(EventName.THREAD_UPDATED, {
       threadId: msg.tool_use_id ?? msg.task_id,
-    });
+    }, "MessageHandler:task-started");
 
     return true;
   }
@@ -357,7 +357,7 @@ export class MessageHandler {
         emitEvent(EventName.THREAD_STATUS_CHANGED, {
           threadId: childThreadId,
           status: metadataStatus,
-        });
+        }, "MessageHandler:task-notification");
       }
     }
 
@@ -404,7 +404,7 @@ export class MessageHandler {
           inputTokens: this.cumulativeInputTokens,
           contextWindow: this.contextWindow,
           turnIndex: this.turnIndex,
-        });
+        }, "MessageHandler:context-pressure");
       }
     }
   }
@@ -552,7 +552,7 @@ export class MessageHandler {
     writeFileSync(statePath, JSON.stringify(state, null, 2));
 
     // Emit THREAD_UPDATED so frontend refreshes this child's metadata
-    emitEvent(EventName.THREAD_UPDATED, { threadId: childThreadId });
+    emitEvent(EventName.THREAD_UPDATED, { threadId: childThreadId }, "MessageHandler:child-state");
   }
 
   /**

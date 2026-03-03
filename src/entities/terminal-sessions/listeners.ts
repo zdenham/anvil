@@ -4,6 +4,7 @@
  */
 import { listen } from "@tauri-apps/api/event";
 import { useTerminalSessionStore } from "./store";
+import { decodeOutput, appendOutput } from "./output-buffer";
 import { logger } from "@/lib/logger-client";
 
 interface TerminalOutputPayload {
@@ -26,25 +27,11 @@ interface TerminalKilledPayload {
 export function setupTerminalListeners(): () => void {
   const unlisteners: Array<() => void> = [];
 
-  // Listen for terminal output
+  // Listen for terminal output — decode once, store + notify subscribers
   listen<TerminalOutputPayload>("terminal:output", (event) => {
     const { id, data } = event.payload;
-    const terminalId = String(id);
-
-    // Convert byte array to string
-    const text = new TextDecoder().decode(new Uint8Array(data));
-
-    const bufferBefore = useTerminalSessionStore.getState().outputBuffers[terminalId]?.length ?? 0;
-    // Append to output buffer for scrollback
-    useTerminalSessionStore.getState().appendOutput(terminalId, text);
-
-    logger.debug("[TerminalListeners] Appended output to buffer", {
-      terminalId,
-      chunkLength: text.length,
-      bufferBefore,
-      bufferAfter: bufferBefore + text.length,
-      textPreview: text.slice(0, 60),
-    });
+    const text = decodeOutput(data);
+    appendOutput(String(id), text);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   // Listen for terminal exit (process ended)

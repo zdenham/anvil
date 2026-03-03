@@ -8,7 +8,7 @@ import { HeartbeatEmitter } from "./heartbeat.js";
 import { ReconnectQueue } from "./reconnect-queue.js";
 import { withRetry, type RetryOptions, DEFAULT_RETRY_OPTIONS } from "./retry.js";
 import { parseDiagnosticConfig } from "./diagnostic-config.js";
-import type { SocketMessage } from "./types.js";
+import type { SocketMessage, StateEvent } from "./types.js";
 
 /** High-level connection lifecycle state. */
 export type ConnectionState = "connected" | "reconnecting" | "disconnected";
@@ -192,8 +192,12 @@ export class HubClient extends EventEmitter {
     this.send({ type: "state", state });
   }
 
-  sendEvent(name: string, payload: unknown): void {
-    this.send({ type: "event", name, payload });
+  sendStateEvent(event: StateEvent): void {
+    this.send({ type: "state_event", ...event });
+  }
+
+  sendEvent(name: string, payload: unknown, source?: string): void {
+    this.send({ type: "event", name, payload, ...(source && { source }) });
   }
 
   sendLog(level: string, message: string): void {
@@ -204,8 +208,8 @@ export class HubClient extends EventEmitter {
     this.send({ type: "relay", targetThreadId, payload });
   }
 
-  sendDrain(event: string, properties: Record<string, string | number | boolean>): void {
-    this.send({ type: "drain", event, properties });
+  sendDrain(event: string, properties: Record<string, string | number | boolean>, source?: string): void {
+    this.send({ type: "drain", event, properties, ...(source && { source }) });
   }
 
   // --- Heartbeat ---

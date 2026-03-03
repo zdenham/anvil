@@ -18,6 +18,7 @@ const fs = new FilesystemClient();
 const isDev = import.meta.env.DEV;
 import { logger } from "./logger-client";
 import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
+import { useEventDebuggerStore } from "@/stores/event-debugger-store";
 
 // Cache the shell PATH to avoid repeated Tauri calls
 let cachedShellPath: string | null = null;
@@ -63,6 +64,8 @@ interface AgentSocketMessage {
   pipeline?: PipelineStamp[];
   /** Agent-side timestamp (for heartbeat messages) */
   timestamp?: number;
+  /** Origin within the agent runner, e.g. "shared:PreToolUse", "PostToolUse:plan-detection" */
+  source?: string;
 }
 
 /** Unlisten function for the agent message listener */
@@ -152,6 +155,12 @@ export async function initAgentMessageListener(): Promise<void> {
     // Track pipeline sequence for all messages (gap detection)
     const seq = trackPipelineSeq(msg);
 
+    // Capture for event debugger
+    const debugStore = useEventDebuggerStore.getState();
+    if (debugStore.isCapturing) {
+      debugStore.captureEvent(msg as unknown as Record<string, unknown>);
+    }
+
     switch (msg.type) {
       case "state":
         // Agent sent a state update
@@ -192,6 +201,10 @@ export async function initAgentMessageListener(): Promise<void> {
       case "log":
         // Agent sent a log message - just log it, don't route to eventBus
         logger.info(`[Agent ${msg.threadId}]`, msg.payload);
+        break;
+
+      case "drain":
+        // Forwarded for event debugger capture only — not routed to eventBus
         break;
 
       default:
@@ -241,6 +254,10 @@ function routeAgentEvent(threadId: string, eventName: string, payload: unknown):
     case EventName.AGENT_CANCELLED:
     case EventName.THREAD_NAME_GENERATED:
     case EventName.PLAN_DETECTED:
+    case EventName.COMMENT_ADDED:
+    case EventName.COMMENT_UPDATED:
+    case EventName.COMMENT_RESOLVED:
+    case EventName.COMMENT_DELETED:
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       eventBus.emit(eventName as any, payload as any);
       break;

@@ -5,7 +5,7 @@
  * scroll listeners, ResizeObserver, and scrollTo calls.
  */
 
-import { useRef, useCallback, useEffect, useSyncExternalStore } from "react";
+import { useRef, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { VirtualList, type VirtualItem, type ScrollToOptions } from "@/lib/virtual-list";
 
 export type { VirtualItem, ScrollToOptions } from "@/lib/virtual-list";
@@ -25,6 +25,10 @@ export interface UseVirtualListOptions {
   atBottomThreshold?: number;
   /** Return a ScrollBehavior to auto-follow when items are added at the bottom, or false to skip */
   followOutput?: (atBottom: boolean) => ScrollBehavior | false;
+  /** Enable intent-based sticky scroll (opt-in) */
+  sticky?: boolean;
+  /** Callback when sticky state changes */
+  onStickyChange?: (sticky: boolean) => void;
 }
 
 export interface UseVirtualListResult {
@@ -34,6 +38,10 @@ export interface UseVirtualListResult {
   /** Ref callback — attach to each virtual item element for height measurement */
   measureItem: (el: HTMLElement | null) => void;
   isAtBottom: boolean;
+  /** Whether auto-scroll is engaged (sticky mode only) */
+  isSticky: boolean;
+  /** Manually set sticky state (e.g., to re-engage on scroll-to-bottom click) */
+  setSticky: (sticky: boolean) => void;
   /** The VirtualList instance, for escape hatches */
   list: VirtualList;
 }
@@ -101,6 +109,15 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   }
   prevOptsRef.current = opts;
 
+  // -- Sticky mode state --
+  const [isSticky, setIsStickyState] = useState(true);
+  const isStickyRef = useRef(true);
+  const setSticky = useCallback((value: boolean) => {
+    if (isStickyRef.current === value) return;
+    isStickyRef.current = value;
+    setIsStickyState(value);
+  }, []);
+
   // -- useSyncExternalStore for reactive snapshot (items + totalHeight + isAtBottom) --
   const snapshotRef = useRef<VirtualSnapshot>({
     items: list.items,
@@ -136,11 +153,45 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
     const onScroll = () => {
       list.updateScroll(el.scrollTop, el.clientHeight);
+
+      // Re-engage sticky when user scrolls to near bottom
+      if (opts.sticky && !isStickyRef.current) {
+        const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (gap <= 20) {
+          setSticky(true);
+        }
+      }
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, [list, opts.getScrollElement]);
+
+    if (!opts.sticky) {
+      return () => el.removeEventListener("scroll", onScroll);
+    }
+
+    // User-intent detection: wheel-up disengages sticky
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0 && isStickyRef.current) {
+        setSticky(false);
+      }
+    };
+
+    // User-intent detection: scrollbar drag disengages sticky
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.target === el && isStickyRef.current) {
+        setSticky(false);
+      }
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: true });
+    el.addEventListener("pointerdown", onPointerDown);
+
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [list, opts.getScrollElement, opts.sticky, setSticky]);
 
   // -- Viewport ResizeObserver on scroll element --
   useEffect(() => {
@@ -233,6 +284,15 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     prevAtBottomRef.current = snapshot.isAtBottom;
   }, [snapshot.isAtBottom, opts.onAtBottomChange]);
 
+  // -- stickyChange callback --
+  const prevStickyRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (prevStickyRef.current !== undefined && prevStickyRef.current !== isSticky) {
+      opts.onStickyChange?.(isSticky);
+    }
+    prevStickyRef.current = isSticky;
+  }, [isSticky, opts.onStickyChange]);
+
   // -- followOutput: auto-scroll when count increases while at bottom --
   const prevFollowCountRef = useRef(opts.count);
   useEffect(() => {
@@ -243,8 +303,9 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     }
     prevFollowCountRef.current = opts.count;
 
-    // Check if we were at bottom before the count change
-    const result = opts.followOutput(snapshot.isAtBottom);
+    // Check if we should follow (sticky mode uses intent, otherwise position)
+    const shouldFollow = opts.sticky ? isSticky : snapshot.isAtBottom;
+    const result = opts.followOutput(shouldFollow);
     if (result === false) return;
 
     const el = opts.getScrollElement();
@@ -253,14 +314,15 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     requestAnimationFrame(() => {
       el.scrollTo({ top: el.scrollHeight, behavior: result });
     });
-  }, [opts.count, opts.followOutput, opts.getScrollElement, snapshot.isAtBottom]);
+  }, [opts.count, opts.followOutput, opts.getScrollElement, opts.sticky, isSticky, snapshot.isAtBottom]);
 
   // -- followOutput: also follow height changes (streaming content growing) --
   useEffect(() => {
     if (!opts.followOutput) return;
 
     const unsub = list.subscribe(() => {
-      if (!list.isAtBottom) return;
+      const shouldFollow = opts.sticky ? isStickyRef.current : list.isAtBottom;
+      if (!shouldFollow) return;
       const result = opts.followOutput!(true);
       if (result === false) return;
 
@@ -275,7 +337,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     });
 
     return unsub;
-  }, [list, opts.followOutput, opts.getScrollElement]);
+  }, [list, opts.followOutput, opts.getScrollElement, opts.sticky]);
 
   return {
     items: snapshot.items,
@@ -283,6 +345,8 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     scrollToIndex,
     measureItem,
     isAtBottom: snapshot.isAtBottom,
+    isSticky,
+    setSticky,
     list,
   };
 }

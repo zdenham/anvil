@@ -21,16 +21,19 @@ export async function resolveMergeBase(
   currentBranch: string | null,
   defaultBranch: string
 ): Promise<string> {
-  // Detached HEAD or on default branch: diff against origin/<defaultBranch>
-  if (!currentBranch || currentBranch === defaultBranch) {
+  const remoteRef = `origin/${defaultBranch}`;
+
+  // On default branch: diff against origin/<defaultBranch> directly
+  // (shows unpushed work — merge-base would return HEAD itself)
+  if (currentBranch === defaultBranch) {
     return getRemoteFallback(worktreePath, defaultBranch);
   }
 
-  // Feature branch: compute merge base
+  // Detached HEAD or feature branch: compute merge-base against remote ref
   try {
-    return await gitCommands.getMergeBase(worktreePath, currentBranch, defaultBranch);
+    return await gitCommands.getMergeBase(worktreePath, "HEAD", remoteRef);
   } catch {
-    logger.warn("[changes] getMergeBase failed, falling back to remote");
+    logger.warn("[changes] getMergeBase failed, falling back to remote ref");
     return getRemoteFallback(worktreePath, defaultBranch);
   }
 }
@@ -74,7 +77,12 @@ export async function fetchRawDiff(params: {
     return { raw, parsed: parseDiff(raw), mergeBase: null };
   }
 
-  // All changes mode — resolve merge base first
+  // All changes mode — fetch to ensure origin refs are current, then resolve merge base
+  try {
+    await gitCommands.fetch(worktreePath, "origin");
+  } catch {
+    logger.warn("[changes] fetch failed, proceeding with stale refs");
+  }
   const mergeBase = await resolveMergeBase(worktreePath, currentBranch, defaultBranch);
   const raw = await gitCommands.diffRange(worktreePath, mergeBase);
   return { raw, parsed: parseDiff(raw), mergeBase };

@@ -464,7 +464,10 @@ impl AgentHub {
                                 properties = %props_str,
                             );
                         }
-                        continue; // Don't forward to frontend -- drain events are storage-only
+
+                        // Also forward to frontend for event debugger
+                        let _ = app_handle.emit("agent:message", &raw_msg);
+                        continue;
                     }
 
                     // Forward all other messages to Tauri/UI

@@ -1,5 +1,6 @@
 import { useThreadStore } from "@/entities/threads/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
+import { getAllOutputBuffers } from "@/entities/terminal-sessions/output-buffer";
 import { useStreamingStore } from "@/stores/streaming-store";
 import { useLogStore } from "@/entities/logs/store";
 import { useHeartbeatStore } from "@/stores/heartbeat-store";
@@ -93,11 +94,12 @@ function measureThreadStores() {
 }
 
 function measureTerminalSessions() {
-  const { sessions, outputBuffers } = useTerminalSessionStore.getState();
+  const { sessions } = useTerminalSessionStore.getState();
+  const outputBuffers = getAllOutputBuffers();
   const perBuffer: Record<string, number> = {};
   let totalBufferBytes = 0;
 
-  for (const [id, buffer] of Object.entries(outputBuffers)) {
+  for (const [id, buffer] of outputBuffers) {
     const bytes = buffer.length;
     perBuffer[id] = bytes;
     totalBufferBytes += bytes;
@@ -105,7 +107,7 @@ function measureTerminalSessions() {
 
   return {
     sessionCount: Object.keys(sessions).length,
-    bufferCount: Object.keys(outputBuffers).length,
+    bufferCount: outputBuffers.size,
     totalBufferBytes,
     perBuffer,
   };
@@ -167,11 +169,11 @@ export async function captureMemorySnapshot(): Promise<MemorySnapshot> {
 /** Quick summary for the diagnostic panel (no serialization, lightweight). */
 export function getMemorySummary() {
   const { threads, threadStates } = useThreadStore.getState();
-  const { outputBuffers } = useTerminalSessionStore.getState();
+  const outputBuffers = getAllOutputBuffers();
   const { activeStreams } = useStreamingStore.getState();
 
   let totalBufferBytes = 0;
-  for (const buffer of Object.values(outputBuffers)) {
+  for (const buffer of outputBuffers.values()) {
     totalBufferBytes += buffer.length;
   }
 
@@ -190,7 +192,7 @@ export function getMemorySummary() {
     threadMetadataCount: Object.keys(threads).length,
     cachedStateCount: Object.keys(threadStates).length,
     cachedStateEstimateBytes,
-    terminalBufferCount: Object.keys(outputBuffers).length,
+    terminalBufferCount: outputBuffers.size,
     terminalBufferBytes: totalBufferBytes,
     activeStreamCount: Object.keys(activeStreams).length,
   };

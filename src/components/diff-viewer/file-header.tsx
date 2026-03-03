@@ -1,9 +1,13 @@
-import { memo } from "react";
-import { ArrowRight, ChevronRight, FileCode } from "lucide-react";
+import { memo, useCallback } from "react";
+import { ArrowRight, ChevronRight, FileCode, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFileIconUrl } from "../file-browser/file-icons";
 import { CopyButton } from "../ui/copy-button";
 import { Tooltip } from "../ui/tooltip";
+import { useOptionalDiffCommentStore } from "@/contexts/diff-comment-context";
+import { useCommentStore } from "@/entities/comments/store";
+import { AddressCommentsButton } from "./address-comments-button";
+import { useStore } from "zustand";
 import type { ParsedDiffFile } from "./types";
 
 interface FileHeaderProps {
@@ -86,8 +90,14 @@ export const FileHeader = memo(function FileHeader({
         )}
       </div>
 
-      {/* Copy path — right next to file name */}
+      {/* Copy path -- right next to file name */}
       <CopyButton text={path} label="Copy path" />
+
+      {/* Comment count badge */}
+      <FileHeaderCommentBadge filePath={path} />
+
+      {/* Address Comments button */}
+      <FileHeaderAddressSlot />
 
       {/* Show full file toggle */}
       {onToggleFullFile && (
@@ -106,7 +116,7 @@ export const FileHeader = memo(function FileHeader({
         </Tooltip>
       )}
 
-      {/* Operation badge — hide for "modified" since the diff itself shows it */}
+      {/* Operation badge -- hide for "modified" since the diff itself shows it */}
       {file.type !== "modified" && (
         <OperationBadge type={file.type} similarity={file.similarity} />
       )}
@@ -125,6 +135,52 @@ export const FileHeader = memo(function FileHeader({
     </div>
   );
 });
+
+/** Badge showing unresolved comment count for a file, if inside a DiffCommentProvider. */
+function FileHeaderCommentBadge({ filePath }: { filePath: string }) {
+  const store = useOptionalDiffCommentStore();
+  if (!store) return null;
+  return <FileHeaderCommentBadgeInner filePath={filePath} store={store} />;
+}
+
+function FileHeaderCommentBadgeInner({
+  filePath,
+  store,
+}: {
+  filePath: string;
+  store: NonNullable<ReturnType<typeof useOptionalDiffCommentStore>>;
+}) {
+  const { worktreeId, threadId } = useStore(store);
+
+  const count = useCommentStore(
+    useCallback(
+      (s) => {
+        const comments = s.getByFile(worktreeId, filePath, threadId);
+        return comments.filter((c) => !c.resolved).length;
+      },
+      [worktreeId, filePath, threadId],
+    ),
+  );
+
+  if (count === 0) return null;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/20 text-amber-400 flex-shrink-0"
+      title={`${count} unresolved comment${count !== 1 ? "s" : ""}`}
+    >
+      <MessageSquare className="w-2.5 h-2.5" />
+      {count}
+    </span>
+  );
+}
+
+/** Renders AddressCommentsButton only when inside a DiffCommentProvider. */
+function FileHeaderAddressSlot() {
+  const store = useOptionalDiffCommentStore();
+  if (!store) return null;
+  return <AddressCommentsButton />;
+}
 
 interface OperationBadgeProps {
   type: ParsedDiffFile["type"];

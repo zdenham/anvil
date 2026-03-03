@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { TerminalSession } from "./types";
-import { OUTPUT_BUFFER_MAX_LINES } from "./types";
+import { clearOutputBuffer } from "./output-buffer";
 
 interface TerminalSessionStoreState {
   /** All terminal sessions keyed by ID */
@@ -8,9 +8,6 @@ interface TerminalSessionStoreState {
 
   /** Cached array of all sessions (to prevent Object.values() recalculation) */
   _sessionsArray: TerminalSession[];
-
-  /** Output buffers keyed by terminal ID (for scrollback when reopening) */
-  outputBuffers: Record<string, string>;
 
   /** Whether the store has been hydrated */
   _hydrated: boolean;
@@ -38,14 +35,6 @@ interface TerminalSessionStoreActions {
   /** Get sessions by worktree ID */
   getSessionsByWorktree: (worktreeId: string) => TerminalSession[];
 
-  /** Append output to a terminal's buffer */
-  appendOutput: (id: string, data: string) => void;
-
-  /** Get the output buffer for a terminal */
-  getOutputBuffer: (id: string) => string;
-
-  /** Clear the output buffer for a terminal */
-  clearOutputBuffer: (id: string) => void;
 }
 
 export const useTerminalSessionStore = create<
@@ -56,7 +45,6 @@ export const useTerminalSessionStore = create<
   // ═══════════════════════════════════════════════════════════════════════════
   sessions: {},
   _sessionsArray: [],
-  outputBuffers: {},
   _hydrated: false,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -87,6 +75,9 @@ export const useTerminalSessionStore = create<
   },
 
   removeSession: (id) => {
+    // Clean up output buffer (outside Zustand — no subscriber overhead)
+    clearOutputBuffer(id);
+
     set((state) => {
       const existing = state.sessions[id];
       if (!existing) return state;
@@ -96,13 +87,9 @@ export const useTerminalSessionStore = create<
       const updated = { ...existing, isArchived: true, isAlive: false };
       const newSessions = { ...state.sessions, [id]: updated };
 
-      // Clean up output buffer
-      const { [id]: _, ...restBuffers } = state.outputBuffers;
-
       return {
         sessions: newSessions,
         _sessionsArray: Object.values(newSessions).filter((s) => !s.isArchived),
-        outputBuffers: restBuffers,
       };
     });
   },
@@ -128,29 +115,4 @@ export const useTerminalSessionStore = create<
   getSessionsByWorktree: (worktreeId) =>
     get()._sessionsArray.filter((s) => s.worktreeId === worktreeId),
 
-  appendOutput: (id, data) => {
-    set((state) => {
-      const existing = state.outputBuffers[id] || "";
-      let newBuffer = existing + data;
-
-      // Trim to max lines if needed
-      const lines = newBuffer.split("\n");
-      if (lines.length > OUTPUT_BUFFER_MAX_LINES) {
-        newBuffer = lines.slice(-OUTPUT_BUFFER_MAX_LINES).join("\n");
-      }
-
-      return {
-        outputBuffers: { ...state.outputBuffers, [id]: newBuffer },
-      };
-    });
-  },
-
-  getOutputBuffer: (id) => get().outputBuffers[id] || "",
-
-  clearOutputBuffer: (id) => {
-    set((state) => {
-      const { [id]: _, ...rest } = state.outputBuffers;
-      return { outputBuffers: rest };
-    });
-  },
 }));

@@ -49,6 +49,7 @@ import { SearchPanel } from "@/components/search-panel";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
 import { handleCreatePr } from "@/lib/pr-actions";
+import { GlobalToast } from "@/components/ui/global-toast";
 import type { ContentPaneView } from "@/components/content-pane/types";
 
 function slugify(name: string): string {
@@ -758,6 +759,9 @@ export function MainWindowLayout() {
           isOpen={commandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}
         />
+
+        {/* Global toast notifications */}
+        <GlobalToast />
       </div>
     </MainWindowProvider>
   );

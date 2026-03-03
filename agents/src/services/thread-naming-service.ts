@@ -1,5 +1,4 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { generateText } from "ai";
+import { generateWithFallback, type FallbackResult } from "./llm-fallback.js";
 
 const SYSTEM_PROMPT = `You are a thread naming assistant. Generate a short name for a conversation thread based on the user's initial message.
 
@@ -28,34 +27,31 @@ Bad examples (NEVER do these):
 
 Respond with ONLY the thread name, nothing else.`;
 
+export interface ThreadNameResult {
+  name: string;
+  usedFallback: boolean;
+}
+
 /**
- * Generate a thread name using Claude Haiku.
+ * Generate a thread name with automatic model fallback.
+ * Tries Haiku first, falls back to Sonnet if Haiku fails.
  * For short prompts (<= 25 characters), uses the prompt directly to save API costs.
- *
- * @param prompt - The user's initial prompt
- * @param apiKey - Anthropic API key
- * @returns Generated thread name (max 30 characters)
  */
 export async function generateThreadName(
   prompt: string,
   apiKey: string
-): Promise<string> {
-  // For short prompts, use the prompt directly as the thread name
-  // This saves API costs and improves latency
+): Promise<ThreadNameResult> {
   const trimmedPrompt = prompt.trim();
   if (trimmedPrompt.length > 0 && trimmedPrompt.length <= 25) {
-    return trimmedPrompt;
+    return { name: trimmedPrompt, usedFallback: false };
   }
 
-  // For longer prompts, use LLM to generate a concise name
-  const anthropic = createAnthropic({ apiKey });
-
-  const { text } = await generateText({
-    model: anthropic("claude-haiku-4-5-20251001"),
+  const result: FallbackResult = await generateWithFallback({
+    apiKey,
     system: SYSTEM_PROMPT,
     prompt: `Generate a thread name for this user message:\n\n${prompt}`,
     maxOutputTokens: 50,
   });
 
-  return text.trim();
+  return { name: result.text.trim(), usedFallback: result.usedFallback };
 }
