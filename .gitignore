@@ -38,3 +38,6 @@ sdk-types.d.ts
 
 # Generated icon assets (copied from node_modules by postinstall)
 public/material-icons/
+
+# Ad-hoc debug/repro scripts
+e2e/debug/

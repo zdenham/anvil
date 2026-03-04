@@ -6,8 +6,8 @@ import { CommentGutterButton } from "./comment-gutter-button";
 interface AnnotatedLineRowProps {
   /** The annotated line data */
   line: AnnotatedLine;
-  /** Callback when line is clicked (for comment form opening) */
-  onLineClick?: (lineNumber: number) => void;
+  /** Callback when line is clicked (passes composite key like "5:addition") */
+  onLineClick?: (lineKey: string) => void;
   /** Whether this line has comments (shows indicator dot) */
   hasComments?: boolean;
 }
@@ -22,10 +22,11 @@ export const AnnotatedLineRow = memo(function AnnotatedLineRow({
   hasComments,
 }: AnnotatedLineRowProps) {
   const lineNumber = line.newLineNumber ?? line.oldLineNumber ?? 0;
+  const key = `${lineNumber}:${line.type}`;
 
   const handleClick = () => {
     if (onLineClick && lineNumber) {
-      onLineClick(lineNumber);
+      onLineClick(key);
     }
   };
 
@@ -70,7 +71,7 @@ export const AnnotatedLineRow = memo(function AnnotatedLineRow({
         `}
       >
         {onLineClick && (
-          <CommentGutterButton onClick={() => onLineClick(lineNumber)} lineNumber={lineNumber} />
+          <CommentGutterButton onClick={() => onLineClick(key)} lineNumber={lineNumber} />
         )}
         {hasComments && !onLineClick && (
           <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-amber-400" />

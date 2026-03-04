@@ -38,6 +38,7 @@ export function findCollapsibleRegions(
           startIndex: regionStart,
           endIndex: i - 1,
           lineCount: length,
+          kind: "unchanged",
         });
       }
       regionStart = null;
@@ -52,6 +53,7 @@ export function findCollapsibleRegions(
         startIndex: regionStart,
         endIndex: lines.length - 1,
         lineCount: length,
+        kind: "unchanged",
       });
     }
   }
@@ -84,6 +86,7 @@ export function findNewFileCollapsibleRegions(
       startIndex,
       endIndex,
       lineCount: endIndex - startIndex + 1,
+      kind: "added",
     },
   ];
 }
@@ -113,6 +116,7 @@ export function findDeletedFileCollapsibleRegions(
       startIndex,
       endIndex,
       lineCount: endIndex - startIndex + 1,
+      kind: "deleted",
     },
   ];
 }

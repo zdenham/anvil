@@ -186,6 +186,37 @@ async fn dispatch_part3(
             crate::terminal::resize_terminal_inner(&state.terminal_state, id, cols, rows)?;
             Ok(serde_json::Value::Null)
         }
+        "spawn_terminal" => {
+            let cols: u16 = extract_arg(&args, "cols")?;
+            let rows: u16 = extract_arg(&args, "rows")?;
+            let cwd: String = extract_arg(&args, "cwd")?;
+            let broadcaster = state.broadcaster.clone();
+            let emit = std::sync::Arc::new(move |event: &str, payload: serde_json::Value| {
+                broadcaster.broadcast(event, payload);
+            });
+            let id = crate::terminal::spawn_terminal_inner(
+                &state.terminal_state, cols, rows, cwd, emit,
+            )?;
+            Ok(serde_json::to_value(id).unwrap())
+        }
+        "kill_terminal" => {
+            let id: u32 = extract_arg(&args, "id")?;
+            let broadcaster = state.broadcaster.clone();
+            crate::terminal::kill_terminal_inner(&state.terminal_state, id, |event, payload| {
+                broadcaster.broadcast(event, payload);
+            })?;
+            Ok(serde_json::Value::Null)
+        }
+        "kill_terminals_by_cwd" => {
+            let cwd: String = extract_arg(&args, "cwd")?;
+            let broadcaster = state.broadcaster.clone();
+            let ids = crate::terminal::kill_terminals_by_cwd_inner(
+                &state.terminal_state, &cwd, |event, payload| {
+                    broadcaster.broadcast(event, payload);
+                },
+            )?;
+            Ok(serde_json::to_value(ids).unwrap())
+        }
 
         // ── File Watcher (stateful — FileWatcherState) ───────────────────
         "stop_watch" => {

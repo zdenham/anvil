@@ -9,6 +9,7 @@ import { FileHeader } from "./file-header";
 import { AnnotatedLineRow } from "./annotated-line-row";
 import { CollapsedRegionPlaceholder } from "./collapsed-region-placeholder";
 import { BinaryFilePlaceholder } from "./binary-file-placeholder";
+import { useIsSticky } from "@/hooks/use-is-sticky";
 import { useOptionalDiffCommentStore, useDiffCommentStore } from "@/contexts/diff-comment-context";
 import { useCommentStore } from "@/entities/comments/store";
 import { commentService } from "@/entities/comments/service";
@@ -16,6 +17,13 @@ import { InlineCommentForm } from "./inline-comment-form";
 import { InlineCommentDisplay } from "./inline-comment-display";
 
 import type { InlineComment } from "@core/types/comments.js";
+import type { AnnotatedLine } from "./types";
+
+/** Composite key disambiguating line number + side (e.g. "5:addition" vs "5:deletion"). */
+function lineKey(line: AnnotatedLine): string {
+  const num = line.newLineNumber ?? line.oldLineNumber ?? 0;
+  return `${num}:${line.type}`;
+}
 
 interface DiffFileCardProps {
   /** The annotated file to display */
@@ -45,6 +53,7 @@ export const DiffFileCard = memo(function DiffFileCard({
   const fileId = `diff-file-${fileIndex}`;
   const [isFileCollapsed, setIsFileCollapsed] = useState(false);
   const handleToggleCollapse = useCallback(() => setIsFileCollapsed(prev => !prev), []);
+  const [sentinelRef, isSticky] = useIsSticky();
 
   // Handle binary files
   if (file.file.isBinary || file.file.type === "binary") {
@@ -57,10 +66,12 @@ export const DiffFileCard = memo(function DiffFileCard({
         aria-label={`Binary file: ${filePath}`}
         tabIndex={-1}
       >
+        <div ref={sentinelRef} className="h-0" />
         <FileHeader
           file={file.file}
           isCollapsed={isFileCollapsed}
           onToggleCollapse={handleToggleCollapse}
+          isSticky={isSticky}
         />
         {!isFileCollapsed && <BinaryFilePlaceholder file={file.file} />}
       </div>
@@ -78,10 +89,12 @@ export const DiffFileCard = memo(function DiffFileCard({
         aria-label={`Empty file: ${filePath}`}
         tabIndex={-1}
       >
+        <div ref={sentinelRef} className="h-0" />
         <FileHeader
           file={file.file}
           isCollapsed={isFileCollapsed}
           onToggleCollapse={handleToggleCollapse}
+          isSticky={isSticky}
         />
         {!isFileCollapsed && (
           <div className="py-6 text-center text-surface-500 text-sm rounded-b-lg">
@@ -107,6 +120,8 @@ export const DiffFileCard = memo(function DiffFileCard({
       onLineClick={onLineClick}
       isFileCollapsed={isFileCollapsed}
       onToggleCollapse={handleToggleCollapse}
+      sentinelRef={sentinelRef}
+      isSticky={isSticky}
     />
   );
 });
@@ -121,6 +136,8 @@ interface DiffFileCardContentProps {
   onLineClick?: (filePath: string, lineNumber: number) => void;
   isFileCollapsed: boolean;
   onToggleCollapse: () => void;
+  sentinelRef: React.RefObject<HTMLDivElement>;
+  isSticky: boolean;
 }
 
 /**
@@ -136,6 +153,8 @@ function DiffFileCardContent({
   onLineClick,
   isFileCollapsed,
   onToggleCollapse,
+  sentinelRef,
+  isSticky,
 }: DiffFileCardContentProps) {
   // New-side content from fullFileContents
   const newContent = useMemo(() => {
@@ -201,7 +220,10 @@ function DiffFileCardContent({
   const isCommentable = commentStore !== null;
 
   const handleLineClick = onLineClick
-    ? (lineNumber: number) => onLineClick(filePath, lineNumber)
+    ? (lineKey: string) => {
+        const lineNumber = parseInt(lineKey, 10);
+        onLineClick(filePath, lineNumber);
+      }
     : undefined;
 
   return (
@@ -213,12 +235,14 @@ function DiffFileCardContent({
       aria-label={`Changes to ${filePath}`}
       tabIndex={-1}
     >
+      <div ref={sentinelRef} className="h-0" />
       <FileHeader
         file={file.file}
         isCollapsed={isFileCollapsed}
         onToggleCollapse={onToggleCollapse}
         isFullFile={isFullFile}
         onToggleFullFile={regions.length > 0 ? handleToggleFullFile : undefined}
+        isSticky={isSticky}
       />
 
       {/* Diff content */}
@@ -283,11 +307,11 @@ function DiffLinesWithComments({
   filePath: string;
   isExpanded: (index: number) => boolean;
   toggle: (index: number) => void;
-  onLineClick?: (lineNumber: number) => void;
+  onLineClick?: (lineKey: string) => void;
 }) {
   const worktreeId = useDiffCommentStore((s) => s.worktreeId);
   const threadId = useDiffCommentStore((s) => s.threadId);
-  const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null);
+  const [activeCommentLine, setActiveCommentLine] = useState<string | null>(null);
 
   // Lazy-load comments for this worktree
   useEffect(() => {
@@ -308,19 +332,20 @@ function DiffLinesWithComments({
     [allComments, worktreeId, filePath, threadId],
   );
 
-  // Pre-compute comments by line number
+  // Pre-compute comments by composite key (lineNumber:lineType)
   const commentsByLine = useMemo(() => {
-    const map = new Map<number, InlineComment[]>();
+    const map = new Map<string, InlineComment[]>();
     for (const c of comments) {
-      const existing = map.get(c.lineNumber) ?? [];
+      const key = `${c.lineNumber}:${c.lineType}`;
+      const existing = map.get(key) ?? [];
       existing.push(c);
-      map.set(c.lineNumber, existing);
+      map.set(key, existing);
     }
     return map;
   }, [comments]);
 
-  const handleCommentClick = useCallback((lineNumber: number) => {
-    setActiveCommentLine((prev) => (prev === lineNumber ? null : lineNumber));
+  const handleCommentClick = useCallback((key: string) => {
+    setActiveCommentLine((prev) => (prev === key ? null : key));
   }, []);
 
   return (
@@ -339,8 +364,9 @@ function DiffLinesWithComments({
           );
         }
 
+        const key = lineKey(item.line);
         const lineNumber = item.line.newLineNumber ?? item.line.oldLineNumber ?? 0;
-        const lineComments = commentsByLine.get(lineNumber) ?? [];
+        const lineComments = commentsByLine.get(key) ?? [];
 
         return (
           <div key={`line-${item.lineIndex}`}>
@@ -349,7 +375,7 @@ function DiffLinesWithComments({
               onLineClick={handleCommentClick}
               hasComments={lineComments.length > 0}
             />
-            {activeCommentLine === lineNumber && (
+            {activeCommentLine === key && (
               <InlineCommentForm
                 filePath={filePath}
                 lineNumber={lineNumber}

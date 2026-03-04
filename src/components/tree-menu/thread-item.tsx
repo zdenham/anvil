@@ -11,6 +11,7 @@ import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
 import { treeMenuService } from "@/stores/tree-menu/service";
+import { navigationService } from "@/stores/navigation-service";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 
 /**
@@ -90,12 +91,23 @@ export function ThreadItem({
   const handleArchive = useCallback(async () => {
     setIsArchiving(true);
     try {
+      // Navigate to next sibling before deleting to prevent flicker
+      if (isSelected && allItems.length > 1) {
+        const nextItem = allItems[itemIndex + 1] ?? allItems[itemIndex - 1];
+        if (nextItem) {
+          if (nextItem.type === "plan") {
+            await navigationService.navigateToPlan(nextItem.id);
+          } else {
+            await navigationService.navigateToThread(nextItem.id);
+          }
+        }
+      }
       await threadService.archive(item.id);
     } finally {
       setIsArchiving(false);
       setConfirming(false);
     }
-  }, [item.id]);
+  }, [item.id, isSelected, allItems, itemIndex]);
 
   const handleArchiveClick = async (e: React.MouseEvent) => {
     e.stopPropagation();

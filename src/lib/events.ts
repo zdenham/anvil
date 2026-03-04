@@ -5,7 +5,7 @@
  * from `@tauri-apps/api/event`.
  *
  * Routes:
- * - Tauri WebView: delegates to Tauri event system
+ * - Tauri WebView: registers on both Tauri IPC events and WS push events
  * - Browser: registers handlers for WebSocket push events
  *
  * Import this instead of `@tauri-apps/api/event` everywhere.
@@ -53,28 +53,37 @@ setEventDispatcher(dispatchWsEvent);
 
 /**
  * Listen for an event. Returns a function to stop listening.
- * In Tauri: delegates to Tauri event system.
- * In browser: registers for WebSocket push events.
+ *
+ * Always registers on the WS push handler so events arriving via either
+ * transport (Tauri IPC or WebSocket broadcast) are received. In Tauri mode
+ * we also register on the Tauri event system for commands that go through
+ * Tauri IPC (whose events come back via `app.emit()`).
  */
 export async function listen<T>(
   event: string,
   handler: EventHandler<T>,
 ): Promise<UnlistenFn> {
-  if (isTauri()) {
-    const { listen: tauriListen } = await import("@tauri-apps/api/event");
-    return tauriListen<T>(event, handler);
-  }
-
-  // Browser: register in local map
+  // Always register on WS push handler — commands routed through WS
+  // emit events via broadcaster.broadcast() which arrive here.
   if (!wsListeners.has(event)) {
     wsListeners.set(event, new Set());
   }
   const typedHandler = handler as EventHandler<unknown>;
   wsListeners.get(event)!.add(typedHandler);
-
-  return () => {
+  const unlistenWs = () => {
     wsListeners.get(event)?.delete(typedHandler);
   };
+
+  if (isTauri()) {
+    const { listen: tauriListen } = await import("@tauri-apps/api/event");
+    const unlistenTauri = await tauriListen<T>(event, handler);
+    return () => {
+      unlistenWs();
+      unlistenTauri();
+    };
+  }
+
+  return unlistenWs;
 }
 
 /**

@@ -114,10 +114,11 @@ ${git.recentCommits}
       approve: "Approve — file edits require user approval",
     };
     const desc = descriptions[thread.permissionModeId] ?? thread.permissionModeId;
-    const planHint = thread.permissionModeId === "plan"
-      ? "\nWrite plans to plans/ (kebab-case .md files)."
-      : "";
-    context += `\n\n<permissions>\nMode: ${desc}${planHint}\n</permissions>`;
+    if (thread.permissionModeId === "plan") {
+      context += `\n\n<permissions>\nMode: ${desc}\nWrite plans to plans/ (kebab-case .md files).\nDo not call ExitPlanMode or attempt implementation — writes outside plans/ will be denied.\n</permissions>`;
+    } else {
+      context += `\n\n<permissions>\nMode: ${desc}\n</permissions>`;
+    }
   }
 
   return context;

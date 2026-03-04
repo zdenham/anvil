@@ -20,8 +20,8 @@ interface VirtualizedFileContentProps {
   fileId: string;
   /** Maximum height of the virtualized container */
   maxHeight?: number;
-  /** Callback when a line is clicked */
-  onLineClick?: (lineNumber: number) => void;
+  /** Callback when a line is clicked (receives composite key like "5:addition") */
+  onLineClick?: (lineKey: string) => void;
 }
 
 /** Line height in pixels */
@@ -117,7 +117,7 @@ interface RenderItemComponentProps {
   fileId: string;
   isExpanded: (regionIndex: number) => boolean;
   onToggleRegion: (regionIndex: number) => void;
-  onLineClick?: (lineNumber: number) => void;
+  onLineClick?: (lineKey: string) => void;
 }
 
 /**

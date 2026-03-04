@@ -92,11 +92,18 @@ export const AddressCommentsButton = memo(function AddressCommentsButton() {
   );
 });
 
+function formatLineRef(c: InlineComment): string {
+  const tag = c.lineType === "addition" ? " [added line]"
+            : c.lineType === "deletion" ? " [deleted line]"
+            : "";
+  return `${c.filePath}:${c.lineNumber}${tag}`;
+}
+
 /** Format unresolved comments into a prompt for the agent. */
 function formatAddressPrompt(comments: InlineComment[]): string {
   const commentIds = comments.map((c) => c.id);
   const sections = comments.map(
-    (c) => `## ${c.filePath}:${c.lineNumber} (comment-id: ${c.id})\n> ${c.content}`,
+    (c) => `## ${formatLineRef(c)} (comment-id: ${c.id})\n> ${c.content}`,
   );
 
   return [

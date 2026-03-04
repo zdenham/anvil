@@ -215,7 +215,7 @@ async function main(): Promise<void> {
             }
             // Notify agent via streamInput
             const planContext = newMode.id === "plan"
-              ? " Write all plans to the plans/ directory."
+              ? " Write plans to plans/. Do not call ExitPlanMode or implement code."
               : "";
             messageStream.push(
               crypto.randomUUID(),

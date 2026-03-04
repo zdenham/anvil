@@ -56,16 +56,16 @@ pub fn create_terminal_state() -> TerminalState {
     Arc::new(Mutex::new(TerminalManager::new()))
 }
 
-/// Spawns a new terminal PTY with the user's default shell.
+/// Spawns a new terminal PTY (standalone, callable from WS server).
 ///
-/// Returns the terminal ID which can be used to write to, resize, or kill the terminal.
-#[tauri::command]
-pub async fn spawn_terminal(
-    state: tauri::State<'_, TerminalState>,
-    app: AppHandle,
+/// The `emit` callback is used to push events (`terminal:output`, `terminal:exit`)
+/// to whatever transport is active (Tauri IPC or WS broadcast).
+pub fn spawn_terminal_inner(
+    state: &TerminalState,
     cols: u16,
     rows: u16,
     cwd: String,
+    emit: Arc<dyn Fn(&str, serde_json::Value) + Send + Sync>,
 ) -> Result<u32, String> {
     let pty_system = native_pty_system();
 
@@ -78,14 +78,11 @@ pub async fn spawn_terminal(
         })
         .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
-    // Get user's default shell
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
     let mut cmd = CommandBuilder::new(&shell);
-    cmd.arg("-l"); // Login shell - loads .zprofile/.bash_profile
+    cmd.arg("-l");
     cmd.cwd(&cwd);
-
-    // Set essential environment variables
     cmd.env("TERM", "xterm-256color");
     if let Ok(home) = std::env::var("HOME") {
         cmd.env("HOME", home);
@@ -93,7 +90,6 @@ pub async fn spawn_terminal(
     if let Ok(user) = std::env::var("USER") {
         cmd.env("USER", user);
     }
-    // Use the shell PATH to ensure homebrew tools are available
     cmd.env("PATH", paths::shell_path());
 
     let child = pair
@@ -106,7 +102,6 @@ pub async fn spawn_terminal(
         .take_writer()
         .map_err(|e| format!("Failed to take PTY writer: {}", e))?;
 
-    // Get the terminal ID
     let id = {
         let mut manager = state.lock().unwrap();
         let id = manager.next_id;
@@ -114,43 +109,12 @@ pub async fn spawn_terminal(
         id
     };
 
-    // Spawn reader thread to emit output events to frontend
-    let app_clone = app.clone();
-    let mut reader = pair
+    let reader = pair
         .master
         .try_clone_reader()
         .map_err(|e| format!("Failed to clone PTY reader: {}", e))?;
 
-    std::thread::spawn(move || {
-        let _span = tracing::info_span!("terminal_reader", terminal_id = id).entered();
-        let mut buf = [0u8; 4096];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) => {
-                    // PTY closed - process exited
-                    tracing::info!(terminal_id = id, "Terminal process exited");
-                    let _ = app_clone.emit("terminal:exit", serde_json::json!({ "id": id }));
-                    break;
-                }
-                Ok(n) => {
-                    // Send output data as array of bytes (for binary-safe transfer)
-                    tracing::trace!(terminal_id = id, bytes = n, "Emitting terminal:output");
-                    let _ = app_clone.emit(
-                        "terminal:output",
-                        serde_json::json!({
-                            "id": id,
-                            "data": &buf[..n]
-                        }),
-                    );
-                }
-                Err(e) => {
-                    tracing::error!(terminal_id = id, error = %e, "Terminal read error");
-                    let _ = app_clone.emit("terminal:exit", serde_json::json!({ "id": id }));
-                    break;
-                }
-            }
-        }
-    });
+    spawn_reader_thread(id, emit, reader);
 
     // Store the session
     {
@@ -176,6 +140,60 @@ pub async fn spawn_terminal(
     );
 
     Ok(id)
+}
+
+/// Spawns the reader thread that forwards PTY output via the emit callback.
+fn spawn_reader_thread(
+    id: u32,
+    emit: Arc<dyn Fn(&str, serde_json::Value) + Send + Sync>,
+    mut reader: Box<dyn Read + Send>,
+) {
+    std::thread::spawn(move || {
+        let _span = tracing::info_span!("terminal_reader", terminal_id = id).entered();
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => {
+                    tracing::info!(terminal_id = id, "Terminal process exited");
+                    emit("terminal:exit", serde_json::json!({ "id": id }));
+                    break;
+                }
+                Ok(n) => {
+                    tracing::trace!(terminal_id = id, bytes = n, "Emitting terminal:output");
+                    emit(
+                        "terminal:output",
+                        serde_json::json!({
+                            "id": id,
+                            "data": &buf[..n]
+                        }),
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(terminal_id = id, error = %e, "Terminal read error");
+                    emit("terminal:exit", serde_json::json!({ "id": id }));
+                    break;
+                }
+            }
+        }
+    });
+}
+
+/// Spawns a new terminal PTY with the user's default shell.
+///
+/// Returns the terminal ID which can be used to write to, resize, or kill the terminal.
+#[tauri::command]
+pub async fn spawn_terminal(
+    state: tauri::State<'_, TerminalState>,
+    app: AppHandle,
+    cols: u16,
+    rows: u16,
+    cwd: String,
+) -> Result<u32, String> {
+    let emit: Arc<dyn Fn(&str, serde_json::Value) + Send + Sync> =
+        Arc::new(move |event: &str, payload: serde_json::Value| {
+            let _ = app.emit(event, payload);
+        });
+    spawn_terminal_inner(&state, cols, rows, cwd, emit)
 }
 
 /// Writes data to a terminal's PTY (standalone, callable from WS server).
@@ -251,6 +269,25 @@ pub async fn resize_terminal(
     resize_terminal_inner(&state, id, cols, rows)
 }
 
+/// Kills a terminal and removes it from the manager (standalone, callable from WS server).
+pub fn kill_terminal_inner(
+    state: &TerminalState,
+    id: u32,
+    emit: impl Fn(&str, serde_json::Value),
+) -> Result<(), String> {
+    let mut manager = state
+        .lock()
+        .map_err(|e| format!("Failed to lock terminal state: {}", e))?;
+
+    if let Some(mut session) = manager.sessions.remove(&id) {
+        let _ = session.child.kill();
+        tracing::info!(terminal_id = id, "Killed terminal");
+        emit("terminal:killed", serde_json::json!({ "id": id }));
+    }
+
+    Ok(())
+}
+
 /// Kills a terminal and removes it from the manager.
 #[tauri::command]
 pub async fn kill_terminal(
@@ -258,17 +295,9 @@ pub async fn kill_terminal(
     app: AppHandle,
     id: u32,
 ) -> Result<(), String> {
-    let mut manager = state.lock().unwrap();
-
-    if let Some(mut session) = manager.sessions.remove(&id) {
-        let _ = session.child.kill();
-        tracing::info!(terminal_id = id, "Killed terminal");
-
-        // Emit killed event for frontend to update state
-        let _ = app.emit("terminal:killed", serde_json::json!({ "id": id }));
-    }
-
-    Ok(())
+    kill_terminal_inner(&state, id, |event, payload| {
+        let _ = app.emit(event, payload);
+    })
 }
 
 /// Lists all active terminal IDs (standalone, callable from WS server).
@@ -283,18 +312,17 @@ pub async fn list_terminals(state: tauri::State<'_, TerminalState>) -> Result<Ve
     list_terminals_inner(&state)
 }
 
-/// Kills all terminals for a specific worktree path.
-/// Used when a worktree is removed to clean up associated terminals.
-#[tauri::command]
-pub async fn kill_terminals_by_cwd(
-    state: tauri::State<'_, TerminalState>,
-    app: AppHandle,
-    cwd: String,
+/// Kills all terminals for a specific cwd (standalone, callable from WS server).
+pub fn kill_terminals_by_cwd_inner(
+    state: &TerminalState,
+    cwd: &str,
+    emit: impl Fn(&str, serde_json::Value),
 ) -> Result<Vec<u32>, String> {
-    let mut manager = state.lock().unwrap();
+    let mut manager = state
+        .lock()
+        .map_err(|e| format!("Failed to lock terminal state: {}", e))?;
     let mut killed_ids = Vec::new();
 
-    // Find all terminals with matching cwd
     let ids_to_remove: Vec<u32> = manager
         .sessions
         .iter()
@@ -302,15 +330,26 @@ pub async fn kill_terminals_by_cwd(
         .map(|(id, _)| *id)
         .collect();
 
-    // Remove and kill them
     for id in ids_to_remove {
         if let Some(mut session) = manager.sessions.remove(&id) {
             let _ = session.child.kill();
-            let _ = app.emit("terminal:killed", serde_json::json!({ "id": id }));
+            emit("terminal:killed", serde_json::json!({ "id": id }));
             killed_ids.push(id);
             tracing::info!(terminal_id = id, cwd = %cwd, "Killed terminal for removed worktree");
         }
     }
 
     Ok(killed_ids)
+}
+
+/// Kills all terminals for a specific worktree path.
+#[tauri::command]
+pub async fn kill_terminals_by_cwd(
+    state: tauri::State<'_, TerminalState>,
+    app: AppHandle,
+    cwd: String,
+) -> Result<Vec<u32>, String> {
+    kill_terminals_by_cwd_inner(&state, &cwd, |event, payload| {
+        let _ = app.emit(event, payload);
+    })
 }

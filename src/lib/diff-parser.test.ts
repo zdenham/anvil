@@ -319,6 +319,124 @@ index abc123..def456 100644
         newLineNumber: 2,
       });
     });
+
+    it("handles empty context lines WITHOUT space prefix (diff.suppressBlankEmpty)", () => {
+      // When diff.suppressBlankEmpty=true, git strips the leading space from
+      // empty context lines, producing truly empty strings in the diff output.
+      const diff = [
+        "diff --git a/src/file.ts b/src/file.ts",
+        "index abc123..def456 100644",
+        "--- a/src/file.ts",
+        "+++ b/src/file.ts",
+        "@@ -1,4 +1,5 @@",
+        " line1",
+        "", // Empty context line WITHOUT space prefix
+        "+added after empty",
+        " line3",
+        " line4",
+      ].join("\n");
+
+      const result = parseDiff(diff);
+
+      const hunk = result.files[0].hunks[0];
+      expect(hunk.lines).toHaveLength(5);
+      expect(hunk.lines[1]).toEqual({
+        type: "context",
+        content: "",
+        oldLineNumber: 2,
+        newLineNumber: 2,
+      });
+      expect(hunk.lines[2]).toEqual({
+        type: "addition",
+        content: "added after empty",
+        oldLineNumber: null,
+        newLineNumber: 3,
+      });
+    });
+
+    it("does not truncate hunk at empty line between additions", () => {
+      const diff = [
+        "diff --git a/src/file.ts b/src/file.ts",
+        "index abc123..def456 100644",
+        "--- a/src/file.ts",
+        "+++ b/src/file.ts",
+        "@@ -1,5 +1,7 @@",
+        " line1",
+        "+added1",
+        "", // Empty context line (stripped space)
+        "+added2",
+        " line3",
+        "+added3",
+        " line4",
+      ].join("\n");
+
+      const result = parseDiff(diff);
+
+      const hunk = result.files[0].hunks[0];
+      expect(hunk.lines).toHaveLength(7);
+      expect(result.files[0].stats.additions).toBe(3);
+      // Verify the addition after the empty line was NOT lost
+      expect(hunk.lines[3]).toEqual({
+        type: "addition",
+        content: "added2",
+        oldLineNumber: null,
+        newLineNumber: 4,
+      });
+    });
+
+    it("handles multiple consecutive empty lines in a hunk", () => {
+      const diff = [
+        "diff --git a/src/file.ts b/src/file.ts",
+        "index abc123..def456 100644",
+        "--- a/src/file.ts",
+        "+++ b/src/file.ts",
+        "@@ -1,5 +1,5 @@",
+        " line1",
+        "", // empty context
+        "", // empty context
+        "-old",
+        "+new",
+      ].join("\n");
+
+      const result = parseDiff(diff);
+
+      const hunk = result.files[0].hunks[0];
+      expect(hunk.lines).toHaveLength(5);
+      expect(hunk.lines[1].type).toBe("context");
+      expect(hunk.lines[2].type).toBe("context");
+      expect(hunk.lines[3].type).toBe("deletion");
+      expect(hunk.lines[4].type).toBe("addition");
+    });
+
+    it("parsed hunk line counts match header declaration", () => {
+      const diff = [
+        "diff --git a/src/file.ts b/src/file.ts",
+        "index abc123..def456 100644",
+        "--- a/src/file.ts",
+        "+++ b/src/file.ts",
+        "@@ -1,4 +1,6 @@",
+        " line1",
+        "", // stripped empty context line
+        "+added1",
+        "+added2",
+        " line3",
+        " line4",
+      ].join("\n");
+
+      const result = parseDiff(diff);
+
+      const hunk = result.files[0].hunks[0];
+      // old side: line1, empty, line3, line4 = 4 lines
+      const oldCount = hunk.lines.filter(
+        (l) => l.type === "context" || l.type === "deletion"
+      ).length;
+      // new side: line1, empty, added1, added2, line3, line4 = 6 lines
+      const newCount = hunk.lines.filter(
+        (l) => l.type === "context" || l.type === "addition"
+      ).length;
+      expect(oldCount).toBe(hunk.oldLines);
+      expect(newCount).toBe(hunk.newLines);
+    });
   });
 
   describe("language detection", () => {

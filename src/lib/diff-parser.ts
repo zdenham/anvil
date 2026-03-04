@@ -277,11 +277,13 @@ function parseHunk(
   let deletions = 0;
 
   let i = startIndex + 1;
+  let consumedOld = 0;
+  let consumedNew = 0;
 
-  while (i < lines.length) {
+  while (i < lines.length && (consumedOld < oldLines || consumedNew < newLines)) {
     const line = lines[i];
 
-    // Stop at next hunk or next file
+    // Stop at next hunk or next file (safety guard)
     if (line.startsWith("@@") || line.startsWith("diff --git ")) {
       break;
     }
@@ -302,6 +304,7 @@ function parseHunk(
         newLineNumber: newLineNum,
       });
       newLineNum++;
+      consumedNew++;
       additions++;
       i++;
     } else if (line.startsWith("-")) {
@@ -313,22 +316,24 @@ function parseHunk(
         newLineNumber: null,
       });
       oldLineNum++;
+      consumedOld++;
       deletions++;
       i++;
-    } else if (line.startsWith(" ")) {
-      // Context line (starts with space)
+    } else {
+      // Context line (starts with space) or empty line (stripped space prefix
+      // from diff.suppressBlankEmpty). Both count toward old AND new side.
+      const content = line.startsWith(" ") ? line.slice(1) : line;
       diffLines.push({
         type: "context",
-        content: line.slice(1),
+        content,
         oldLineNumber: oldLineNum,
         newLineNumber: newLineNum,
       });
       oldLineNum++;
       newLineNum++;
+      consumedOld++;
+      consumedNew++;
       i++;
-    } else {
-      // Unknown line format or empty line - end of hunk content
-      break;
     }
   }
 

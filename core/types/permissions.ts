@@ -96,11 +96,12 @@ export const PLAN_MODE: PermissionModeDefinition = {
   name: "Plan",
   description: "Can read everything, write only to plans/, Bash allowed",
   rules: [
-    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch|TodoWrite|ExitPlanMode|EnterPlanMode|AskUserQuestion)$", decision: "allow" },
+    { toolPattern: "^(Read|Glob|Grep|WebFetch|WebSearch|TodoWrite|EnterPlanMode|AskUserQuestion|Skill)$", decision: "allow" },
     { toolPattern: "^Bash$", decision: "allow" },
     { toolPattern: "^Task$", decision: "allow" },
     { toolPattern: "^(Write|Edit|NotebookEdit)$", pathPattern: "^plans/", decision: "allow" },
     { toolPattern: "^(Write|Edit|NotebookEdit)$", decision: "deny", reason: "Plan mode: file writes are restricted to the plans/ directory. Move your output to plans/ or ask the user to switch to Implement mode." },
+    { toolPattern: "^ExitPlanMode$", decision: "deny", reason: "Plan mode: write your plan to plans/ and stop. There is no implementation phase — the user will switch modes when ready." },
   ],
   defaultDecision: "deny",
 };

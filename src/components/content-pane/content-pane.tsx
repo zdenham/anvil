@@ -152,6 +152,9 @@ export function ContentPane({
         )}
         <InputStoreProvider active>
           {view.type === "empty" && <EmptyPaneContent />}
+          {view.type === "thread" && !activeMetadata && (
+            <div className="flex-1" />
+          )}
           {view.type === "thread" && activeMetadata?.worktreeId && (
             <DiffCommentProvider worktreeId={activeMetadata.worktreeId} repoId={activeMetadata.repoId} worktreePath={worktreePath} threadId={view.threadId}>
               {threadTab === "conversation" && (
@@ -172,7 +175,7 @@ export function ContentPane({
               <FloatingAddressButton />
             </DiffCommentProvider>
           )}
-          {view.type === "thread" && !activeMetadata?.worktreeId && (
+          {view.type === "thread" && activeMetadata && !activeMetadata.worktreeId && (
             <>
               {threadTab === "conversation" && (
                 <ThreadContent

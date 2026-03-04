@@ -96,8 +96,10 @@ export interface CollapsedRegion {
   startIndex: number;
   /** Index of last line in this region (inclusive) */
   endIndex: number;
-  /** Number of unchanged lines */
+  /** Number of lines in this region */
   lineCount: number;
+  /** What type of lines this region contains */
+  kind: "unchanged" | "added" | "deleted";
 }
 
 // ============================================================================

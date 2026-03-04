@@ -28,6 +28,8 @@ interface InlineDiffHeaderProps {
   isFileCollapsed?: boolean;
   /** Callback to toggle file collapse */
   onToggleFileCollapse?: () => void;
+  /** Whether the header is currently stuck (scrolled past its natural position) */
+  isSticky?: boolean;
   /** Additional CSS classes for the root element */
   className?: string;
 }
@@ -46,6 +48,7 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
   onCollapseAll,
   isFileCollapsed,
   onToggleFileCollapse,
+  isSticky,
   className,
 }: InlineDiffHeaderProps) {
   // Extract just the filename for compact display
@@ -55,7 +58,8 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
     <div
       data-testid="inline-diff-header"
       className={cn(
-        "group flex items-center gap-2 px-3 py-2 bg-surface-800 border-b border-surface-700 sticky top-0 z-10 rounded-t-lg shadow-[0_2px_4px_-1px_rgba(0,0,0,0.3)]",
+        "group flex items-center gap-2 px-3 py-2 bg-surface-800 border-b border-surface-700 sticky top-0 z-10 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.3)]",
+        !isSticky && "rounded-t-lg",
         onToggleFileCollapse && "cursor-pointer select-none",
         isFileCollapsed && "rounded-b-lg border-b-0 shadow-none",
         className,

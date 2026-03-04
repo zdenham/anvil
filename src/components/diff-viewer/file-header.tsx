@@ -21,6 +21,8 @@ interface FileHeaderProps {
   isFullFile?: boolean;
   /** Toggle show full file */
   onToggleFullFile?: () => void;
+  /** Whether the header is currently stuck (scrolled past its natural position) */
+  isSticky?: boolean;
 }
 
 /**
@@ -32,6 +34,7 @@ export const FileHeader = memo(function FileHeader({
   onToggleCollapse,
   isFullFile,
   onToggleFullFile,
+  isSticky,
 }: FileHeaderProps) {
   const path = file.newPath ?? file.oldPath ?? "Unknown file";
   const isRename = file.type === "renamed" && file.oldPath;
@@ -40,7 +43,8 @@ export const FileHeader = memo(function FileHeader({
     <div
       data-testid={`diff-file-header-${path}`}
       className={cn(
-        "group flex items-center gap-2.5 px-3 py-1.5 bg-surface-800 sticky top-0 z-10 rounded-t-lg border-b border-surface-700 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.3)]",
+        "group flex items-center gap-2.5 px-3 py-1.5 bg-surface-800 sticky top-0 z-10 border-b border-surface-700 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.3)]",
+        !isSticky && "rounded-t-lg",
         onToggleCollapse && "cursor-pointer select-none",
         isCollapsed && "rounded-b-lg border-b-0 shadow-none",
       )}

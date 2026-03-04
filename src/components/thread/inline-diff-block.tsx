@@ -11,6 +11,7 @@ import { InlineDiffHeader } from "./inline-diff-header";
 
 import { CollapsibleOutputBlock } from "../ui/collapsible-output-block";
 import { useDiffHighlight } from "@/hooks/use-diff-highlight";
+import { useIsSticky } from "@/hooks/use-is-sticky";
 import { useOptionalDiffCommentStore, useDiffCommentStore } from "@/contexts/diff-comment-context";
 import { useCommentStore } from "@/entities/comments/store";
 import { commentService } from "@/entities/comments/service";
@@ -139,6 +140,9 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   const shouldStartCollapsed = defaultCollapsed ?? (isPending && isLargeDiff);
   const [isDiffExpanded, setIsDiffExpanded] = useState(!shouldStartCollapsed);
 
+  // Sticky detection for removing rounded corners when stuck
+  const [sentinelRef, isSticky] = useIsSticky();
+
   // File-level collapse — use controlled props when provided, else internal state
   const [internalFileCollapsed, setInternalFileCollapsed] = useState(false);
   const isFileCollapsed = controlledFileCollapsed ?? internalFileCollapsed;
@@ -182,6 +186,9 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
       role="region"
       aria-label={`Changes to ${fileName}`}
     >
+      {/* Sentinel for sticky detection */}
+      <div ref={sentinelRef} className="h-0" />
+
       {/* Header */}
       <InlineDiffHeader
         filePath={filePath}
@@ -193,6 +200,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
         allExpanded={collapsedRegions.expanded.size === collapsedRegions.regions.length}
         onExpandAll={collapsedRegions.expandAll}
         onCollapseAll={collapsedRegions.collapseAll}
+        isSticky={isSticky}
       />
 
       {/* Diff content -- hidden when file is collapsed */}
@@ -307,7 +315,7 @@ function DiffContentWithComments({
 }) {
   const worktreeId = useDiffCommentStore((s) => s.worktreeId);
   const threadId = useDiffCommentStore((s) => s.threadId);
-  const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null);
+  const [activeCommentLine, setActiveCommentLine] = useState<string | null>(null);
 
   // Lazy-load comments for this worktree
   useEffect(() => {
@@ -328,19 +336,20 @@ function DiffContentWithComments({
     [allComments, worktreeId, filePath, threadId],
   );
 
-  // Pre-compute comments by line number
+  // Pre-compute comments by composite key (lineNumber:lineType)
   const commentsByLine = useMemo(() => {
-    const map = new Map<number, InlineComment[]>();
+    const map = new Map<string, InlineComment[]>();
     for (const c of comments) {
-      const existing = map.get(c.lineNumber) ?? [];
+      const key = `${c.lineNumber}:${c.lineType}`;
+      const existing = map.get(key) ?? [];
       existing.push(c);
-      map.set(c.lineNumber, existing);
+      map.set(key, existing);
     }
     return map;
   }, [comments]);
 
-  const handleCommentClick = useCallback((lineNumber: number) => {
-    setActiveCommentLine((prev) => (prev === lineNumber ? null : lineNumber));
+  const handleCommentClick = useCallback((key: string) => {
+    setActiveCommentLine((prev) => (prev === key ? null : key));
   }, []);
 
   return (
@@ -361,8 +370,9 @@ function DiffContentWithComments({
           );
         }
 
+        const key = `${(item.line.newLineNumber ?? item.line.oldLineNumber ?? 0)}:${item.line.type}`;
         const lineNumber = item.line.newLineNumber ?? item.line.oldLineNumber ?? 0;
-        const lineComments = commentsByLine.get(lineNumber) ?? [];
+        const lineComments = commentsByLine.get(key) ?? [];
 
         return (
           <div key={`line-${item.lineIndex}`}>
@@ -371,7 +381,7 @@ function DiffContentWithComments({
               onLineClick={handleCommentClick}
               hasComments={lineComments.length > 0}
             />
-            {activeCommentLine === lineNumber && (
+            {activeCommentLine === key && (
               <InlineCommentForm
                 filePath={filePath}
                 lineNumber={lineNumber}

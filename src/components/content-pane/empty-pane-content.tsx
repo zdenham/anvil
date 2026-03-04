@@ -19,7 +19,7 @@ import { logger } from "@/lib/logger-client";
  * - Uses MRU worktree for thread creation
  */
 export function EmptyPaneContent() {
-  const { workingDirectory, repoId, worktreeId, mruWorktree } = useMRUWorktree();
+  const { workingDirectory, repoId, worktreeId, mruWorktree, isLoading } = useMRUWorktree();
 
   // Draft sync — save/restore input drafts for empty state
   useDraftSync({ type: 'empty' });
@@ -61,7 +61,7 @@ export function EmptyPaneContent() {
   );
 
   // Show message if no repositories configured
-  const noRepoConfigured = !mruWorktree;
+  const noRepoConfigured = !isLoading && !mruWorktree;
 
   return (
     <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">

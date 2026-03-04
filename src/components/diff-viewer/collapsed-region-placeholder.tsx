@@ -21,12 +21,27 @@ interface CollapsedRegionPlaceholderProps {
  * - aria-controls linking to expandable content
  * - Clear label describing the action
  */
+function regionLabel(region: CollapsedRegion): string {
+  const plural = region.lineCount !== 1 ? "s" : "";
+  switch (region.kind) {
+    case "deleted":
+      return `${region.lineCount} deleted line${plural}`;
+    case "added":
+      return `${region.lineCount} added line${plural}`;
+    default:
+      return `${region.lineCount} unchanged line${plural}`;
+  }
+}
+
 export function CollapsedRegionPlaceholder({
   region,
   regionId,
   isExpanded,
   onToggle,
 }: CollapsedRegionPlaceholderProps) {
+  const label = regionLabel(region);
+  const action = isExpanded ? "collapse" : "expand";
+
   return (
     <button
       type="button"
@@ -44,7 +59,7 @@ export function CollapsedRegionPlaceholder({
       "
       aria-expanded={isExpanded}
       aria-controls={regionId}
-      aria-label={`${region.lineCount} unchanged lines, click to ${isExpanded ? "collapse" : "expand"}`}
+      aria-label={`${label}, click to ${action}`}
     >
       <ChevronRight
         className={`
@@ -54,9 +69,7 @@ export function CollapsedRegionPlaceholder({
         `}
         aria-hidden="true"
       />
-      <span>
-        {region.lineCount} unchanged line{region.lineCount !== 1 ? "s" : ""}
-      </span>
+      <span>{label}</span>
     </button>
   );
 }
