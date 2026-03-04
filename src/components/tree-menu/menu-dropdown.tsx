@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Archive, Cog, Ellipsis, ScrollText, Eye } from "lucide-react";
+import { Archive, Cog, Ellipsis, Eye } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 
 interface MenuDropdownProps {
   onSettingsClick: () => void;
-  onLogsClick: () => void;
   onArchiveClick: () => void;
   /** Called when user clicks "Show all workspaces" */
   onUnhideAll?: () => void;
@@ -20,7 +19,7 @@ interface MenuItem {
   onClick: () => void;
 }
 
-export function MenuDropdown({ onSettingsClick, onLogsClick, onArchiveClick, onUnhideAll, hasHiddenOrPinned }: MenuDropdownProps) {
+export function MenuDropdown({ onSettingsClick, onArchiveClick, onUnhideAll, hasHiddenOrPinned }: MenuDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -34,7 +33,6 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onArchiveClick, onU
       ? [{ id: "unhide-all", label: "Show all workspaces", icon: <Eye size={11} />, onClick: onUnhideAll }]
       : []),
     { id: "settings", label: "Settings", icon: <Cog size={11} />, onClick: onSettingsClick },
-    { id: "logs", label: "Logs", icon: <ScrollText size={11} />, onClick: onLogsClick },
     { id: "archive", label: "Archive", icon: <Archive size={11} />, onClick: onArchiveClick },
   ];
 
@@ -135,6 +133,7 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onArchiveClick, onU
   return (
     <div
       ref={dropdownRef}
+      data-testid="menu-dropdown"
       className="relative"
       onKeyDown={handleKeyDown}
       onMouseEnter={open}
@@ -167,6 +166,7 @@ export function MenuDropdown({ onSettingsClick, onLogsClick, onArchiveClick, onU
             <div
               key={item.id}
               id={`menu-option-${index}`}
+              data-testid={`${item.id}-button`}
               role="menuitem"
               tabIndex={-1}
               onClick={() => handleSelect(item)}

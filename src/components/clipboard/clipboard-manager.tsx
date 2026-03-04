@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { z } from "zod";
 import { ClipboardEntryPreview, ClipboardEntryPreviewSchema } from "./types";
 import { ClipboardList } from "./clipboard-list";
@@ -166,7 +166,7 @@ export const ClipboardManager = () => {
   };
 
   return (
-    <div className="flex flex-col h-full w-full clipboard-container">
+    <div data-testid="clipboard-manager" className="flex flex-col h-full w-full clipboard-container">
       {/* Search input */}
       <form onSubmit={handleSubmit}>
         <SearchInput

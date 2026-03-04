@@ -59,6 +59,7 @@ export function PrChecksSection({ checks }: PrChecksSectionProps) {
 
   return (
     <CollapsibleBlock
+      testId="pr-checks-section"
       isExpanded={isExpanded}
       onToggle={() => setIsExpanded(!isExpanded)}
       className="bg-surface-800/30 rounded-lg border border-dashed border-surface-700"

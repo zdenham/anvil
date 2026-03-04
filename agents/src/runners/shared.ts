@@ -535,7 +535,7 @@ export async function runAgentLoop(
         matcher: "Bash" as const,
         hooks: [
           createCommentResolutionHook({
-            worktreeId: orchestrationContext.worktreeId,
+            worktreeId: context.worktreeId,
             emitEvent,
           }),
         ],
@@ -707,16 +707,22 @@ export async function runAgentLoop(
             },
           ]
         : []),
-      {
-        matcher: "Task",
+      // Sub-agent hook: handles both "Task" (SDK <0.2.64) and "Agent" (SDK ≥0.2.64)
+      ...["Task", "Agent"].map((toolName) => ({
+        matcher: toolName,
         hooks: [
           async (hookInput: unknown) => {
             const input = hookInput as PreToolUseHookInput;
             const taskInput = input.tool_input as { prompt?: string; subagent_type?: string };
 
+            // Dedup: both "Task" and "Agent" matchers may fire for the same tool use
+            if (toolUseIdToChildThreadId.has(input.tool_use_id)) {
+              return { continue: true };
+            }
+
             // Skip if missing required context for thread creation
             if (!context.repoId || !context.worktreeId) {
-              logger.warn(`[PreToolUse:Task] Cannot create sub-agent thread: missing repoId or worktreeId`);
+              logger.warn(`[PreToolUse:SubAgent] Cannot create sub-agent thread: missing repoId or worktreeId`);
               return { continue: true };
             }
 
@@ -786,7 +792,7 @@ export async function runAgentLoop(
                 worktreeId: context.worktreeId,
               }, "runAgentLoop:subagent-spawn");
 
-              logger.info(`[PreToolUse:Task] Created child thread: ${childThreadId} for toolUseId: ${toolUseId}`);
+              logger.info(`[PreToolUse:SubAgent] Created child thread: ${childThreadId} for toolUseId: ${toolUseId}`);
 
               // Emit subagent:spawned drain event and start timer
               drainManager.startTimer(`subagent:${childThreadId}`);
@@ -812,7 +818,7 @@ export async function runAgentLoop(
                         threadId: childThreadId,
                         name: generatedName,
                       }, "runAgentLoop:name-generation");
-                      logger.info(`[PreToolUse:Task] Generated name for thread ${childThreadId}: ${generatedName}${usedFallback ? " (fallback model)" : ""}`);
+                      logger.info(`[PreToolUse:SubAgent] Generated name for thread ${childThreadId}: ${generatedName}${usedFallback ? " (fallback model)" : ""}`);
                     }
                     if (usedFallback) {
                       emitEvent(EventName.API_DEGRADED, {
@@ -822,7 +828,7 @@ export async function runAgentLoop(
                     }
                   })
                   .catch((err) => {
-                    logger.warn(`[PreToolUse:Task] Failed to generate name: ${err}`);
+                    logger.warn(`[PreToolUse:SubAgent] Failed to generate name: ${err}`);
                     emitEvent(EventName.API_DEGRADED, {
                       service: "thread-naming",
                       message: "Thread naming failed — Anthropic API may be down",
@@ -830,13 +836,13 @@ export async function runAgentLoop(
                   });
               }
             } catch (err) {
-              logger.error(`[PreToolUse:Task] Failed to create child thread: ${err}`);
+              logger.error(`[PreToolUse:SubAgent] Failed to create child thread: ${err}`);
             }
 
             return { continue: true };
           },
         ],
-      },
+      })),
     ],
     PostToolUse: [
       {
@@ -976,13 +982,13 @@ export async function runAgentLoop(
             // For background tasks (run_in_background: true), the tool result is an
             // async_launched marker — the task hasn't finished yet. Skip premature completion;
             // the real completion arrives via task_notification system messages.
-            if (input.tool_name === "Task") {
+            if (input.tool_name === "Task" || input.tool_name === "Agent") {
               try {
                 const toolUseId = input.tool_use_id;
                 const childThreadId = toolUseIdToChildThreadId.get(toolUseId);
 
                 if (!childThreadId) {
-                  logger.warn(`[PostToolUse:Task] No child thread for toolUseId: ${toolUseId}`);
+                  logger.warn(`[PostToolUse:SubAgent] No child thread for toolUseId: ${toolUseId}`);
                   return { continue: true };
                 }
 
@@ -995,7 +1001,7 @@ export async function runAgentLoop(
                 const isBackground = !!(taskResponse.task_id || taskResponse.output_file);
                 if (isBackground) {
                   logger.info(
-                    `[PostToolUse:Task] Background task detected for ${childThreadId} — ` +
+                    `[PostToolUse:SubAgent] Background task detected for ${childThreadId} — ` +
                     `skipping premature completion (task_id=${taskResponse.task_id})`
                   );
                   // Leave status as "running", don't clean up the map.
@@ -1040,7 +1046,7 @@ export async function runAgentLoop(
 
                   metadata.updatedAt = Date.now();
                   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-                  logger.info(`[PostToolUse:Task] Updated metadata for thread ${childThreadId}`);
+                  logger.info(`[PostToolUse:SubAgent] Updated metadata for thread ${childThreadId}`);
                 }
 
                 // === Append final response to state.json ===
@@ -1080,7 +1086,7 @@ export async function runAgentLoop(
                   state.timestamp = Date.now();
 
                   writeFileSync(statePath, JSON.stringify(state, null, 2));
-                  logger.info(`[PostToolUse:Task] Appended final response to state.json`);
+                  logger.info(`[PostToolUse:SubAgent] Appended final response to state.json`);
                 }
 
                 // Emit subagent:completed drain event
@@ -1100,10 +1106,10 @@ export async function runAgentLoop(
 
                 // Cleanup the map (foreground tasks only — bg tasks cleaned up by task_notification)
                 toolUseIdToChildThreadId.delete(toolUseId);
-                logger.info(`[PostToolUse:Task] Completed thread ${childThreadId}, cleaned up mapping`);
+                logger.info(`[PostToolUse:SubAgent] Completed thread ${childThreadId}, cleaned up mapping`);
 
               } catch (err) {
-                logger.warn(`[PostToolUse:Task] Failed to update child thread: ${err}`);
+                logger.warn(`[PostToolUse:SubAgent] Failed to update child thread: ${err}`);
               }
             }
 
@@ -1239,12 +1245,12 @@ export async function runAgentLoop(
             },
           }),
           // Custom agent definitions - override built-in agents or define new ones
-          // The manager agent can spawn sub-agents via the Task tool
+          // The manager agent can spawn sub-agents via the Agent tool (Task in SDK <0.2.64)
           agents: {
             "manager": {
               description: "Manager agent that coordinates complex multi-step tasks by delegating to specialized sub-agents. Use this when a task requires orchestrating multiple agents or when you need to break down a complex problem into sub-tasks.",
-              prompt: "You are a manager agent that coordinates complex tasks. You can spawn specialized sub-agents using the Task tool to delegate work. Break down complex problems into focused sub-tasks and coordinate the results.",
-              tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebFetch", "WebSearch", "Task"],
+              prompt: "You are a manager agent that coordinates complex tasks. You can spawn specialized sub-agents using the Agent tool to delegate work. Break down complex problems into focused sub-tasks and coordinate the results.",
+              tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebFetch", "WebSearch", "Agent"],
             },
           },
         },

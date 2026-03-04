@@ -64,7 +64,7 @@ export function QuickActionsSettings() {
   const editingAction = editingId ? actions.find((a) => a.id === editingId) : null;
 
   return (
-    <div className="space-y-6">
+    <div data-testid="quick-actions-settings" className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-lg font-semibold text-surface-100">Quick Actions</h2>

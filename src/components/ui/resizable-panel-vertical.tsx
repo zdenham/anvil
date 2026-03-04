@@ -126,6 +126,7 @@ export function ResizablePanelVertical({
     >
       {/* Drag handle - top edge */}
       <div
+        data-testid="resize-handle-vertical"
         className="absolute top-0 left-0 right-0 h-3 cursor-ns-resize z-10 -translate-y-1/2"
         onMouseDown={handleDragStart}
         role="separator"

@@ -178,7 +178,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   return (
     <div
       data-testid={testId}
-      className="rounded-lg border border-surface-700 overflow-hidden"
+      className="rounded-lg border border-surface-700"
       role="region"
       aria-label={`Changes to ${fileName}`}
     >
@@ -205,7 +205,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
               onToggle={() => setIsDiffExpanded((v) => !v)}
               isLongContent={isLargeDiff}
               maxCollapsedHeight={COLLAPSED_MAX_HEIGHT}
-              className="border-0 rounded-none"
+              className="border-0 rounded-none rounded-b-lg"
             >
               <DiffContent renderItems={renderItems} testId={testId} collapsedRegions={collapsedRegions} filePath={filePath} />
             </CollapsibleOutputBlock>
@@ -262,7 +262,7 @@ function DiffContentPlain({
     <div
       role="table"
       aria-label="Diff content"
-      className="bg-surface-900/50 overflow-x-auto"
+      className="bg-surface-900/50 overflow-x-auto rounded-b-lg"
     >
       <div role="rowgroup">
         {renderItems.map((item) => {
@@ -314,12 +314,18 @@ function DiffContentWithComments({
     commentService.loadForWorktree(worktreeId);
   }, [worktreeId]);
 
-  // Subscribe to comments for this file
-  const comments = useCommentStore(
-    useCallback(
-      (s) => s.getByFile(worktreeId, filePath, threadId),
-      [worktreeId, filePath, threadId],
-    ),
+  // Select raw record (stable reference), derive filtered list in useMemo
+  // to avoid new-array-every-call selectors that cause infinite re-renders
+  // with useSyncExternalStore.
+  const allComments = useCommentStore((s) => s.comments);
+  const comments = useMemo(
+    () =>
+      Object.values(allComments).filter((c) => {
+        if (c.worktreeId !== worktreeId || c.filePath !== filePath) return false;
+        if (threadId !== undefined) return c.threadId === threadId;
+        return true;
+      }),
+    [allComments, worktreeId, filePath, threadId],
   );
 
   // Pre-compute comments by line number
@@ -338,7 +344,7 @@ function DiffContentWithComments({
   }, []);
 
   return (
-    <div className="bg-surface-900/50 overflow-x-auto">
+    <div className="bg-surface-900/50 overflow-x-auto rounded-b-lg">
       {renderItems.map((item) => {
         if (item.type === "collapsed") {
           const regionId = `${testId}-region-${item.regionIndex}`;

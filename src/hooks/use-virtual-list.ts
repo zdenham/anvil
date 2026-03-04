@@ -34,6 +34,10 @@ export interface UseVirtualListOptions {
 export interface UseVirtualListResult {
   items: VirtualItem[];
   totalHeight: number;
+  /** Padding above the first visible item (for flow-based layout) */
+  paddingBefore: number;
+  /** Padding below the last visible item (for flow-based layout) */
+  paddingAfter: number;
   scrollToIndex: (opts: ScrollToOptions) => void;
   /** Ref callback — attach to each virtual item element for height measurement */
   measureItem: (el: HTMLElement | null) => void;
@@ -87,14 +91,16 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
   const list = listRef.current;
 
-  // Sync count changes
+  // Sync count changes — silent (no subscriber notification) to avoid
+  // setState-during-render warnings. useSyncExternalStore's getSnapshot
+  // picks up the change naturally on this render pass.
   const prevCountRef = useRef(opts.count);
   if (opts.count !== prevCountRef.current) {
     prevCountRef.current = opts.count;
-    list.setCount(opts.count);
+    list.setCount(opts.count, false);
   }
 
-  // Sync option changes
+  // Sync option changes (also silent during render)
   const prevOptsRef = useRef(opts);
   if (
     opts.overscan !== prevOptsRef.current.overscan ||
@@ -105,7 +111,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       overscan: opts.overscan,
       atBottomThreshold: opts.atBottomThreshold,
       itemHeight: opts.itemHeight,
-    });
+    }, false);
   }
   prevOptsRef.current = opts;
 
@@ -339,9 +345,18 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     return unsub;
   }, [list, opts.followOutput, opts.getScrollElement, opts.sticky]);
 
+  const { items: snapshotItems } = snapshot;
+  const lastItem = snapshotItems[snapshotItems.length - 1];
+  const paddingBefore = snapshotItems[0]?.start ?? 0;
+  const paddingAfter = lastItem
+    ? Math.max(0, snapshot.totalHeight - (lastItem.start + lastItem.size))
+    : 0;
+
   return {
-    items: snapshot.items,
+    items: snapshotItems,
     totalHeight: snapshot.totalHeight,
+    paddingBefore,
+    paddingAfter,
     scrollToIndex,
     measureItem,
     isAtBottom: snapshot.isAtBottom,

@@ -8,24 +8,22 @@ pub struct RepoValidation {
     pub error: Option<String>,
 }
 
-#[tauri::command]
-pub async fn validate_repository(source_path: String) -> Result<RepoValidation, String> {
-    let path = Path::new(&source_path);
+/// Validate a repository path (standalone, callable from WS server).
+pub fn validate_repository_inner(source_path: &str) -> RepoValidation {
+    let path = Path::new(source_path);
 
-    // Check path exists
     if !path.exists() {
-        return Ok(RepoValidation {
+        return RepoValidation {
             exists: false,
             is_git_repo: false,
             error: Some("Path does not exist".to_string()),
-        });
+        };
     }
 
-    // Check .git folder exists
     let git_path = path.join(".git");
-    let is_git = git_path.exists() || path.join("HEAD").exists(); // bare repo
+    let is_git = git_path.exists() || path.join("HEAD").exists();
 
-    Ok(RepoValidation {
+    RepoValidation {
         exists: true,
         is_git_repo: is_git,
         error: if !is_git {
@@ -33,7 +31,12 @@ pub async fn validate_repository(source_path: String) -> Result<RepoValidation, 
         } else {
             None
         },
-    })
+    }
+}
+
+#[tauri::command]
+pub async fn validate_repository(source_path: String) -> Result<RepoValidation, String> {
+    Ok(validate_repository_inner(&source_path))
 }
 
 #[tauri::command]

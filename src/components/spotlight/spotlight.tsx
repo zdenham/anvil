@@ -4,7 +4,7 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Command } from "@tauri-apps/plugin-shell";
 import { z } from "zod";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { RefreshCw, Terminal } from "lucide-react";
 import { MortLogo } from "@/components/ui/mort-logo";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -15,8 +15,6 @@ import { logger } from "@/lib/logger-client";
 interface TreePanelHeaderProps {
   /** Called when Settings is clicked */
   onSettingsClick: () => void;
-  /** Called when Logs is clicked */
-  onLogsClick: () => void;
   /** Called when Archive is clicked */
   onArchiveClick: () => void;
   /** Called when Terminal is clicked (optional - terminal integration) */
@@ -30,11 +28,10 @@ interface TreePanelHeaderProps {
 /**
  * Header bar for the tree panel.
  * Lives inside the tree panel, not spanning the full window.
- * Contains: MORT logo + title, icon buttons for Settings, Logs, Terminal, New dropdown.
+ * Contains: MORT logo + title, icon buttons for Settings, Terminal, New dropdown.
  */
 export function TreePanelHeader({
   onSettingsClick,
-  onLogsClick,
   onArchiveClick,
   onTerminalClick,
   onUnhideAll,
@@ -75,7 +72,7 @@ export function TreePanelHeader({
   }, [isRefreshing]);
 
   return (
-    <div className="pl-3 pr-2 py-2 border-b border-surface-700 flex items-center gap-2.5">
+    <div data-testid="tree-panel-header" className="pl-3 pr-2 py-2 border-b border-surface-700 flex items-center gap-2.5">
       <MortLogo size={4} />
       <h1 className="font-semibold text-surface-100 font-mono text-sm">
         MORT{appSuffix ? ` ${appSuffix.toUpperCase()}` : ""}
@@ -103,7 +100,6 @@ export function TreePanelHeader({
         )}
         <MenuDropdown
           onSettingsClick={onSettingsClick}
-          onLogsClick={onLogsClick}
           onArchiveClick={onArchiveClick}
           onUnhideAll={onUnhideAll}
           hasHiddenOrPinned={hasHiddenOrPinned}

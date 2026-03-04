@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/lib/events";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { StatusLegend } from "@/components/ui/status-legend";
@@ -312,10 +312,6 @@ export function MainWindowLayout() {
 
   const handleSettingsClick = useCallback(async () => {
     await navigationService.navigateToView({ type: "settings" });
-  }, []);
-
-  const handleLogsClick = useCallback(async () => {
-    await navigationService.navigateToView({ type: "logs" });
   }, []);
 
   const handleArchiveClick = useCallback(async () => {
@@ -657,7 +653,7 @@ export function MainWindowLayout() {
 
   return (
     <MainWindowProvider>
-      <div className={`flex flex-col h-full bg-surface-900 ${isFullscreen ? "pt-3" : ""}`}>
+      <div data-testid="main-layout" className={`flex flex-col h-full bg-surface-900 ${isFullscreen ? "pt-3" : ""}`}>
         {/* Main horizontal layout */}
         <div className="flex flex-1 min-h-0">
           {/* Left Panel: Tree Menu */}
@@ -670,7 +666,6 @@ export function MainWindowLayout() {
           >
             <TreePanelHeader
               onSettingsClick={handleSettingsClick}
-              onLogsClick={handleLogsClick}
               onArchiveClick={handleArchiveClick}
               onUnhideAll={handleUnhideAll}
               hasHiddenOrPinned={pinnedSectionId !== null || hiddenSectionIds.length > 0}

@@ -11,7 +11,7 @@
  * that properly handles permissions and paths.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { z } from "zod";
 import type { ThreadStatus, ThreadMetadata } from "@/entities/threads/types";
 

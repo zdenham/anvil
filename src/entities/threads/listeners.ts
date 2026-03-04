@@ -1,6 +1,7 @@
 import { EventName, EventPayloads } from "@core/types/events.js";
+import { applyPatch } from "fast-json-patch";
 // DiagnosticLoggingConfig used in staleness handler below
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { eventBus } from "../events.js";
 import { threadService } from "./service.js";
 import { useThreadStore } from "./store.js";
@@ -10,6 +11,23 @@ import { useHeartbeatStore, startHeartbeatMonitor } from "@/stores/heartbeat-sto
 import { handleStaleness, setupRecoveryCleanupListeners } from "@/lib/state-recovery.js";
 import { settingsService } from "../settings/service.js";
 import { sendToAgent } from "@/lib/agent-service.js";
+import { diskReadStats } from "@/stores/disk-read-stats.js";
+
+/**
+ * Tracks the last applied event ID per thread for chain gap detection.
+ * When the incoming `previousEventId` does not match the last applied ID,
+ * a gap is detected and we fall back to a full disk read.
+ */
+const lastAppliedEventId: Record<string, string> = {};
+
+/**
+ * Clears chain state for a thread (e.g. on deactivation or panel hide).
+ * Ensures the next activation triggers a full sync rather than
+ * resuming a potentially stale chain.
+ */
+export function clearChainState(threadId: string): void {
+  delete lastAppliedEventId[threadId];
+}
 
 /**
  * Setup thread event listeners.
@@ -91,7 +109,8 @@ export function setupThreadListeners(): void {
     }
   });
 
-  // Agent state updates - refresh metadata (for usage) + state if active thread
+  // Agent state updates — DEPRECATED: kept for backwards compat during migration.
+  // New agents send "state_event" (AGENT_STATE_DELTA) with patch-based diffs.
   eventBus.on(EventName.AGENT_STATE, async ({ threadId }: EventPayloads[typeof EventName.AGENT_STATE]) => {
     try {
       // Always refresh metadata (usage data lives there now)
@@ -112,6 +131,75 @@ export function setupThreadListeners(): void {
       }
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh thread state ${threadId}:`, e);
+    }
+  });
+
+  // Agent state delta — patch-based state updates with chain gap detection
+  eventBus.on(EventName.AGENT_STATE_DELTA, async ({ id, previousEventId, threadId, patches, full }: EventPayloads[typeof EventName.AGENT_STATE_DELTA]) => {
+    try {
+      // Always refresh metadata (usage data lives there)
+      diskReadStats.recordMetadataRead(threadId);
+      await threadService.refreshById(threadId);
+
+      const store = useThreadStore.getState();
+      if (store.activeThreadId !== threadId) {
+        // Not the active thread, just track chain position
+        lastAppliedEventId[threadId] = id;
+        useStreamingStore.getState().clearStream(threadId);
+        // Cascade: refresh parent
+        const thread = threadService.get(threadId);
+        if (thread?.parentThreadId) {
+          await threadService.refreshById(thread.parentThreadId);
+        }
+        return;
+      }
+
+      if (previousEventId === null || !lastAppliedEventId[threadId]) {
+        // Full sync: first event, process restart, or we have no base state
+        if (full) {
+          logger.warn(`[ThreadListener] STATE_DELTA full-sync: no base state for ${threadId}, previousEventId=${previousEventId}`);
+          diskReadStats.recordFullStateRead(threadId);
+          store.setThreadState(threadId, full);
+          lastAppliedEventId[threadId] = id;
+        } else {
+          // Shouldn't happen (previousEventId=null should include full), but safe fallback
+          logger.warn(`[ThreadListener] STATE_DELTA full-sync fallback: previousEventId=${previousEventId} but no full payload for ${threadId} — reading from disk`);
+          diskReadStats.recordFullStateRead(threadId);
+          await threadService.loadThreadState(threadId);
+          lastAppliedEventId[threadId] = id;
+        }
+      } else if (previousEventId === lastAppliedEventId[threadId]) {
+        // Chain intact — apply patches
+        diskReadStats.recordDeltaApplied(threadId);
+        const currentState = store.threadStates[threadId];
+        if (currentState && patches.length > 0) {
+          const patched = applyPatch(structuredClone(currentState), patches);
+          store.setThreadState(threadId, patched.newDocument);
+        }
+        lastAppliedEventId[threadId] = id;
+      } else {
+        // Chain broken — gap detected, full resync from disk
+        logger.warn(`[ThreadListener] STATE_DELTA CHAIN GAP for ${threadId}: expected=${lastAppliedEventId[threadId]}, got previousEventId=${previousEventId} — falling back to disk`);
+        diskReadStats.recordGapTriggeredRead(threadId);
+        await threadService.loadThreadState(threadId);
+        lastAppliedEventId[threadId] = id;
+      }
+
+      // Clear streaming content AFTER replacement data is in the store
+      useStreamingStore.getState().clearStream(threadId);
+
+      // Cascade: refresh parent
+      const thread = threadService.get(threadId);
+      if (thread?.parentThreadId) {
+        await threadService.refreshById(thread.parentThreadId);
+      }
+    } catch (e) {
+      logger.error(`[ThreadListener] Failed to apply state delta for ${threadId}:`, e);
+      // On any error, fall back to disk read
+      logger.warn(`[ThreadListener] STATE_DELTA error fallback for ${threadId}, reading from disk`);
+      diskReadStats.recordGapTriggeredRead(threadId);
+      await threadService.loadThreadState(threadId);
+      lastAppliedEventId[threadId] = id;
     }
   });
 
@@ -174,6 +262,8 @@ export function setupThreadListeners(): void {
     const store = useThreadStore.getState();
     if (store.activeThreadId) {
       logger.info(`[ThreadListener] Panel hidden, clearing active thread: ${store.activeThreadId}`);
+      // Clear chain state so the next activation triggers a full sync
+      clearChainState(store.activeThreadId);
       store.setActiveThread(null);
     }
   });
@@ -216,15 +306,22 @@ export function setupThreadListeners(): void {
     await handleStaleness(threadId);
   });
 
-  // Clean up heartbeat tracking when agent finishes
+  // Clean up heartbeat tracking, chain state, and disk-read stats when agent finishes
   eventBus.on(EventName.AGENT_COMPLETED, ({ threadId }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
     useHeartbeatStore.getState().removeThread(threadId);
+    clearChainState(threadId);
+    diskReadStats.clear(threadId);
   });
 
   eventBus.on(EventName.AGENT_CANCELLED, ({ threadId }: EventPayloads[typeof EventName.AGENT_CANCELLED]) => {
     useHeartbeatStore.getState().removeThread(threadId);
+    clearChainState(threadId);
+    diskReadStats.clear(threadId);
   });
 
   // Set up recovery polling cleanup (stops polling on agent complete/cancel)
   setupRecoveryCleanupListeners();
+
+  // Start periodic disk-read stats logging (every 10s, non-zero threads only)
+  diskReadStats.startPeriodicLog();
 }

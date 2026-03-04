@@ -117,6 +117,7 @@ export function PullRequestItem({
     <div
       role="treeitem"
       aria-selected={isSelected}
+      data-testid={`pr-item-${item.id}`}
       data-tree-item-index={itemIndex}
       tabIndex={tabIndex}
       onClick={handleClick}

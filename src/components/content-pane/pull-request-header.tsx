@@ -45,7 +45,7 @@ export function PullRequestHeader({
   }, [details?.url]);
 
   return (
-    <div className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
       <StatusDot variant={derivePrStatusDot(details)} />
       <Breadcrumb
         repoName={repoName}
@@ -73,6 +73,7 @@ export function PullRequestHeader({
         </button>
         {onPopOut && !isMainWindow && (
           <button
+            data-testid="pop-out-button"
             onClick={onPopOut}
             className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
             aria-label="Pop out to window"
@@ -82,6 +83,7 @@ export function PullRequestHeader({
           </button>
         )}
         <button
+          data-testid="close-pane-button"
           onClick={onClose}
           className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"

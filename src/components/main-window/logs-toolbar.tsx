@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Activity, Check, ChevronDown, Copy, Loader2, Search, Trash2 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { open } from "@tauri-apps/plugin-shell";
 import type { LogEntry, LogFilter, LogLevel } from "@/entities/logs";
 import { captureMemorySnapshot } from "@/lib/memory-snapshot";
@@ -254,7 +254,7 @@ export function LogsToolbar({
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b border-surface-800 bg-surface-900/50">
+    <div data-testid="logs-toolbar" className="flex items-center gap-3 px-4 py-2 border-b border-surface-800 bg-surface-900/50">
       {/* Search */}
       <div className="relative flex-1 max-w-sm">
         <Search
@@ -334,6 +334,7 @@ export function LogsToolbar({
                 <div
                   key={level}
                   id={`level-option-${optionIndex}`}
+                  data-testid={`logs-level-filter-${level}`}
                   role="option"
                   aria-selected={isSelected}
                   onClick={() => toggleLevel(level)}

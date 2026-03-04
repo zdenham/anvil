@@ -6,7 +6,7 @@ import { CopyButton } from "../ui/copy-button";
 import { Tooltip } from "../ui/tooltip";
 import { useOptionalDiffCommentStore } from "@/contexts/diff-comment-context";
 import { useCommentStore } from "@/entities/comments/store";
-import { AddressCommentsButton } from "./address-comments-button";
+
 import { useStore } from "zustand";
 import type { ParsedDiffFile } from "./types";
 
@@ -38,9 +38,11 @@ export const FileHeader = memo(function FileHeader({
 
   return (
     <div
+      data-testid={`diff-file-header-${path}`}
       className={cn(
-        "group flex items-center gap-2.5 px-3 py-1.5 bg-surface-800 sticky top-0 z-10 rounded-t-lg border-b border-surface-700",
+        "group flex items-center gap-2.5 px-3 py-1.5 bg-surface-800 sticky top-0 z-10 rounded-t-lg border-b border-surface-700 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.3)]",
         onToggleCollapse && "cursor-pointer select-none",
+        isCollapsed && "rounded-b-lg border-b-0 shadow-none",
       )}
       role={onToggleCollapse ? "button" : undefined}
       tabIndex={onToggleCollapse ? 0 : undefined}
@@ -95,9 +97,6 @@ export const FileHeader = memo(function FileHeader({
 
       {/* Comment count badge */}
       <FileHeaderCommentBadge filePath={path} />
-
-      {/* Address Comments button */}
-      <FileHeaderAddressSlot />
 
       {/* Show full file toggle */}
       {onToggleFullFile && (
@@ -173,13 +172,6 @@ function FileHeaderCommentBadgeInner({
       {count}
     </span>
   );
-}
-
-/** Renders AddressCommentsButton only when inside a DiffCommentProvider. */
-function FileHeaderAddressSlot() {
-  const store = useOptionalDiffCommentStore();
-  if (!store) return null;
-  return <AddressCommentsButton />;
 }
 
 interface OperationBadgeProps {

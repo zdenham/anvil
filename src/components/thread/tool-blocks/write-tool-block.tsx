@@ -42,7 +42,7 @@ export function WriteToolBlock({
   const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
 
   // Get workspace root for relative path display
-  const workspaceRoot = useWorkspaceRoot(threadId);
+  const workspaceRoot = useWorkspaceRoot();
 
   // Parse input
   const writeInput = input as unknown as WriteInput;

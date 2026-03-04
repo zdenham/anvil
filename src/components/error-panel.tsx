@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { z } from "zod";
 import { GlobalErrorView } from "./global-error-view";
 import { logger } from "../lib/logger-client";
@@ -50,12 +50,14 @@ export function ErrorPanel() {
   }
 
   return (
-    <GlobalErrorView
-      message={error.message}
-      stack={error.stack}
-      onDismiss={() => {
-        invoke("hide_error_panel");
-      }}
-    />
+    <div data-testid="error-panel">
+      <GlobalErrorView
+        message={error.message}
+        stack={error.stack}
+        onDismiss={() => {
+          invoke("hide_error_panel");
+        }}
+      />
+    </div>
   );
 }

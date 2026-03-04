@@ -53,7 +53,7 @@ export function PullRequestContent({ prId, onPopOut: _onPopOut }: PullRequestCon
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="pr-content" className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto pt-8">
         <div className="max-w-[900px] mx-auto p-4 space-y-3">
           {details && pr && (

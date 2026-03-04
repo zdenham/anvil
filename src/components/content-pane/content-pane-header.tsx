@@ -140,7 +140,7 @@ function PlanHeader({
     plan?.relativePath?.split("/").pop() ?? planId.slice(0, 8) + "...";
 
   return (
-    <div className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
       <Breadcrumb
         repoName={repoName}
         worktreeName={worktreeName}
@@ -153,6 +153,7 @@ function PlanHeader({
         {/* Pop-out button - only show in panel windows, not main window */}
         {onPopOut && !isMainWindow && (
           <button
+            data-testid="pop-out-button"
             onClick={onPopOut}
             className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
             aria-label="Pop out to window"
@@ -163,6 +164,7 @@ function PlanHeader({
         )}
         {/* Close button */}
         <button
+          data-testid="close-pane-button"
           onClick={onClose}
           className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"
@@ -241,7 +243,7 @@ function ThreadHeader({
   })();
 
   return (
-    <div className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
       {/* Status dot */}
       <StatusDot variant={getStatusVariant(isStreaming, thread?.isRead)} />
 
@@ -292,6 +294,7 @@ function ThreadHeader({
         {/* Pop-out button - only show in panel windows, not main window */}
         {onPopOut && !isMainWindow && (
           <button
+            data-testid="pop-out-button"
             onClick={onPopOut}
             className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
             aria-label="Pop out to window"
@@ -303,6 +306,7 @@ function ThreadHeader({
 
         {/* Close button */}
         <button
+          data-testid="close-pane-button"
           onClick={onClose}
           className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"
@@ -328,11 +332,12 @@ function SimpleHeader({
   const displayTitle = title.charAt(0).toUpperCase() + title.slice(1);
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-1.5 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="flex items-center gap-2.5 px-3 py-1.5 border-b border-surface-700">
       <span className="text-surface-200 text-xs">{displayTitle}</span>
 
       <div className="ml-auto">
         <button
+          data-testid="close-pane-button"
           onClick={onClose}
           className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"
@@ -363,7 +368,7 @@ function FileHeader({
   const fileName = filePath.split("/").pop() ?? "file";
 
   return (
-    <div className="@container flex items-center gap-2.5 pl-3 pr-2 py-2 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="@container flex items-center gap-2.5 pl-3 pr-2 py-2 border-b border-surface-700">
       <Breadcrumb
         repoName={repoName}
         worktreeName={worktreeName}
@@ -374,6 +379,7 @@ function FileHeader({
 
       <div className="ml-auto">
         <button
+          data-testid="close-pane-button"
           onClick={onClose}
           className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"
@@ -410,7 +416,7 @@ function TerminalHeader({
   }, [terminalId, onClose]);
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
       {/* Terminal icon */}
       <Terminal size={14} className="text-surface-400" />
 
@@ -437,6 +443,7 @@ function TerminalHeader({
 
         {/* Close button - hides pane but keeps terminal alive */}
         <button
+          data-testid="close-pane-button"
           onClick={onClose}
           className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane (terminal stays alive)"
@@ -478,7 +485,7 @@ function ChangesHeader({
   })();
 
   return (
-    <div className="@container flex items-center gap-2.5 pl-3 pr-2 py-2 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="@container flex items-center gap-2.5 pl-3 pr-2 py-2 border-b border-surface-700">
       <Breadcrumb
         repoName={repoName}
         worktreeName={worktreeName}
@@ -489,6 +496,7 @@ function ChangesHeader({
 
       <div className="ml-auto">
         <button
+          data-testid="close-pane-button"
           onClick={onClose}
           className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
           aria-label="Close pane"

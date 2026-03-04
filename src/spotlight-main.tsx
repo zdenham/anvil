@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, connectWs } from "@/lib/invoke";
 import "./index.css";
 import { Spotlight } from "./components/spotlight/spotlight";
 import { WorkspaceSettingsProvider, GlobalErrorProvider } from "./contexts";
@@ -24,6 +24,11 @@ interface PathsInfo {
 }
 
 logger.log("[spotlight-main] Module loading...");
+
+// Connect WebSocket transport early (non-blocking)
+connectWs().catch(() => {
+  // WS connection failure is non-fatal — Tauri IPC is the fallback
+});
 
 // Initialize trigger system for @ file mentions
 initializeTriggers();

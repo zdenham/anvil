@@ -54,6 +54,13 @@ export interface HeartbeatMessage extends SocketMessage {
   timestamp: number;
 }
 
+export interface NetworkMessage extends SocketMessage {
+  type: "network";
+  networkType: string; // "request-start" | "response-headers" | etc.
+  requestId: string;
+  [key: string]: unknown;
+}
+
 /**
  * Application-level state event for patch-based state emission.
  * Contains JSON Patch diffs and event chain IDs for gap detection.

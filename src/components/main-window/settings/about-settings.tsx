@@ -1,6 +1,6 @@
 import { Info, Download, Loader2 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
-import { getVersion } from "@tauri-apps/api/app";
+import { getVersion } from "@/lib/browser-stubs";
 import { SettingsSection } from "../settings-section";
 import { updateCommands } from "@/lib/tauri-commands";
 import { logger } from "@/lib/logger-client";
@@ -32,7 +32,7 @@ export function AboutSettings() {
 
   return (
     <SettingsSection title="About">
-      <div className="flex items-center justify-between">
+      <div data-testid="about-settings" className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-surface-400">
           <Info size={16} />
           <span>Mortician v{version}</span>

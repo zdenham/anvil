@@ -77,7 +77,7 @@ export function SkillsSettings() {
       title="Skills"
       description="Skills extend agent capabilities. Use /skill-name to invoke."
     >
-      <div className="space-y-6">
+      <div data-testid="skills-settings" className="space-y-6">
         {/* Help text */}
         <div className="text-sm text-surface-400 space-y-2">
           <p>Create skills in these locations:</p>

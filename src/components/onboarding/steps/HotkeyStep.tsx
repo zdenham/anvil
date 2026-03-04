@@ -7,7 +7,7 @@ interface HotkeyStepProps {
 
 export const HotkeyStep = ({ hotkey, onHotkeyChanged }: HotkeyStepProps) => {
   return (
-    <div className="space-y-3">
+    <div data-testid="onboarding-step-hotkey" className="space-y-3">
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-surface-100 font-mono">Set Your Global Hotkey</h2>
         <p className="text-surface-300">

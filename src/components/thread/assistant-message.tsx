@@ -11,6 +11,7 @@ import { ToolUseBlock } from "./tool-use-block";
 import { ToolPermissionWrapper } from "./tool-permission-wrapper";
 import { LiveAskUserQuestion } from "./live-ask-user-question";
 import { getSpecializedToolBlock } from "./tool-blocks";
+import { WorkspaceRootProvider } from "@/hooks/use-workspace-root";
 
 interface AssistantMessageProps {
   /** The full messages array (needed to look up tool results from next message) */
@@ -46,6 +47,7 @@ export function AssistantMessage({
   const content = (message.content as ContentBlock[]) ?? [];
 
   return (
+    <WorkspaceRootProvider value={workingDirectory ?? ""}>
     <article role="article" aria-label="Assistant response" className="group">
       <div className="flex gap-3">
 
@@ -200,5 +202,6 @@ export function AssistantMessage({
         </div>
       </div>
     </article>
+    </WorkspaceRootProvider>
   );
 }

@@ -31,6 +31,7 @@ export function UncommittedItem({ item, isSelected, onNavigate }: UncommittedIte
     <div
       role="treeitem"
       aria-selected={isSelected}
+      data-testid="uncommitted-item"
       tabIndex={-1}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

@@ -126,6 +126,13 @@ else
   echo "Version updated to ${NEW_VERSION}"
 fi
 
+# --- 1b. Commit & Tag Release ---
+echo "Committing all changes as ${NEW_VERSION}..."
+git add -A
+git commit -m "${NEW_VERSION}" || echo "Nothing to commit"
+git tag -f "${NEW_VERSION}"
+echo "Tagged ${NEW_VERSION}"
+
 # --- 2. Sign Third-Party Binaries ---
 # Tauri only signs its own binaries. We need to sign any native binaries
 # from node_modules that get bundled as resources.

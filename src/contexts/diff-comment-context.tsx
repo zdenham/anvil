@@ -1,17 +1,23 @@
-import { createContext, useContext, useRef, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { createStore, useStore, type StoreApi } from "zustand";
 
 interface DiffCommentState {
   worktreeId: string;
+  repoId: string;
+  worktreePath: string;
   threadId: string | null;
 }
 
 function createDiffCommentStore(
   worktreeId: string,
+  repoId: string,
+  worktreePath: string,
   threadId: string | null,
 ): StoreApi<DiffCommentState> {
   return createStore<DiffCommentState>(() => ({
     worktreeId,
+    repoId,
+    worktreePath,
     threadId,
   }));
 }
@@ -21,19 +27,25 @@ const DiffCommentStoreContext =
 
 export function DiffCommentProvider({
   worktreeId,
+  repoId,
+  worktreePath,
   threadId,
   children,
 }: {
   worktreeId: string;
+  repoId: string;
+  worktreePath: string;
   threadId?: string | null;
   children: ReactNode;
 }) {
-  const storeRef = useRef<StoreApi<DiffCommentState>>(null);
-  if (storeRef.current === null) {
-    storeRef.current = createDiffCommentStore(worktreeId, threadId ?? null);
-  }
+  // Create store once per worktreeId+threadId combination
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const store = useMemo(
+    () => createDiffCommentStore(worktreeId, repoId, worktreePath, threadId ?? null),
+    [worktreeId, repoId, worktreePath, threadId],
+  );
   return (
-    <DiffCommentStoreContext.Provider value={storeRef.current}>
+    <DiffCommentStoreContext.Provider value={store}>
       {children}
     </DiffCommentStoreContext.Provider>
   );

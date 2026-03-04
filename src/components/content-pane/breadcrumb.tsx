@@ -26,7 +26,7 @@ export function Breadcrumb({
   const showWorktree = worktreeName && worktreeName !== "main";
 
   return (
-    <div className="flex items-center gap-1.5 text-xs min-w-0">
+    <div data-testid="breadcrumb" className="flex items-center gap-1.5 text-xs min-w-0">
       {/* Extended context - hidden at narrow widths */}
       {repoName && (
         <div className="hidden @[400px]:flex items-center gap-1.5">

@@ -252,7 +252,7 @@ impl FormatTime for UptimeTimer {
 struct BufferLayer;
 
 /// Targets to exclude from the buffer (HTTP client internals)
-const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log"];
+const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log", "h2"];
 
 /// Message patterns to exclude from the buffer (HTTP client internals that come through log crate)
 /// These are checked as prefixes against the log message content.
@@ -398,7 +398,7 @@ pub fn initialize() {
         .with_level(true)
         .with_ansi(true)
         .compact()
-        .with_filter(EnvFilter::new("debug,ureq=off,rustls=off"));
+        .with_filter(EnvFilter::new("debug,ureq=off,rustls=off,h2=off"));
 
     // Set up the JSON file layer
     let json_layer = match setup_json_layer() {
@@ -451,7 +451,7 @@ where
         .with_thread_ids(true)
         .with_target(true)
         .with_span_events(FmtSpan::CLOSE)
-        .with_filter(EnvFilter::new("debug,ureq=off,rustls=off")))
+        .with_filter(EnvFilter::new("debug,ureq=off,rustls=off,h2=off")))
 }
 
 /// Logs a message from the web frontend.

@@ -13,7 +13,7 @@ export function GlobalToast() {
   if (!toast) return null;
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]">
+    <div data-testid="global-toast" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]">
       <div
         className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg shadow-lg border animate-in fade-in slide-in-from-bottom-2 duration-200 ${typeStyles[toast.type] ?? typeStyles.info}`}
       >

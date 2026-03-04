@@ -10,7 +10,7 @@
  */
 
 import { useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { useUnifiedInboxNavigation } from "./use-unified-inbox-navigation";
 import { useContextAwareNavigation } from "./use-context-aware-navigation";
 import { useNavigationBannerStore } from "@/stores/navigation-banner-store";

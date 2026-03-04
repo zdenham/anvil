@@ -11,7 +11,7 @@ import { useContentPanesStore } from "@/stores/content-panes/store";
 import { contentPanesService } from "@/stores/content-panes/service";
 import { ContentPane } from "./content-pane";
 import { showMainWindowWithView } from "@/lib/hotkey-service";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 
 /**
  * Container component that renders the active content pane.

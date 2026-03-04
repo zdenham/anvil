@@ -42,6 +42,7 @@ function CopyButton({ code, isCopied, onCopy }: {
   return (
     <button
       onClick={handleClick}
+      data-testid="copy-button"
       className={cn(
         "p-1.5 rounded transition-colors",
         isCopied
@@ -152,6 +153,7 @@ export const CodeBlock = memo(function CodeBlock({ code, language = "plaintext",
   return (
     <div
       data-code-block
+      data-testid="code-block"
       tabIndex={0}
       className={cn(
         "relative group rounded-lg border border-zinc-800 bg-zinc-900",

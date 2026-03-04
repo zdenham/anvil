@@ -1,5 +1,5 @@
-import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { emit, listen, type UnlistenFn } from "@/lib/events";
+import { getCurrentWindow } from "@/lib/browser-stubs";
 import { EventName } from "@core/types/events.js";
 import { eventBus, type AppEvents } from "@/entities/events";
 import { logger } from "./logger-client";
@@ -16,6 +16,7 @@ const BROADCAST_EVENTS = [
   // Agent lifecycle
   EventName.AGENT_SPAWNED,
   EventName.AGENT_STATE,
+  EventName.AGENT_STATE_DELTA,
   EventName.AGENT_COMPLETED,
   EventName.AGENT_ERROR,
   EventName.AGENT_TOOL_COMPLETED,
@@ -23,6 +24,7 @@ const BROADCAST_EVENTS = [
 
   // Thread lifecycle
   EventName.OPTIMISTIC_STREAM,
+  EventName.STREAM_DELTA,
   EventName.THREAD_OPTIMISTIC_CREATED,
   EventName.THREAD_CREATED,
   EventName.THREAD_UPDATED,

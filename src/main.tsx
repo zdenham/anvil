@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, connectWs } from "@/lib/invoke";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./index.css";
 import App from "./App";
@@ -22,6 +22,11 @@ initWebErrorCapture("main");
 
 // Start frame rate monitoring (always-on, essentially free)
 startFrameRateMonitor();
+
+// Connect WebSocket transport early (non-blocking)
+connectWs().catch(() => {
+  // WS connection failure is non-fatal — Tauri IPC is the fallback
+});
 
 // Set up event bridge early, before React mounts
 // This ensures events (e.g., repository:created) can be broadcast during onboarding

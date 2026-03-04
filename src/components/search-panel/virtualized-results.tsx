@@ -70,13 +70,14 @@ export function VirtualizedResults({
   });
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto">
+    <div ref={parentRef} data-testid="search-results" className="flex-1 overflow-y-auto">
       <div style={{ height: totalHeight, position: "relative" }}>
         {items.map((vItem) => {
           const item = flatItems[vItem.index];
           return (
             <div
               key={vItem.key}
+              data-testid={`search-result-${vItem.index}`}
               style={{
                 position: "absolute",
                 top: 0,

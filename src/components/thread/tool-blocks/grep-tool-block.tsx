@@ -372,7 +372,7 @@ export function GrepToolBlock({
     setToolExpanded(threadId, id, expanded);
 
   // Get workspace root for relative path display
-  const workspaceRoot = useWorkspaceRoot(threadId);
+  const workspaceRoot = useWorkspaceRoot();
 
   const grepInput = input as unknown as GrepInput;
   const pattern = grepInput.pattern || "";

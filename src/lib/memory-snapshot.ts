@@ -4,7 +4,7 @@ import { getAllOutputBuffers } from "@/entities/terminal-sessions/output-buffer"
 import { useStreamingStore } from "@/stores/streaming-store";
 import { useLogStore } from "@/entities/logs/store";
 import { useHeartbeatStore } from "@/stores/heartbeat-store";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { logger } from "@/lib/logger-client";
 
 // ============================================================================

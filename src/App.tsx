@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { getCurrentWindow, LogicalSize } from "@/lib/browser-stubs";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import { PermissionsPrompt } from "./components/PermissionsPrompt";
 import { MainWindowLayout } from "./components/main-window/main-window-layout";

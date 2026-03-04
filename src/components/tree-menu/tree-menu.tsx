@@ -227,6 +227,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr,
       ref={containerRef}
       role="tree"
       aria-label="Threads and Plans"
+      data-testid="tree-menu"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       className={`flex-1 overflow-auto focus:outline-none pl-2 ${className ?? ""}`}

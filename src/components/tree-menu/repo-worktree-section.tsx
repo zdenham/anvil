@@ -354,7 +354,7 @@ export function RepoWorktreeSection({
   }, [isChangesExpanded, section.id, section.worktreePath, section.worktreeName]);
 
   return (
-    <div role="group" aria-label={`${section.repoName} / ${section.worktreeName}`}>
+    <div role="group" data-testid={`repo-worktree-section-${section.repoName}`} aria-label={`${section.repoName} / ${section.worktreeName}`}>
       {/* Divider above section (except first) */}
       {showDivider && (
         <div
@@ -730,6 +730,7 @@ export function RepoWorktreeSection({
         })}
 
         {/* Terminals pinned after Changes */}
+        <div data-testid="tree-section-terminals">
         {section.items.map((item, index) => {
           if (item.type !== "terminal") return null;
           return (
@@ -742,8 +743,10 @@ export function RepoWorktreeSection({
             />
           );
         })}
+        </div>
 
         {/* PR items pinned after terminals */}
+        <div data-testid="tree-section-prs">
         {section.items.map((item, index) => {
           if (item.type !== "pull-request") return null;
           return (
@@ -756,34 +759,41 @@ export function RepoWorktreeSection({
             />
           );
         })}
+        </div>
 
-        {/* Threads and plans */}
+        {/* Threads */}
+        <div data-testid="tree-section-threads">
         {section.items.map((item, index) => {
-          if (item.type === "thread") {
-            return (
-              <ThreadItem
-                key={item.id}
-                item={item}
-                isSelected={selectedItemId === item.id}
-                onSelect={onItemSelect}
-                itemIndex={index}
-                allItems={section.items}
-              />
-            );
-          } else if (item.type === "plan") {
-            return (
-              <PlanItem
-                key={item.id}
-                item={item}
-                isSelected={selectedItemId === item.id}
-                onSelect={onItemSelect}
-                itemIndex={index}
-                allItems={section.items}
-              />
-            );
-          }
-          return null;
+          if (item.type !== "thread") return null;
+          return (
+            <ThreadItem
+              key={item.id}
+              item={item}
+              isSelected={selectedItemId === item.id}
+              onSelect={onItemSelect}
+              itemIndex={index}
+              allItems={section.items}
+            />
+          );
         })}
+        </div>
+
+        {/* Plans */}
+        <div data-testid="tree-section-plans">
+        {section.items.map((item, index) => {
+          if (item.type !== "plan") return null;
+          return (
+            <PlanItem
+              key={item.id}
+              item={item}
+              isSelected={selectedItemId === item.id}
+              onSelect={onItemSelect}
+              itemIndex={index}
+              allItems={section.items}
+            />
+          );
+        })}
+        </div>
       </div>
     </div>
   );

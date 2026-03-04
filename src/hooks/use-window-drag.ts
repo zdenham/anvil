@@ -11,8 +11,8 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@/lib/invoke";
+import { getCurrentWindow } from "@/lib/browser-stubs";
 import { logger } from "@/lib/logger-client";
 
 const INTERACTIVE_SELECTOR = 'button, input, textarea, a, [role="button"], [contenteditable="true"]';

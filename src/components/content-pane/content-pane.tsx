@@ -26,6 +26,8 @@ import { useContentSearch } from "./use-content-search";
 import { InputStoreProvider } from "@/stores/input-store";
 import { useSearchState } from "@/stores/search-state";
 import { DiffCommentProvider } from "@/contexts/diff-comment-context";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { FloatingAddressButton } from "@/components/diff-viewer/floating-address-button";
 import { logger } from "@/lib/logger-client";
 import type { ContentPaneProps, ContentPaneView } from "./types";
 
@@ -77,6 +79,10 @@ export function ContentPane({
   );
   const isLoadingThreadState = useThreadStore((s) => s.activeThreadLoading);
 
+  const worktreePath = useRepoWorktreeLookupStore((s) =>
+    s.getWorktreePath(activeMetadata?.repoId ?? "", activeMetadata?.worktreeId ?? ""),
+  );
+
   // Derive initial prompt from thread metadata
   const initialPrompt = activeMetadata?.turns[0]?.prompt;
 
@@ -117,13 +123,20 @@ export function ContentPane({
     }
   }, [searchEnabled, globalSearchQuery, searchNonce, isSearchable]);
 
+  // Clear find state on any content pane change
+  const viewKey = getViewKey(view);
+  useEffect(() => {
+    search.clear();
+    setFindBarOpen(false);
+  }, [viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const closeFindBar = useCallback(() => {
     search.clear();
     setFindBarOpen(false);
   }, [search]);
 
   return (
-    <div className="flex flex-col h-full bg-surface-900">
+    <div data-testid="content-pane" className="flex flex-col h-full bg-surface-900">
       <ContentPaneHeader
         view={view}
         threadTab={threadTab}
@@ -140,7 +153,7 @@ export function ContentPane({
         <InputStoreProvider active>
           {view.type === "empty" && <EmptyPaneContent />}
           {view.type === "thread" && activeMetadata?.worktreeId && (
-            <DiffCommentProvider worktreeId={activeMetadata.worktreeId} threadId={view.threadId}>
+            <DiffCommentProvider worktreeId={activeMetadata.worktreeId} repoId={activeMetadata.repoId} worktreePath={worktreePath} threadId={view.threadId}>
               {threadTab === "conversation" && (
                 <ThreadContent
                   threadId={view.threadId}
@@ -156,6 +169,7 @@ export function ContentPane({
                   isLoadingThreadState={isLoadingThreadState}
                 />
               )}
+              <FloatingAddressButton />
             </DiffCommentProvider>
           )}
           {view.type === "thread" && !activeMetadata?.worktreeId && (
@@ -218,6 +232,18 @@ export function ContentPane({
 /**
  * Helper hook to get streaming state for thread views.
  */
+function getViewKey(view: ContentPaneView): string {
+  switch (view.type) {
+    case "thread": return `thread:${view.threadId}`;
+    case "plan": return `plan:${view.planId}`;
+    case "terminal": return `terminal:${view.terminalId}`;
+    case "file": return `file:${view.filePath}`;
+    case "pull-request": return `pr:${view.prId}`;
+    case "changes": return `changes:${view.repoId}:${view.worktreeId}`;
+    default: return view.type;
+  }
+}
+
 function useThreadStreamingState(view: ContentPaneView): boolean {
   const threadId = view.type === "thread" ? view.threadId : null;
   const status = useThreadStore(

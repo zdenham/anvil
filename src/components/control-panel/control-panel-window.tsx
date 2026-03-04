@@ -24,8 +24,8 @@ import { useMarkThreadAsRead } from "@/hooks/use-mark-thread-as-read";
 import { useWorkingDirectory } from "@/hooks/use-working-directory";
 import { useWindowDrag } from "@/hooks/use-window-drag";
 import { useNavigateToNextItem } from "@/hooks/use-navigate-to-next-item";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@/lib/invoke";
+import { getCurrentWindow } from "@/lib/browser-stubs";
 import { NavigationBanner } from "./navigation-banner";
 
 import { useQuickActionsStore, defaultActions, streamingActions, type ActionType } from "@/stores/quick-actions-store";
@@ -643,6 +643,7 @@ function ControlPanelWindowContent({
     <div
       ref={containerRef}
       tabIndex={-1}
+      data-testid="control-panel"
       className={cn(
         "control-panel-container flex flex-col h-screen text-surface-50 relative overflow-hidden outline-none",
         // NSPanel uses custom JS drag, standalone windows use native title bar

@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/lib/browser-stubs";
 
 export function useFullscreen(): boolean {
   const [isFullscreen, setIsFullscreen] = useState(false);

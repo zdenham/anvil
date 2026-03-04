@@ -15,6 +15,9 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/** Module-level cache to prevent flash on re-mount (e.g. virtualizer recycle) */
+const resolvedCache = new Map<string, string>();
+
 /**
  * Hook to derive the working directory for a thread.
  *
@@ -25,7 +28,10 @@ function slugify(name: string): string {
  * @returns The working directory path, or empty string if not yet resolved
  */
 export function useWorkingDirectory(thread: ThreadMetadata | undefined): string {
-  const [workingDirectory, setWorkingDirectory] = useState("");
+  const cacheKey = thread?.id ?? "";
+  const [workingDirectory, setWorkingDirectory] = useState(
+    () => resolvedCache.get(cacheKey) ?? ""
+  );
 
   useEffect(() => {
     if (!thread) {
@@ -42,6 +48,7 @@ export function useWorkingDirectory(thread: ThreadMetadata | undefined): string 
           const settings = await loadSettings(slug);
           if (settings.id === thread.repoId) {
             const dir = deriveWorkingDirectory(thread, settings);
+            resolvedCache.set(thread.id, dir);
             setWorkingDirectory(dir);
             return;
           }

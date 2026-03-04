@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { appData } from "@/lib/app-data-store";
 import { usePlanStore } from "./store";
 import { PlanMetadataSchema } from "./types";

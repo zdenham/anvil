@@ -244,6 +244,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
   return (
     <div
+      data-testid="command-palette"
       className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
@@ -267,6 +268,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
           <input
             ref={inputRef}
             type="text"
+            data-testid="command-palette-input"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -293,6 +295,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
               <CommandPaletteItem
                 key={`${item.type}-${item.id}`}
                 item={item}
+                index={index}
                 isSelected={index === selectedIndex}
                 onClick={() => navigateToItem(item)}
                 onHover={() => mouseMovedSinceOpen && setSelectedIndex(index)}

@@ -74,7 +74,7 @@ export function GlobToolBlock({
     setToolExpanded(threadId, id, expanded);
 
   // Get workspace root for relative path display
-  const workspaceRoot = useWorkspaceRoot(threadId);
+  const workspaceRoot = useWorkspaceRoot();
 
   const globInput = input as unknown as GlobInput;
   const pattern = globInput.pattern || "";

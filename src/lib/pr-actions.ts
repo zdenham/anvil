@@ -9,7 +9,7 @@
  * gateway webhook (pull_request.opened) -- see listeners.ts.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { Command } from "@tauri-apps/plugin-shell";
 import { GhCli } from "./gh-cli";
 import { pullRequestService } from "@/entities/pull-requests";

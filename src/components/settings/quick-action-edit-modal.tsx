@@ -71,6 +71,7 @@ export function QuickActionEditModal({
 
       {/* Dialog */}
       <div
+        data-testid="quick-action-edit-modal"
         className="relative bg-surface-800 rounded-lg border border-surface-700 shadow-xl w-full max-w-md mx-4"
         role="dialog"
         aria-modal="true"

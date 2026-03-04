@@ -85,6 +85,7 @@ export function PermissionInline({ request, isFocused }: PermissionInlineProps) 
               "transition-colors"
             )}
             aria-label="Approve (y)"
+            data-testid="permission-approve-button"
           >
             <Check className="h-4 w-4" />
             Approve
@@ -99,6 +100,7 @@ export function PermissionInline({ request, isFocused }: PermissionInlineProps) 
               "transition-colors"
             )}
             aria-label="Reject (n)"
+            data-testid="permission-deny-button"
           >
             <X className="h-4 w-4" />
             Reject

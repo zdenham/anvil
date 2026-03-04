@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { AlertCircle, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "../../reusable/Button";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { logger } from "@/lib/logger-client";
 
 interface SpotlightStepProps {
@@ -196,7 +196,7 @@ export const SpotlightStep = ({ onChangeHotkey }: SpotlightStepProps) => {
 
   // Default hotkey (Command+Space) - show Spotlight disable flow
   return (
-    <div className="space-y-2">
+    <div data-testid="onboarding-step-spotlight" className="space-y-2">
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-surface-100 font-mono">
           Make Mort Your Spotlight

@@ -98,6 +98,7 @@ export function TerminalItem({
     <div
       role="treeitem"
       aria-selected={isSelected}
+      data-testid={`terminal-item-${item.id}`}
       data-tree-item-index={itemIndex}
       tabIndex={tabIndex}
       onClick={handleClick}

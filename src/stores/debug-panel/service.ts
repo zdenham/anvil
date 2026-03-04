@@ -21,7 +21,6 @@ function persistDebounced(): void {
     try {
       await appData.ensureDir("ui");
       await appData.writeJson(UI_STATE_PATH, getPersistedState());
-      logger.debug("[debugPanelService] Persisted state");
     } catch (err) {
       logger.error("[debugPanelService] Failed to persist:", err);
     }

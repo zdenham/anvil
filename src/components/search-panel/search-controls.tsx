@@ -33,6 +33,7 @@ export const SearchInput = forwardRef<HTMLInputElement, {
     <input
       ref={ref}
       type="text"
+      data-testid="search-input"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder="Search..."
@@ -75,11 +76,6 @@ export function FileScope({ includeFiles, onToggleInclude, worktreeOptions, sele
   onSelectWorktree: (idx: number) => void;
 }) {
   const selected = worktreeOptions[selectedIdx] ?? worktreeOptions[0];
-  const hasMultiple = worktreeOptions.length > 1;
-
-  const parts = selected?.label.split("/") ?? [];
-  const repoName = parts[0] ?? "";
-  const worktreeName = parts.length > 1 ? parts.slice(1).join("/") : "";
 
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-800">
@@ -88,23 +84,20 @@ export function FileScope({ includeFiles, onToggleInclude, worktreeOptions, sele
         Files
       </label>
       {selected && (
-        <div className="flex items-center gap-1 min-w-0 text-xs text-surface-500 truncate">
-          <span className="truncate">{repoName}</span>
-          {hasMultiple && worktreeName && (
-            <>
-              <span className="shrink-0">/</span>
-              <select
-                value={selectedIdx}
-                onChange={(e) => onSelectWorktree(Number(e.target.value))}
-                disabled={!includeFiles}
-                className="bg-surface-900 text-surface-300 border border-surface-700 rounded px-1 py-0.5 min-w-0 disabled:opacity-50 text-xs"
-              >
-                {worktreeOptions.map((opt, i) => {
-                  const wtName = opt.label.split("/").slice(1).join("/") || opt.label;
-                  return <option key={opt.worktreeId} value={i}>{wtName}</option>;
-                })}
-              </select>
-            </>
+        <div className="min-w-0 text-xs text-surface-500 truncate">
+          {worktreeOptions.length > 1 ? (
+            <select
+              value={selectedIdx}
+              onChange={(e) => onSelectWorktree(Number(e.target.value))}
+              disabled={!includeFiles}
+              className="bg-surface-900 text-surface-300 border border-surface-700 rounded px-1 py-0.5 min-w-0 disabled:opacity-50 text-xs"
+            >
+              {worktreeOptions.map((opt, i) => (
+                <option key={opt.worktreeId} value={i}>{opt.label}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="truncate">{selected.label}</span>
           )}
         </div>
       )}
@@ -177,7 +170,7 @@ export function useWorktreeOptions(): WorktreeOption[] {
     for (const [repoId, repo] of repos) {
       for (const [worktreeId, wt] of repo.worktrees) {
         options.push({
-          label: repo.worktrees.size > 1 ? `${repo.name}/${wt.name}` : repo.name,
+          label: `${repo.name} / ${wt.name}`,
           path: wt.path,
           repoId,
           worktreeId,

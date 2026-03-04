@@ -29,6 +29,7 @@ export function QuickActionListItem({ action, onEdit, onToggle }: QuickActionLis
     <div
       ref={setNodeRef}
       style={style}
+      data-testid={`quick-action-item-${action.id}`}
       className={cn(
         'flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-surface-800/50 border border-transparent hover:border-surface-700',
         isDragging && 'opacity-50 bg-surface-800',

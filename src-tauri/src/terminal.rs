@@ -178,14 +178,11 @@ pub async fn spawn_terminal(
     Ok(id)
 }
 
-/// Writes data to a terminal's PTY.
-#[tauri::command]
-pub async fn write_terminal(
-    state: tauri::State<'_, TerminalState>,
-    id: u32,
-    data: Vec<u8>,
-) -> Result<(), String> {
-    let mut manager = state.lock().unwrap();
+/// Writes data to a terminal's PTY (standalone, callable from WS server).
+pub fn write_terminal_inner(state: &TerminalState, id: u32, data: &[u8]) -> Result<(), String> {
+    let mut manager = state
+        .lock()
+        .map_err(|e| format!("Failed to lock terminal state: {}", e))?;
     let session = manager
         .sessions
         .get_mut(&id)
@@ -193,7 +190,7 @@ pub async fn write_terminal(
 
     session
         .writer
-        .write_all(&data)
+        .write_all(data)
         .map_err(|e| format!("Failed to write to terminal: {}", e))?;
     session
         .writer
@@ -203,15 +200,26 @@ pub async fn write_terminal(
     Ok(())
 }
 
-/// Resizes a terminal's PTY.
+/// Writes data to a terminal's PTY.
 #[tauri::command]
-pub async fn resize_terminal(
+pub async fn write_terminal(
     state: tauri::State<'_, TerminalState>,
+    id: u32,
+    data: Vec<u8>,
+) -> Result<(), String> {
+    write_terminal_inner(&state, id, &data)
+}
+
+/// Resizes a terminal's PTY (standalone, callable from WS server).
+pub fn resize_terminal_inner(
+    state: &TerminalState,
     id: u32,
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
-    let manager = state.lock().unwrap();
+    let manager = state
+        .lock()
+        .map_err(|e| format!("Failed to lock terminal state: {}", e))?;
     let session = manager
         .sessions
         .get(&id)
@@ -230,6 +238,17 @@ pub async fn resize_terminal(
     tracing::debug!(terminal_id = id, cols = cols, rows = rows, "Resized terminal");
 
     Ok(())
+}
+
+/// Resizes a terminal's PTY.
+#[tauri::command]
+pub async fn resize_terminal(
+    state: tauri::State<'_, TerminalState>,
+    id: u32,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    resize_terminal_inner(&state, id, cols, rows)
 }
 
 /// Kills a terminal and removes it from the manager.
@@ -252,11 +271,16 @@ pub async fn kill_terminal(
     Ok(())
 }
 
+/// Lists all active terminal IDs (standalone, callable from WS server).
+pub fn list_terminals_inner(state: &TerminalState) -> Result<Vec<u32>, String> {
+    let manager = state.lock().map_err(|e| format!("Failed to lock terminal state: {}", e))?;
+    Ok(manager.sessions.keys().copied().collect())
+}
+
 /// Lists all active terminal IDs.
 #[tauri::command]
 pub async fn list_terminals(state: tauri::State<'_, TerminalState>) -> Result<Vec<u32>, String> {
-    let manager = state.lock().unwrap();
-    Ok(manager.sessions.keys().copied().collect())
+    list_terminals_inner(&state)
 }
 
 /// Kills all terminals for a specific worktree path.

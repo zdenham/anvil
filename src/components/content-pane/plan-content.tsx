@@ -218,7 +218,7 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
   }
 
   return (
-    <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
+    <div data-testid="plan-content-pane" className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
       {/* Main content area */}
       <div className="flex-1 min-h-0 overflow-y-auto w-full pt-8">
         <div key={planId} className="w-full max-w-[900px] mx-auto p-4">

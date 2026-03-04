@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { cancelAgent } from "@/lib/agent-service";
@@ -113,12 +113,14 @@ function PlanModeHeader({
     <div
       className="group flex items-center gap-3 px-4 pt-[100px] pb-3 bg-surface-800 border-b border-surface-700"
       data-drag-region="header"
+      data-testid="control-panel-header"
     >
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1.5 text-xs" onMouseDown={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           className="text-surface-400 hover:text-surface-200 focus:outline-none focus:text-surface-200 transition-colors"
+          data-testid="control-panel-tab-plan"
         >
           plans
         </button>
@@ -223,9 +225,10 @@ function ThreadModeHeader({
     <div
       className="group flex items-center gap-3 px-4 py-3 bg-surface-800 border-b border-surface-700"
       data-drag-region="header"
+      data-testid="control-panel-header"
     >
       {/* Status dot */}
-      <StatusDot variant={getStatusVariant(isStreaming, thread?.isRead)} />
+      <StatusDot variant={getStatusVariant(isStreaming, thread?.isRead)} data-testid="agent-status" />
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1.5 text-xs" onMouseDown={(e) => e.stopPropagation()}>
         <button
@@ -255,6 +258,7 @@ function ThreadModeHeader({
             className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
             aria-label={threadTab === "conversation" ? "View changes" : "View conversation"}
             title={threadTab === "conversation" ? "View changes" : "View conversation"}
+            data-testid={threadTab === "conversation" ? "control-panel-tab-changes" : "control-panel-tab-thread"}
           >
             {threadTab === "conversation" ? (
               <GitCompare size={16} />

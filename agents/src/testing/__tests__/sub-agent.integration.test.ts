@@ -21,22 +21,22 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
   });
 
   it(
-    "creates a child thread when agent uses Task tool to spawn sub-agent",
+    "creates a child thread when agent uses Agent tool to spawn sub-agent",
     async () => {
       harness = new AgentTestHarness();
 
-      // Prompt agent to use the Task tool to spawn a sub-agent
+      // Prompt agent to use the Agent tool to spawn a sub-agent
       // We ask for a simple exploration task to trigger sub-agent creation
       const output = await harness.run({
-        prompt: `Use the Task tool to spawn an Explore agent that searches for files named "README.md". The task description should be "Find README files". Do not do anything else.`,
+        prompt: `Use the Agent tool to spawn an Explore agent that searches for files named "README.md". The task description should be "Find README files". Do not do anything else.`,
         timeout: 120000,
       });
 
       // Verify agent succeeded
       assertAgent(output).succeeded();
 
-      // Verify the Task tool was used
-      assertAgent(output).usedTools(["Task"]);
+      // Verify the Agent tool was used
+      assertAgent(output).usedTools(["Agent"]);
 
       // Verify thread:created event was emitted for the sub-agent
       // The parent thread also emits thread:created, so we expect at least 2
@@ -88,7 +88,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       harness = new AgentTestHarness();
 
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" to search for any TypeScript files. The task description should be "Find TS files". Do nothing else after.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" to search for any TypeScript files. The task description should be "Find TS files". Do nothing else after.`,
         timeout: 120000,
       });
 
@@ -119,7 +119,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       harness = new AgentTestHarness();
 
       const output = await harness.run({
-        prompt: `Use the Task tool to spawn an Explore agent. Set subagent_type to "Explore" and the description to "Quick search". The prompt should be "List files in the current directory". Do nothing else.`,
+        prompt: `Use the Agent tool to spawn an Explore agent. Set subagent_type to "Explore" and the description to "Quick search". The prompt should be "List files in the current directory". Do nothing else.`,
         timeout: 120000,
       });
 
@@ -152,7 +152,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       // Child's parentThreadId should match parent's id
       expect(childThread!.parentThreadId).toBe(parentThread!.id);
 
-      // parentToolUseId should be the Task tool's tool_use_id in Anthropic format
+      // parentToolUseId should be the Agent tool's tool_use_id in Anthropic format
       // After the fix, this uses the full tool_use_id (e.g., "toolu_01ABC...")
       // instead of the SDK's short hex agent_id (e.g., "a7302c6")
       expect(childThread!.parentToolUseId).toMatch(/^toolu_/);
@@ -166,7 +166,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       harness = new AgentTestHarness();
 
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" to explore the repository structure. Description: "Explore repo". Do nothing else after.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" to explore the repository structure. Description: "Explore repo". Do nothing else after.`,
         timeout: 120000,
       });
 
@@ -196,7 +196,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       harness = new AgentTestHarness();
 
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" to find any JSON files. Description: "Find JSON". Do nothing else.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" to find any JSON files. Description: "Find JSON". Do nothing else.`,
         timeout: 120000,
       });
 
@@ -262,12 +262,12 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       const uniqueTaskPrompt = "Search for files containing the word 'configuration' in the repository";
 
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" and set the prompt to exactly: "${uniqueTaskPrompt}". Do nothing else after the Task completes.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" and set the prompt to exactly: "${uniqueTaskPrompt}". Do nothing else after the Agent completes.`,
         timeout: 120000,
       });
 
       assertAgent(output).succeeded();
-      assertAgent(output).usedTools(["Task"]);
+      assertAgent(output).usedTools(["Agent"]);
 
       const mortDir = harness.tempDirPath!;
       const threadsDir = join(mortDir, "threads");
@@ -318,12 +318,12 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
 
       // Request a task that will definitely use tools (Glob or Read)
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" and prompt="List all files in the current directory using the Glob tool with pattern '*'". Do nothing else.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" and prompt="List all files in the current directory using the Glob tool with pattern '*'". Do nothing else.`,
         timeout: 120000,
       });
 
       assertAgent(output).succeeded();
-      assertAgent(output).usedTools(["Task"]);
+      assertAgent(output).usedTools(["Agent"]);
 
       const mortDir = harness.tempDirPath!;
       const threadsDir = join(mortDir, "threads");
@@ -388,12 +388,12 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
 
       // Request a task that will use tools within the sub-agent
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" and prompt="Use the Glob tool to find all .md files in the current directory with pattern '*.md'". Do nothing else after the Task completes.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" and prompt="Use the Glob tool to find all .md files in the current directory with pattern '*.md'". Do nothing else after the Agent completes.`,
         timeout: 120000,
       });
 
       assertAgent(output).succeeded();
-      assertAgent(output).usedTools(["Task"]);
+      assertAgent(output).usedTools(["Agent"]);
 
       const mortDir = harness.tempDirPath!;
       const threadsDir = join(mortDir, "threads");
@@ -435,8 +435,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
         );
       };
 
-      // Parent thread should have Task tool, but NOT the tools used by the sub-agent
-      expect(hasToolType(parentState, "Task")).toBe(true);
+      // Parent thread should have Agent tool, but NOT the tools used by the sub-agent
+      expect(hasToolType(parentState, "Agent")).toBe(true);
 
       // Child thread should have tools that the sub-agent used (like Glob)
       // The exact tools depend on what the LLM decides to use, but there should be some
@@ -452,9 +452,9 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       }
 
       // General verification: child thread tools should not appear in parent
-      // (except for Task, which is the parent's tool)
+      // (except for Agent, which is the parent's tool)
       for (const toolName of childToolNames) {
-        if (toolName && toolName !== "Task") {
+        if (toolName && toolName !== "Agent") {
           // Sub-agent tools should not be in parent state
           expect(hasToolType(parentState, toolName)).toBe(false);
         }
@@ -464,21 +464,21 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
   );
 
   // ===========================================================================
-  // Issue 4 (Reference block): parentToolUseId matches Task tool's tool_use_id
+  // Issue 4 (Reference block): parentToolUseId matches Agent tool's tool_use_id
   // ===========================================================================
 
   it(
-    "child thread parentToolUseId matches Task tool tool_use_id format (toolu_01...), not short hex agent_id",
+    "child thread parentToolUseId matches Agent tool tool_use_id format (toolu_01...), not short hex agent_id",
     async () => {
       harness = new AgentTestHarness();
 
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" and prompt="Simply respond with 'hello'". Do nothing else.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" and prompt="Simply respond with 'hello'". Do nothing else.`,
         timeout: 120000,
       });
 
       assertAgent(output).succeeded();
-      assertAgent(output).usedTools(["Task"]);
+      assertAgent(output).usedTools(["Agent"]);
 
       const mortDir = harness.tempDirPath!;
       const threadsDir = join(mortDir, "threads");
@@ -495,7 +495,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
           if (metadata.parentThreadId) {
             childMetadata = metadata;
           } else {
-            // Read parent state to find Task tool_use_id
+            // Read parent state to find Agent tool_use_id
             const statePath = join(threadsDir, threadDir, "state.json");
             if (existsSync(statePath)) {
               parentState = JSON.parse(readFileSync(statePath, "utf-8"));
@@ -507,14 +507,14 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       expect(parentState).not.toBeNull();
       expect(childMetadata).not.toBeNull();
 
-      // Find the Task tool's tool_use_id from parent state
+      // Find the Agent tool's tool_use_id from parent state
       const taskToolUseId = Object.entries(parentState!.toolStates).find(
-        ([, state]) => state.toolName === "Task"
+        ([, state]) => state.toolName === "Agent"
       )?.[0];
 
       expect(taskToolUseId).toBeDefined();
 
-      // The child's parentToolUseId should match the Task tool's tool_use_id
+      // The child's parentToolUseId should match the Agent tool's tool_use_id
       // This is critical for the frontend to render SubAgentReferenceBlock
       const childParentToolUseId = childMetadata!.parentToolUseId as string;
 
@@ -548,7 +548,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       }
 
       // The key requirement: whatever format is used, the child's parentToolUseId
-      // should match what's stored as the Task tool's key in parent state
+      // should match what's stored as the Agent tool's key in parent state
       expect(childParentToolUseId).toBe(taskToolUseId);
     },
     180000
@@ -565,7 +565,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       harness = new AgentTestHarness();
 
       const output = await harness.run({
-        prompt: `Use the Task tool to spawn a general-purpose sub-agent with this exact prompt: "First, use the Read tool to read the README.md file in the current directory. Then provide a summary of what you found. Make sure to explain the content in detail."`,
+        prompt: `Use the Agent tool to spawn a general-purpose sub-agent with this exact prompt: "First, use the Read tool to read the README.md file in the current directory. Then provide a summary of what you found. Make sure to explain the content in detail."`,
         timeout: 180000,
       });
 
@@ -926,7 +926,7 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
 
       // Now do assertions after all logging
       assertAgent(output).succeeded();
-      assertAgent(output).usedTools(["Task"]);
+      assertAgent(output).usedTools(["Agent"]);
       expect(childThreads.length).toBeGreaterThanOrEqual(1);
 
       if (generalPurposeChild) {
@@ -955,12 +955,12 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       const taskPrompt = "Find all TypeScript files and count them";
 
       const output = await harness.run({
-        prompt: `Use the Task tool with subagent_type="Explore" and prompt="${taskPrompt}". The sub-agent should use Glob to find *.ts files. Do nothing else after.`,
+        prompt: `Use the Agent tool with subagent_type="Explore" and prompt="${taskPrompt}". The sub-agent should use Glob to find *.ts files. Do nothing else after.`,
         timeout: 150000,
       });
 
       assertAgent(output).succeeded();
-      assertAgent(output).usedTools(["Task"]);
+      assertAgent(output).usedTools(["Agent"]);
 
       const mortDir = harness.tempDirPath!;
       const threadsDir = join(mortDir, "threads");
@@ -1009,13 +1009,13 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       expect(existsSync(parentStatePath)).toBe(true);
       const parentState = JSON.parse(readFileSync(parentStatePath, "utf-8")) as ThreadState;
 
-      // Parent should have Task
+      // Parent should have Agent
       const parentToolNames = Object.values(parentState.toolStates)
         .map((s) => s.toolName)
         .filter(Boolean);
-      expect(parentToolNames).toContain("Task");
+      expect(parentToolNames).toContain("Agent");
 
-      // Child tools should not be in parent (except Task is not a child tool)
+      // Child tools should not be in parent (except Agent is not a child tool)
       const childToolNames = Object.values(childState.toolStates)
         .map((s) => s.toolName)
         .filter(Boolean);
@@ -1026,9 +1026,9 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
         }
       }
 
-      // Issue 4: parentToolUseId should match Task's tool_use_id
+      // Issue 4: parentToolUseId should match Agent's tool_use_id
       const taskToolEntry = Object.entries(parentState.toolStates).find(
-        ([, state]) => state.toolName === "Task"
+        ([, state]) => state.toolName === "Agent"
       );
       expect(taskToolEntry).toBeDefined();
       const [taskToolUseId] = taskToolEntry!;

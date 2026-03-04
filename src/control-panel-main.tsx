@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, connectWs } from "@/lib/invoke";
 import { ControlPanelWindow } from "./components/control-panel/control-panel-window";
 import { hydrateEntities, setupEntityListeners } from "./entities";
 import { setupIncomingBridge, setupOutgoingBridge } from "./lib/event-bridge";
@@ -58,6 +58,11 @@ interface PathsInfo {
 }
 
 logger.log("[control-panel-main] Module loading...", { windowConfig });
+
+// Connect WebSocket transport early (non-blocking)
+connectWs().catch(() => {
+  // WS connection failure is non-fatal — Tauri IPC is the fallback
+});
 
 // Initialize trigger system for @ file mentions
 initializeTriggers();

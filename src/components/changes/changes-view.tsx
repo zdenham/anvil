@@ -13,6 +13,7 @@ import { ChangesDiffContent, type ChangesDiffContentRef } from "./changes-diff-c
 import { MAX_DISPLAYED_FILES } from "./changes-diff-fetcher";
 import { useChangesViewStore } from "@/stores/changes-view-store";
 import { DiffCommentProvider } from "@/contexts/diff-comment-context";
+import { FloatingAddressButton } from "@/components/diff-viewer/floating-address-button";
 
 function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: ChangesContentProps) {
   const data = useChangesData({ repoId, worktreeId, uncommittedOnly, commitHash });
@@ -67,8 +68,8 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
   }
 
   return (
-    <DiffCommentProvider worktreeId={worktreeId}>
-      <div className="flex flex-col h-full">
+    <DiffCommentProvider worktreeId={worktreeId} repoId={repoId} worktreePath={data.worktreePath}>
+      <div data-testid="changes-view" className="flex flex-col h-full">
         <SummaryHeader
           fileCount={data.totalFileCount}
           files={data.files}
@@ -98,6 +99,7 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
           </div>
         )}
       </div>
+      <FloatingAddressButton />
     </DiffCommentProvider>
   );
 }
@@ -203,7 +205,7 @@ function getSubtext(params: {
     return "relative to HEAD";
   }
   if (mergeBase && branchName) {
-    return `${branchName} \u2192 ${defaultBranch ?? "main"}`;
+    return `${branchName} \u2192 origin/${defaultBranch ?? "main"}`;
   }
   return null;
 }

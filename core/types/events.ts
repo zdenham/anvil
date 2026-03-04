@@ -2,6 +2,7 @@ import type { ThreadStatus } from "./threads.js";
 import type { RelationType } from "./relations.js";
 import type { PermissionModeId } from "./permissions.js";
 import type { GatewayEvent } from "./gateway-events.js";
+import type { Operation } from "fast-json-patch";
 import { z } from "zod";
 
 // WorktreeState is defined in src/entities/repositories/types.ts
@@ -59,6 +60,7 @@ export const EventName = {
   // Agent process
   AGENT_SPAWNED: "agent:spawned",
   AGENT_STATE: "agent:state",
+  AGENT_STATE_DELTA: "agent:state:delta",
   AGENT_COMPLETED: "agent:completed",
   AGENT_ERROR: "agent:error",
   AGENT_TOOL_COMPLETED: "agent:tool-completed",
@@ -120,6 +122,7 @@ export const EventName = {
 
   // Streaming
   OPTIMISTIC_STREAM: "optimistic:stream",
+  STREAM_DELTA: "stream:delta",
 
   // API health
   API_DEGRADED: "api:degraded",
@@ -151,6 +154,28 @@ export interface OptimisticStreamPayload {
 }
 
 /**
+ * Block delta for streaming — append-only, simpler than JSON Patch.
+ * Streaming content only grows during generation (no edits/deletes).
+ */
+export interface BlockDelta {
+  index: number;
+  type: "text" | "thinking";
+  append: string;
+}
+
+/**
+ * Stream delta event payload — append-only deltas with event chain.
+ * When `previousEventId` is null, `full` carries the complete block snapshot.
+ */
+export interface StreamDeltaPayload {
+  id: string;
+  previousEventId: string | null;
+  threadId: string;
+  deltas: BlockDelta[];
+  full?: Array<{ type: "text" | "thinking"; content: string }>;
+}
+
+/**
  * Payload types for each event.
  * Ensures type safety on both emit and consume sides.
  */
@@ -167,6 +192,13 @@ export interface EventPayloads {
   // Agent events
   [EventName.AGENT_SPAWNED]: { threadId: string; repoId: string };
   [EventName.AGENT_STATE]: { threadId: string; state: ThreadState };
+  [EventName.AGENT_STATE_DELTA]: {
+    id: string;
+    previousEventId: string | null;
+    threadId: string;
+    patches: Operation[];
+    full?: ThreadState;
+  };
   [EventName.AGENT_COMPLETED]: { threadId: string; exitCode: number; costUsd?: number };
   [EventName.AGENT_ERROR]: { threadId: string; error: string };
   [EventName.AGENT_TOOL_COMPLETED]: { threadId: string; repoId: string };
@@ -273,6 +305,7 @@ export interface EventPayloads {
 
   // Streaming
   [EventName.OPTIMISTIC_STREAM]: OptimisticStreamPayload;
+  [EventName.STREAM_DELTA]: StreamDeltaPayload;
 
   // API health
   [EventName.API_DEGRADED]: {
@@ -393,6 +426,7 @@ export const EventNameSchema = z.enum([
   EventName.THREAD_FILE_MODIFIED,
   EventName.AGENT_SPAWNED,
   EventName.AGENT_STATE,
+  EventName.AGENT_STATE_DELTA,
   EventName.AGENT_COMPLETED,
   EventName.AGENT_ERROR,
   EventName.AGENT_TOOL_COMPLETED,
@@ -426,6 +460,7 @@ export const EventNameSchema = z.enum([
   EventName.GATEWAY_STATUS,
   EventName.GITHUB_WEBHOOK_EVENT,
   EventName.OPTIMISTIC_STREAM,
+  EventName.STREAM_DELTA,
   EventName.COMMENT_ADDED,
   EventName.COMMENT_UPDATED,
   EventName.COMMENT_RESOLVED,

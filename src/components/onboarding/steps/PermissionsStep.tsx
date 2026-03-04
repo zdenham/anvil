@@ -85,14 +85,16 @@ export const PermissionsStep = ({
   }, [onAccessibilityGranted]);
 
   return (
-    <PermissionsContent
-      shellInitialized={shellInitialized}
-      isInitializingShell={isInitializingShell}
-      onRequestShellInit={handleRequestShellInit}
-      accessibilityGranted={accessibilityGranted}
-      isCheckingAccessibility={isCheckingAccessibility}
-      onRequestAccessibility={handleRequestAccessibility}
-      onSkip={onSkip}
-    />
+    <div data-testid="onboarding-step-permissions">
+      <PermissionsContent
+        shellInitialized={shellInitialized}
+        isInitializingShell={isInitializingShell}
+        onRequestShellInit={handleRequestShellInit}
+        accessibilityGranted={accessibilityGranted}
+        isCheckingAccessibility={isCheckingAccessibility}
+        onRequestAccessibility={handleRequestAccessibility}
+        onSkip={onSkip}
+      />
+    </div>
   );
 };

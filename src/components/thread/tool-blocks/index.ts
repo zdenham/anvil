@@ -63,6 +63,7 @@ const TOOL_BLOCK_REGISTRY: Record<string, ToolBlockComponent> = {
   read: ReadToolBlock,
   skill: SkillToolBlock,
   task: TaskToolBlock,
+  agent: TaskToolBlock, // SDK ≥0.2.64 renamed Task → Agent
   taskoutput: TaskOutputToolBlock,
   taskstop: TaskStopToolBlock,
   todowrite: TodoWriteToolBlock,

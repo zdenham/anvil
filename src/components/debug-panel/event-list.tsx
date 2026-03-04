@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Circle, CircleStop, Trash2, Search } from "lucide-react";
 import { useEventDebuggerStore, type CapturedEvent } from "@/stores/event-debugger-store";
 import { cn } from "@/lib/utils";
@@ -142,11 +142,13 @@ export function EventList() {
   const isCapturing = useEventDebuggerStore((s) => s.isCapturing);
   const toggleCapture = useEventDebuggerStore((s) => s.toggleCapture);
   const clearEvents = useEventDebuggerStore((s) => s.clearEvents);
-  const filteredEvents = useEventDebuggerStore((s) => s.filteredEvents);
+  const allEvents = useEventDebuggerStore((s) => s.events);
+  const filters = useEventDebuggerStore((s) => s.filters);
+  const filteredEventsFn = useEventDebuggerStore((s) => s.filteredEvents);
   const selectedEventId = useEventDebuggerStore((s) => s.selectedEventId);
   const selectEvent = useEventDebuggerStore((s) => s.selectEvent);
 
-  const events = filteredEvents();
+  const events = useMemo(() => filteredEventsFn(), [allEvents, filters]);
   const listRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
 
@@ -164,7 +166,7 @@ export function EventList() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="event-list" className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-2 py-1 border-b border-surface-800 flex-shrink-0">
         <button

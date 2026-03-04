@@ -1,0 +1,146 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: ▄▀▀▀▄ █ ◠◡◠ █ ▀▄▄▄▀
+      - heading "MORT DEV" [level=1] [ref=e8]
+      - generic [ref=e9]:
+        - button [ref=e10] [cursor=pointer]:
+          - img [ref=e11]
+        - button [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+    - tree "Threads and Plans" [ref=e22]:
+      - group "shortcut / main" [ref=e23]:
+        - treeitem "Collapse section shortcut / main 9 Add new thread, worktree, or repository (double-click for new thread)" [expanded] [ref=e24] [cursor=pointer]:
+          - button "Collapse section" [ref=e25]:
+            - img [ref=e26]
+          - generic [ref=e28]: shortcut / main
+          - generic [ref=e29]: "9"
+          - button "Add new thread, worktree, or repository (double-click for new thread)" [ref=e31]:
+            - img [ref=e32]
+        - group "Items" [ref=e33]:
+          - treeitem "Files" [ref=e34] [cursor=pointer]:
+            - img [ref=e36]
+            - generic [ref=e38]: Files
+          - treeitem "Changes" [ref=e39] [cursor=pointer]:
+            - img [ref=e41]
+            - generic [ref=e46]: Changes
+          - generic [ref=e47]:
+            - treeitem "New Thread Archive" [level=1] [selected] [ref=e48] [cursor=pointer]:
+              - generic "New Thread" [ref=e51]
+              - button "Archive" [ref=e52]:
+                - img [ref=e53]
+            - treeitem "say hello in exactly 3 words Archive" [level=1] [ref=e56] [cursor=pointer]:
+              - generic "say hello in exactly 3 words" [ref=e59]
+              - button "Archive" [ref=e60]:
+                - img [ref=e61]
+            - treeitem "New Thread Archive" [level=1] [ref=e64] [cursor=pointer]:
+              - generic "New Thread" [ref=e67]
+              - button "Archive" [ref=e68]:
+                - img [ref=e69]
+            - treeitem "say hello in exactly 3 words Archive" [level=1] [ref=e72] [cursor=pointer]:
+              - generic "say hello in exactly 3 words" [ref=e75]
+              - button "Archive" [ref=e76]:
+                - img [ref=e77]
+            - treeitem "Expand folder kick off a sub agent that says hello world Archive" [level=1] [ref=e80] [cursor=pointer]:
+              - button "Expand folder" [ref=e81]:
+                - img [ref=e82]
+              - generic "kick off a sub agent that says hello world" [ref=e84]
+              - button "Archive" [ref=e85]:
+                - img [ref=e86]
+            - treeitem "hey Archive" [level=1] [ref=e89] [cursor=pointer]:
+              - generic "hey" [ref=e92]
+              - button "Archive" [ref=e93]:
+                - img [ref=e94]
+            - treeitem "hey Archive" [level=1] [ref=e97] [cursor=pointer]:
+              - generic "hey" [ref=e100]
+              - button "Archive" [ref=e101]:
+                - img [ref=e102]
+            - treeitem "New Thread Archive" [level=1] [ref=e105] [cursor=pointer]:
+              - generic "New Thread" [ref=e108]
+              - button "Archive" [ref=e109]:
+                - img [ref=e110]
+            - treeitem "New Thread Archive" [level=1] [ref=e113] [cursor=pointer]:
+              - generic "New Thread" [ref=e116]
+              - button "Archive" [ref=e117]:
+                - img [ref=e118]
+      - group "mortician / main" [ref=e121]:
+        - separator [ref=e122]
+        - treeitem "Collapse section mortician / main 6 Add new thread, worktree, or repository (double-click for new thread)" [expanded] [ref=e123] [cursor=pointer]:
+          - button "Collapse section" [ref=e124]:
+            - img [ref=e125]
+          - generic [ref=e127]: mortician / main
+          - generic [ref=e128]: "6"
+          - button "Add new thread, worktree, or repository (double-click for new thread)" [ref=e130]:
+            - img [ref=e131]
+        - group "Items" [ref=e132]:
+          - treeitem "Files" [ref=e133] [cursor=pointer]:
+            - img [ref=e135]
+            - generic [ref=e137]: Files
+          - treeitem "Changes" [ref=e138] [cursor=pointer]:
+            - img [ref=e140]
+            - generic [ref=e145]: Changes
+          - 'treeitem "PR #5 Archive pull request" [ref=e147] [cursor=pointer]':
+            - img [ref=e149]
+            - 'generic "PR #5" [ref=e153]'
+            - button "Archive pull request" [ref=e154]:
+              - img [ref=e155]
+          - treeitem "analyze snapshot-1.heapsnapshot for memory issues Archive" [level=1] [ref=e159] [cursor=pointer]:
+            - generic "analyze snapshot-1.heapsnapshot for memory issues" [ref=e162]
+            - button "Archive" [ref=e163]:
+              - img [ref=e164]
+          - generic [ref=e167]:
+            - treeitem "heap-snapshot-analysis.md Archive" [level=1] [ref=e168] [cursor=pointer]:
+              - generic [ref=e171]: heap-snapshot-analysis.md
+              - button "Archive" [ref=e172]:
+                - img [ref=e173]
+            - treeitem "diagnose-disk-refresh-frequency.md Archive" [level=1] [ref=e176] [cursor=pointer]:
+              - generic [ref=e179]:
+                - text: diagnose-disk-refresh-frequency.md
+                - img [ref=e181]
+              - button "Archive" [ref=e183]:
+                - img [ref=e184]
+            - treeitem "smooth-follow-scroll.md Archive" [level=1] [ref=e187] [cursor=pointer]:
+              - generic [ref=e190]:
+                - text: smooth-follow-scroll.md
+                - img [ref=e192]
+              - button "Archive" [ref=e194]:
+                - img [ref=e195]
+            - treeitem "sticky-diff-headers.md Archive" [level=1] [ref=e198] [cursor=pointer]:
+              - generic [ref=e201]:
+                - text: sticky-diff-headers.md
+                - img [ref=e203]
+              - button "Archive" [ref=e205]:
+                - img [ref=e206]
+    - generic [ref=e210]:
+      - generic [ref=e213]: Running
+      - generic [ref=e216]: Needs Input
+      - generic [ref=e219]: Unread
+      - generic [ref=e222]: Read
+    - separator "Drag to resize" [ref=e223]
+  - generic [ref=e227]:
+    - generic [ref=e228]:
+      - generic [ref=e230]:
+        - generic [ref=e231]:
+          - generic [ref=e232]: shortcut
+          - img [ref=e233]
+        - button "threads" [ref=e235] [cursor=pointer]
+        - img [ref=e236]
+        - generic [ref=e238]: new
+      - generic [ref=e239]:
+        - button "View changes" [ref=e240] [cursor=pointer]:
+          - img [ref=e241]
+        - button "Close pane" [ref=e246] [cursor=pointer]:
+          - img [ref=e247]
+    - generic [ref=e251]:
+      - status "Loading thread content" [ref=e253]
+      - generic [ref=e254]:
+        - generic [ref=e255]:
+          - generic [ref=e256]: No quick actions
+          - button "configure" [ref=e257] [cursor=pointer]
+        - textbox "Message input" [active] [ref=e262]:
+          - /placeholder: Type a message, @ to mention files, / for skills...
+        - button "Implement(shift+tab to cycle)" [ref=e265] [cursor=pointer]
+```

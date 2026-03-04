@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::State;
 
@@ -149,24 +149,19 @@ fn write_lock_timestamp(meta_path: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-/// Acquire an exclusive lock for a repository.
-/// Returns a lock ID that must be passed to lock_release_repo.
-/// Locks expire after 30 minutes - expired locks are automatically released.
-#[tauri::command]
-pub async fn lock_acquire_repo(
-    repo_name: String,
-    lock_manager: State<'_, LockManager>,
+/// Acquire an exclusive lock (standalone, callable from WS server).
+pub async fn lock_acquire_repo_inner(
+    repo_name: &str,
+    lock_manager: &LockManager,
 ) -> Result<String, String> {
-    let repo_dir = fs_get_repo_dir(repo_name).await?;
+    let repo_dir = fs_get_repo_dir(repo_name.to_string()).await?;
     let lock_path = PathBuf::from(&repo_dir).join(".lock");
     let meta_path = PathBuf::from(&repo_dir).join(".lock.meta");
 
-    // Create parent directory if needed
     if let Some(parent) = lock_path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("Failed to create lock directory: {}", e))?;
     }
 
-    // Create/open the lock file
     let file = OpenOptions::new()
         .write(true)
         .create(true)
@@ -174,37 +169,24 @@ pub async fn lock_acquire_repo(
         .open(&lock_path)
         .map_err(|e| format!("Failed to open lock file: {}", e))?;
 
-    // Try to acquire lock (non-blocking first)
     match file.try_lock_exclusive() {
-        Ok(()) => {
-            // Got the lock immediately
-        }
+        Ok(()) => {}
         Err(_) => {
-            // Lock is held - check if it's expired
             if is_lock_expired(&meta_path) {
-                // Expired lock - force acquire by blocking
-                // The holder is likely dead, so this should succeed quickly
-                // once the OS releases the dead process's lock
                 tracing::warn!("Found expired lock, forcing acquisition");
                 file.lock_exclusive()
                     .map_err(|e| format!("Failed to acquire expired lock: {}", e))?;
             } else {
-                // Lock is valid and held - block waiting for it
                 file.lock_exclusive()
                     .map_err(|e| format!("Failed to acquire lock: {}", e))?;
             }
         }
     }
 
-    // Write timestamp to metadata file
     write_lock_timestamp(&meta_path)?;
 
-    // Generate a unique lock ID and store the file handle
     let lock_id = {
-        let mut next_id = lock_manager
-            .next_id
-            .lock()
-            .map_err(|e| e.to_string())?;
+        let mut next_id = lock_manager.next_id.lock().map_err(|e| e.to_string())?;
         let id = format!("lock-{}", *next_id);
         *next_id += 1;
         id
@@ -218,21 +200,39 @@ pub async fn lock_acquire_repo(
     Ok(lock_id)
 }
 
-/// Release a repository lock.
-#[tauri::command]
-pub async fn lock_release_repo(
-    lock_id: String,
-    lock_manager: State<'_, LockManager>,
+/// Release a repository lock (standalone, callable from WS server).
+pub fn lock_release_repo_inner(
+    lock_id: &str,
+    lock_manager: &LockManager,
 ) -> Result<(), String> {
     let mut locks = lock_manager.locks.lock().map_err(|e| e.to_string())?;
 
-    if let Some(file) = locks.remove(&lock_id) {
-        // Explicitly unlock (also happens when file is dropped, but be explicit)
+    if let Some(file) = locks.remove(lock_id) {
         file.unlock()
             .map_err(|e| format!("Failed to release lock: {}", e))?;
     }
 
     Ok(())
+}
+
+/// Acquire an exclusive lock for a repository.
+/// Returns a lock ID that must be passed to lock_release_repo.
+/// Locks expire after 30 minutes - expired locks are automatically released.
+#[tauri::command]
+pub async fn lock_acquire_repo(
+    repo_name: String,
+    lock_manager: State<'_, Arc<LockManager>>,
+) -> Result<String, String> {
+    lock_acquire_repo_inner(&repo_name, &lock_manager).await
+}
+
+/// Release a repository lock.
+#[tauri::command]
+pub async fn lock_release_repo(
+    lock_id: String,
+    lock_manager: State<'_, Arc<LockManager>>,
+) -> Result<(), String> {
+    lock_release_repo_inner(&lock_id, &lock_manager)
 }
 
 /// Clear all repository locks on startup.

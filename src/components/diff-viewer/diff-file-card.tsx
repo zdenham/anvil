@@ -14,6 +14,7 @@ import { useCommentStore } from "@/entities/comments/store";
 import { commentService } from "@/entities/comments/service";
 import { InlineCommentForm } from "./inline-comment-form";
 import { InlineCommentDisplay } from "./inline-comment-display";
+
 import type { InlineComment } from "@core/types/comments.js";
 
 interface DiffFileCardProps {
@@ -50,7 +51,8 @@ export const DiffFileCard = memo(function DiffFileCard({
     return (
       <div
         id={fileId}
-        className="rounded-lg overflow-hidden border border-surface-700"
+        data-testid={`diff-file-card-${filePath}`}
+        className="rounded-lg border border-surface-700"
         role="region"
         aria-label={`Binary file: ${filePath}`}
         tabIndex={-1}
@@ -70,7 +72,8 @@ export const DiffFileCard = memo(function DiffFileCard({
     return (
       <div
         id={fileId}
-        className="rounded-lg overflow-hidden border border-surface-700"
+        data-testid={`diff-file-card-${filePath}`}
+        className="rounded-lg border border-surface-700"
         role="region"
         aria-label={`Empty file: ${filePath}`}
         tabIndex={-1}
@@ -81,7 +84,7 @@ export const DiffFileCard = memo(function DiffFileCard({
           onToggleCollapse={handleToggleCollapse}
         />
         {!isFileCollapsed && (
-          <div className="py-6 text-center text-surface-500 text-sm">
+          <div className="py-6 text-center text-surface-500 text-sm rounded-b-lg">
             {file.file.type === "added"
               ? "Empty file added"
               : file.file.type === "deleted"
@@ -204,7 +207,8 @@ function DiffFileCardContent({
   return (
     <div
       id={fileId}
-      className="rounded-lg overflow-hidden border border-surface-700"
+      data-testid={`diff-file-card-${filePath}`}
+      className="rounded-lg border border-surface-700"
       role="region"
       aria-label={`Changes to ${filePath}`}
       tabIndex={-1}
@@ -221,18 +225,18 @@ function DiffFileCardContent({
       {!isFileCollapsed && (
         isCommentable ? (
           <DiffLinesWithComments
-            renderItems={renderItems}
-            fileId={fileId}
-            filePath={filePath}
-            isExpanded={isExpanded}
-            toggle={toggle}
-            onLineClick={handleLineClick}
-          />
+              renderItems={renderItems}
+              fileId={fileId}
+              filePath={filePath}
+              isExpanded={isExpanded}
+              toggle={toggle}
+              onLineClick={handleLineClick}
+            />
         ) : (
           <div
             role="table"
             aria-label="Diff content"
-            className="bg-surface-900/50 overflow-x-auto"
+            className="bg-surface-900/50 overflow-x-auto rounded-b-lg"
           >
             <div role="rowgroup">
               {renderItems.map((item) => {
@@ -290,12 +294,18 @@ function DiffLinesWithComments({
     commentService.loadForWorktree(worktreeId);
   }, [worktreeId]);
 
-  // Subscribe to comments for this file
-  const comments = useCommentStore(
-    useCallback(
-      (s) => s.getByFile(worktreeId, filePath, threadId),
-      [worktreeId, filePath, threadId],
-    ),
+  // Select raw record (stable reference), derive filtered list in useMemo
+  // to avoid new-array-every-call selectors that cause infinite re-renders
+  // with useSyncExternalStore.
+  const allComments = useCommentStore((s) => s.comments);
+  const comments = useMemo(
+    () =>
+      Object.values(allComments).filter((c) => {
+        if (c.worktreeId !== worktreeId || c.filePath !== filePath) return false;
+        if (threadId != null) return c.threadId === threadId;
+        return true;
+      }),
+    [allComments, worktreeId, filePath, threadId],
   );
 
   // Pre-compute comments by line number
@@ -314,7 +324,7 @@ function DiffLinesWithComments({
   }, []);
 
   return (
-    <div className="bg-surface-900/50 overflow-x-auto">
+    <div className="bg-surface-900/50 overflow-x-auto rounded-b-lg">
       {renderItems.map((item) => {
         if (item.type === "collapsed") {
           const regionId = `${fileId}-region-${item.regionIndex}`;

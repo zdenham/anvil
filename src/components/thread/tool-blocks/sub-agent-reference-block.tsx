@@ -46,7 +46,7 @@ export function SubAgentReferenceBlock({
   return (
     <div
       className="group py-0.5"
-      aria-label={`Task agent: ${name}, ${isRunning ? "running" : "completed"}${toolCallCount > 0 ? `, ${toolCallCount} tool calls` : ""}`}
+      aria-label={`Sub-agent: ${name}, ${isRunning ? "running" : "completed"}${toolCallCount > 0 ? `, ${toolCallCount} tool calls` : ""}`}
       data-testid={`sub-agent-reference-${childThreadId}`}
     >
       {/* Clickable area */}
@@ -57,13 +57,13 @@ export function SubAgentReferenceBlock({
         role="button"
         tabIndex={0}
       >
-        {/* Line 1: "Task agent" or "Running task agent" with open button */}
+        {/* Line 1: "Sub-agent" or "Running sub-agent" with open button */}
         <div className="flex items-center gap-2">
           <ShimmerText
             isShimmering={isRunning}
             className="text-sm text-zinc-200 truncate min-w-0"
           >
-            {isRunning ? "Running task agent" : "Task agent"}
+            {isRunning ? "Running sub-agent" : "Sub-agent"}
           </ShimmerText>
 
           {/* Right side: tool count and open button */}
@@ -91,7 +91,7 @@ export function SubAgentReferenceBlock({
 
       {/* Screen reader status */}
       <span className="sr-only">
-        {isRunning ? "Task agent running" : "Task agent completed"}
+        {isRunning ? "Sub-agent running" : "Sub-agent completed"}
       </span>
     </div>
   );

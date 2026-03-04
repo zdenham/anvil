@@ -70,7 +70,7 @@ export function ReadToolBlock({
   const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
 
   // Get workspace root for relative path display
-  const workspaceRoot = useWorkspaceRoot(threadId);
+  const workspaceRoot = useWorkspaceRoot();
 
   // Extract input parameters
   const readInput = input as unknown as ReadInput;

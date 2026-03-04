@@ -6,11 +6,12 @@
  * efficient rendering of large result sets.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { VirtualizedResults } from "./virtualized-results";
 import { useSearch } from "./use-search";
 import { SearchHeader, SearchInput, FileScope, FilterFields, SummaryBar, useWorktreeOptions } from "./search-controls";
 import { useSearchState } from "@/stores/search-state";
+import { useThreadStore } from "@/entities/threads/store";
 import type { GrepMatch } from "@/lib/tauri-commands";
 
 export interface SearchPanelProps {
@@ -29,9 +30,17 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
   const [includePatterns, setIncludePatterns] = useState("");
   const [excludePatterns, setExcludePatterns] = useState("archive, *.lock, dist, build");
 
-  // Worktree selection
+  // Worktree selection — default to the active thread's worktree
   const worktreeOptions = useWorktreeOptions();
-  const [selectedWorktreeIdx, setSelectedWorktreeIdx] = useState(0);
+  const activeThread = useThreadStore((s) => s.activeThreadId ? s.threads[s.activeThreadId] : undefined);
+  const initialIdx = useMemo(() => {
+    if (!activeThread || worktreeOptions.length === 0) return 0;
+    const idx = worktreeOptions.findIndex(
+      (opt) => opt.worktreeId === activeThread.worktreeId && opt.repoId === activeThread.repoId,
+    );
+    return idx >= 0 ? idx : 0;
+  }, [worktreeOptions, activeThread?.repoId, activeThread?.worktreeId]);
+  const [selectedWorktreeIdx, setSelectedWorktreeIdx] = useState(initialIdx);
   const selectedWorktree = worktreeOptions[selectedWorktreeIdx] ?? worktreeOptions[0];
   const worktreePath = selectedWorktree?.path ?? "";
 
@@ -123,7 +132,7 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
         : null;
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="search-panel" className="flex flex-col h-full">
       <SearchHeader onClose={onClose} />
       <SearchInput
         ref={inputRef}

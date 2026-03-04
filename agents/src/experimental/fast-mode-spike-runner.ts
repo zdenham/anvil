@@ -1,13 +1,20 @@
 /**
- * Minimal test runner to verify fast mode activation on SDK 0.2.59.
+ * Minimal test runner to verify fast mode activation on SDK 0.2.64.
  *
- * Tests whether `fastMode: true` in `.claude/settings.json` activates
- * fast mode, and whether `fast_mode_state` is present on results.
+ * Tests whether `fastMode: true` activates fast mode. Tries two
+ * mechanisms: (1) writing to `.claude/settings.json` and (2) passing
+ * settings directly via the `settings` option on `query()`.
+ *
+ * Uses the real project directory so the SDK subprocess has a valid
+ * environment. Writes/restores `.claude/settings.json` to control
+ * the fastMode setting.
  *
  * Environment variables:
- *   FAST_MODE      - "true" or "false" (default: "true")
- *   TEST_TOGGLE    - "true" to run a second query with toggled setting
- *   ANTHROPIC_API_KEY - required
+ *   FAST_MODE          - "true" or "false" (default: "true")
+ *   TEST_TOGGLE        - "true" to run a second query with toggled setting
+ *   USE_INLINE_SETTINGS - "true" to pass fastMode via settings option instead of file
+ *   PROJECT_ROOT       - project root path (required)
+ *   ANTHROPIC_API_KEY  - required
  *
  * Stdout protocol (JSON lines):
  *   { "type": "message", ... }  - each streamed message with usage
@@ -15,24 +22,36 @@
  *   { "type": "done", ... }     - all queries complete
  */
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { mkdirSync, writeFileSync, mkdtempSync, rmSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
 
 const FAST_MODE = process.env.FAST_MODE !== "false";
 const TEST_TOGGLE = process.env.TEST_TOGGLE === "true";
+const USE_INLINE_SETTINGS = process.env.USE_INLINE_SETTINGS === "true";
+const PROJECT_ROOT = process.env.PROJECT_ROOT;
+
+if (!PROJECT_ROOT) {
+  throw new Error("PROJECT_ROOT env var is required");
+}
+
+const SETTINGS_PATH = join(PROJECT_ROOT, ".claude", "settings.json");
 
 function emit(msg: Record<string, unknown>): void {
   process.stdout.write(JSON.stringify(msg) + "\n");
 }
 
-function writeSettings(dir: string, fastMode: boolean): void {
-  const claudeDir = join(dir, ".claude");
-  mkdirSync(claudeDir, { recursive: true });
-  writeFileSync(
-    join(claudeDir, "settings.json"),
-    JSON.stringify({ fastMode }, null, 2),
-  );
+function readSettings(): string {
+  try {
+    return readFileSync(SETTINGS_PATH, "utf-8");
+  } catch {
+    return "{}";
+  }
+}
+
+function writeSettings(fastMode: boolean): void {
+  const current = JSON.parse(readSettings());
+  current.fastMode = fastMode;
+  writeFileSync(SETTINGS_PATH, JSON.stringify(current, null, 2));
 }
 
 interface QueryResult {
@@ -43,27 +62,35 @@ interface QueryResult {
   sessionInfo: unknown;
 }
 
-async function runQuery(
-  tempDir: string,
-  fastMode: boolean,
-): Promise<QueryResult> {
-  writeSettings(tempDir, fastMode);
+async function runQuery(fastMode: boolean): Promise<QueryResult> {
+  writeSettings(fastMode);
 
   const messages: Record<string, unknown>[] = [];
   let finalFastModeState: unknown = undefined;
   let finalUsage: unknown = undefined;
   let sessionInfo: unknown = undefined;
 
+  // Strip env vars that cause "nested session" errors when running inside Claude Code
+  const cleanEnv = { ...process.env, CLAUDECODE: undefined, CLAUDE_CODE_ENTRYPOINT: undefined };
+
+  const options: Record<string, unknown> = {
+    env: cleanEnv,
+    cwd: PROJECT_ROOT,
+    permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
+    maxTurns: 1,
+    settingSources: ["user", "project"],
+    betas: ["fast-mode-2026-02-01" as any],
+    model: "claude-opus-4-6",
+  };
+
+  if (USE_INLINE_SETTINGS) {
+    options.settings = { fastMode: fastMode };
+  }
+
   const result = query({
     prompt: "Say hello in exactly 3 words. Do not use any tools.",
-    options: {
-      cwd: tempDir,
-      permissionMode: "bypassPermissions",
-      allowDangerouslySkipPermissions: true,
-      maxTurns: 1,
-      betas: ["fast-mode-2026-02-01" as any],
-      model: "claude-opus-4-6",
-    },
+    options: options as any,
   });
 
   for await (const message of result) {
@@ -73,25 +100,21 @@ async function runQuery(
       messageType: (message as any).type,
     };
 
-    // Capture usage object (may contain `speed` field)
-    if ("usage" in (message as any)) {
-      msg.usage = (message as any).usage;
+    // Dump all top-level keys for observation
+    for (const key of Object.keys(message as any)) {
+      if (key !== "type") {
+        msg[key] = (message as any)[key];
+      }
     }
 
-    // Capture fast_mode_state if present
+    // Specifically track fast_mode_state
     if ("fast_mode_state" in (message as any)) {
-      msg.fast_mode_state = (message as any).fast_mode_state;
       finalFastModeState = (message as any).fast_mode_state;
     }
 
-    // Capture session info if present
+    // Specifically track session info
     if ("sessionInfo" in (message as any)) {
-      const si = (message as any).sessionInfo;
-      msg.sessionInfo = si;
-      sessionInfo = si;
-      if (si && "fast_mode_state" in si) {
-        msg.sessionInfoFastModeState = si.fast_mode_state;
-      }
+      sessionInfo = (message as any).sessionInfo;
     }
 
     // Check for result-level fields
@@ -110,13 +133,13 @@ async function runQuery(
 }
 
 async function main(): Promise<void> {
-  const tempDir = mkdtempSync(join(tmpdir(), "fast-mode-spike-"));
+  // Save original settings to restore later
+  const originalSettings = readSettings();
 
   try {
     const queries: QueryResult[] = [];
 
-    // First query with the requested fast mode setting
-    const q1 = await runQuery(tempDir, FAST_MODE);
+    const q1 = await runQuery(FAST_MODE);
     queries.push(q1);
     emit({
       type: "result",
@@ -127,9 +150,8 @@ async function main(): Promise<void> {
       sessionInfo: q1.sessionInfo,
     });
 
-    // Optional second query with toggled setting
     if (TEST_TOGGLE) {
-      const q2 = await runQuery(tempDir, !FAST_MODE);
+      const q2 = await runQuery(!FAST_MODE);
       queries.push(q2);
       emit({
         type: "result",
@@ -153,7 +175,8 @@ async function main(): Promise<void> {
       })),
     });
   } finally {
-    rmSync(tempDir, { recursive: true, force: true });
+    // Restore original settings
+    writeFileSync(SETTINGS_PATH, originalSettings);
   }
 }
 
@@ -164,5 +187,10 @@ main()
       type: "error",
       message: err instanceof Error ? err.message : String(err),
     });
+    // Still restore settings on error
+    try {
+      const original = readSettings();
+      if (original) writeFileSync(SETTINGS_PATH, original);
+    } catch { /* best effort */ }
     process.exit(1);
   });

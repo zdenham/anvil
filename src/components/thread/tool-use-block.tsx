@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
   FileText,
   Pencil,
   Terminal,
@@ -17,8 +15,11 @@ import { formatDuration } from "@/lib/utils/time-format";
 import { formatToolInput } from "@/lib/utils/tool-formatters";
 import { InlineDiffBlock } from "./inline-diff-block";
 import { useToolDiff } from "./use-tool-diff";
-import { ToolStatusIcon } from "./tool-status-icon";
 import type { ToolStatus } from "./tool-status-icon";
+import { ShimmerText } from "@/components/ui/shimmer-text";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
+import { StatusIcon } from "@/components/ui/status-icon";
+import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
 import { usePermissionStore } from "@/entities/permissions/store";
 import { InlinePermissionApproval } from "./inline-permission-approval";
@@ -55,6 +56,7 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   webfetch: Globe,
   websearch: Globe,
   task: GitBranch,
+  agent: GitBranch,
 };
 
 function getToolIconComponent(toolName: string) {
@@ -67,9 +69,12 @@ function getToolIconComponent(toolName: string) {
   return Wrench;
 }
 
+const LINE_COLLAPSE_THRESHOLD = 20;
+const MAX_COLLAPSED_HEIGHT = 300;
+
 /**
- * Collapsible card displaying tool execution details.
- * Renders inline diffs for Edit/Write tools when applicable.
+ * Generic tool block using the modern two-line layout with shimmer effects.
+ * Used for tools not in the specialized registry.
  * Shows inline permission approval UI when a pending request exists.
  */
 export function ToolUseBlock({
@@ -108,158 +113,136 @@ export function ToolUseBlock({
   const formatted = formatToolInput(name, input);
   const diffData = useToolDiff(name, input, result);
 
-  const inputStr = JSON.stringify(input, null, 2);
-  const showInputTruncated = inputStr.length > 500;
-  const truncatedInput = showInputTruncated
-    ? inputStr.slice(0, 500) + "\n..."
-    : inputStr;
+  const isRunning = status === "running";
+  const hasResult = result !== undefined && result.length > 0;
+  const isLongOutput = hasResult && result!.split("\n").length > LINE_COLLAPSE_THRESHOLD;
 
-  const showResultTruncated = result && result.length > 1000;
-  const truncatedResult = showResultTruncated
-    ? result.slice(0, 1000) + "\n..."
-    : result;
+  // Output expand state
+  const defaultOutputExpanded = !isLongOutput;
+  const isOutputExpanded = useToolExpandStore((state) =>
+    state.isOutputExpanded(threadId, id, defaultOutputExpanded)
+  );
+  const setOutputExpanded = useToolExpandStore((state) => state.setOutputExpanded);
+  const setIsOutputExpanded = (expanded: boolean) => setOutputExpanded(threadId, id, expanded);
+
+  // Force expanded when permission pending
+  const effectiveExpanded = isExpanded || hasPendingPermission;
 
   return (
-    <details
-      open={isExpanded || hasPendingPermission}
-      onToggle={(e) => setIsExpanded(e.currentTarget.open)}
+    <div
       className={cn(
-        "group rounded-lg border",
-        hasPendingPermission
-          ? "border-amber-500/50 bg-amber-950/10"
-          : status === "error" || isError
-            ? "border-red-500/30 bg-red-950/20"
-            : "border-zinc-700 bg-zinc-900/50"
+        "group py-0.5",
+        hasPendingPermission && "rounded-lg border border-amber-500/50 bg-amber-950/10 p-2"
       )}
       aria-label={`Tool: ${displayName}, status: ${hasPendingPermission ? "awaiting approval" : status}`}
       data-testid={`tool-use-${id}`}
       data-tool-status={hasPendingPermission ? "pending_approval" : status}
     >
-      <summary
-        className={cn(
-          "flex items-center gap-2 p-3 cursor-pointer select-none",
-          "list-none [&::-webkit-details-marker]:hidden",
-          "hover:bg-zinc-800/50 rounded-lg transition-colors"
-        )}
+      {/* Clickable Header - Two Line Layout */}
+      <div
+        className="cursor-pointer select-none"
+        onClick={() => setIsExpanded(!effectiveExpanded)}
+        role="button"
+        aria-expanded={effectiveExpanded}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsExpanded(!effectiveExpanded);
+          }
+        }}
       >
-        {/* Expand icon */}
-        {isExpanded || hasPendingPermission ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
+        {/* Line 1: Display name with shimmer + duration/status */}
+        <div className="flex items-center gap-2">
+          <ExpandChevron isExpanded={effectiveExpanded} size="md" />
+          <ShimmerText
+            isShimmering={isRunning}
+            className="text-sm text-zinc-200 truncate min-w-0"
+          >
+            {isRunning ? `Running ${displayName.toLowerCase()}` : displayName}
+          </ShimmerText>
 
-        {/* Tool icon */}
-        <Icon className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
-
-        {/* Tool name and summary */}
-        <span className="font-medium text-sm text-surface-200">{displayName}</span>
-        <span className="text-sm text-zinc-400 truncate min-w-0 flex-1">
-          <code className="font-mono">{formatted.primary}</code>
-          {formatted.secondary && (
-            <span className="text-zinc-500 ml-2">{formatted.secondary}</span>
-          )}
-        </span>
-
-        {/* Status indicator */}
-        <span className="ml-auto flex items-center gap-2">
-          {durationMs !== undefined && status !== "running" && !hasPendingPermission && (
-            <span className="text-xs text-muted-foreground">
-              {formatDuration(durationMs)}
-            </span>
-          )}
-          {hasPendingPermission ? (
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-          ) : (
-            <ToolStatusIcon status={status} isError={isError} />
-          )}
-        </span>
-
-        {/* Screen reader status */}
-        <span className="sr-only">
-          {hasPendingPermission
-            ? "Awaiting approval"
-            : status === "running"
-              ? "In progress"
-              : status === "pending"
-                ? "Pending approval"
-                : isError
-                  ? "Failed"
-                  : "Completed"}
-        </span>
-      </summary>
-
-      <div className="px-3 pb-3 space-y-3">
-        {/* Inline permission approval UI */}
-        {hasPendingPermission && permissionRequest && (
-          <InlinePermissionApproval
-            request={permissionRequest}
-            name={name}
-          />
-        )}
-
-        {/* Inline diff display for Edit/Write tools (when NOT in permission flow) */}
-        {!hasPendingPermission && diffData && (
-          <InlineDiffBlock
-            filePath={diffData.filePath}
-            diff={diffData.diff}
-            lines={diffData.lines}
-            stats={diffData.stats}
-            onExpand={() => onOpenDiff?.(diffData.filePath)}
-          />
-        )}
-
-        {/* Input section - only show if no diff/permission or when expanded */}
-        {!hasPendingPermission && (!diffData || isExpanded) && (
-          <div role="region" aria-label="Tool input">
-            <h4 className="text-xs font-medium text-muted-foreground mb-1">
-              Input
-            </h4>
-            <pre className="text-xs bg-zinc-950 text-zinc-300 p-2 rounded overflow-x-auto">
-              <code>{isExpanded ? inputStr : truncatedInput}</code>
-            </pre>
-            {showInputTruncated && !isExpanded && (
-              <button
-                className="text-xs text-accent-400 hover:underline mt-1"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIsExpanded(true);
-                }}
-              >
-                Show more
-              </button>
+          {/* Right side: duration, permission, and error indicators */}
+          <span className="flex items-center gap-2 shrink-0 ml-auto">
+            {durationMs !== undefined && !isRunning && !hasPendingPermission && (
+              <span className="text-xs text-muted-foreground">
+                {formatDuration(durationMs)}
+              </span>
             )}
-          </div>
-        )}
-
-        {/* Output section */}
-        {!hasPendingPermission && result !== undefined && (!diffData || isExpanded) && (
-          <div role="region" aria-label="Tool output">
-            <h4 className="text-xs font-medium text-muted-foreground mb-1">
-              Output
-            </h4>
-            <pre
-              className={cn(
-                "text-xs p-2 rounded overflow-x-auto max-h-64 overflow-y-auto",
-                isError ? "bg-red-950/50 text-red-300" : "bg-zinc-950 text-zinc-300"
-              )}
-            >
-              <code>{isExpanded ? result : truncatedResult}</code>
-            </pre>
-            {showResultTruncated && !isExpanded && (
-              <button
-                className="text-xs text-accent-400 hover:underline mt-1"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIsExpanded(true);
-                }}
-              >
-                Show more
-              </button>
+            {hasPendingPermission ? (
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            ) : (
+              isError && !isRunning && <StatusIcon isSuccess={false} />
             )}
-          </div>
-        )}
+          </span>
+        </div>
+
+        {/* Line 2: Icon + formatted input summary */}
+        <div className="flex items-center gap-1 mt-0.5">
+          <Icon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+          <span className="text-xs text-zinc-500 truncate">
+            {formatted.primary}
+            {formatted.secondary && (
+              <span className="ml-1 text-zinc-600">{formatted.secondary}</span>
+            )}
+          </span>
+        </div>
       </div>
-    </details>
+
+      {/* Expanded Content */}
+      {effectiveExpanded && (
+        <div className="mt-2 space-y-2">
+          {/* Inline permission approval UI */}
+          {hasPendingPermission && permissionRequest && (
+            <InlinePermissionApproval
+              request={permissionRequest}
+              name={name}
+            />
+          )}
+
+          {/* Inline diff display for Edit/Write tools (when NOT in permission flow) */}
+          {!hasPendingPermission && diffData && (
+            <InlineDiffBlock
+              filePath={diffData.filePath}
+              diff={diffData.diff}
+              lines={diffData.lines}
+              stats={diffData.stats}
+              onExpand={() => onOpenDiff?.(diffData.filePath)}
+            />
+          )}
+
+          {/* Output section */}
+          {!hasPendingPermission && hasResult && (
+            <CollapsibleOutputBlock
+              isExpanded={isOutputExpanded}
+              onToggle={() => setIsOutputExpanded(!isOutputExpanded)}
+              isLongContent={isLongOutput}
+              maxCollapsedHeight={MAX_COLLAPSED_HEIGHT}
+              variant={isError ? "error" : "default"}
+            >
+              <pre
+                className={cn(
+                  "text-xs p-3 whitespace-pre-wrap break-words",
+                  isError ? "text-red-200" : "text-zinc-300"
+                )}
+              >
+                <code>{result}</code>
+              </pre>
+            </CollapsibleOutputBlock>
+          )}
+        </div>
+      )}
+
+      {/* Screen reader status */}
+      <span className="sr-only">
+        {hasPendingPermission
+          ? "Awaiting approval"
+          : isRunning
+            ? "In progress"
+            : isError
+              ? "Failed"
+              : "Completed"}
+      </span>
+    </div>
   );
 }

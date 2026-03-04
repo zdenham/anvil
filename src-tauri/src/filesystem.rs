@@ -31,10 +31,15 @@ pub fn fs_write_file(path: String, contents: String) -> Result<(), String> {
     fs::write(path, contents).map_err(|e| format!("Failed to write file: {}", e))
 }
 
+/// Reads text content from a file (standalone, callable from WS server).
+pub fn read_file(path: &str) -> Result<String, String> {
+    fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))
+}
+
 /// Reads text content from a file
 #[tauri::command]
 pub fn fs_read_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+    read_file(&path)
 }
 
 /// Creates a directory and all parent directories
@@ -43,10 +48,15 @@ pub fn fs_mkdir(path: String) -> Result<(), String> {
     fs::create_dir_all(&path).map_err(|e| format!("Failed to create directory: {}", e))
 }
 
+/// Checks if a path exists (standalone, callable from WS server).
+pub fn exists(path: &str) -> bool {
+    Path::new(path).exists()
+}
+
 /// Checks if a path exists
 #[tauri::command]
 pub fn fs_exists(path: String) -> bool {
-    Path::new(&path).exists()
+    exists(&path)
 }
 
 /// Removes a file or empty directory
@@ -67,10 +77,9 @@ pub fn fs_remove_dir_all(path: String) -> Result<(), String> {
     fs::remove_dir_all(&path).map_err(|e| format!("Failed to remove directory: {}", e))
 }
 
-/// Lists directory contents with metadata
-#[tauri::command]
-pub fn fs_list_dir(path: String) -> Result<Vec<DirEntry>, String> {
-    let entries = fs::read_dir(&path).map_err(|e| format!("Failed to read directory: {}", e))?;
+/// Lists directory contents with metadata (standalone, callable from WS server).
+pub fn list_dir(path: &str) -> Result<Vec<DirEntry>, String> {
+    let entries = fs::read_dir(path).map_err(|e| format!("Failed to read directory: {}", e))?;
 
     let mut result = Vec::new();
     for entry in entries {
@@ -88,6 +97,12 @@ pub fn fs_list_dir(path: String) -> Result<Vec<DirEntry>, String> {
     }
 
     Ok(result)
+}
+
+/// Lists directory contents with metadata
+#[tauri::command]
+pub fn fs_list_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    list_dir(&path)
 }
 
 /// Moves or renames a file or directory

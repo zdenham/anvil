@@ -255,6 +255,7 @@ export function PlanItem({
           aria-selected={isSelected}
           aria-expanded={item.isFolder ? item.isExpanded : undefined}
           aria-level={item.depth + 1}
+          data-testid={`plan-item-${item.id}`}
           data-tree-item-index={itemIndex}
           tabIndex={tabIndex}
           onClick={handleClick}

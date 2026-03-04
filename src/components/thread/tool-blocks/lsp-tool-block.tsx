@@ -158,7 +158,7 @@ export function LSPToolBlock({
   const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
 
   // Get workspace root for relative path display
-  const workspaceRoot = useWorkspaceRoot(threadId);
+  const workspaceRoot = useWorkspaceRoot();
 
   const lspInput = input as unknown as LSPInput;
   const operation = lspInput.operation || "LSP";

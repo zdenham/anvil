@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { logger } from "./logger-client";
 import type { ControlPanelViewType } from "@/entities/events";
 import type { ContentPaneView } from "@/components/content-pane/types";

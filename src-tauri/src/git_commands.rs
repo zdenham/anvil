@@ -379,12 +379,11 @@ pub async fn git_branch_exists(repo_path: String, branch: String) -> Result<bool
     Ok(output.status.success())
 }
 
-/// List all mort/* branches
-#[tauri::command]
-pub async fn git_list_mort_branches(repo_path: String) -> Result<Vec<String>, String> {
+/// List all mort/* branches (standalone, callable from WS server).
+pub async fn list_mort_branches(repo_path: &str) -> Result<Vec<String>, String> {
     let output = shell::command("git")
         .args(["branch", "--list", "mort/*"])
-        .current_dir(&repo_path)
+        .current_dir(repo_path)
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -399,6 +398,12 @@ pub async fn git_list_mort_branches(repo_path: String) -> Result<Vec<String>, St
         .collect();
 
     Ok(branches)
+}
+
+/// List all mort/* branches
+#[tauri::command]
+pub async fn git_list_mort_branches(repo_path: String) -> Result<Vec<String>, String> {
+    list_mort_branches(&repo_path).await
 }
 
 /// Create a new worktree with detached HEAD
@@ -869,6 +874,22 @@ pub async fn git_diff_range(
     Ok(all_diffs.join("\n"))
 }
 
+/// Get the diff of uncommitted changes (standalone, callable from WS server).
+pub async fn diff_uncommitted(working_directory: &str) -> Result<String, String> {
+    let mut all_diffs = Vec::new();
+
+    // Get tracked file diffs (HEAD to working tree)
+    let diff = get_tracked_diff(working_directory, &["HEAD", "--no-color", "--no-ext-diff"])?;
+    if !diff.is_empty() {
+        all_diffs.push(filter_binary_diffs(&diff));
+    }
+
+    // Append synthetic diffs for untracked files
+    append_untracked_diffs(working_directory, &mut all_diffs)?;
+
+    Ok(all_diffs.join("\n"))
+}
+
 /// Get the diff of uncommitted changes (HEAD to working tree).
 /// Includes staged, unstaged, and untracked file changes.
 /// Binary files are excluded.
@@ -876,18 +897,7 @@ pub async fn git_diff_range(
 pub async fn git_diff_uncommitted(
     working_directory: String,
 ) -> Result<String, String> {
-    let mut all_diffs = Vec::new();
-
-    // Get tracked file diffs (HEAD to working tree)
-    let diff = get_tracked_diff(&working_directory, &["HEAD", "--no-color", "--no-ext-diff"])?;
-    if !diff.is_empty() {
-        all_diffs.push(filter_binary_diffs(&diff));
-    }
-
-    // Append synthetic diffs for untracked files
-    append_untracked_diffs(&working_directory, &mut all_diffs)?;
-
-    Ok(all_diffs.join("\n"))
+    diff_uncommitted(&working_directory).await
 }
 
 /// Find the merge base between two branches.

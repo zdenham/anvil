@@ -58,8 +58,13 @@ fn register_with_server(device_id: &str, github_handle: &str) -> Result<(), Box<
     Ok(())
 }
 
+/// Get the current GitHub handle (standalone, callable from WS server).
+pub fn get_github_handle_inner() -> Option<String> {
+    config::get_github_handle()
+}
+
 /// Tauri command: get the current GitHub handle, if identified.
 #[tauri::command]
 pub fn get_github_handle() -> Option<String> {
-    config::get_github_handle()
+    get_github_handle_inner()
 }

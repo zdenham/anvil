@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { PathsInfoSchema } from "@/lib/types/paths";
 import { logger } from "@/lib/logger-client";
 
@@ -38,6 +38,7 @@ export function BuildModeIndicator() {
 
   return (
     <div
+      data-testid="build-mode-indicator"
       className={`fixed bottom-2 right-2 px-2 py-1 text-accent-900 text-xs font-semibold rounded border opacity-80 hover:opacity-100 transition-opacity ${getBadgeClasses()}`}
     >
       {suffix.toUpperCase()}

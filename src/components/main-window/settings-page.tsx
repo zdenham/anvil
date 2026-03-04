@@ -7,7 +7,7 @@ import { SkillsSettings } from "./settings/skills-settings";
 
 export function SettingsPage() {
   return (
-    <div className="h-full overflow-y-auto">
+    <div data-testid="settings-view" className="h-full overflow-y-auto">
       <div className="p-6 space-y-6 max-w-2xl">
         <HotkeySettings />
         <ClipboardHotkeySettings />

@@ -20,7 +20,7 @@ export const InlineCommentDisplay = memo(function InlineCommentDisplay({
   if (comments.length === 0) return null;
 
   return (
-    <div className="mx-2 my-1 space-y-1">
+    <div className="sticky left-0 ml-24 py-1 space-y-1">
       {comments.map((comment) => (
         <CommentItem key={comment.id} comment={comment} />
       ))}
@@ -59,9 +59,9 @@ function CommentItem({ comment }: { comment: InlineComment }) {
 
   if (comment.resolved) {
     return (
-      <div className="flex items-start gap-2 px-3 py-1.5 bg-surface-800/50 rounded border-l-2 border-surface-600 opacity-60">
+      <div data-testid={`inline-comment-${comment.id}`} className="flex items-start gap-2 px-3 py-2.5 bg-surface-800/50 border-l-2 border-t border-r border-b border-surface-600 opacity-60">
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-surface-400 line-through whitespace-pre-wrap">
+          <p className="text-sm text-surface-400 line-through whitespace-pre-wrap">
             {comment.content}
           </p>
           <span className="text-[10px] text-surface-500">{timeAgo}</span>
@@ -91,9 +91,9 @@ function CommentItem({ comment }: { comment: InlineComment }) {
   }
 
   return (
-    <div className="flex items-start gap-2 px-3 py-1.5 bg-surface-800 rounded border-l-2 border-amber-400">
+    <div data-testid={`inline-comment-${comment.id}`} className="flex items-start gap-2 px-3 py-2.5 bg-surface-800 border-l-2 border-amber-400 border-t border-r border-b border-t-surface-700 border-r-surface-700 border-b-surface-700">
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-surface-200 whitespace-pre-wrap">
+        <p className="text-sm text-surface-200 whitespace-pre-wrap">
           {comment.content}
         </p>
         <span className="text-[10px] text-surface-500">{timeAgo}</span>

@@ -177,14 +177,14 @@ export function TaskToolBlock({
           }
         }}
       >
-        {/* Line 1: "Task agent" or "Running task agent" with chevron */}
+        {/* Line 1: "Sub-agent" or "Running sub-agent" with chevron */}
         <div className="flex items-center gap-2">
           <ExpandChevron isExpanded={isExpanded} size="md" />
           <ShimmerText
             isShimmering={isRunning}
             className="text-sm text-zinc-200 truncate min-w-0"
           >
-            {isRunning ? "Running task agent" : "Task agent"}
+            {isRunning ? "Running sub-agent" : "Sub-agent"}
           </ShimmerText>
 
           {/* Right side: duration and error indicator */}
@@ -244,7 +244,7 @@ export function TaskToolBlock({
       {isExpanded && !hasResult && isRunning && (
         <div className="mt-2 ml-6">
           <div className="text-xs font-mono p-2 rounded border border-zinc-700/50 text-zinc-500">
-            Running task...
+            Running sub-agent...
             <span className="inline-block w-2 h-4 bg-zinc-400 animate-pulse ml-1" />
           </div>
         </div>
@@ -252,7 +252,7 @@ export function TaskToolBlock({
 
       {/* Screen reader status */}
       <span className="sr-only">
-        {isRunning ? "Task running" : isError ? "Task failed" : "Task completed"}
+        {isRunning ? "Sub-agent running" : isError ? "Sub-agent failed" : "Sub-agent completed"}
       </span>
     </div>
   );

@@ -319,7 +319,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-surface-900 p-6">
+    <div data-testid="onboarding-flow" className="min-h-screen w-full bg-surface-900 p-6">
       {/* Header with progress */}
       <div className="flex justify-between items-center mb-8">
         <div className="text-sm text-surface-400">
@@ -370,6 +370,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
             variant="light"
             onClick={handleNext}
             disabled={!canProceed() || isRegistering}
+            data-testid="onboarding-next-button"
           >
             {getButtonText()}
           </Button>

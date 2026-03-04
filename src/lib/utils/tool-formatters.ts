@@ -85,7 +85,7 @@ export function formatToolInput(
     };
   }
 
-  if (name === "task") {
+  if (name === "task" || name === "agent") {
     const description = input.description ? String(input.description) : undefined;
     const subagentType = input.subagent_type ? String(input.subagent_type) : undefined;
     return {

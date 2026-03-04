@@ -1,7 +1,7 @@
 /**
  * Terminal session service - manages PTY lifecycle via Tauri commands.
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { useTerminalSessionStore } from "./store";
 import type { TerminalSession } from "./types";
 import { logger } from "@/lib/logger-client";

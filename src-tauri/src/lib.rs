@@ -1,7 +1,7 @@
 #[cfg(target_os = "macos")]
 pub mod accessibility;
 
-// Make public for mort-test CLI access
+// Public accessibility exports (used by WS server and tests)
 #[cfg(target_os = "macos")]
 pub use accessibility::{is_accessibility_trusted, check_accessibility_with_prompt};
 #[cfg(target_os = "macos")]
@@ -32,6 +32,7 @@ mod shell;
 mod terminal;
 mod thread_commands;
 mod worktree_commands;
+mod ws_server;
 
 
 #[cfg(target_os = "macos")]
@@ -733,6 +734,37 @@ pub fn run() {
         .to_string();
     let agent_hub = Arc::new(AgentHub::new(socket_path));
 
+    // Create shared state for both Tauri and WS server
+    let lock_manager = Arc::new(mort_commands::LockManager::new());
+    let terminal_state = terminal::create_terminal_state();
+    let file_watcher_state = file_watcher::create_file_watcher_state();
+    let diagnostic_config = agent_hub.diagnostic_config();
+
+    // Build WS server state (shares Arc references with Tauri managed state)
+    let broadcaster = ws_server::push::EventBroadcaster::new();
+    // Bridge AgentHub events to WS clients so browser mode receives agent:message
+    agent_hub.set_ws_broadcaster(broadcaster.clone());
+    let ws_state = Arc::new(ws_server::WsState {
+        lock_manager: lock_manager.clone(),
+        terminal_state: terminal_state.clone(),
+        agent_hub: agent_hub.clone(),
+        file_watcher_state: file_watcher_state.clone(),
+        diagnostic_config: diagnostic_config.clone(),
+        broadcaster,
+        agent_pids: ws_server::dispatch_agent_pid_map(),
+    });
+
+    // Spawn WS server on a background tokio task
+    let ws_state_handle = ws_state.clone();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime for WS server");
+        rt.block_on(async move {
+            if let Err(e) = ws_server::start(ws_state_handle).await {
+                tracing::error!(error = %e, "WS server failed to start");
+            }
+        });
+    });
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -740,11 +772,11 @@ pub fn run() {
         .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
-        .manage(mort_commands::LockManager::new())
-        .manage(agent_hub.diagnostic_config())
+        .manage(lock_manager)
+        .manage(diagnostic_config)
         .manage(agent_hub.clone())
-        .manage(terminal::create_terminal_state())
-        .manage(file_watcher::create_file_watcher_state())
+        .manage(terminal_state)
+        .manage(file_watcher_state)
         .manage(profiling::ProfilingState(std::sync::Mutex::new(false)));
 
     builder

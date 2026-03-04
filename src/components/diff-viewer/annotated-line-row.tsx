@@ -70,7 +70,7 @@ export const AnnotatedLineRow = memo(function AnnotatedLineRow({
         `}
       >
         {onLineClick && (
-          <CommentGutterButton onClick={() => onLineClick(lineNumber)} />
+          <CommentGutterButton onClick={() => onLineClick(lineNumber)} lineNumber={lineNumber} />
         )}
         {hasComments && !onLineClick && (
           <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-amber-400" />

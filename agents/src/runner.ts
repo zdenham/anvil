@@ -361,6 +361,33 @@ async function main(): Promise<void> {
     // Contains both messages (for UI) and sessionId (for SDK resume)
     const priorState = loadPriorState(config.historyFile);
 
+    // Initialize network proxy if debug flag is set
+    if (process.env.MORT_NETWORK_DEBUG === "1") {
+      logger.info("[runner] Network debug enabled, starting proxy interceptor");
+      const { CertManager } = await import("./lib/proxy/cert-manager.js");
+      const { ProxyServer } = await import("./lib/proxy/proxy-server.js");
+
+      const certManager = new CertManager(config.mortDir);
+      await certManager.ensureCA();
+
+      const proxy = new ProxyServer(certManager, (event) => {
+        const { type: networkType, ...rest } = event;
+        logger.debug(`[proxy] Emitting ${networkType} for ${(rest as Record<string, unknown>).requestId ?? "?"}`);
+        hub?.send({ type: "network", networkType, ...rest });
+      });
+
+      const { port } = await proxy.start();
+
+      // Inject into process.env so SDK subprocess inherits
+      process.env.HTTPS_PROXY = `http://127.0.0.1:${port}`;
+      process.env.HTTP_PROXY = `http://127.0.0.1:${port}`;
+      process.env.NODE_EXTRA_CA_CERTS = certManager.certPath;
+
+      // Clean up on abort
+      abortController.signal.addEventListener("abort", () => proxy.stop());
+      logger.info(`[runner] Network proxy active on port ${port}`);
+    }
+
     // Run the common agent loop with abort controller, message stream, and permission system
     await runAgentLoop(config, context, agentConfig, priorState, {
       abortController,

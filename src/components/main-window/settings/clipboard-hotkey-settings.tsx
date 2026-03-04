@@ -11,7 +11,7 @@ export function ClipboardHotkeySettings() {
   const [pendingHotkey, setPendingHotkey] = useState<string>("");
 
   useEffect(() => {
-    getSavedClipboardHotkey().then(setCurrentHotkey).catch(console.error);
+    getSavedClipboardHotkey().then((h) => { if (h) setCurrentHotkey(h); }).catch(console.error);
   }, []);
 
   const handleSave = async () => {

@@ -4,7 +4,7 @@ interface WelcomeStepProps {}
 
 export const WelcomeStep = ({}: WelcomeStepProps) => {
   return (
-    <div className="space-y-6">
+    <div data-testid="onboarding-step-welcome" className="space-y-6">
       <div className="inline-block">
         <MortLogo size={14} className="text-surface-100" />
       </div>

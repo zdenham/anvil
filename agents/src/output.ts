@@ -1,7 +1,7 @@
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join, isAbsolute, relative } from "path";
 import { z } from "zod";
-import { compare } from "fast-json-patch";
+import jsonpatch from "fast-json-patch";
 import { nanoid } from "nanoid";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ThreadWriter } from "./services/thread-writer.js";
@@ -172,7 +172,7 @@ export async function emitState(): Promise<void> {
   const previousEventId = lastEventId;
 
   if (previousEmittedState) {
-    const patches = compare(previousEmittedState, snapshot);
+    const patches = jsonpatch.compare(previousEmittedState, snapshot);
     emitViaSocket(() => hubClient?.sendStateEvent({
       id: eventId,
       previousEventId,

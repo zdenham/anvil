@@ -35,7 +35,7 @@ export function StatusAnnouncement({ status, error }: StatusAnnouncementProps) {
   if (!announcement) return null;
 
   return (
-    <div role="status" aria-live="polite" className="sr-only">
+    <div role="status" aria-live="polite" className="sr-only" data-testid="status-announcement">
       {announcement}
     </div>
   );

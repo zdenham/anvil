@@ -17,6 +17,8 @@ use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 
+use crate::ws_server::push::EventBroadcaster;
+
 /// Message structure for socket communication between agents and the hub.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg(test)]
@@ -118,6 +120,8 @@ pub struct AgentHub {
     shutdown: Arc<RwLock<bool>>,
     /// Diagnostic logging config, shared with connection handlers
     diagnostic_config: DiagnosticConfigState,
+    /// Optional WS broadcaster for dual-emit to browser clients
+    ws_broadcaster: Arc<RwLock<Option<EventBroadcaster>>>,
 }
 
 impl AgentHub {
@@ -138,12 +142,20 @@ impl AgentHub {
             hierarchy: Arc::new(RwLock::new(HashMap::new())),
             shutdown: Arc::new(RwLock::new(false)),
             diagnostic_config: Arc::new(Mutex::new(config)),
+            ws_broadcaster: Arc::new(RwLock::new(None)),
         }
     }
 
     /// Returns a clone of the diagnostic config state for Tauri managed state.
     pub fn diagnostic_config(&self) -> DiagnosticConfigState {
         self.diagnostic_config.clone()
+    }
+
+    /// Injects the WS EventBroadcaster for dual-emit to browser clients.
+    pub fn set_ws_broadcaster(&self, broadcaster: EventBroadcaster) {
+        if let Ok(mut guard) = self.ws_broadcaster.write() {
+            *guard = Some(broadcaster);
+        }
     }
 
     /// Returns the socket path.
@@ -182,6 +194,7 @@ impl AgentHub {
         let hierarchy = self.hierarchy.clone();
         let shutdown = self.shutdown.clone();
         let diagnostic_config = self.diagnostic_config.clone();
+        let ws_broadcaster = self.ws_broadcaster.clone();
 
         // Spawn listener thread
         thread::spawn(move || {
@@ -202,6 +215,7 @@ impl AgentHub {
                         let hierarchy = hierarchy.clone();
                         let app_handle = app_handle.clone();
                         let diag_config = diagnostic_config.clone();
+                        let ws_bc = ws_broadcaster.clone();
 
                         // Spawn handler thread for this connection
                         thread::spawn(move || {
@@ -211,6 +225,7 @@ impl AgentHub {
                                 hierarchy,
                                 app_handle,
                                 diag_config,
+                                ws_bc,
                             );
                         });
                     }
@@ -273,6 +288,7 @@ impl AgentHub {
         hierarchy: Arc<RwLock<HashMap<String, Option<String>>>>,
         app_handle: AppHandle,
         diagnostic_config: DiagnosticConfigState,
+        ws_broadcaster: Arc<RwLock<Option<EventBroadcaster>>>,
     ) {
         // CRITICAL: Set stream to blocking mode.
         // Accepted sockets inherit non-blocking from the listener, which causes
@@ -467,6 +483,12 @@ impl AgentHub {
 
                         // Also forward to frontend for event debugger
                         let _ = app_handle.emit("agent:message", &raw_msg);
+                        // Forward to WS clients (browser mode)
+                        if let Ok(guard) = ws_broadcaster.read() {
+                            if let Some(ref broadcaster) = *guard {
+                                broadcaster.broadcast("agent:message", raw_msg.clone());
+                            }
+                        }
                         continue;
                     }
 
@@ -494,6 +516,13 @@ impl AgentHub {
                                 error = %e,
                                 "EMIT FAILED"
                             );
+                        }
+                    }
+
+                    // Forward to WS clients (browser mode)
+                    if let Ok(guard) = ws_broadcaster.read() {
+                        if let Some(ref broadcaster) = *guard {
+                            broadcaster.broadcast("agent:message", raw_msg.clone());
                         }
                     }
                 }
@@ -560,12 +589,10 @@ impl AgentHub {
     }
 }
 
-/// Updates the diagnostic logging config at runtime.
-/// Called by the frontend to enable/disable diagnostic modules.
-#[tauri::command]
-pub fn update_diagnostic_config(
+/// Updates the diagnostic logging config at runtime (standalone, callable from WS server).
+pub fn update_diagnostic_config_inner(
     config: DiagnosticLoggingConfig,
-    state: tauri::State<'_, DiagnosticConfigState>,
+    state: &DiagnosticConfigState,
 ) {
     tracing::info!(
         pipeline = config.pipeline,
@@ -577,6 +604,16 @@ pub fn update_diagnostic_config(
     if let Ok(mut guard) = state.lock() {
         *guard = config;
     }
+}
+
+/// Updates the diagnostic logging config at runtime.
+/// Called by the frontend to enable/disable diagnostic modules.
+#[tauri::command]
+pub fn update_diagnostic_config(
+    config: DiagnosticLoggingConfig,
+    state: tauri::State<'_, DiagnosticConfigState>,
+) {
+    update_diagnostic_config_inner(config, &state);
 }
 
 #[cfg(test)]

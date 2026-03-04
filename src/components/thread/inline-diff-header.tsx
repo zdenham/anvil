@@ -6,7 +6,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useOptionalDiffCommentStore } from "@/contexts/diff-comment-context";
 import { useCommentStore } from "@/entities/comments/store";
-import { AddressCommentsButton } from "@/components/diff-viewer/address-comments-button";
+
 import { useStore } from "zustand";
 
 interface InlineDiffHeaderProps {
@@ -53,9 +53,11 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
 
   return (
     <div
+      data-testid="inline-diff-header"
       className={cn(
-        "group flex items-center gap-2 px-3 py-2 bg-surface-800 border-b border-surface-700",
+        "group flex items-center gap-2 px-3 py-2 bg-surface-800 border-b border-surface-700 sticky top-0 z-10 rounded-t-lg shadow-[0_2px_4px_-1px_rgba(0,0,0,0.3)]",
         onToggleFileCollapse && "cursor-pointer select-none",
+        isFileCollapsed && "rounded-b-lg border-b-0 shadow-none",
         className,
       )}
       role={onToggleFileCollapse ? "button" : undefined}
@@ -101,9 +103,6 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
 
       {/* Comment count badge */}
       <CommentCountBadge filePath={filePath} />
-
-      {/* Address Comments button */}
-      <AddressCommentsSlot />
 
       {/* Show full file toggle */}
       {hasCollapsedRegions && (
@@ -193,9 +192,3 @@ function CommentCountBadgeInner({
   );
 }
 
-/** Renders AddressCommentsButton only when inside a DiffCommentProvider. */
-function AddressCommentsSlot() {
-  const store = useOptionalDiffCommentStore();
-  if (!store) return null;
-  return <AddressCommentsButton />;
-}

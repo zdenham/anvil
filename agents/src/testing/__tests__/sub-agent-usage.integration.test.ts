@@ -20,12 +20,12 @@ describeWithApi("Sub-Agent Usage in Metadata", () => {
     harness = new AgentTestHarness();
 
     const output = await harness.run({
-      prompt: 'Use the Task tool to spawn a sub-agent that simply says "Hello world" and nothing else. Set subagent_type to "general-purpose" and description to "say hello". Do nothing else.',
+      prompt: 'Use the Agent tool to spawn a sub-agent that simply says "Hello world" and nothing else. Set subagent_type to "general-purpose" and description to "say hello". Do nothing else.',
       timeout: 120000,
     });
 
     assertAgent(output).succeeded();
-    assertAgent(output).usedTools(["Task"]);
+    assertAgent(output).usedTools(["Agent"]);
 
     // Find child thread on disk
     const mortDir = harness.tempDirPath!;

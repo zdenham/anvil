@@ -13,7 +13,7 @@ This document describes how to test the Mort codebase.
 | `pnpm tsc --noEmit` | frontend | — | Type check frontend |
 | `pnpm --filter agents typecheck` | agents | — | Type check agents |
 | `cd src-tauri && cargo test` | Rust | — | Run Rust tests |
-| `./src-tauri/target/debug/mort-test` | full app | — | Run E2E accessibility tests |
+| `pnpm playwright test` | E2E | ~30s | Playwright E2E tests (requires WS server) |
 
 ### Watch Mode
 
@@ -57,10 +57,10 @@ Mort uses five distinct testing approaches, each serving a specific purpose in t
 - Tests live in `core/sdk/__tests__/integration/`.
 - See [Quick Actions Test Harness](#quick-actions-test-harness) below for details.
 
-**E2E Accessibility Tests** (`mort-test`)
-- Test the real app using native macOS accessibility APIs.
-- Trigger keyboard shortcuts, verify window state, run scenarios.
-- CLI at `src-tauri/src/bin/mort-test/`.
+**E2E Browser Tests** (`pnpm playwright test`)
+- Test the real app via Playwright against Vite dev server + Rust WS backend.
+- Navigate UI, verify content rendering, test command execution.
+- Tests live in `e2e/`.
 
 ## Verification Philosophy
 
@@ -85,9 +85,9 @@ Logs are written to `logs/dev.log`. See [logs.md](./logs.md) for how to read the
 | Testing agent emits correct events | Agent Functional |
 | Testing quick action event emissions | Quick Actions Integration |
 | Testing quick action reads from .mort | Quick Actions Integration |
-| Testing keyboard shortcuts work | E2E |
-| Testing window opens/closes | E2E |
-| Testing full user workflows | E2E |
+| Testing navigation works | E2E (Playwright) |
+| Testing content renders | E2E (Playwright) |
+| Testing full user workflows | E2E (Playwright) |
 
 ## Test Configuration
 

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface CommandPaletteItemProps {
   item: PreviewableItem;
+  index: number;
   isSelected: boolean;
   onClick: () => void;
   onHover: () => void;
@@ -45,12 +46,14 @@ function ItemIcon({ item }: { item: PreviewableItem }) {
 
 export function CommandPaletteItem({
   item,
+  index,
   isSelected,
   onClick,
   onHover,
 }: CommandPaletteItemProps) {
   return (
     <div
+      data-testid={`command-palette-item-${index}`}
       data-selected={isSelected}
       className={cn(
         "px-3 py-1.5 cursor-pointer flex items-center gap-2",

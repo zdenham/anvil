@@ -5,7 +5,7 @@
  * NSPanel (singleton) and standalone WebviewWindows.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { logger } from "./logger-client";
 import { getPanelContext } from "@/stores/panel-context-store";
 

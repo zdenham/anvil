@@ -21,6 +21,7 @@ export const formatKeyDisplay = (key: string): string => {
  * Formats a full hotkey string for display (e.g., "Shift+Down" -> "Shift+↓")
  */
 export const formatHotkeyDisplay = (hotkeyString: string): string => {
+  if (!hotkeyString) return "";
   const parts = hotkeyString.split("+");
 
   return parts.map((part, index) => {

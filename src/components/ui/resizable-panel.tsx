@@ -207,6 +207,7 @@ export function ResizablePanel({
 
       {/* Drag handle - larger hit area for easier dragging */}
       <div
+        data-testid="resize-handle-horizontal"
         className={`
           absolute top-0 bottom-0 w-3 cursor-ew-resize z-10
           ${position === "left" ? "-right-1" : "-left-1"}

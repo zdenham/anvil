@@ -2,7 +2,7 @@
  * Terminal session event listeners.
  * Connects Tauri PTY events to the frontend store.
  */
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/lib/events";
 import { useTerminalSessionStore } from "./store";
 import { decodeOutput, appendOutput } from "./output-buffer";
 import { logger } from "@/lib/logger-client";

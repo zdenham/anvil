@@ -5,7 +5,7 @@ import { z } from "zod";
 // Location: ~/.mort/ui/debug-panel.json
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const DebugPanelTabSchema = z.enum(["logs", "diagnostics", "events"]);
+export const DebugPanelTabSchema = z.enum(["logs", "diagnostics", "events", "network"]);
 export type DebugPanelTab = z.infer<typeof DebugPanelTabSchema>;
 
 export const DebugPanelPersistedStateSchema = z.object({

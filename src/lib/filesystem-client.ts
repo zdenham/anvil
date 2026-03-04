@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { z } from "zod";
 import { PathsInfoSchema, type PathsInfo } from "./types/paths";
 

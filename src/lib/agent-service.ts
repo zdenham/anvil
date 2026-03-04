@@ -1,14 +1,14 @@
-import { Command, type Child } from "@tauri-apps/plugin-shell";
-import { join, resolveResource, dirname } from "@tauri-apps/api/path";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { join, resolveResource, dirname } from "@/lib/browser-stubs";
+import { invoke } from "@/lib/invoke";
+import { listen, type UnlistenFn } from "@/lib/events";
 import { z } from "zod";
 import { FilesystemClient } from "./filesystem-client";
 import { threadService, settingsService } from "@/entities";
 import { eventBus } from "@/entities/events";
 import { shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
-import { EventName, type ThreadState, type OptimisticStreamPayload } from "@core/types/events.js";
+import { EventName, type ThreadState, type OptimisticStreamPayload, type BlockDelta } from "@core/types/events.js";
+import type { Operation } from "fast-json-patch";
 import type { PermissionModeId } from "@core/types/permissions.js";
 import type { PipelineStamp } from "@core/types/pipeline.js";
 import { useHeartbeatStore } from "@/stores/heartbeat-store";
@@ -19,6 +19,7 @@ const isDev = import.meta.env.DEV;
 import { logger } from "./logger-client";
 import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
 import { useEventDebuggerStore } from "@/stores/event-debugger-store";
+import { handleNetworkMessage } from "@/stores/network-debugger";
 
 // Cache the shell PATH to avoid repeated Tauri calls
 let cachedShellPath: string | null = null;
@@ -34,11 +35,11 @@ let warmupPromise: Promise<void> | null = null;
 // so the HMR workaround (window.__agentServiceProcessMaps) is no longer needed.
 // See plans/socket-ipc/06-cleanup-migration.md
 
-// Track active simple agent processes
-const activeSimpleProcesses = new Map<string, Child>();
+// Track active simple agent threadIds
+const activeSimpleProcesses = new Set<string>();
 
-// Track all agent processes by threadId
-const agentProcesses = new Map<string, Child>();
+// Track all agent processes by threadId -> pid
+const agentProcesses = new Map<string, number>();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Socket IPC: Tauri Event Listener for Agent Messages
@@ -60,6 +61,15 @@ interface AgentSocketMessage {
   name?: string;
   payload?: unknown;
   blocks?: OptimisticStreamPayload["blocks"];
+  // state_event fields (patch-based state delta)
+  id?: string;
+  previousEventId?: string | null;
+  patches?: Operation[];
+  // full state for state_event, or full blocks for stream_delta
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  full?: any;
+  // stream_delta fields (append-only streaming deltas)
+  deltas?: BlockDelta[];
   /** Pipeline stamps from upstream stages (agent:sent, hub:received, hub:emitted) */
   pipeline?: PipelineStamp[];
   /** Agent-side timestamp (for heartbeat messages) */
@@ -155,6 +165,12 @@ export async function initAgentMessageListener(): Promise<void> {
     // Track pipeline sequence for all messages (gap detection)
     const seq = trackPipelineSeq(msg);
 
+    // Route network debug messages to network debugger store
+    if (msg.type === "network") {
+      handleNetworkMessage(msg as unknown as Record<string, unknown>);
+      return;
+    }
+
     // Capture for event debugger
     const debugStore = useEventDebuggerStore.getState();
     if (debugStore.isCapturing) {
@@ -163,11 +179,24 @@ export async function initAgentMessageListener(): Promise<void> {
 
     switch (msg.type) {
       case "state":
-        // Agent sent a state update
+        // Agent sent a full state update (deprecated — kept for backwards compat)
         if (msg.state) {
           eventBus.emit(EventName.AGENT_STATE, {
             threadId: msg.threadId,
             state: msg.state,
+          });
+        }
+        break;
+
+      case "state_event":
+        // Agent sent a patch-based state delta
+        if (msg.id) {
+          eventBus.emit(EventName.AGENT_STATE_DELTA, {
+            id: msg.id,
+            previousEventId: msg.previousEventId ?? null,
+            threadId: msg.threadId,
+            patches: msg.patches ?? [],
+            full: msg.full,
           });
         }
         break;
@@ -180,11 +209,24 @@ export async function initAgentMessageListener(): Promise<void> {
         break;
 
       case "optimistic_stream":
-        // Agent sent a live streaming content snapshot
+        // Agent sent a live streaming content snapshot (deprecated — kept for backwards compat)
         if (msg.blocks) {
           eventBus.emit(EventName.OPTIMISTIC_STREAM, {
             threadId: msg.threadId,
             blocks: msg.blocks,
+          });
+        }
+        break;
+
+      case "stream_delta":
+        // Agent sent streaming content deltas (append-only)
+        if (msg.id) {
+          eventBus.emit(EventName.STREAM_DELTA, {
+            id: msg.id,
+            previousEventId: msg.previousEventId ?? null,
+            threadId: msg.threadId,
+            deltas: msg.deltas ?? [],
+            full: msg.full,
           });
         }
         break;
@@ -686,8 +728,6 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     sourcePath: options.sourcePath,
   });
 
-  const pathEntries = shellPath?.split(":") ?? [];
-
   // Check if paths exist (to diagnose "file not found" errors)
   try {
     const runnerExists = await fs.exists(runnerPath);
@@ -746,68 +786,79 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     envVars.MORT_DIAGNOSTIC_LOGGING = diagnosticEnv;
   }
 
-  const command = Command.create("node", commandArgs, {
-    cwd: options.sourcePath,
-    env: envVars,
-  });
+  // Enable network debugging unconditionally — near-zero overhead,
+  // hub socket handles the volume fine. Settings toggle can be added later.
+  envVars.MORT_NETWORK_DEBUG = "1";
 
-  // Line buffer for stdout - shell plugin may split JSON across chunks
-  // NOTE: Socket-connected agents send state/events via the AgentHub socket,
-  // but we still process stdout for backward compatibility and debug logs.
-  // See handleSimpleAgentOutput() documentation for dual-path communication details.
+  // Line buffer for stdout — server sends lines individually via push events,
+  // but handleSimpleAgentOutput still expects to do its own line buffering.
   const stdoutBuffer = { value: "" };
 
-  command.stdout.on("data", (data) => {
-    handleSimpleAgentOutput(options.threadId, data, stdoutBuffer);
+  // Set up event listeners before spawning so we don't miss early output
+  const unlistenStdout = await listen<{ data: string }>(`agent_stdout:${options.threadId}`, (event) => {
+    handleSimpleAgentOutput(options.threadId, event.payload.data, stdoutBuffer);
   });
 
-  command.stderr.on("data", (data) => {
-    // Log stderr as error level since it often contains important error info
-    logger.error("[simple-agent] stderr:", data);
+  const unlistenStderr = await listen<{ data: string }>(`agent_stderr:${options.threadId}`, (event) => {
+    logger.error("[simple-agent] stderr:", event.payload.data);
   });
 
-  command.on("close", async (code) => {
-    const totalElapsed = Date.now() - spawnStartTime;
-    logger.info(`[agent-service] Process closed`, {
-      threadId: options.threadId,
-      exitCode: code.code,
-      signal: code.signal,
-      totalElapsedMs: totalElapsed,
-    });
-
-    // Note: PID is cleared by the runner during cleanup, not here
-    activeSimpleProcesses.delete(options.threadId);
-    agentProcesses.delete(options.threadId);
-    cleanupSeqTracking(options.threadId);
-
-    if (code.code === 130) {
-      // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
-      await threadService.markCancelled(options.threadId);
-      eventBus.emit(EventName.AGENT_CANCELLED, {
+  const unlistenClose = await listen<{ code: number | null; signal: number | null }>(
+    `agent_close:${options.threadId}`,
+    async (event) => {
+      const totalElapsed = Date.now() - spawnStartTime;
+      const code = event.payload;
+      logger.info(`[agent-service] Process closed`, {
         threadId: options.threadId,
+        exitCode: code.code,
+        signal: code.signal,
+        totalElapsedMs: totalElapsed,
       });
-    } else if (code.code !== 0) {
-      logger.error("[simple-agent] Process exited with code", { code: code.code });
-    }
 
-    eventBus.emit(EventName.AGENT_COMPLETED, {
-      threadId: options.threadId,
-      exitCode: code.code ?? -1,
-    });
-  });
+      // Clean up event listeners
+      unlistenStdout();
+      unlistenStderr();
+      unlistenClose();
 
-  // Note: PID is written to disk by the runner, not here
+      // Note: PID is cleared by the runner during cleanup, not here
+      activeSimpleProcesses.delete(options.threadId);
+      agentProcesses.delete(options.threadId);
+      cleanupSeqTracking(options.threadId);
+
+      if (code.code === 130) {
+        // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
+        await threadService.markCancelled(options.threadId);
+        eventBus.emit(EventName.AGENT_CANCELLED, {
+          threadId: options.threadId,
+        });
+      } else if (code.code !== 0) {
+        logger.error("[simple-agent] Process exited with code", { code: code.code });
+      }
+
+      eventBus.emit(EventName.AGENT_COMPLETED, {
+        threadId: options.threadId,
+        exitCode: code.code ?? -1,
+      });
+    },
+  );
+
+  // Spawn via the backend (works in both Tauri and browser)
   const preSpawnTime = Date.now();
   try {
-    const child = await command.spawn();
+    const { pid } = await invoke<{ pid: number }>("agent_spawn", {
+      threadId: options.threadId,
+      commandArgs,
+      cwd: options.sourcePath,
+      env: envVars,
+    });
     const spawnDuration = Date.now() - preSpawnTime;
 
-    activeSimpleProcesses.set(options.threadId, child);
-    agentProcesses.set(options.threadId, child);
+    activeSimpleProcesses.add(options.threadId);
+    agentProcesses.set(options.threadId, pid);
 
     logger.info("[agent-service] Spawn success", {
       threadId: options.threadId,
-      pid: child.pid,
+      pid,
       spawnDurationMs: spawnDuration,
       totalSetupMs: Date.now() - spawnStartTime,
     });
@@ -817,6 +868,11 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
       repoId: options.repoId,
     });
   } catch (spawnError) {
+    // Clean up listeners on spawn failure
+    unlistenStdout();
+    unlistenStderr();
+    unlistenClose();
+
     logger.error("[agent-service] Spawn failed", {
       error: spawnError,
       errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
@@ -896,61 +952,74 @@ export async function resumeSimpleAgent(
     resumeEnvVars.MORT_DIAGNOSTIC_LOGGING = JSON.stringify(resumeDiagnosticConfig);
   }
 
-  const command = Command.create("node", commandArgs, {
-    cwd: sourcePath,
-    env: resumeEnvVars,
-  });
-
   const stdoutBuffer = { value: "" };
 
-  command.stdout.on("data", (data) => {
-    handleSimpleAgentOutput(threadId, data, stdoutBuffer);
+  // Set up event listeners before spawning
+  const unlistenStdout = await listen<{ data: string }>(`agent_stdout:${threadId}`, (event) => {
+    handleSimpleAgentOutput(threadId, event.payload.data, stdoutBuffer);
   });
 
-  command.stderr.on("data", (data) => {
-    logger.error("[simple-agent-resume] stderr:", data);
+  const unlistenStderr = await listen<{ data: string }>(`agent_stderr:${threadId}`, (event) => {
+    logger.error("[simple-agent-resume] stderr:", event.payload.data);
   });
 
-  command.on("close", async (code) => {
-    const totalElapsed = Date.now() - resumeStartTime;
-    logger.info("[agent-service] resumeSimpleAgent: process closed", {
-      threadId,
-      exitCode: code.code,
-      signal: code.signal,
-      totalElapsed: `${totalElapsed}ms`,
-    });
-
-    // Note: PID is cleared by the runner during cleanup, not here
-    activeSimpleProcesses.delete(threadId);
-    agentProcesses.delete(threadId);
-    cleanupSeqTracking(threadId);
-
-    if (code.code === 130) {
-      // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
-      logger.info("[agent-service] resumeSimpleAgent: exit code 130, marking as cancelled");
-      await threadService.markCancelled(threadId);
-      eventBus.emit(EventName.AGENT_CANCELLED, {
+  const unlistenClose = await listen<{ code: number | null; signal: number | null }>(
+    `agent_close:${threadId}`,
+    async (event) => {
+      const totalElapsed = Date.now() - resumeStartTime;
+      const code = event.payload;
+      logger.info("[agent-service] resumeSimpleAgent: process closed", {
         threadId,
+        exitCode: code.code,
+        signal: code.signal,
+        totalElapsed: `${totalElapsed}ms`,
       });
-    }
 
-    eventBus.emit(EventName.AGENT_COMPLETED, {
-      threadId,
-      exitCode: code.code ?? -1,
-    });
-  });
+      unlistenStdout();
+      unlistenStderr();
+      unlistenClose();
 
-  // Note: PID is written to disk by the runner, not here
+      // Note: PID is cleared by the runner during cleanup, not here
+      activeSimpleProcesses.delete(threadId);
+      agentProcesses.delete(threadId);
+      cleanupSeqTracking(threadId);
+
+      if (code.code === 130) {
+        // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
+        logger.info("[agent-service] resumeSimpleAgent: exit code 130, marking as cancelled");
+        await threadService.markCancelled(threadId);
+        eventBus.emit(EventName.AGENT_CANCELLED, {
+          threadId,
+        });
+      }
+
+      eventBus.emit(EventName.AGENT_COMPLETED, {
+        threadId,
+        exitCode: code.code ?? -1,
+      });
+    },
+  );
+
+  // Spawn via the backend (works in both Tauri and browser)
   try {
-    const child = await command.spawn();
-    activeSimpleProcesses.set(threadId, child);
-    agentProcesses.set(threadId, child);
+    const { pid } = await invoke<{ pid: number }>("agent_spawn", {
+      threadId,
+      commandArgs,
+      cwd: sourcePath,
+      env: resumeEnvVars,
+    });
+    activeSimpleProcesses.add(threadId);
+    agentProcesses.set(threadId, pid);
     logger.info("[agent-service] Resume spawn success", {
       threadId,
-      pid: child.pid,
+      pid,
       elapsedMs: Date.now() - resumeStartTime,
     });
   } catch (spawnError) {
+    unlistenStdout();
+    unlistenStderr();
+    unlistenClose();
+
     logger.error("[agent-service] Resume spawn failed", {
       error: spawnError,
       errorMessage: spawnError instanceof Error ? spawnError.message : String(spawnError),
@@ -965,11 +1034,11 @@ export async function resumeSimpleAgent(
  * Cancels a running simple agent.
  */
 export async function cancelSimpleAgent(threadId: string): Promise<void> {
-  const process = agentProcesses.get(threadId);
-  if (process) {
-    await process.kill();
+  const pid = agentProcesses.get(threadId);
+  if (pid) {
+    await invoke("kill_process", { pid });
     agentProcesses.delete(threadId);
-    activeSimpleProcesses.delete(threadId); // Keep in sync
+    activeSimpleProcesses.delete(threadId);
     logger.info("[agent-service] Cancelled agent", { threadId });
   }
 }

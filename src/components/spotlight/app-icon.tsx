@@ -1,4 +1,4 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/lib/browser-stubs";
 
 interface AppIconProps {
   iconPath: string | null;

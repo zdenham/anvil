@@ -14,7 +14,7 @@ export function SkillListItem({ skill }: SkillListItemProps) {
   const badge = SOURCE_BADGE_STYLES[skill.source];
 
   return (
-    <div className="flex flex-col gap-1 py-3 border-b border-surface-700 last:border-b-0">
+    <div data-testid={`skill-item-${skill.slug}`} className="flex flex-col gap-1 py-3 border-b border-surface-700 last:border-b-0">
       <div className="flex items-center gap-2">
         <span className="font-mono text-sm font-medium text-surface-100">/{skill.slug}</span>
         <span className={cn(

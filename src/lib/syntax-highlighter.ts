@@ -5,6 +5,7 @@ import {
   type BundledLanguage,
   bundledLanguages,
 } from "shiki";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import { logger } from "./logger-client";
 
 let highlighter: Highlighter | null = null;
@@ -49,6 +50,7 @@ export async function initHighlighter(): Promise<void> {
     highlighter = await createHighlighter({
       themes: [THEME],
       langs: PRELOADED_LANGUAGES,
+      engine: createJavaScriptRegexEngine(),
     });
   })();
 

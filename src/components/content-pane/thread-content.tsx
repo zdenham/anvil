@@ -295,6 +295,12 @@ export function ThreadContent({
     }
   }, [searchEnabled, globalSearchQuery, searchNonce]);
 
+  // Clear find state when switching threads
+  useEffect(() => {
+    threadSearch.clear();
+    setFindBarOpen(false);
+  }, [threadId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const closeFindBar = useCallback(() => {
     threadSearch.clear();
     setFindBarOpen(false);
@@ -495,6 +501,7 @@ export function ThreadContent({
             status={viewStatus}
             toolStates={toolStates}
             workingDirectory={workingDirectory || undefined}
+            error={activeState?.error}
           />
         </div>
 

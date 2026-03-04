@@ -143,13 +143,14 @@ export function RepositorySettings() {
       title="Repositories"
       description="Connected code repositories"
     >
-      <div className="space-y-2">
+      <div data-testid="repository-settings" className="space-y-2">
         {repositories.map((repo) => {
           const status = repoStatuses[repo.name];
 
           return (
             <div
               key={repo.name}
+              data-testid={`repo-item-${repo.sourcePath ?? repo.name}`}
               className="flex flex-col gap-2 py-3 px-3 bg-surface-800/50 rounded border border-surface-700/50"
             >
               {/* Top row: name */}

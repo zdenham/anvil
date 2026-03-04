@@ -46,10 +46,11 @@ export function FindBar({ search, onClose }: FindBarProps) {
         : "";
 
   return (
-    <div className="absolute top-2 right-4 z-50 flex items-center gap-1.5 bg-surface-800 border border-surface-600 rounded-lg shadow-lg px-2.5 py-1.5">
+    <div data-testid="find-bar" className="absolute top-2 right-4 z-50 flex items-center gap-1.5 bg-surface-800 border border-surface-600 rounded-lg shadow-lg px-2.5 py-1.5">
       <input
         ref={inputRef}
         type="text"
+        data-testid="find-bar-input"
         value={search.query}
         onChange={(e) => search.setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -66,6 +67,7 @@ export function FindBar({ search, onClose }: FindBarProps) {
       </span>
 
       <button
+        data-testid="find-bar-prev"
         onClick={search.goToPrevious}
         disabled={search.matchCount === 0}
         className="p-0.5 text-surface-400 hover:text-surface-200 disabled:opacity-30 disabled:cursor-default"
@@ -75,6 +77,7 @@ export function FindBar({ search, onClose }: FindBarProps) {
       </button>
 
       <button
+        data-testid="find-bar-next"
         onClick={search.goToNext}
         disabled={search.matchCount === 0}
         className="p-0.5 text-surface-400 hover:text-surface-200 disabled:opacity-30 disabled:cursor-default"

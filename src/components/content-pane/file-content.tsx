@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect, useRef, memo } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/lib/browser-stubs";
 import { FilesystemClient } from "@/lib/filesystem-client";
 import { getLanguageFromPath } from "@/lib/language-detection";
 import { getFileCategory, type FileCategory } from "@/lib/file-categories";
@@ -144,7 +144,7 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
 
   if (isMarkdown && viewMode === "rendered") {
     return (
-      <div className="flex flex-col h-full">
+      <div data-testid="file-content" className="flex flex-col h-full">
         <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="max-w-[900px] mx-auto p-4">
@@ -156,7 +156,7 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="file-content" className="flex flex-col h-full">
       {isMarkdown && <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />}
       <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
         <HighlightedFileView content={content} language={language} />

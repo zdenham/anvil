@@ -3,7 +3,7 @@
  * Uses Tauri shell plugin (Command.create) to run gh commands.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { Command } from "@tauri-apps/plugin-shell";
 import { logger } from "@/lib/logger-client";
 import { classifyGhError } from "./errors";

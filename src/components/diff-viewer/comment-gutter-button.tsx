@@ -1,9 +1,11 @@
 import { memo } from "react";
-import { MessageSquarePlus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 interface CommentGutterButtonProps {
   /** Callback when the button is clicked */
   onClick: () => void;
+  /** Line number for test identification */
+  lineNumber?: number;
 }
 
 /**
@@ -15,10 +17,12 @@ interface CommentGutterButtonProps {
  */
 export const CommentGutterButton = memo(function CommentGutterButton({
   onClick,
+  lineNumber,
 }: CommentGutterButtonProps) {
   return (
     <button
       type="button"
+      data-testid={lineNumber != null ? `comment-gutter-button-${lineNumber}` : "comment-gutter-button"}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
@@ -26,15 +30,15 @@ export const CommentGutterButton = memo(function CommentGutterButton({
       className="
         absolute left-0 top-0 z-10
         w-6 h-6 flex items-center justify-center
-        bg-accent-500 text-white rounded
-        opacity-0 group-hover:opacity-100
+        bg-accent-500 text-accent-900 rounded
+        gutter-btn opacity-0 group-hover:opacity-100
         transition-opacity duration-100
         hover:bg-accent-400
         cursor-pointer
       "
       aria-label="Add comment"
     >
-      <MessageSquarePlus className="w-3.5 h-3.5" />
+      <Plus className="w-3.5 h-3.5" />
     </button>
   );
 });

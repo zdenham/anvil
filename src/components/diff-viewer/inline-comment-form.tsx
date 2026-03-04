@@ -72,7 +72,7 @@ export const InlineCommentForm = memo(function InlineCommentForm({
   );
 
   return (
-    <div className="border-l-2 border-accent-400 bg-surface-800 px-4 py-2 mx-2 my-1 rounded">
+    <div data-testid="inline-comment-form" className="sticky left-0 border-l-2 border-accent-400 border-t border-r border-b border-t-surface-700 border-r-surface-700 border-b-surface-700 bg-surface-700/50 ml-24 px-4 py-3">
       <textarea
         ref={textareaRef}
         value={content}
@@ -107,7 +107,7 @@ export const InlineCommentForm = memo(function InlineCommentForm({
             disabled={!content.trim() || isSubmitting}
             className="
               px-3 py-1 text-xs rounded
-              bg-accent-500 text-white
+              bg-accent-500 text-accent-900
               hover:bg-accent-400
               disabled:opacity-50 disabled:cursor-not-allowed
             "

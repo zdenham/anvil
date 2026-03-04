@@ -11,7 +11,7 @@ export function HotkeySettings() {
   const [pendingHotkey, setPendingHotkey] = useState<string>("");
 
   useEffect(() => {
-    getSavedHotkey().then(setCurrentHotkey).catch(console.error);
+    getSavedHotkey().then((h) => { if (h) setCurrentHotkey(h); }).catch(console.error);
   }, []);
 
   const handleSave = async () => {
@@ -34,12 +34,14 @@ export function HotkeySettings() {
       description="Keyboard shortcut to open the spotlight"
     >
       {isEditing ? (
-        <div className="space-y-4">
-          <HotkeyRecorder
-            defaultHotkey={currentHotkey}
-            onHotkeyChanged={setPendingHotkey}
-            autoFocus
-          />
+        <div data-testid="hotkey-settings" className="space-y-4">
+          <div data-testid="hotkey-input-global">
+            <HotkeyRecorder
+              defaultHotkey={currentHotkey}
+              onHotkeyChanged={setPendingHotkey}
+              autoFocus
+            />
+          </div>
           <div className="flex gap-2 justify-end">
             <button
               onMouseDown={(e) => e.preventDefault()}
@@ -59,7 +61,7 @@ export function HotkeySettings() {
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between">
+        <div data-testid="hotkey-settings" className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-surface-300">
             <Keyboard size={16} />
             <kbd className="px-2 py-1 bg-surface-700 rounded text-sm">{formatHotkeyDisplay(currentHotkey)}</kbd>

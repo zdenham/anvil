@@ -95,7 +95,7 @@ export function ArchiveView() {
   }
 
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto">
+    <div data-testid="archive-view" ref={scrollRef} className="h-full overflow-y-auto">
       <div
         className="relative p-3"
         style={{ height: totalHeight }}

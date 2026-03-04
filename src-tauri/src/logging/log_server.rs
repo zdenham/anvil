@@ -201,7 +201,7 @@ fn flush_batch(url: &str, buffer: &mut Vec<LogRow>) -> Result<(), Box<dyn std::e
 /// Modules/targets to exclude from log uploads (HTTP client internals used for uploading logs)
 /// These are checked against both module_path() and target() since logs from the `log` crate
 /// compatibility layer may have the crate name in target rather than module_path.
-const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log"];
+const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log", "h2"];
 
 /// Message patterns to exclude from uploads (HTTP client internals that come through log crate)
 /// These are checked as prefixes against the log message content.

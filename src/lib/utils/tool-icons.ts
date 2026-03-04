@@ -28,7 +28,7 @@ const TOOL_ICON_PATTERNS: Array<{
     config: { icon: "globe", description: "Web request" },
   },
   {
-    pattern: /^(Task)/i,
+    pattern: /^(Task|Agent)/i,
     config: { icon: "git-branch", description: "Subagent" },
   },
 ];

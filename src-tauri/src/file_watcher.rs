@@ -127,15 +127,13 @@ pub fn start_watch(
     Ok(())
 }
 
-/// Tears down a specific watcher (Debouncer stops on drop).
-#[tauri::command]
-pub fn stop_watch(
-    state: tauri::State<'_, FileWatcherState>,
-    watch_id: String,
-) -> Result<(), String> {
-    let mut manager = state.lock().unwrap();
+/// Tears down a specific watcher (standalone, callable from WS server).
+pub fn stop_watch_inner(state: &FileWatcherState, watch_id: &str) -> Result<(), String> {
+    let mut manager = state
+        .lock()
+        .map_err(|e| format!("Failed to lock file watcher state: {}", e))?;
 
-    if manager.sessions.remove(&watch_id).is_some() {
+    if manager.sessions.remove(watch_id).is_some() {
         tracing::info!(watch_id = %watch_id, "Stopped file watch");
     } else {
         tracing::debug!(watch_id = %watch_id, "Stop requested for unknown watch (already stopped?)");
@@ -144,9 +142,25 @@ pub fn stop_watch(
     Ok(())
 }
 
+/// Tears down a specific watcher (Debouncer stops on drop).
+#[tauri::command]
+pub fn stop_watch(
+    state: tauri::State<'_, FileWatcherState>,
+    watch_id: String,
+) -> Result<(), String> {
+    stop_watch_inner(&state, &watch_id)
+}
+
+/// Returns active watch IDs (standalone, callable from WS server).
+pub fn list_watches_inner(state: &FileWatcherState) -> Vec<String> {
+    state
+        .lock()
+        .map(|manager| manager.sessions.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
 /// Returns active watch IDs (diagnostic).
 #[tauri::command]
 pub fn list_watches(state: tauri::State<'_, FileWatcherState>) -> Vec<String> {
-    let manager = state.lock().unwrap();
-    manager.sessions.keys().cloned().collect()
+    list_watches_inner(&state)
 }

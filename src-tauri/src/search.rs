@@ -17,19 +17,16 @@ pub struct ThreadSearchResponse {
     pub truncated: bool,
 }
 
-/// Search thread conversation content by grepping state.json files.
-/// Searches `<mort_dir>/threads/` for the query string.
-/// Returns matched snippets with thread IDs extracted from directory paths.
-#[tauri::command]
-pub async fn search_threads(
-    mort_dir: String,
-    query: String,
+/// Search thread conversation content (standalone, callable from WS server).
+pub async fn search_threads_inner(
+    mort_dir: &str,
+    query: &str,
     max_results: Option<u32>,
     case_sensitive: Option<bool>,
 ) -> Result<ThreadSearchResponse, String> {
     let max = max_results.unwrap_or(100) as usize;
     let case_sensitive = case_sensitive.unwrap_or(false);
-    let threads_dir = Path::new(&mort_dir).join("threads");
+    let threads_dir = Path::new(mort_dir).join("threads");
 
     if !threads_dir.exists() {
         tracing::debug!(path = %threads_dir.display(), "Threads directory does not exist");
@@ -39,10 +36,9 @@ pub async fn search_threads(
         });
     }
 
-    // Phase 1: find which state.json files contain the query
     let matching_files = find_matching_files(
         &threads_dir.to_string_lossy(),
-        &query,
+        query,
         case_sensitive,
     )?;
 
@@ -58,7 +54,6 @@ pub async fn search_threads(
         "Found matching thread files"
     );
 
-    // Phase 2: get line-level matches from each file
     let mut all_matches = Vec::new();
     let mut truncated = false;
 
@@ -78,7 +73,7 @@ pub async fn search_threads(
         let remaining = max - all_matches.len();
         let file_matches = get_line_matches(
             file_path,
-            &query,
+            query,
             case_sensitive,
             &thread_id,
             remaining,
@@ -103,6 +98,19 @@ pub async fn search_threads(
         matches: all_matches,
         truncated,
     })
+}
+
+/// Search thread conversation content by grepping state.json files.
+/// Searches `<mort_dir>/threads/` for the query string.
+/// Returns matched snippets with thread IDs extracted from directory paths.
+#[tauri::command]
+pub async fn search_threads(
+    mort_dir: String,
+    query: String,
+    max_results: Option<u32>,
+    case_sensitive: Option<bool>,
+) -> Result<ThreadSearchResponse, String> {
+    search_threads_inner(&mort_dir, &query, max_results, case_sensitive).await
 }
 
 /// Run `grep -r -F [-i] -l --include="state.json"` to find files containing the query.

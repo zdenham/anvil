@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import type { WorktreeState } from "@core/types/repositories";
 import { logger } from "@/lib/logger-client";
 

@@ -78,7 +78,7 @@ export class VirtualList {
     this._invalidate();
   }
 
-  setCount(count: number): void {
+  setCount(count: number, notify = true): void {
     if (count === this._count) return;
     const oldCount = this._count;
     this._count = count;
@@ -93,7 +93,7 @@ export class VirtualList {
 
     // Rebuild from 0 since offsets array is brand new (measured heights are preserved via undefined check)
     this._buildHeightsAndOffsets(0);
-    this._invalidate();
+    this._invalidate(notify);
   }
 
   setItemHeight(index: number, height: number): void {
@@ -121,7 +121,7 @@ export class VirtualList {
     this._invalidate();
   }
 
-  setOptions(opts: Partial<VirtualListOptions>): void {
+  setOptions(opts: Partial<VirtualListOptions>, notify = true): void {
     let changed = false;
 
     if (opts.overscan !== undefined && opts.overscan !== this._overscan) {
@@ -145,11 +145,11 @@ export class VirtualList {
       changed = true;
     }
     if (opts.count !== undefined) {
-      this.setCount(opts.count);
+      this.setCount(opts.count, notify);
       return; // setCount already invalidates
     }
 
-    if (changed) this._invalidate();
+    if (changed) this._invalidate(notify);
   }
 
   // --- Outputs ---
@@ -290,9 +290,11 @@ export class VirtualList {
     return Math.min(lo, this._count - 1);
   }
 
-  private _invalidate(): void {
+  private _invalidate(notify = true): void {
     this._cachedItems = null;
     this._cachedTotalHeight = null;
+
+    if (!notify) return;
 
     // Check isAtBottom transition for callbacks wired by the hook
     const currentAtBottom = this.isAtBottom;

@@ -1,5 +1,6 @@
 import { type HubClient } from "./hub/client.js";
 import type { BetaRawMessageStreamEvent } from "@anthropic-ai/sdk/resources/beta/messages/messages.mjs";
+import { nanoid } from "nanoid";
 import { logger } from "./logger.js";
 
 interface StreamBlock {
@@ -8,8 +9,9 @@ interface StreamBlock {
 }
 
 /**
- * Accumulates SDK stream deltas into full content block snapshots.
- * Emits throttled optimistic_stream messages via the hub socket.
+ * Accumulates SDK stream deltas and emits append-only deltas via hub socket.
+ * Uses event chain pattern (id + previousEventId) for gap detection.
+ * First emission sends full blocks; subsequent emissions send only appended text.
  *
  * Usage:
  *   Feed each SDKPartialAssistantMessage.event into handleDelta().
@@ -19,6 +21,8 @@ export class StreamAccumulator {
   private blocks: StreamBlock[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private dirty = false;
+  private lastEmittedLengths: number[] = [];
+  private lastEventId: string | null = null;
 
   constructor(
     private hubClient: HubClient,
@@ -55,6 +59,8 @@ export class StreamAccumulator {
     this.cancelPendingFlush();
     this.blocks = [];
     this.dirty = false;
+    this.lastEmittedLengths = [];
+    this.lastEventId = null;
   }
 
   private scheduleFlush(): void {
@@ -81,14 +87,53 @@ export class StreamAccumulator {
     const blocks = this.blocks.filter(Boolean);
 
     if (!this.hubClient.isConnected) {
-      logger.debug("[StreamAccumulator] Hub not connected, skipping snapshot");
+      logger.debug("[StreamAccumulator] Hub not connected, skipping delta");
       return;
     }
 
-    this.hubClient.send({
-      type: "optimistic_stream",
-      threadId: this.threadId,
-      blocks,
-    });
+    const eventId = nanoid();
+
+    if (!this.lastEventId) {
+      // First emission — send full blocks
+      this.hubClient.send({
+        type: "stream_delta",
+        threadId: this.threadId,
+        id: eventId,
+        previousEventId: null,
+        deltas: [],
+        full: blocks,
+      });
+      this.lastEmittedLengths = blocks.map((b) => b.content.length);
+    } else {
+      // Compute deltas — only append-only text since last emission
+      const deltas: Array<{
+        index: number;
+        type: "text" | "thinking";
+        append: string;
+      }> = [];
+      for (let i = 0; i < blocks.length; i++) {
+        const prevLen = this.lastEmittedLengths[i] ?? 0;
+        const currentLen = blocks[i].content.length;
+        if (currentLen > prevLen) {
+          deltas.push({
+            index: i,
+            type: blocks[i].type,
+            append: blocks[i].content.slice(prevLen),
+          });
+        }
+      }
+      if (deltas.length > 0) {
+        this.hubClient.send({
+          type: "stream_delta",
+          threadId: this.threadId,
+          id: eventId,
+          previousEventId: this.lastEventId,
+          deltas,
+        });
+        this.lastEmittedLengths = blocks.map((b) => b.content.length);
+      }
+    }
+
+    this.lastEventId = eventId;
   }
 }

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/invoke";
 import { z } from "zod";
 import { logger } from "@/lib/logger-client";
 import { GitCommitSchema, type GitCommit } from "@/hooks/use-git-commits";

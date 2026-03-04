@@ -13,6 +13,7 @@ import {
   useCallback,
 } from "react";
 import { useVirtualList } from "@/hooks/use-virtual-list";
+import { useScrolling } from "@/hooks/use-scrolling";
 import { InlineDiffBlock } from "@/components/thread/inline-diff-block";
 import { MAX_DISPLAYED_FILES } from "./changes-diff-fetcher";
 import type { FileContentEntry } from "./changes-diff-fetcher";
@@ -39,11 +40,12 @@ export const ChangesDiffContent = forwardRef<
   ChangesDiffContentProps
 >(function ChangesDiffContent({ files, rawDiffsByFile, fileContents, totalFileCount }, ref) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  useScrolling(scrollerRef);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<number>>(new Set());
 
   const getScrollElement = useCallback(() => scrollerRef.current, []);
 
-  const { items, totalHeight, scrollToIndex, measureItem } = useVirtualList({
+  const { items, paddingBefore, paddingAfter, scrollToIndex, measureItem } = useVirtualList({
     count: files.length,
     getScrollElement,
     estimateHeight: 200,
@@ -73,9 +75,9 @@ export const ChangesDiffContent = forwardRef<
   }, []);
 
   return (
-    <div className="h-full">
+    <div data-testid="changes-diff-content" className="h-full">
       <div ref={scrollerRef} style={{ height: "100%", overflow: "auto" }}>
-        <div style={{ height: totalHeight, position: "relative" }}>
+        <div style={{ paddingTop: paddingBefore, paddingBottom: paddingAfter }}>
           {items.map((item) => {
             const file = files[item.index];
             const filePath = file.newPath ?? file.oldPath ?? "unknown";
@@ -89,13 +91,6 @@ export const ChangesDiffContent = forwardRef<
                 key={item.key}
                 ref={measureItem}
                 data-index={item.index}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${item.start}px)`,
-                }}
               >
                 <div className="py-2 px-4">
                   <InlineDiffBlock

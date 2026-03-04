@@ -53,7 +53,7 @@ export const RepositoryStep = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div data-testid="onboarding-step-repository" className="space-y-4">
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-surface-100 font-mono">Select Your Repository</h2>
         <p className="text-surface-300">

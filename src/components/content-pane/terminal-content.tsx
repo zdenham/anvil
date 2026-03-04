@@ -14,7 +14,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { SearchAddon } from "@xterm/addon-search";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/lib/events";
 import "@xterm/xterm/css/xterm.css";
 
 import { terminalSessionService } from "@/entities/terminal-sessions";
@@ -244,6 +244,7 @@ export function TerminalContent({
   return (
     <div
       ref={containerRef}
+      data-testid="terminal-content"
       className="w-full h-full bg-surface-950 p-2"
       onClick={handleClick}
       style={{ overflow: "hidden" }}

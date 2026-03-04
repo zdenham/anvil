@@ -19,13 +19,10 @@ pub struct ThreadMetadata {
     pub status: ThreadStatus,
 }
 
-/// Get the status of a thread
-#[tauri::command]
-pub async fn get_thread_status(
-    thread_id: String,
-) -> Result<Option<ThreadStatus>, String> {
+/// Get the status of a thread (standalone, callable from WS server).
+pub fn get_thread_status_inner(thread_id: &str) -> Result<Option<ThreadStatus>, String> {
     let thread_path = paths::threads_dir()
-        .join(&thread_id)
+        .join(thread_id)
         .join("metadata.json");
 
     if !thread_path.exists() {
@@ -39,13 +36,18 @@ pub async fn get_thread_status(
     Ok(Some(metadata.status))
 }
 
-/// Get full thread metadata
+/// Get the status of a thread
 #[tauri::command]
-pub async fn get_thread(
+pub async fn get_thread_status(
     thread_id: String,
-) -> Result<Option<ThreadMetadata>, String> {
+) -> Result<Option<ThreadStatus>, String> {
+    get_thread_status_inner(&thread_id)
+}
+
+/// Get full thread metadata (standalone, callable from WS server).
+pub fn get_thread_inner(thread_id: &str) -> Result<Option<ThreadMetadata>, String> {
     let thread_path = paths::threads_dir()
-        .join(&thread_id)
+        .join(thread_id)
         .join("metadata.json");
 
     if !thread_path.exists() {
@@ -57,4 +59,12 @@ pub async fn get_thread(
         serde_json::from_str(&content).map_err(|e| e.to_string())?;
 
     Ok(Some(metadata))
+}
+
+/// Get full thread metadata
+#[tauri::command]
+pub async fn get_thread(
+    thread_id: String,
+) -> Result<Option<ThreadMetadata>, String> {
+    get_thread_inner(&thread_id)
 }

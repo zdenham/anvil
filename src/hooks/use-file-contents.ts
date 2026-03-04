@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { join } from "@tauri-apps/api/path";
-import { invoke } from "@tauri-apps/api/core";
+import { join } from "@/lib/browser-stubs";
+import { invoke } from "@/lib/invoke";
 import type { FileChange } from "@/lib/types/agent-messages";
 import { logger } from "@/lib/logger-client";
 import { fsCommands } from "@/lib/tauri-commands";

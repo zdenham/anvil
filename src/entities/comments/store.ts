@@ -60,7 +60,7 @@ export const useCommentStore = create<CommentStoreState & CommentStoreActions>(
     getByFile: (worktreeId, filePath, threadId) => {
       return Object.values(get().comments).filter((c) => {
         if (c.worktreeId !== worktreeId || c.filePath !== filePath) return false;
-        if (threadId !== undefined) return c.threadId === threadId;
+        if (threadId != null) return c.threadId === threadId;
         return true;
       });
     },
@@ -68,7 +68,7 @@ export const useCommentStore = create<CommentStoreState & CommentStoreActions>(
     getUnresolved: (worktreeId, threadId) =>
       Object.values(get().comments).filter((c) => {
         if (c.worktreeId !== worktreeId || c.resolved) return false;
-        if (threadId !== undefined) return c.threadId === threadId;
+        if (threadId != null) return c.threadId === threadId;
         return true;
       }),
 

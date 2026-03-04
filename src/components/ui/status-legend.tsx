@@ -10,7 +10,7 @@ import { StatusDot } from "./status-dot";
  */
 export function StatusLegend() {
   return (
-    <div className="flex items-center gap-4 text-xs text-surface-500 overflow-hidden">
+    <div data-testid="status-legend" className="flex items-center gap-4 text-xs text-surface-500 overflow-hidden">
       <div className="flex items-center gap-1.5">
         <StatusDot variant="running" />
         <span>Running</span>

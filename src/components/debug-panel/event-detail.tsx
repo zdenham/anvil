@@ -141,6 +141,9 @@ function DiskStateReader({ threadId }: { threadId: string }) {
       </div>
       {diskState && diskStateThreadId === inputThreadId.trim() && (
         <div className="space-y-1">
+          <div className="flex justify-end">
+            <CopyButton text={JSON.stringify(diskState, null, 2)} />
+          </div>
           {(diskState as Record<string, unknown>).metadata != null ? (
             <CollapsibleJson label="metadata.json" data={(diskState as Record<string, unknown>).metadata} />
           ) : null}
@@ -178,7 +181,7 @@ export function EventDetail() {
   const payloadJson = JSON.stringify(event.payload, null, 2);
 
   return (
-    <div className="flex flex-col h-full overflow-auto p-2 gap-2">
+    <div data-testid="event-detail" className="flex flex-col h-full overflow-auto p-2 gap-2">
       {/* Header */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", badgeStyle)}>

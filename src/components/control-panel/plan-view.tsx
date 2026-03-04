@@ -10,8 +10,8 @@
  */
 
 import { useRef, useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@/lib/invoke";
+import { getCurrentWindow } from "@/lib/browser-stubs";
 import { planService, usePlanStore } from "@/entities/plans";
 import { eventBus } from "@/entities/events";
 import { EventName } from "@core/types/events.js";

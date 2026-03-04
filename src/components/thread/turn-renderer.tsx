@@ -53,14 +53,14 @@ export function TurnRenderer({
   switch (turn.type) {
     case "user":
       return (
-        <div data-testid={`message-${turnIndex}`}>
+        <div data-testid={`user-message-${turnIndex}`}>
           <UserMessage turn={turn} />
         </div>
       );
 
     case "assistant":
       return (
-        <div data-testid={`message-${turnIndex}`}>
+        <div data-testid={`assistant-message-${turnIndex}`}>
           <AssistantMessage
             messages={messages}
             messageIndex={turn.messageIndex}

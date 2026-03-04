@@ -61,7 +61,7 @@ export function ContextMeter({ threadId }: ContextMeterProps) {
     <TooltipPrimitive.Provider delayDuration={200}>
       <TooltipPrimitive.Root>
         <TooltipPrimitive.Trigger asChild>
-          <div className="flex items-center gap-1.5 cursor-default">
+          <div data-testid="context-meter" className="flex items-center gap-1.5 cursor-default">
             <div className="w-16 h-1.5 bg-surface-700 rounded-full overflow-hidden">
               <div
                 className={cn(

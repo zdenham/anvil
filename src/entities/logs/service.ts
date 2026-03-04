@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@/lib/invoke";
+import { listen, type UnlistenFn } from "@/lib/events";
 import { useLogStore } from "./store";
 import type { LogEntry } from "./types";
 import { normalizeLogEntry, type RawLogEntry } from "./types";

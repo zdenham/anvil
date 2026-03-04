@@ -7,18 +7,21 @@ import {
   sendQueuedMessage,
   resumeSimpleAgent,
 } from "@/lib/agent-service";
-import { useThreadStore } from "@/entities/threads/store";
-import { useWorkingDirectory } from "@/hooks/use-working-directory";
+import { createThread } from "@/lib/thread-creation-service";
 import { logger } from "@/lib/logger-client";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { InlineComment } from "@core/types/comments.js";
 
 /**
  * "Address Comments" button that sends unresolved comments to the agent.
- * Only visible when there are unresolved comments and a threadId is set.
+ * Visible when there are unresolved comments. Works with or without a threadId:
+ * - With threadId: sends to that specific thread's agent
+ * - Without threadId: creates a new thread (changes tab case)
  */
 export const AddressCommentsButton = memo(function AddressCommentsButton() {
   const worktreeId = useDiffCommentStore((s) => s.worktreeId);
+  const repoId = useDiffCommentStore((s) => s.repoId);
+  const worktreePath = useDiffCommentStore((s) => s.worktreePath);
   const threadId = useDiffCommentStore((s) => s.threadId);
   const [isSending, setIsSending] = useState(false);
 
@@ -29,38 +32,32 @@ export const AddressCommentsButton = memo(function AddressCommentsButton() {
     ),
   );
 
-  const unresolvedComments = useCommentStore(
-    useCallback(
-      (s) => s.getUnresolved(worktreeId, threadId),
-      [worktreeId, threadId],
-    ),
-  );
-
-  const thread = useThreadStore(
-    useCallback(
-      (s) => (threadId ? s.threads[threadId] : undefined),
-      [threadId],
-    ),
-  );
-
-  const workingDirectory = useWorkingDirectory(thread);
-
   const handleClick = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (!threadId || unresolvedComments.length === 0 || isSending) return;
+      if (isSending) return;
+
+      if (!worktreePath) {
+        logger.warn("[AddressCommentsButton] No worktreePath in context");
+        return;
+      }
+
+      const unresolvedComments = useCommentStore.getState().getUnresolved(worktreeId, threadId);
+      if (unresolvedComments.length === 0) return;
 
       setIsSending(true);
       try {
         const prompt = formatAddressPrompt(unresolvedComments);
-        const isConnected = await isAgentSocketConnected(threadId);
 
-        if (isConnected) {
-          await sendQueuedMessage(threadId, prompt);
-        } else if (workingDirectory) {
-          await resumeSimpleAgent(threadId, prompt, workingDirectory);
+        if (threadId) {
+          const isConnected = await isAgentSocketConnected(threadId);
+          if (isConnected) {
+            await sendQueuedMessage(threadId, prompt);
+          } else {
+            await resumeSimpleAgent(threadId, prompt, worktreePath);
+          }
         } else {
-          logger.warn("[AddressCommentsButton] No working directory for thread", { threadId });
+          await createThread({ prompt, repoId, worktreeId, worktreePath });
         }
       } catch (err) {
         logger.error("[AddressCommentsButton] Failed to send comments to agent", err);
@@ -68,16 +65,16 @@ export const AddressCommentsButton = memo(function AddressCommentsButton() {
         setIsSending(false);
       }
     },
-    [threadId, unresolvedComments, isSending, workingDirectory],
+    [threadId, worktreeId, repoId, worktreePath, isSending],
   );
 
-  // Only show when there are unresolved comments and a thread context
-  if (!threadId || unresolvedCount === 0) return null;
+  if (unresolvedCount === 0) return null;
 
   return (
     <Tooltip content={`Send ${unresolvedCount} comment${unresolvedCount !== 1 ? "s" : ""} to agent`}>
       <button
         type="button"
+        data-testid="address-comments-button"
         onClick={handleClick}
         disabled={isSending}
         className="

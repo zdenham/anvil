@@ -42,6 +42,7 @@ export function CommitItem({ item, isSelected, onNavigate }: CommitItemProps) {
     <div
       role="treeitem"
       aria-selected={isSelected}
+      data-testid={`commit-item-${item.commitHash ?? item.id}`}
       tabIndex={-1}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

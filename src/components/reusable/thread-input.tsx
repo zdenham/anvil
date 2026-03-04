@@ -158,7 +158,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   };
 
   return (
-    <div className="flex gap-2 pb-3 bg-surface-900" data-thread-input>
+    <div className="flex gap-2 pb-3 bg-surface-900" data-thread-input data-testid="thread-input">
       <div className="flex-1 min-w-0">
         <TriggerSearchInput
           ref={inputRef}

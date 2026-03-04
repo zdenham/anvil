@@ -85,7 +85,7 @@ export const PermissionsPrompt = ({
   }, []);
 
   return (
-    <div className="min-h-screen w-full bg-surface-900 p-6 flex flex-col">
+    <div data-testid="permissions-prompt" className="min-h-screen w-full bg-surface-900 p-6 flex flex-col">
       <div className="flex-1">
         <PermissionsContent
           shellInitialized={shellInitialized}

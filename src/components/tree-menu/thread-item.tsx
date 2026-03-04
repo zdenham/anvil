@@ -1,7 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2, ChevronRight } from "lucide-react";
+import { Archive, Loader2, ChevronRight, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
+import {
+  useContextMenu,
+  ContextMenu,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
@@ -66,6 +71,7 @@ export function ThreadItem({
   const [confirming, setConfirming] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const contextMenu = useContextMenu();
 
   // Click outside to cancel confirmation
   useEffect(() => {
@@ -190,16 +196,19 @@ export function ThreadItem({
   const indentPx = TREE_INDENT_BASE + (item.depth * TREE_INDENT_STEP);
 
   return (
+    <>
     <ItemPreviewTooltip itemId={item.id} itemType="thread">
       <div
         role="treeitem"
         aria-selected={isSelected}
         aria-expanded={item.isFolder ? item.isExpanded : undefined}
         aria-level={item.depth + 1}
+        data-testid={`thread-item-${item.id}`}
         data-tree-item-index={itemIndex}
         tabIndex={tabIndex}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
+        onContextMenu={contextMenu.open}
         style={{ paddingLeft: `${indentPx}px` }}
         className={cn(
           "group flex items-center gap-1.5 py-0.5 pr-1 cursor-pointer",
@@ -211,11 +220,16 @@ export function ThreadItem({
             : "text-surface-300 hover:bg-accent-500/10"
         )}
       >
-        {/* Folder toggle chevron (when selected) or status dot - both use same fixed width */}
-        {item.isFolder && isSelected ? (
+        {/* Folder toggle chevron or status dot - both use same fixed width */}
+        {item.isFolder ? (
           <button
             type="button"
-            className="flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-400"
+            className={cn(
+              "flex-shrink-0 w-3 h-3 flex items-center justify-center rounded",
+              item.status === "running"
+                ? "chevron-running"
+                : "text-surface-400 hover:bg-surface-700"
+            )}
             onClick={handleFolderToggle}
             aria-label={item.isExpanded ? "Collapse folder" : "Expand folder"}
           >
@@ -263,5 +277,18 @@ export function ThreadItem({
         </button>
       </div>
     </ItemPreviewTooltip>
+    {contextMenu.show && (
+      <ContextMenu position={contextMenu.position} onClose={contextMenu.close}>
+        <ContextMenuItem
+          icon={Copy}
+          label="Copy Thread ID"
+          onClick={() => {
+            navigator.clipboard.writeText(item.id);
+            contextMenu.close();
+          }}
+        />
+      </ContextMenu>
+    )}
+    </>
   );
 }
