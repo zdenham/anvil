@@ -59,11 +59,10 @@ describe("createCommentResolutionHook", () => {
         commentId: "abc-123",
       });
       expect(result).toMatchObject({
+        reason: expect.stringContaining("Resolved 1 comment(s)"),
         hookSpecificOutput: {
-          permissionDecision: "allow",
-          updatedInput: {
-            command: 'echo "Resolved 1 comment(s): abc-123"',
-          },
+          permissionDecision: "deny",
+          permissionDecisionReason: expect.stringContaining("Successfully resolved 1 comment(s)"),
         },
       });
     });
@@ -92,11 +91,10 @@ describe("createCommentResolutionHook", () => {
         commentId: "ghi-789",
       });
       expect(result).toMatchObject({
+        reason: expect.stringContaining("Resolved 3 comment(s)"),
         hookSpecificOutput: {
-          permissionDecision: "allow",
-          updatedInput: {
-            command: 'echo "Resolved 3 comment(s): abc-123, def-456, ghi-789"',
-          },
+          permissionDecision: "deny",
+          permissionDecisionReason: expect.stringContaining("Successfully resolved 3 comment(s)"),
         },
       });
     });
@@ -122,7 +120,7 @@ describe("createCommentResolutionHook", () => {
       });
       expect(result).toMatchObject({
         hookSpecificOutput: {
-          permissionDecision: "allow",
+          permissionDecision: "deny",
         },
       });
     });
@@ -140,7 +138,7 @@ describe("createCommentResolutionHook", () => {
       expect(mockEmitEvent).toHaveBeenCalledTimes(2);
       expect(result).toMatchObject({
         hookSpecificOutput: {
-          permissionDecision: "allow",
+          permissionDecision: "deny",
         },
       });
     });
@@ -204,7 +202,7 @@ describe("createCommentResolutionHook", () => {
       expect(mockEmitEvent).toHaveBeenCalledTimes(1);
       expect(result).toMatchObject({
         hookSpecificOutput: {
-          permissionDecision: "allow",
+          permissionDecision: "deny",
         },
       });
     });
@@ -315,10 +313,10 @@ describe("createCommentResolutionHook", () => {
     });
   });
 
-  // ── updatedInput rewrite ──────────────────────────────────────
+  // ── deny reason format ──────────────────────────────────────
 
-  describe("updatedInput rewrite", () => {
-    it("rewrites command to echo with resolved count and IDs", async () => {
+  describe("deny reason format", () => {
+    it("includes resolved count and IDs in reason", async () => {
       const hook = createCommentResolutionHook({
         worktreeId: "wt-1",
         emitEvent: mockEmitEvent,
@@ -329,16 +327,15 @@ describe("createCommentResolutionHook", () => {
       );
 
       expect(result).toMatchObject({
+        reason: expect.stringContaining("Resolved 2 comment(s): abc, def"),
         hookSpecificOutput: {
-          permissionDecision: "allow",
-          updatedInput: {
-            command: 'echo "Resolved 2 comment(s): abc, def"',
-          },
+          permissionDecision: "deny",
+          permissionDecisionReason: expect.stringContaining("Successfully resolved 2 comment(s)"),
         },
       });
     });
 
-    it("original command is never passed through on match", async () => {
+    it("does not include updatedInput on successful resolve", async () => {
       const hook = createCommentResolutionHook({
         worktreeId: "wt-1",
         emitEvent: mockEmitEvent,
@@ -348,12 +345,10 @@ describe("createCommentResolutionHook", () => {
         makeHookInput('mort-resolve-comment "abc-123"'),
       );
 
-      const updatedCommand = (result as Record<string, unknown>)
+      const output = (result as Record<string, unknown>)
         .hookSpecificOutput as Record<string, unknown>;
-      const updatedInput = updatedCommand.updatedInput as Record<string, unknown>;
 
-      expect(updatedInput.command).not.toContain("mort-resolve-comment");
-      expect(updatedInput.command).toMatch(/^echo /);
+      expect(output.updatedInput).toBeUndefined();
     });
   });
 });

@@ -77,9 +77,19 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     [isStreaming],
   );
 
-  // +1 for the streaming/working slot when active
+  // Smooth scroll when new blocks appear (tool results, new messages)
+  const followCountChange = useCallback(
+    (atBottom: boolean) => {
+      if (isStreaming && atBottom) return "smooth" as ScrollBehavior;
+      return false as const;
+    },
+    [isStreaming],
+  );
+
+  // Always reserve the streaming slot so virtual count stays stable (avoids
+  // N -> N+1 -> N offset recalculations when streaming starts/stops).
   const showStreamingSlot = hasStreamingContent || showWorkingIndicator;
-  const virtualCount = turns.length + (showStreamingSlot ? 1 : 0);
+  const virtualCount = turns.length + 1;
 
   const { items, totalHeight, scrollToIndex: scrollTo, measureItem, setSticky } = useVirtualList({
     count: virtualCount,
@@ -89,6 +99,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     atBottomThreshold: 300,
     onAtBottomChange: setIsAtBottom,
     followOutput,
+    followCountChange,
     sticky: true,
   });
 
@@ -125,7 +136,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     >
       <div
         ref={scrollerRef}
-        style={{ height: "100%", overflow: "auto" }}
+        style={{ height: "100%", overflow: "auto", overflowAnchor: "auto" }}
       >
         <div style={{ height: totalHeight, position: "relative" }}>
           {items.map((item) => {
@@ -146,9 +157,11 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
               >
                 <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", item.index === 0 && "pt-12")}>
                   {isStreamingSlot ? (
-                    hasStreamingContent
-                      ? <StreamingContent threadId={threadId} workingDirectory={workingDirectory} />
-                      : <WorkingIndicator />
+                    showStreamingSlot ? (
+                      hasStreamingContent
+                        ? <StreamingContent threadId={threadId} workingDirectory={workingDirectory} />
+                        : <WorkingIndicator />
+                    ) : null
                   ) : (
                     <TurnRenderer
                       turn={turns[item.index]}

@@ -77,12 +77,9 @@ export const TEST_IDS = {
   // ── Changes & Diff Viewer ───────────────────────────────
   changesView: 'changes-view',
   changesDiffContent: 'changes-diff-content',
-  diffFileCard: (filePath: string) => `diff-file-card-${filePath}` as const,
-  diffFileHeader: (filePath: string) => `diff-file-header-${filePath}` as const,
   commentGutterButton: (line: number) => `comment-gutter-button-${line}` as const,
   inlineCommentForm: 'inline-comment-form',
   inlineComment: (commentId: string) => `inline-comment-${commentId}` as const,
-  addressCommentsButton: 'address-comments-button',
   floatingAddressButton: 'floating-address-button',
 
   // ── Find Bar ────────────────────────────────────────────

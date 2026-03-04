@@ -1,7 +1,6 @@
 import { memo, useCallback, useState } from "react";
 import { ArrowRight, ChevronUp, ChevronDown } from "lucide-react";
 import { useDiffCommentStore } from "@/contexts/diff-comment-context";
-import { useCommentStore } from "@/entities/comments/store";
 import {
   isAgentSocketConnected,
   sendQueuedMessage,
@@ -9,6 +8,7 @@ import {
 } from "@/lib/agent-service";
 import { createThread } from "@/lib/thread-creation-service";
 import { logger } from "@/lib/logger-client";
+import { useUnresolvedInDiff } from "@/hooks/use-unresolved-in-diff";
 import type { InlineComment } from "@core/types/comments.js";
 
 /**
@@ -23,12 +23,8 @@ export const FloatingAddressButton = memo(function FloatingAddressButton() {
   const threadId = useDiffCommentStore((s) => s.threadId);
   const [isSending, setIsSending] = useState(false);
 
-  const unresolvedCount = useCommentStore(
-    useCallback(
-      (s) => s.getUnresolvedCount(worktreeId, threadId),
-      [worktreeId, threadId],
-    ),
-  );
+  const unresolvedComments = useUnresolvedInDiff(worktreeId, threadId);
+  const unresolvedCount = unresolvedComments.length;
 
   const handleClick = useCallback(
     async (e: React.MouseEvent) => {
@@ -40,7 +36,6 @@ export const FloatingAddressButton = memo(function FloatingAddressButton() {
         return;
       }
 
-      const unresolvedComments = useCommentStore.getState().getUnresolved(worktreeId, threadId);
       if (unresolvedComments.length === 0) return;
 
       setIsSending(true);
@@ -63,7 +58,7 @@ export const FloatingAddressButton = memo(function FloatingAddressButton() {
         setIsSending(false);
       }
     },
-    [threadId, worktreeId, repoId, worktreePath, isSending],
+    [threadId, worktreeId, repoId, worktreePath, isSending, unresolvedComments],
   );
 
   if (unresolvedCount === 0) return null;
@@ -177,5 +172,7 @@ function formatAddressPrompt(comments: InlineComment[]): string {
     "",
     "For each comment, make the requested change. After addressing a comment, mark it resolved:",
     `mort-resolve-comment "${commentIds.join(",")}"`,
+    "",
+    "Note: mort-resolve-comment is a virtual command intercepted by the system. It will appear as \"denied\" in the tool output but the comments ARE resolved — this is expected behavior, do not retry.",
   ].join("\n");
 }

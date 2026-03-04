@@ -46,7 +46,52 @@ cat ~/.config/mortician-dev/logs/structured.jsonl | jq 'select(.timestamp > "202
 
 ## Writing Repro Scripts
 
-Output directory: `e2e/debug/` (gitignored). Prerequisites: dev server running (`pnpm dev`).
+Output directory: `e2e/debug/` (gitignored).
+
+### Prerequisites
+
+The Vite dev server must be running on port 1421. Check and start if needed:
+
+```bash
+# Check if dev server is running
+curl -s -o /dev/null -w "%{http_code}" http://localhost:1421 | grep -q 200 && echo "running" || echo "not running"
+
+# Start the full dev server (Vite + Tauri + agents)
+pnpm dev
+
+# Or start just Vite for frontend-only debugging
+pnpm vite --port 1421
+```
+
+### Playwright Config for Debug Scripts
+
+The main `playwright.config.ts` restricts test directories to `e2e/critical`, `e2e/core`, and `e2e/comprehensive` — it will NOT find scripts in `e2e/debug/`. Before running your first debug script, create a standalone config:
+
+```bash
+cat > e2e/debug/playwright.config.ts << 'EOF'
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: '.',
+  timeout: 60_000,
+  reporter: 'list',
+  use: {
+    baseURL: 'http://localhost:1421',
+    ...devices['Desktop Chrome'],
+  },
+  webServer: {
+    command: 'pnpm vite --port 1421',
+    port: 1421,
+    reuseExistingServer: true,
+    timeout: 30_000,
+  },
+});
+EOF
+```
+
+This config is gitignored along with the rest of `e2e/debug/`.
+
+### Template
 
 ```typescript
 // e2e/debug/repro-<name>.spec.ts
@@ -60,7 +105,11 @@ test('repro: <description>', async ({ app }) => {
 });
 ```
 
-Run with: `npx playwright test e2e/debug/repro-<name>.spec.ts --project=critical`
+### Running
+
+```bash
+npx playwright test --config e2e/debug/playwright.config.ts e2e/debug/repro-<name>.spec.ts
+```
 
 ## Reference Files
 
@@ -76,7 +125,7 @@ Read these files for API details as needed:
 | RepoHarness | `e2e/lib/repo-harness.ts` |
 | Wait helpers | `e2e/lib/wait-helpers.ts` |
 | TEST_IDS (source of truth) | `src/test/test-ids.ts` |
-| Existing E2E tests (examples) | `e2e/*.spec.ts` |
+| Existing E2E tests (examples) | `e2e/{critical,core,comprehensive}/*.spec.ts` |
 | Visual jank debugging | `.claude/skills/repro-debug/visual-jank.md` |
 | HTML snapshots | `.claude/skills/repro-debug/html-snapshots.md` |
 

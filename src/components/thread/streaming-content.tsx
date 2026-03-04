@@ -29,7 +29,7 @@ export function StreamingContent({ threadId, workingDirectory }: StreamingConten
         const hasContent = block.content.length > 0;
 
         return (
-          <div key={index} className="relative">
+          <div key={`${block.type}-${index}`} className="relative">
             <TrickleBlock
               block={block}
               isLast={isLast}

@@ -23,8 +23,11 @@ export interface UseVirtualListOptions {
   onAtBottomChange?: (atBottom: boolean) => void;
   /** Distance from bottom to count as "at bottom" */
   atBottomThreshold?: number;
-  /** Return a ScrollBehavior to auto-follow when items are added at the bottom, or false to skip */
+  /** Return a ScrollBehavior to auto-follow when content grows at the bottom, or false to skip */
   followOutput?: (atBottom: boolean) => ScrollBehavior | false;
+  /** Return a ScrollBehavior when the item count increases (new blocks), or false to skip.
+   *  Falls back to followOutput if not provided. */
+  followCountChange?: (atBottom: boolean) => ScrollBehavior | false;
   /** Enable intent-based sticky scroll (opt-in) */
   sticky?: boolean;
   /** Callback when sticky state changes */
@@ -217,9 +220,14 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   const roRef = useRef<ResizeObserver | null>(null);
   const observedRef = useRef(new Map<number, HTMLElement>());
 
+  // Throttled ResizeObserver: collect height changes and flush at most every
+  // RESIZE_THROTTLE_MS to avoid 60fps layout recalculations during streaming.
+  const RESIZE_THROTTLE_MS = 80;
+  const pendingHeightsRef = useRef<Map<number, number>>(new Map());
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   if (!roRef.current && opts.itemHeight === undefined) {
     roRef.current = new ResizeObserver((entries) => {
-      const heightEntries: Array<{ index: number; height: number }> = [];
       for (const entry of entries) {
         const target = entry.target as HTMLElement;
         const dataIndex = target.getAttribute("data-index");
@@ -229,13 +237,21 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
           entry.borderBoxSize?.[0]?.blockSize ?? target.offsetHeight,
         );
         if (!isNaN(index) && height > 0) {
-          heightEntries.push({ index, height });
+          pendingHeightsRef.current.set(index, height);
         }
       }
-      if (heightEntries.length > 0) {
-        requestAnimationFrame(() => {
-          list.setItemHeights(heightEntries);
-        });
+
+      // Schedule a trailing-edge throttled flush
+      if (resizeTimerRef.current === null) {
+        resizeTimerRef.current = setTimeout(() => {
+          resizeTimerRef.current = null;
+          const pending = pendingHeightsRef.current;
+          if (pending.size === 0) return;
+
+          const batch = Array.from(pending.entries()).map(([index, height]) => ({ index, height }));
+          pending.clear();
+          list.setItemHeights(batch);
+        }, RESIZE_THROTTLE_MS);
       }
     });
   }
@@ -245,6 +261,10 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       roRef.current?.disconnect();
       roRef.current = null;
       observedRef.current.clear();
+      if (resizeTimerRef.current !== null) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -299,30 +319,57 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     prevStickyRef.current = isSticky;
   }, [isSticky, opts.onStickyChange]);
 
-  // -- followOutput: auto-scroll when count increases while at bottom --
-  const prevFollowCountRef = useRef(opts.count);
+  // -- Unified auto-scroll: single rAF-deduplicated mechanism for both count
+  //    changes and height changes, preventing competing scroll targets. --
+  const autoScrollRafRef = useRef<number | null>(null);
+  const pendingScrollBehaviorRef = useRef<ScrollBehavior | null>(null);
+
+  const scheduleAutoScroll = useCallback((behavior: ScrollBehavior) => {
+    pendingScrollBehaviorRef.current = behavior;
+    if (autoScrollRafRef.current !== null) return; // Already scheduled
+    autoScrollRafRef.current = requestAnimationFrame(() => {
+      autoScrollRafRef.current = null;
+      const b = pendingScrollBehaviorRef.current;
+      pendingScrollBehaviorRef.current = null;
+      if (!b) return;
+
+      const el = opts.getScrollElement();
+      if (!el) return;
+      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (gap > 1) {
+        el.scrollTo({ top: el.scrollHeight, behavior: b });
+      }
+    });
+  }, [opts.getScrollElement]);
+
+  // Clean up pending rAF on unmount
   useEffect(() => {
-    if (!opts.followOutput) return;
+    return () => {
+      if (autoScrollRafRef.current !== null) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+      }
+    };
+  }, []);
+
+  // followOutput: auto-scroll when count increases while at bottom
+  const prevFollowCountRef = useRef(opts.count);
+  const followCountFn = opts.followCountChange ?? opts.followOutput;
+  useEffect(() => {
+    if (!followCountFn) return;
     if (opts.count <= prevFollowCountRef.current) {
       prevFollowCountRef.current = opts.count;
       return;
     }
     prevFollowCountRef.current = opts.count;
 
-    // Check if we should follow (sticky mode uses intent, otherwise position)
     const shouldFollow = opts.sticky ? isSticky : snapshot.isAtBottom;
-    const result = opts.followOutput(shouldFollow);
+    const result = followCountFn(shouldFollow);
     if (result === false) return;
 
-    const el = opts.getScrollElement();
-    if (!el) return;
+    scheduleAutoScroll(result);
+  }, [opts.count, followCountFn, opts.sticky, isSticky, snapshot.isAtBottom, scheduleAutoScroll]);
 
-    requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: result });
-    });
-  }, [opts.count, opts.followOutput, opts.getScrollElement, opts.sticky, isSticky, snapshot.isAtBottom]);
-
-  // -- followOutput: also follow height changes (streaming content growing) --
+  // followOutput: also follow height changes (streaming content growing)
   useEffect(() => {
     if (!opts.followOutput) return;
 
@@ -332,18 +379,11 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       const result = opts.followOutput!(true);
       if (result === false) return;
 
-      const el = opts.getScrollElement();
-      if (!el) return;
-
-      // Only scroll if we're actually behind
-      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (gap > 1) {
-        el.scrollTo({ top: el.scrollHeight, behavior: result });
-      }
+      scheduleAutoScroll(result);
     });
 
     return unsub;
-  }, [list, opts.followOutput, opts.getScrollElement, opts.sticky]);
+  }, [list, opts.followOutput, opts.sticky, scheduleAutoScroll]);
 
   const { items: snapshotItems } = snapshot;
   const lastItem = snapshotItems[snapshotItems.length - 1];

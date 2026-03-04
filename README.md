@@ -25,3 +25,4 @@ cd agents && pnpm test  # agent-specific tests
 ```
 
 hello world
+pineapple

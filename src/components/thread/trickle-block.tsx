@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Brain } from "lucide-react";
 import { ChevronRight } from "lucide-react";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -16,7 +17,7 @@ interface TrickleBlockProps {
  * Wraps a streaming block with the trickle text hook,
  * giving each block its own independent character-reveal animation.
  */
-export function TrickleBlock({ block, isLast, workingDirectory }: TrickleBlockProps) {
+export const TrickleBlock = memo(function TrickleBlock({ block, isLast, workingDirectory }: TrickleBlockProps) {
   const prefersReduced = useReducedMotion();
   const displayedContent = useTrickleText(block.content, isLast, {
     enabled: !prefersReduced,
@@ -48,4 +49,4 @@ export function TrickleBlock({ block, isLast, workingDirectory }: TrickleBlockPr
       workingDirectory={workingDirectory}
     />
   );
-}
+});

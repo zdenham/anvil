@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from "react";
+import { memo, useMemo, useRef, type MutableRefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -44,6 +44,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   onFileClick,
 }: MarkdownRendererProps) {
   const resolvedWorkingDirectory = workingDirectory;
+
+  // Use ref for isStreaming so the components useMemo stays stable across streaming toggles.
+  // CodeBlock already ignores this prop, but we keep it for API compat.
+  const isStreamingRef = useRef(isStreaming) as MutableRefObject<boolean | undefined>;
+  isStreamingRef.current = isStreaming;
 
   // Track code block index for stable keys within a render
   const codeBlockIndexRef = useRef(0);
@@ -103,7 +108,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
           key={stableKey}
           code={codeString}
           language={language}
-          isStreaming={isStreaming}
+          isStreaming={isStreamingRef.current}
         />
       );
     },
@@ -196,7 +201,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     td: ({ children }: { children?: React.ReactNode }) => (
       <td className="px-2 py-1.5 text-zinc-400">{children}</td>
     ),
-  }), [isStreaming, resolvedWorkingDirectory, onFileClick]);
+  }), [resolvedWorkingDirectory, onFileClick]);
 
   // Pre-process content to auto-link bare file paths in text
   const processedContent = useMemo(

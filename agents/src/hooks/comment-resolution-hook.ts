@@ -55,14 +55,14 @@ export function createCommentResolutionHook(deps: CommentHookDeps) {
       });
     }
 
-    // Rewrite command to a harmless echo — agent sees success
+    // Deny the command (prevents any Bash execution) but with a success reason
+    // so the agent understands the comments were resolved, not that something failed.
     return {
+      reason: `Resolved ${ids.length} comment(s): ${ids.join(", ")}. Comments have been marked as resolved internally — no Bash execution needed.`,
       hookSpecificOutput: {
         hookEventName: "PreToolUse" as const,
-        permissionDecision: "allow" as const,
-        updatedInput: {
-          command: `echo "Resolved ${ids.length} comment(s): ${ids.join(", ")}"`,
-        },
+        permissionDecision: "deny" as const,
+        permissionDecisionReason: `Successfully resolved ${ids.length} comment(s). This is a virtual command handled by the system.`,
       },
     };
   };

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type {
   MessageParam,
   ContentBlock,
@@ -34,7 +35,7 @@ interface AssistantMessageProps {
  * Container for a single assistant turn.
  * Renders mixed content: text, thinking, tool use.
  */
-export function AssistantMessage({
+export const AssistantMessage = memo(function AssistantMessage({
   messages,
   messageIndex,
   isStreaming = false,
@@ -204,4 +205,4 @@ export function AssistantMessage({
     </article>
     </WorkspaceRootProvider>
   );
-}
+});

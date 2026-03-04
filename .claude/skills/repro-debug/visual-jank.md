@@ -15,9 +15,12 @@ await page.addInitScript(() => {
     flags: number;
   }> = [];
 
-  // Chain onto existing hook if react-refresh already installed one
+  // Chain onto existing hook if react-refresh already installed one.
+  // IMPORTANT: `renderers: new Map()` is required — Vite's react-refresh
+  // preamble calls `hook.renderers.forEach(...)` and crashes if missing.
   const existing = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
   const hook = existing ?? {
+    renderers: new Map(),
     supportsFiber: true,
     inject() { return 1; },
     onCommitFiberRoot() {},

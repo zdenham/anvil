@@ -102,26 +102,3 @@ export interface CollapsedRegion {
   kind: "unchanged" | "added" | "deleted";
 }
 
-// ============================================================================
-// Component Props Types (from Phase 4)
-// ============================================================================
-
-export interface DiffViewerProps {
-  /** File changes keyed by path */
-  fileChanges: Map<string, FileChangeData>;
-  /** Full file contents keyed by path */
-  fullFileContents: Record<string, string[]>;
-  /** Working directory for the repository */
-  workingDirectory: string;
-  /** Optional custom priority function */
-  priorityFn?: (file: ParsedDiffFile) => number;
-}
-
-export interface FileChangeData {
-  /** The raw diff content */
-  diff: string;
-  /** Operation type */
-  operation: "create" | "modify" | "delete" | "rename";
-  /** Old path for renamed files */
-  oldPath?: string;
-}
