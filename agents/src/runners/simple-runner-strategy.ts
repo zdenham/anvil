@@ -232,6 +232,9 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         case "--skip-naming":
           config.skipNaming = true;
           break;
+        case "--message-id":
+          config.messageId = args[++i];
+          break;
         // Ignore deprecated arguments for backwards compatibility
         case "--worktree-renamed":
           // Deprecated: now read from disk instead of CLI arg

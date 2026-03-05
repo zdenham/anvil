@@ -32,7 +32,7 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
     data: { type: "tab-bar", groupId },
   });
 
-  const handleNewTab = useCallback(() => {
+  const handleNewTab = useCallback(async () => {
     if (!repoId || !worktreeId) {
       // No worktree available — fall back to empty tab
       logger.warn("[TabBar] No MRU worktree available, opening empty tab");
@@ -41,11 +41,12 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
     }
 
     const threadId = crypto.randomUUID();
-    threadService.createOptimistic({
+    // create() persists to disk AND updates the store, so the thread is archivable
+    await threadService.create({
       id: threadId,
       repoId,
       worktreeId,
-      status: "idle",
+      prompt: "",
     });
     paneLayoutService.openTab(
       { type: "thread", threadId, autoFocus: true },

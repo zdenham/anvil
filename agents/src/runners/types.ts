@@ -28,6 +28,8 @@ export interface RunnerConfig {
   permissionMode?: PermissionModeId;
   /** Skip worktree and thread naming (used by setup threads that shouldn't influence names) */
   skipNaming?: boolean;
+  /** Frontend-generated message ID for the user prompt (ensures ID consistency across INIT) */
+  messageId?: string;
 }
 
 /**

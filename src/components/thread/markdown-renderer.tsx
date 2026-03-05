@@ -201,6 +201,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     td: ({ children }: { children?: React.ReactNode }) => (
       <td className="px-2 py-1.5 text-zinc-400">{children}</td>
     ),
+
+    // Horizontal rule
+    hr: () => (
+      <hr className="border-t border-dashed border-surface-700 my-3" />
+    ),
   }), [resolvedWorkingDirectory, onFileClick]);
 
   // Pre-process content to auto-link bare file paths in text

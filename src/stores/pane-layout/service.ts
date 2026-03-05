@@ -84,23 +84,33 @@ export const paneLayoutService = {
     const group = store.groups[groupId];
     if (!group) return;
 
+    const groupCount = Object.keys(store.groups).length;
+    const isLastTabInLastGroup = group.tabs.length === 1 && groupCount <= 1;
+
+    if (isLastTabInLastGroup) {
+      store._applySetTabView(groupId, tabId, { type: "empty" });
+      await persistState();
+      return;
+    }
+
     store._applyCloseTab(groupId, tabId);
     const updatedGroup = usePaneLayoutStore.getState().groups[groupId];
 
-    // If group is now empty, remove group and collapse split
     if (!updatedGroup || updatedGroup.tabs.length === 0) {
       await this._removeEmptyGroup(groupId);
     }
     await persistState();
   },
 
-  /** Removes an empty group and collapses its parent split. Resets to default if last group. */
+  /** Removes an empty group and collapses its parent split. Resets to default if last group.
+   *  Note: closeTab guards against this for the last-tab-in-last-group case (switches to empty view).
+   *  This reset path is a fallback for edge cases like split cleanup. */
   async _removeEmptyGroup(groupId: string): Promise<void> {
     const store = usePaneLayoutStore.getState();
     const groupCount = Object.keys(store.groups).length;
 
     if (groupCount <= 1) {
-      // Last group: reset to default
+      // Fallback: last group reset (closeTab normally handles this via empty-view transition)
       const defaults = createDefaultState();
       store.hydrate(defaults);
       return;

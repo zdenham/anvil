@@ -147,6 +147,7 @@ export interface BlockDelta {
   index: number;
   type: "text" | "thinking";
   append: string;
+  blockId?: string;
 }
 
 /**
@@ -367,6 +368,7 @@ export type ToolExecutionState = z.infer<typeof ToolExecutionStateSchema>;
  */
 export interface RenderContentBlock {
   type: "text" | "thinking";
+  id?: string;
   text?: string;
   thinking?: string;
   isStreaming?: boolean;

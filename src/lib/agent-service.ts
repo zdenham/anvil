@@ -550,6 +550,8 @@ export interface SpawnSimpleAgentOptions {
   permissionMode?: PermissionModeId;
   /** Skip worktree/thread naming (for setup threads) */
   skipNaming?: boolean;
+  /** Frontend-generated message ID for the user prompt (ensures ID consistency across INIT) */
+  messageId?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -620,6 +622,7 @@ const SpawnOptionsSchema = z.object({
   sourcePath: z.string(),
   permissionMode: z.enum(["plan", "implement", "approve"]).optional(),
   skipNaming: z.boolean().optional(),
+  messageId: z.string().uuid("messageId must be a valid UUID").optional(),
 });
 
 /**
@@ -736,6 +739,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     "--mort-dir", mortDir,
     ...(parsed.permissionMode ? ["--permission-mode", parsed.permissionMode] : []),
     ...(parsed.skipNaming ? ["--skip-naming"] : []),
+    ...(parsed.messageId ? ["--message-id", parsed.messageId] : []),
   ];
 
   // Build diagnostic logging env var from current settings
@@ -859,6 +863,7 @@ export async function resumeSimpleAgent(
   threadId: string,
   prompt: string,
   sourcePath: string,
+  messageId?: string,
 ): Promise<void> {
   const resumeStartTime = Date.now();
   logger.info("[agent-service] resumeSimpleAgent", {
@@ -904,6 +909,7 @@ export async function resumeSimpleAgent(
     "--mort-dir", mortDir,
     "--history-file", stateFilePath,
     ...(permissionMode ? ["--permission-mode", permissionMode] : []),
+    ...(messageId ? ["--message-id", messageId] : []),
   ];
 
   // Build diagnostic logging env var from current settings

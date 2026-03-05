@@ -100,10 +100,10 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
         onClick={handleClick}
         onAuxClick={handleAuxClick}
         className={cn(
-          "group relative flex items-center gap-1.5 px-2.5 pt-[10px] pb-[9px] w-[160px] flex-shrink-0 text-xs font-medium transition-[color] duration-150",
+          "group relative flex items-center gap-1.5 px-2.5 pt-[10px] pb-[10px] w-[160px] flex-shrink-0 text-xs font-medium transition-[color] duration-150",
           "border-r border-surface-700",
           isActive
-            ? "border-t bg-surface-900 text-surface-300 border-b border-b-surface-900"
+            ? "bg-surface-900 text-surface-300 border-b border-b-surface-900"
             : "bg-surface-900 text-surface-400 hover:text-surface-200 border-b border-b-surface-700",
           isDragging && "opacity-50",
         )}
@@ -115,7 +115,7 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
           data-testid={`tab-close-${tab.id}`}
           onClick={handleClose}
           className={cn(
-            "flex-shrink-0 p-0.5 rounded hover:bg-surface-600 transition-colors",
+            "flex-shrink-0 p-0.5 rounded cursor-pointer",
             "opacity-100",
           )}
           aria-label={`Close ${label}`}

@@ -55,6 +55,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     atBottomThreshold: 300,
     onAtBottomChange: setIsAtBottom,
     sticky: true,
+    autoScrollOnGrowth: isRunning,
   });
 
   const scrollToBottom = useCallback(() => {
@@ -106,7 +107,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
                   top: 0,
                   left: 0,
                   width: "100%",
-                  transform: `translateY(${item.start}px)`,
+                  transform: `translate3d(0, ${item.start}px, 0)`,
                 }}
               >
                 <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", item.index === 0 && "pt-12")}>

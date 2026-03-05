@@ -738,7 +738,8 @@ export const threadService = {
         invalidateThreadPathCache(id);
         const sourcePath = await findThreadPath(id);
         if (!sourcePath) {
-          logger.warn(`[threadService.archive] Thread ${id} not found on disk, skipping`);
+          logger.warn(`[threadService.archive] Thread ${id} not found on disk, removing from store`);
+          useThreadStore.getState()._applyDelete(id);
           continue;
         }
 

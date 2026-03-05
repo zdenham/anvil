@@ -10,7 +10,6 @@ import { useCallback } from "react";
 import { usePaneLayoutStore, paneLayoutService } from "@/stores/pane-layout";
 import { ContentPane } from "@/components/content-pane/content-pane";
 import { InputStoreProvider } from "@/stores/input-store";
-import { cn } from "@/lib/utils";
 import { TabBar } from "./tab-bar";
 import { DropZoneOverlay } from "./drop-zone-overlay";
 import { useDndBridge } from "./dnd-context-bridge";
@@ -52,10 +51,7 @@ export function PaneGroup({ groupId }: PaneGroupProps) {
     <div
       data-testid={`pane-group-${groupId}`}
       onClick={handleActivate}
-      className={cn(
-        "relative flex flex-col h-full overflow-hidden",
-        isActiveGroup && "ring-1 ring-accent-500/50",
-      )}
+      className="relative flex flex-col h-full overflow-hidden"
     >
       <TabBar
         groupId={groupId}

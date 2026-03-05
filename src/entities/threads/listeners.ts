@@ -140,11 +140,14 @@ export function setupThreadListeners(): void {
   // ═══════════════════════════════════════════════════════════════════════════
 
   eventBus.on(EventName.STREAM_DELTA, (payload) => {
+    if (!payload.messageId) {
+      logger.warn("[ThreadListener] stream_delta missing messageId, skipping");
+      return;
+    }
     const store = useThreadStore.getState();
-    const anthropicMessageId = payload.messageId ?? `wip-${payload.threadId}`;
     store.dispatch(payload.threadId, {
       type: "THREAD_ACTION",
-      action: { type: "STREAM_DELTA", payload: { anthropicMessageId, deltas: payload.deltas } },
+      action: { type: "STREAM_DELTA", payload: { anthropicMessageId: payload.messageId, deltas: payload.deltas } },
     });
   });
 

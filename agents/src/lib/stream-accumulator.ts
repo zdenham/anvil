@@ -6,12 +6,13 @@ import { logger } from "./logger.js";
 interface StreamBlock {
   type: "text" | "thinking";
   content: string;
+  id: string;
 }
 
 /**
  * Accumulates SDK stream deltas and emits append-only deltas via hub socket.
- * Uses event chain pattern (id + previousEventId) for gap detection.
- * First emission sends full blocks; subsequent emissions send only appended text.
+ * Each block gets a stable UUID at content_block_start.
+ * messageId is captured from message_start for WIP correlation.
  *
  * Usage:
  *   Feed each SDKPartialAssistantMessage.event into handleDelta().
@@ -22,7 +23,8 @@ export class StreamAccumulator {
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private dirty = false;
   private lastEmittedLengths: number[] = [];
-  private lastEventId: string | null = null;
+  private messageId: string | null = null;
+  private hasEmitted = false;
 
   constructor(
     private hubClient: HubClient,
@@ -31,10 +33,15 @@ export class StreamAccumulator {
   ) {}
 
   handleDelta(event: BetaRawMessageStreamEvent): void {
+    if (event.type === "message_start") {
+      this.messageId = (event as unknown as { message: { id: string } }).message.id;
+      return;
+    }
+
     if (event.type === "content_block_start") {
       const blockType = event.content_block.type;
       if (blockType === "text" || blockType === "thinking") {
-        this.blocks[event.index] = { type: blockType, content: "" };
+        this.blocks[event.index] = { type: blockType, content: "", id: nanoid() };
         this.scheduleFlush();
       }
     } else if (event.type === "content_block_delta") {
@@ -60,7 +67,8 @@ export class StreamAccumulator {
     this.blocks = [];
     this.dirty = false;
     this.lastEmittedLengths = [];
-    this.lastEventId = null;
+    this.messageId = null;
+    this.hasEmitted = false;
   }
 
   private scheduleFlush(): void {
@@ -90,58 +98,38 @@ export class StreamAccumulator {
       return;
     }
 
-    const eventId = nanoid();
+    // Compute deltas from all blocks
+    const deltas: Array<{
+      index: number;
+      type: "text" | "thinking";
+      append: string;
+      blockId: string;
+    }> = [];
 
-    if (!this.lastEventId) {
-      // First emission — send full blocks (filter undefined but preserve indices)
-      const fullBlocks: StreamBlock[] = [];
-      for (let i = 0; i < this.blocks.length; i++) {
-        const block = this.blocks[i];
-        if (!block) continue;
-        fullBlocks.push(block);
-      }
-      this.hubClient.send({
-        type: "stream_delta",
-        threadId: this.threadId,
-        id: eventId,
-        previousEventId: null,
-        deltas: [],
-        full: fullBlocks,
-      });
-      // Track emitted lengths at original indices to preserve alignment
-      this.lastEmittedLengths = this.blocks.map((b) => b?.content.length ?? 0);
-    } else {
-      // Compute deltas — iterate original indices, skip undefined entries
-      const deltas: Array<{
-        index: number;
-        type: "text" | "thinking";
-        append: string;
-      }> = [];
-      for (let i = 0; i < this.blocks.length; i++) {
-        const block = this.blocks[i];
-        if (!block) continue;
-        const prevLen = this.lastEmittedLengths[i] ?? 0;
-        const currentLen = block.content.length;
-        if (currentLen > prevLen) {
-          deltas.push({
-            index: i,
-            type: block.type,
-            append: block.content.slice(prevLen),
-          });
-        }
-      }
-      if (deltas.length > 0) {
-        this.hubClient.send({
-          type: "stream_delta",
-          threadId: this.threadId,
-          id: eventId,
-          previousEventId: this.lastEventId,
-          deltas,
+    for (let i = 0; i < this.blocks.length; i++) {
+      const block = this.blocks[i];
+      if (!block) continue;
+      const prevLen = this.lastEmittedLengths[i] ?? 0;
+      const currentLen = block.content.length;
+      if (currentLen > prevLen) {
+        deltas.push({
+          index: i,
+          type: block.type,
+          append: block.content.slice(prevLen),
+          blockId: block.id,
         });
-        this.lastEmittedLengths = this.blocks.map((b) => b?.content.length ?? 0);
       }
     }
 
-    this.lastEventId = eventId;
+    if (deltas.length > 0 || !this.hasEmitted) {
+      this.hubClient.send({
+        type: "stream_delta",
+        threadId: this.threadId,
+        messageId: this.messageId,
+        deltas,
+      });
+      this.lastEmittedLengths = this.blocks.map((b) => b?.content.length ?? 0);
+      this.hasEmitted = true;
+    }
   }
 }

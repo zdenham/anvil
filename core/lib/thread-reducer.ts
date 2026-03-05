@@ -116,17 +116,31 @@ function applyInit(payload: InitPayload): ThreadState {
 /**
  * Append or replace an assistant message.
  * If the message has an anthropicId and a streaming message with that ID exists (via idMap),
- * replace the streaming message in-place. Otherwise, append.
+ * replace the streaming message in-place, carrying forward block IDs from the WIP.
+ * Otherwise, append.
  */
 function applyAppendAssistantMessage(state: ThreadState, message: StoredMessage): ThreadState {
   const idMap = state.idMap ?? {};
   const anthropicId = message.anthropicId;
 
   if (anthropicId && idMap[anthropicId]) {
-    // Replace the streaming message in-place
     const streamingUuid = idMap[anthropicId];
+    const wipMsg = state.messages.find((m) => m.id === streamingUuid);
+    const wipBlocks = (wipMsg?.content as RenderContentBlock[]) ?? [];
+
+    // Carry forward block IDs from streaming into committed content
+    const content = Array.isArray(message.content)
+      ? (message.content as RenderContentBlock[]).map((block, i) => {
+          const wipBlock = wipBlocks[i];
+          if (wipBlock?.id && (block.type === "text" || block.type === "thinking")) {
+            return { ...block, id: wipBlock.id };
+          }
+          return block;
+        })
+      : message.content;
+
     const messages = state.messages.map((m) =>
-      m.id === streamingUuid ? { ...message, id: streamingUuid } : m,
+      m.id === streamingUuid ? { ...message, id: streamingUuid, content } : m,
     );
     return { ...state, messages };
   }
@@ -150,8 +164,7 @@ function applyStreamStart(
   // If we already have a message for this anthropicId, no-op
   if (idMap[payload.anthropicMessageId]) return state;
 
-  // Generate a stable UUID for this streaming message
-  const uuid = `stream-${payload.anthropicMessageId}`;
+  const uuid = crypto.randomUUID();
   idMap[payload.anthropicMessageId] = uuid;
 
   const wipMessage: StoredMessage = {
@@ -181,7 +194,7 @@ function applyStreamDelta(
 
   // Implicit STREAM_START if needed
   if (!idMap[payload.anthropicMessageId]) {
-    const uuid = `stream-${payload.anthropicMessageId}`;
+    const uuid = crypto.randomUUID();
     idMap[payload.anthropicMessageId] = uuid;
     messages.push({
       id: uuid,
@@ -210,8 +223,8 @@ function applyStreamDelta(
     } else {
       blocks[delta.index] =
         delta.type === "text"
-          ? { type: "text", text: delta.append, isStreaming: true }
-          : { type: "thinking", thinking: delta.append, isStreaming: true };
+          ? { type: "text", text: delta.append, isStreaming: true, id: delta.blockId }
+          : { type: "thinking", thinking: delta.append, isStreaming: true, id: delta.blockId };
     }
   }
 

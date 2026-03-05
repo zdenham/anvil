@@ -1,0 +1,3648 @@
+[
+  {
+    "id": 1,
+    "timestamp": 1772743408033,
+    "emittedAt": 1772743408032,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "event",
+    "name": "thread:created",
+    "payload": {
+      "name": "thread:created",
+      "payload": {
+        "repoId": "5ccb3140-cb46-443d-be8b-ad212d6f3fc5",
+        "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+        "worktreeId": "4e6d4a15-02b3-4ffe-b49a-50d4fdc35820"
+      },
+      "pipeline": [
+        {
+          "seq": 2,
+          "stage": "agent:sent",
+          "ts": 1772743408032
+        },
+        {
+          "seq": 2,
+          "stage": "hub:received",
+          "ts": 1772743408032
+        },
+        {
+          "seq": 2,
+          "stage": "hub:emitted",
+          "ts": 1772743408032
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "event"
+    },
+    "pipeline": [
+      {
+        "seq": 2,
+        "stage": "agent:sent",
+        "ts": 1772743408032
+      },
+      {
+        "seq": 2,
+        "stage": "hub:received",
+        "ts": 1772743408032
+      },
+      {
+        "seq": 2,
+        "stage": "hub:emitted",
+        "ts": 1772743408032
+      }
+    ],
+    "size": 468
+  },
+  {
+    "id": 2,
+    "timestamp": 1772743408046,
+    "emittedAt": 1772743408043,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[runner] Permission evaluator initialized with mode: implement",
+      "pipeline": [
+        {
+          "seq": 3,
+          "stage": "agent:sent",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 3,
+          "stage": "hub:received",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 3,
+          "stage": "hub:emitted",
+          "ts": 1772743408043
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 3,
+        "stage": "agent:sent",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 3,
+        "stage": "hub:received",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 3,
+        "stage": "hub:emitted",
+        "ts": 1772743408043
+      }
+    ],
+    "size": 370
+  },
+  {
+    "id": 3,
+    "timestamp": 1772743408047,
+    "emittedAt": 1772743408043,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[runner] Signal handlers registered for SIGTERM and SIGINT",
+      "pipeline": [
+        {
+          "seq": 4,
+          "stage": "agent:sent",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 4,
+          "stage": "hub:received",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 4,
+          "stage": "hub:emitted",
+          "ts": 1772743408043
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 4,
+        "stage": "agent:sent",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 4,
+        "stage": "hub:received",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 4,
+        "stage": "hub:emitted",
+        "ts": 1772743408043
+      }
+    ],
+    "size": 366
+  },
+  {
+    "id": 4,
+    "timestamp": 1772743408048,
+    "emittedAt": 1772743408043,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[runner] Loading prior state from none",
+      "pipeline": [
+        {
+          "seq": 5,
+          "stage": "agent:sent",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 5,
+          "stage": "hub:received",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 5,
+          "stage": "hub:emitted",
+          "ts": 1772743408043
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 5,
+        "stage": "agent:sent",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 5,
+        "stage": "hub:received",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 5,
+        "stage": "hub:emitted",
+        "ts": 1772743408043
+      }
+    ],
+    "size": 346
+  },
+  {
+    "id": 5,
+    "timestamp": 1772743408049,
+    "emittedAt": 1772743408043,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[runner] Network debug enabled, starting proxy interceptor",
+      "pipeline": [
+        {
+          "seq": 6,
+          "stage": "agent:sent",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 6,
+          "stage": "hub:received",
+          "ts": 1772743408043
+        },
+        {
+          "seq": 6,
+          "stage": "hub:emitted",
+          "ts": 1772743408043
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 6,
+        "stage": "agent:sent",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 6,
+        "stage": "hub:received",
+        "ts": 1772743408043
+      },
+      {
+        "seq": 6,
+        "stage": "hub:emitted",
+        "ts": 1772743408043
+      }
+    ],
+    "size": 366
+  },
+  {
+    "id": 6,
+    "timestamp": 1772743408073,
+    "emittedAt": 1772743408071,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[cert-manager] Loaded existing CA certificate",
+      "pipeline": [
+        {
+          "seq": 7,
+          "stage": "agent:sent",
+          "ts": 1772743408071
+        },
+        {
+          "seq": 7,
+          "stage": "hub:received",
+          "ts": 1772743408071
+        },
+        {
+          "seq": 7,
+          "stage": "hub:emitted",
+          "ts": 1772743408071
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 7,
+        "stage": "agent:sent",
+        "ts": 1772743408071
+      },
+      {
+        "seq": 7,
+        "stage": "hub:received",
+        "ts": 1772743408071
+      },
+      {
+        "seq": 7,
+        "stage": "hub:emitted",
+        "ts": 1772743408071
+      }
+    ],
+    "size": 353
+  },
+  {
+    "id": 7,
+    "timestamp": 1772743408074,
+    "emittedAt": 1772743408072,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[proxy-server] Listening on 127.0.0.1:64585",
+      "pipeline": [
+        {
+          "seq": 8,
+          "stage": "agent:sent",
+          "ts": 1772743408072
+        },
+        {
+          "seq": 8,
+          "stage": "hub:received",
+          "ts": 1772743408072
+        },
+        {
+          "seq": 8,
+          "stage": "hub:emitted",
+          "ts": 1772743408072
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 8,
+        "stage": "agent:sent",
+        "ts": 1772743408072
+      },
+      {
+        "seq": 8,
+        "stage": "hub:received",
+        "ts": 1772743408072
+      },
+      {
+        "seq": 8,
+        "stage": "hub:emitted",
+        "ts": 1772743408072
+      }
+    ],
+    "size": 351
+  },
+  {
+    "id": 8,
+    "timestamp": 1772743408075,
+    "emittedAt": 1772743408072,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[runner] Network proxy active on port 64585",
+      "pipeline": [
+        {
+          "seq": 9,
+          "stage": "agent:sent",
+          "ts": 1772743408072
+        },
+        {
+          "seq": 9,
+          "stage": "hub:received",
+          "ts": 1772743408072
+        },
+        {
+          "seq": 9,
+          "stage": "hub:emitted",
+          "ts": 1772743408072
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 9,
+        "stage": "agent:sent",
+        "ts": 1772743408072
+      },
+      {
+        "seq": 9,
+        "stage": "hub:received",
+        "ts": 1772743408072
+      },
+      {
+        "seq": 9,
+        "stage": "hub:emitted",
+        "ts": 1772743408072
+      }
+    ],
+    "size": 351
+  },
+  {
+    "id": 9,
+    "timestamp": 1772743408076,
+    "emittedAt": 1772743408072,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[runAgentLoop] Starting {\"priorMessages\":0,\"toolStates\":0,\"resuming\":false}",
+      "pipeline": [
+        {
+          "seq": 10,
+          "stage": "agent:sent",
+          "ts": 1772743408072
+        },
+        {
+          "seq": 10,
+          "stage": "hub:received",
+          "ts": 1772743408072
+        },
+        {
+          "seq": 10,
+          "stage": "hub:emitted",
+          "ts": 1772743408072
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 10,
+        "stage": "agent:sent",
+        "ts": 1772743408072
+      },
+      {
+        "seq": 10,
+        "stage": "hub:received",
+        "ts": 1772743408072
+      },
+      {
+        "seq": 10,
+        "stage": "hub:emitted",
+        "ts": 1772743408072
+      }
+    ],
+    "size": 392
+  },
+  {
+    "id": 10,
+    "timestamp": 1772743408077,
+    "emittedAt": 1772743408073,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "thread:lifecycle",
+    "source": "runAgentLoop:lifecycle",
+    "payload": {
+      "event": "thread:lifecycle",
+      "pipeline": [
+        {
+          "seq": 11,
+          "stage": "agent:sent",
+          "ts": 1772743408073
+        },
+        {
+          "seq": 11,
+          "stage": "hub:received",
+          "ts": 1772743408073
+        }
+      ],
+      "properties": {
+        "transition": "started"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "runAgentLoop:lifecycle",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 11,
+        "stage": "agent:sent",
+        "ts": 1772743408073
+      },
+      {
+        "seq": 11,
+        "stage": "hub:received",
+        "ts": 1772743408073
+      }
+    ],
+    "size": 332
+  },
+  {
+    "id": 11,
+    "timestamp": 1772743408078,
+    "emittedAt": 1772743408073,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "messages": [],
+          "workingDirectory": "/Users/zac/Documents/juice/mort/mortician"
+        },
+        "type": "INIT"
+      },
+      "pipeline": [
+        {
+          "seq": 12,
+          "stage": "agent:sent",
+          "ts": 1772743408073
+        },
+        {
+          "seq": 12,
+          "stage": "hub:received",
+          "ts": 1772743408073
+        },
+        {
+          "seq": 12,
+          "stage": "hub:emitted",
+          "ts": 1772743408073
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 12,
+        "stage": "agent:sent",
+        "ts": 1772743408073
+      },
+      {
+        "seq": 12,
+        "stage": "hub:received",
+        "ts": 1772743408073
+      },
+      {
+        "seq": 12,
+        "stage": "hub:emitted",
+        "ts": 1772743408073
+      }
+    ],
+    "size": 407
+  },
+  {
+    "id": 12,
+    "timestamp": 1772743408080,
+    "emittedAt": 1772743408074,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "content": "Can you read three files and then summarize them in a haiku use your discretion pick random files",
+          "id": "V_GZu5GxYGHInF6GJEMBq"
+        },
+        "type": "APPEND_USER_MESSAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 13,
+          "stage": "agent:sent",
+          "ts": 1772743408074
+        },
+        {
+          "seq": 13,
+          "stage": "hub:received",
+          "ts": 1772743408074
+        },
+        {
+          "seq": 13,
+          "stage": "hub:emitted",
+          "ts": 1772743408074
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 13,
+        "stage": "agent:sent",
+        "ts": 1772743408074
+      },
+      {
+        "seq": 13,
+        "stage": "hub:received",
+        "ts": 1772743408074
+      },
+      {
+        "seq": 13,
+        "stage": "hub:emitted",
+        "ts": 1772743408074
+      }
+    ],
+    "size": 484
+  },
+  {
+    "id": 13,
+    "timestamp": 1772743408682,
+    "emittedAt": 1772743408681,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[runAgentLoop] Using message stream for queued message support",
+      "pipeline": [
+        {
+          "seq": 14,
+          "stage": "agent:sent",
+          "ts": 1772743408681
+        },
+        {
+          "seq": 14,
+          "stage": "hub:received",
+          "ts": 1772743408681
+        },
+        {
+          "seq": 14,
+          "stage": "hub:emitted",
+          "ts": 1772743408681
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 14,
+        "stage": "agent:sent",
+        "ts": 1772743408681
+      },
+      {
+        "seq": 14,
+        "stage": "hub:received",
+        "ts": 1772743408681
+      },
+      {
+        "seq": 14,
+        "stage": "hub:emitted",
+        "ts": 1772743408681
+      }
+    ],
+    "size": 373
+  },
+  {
+    "id": 14,
+    "timestamp": 1772743409432,
+    "emittedAt": 1772743409432,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "event",
+    "name": "thread:name:generated",
+    "payload": {
+      "name": "thread:name:generated",
+      "payload": {
+        "name": "read three files and summarize in haiku",
+        "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876"
+      },
+      "pipeline": [
+        {
+          "seq": 15,
+          "stage": "agent:sent",
+          "ts": 1772743409432
+        },
+        {
+          "seq": 15,
+          "stage": "hub:received",
+          "ts": 1772743409432
+        },
+        {
+          "seq": 15,
+          "stage": "hub:emitted",
+          "ts": 1772743409432
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "event"
+    },
+    "pipeline": [
+      {
+        "seq": 15,
+        "stage": "agent:sent",
+        "ts": 1772743409432
+      },
+      {
+        "seq": 15,
+        "stage": "hub:received",
+        "ts": 1772743409432
+      },
+      {
+        "seq": 15,
+        "stage": "hub:emitted",
+        "ts": 1772743409432
+      }
+    ],
+    "size": 427
+  },
+  {
+    "id": 15,
+    "timestamp": 1772743409647,
+    "emittedAt": 1772743409646,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[MessageHandler] Session started: f06aa6d2-9b2b-4bd3-8000-56aaeb074889",
+      "pipeline": [
+        {
+          "seq": 34,
+          "stage": "agent:sent",
+          "ts": 1772743409646
+        },
+        {
+          "seq": 34,
+          "stage": "hub:received",
+          "ts": 1772743409646
+        },
+        {
+          "seq": 34,
+          "stage": "hub:emitted",
+          "ts": 1772743409646
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 34,
+        "stage": "agent:sent",
+        "ts": 1772743409646
+      },
+      {
+        "seq": 34,
+        "stage": "hub:received",
+        "ts": 1772743409646
+      },
+      {
+        "seq": 34,
+        "stage": "hub:emitted",
+        "ts": 1772743409646
+      }
+    ],
+    "size": 381
+  },
+  {
+    "id": 16,
+    "timestamp": 1772743409649,
+    "emittedAt": 1772743409646,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "sessionId": "f06aa6d2-9b2b-4bd3-8000-56aaeb074889"
+        },
+        "type": "SET_SESSION_ID"
+      },
+      "pipeline": [
+        {
+          "seq": 35,
+          "stage": "agent:sent",
+          "ts": 1772743409646
+        },
+        {
+          "seq": 35,
+          "stage": "hub:received",
+          "ts": 1772743409646
+        },
+        {
+          "seq": 35,
+          "stage": "hub:emitted",
+          "ts": 1772743409646
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 35,
+        "stage": "agent:sent",
+        "ts": 1772743409646
+      },
+      {
+        "seq": 35,
+        "stage": "hub:received",
+        "ts": 1772743409646
+      },
+      {
+        "seq": 35,
+        "stage": "hub:emitted",
+        "ts": 1772743409646
+      }
+    ],
+    "size": 391
+  },
+  {
+    "id": 17,
+    "timestamp": 1772743412217,
+    "emittedAt": 1772743412216,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "stream_delta",
+    "payload": {
+      "deltas": [],
+      "full": [
+        {
+          "content": "The user wants me to read",
+          "type": "thinking"
+        }
+      ],
+      "id": "VkrMIoUU2JzUUp072gAYp",
+      "pipeline": [
+        {
+          "seq": 40,
+          "stage": "agent:sent",
+          "ts": 1772743412216
+        },
+        {
+          "seq": 40,
+          "stage": "hub:received",
+          "ts": 1772743412216
+        },
+        {
+          "seq": 40,
+          "stage": "hub:emitted",
+          "ts": 1772743412216
+        }
+      ],
+      "previousEventId": null,
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "stream_delta"
+    },
+    "pipeline": [
+      {
+        "seq": 40,
+        "stage": "agent:sent",
+        "ts": 1772743412216
+      },
+      {
+        "seq": 40,
+        "stage": "hub:received",
+        "ts": 1772743412216
+      },
+      {
+        "seq": 40,
+        "stage": "hub:emitted",
+        "ts": 1772743412216
+      }
+    ],
+    "size": 423
+  },
+  {
+    "id": 18,
+    "timestamp": 1772743412603,
+    "emittedAt": 1772743412602,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "stream_delta",
+    "payload": {
+      "deltas": [
+        {
+          "append": " three random files from the codebase and summarize them in a haiku. Let me pick three interesting-",
+          "index": 0,
+          "type": "thinking"
+        }
+      ],
+      "id": "qTWqjIwCnDyEIauDDymG0",
+      "pipeline": [
+        {
+          "seq": 45,
+          "stage": "agent:sent",
+          "ts": 1772743412602
+        },
+        {
+          "seq": 45,
+          "stage": "hub:received",
+          "ts": 1772743412602
+        },
+        {
+          "seq": 45,
+          "stage": "hub:emitted",
+          "ts": 1772743412602
+        }
+      ],
+      "previousEventId": "VkrMIoUU2JzUUp072gAYp",
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "stream_delta"
+    },
+    "pipeline": [
+      {
+        "seq": 45,
+        "stage": "agent:sent",
+        "ts": 1772743412602
+      },
+      {
+        "seq": 45,
+        "stage": "hub:received",
+        "ts": 1772743412602
+      },
+      {
+        "seq": 45,
+        "stage": "hub:emitted",
+        "ts": 1772743412602
+      }
+    ],
+    "size": 515
+  },
+  {
+    "id": 19,
+    "timestamp": 1772743412787,
+    "emittedAt": 1772743412786,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "heartbeat",
+    "payload": {
+      "pipeline": [
+        {
+          "seq": 46,
+          "stage": "agent:sent",
+          "ts": 1772743412786
+        },
+        {
+          "seq": 46,
+          "stage": "hub:received",
+          "ts": 1772743412786
+        },
+        {
+          "seq": 46,
+          "stage": "hub:emitted",
+          "ts": 1772743412786
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "timestamp": 1772743412786,
+      "type": "heartbeat"
+    },
+    "pipeline": [
+      {
+        "seq": 46,
+        "stage": "agent:sent",
+        "ts": 1772743412786
+      },
+      {
+        "seq": 46,
+        "stage": "hub:received",
+        "ts": 1772743412786
+      },
+      {
+        "seq": 46,
+        "stage": "hub:emitted",
+        "ts": 1772743412786
+      }
+    ],
+    "size": 315
+  },
+  {
+    "id": 20,
+    "timestamp": 1772743413167,
+    "emittedAt": 1772743413166,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "usage": {
+            "cacheCreationTokens": 6186,
+            "cacheReadTokens": 20250,
+            "inputTokens": 3,
+            "outputTokens": 14
+          }
+        },
+        "type": "UPDATE_USAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 52,
+          "stage": "agent:sent",
+          "ts": 1772743413166
+        },
+        {
+          "seq": 52,
+          "stage": "hub:received",
+          "ts": 1772743413166
+        },
+        {
+          "seq": 52,
+          "stage": "hub:emitted",
+          "ts": 1772743413166
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 52,
+        "stage": "agent:sent",
+        "ts": 1772743413166
+      },
+      {
+        "seq": 52,
+        "stage": "hub:received",
+        "ts": 1772743413166
+      },
+      {
+        "seq": 52,
+        "stage": "hub:emitted",
+        "ts": 1772743413166
+      }
+    ],
+    "size": 433
+  },
+  {
+    "id": 21,
+    "timestamp": 1772743413176,
+    "emittedAt": 1772743413167,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "api:call",
+    "source": "MessageHandler:api-call",
+    "payload": {
+      "event": "api:call",
+      "pipeline": [
+        {
+          "seq": 53,
+          "stage": "agent:sent",
+          "ts": 1772743413167
+        },
+        {
+          "seq": 53,
+          "stage": "hub:received",
+          "ts": 1772743413167
+        }
+      ],
+      "properties": {
+        "cacheCreationTokens": 6186,
+        "cacheHitRate": 6750,
+        "cacheReadTokens": 20250,
+        "inputTokens": 3,
+        "outputTokens": 14,
+        "stopReason": "unknown",
+        "textBlockCount": 0,
+        "thinkingBlockCount": 1,
+        "toolUseCount": 0,
+        "turnIndex": 0
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "MessageHandler:api-call",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 53,
+        "stage": "agent:sent",
+        "ts": 1772743413167
+      },
+      {
+        "seq": 53,
+        "stage": "hub:received",
+        "ts": 1772743413167
+      }
+    ],
+    "size": 503
+  },
+  {
+    "id": 22,
+    "timestamp": 1772743413178,
+    "emittedAt": 1772743413167,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "message": {
+            "anthropicId": "msg_01Mc1PUNa7D9knJtijdSVao9",
+            "content": [
+              {
+                "signature": "ErMCCkYICxgCKkDDLleFag5OLlD8QH+PTUlPOEN+jfjH2OJ69ymBuU+sy/uykLklVoCSDpod7Q3RFTFbWJC4+3ZiYPWSsEdsQrgcEgxOMkAYIbH5Qga2qfYaDNTRxOb5DAQ8/Byj6CIwdej9bbxC0QyMAZqopgKodeSEM4EQQMoOgX+VjGmKMFaNE1BT/3ySS5Kz+GTmjX12KpoBVQX6v89v85ASk/vnXdk4qxxV6bAMbsuyQ3gkA8XJITGNunuX0EwVB5b3DQZuNSy1ASS8/dLudsiBVvTfnXa9b7WXn9urQezS1vEpQXtDQ7JqHpg2BQe18rtoi1UaOvSLSplsuMer5QlDE2GrWBD70Dbw0nA5ic4WkhK16o0sKfo5pFTbmMKyWrdSm3dSxD5/2DYp86yoAne7qhgB",
+                "thinking": "The user wants me to read three random files from the codebase and summarize them in a haiku. Let me pick three interesting-looking files.",
+                "type": "thinking"
+              }
+            ],
+            "id": "Hzwy4rMgRGWOBB1ItOpBr",
+            "role": "assistant"
+          }
+        },
+        "type": "APPEND_ASSISTANT_MESSAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 54,
+          "stage": "agent:sent",
+          "ts": 1772743413167
+        },
+        {
+          "seq": 54,
+          "stage": "hub:received",
+          "ts": 1772743413168
+        },
+        {
+          "seq": 54,
+          "stage": "hub:emitted",
+          "ts": 1772743413168
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 54,
+        "stage": "agent:sent",
+        "ts": 1772743413167
+      },
+      {
+        "seq": 54,
+        "stage": "hub:received",
+        "ts": 1772743413168
+      },
+      {
+        "seq": 54,
+        "stage": "hub:emitted",
+        "ts": 1772743413168
+      }
+    ],
+    "size": 1070
+  },
+  {
+    "id": 23,
+    "timestamp": 1772743413215,
+    "emittedAt": 1772743413214,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "stream_delta",
+    "payload": {
+      "deltas": [
+        {
+          "append": "looking files.",
+          "index": 0,
+          "type": "thinking"
+        }
+      ],
+      "id": "B_8bd1SVO10_OzEz7Sno2",
+      "pipeline": [
+        {
+          "seq": 56,
+          "stage": "agent:sent",
+          "ts": 1772743413214
+        },
+        {
+          "seq": 56,
+          "stage": "hub:received",
+          "ts": 1772743413215
+        },
+        {
+          "seq": 56,
+          "stage": "hub:emitted",
+          "ts": 1772743413215
+        }
+      ],
+      "previousEventId": "qTWqjIwCnDyEIauDDymG0",
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "stream_delta"
+    },
+    "pipeline": [
+      {
+        "seq": 56,
+        "stage": "agent:sent",
+        "ts": 1772743413214
+      },
+      {
+        "seq": 56,
+        "stage": "hub:received",
+        "ts": 1772743413215
+      },
+      {
+        "seq": 56,
+        "stage": "hub:emitted",
+        "ts": 1772743413215
+      }
+    ],
+    "size": 430
+  },
+  {
+    "id": 24,
+    "timestamp": 1772743413473,
+    "emittedAt": 1772743413472,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "toolName": "Glob",
+          "toolUseId": "toolu_01M5eXScaxZtMyubPxhRjnKx"
+        },
+        "type": "MARK_TOOL_RUNNING"
+      },
+      "pipeline": [
+        {
+          "seq": 63,
+          "stage": "agent:sent",
+          "ts": 1772743413472
+        },
+        {
+          "seq": 63,
+          "stage": "hub:received",
+          "ts": 1772743413472
+        },
+        {
+          "seq": 63,
+          "stage": "hub:emitted",
+          "ts": 1772743413472
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 63,
+        "stage": "agent:sent",
+        "ts": 1772743413472
+      },
+      {
+        "seq": 63,
+        "stage": "hub:received",
+        "ts": 1772743413472
+      },
+      {
+        "seq": 63,
+        "stage": "hub:emitted",
+        "ts": 1772743413472
+      }
+    ],
+    "size": 406
+  },
+  {
+    "id": 25,
+    "timestamp": 1772743413478,
+    "emittedAt": 1772743413473,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "usage": {
+            "cacheCreationTokens": 6186,
+            "cacheReadTokens": 20250,
+            "inputTokens": 3,
+            "outputTokens": 14
+          }
+        },
+        "type": "UPDATE_USAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 64,
+          "stage": "agent:sent",
+          "ts": 1772743413473
+        },
+        {
+          "seq": 64,
+          "stage": "hub:received",
+          "ts": 1772743413473
+        },
+        {
+          "seq": 64,
+          "stage": "hub:emitted",
+          "ts": 1772743413473
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 64,
+        "stage": "agent:sent",
+        "ts": 1772743413473
+      },
+      {
+        "seq": 64,
+        "stage": "hub:received",
+        "ts": 1772743413473
+      },
+      {
+        "seq": 64,
+        "stage": "hub:emitted",
+        "ts": 1772743413473
+      }
+    ],
+    "size": 433
+  },
+  {
+    "id": 26,
+    "timestamp": 1772743413486,
+    "emittedAt": 1772743413474,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "api:call",
+    "source": "MessageHandler:api-call",
+    "payload": {
+      "event": "api:call",
+      "pipeline": [
+        {
+          "seq": 65,
+          "stage": "agent:sent",
+          "ts": 1772743413474
+        },
+        {
+          "seq": 65,
+          "stage": "hub:received",
+          "ts": 1772743413474
+        }
+      ],
+      "properties": {
+        "cacheCreationTokens": 6186,
+        "cacheHitRate": 6750,
+        "cacheReadTokens": 20250,
+        "inputTokens": 3,
+        "outputTokens": 14,
+        "stopReason": "unknown",
+        "textBlockCount": 0,
+        "thinkingBlockCount": 0,
+        "toolUseCount": 1,
+        "turnIndex": 1
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "MessageHandler:api-call",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 65,
+        "stage": "agent:sent",
+        "ts": 1772743413474
+      },
+      {
+        "seq": 65,
+        "stage": "hub:received",
+        "ts": 1772743413474
+      }
+    ],
+    "size": 503
+  },
+  {
+    "id": 27,
+    "timestamp": 1772743413488,
+    "emittedAt": 1772743413474,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "message": {
+            "anthropicId": "msg_01Mc1PUNa7D9knJtijdSVao9",
+            "content": [
+              {
+                "caller": {
+                  "type": "direct"
+                },
+                "id": "toolu_01M5eXScaxZtMyubPxhRjnKx",
+                "input": {
+                  "pattern": "src/**/*.{ts,tsx}"
+                },
+                "name": "Glob",
+                "type": "tool_use"
+              }
+            ],
+            "id": "uTnrxW-TwkOKwBOYXqjbu",
+            "role": "assistant"
+          }
+        },
+        "type": "APPEND_ASSISTANT_MESSAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 66,
+          "stage": "agent:sent",
+          "ts": 1772743413474
+        },
+        {
+          "seq": 66,
+          "stage": "hub:received",
+          "ts": 1772743413474
+        },
+        {
+          "seq": 66,
+          "stage": "hub:emitted",
+          "ts": 1772743413474
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 66,
+        "stage": "agent:sent",
+        "ts": 1772743413474
+      },
+      {
+        "seq": 66,
+        "stage": "hub:received",
+        "ts": 1772743413474
+      },
+      {
+        "seq": 66,
+        "stage": "hub:emitted",
+        "ts": 1772743413474
+      }
+    ],
+    "size": 606
+  },
+  {
+    "id": 28,
+    "timestamp": 1772743413497,
+    "emittedAt": 1772743413479,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "permission:decided",
+    "source": "PreToolUse:permission",
+    "payload": {
+      "event": "permission:decided",
+      "pipeline": [
+        {
+          "seq": 67,
+          "stage": "agent:sent",
+          "ts": 1772743413479
+        },
+        {
+          "seq": 67,
+          "stage": "hub:received",
+          "ts": 1772743413479
+        }
+      ],
+      "properties": {
+        "decision": "allow",
+        "evaluationTimeMs": 0,
+        "modeId": "implement",
+        "reason": "Implement mode: \"Glob\" is not in the allowed tool list. All tools auto-approved.",
+        "toolName": "Glob",
+        "toolUseId": "toolu_01M5eXScaxZtMyubPxhRjnKx"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:permission",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 67,
+        "stage": "agent:sent",
+        "ts": 1772743413479
+      },
+      {
+        "seq": 67,
+        "stage": "hub:received",
+        "ts": 1772743413479
+      }
+    ],
+    "size": 528
+  },
+  {
+    "id": 29,
+    "timestamp": 1772743413500,
+    "emittedAt": 1772743413479,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:started",
+    "source": "PreToolUse:allow",
+    "payload": {
+      "event": "tool:started",
+      "pipeline": [
+        {
+          "seq": 68,
+          "stage": "agent:sent",
+          "ts": 1772743413479
+        },
+        {
+          "seq": 68,
+          "stage": "hub:received",
+          "ts": 1772743413479
+        }
+      ],
+      "properties": {
+        "permissionDecision": "allow",
+        "permissionReason": "Implement mode: \"Glob\" is not in the allowed tool list. All tools auto-approved.",
+        "toolInput": "{\"pattern\":\"src/**/*.{ts,tsx}\"}",
+        "toolName": "Glob",
+        "toolUseId": "toolu_01M5eXScaxZtMyubPxhRjnKx"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:allow",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 68,
+        "stage": "agent:sent",
+        "ts": 1772743413479
+      },
+      {
+        "seq": 68,
+        "stage": "hub:received",
+        "ts": 1772743413479
+      }
+    ],
+    "size": 545
+  },
+  {
+    "id": 30,
+    "timestamp": 1772743414144,
+    "emittedAt": 1772743414142,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "isError": false,
+          "result": "{\"filenames\":[\"/Users/zac/Documents/juice/mort/mortician/src/lib/utils.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/spotlight/calculator-icon.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/contexts/workspace-settings-context.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/settings/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/store.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-relative-time.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-reduced-motion.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/language-detector.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/diff-prioritizer.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/vite-env.d.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/utils/file-changes.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/slug.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/settings-store-client.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/contexts/global-error-context.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/clipboard/clipboard-preview.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/clipboard/clipboard-list.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/reusable/Input.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/workspace/workspace-sidebar.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/main-window/log-entry.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/workspace/sidebar-collapse-button.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/clipboard/clipboard-item.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/ui/mort-logo.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/workspace/tab-button.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/types/paths.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/clipboard/types.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/repo-store-client.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/types/agent-messages.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/loading-state.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/error-state.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/test/helpers/logs.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/workspace-settings-service.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/workspace/git-commits-list.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/triggers/registry.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/triggers/handlers/file-handler.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-trigger-autocomplete.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/permission-input-display.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/permissions/types.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/inline-code.ui.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/code-block-edge-cases.ui.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/use-question-keyboard.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-code-block-keyboard.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-code-block-keyboard.ui.test.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/permissions/service.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/permissions/listeners.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/permissions/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/use-permission-keyboard.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/permission-modal.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/permission-modal.ui.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/permission-inline.ui.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/use-permission-keyboard.test.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/utils/diff-extractor.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/use-tool-diff.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-status-icon.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/control-panel/queued-messages.ui.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/agent-output-parser.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/permission-ui.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/global-error-boundary.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permission/permission-indicator.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-code-highlight.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-code-highlight.ui.test.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/web-error-capture.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/spotlight/use-spotlight-history.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/reusable/Card.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/reusable/Button.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/listeners.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/permissions/PermissionsContent.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/system-message.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/global-error-view.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/stores/queued-messages-store.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/control-panel/queued-messages-banner.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/onboarding/hotkey-recorder.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/plans/use-mark-plan-as-read.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/text-block.ui.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/thread/code-block.ui.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/relations/store.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/plans/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/threads/types.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/control-panel/__tests__/plan-input-area.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/control-panel/__tests__/window-routing.test.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/components/control-panel/__tests__/exports-verification.test.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/__tests__/build-verification.test.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-thread-last-messages.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/test/factories/thread.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/test/factories/plan.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/test/factories/relation.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/test/factories/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/hooks/__tests__/use-thread-last-messages.test.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/lib/agent-state-machine.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/test/helpers/virtual-fs.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/threads/index.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/threads/utils.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/workspace/threads-list.tsx\",\"/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/types.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/test/helpers/queries.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/spotlight/types.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/stores/navigation-banner-store.ts\",\"/Users/zac/Documents/juice/mort/mortician/src/components/control-panel/navigation-banner.tsx\"],\"durationMs\":660,\"numFiles\":100,\"truncated\":true}",
+          "toolUseId": "toolu_01M5eXScaxZtMyubPxhRjnKx"
+        },
+        "type": "MARK_TOOL_COMPLETE"
+      },
+      "pipeline": [
+        {
+          "seq": 73,
+          "stage": "agent:sent",
+          "ts": 1772743414142
+        },
+        {
+          "seq": 73,
+          "stage": "hub:received",
+          "ts": 1772743414143
+        },
+        {
+          "seq": 73,
+          "stage": "hub:emitted",
+          "ts": 1772743414143
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 73,
+        "stage": "agent:sent",
+        "ts": 1772743414142
+      },
+      {
+        "seq": 73,
+        "stage": "hub:received",
+        "ts": 1772743414143
+      },
+      {
+        "seq": 73,
+        "stage": "hub:emitted",
+        "ts": 1772743414143
+      }
+    ],
+    "size": 8993
+  },
+  {
+    "id": 31,
+    "timestamp": 1772743414149,
+    "emittedAt": 1772743414142,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:completed",
+    "source": "PostToolUse:complete",
+    "payload": {
+      "event": "tool:completed",
+      "pipeline": [
+        {
+          "seq": 74,
+          "stage": "agent:sent",
+          "ts": 1772743414142
+        },
+        {
+          "seq": 74,
+          "stage": "hub:received",
+          "ts": 1772743414143
+        }
+      ],
+      "properties": {
+        "durationMs": 663,
+        "resultLength": 8368,
+        "resultTruncated": false,
+        "toolName": "Glob",
+        "toolUseId": "toolu_01M5eXScaxZtMyubPxhRjnKx"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PostToolUse:complete",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 74,
+        "stage": "agent:sent",
+        "ts": 1772743414142
+      },
+      {
+        "seq": 74,
+        "stage": "hub:received",
+        "ts": 1772743414143
+      }
+    ],
+    "size": 429
+  },
+  {
+    "id": 32,
+    "timestamp": 1772743417504,
+    "emittedAt": 1772743417504,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "toolName": "Read",
+          "toolUseId": "toolu_01Gw3oNTs8HzibJCnxe8RGKg"
+        },
+        "type": "MARK_TOOL_RUNNING"
+      },
+      "pipeline": [
+        {
+          "seq": 95,
+          "stage": "agent:sent",
+          "ts": 1772743417504
+        },
+        {
+          "seq": 95,
+          "stage": "hub:received",
+          "ts": 1772743417504
+        },
+        {
+          "seq": 95,
+          "stage": "hub:emitted",
+          "ts": 1772743417504
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 95,
+        "stage": "agent:sent",
+        "ts": 1772743417504
+      },
+      {
+        "seq": 95,
+        "stage": "hub:received",
+        "ts": 1772743417504
+      },
+      {
+        "seq": 95,
+        "stage": "hub:emitted",
+        "ts": 1772743417504
+      }
+    ],
+    "size": 406
+  },
+  {
+    "id": 33,
+    "timestamp": 1772743417511,
+    "emittedAt": 1772743417504,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "usage": {
+            "cacheCreationTokens": 2896,
+            "cacheReadTokens": 26436,
+            "inputTokens": 1,
+            "outputTokens": 25
+          }
+        },
+        "type": "UPDATE_USAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 96,
+          "stage": "agent:sent",
+          "ts": 1772743417504
+        },
+        {
+          "seq": 96,
+          "stage": "hub:received",
+          "ts": 1772743417504
+        },
+        {
+          "seq": 96,
+          "stage": "hub:emitted",
+          "ts": 1772743417504
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 96,
+        "stage": "agent:sent",
+        "ts": 1772743417504
+      },
+      {
+        "seq": 96,
+        "stage": "hub:received",
+        "ts": 1772743417504
+      },
+      {
+        "seq": 96,
+        "stage": "hub:emitted",
+        "ts": 1772743417504
+      }
+    ],
+    "size": 433
+  },
+  {
+    "id": 34,
+    "timestamp": 1772743417519,
+    "emittedAt": 1772743417505,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "api:call",
+    "source": "MessageHandler:api-call",
+    "payload": {
+      "event": "api:call",
+      "pipeline": [
+        {
+          "seq": 97,
+          "stage": "agent:sent",
+          "ts": 1772743417505
+        },
+        {
+          "seq": 97,
+          "stage": "hub:received",
+          "ts": 1772743417505
+        }
+      ],
+      "properties": {
+        "cacheCreationTokens": 2896,
+        "cacheHitRate": 26436,
+        "cacheReadTokens": 26436,
+        "inputTokens": 1,
+        "outputTokens": 25,
+        "stopReason": "unknown",
+        "textBlockCount": 0,
+        "thinkingBlockCount": 0,
+        "toolUseCount": 1,
+        "turnIndex": 2
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "MessageHandler:api-call",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 97,
+        "stage": "agent:sent",
+        "ts": 1772743417505
+      },
+      {
+        "seq": 97,
+        "stage": "hub:received",
+        "ts": 1772743417505
+      }
+    ],
+    "size": 504
+  },
+  {
+    "id": 35,
+    "timestamp": 1772743417521,
+    "emittedAt": 1772743417505,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "message": {
+            "anthropicId": "msg_01E2UfkLK3FyAh4qNa1D9hyv",
+            "content": [
+              {
+                "caller": {
+                  "type": "direct"
+                },
+                "id": "toolu_01Gw3oNTs8HzibJCnxe8RGKg",
+                "input": {
+                  "file_path": "/Users/zac/Documents/juice/mort/mortician/src/components/ui/mort-logo.tsx"
+                },
+                "name": "Read",
+                "type": "tool_use"
+              }
+            ],
+            "id": "Zamh0AEBg4LlUkhHxzJ4P",
+            "role": "assistant"
+          }
+        },
+        "type": "APPEND_ASSISTANT_MESSAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 98,
+          "stage": "agent:sent",
+          "ts": 1772743417505
+        },
+        {
+          "seq": 98,
+          "stage": "hub:received",
+          "ts": 1772743417505
+        },
+        {
+          "seq": 98,
+          "stage": "hub:emitted",
+          "ts": 1772743417505
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 98,
+        "stage": "agent:sent",
+        "ts": 1772743417505
+      },
+      {
+        "seq": 98,
+        "stage": "hub:received",
+        "ts": 1772743417505
+      },
+      {
+        "seq": 98,
+        "stage": "hub:emitted",
+        "ts": 1772743417505
+      }
+    ],
+    "size": 664
+  },
+  {
+    "id": 36,
+    "timestamp": 1772743417529,
+    "emittedAt": 1772743417506,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "permission:decided",
+    "source": "PreToolUse:permission",
+    "payload": {
+      "event": "permission:decided",
+      "pipeline": [
+        {
+          "seq": 99,
+          "stage": "agent:sent",
+          "ts": 1772743417506
+        },
+        {
+          "seq": 99,
+          "stage": "hub:received",
+          "ts": 1772743417506
+        }
+      ],
+      "properties": {
+        "decision": "allow",
+        "evaluationTimeMs": 0,
+        "modeId": "implement",
+        "reason": "Implement mode: \"Read\" is not in the allowed tool list. All tools auto-approved.",
+        "toolName": "Read",
+        "toolUseId": "toolu_01Gw3oNTs8HzibJCnxe8RGKg"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:permission",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 99,
+        "stage": "agent:sent",
+        "ts": 1772743417506
+      },
+      {
+        "seq": 99,
+        "stage": "hub:received",
+        "ts": 1772743417506
+      }
+    ],
+    "size": 528
+  },
+  {
+    "id": 37,
+    "timestamp": 1772743417532,
+    "emittedAt": 1772743417506,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:started",
+    "source": "PreToolUse:allow",
+    "payload": {
+      "event": "tool:started",
+      "pipeline": [
+        {
+          "seq": 100,
+          "stage": "agent:sent",
+          "ts": 1772743417506
+        },
+        {
+          "seq": 100,
+          "stage": "hub:received",
+          "ts": 1772743417506
+        }
+      ],
+      "properties": {
+        "permissionDecision": "allow",
+        "permissionReason": "Implement mode: \"Read\" is not in the allowed tool list. All tools auto-approved.",
+        "toolInput": "{\"file_path\":\"/Users/zac/Documents/juice/mort/mortician/src/components/ui/mort-logo.tsx\"}",
+        "toolName": "Read",
+        "toolUseId": "toolu_01Gw3oNTs8HzibJCnxe8RGKg"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:allow",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 100,
+        "stage": "agent:sent",
+        "ts": 1772743417506
+      },
+      {
+        "seq": 100,
+        "stage": "hub:received",
+        "ts": 1772743417506
+      }
+    ],
+    "size": 605
+  },
+  {
+    "id": 38,
+    "timestamp": 1772743417535,
+    "emittedAt": 1772743417510,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "isError": false,
+          "result": "{\"type\":\"text\",\"file\":{\"filePath\":\"/Users/zac/Documents/juice/mort/mortician/src/components/ui/mort-logo.tsx\",\"content\":\"interface MortLogoProps {\\n  /** Font size in pixels. Default 6 */\\n  size?: number;\\n  /** CSS color class for the logo. Default \\\"text-surface-100\\\" */\\n  className?: string;\\n}\\n\\nexport function MortLogo({ size = 6, className = \\\"text-surface-100\\\" }: MortLogoProps) {\\n  return (\\n    <pre\\n      className={`${className} select-none`}\\n      style={{\\n        fontFamily: 'SF Mono, Menlo, monospace',\\n        fontSize: `${size}px`,\\n        lineHeight: `${size}px`,\\n        transform: 'scaleY(1.25)',\\n      }}\\n    >{`  ▄▀▀▀▄\\n █ ◠◡◠ █\\n  ▀▄▄▄▀`}</pre>\\n  );\\n}\\n\",\"numLines\":23,\"startLine\":1,\"totalLines\":23}}",
+          "toolUseId": "toolu_01Gw3oNTs8HzibJCnxe8RGKg"
+        },
+        "type": "MARK_TOOL_COMPLETE"
+      },
+      "pipeline": [
+        {
+          "seq": 101,
+          "stage": "agent:sent",
+          "ts": 1772743417510
+        },
+        {
+          "seq": 101,
+          "stage": "hub:received",
+          "ts": 1772743417510
+        },
+        {
+          "seq": 101,
+          "stage": "hub:emitted",
+          "ts": 1772743417510
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 101,
+        "stage": "agent:sent",
+        "ts": 1772743417510
+      },
+      {
+        "seq": 101,
+        "stage": "hub:received",
+        "ts": 1772743417510
+      },
+      {
+        "seq": 101,
+        "stage": "hub:emitted",
+        "ts": 1772743417510
+      }
+    ],
+    "size": 1210
+  },
+  {
+    "id": 39,
+    "timestamp": 1772743417539,
+    "emittedAt": 1772743417511,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:completed",
+    "source": "PostToolUse:complete",
+    "payload": {
+      "event": "tool:completed",
+      "pipeline": [
+        {
+          "seq": 102,
+          "stage": "agent:sent",
+          "ts": 1772743417511
+        },
+        {
+          "seq": 102,
+          "stage": "hub:received",
+          "ts": 1772743417511
+        }
+      ],
+      "properties": {
+        "durationMs": 6,
+        "resultLength": 740,
+        "resultTruncated": false,
+        "toolName": "Read",
+        "toolUseId": "toolu_01Gw3oNTs8HzibJCnxe8RGKg"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PostToolUse:complete",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 102,
+        "stage": "agent:sent",
+        "ts": 1772743417511
+      },
+      {
+        "seq": 102,
+        "stage": "hub:received",
+        "ts": 1772743417511
+      }
+    ],
+    "size": 428
+  },
+  {
+    "id": 40,
+    "timestamp": 1772743417787,
+    "emittedAt": 1772743417786,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "heartbeat",
+    "payload": {
+      "pipeline": [
+        {
+          "seq": 103,
+          "stage": "agent:sent",
+          "ts": 1772743417786
+        },
+        {
+          "seq": 103,
+          "stage": "hub:received",
+          "ts": 1772743417786
+        },
+        {
+          "seq": 103,
+          "stage": "hub:emitted",
+          "ts": 1772743417786
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "timestamp": 1772743417786,
+      "type": "heartbeat"
+    },
+    "pipeline": [
+      {
+        "seq": 103,
+        "stage": "agent:sent",
+        "ts": 1772743417786
+      },
+      {
+        "seq": 103,
+        "stage": "hub:received",
+        "ts": 1772743417786
+      },
+      {
+        "seq": 103,
+        "stage": "hub:emitted",
+        "ts": 1772743417786
+      }
+    ],
+    "size": 318
+  },
+  {
+    "id": 41,
+    "timestamp": 1772743418024,
+    "emittedAt": 1772743418024,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "toolName": "Read",
+          "toolUseId": "toolu_0153Jg8ekieqWY2XNFsi6LMV"
+        },
+        "type": "MARK_TOOL_RUNNING"
+      },
+      "pipeline": [
+        {
+          "seq": 111,
+          "stage": "agent:sent",
+          "ts": 1772743418024
+        },
+        {
+          "seq": 111,
+          "stage": "hub:received",
+          "ts": 1772743418024
+        },
+        {
+          "seq": 111,
+          "stage": "hub:emitted",
+          "ts": 1772743418024
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 111,
+        "stage": "agent:sent",
+        "ts": 1772743418024
+      },
+      {
+        "seq": 111,
+        "stage": "hub:received",
+        "ts": 1772743418024
+      },
+      {
+        "seq": 111,
+        "stage": "hub:emitted",
+        "ts": 1772743418024
+      }
+    ],
+    "size": 409
+  },
+  {
+    "id": 42,
+    "timestamp": 1772743418031,
+    "emittedAt": 1772743418024,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "usage": {
+            "cacheCreationTokens": 2896,
+            "cacheReadTokens": 26436,
+            "inputTokens": 1,
+            "outputTokens": 25
+          }
+        },
+        "type": "UPDATE_USAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 112,
+          "stage": "agent:sent",
+          "ts": 1772743418024
+        },
+        {
+          "seq": 112,
+          "stage": "hub:received",
+          "ts": 1772743418024
+        },
+        {
+          "seq": 112,
+          "stage": "hub:emitted",
+          "ts": 1772743418024
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 112,
+        "stage": "agent:sent",
+        "ts": 1772743418024
+      },
+      {
+        "seq": 112,
+        "stage": "hub:received",
+        "ts": 1772743418024
+      },
+      {
+        "seq": 112,
+        "stage": "hub:emitted",
+        "ts": 1772743418024
+      }
+    ],
+    "size": 436
+  },
+  {
+    "id": 43,
+    "timestamp": 1772743418039,
+    "emittedAt": 1772743418025,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "api:call",
+    "source": "MessageHandler:api-call",
+    "payload": {
+      "event": "api:call",
+      "pipeline": [
+        {
+          "seq": 113,
+          "stage": "agent:sent",
+          "ts": 1772743418025
+        },
+        {
+          "seq": 113,
+          "stage": "hub:received",
+          "ts": 1772743418025
+        }
+      ],
+      "properties": {
+        "cacheCreationTokens": 2896,
+        "cacheHitRate": 26436,
+        "cacheReadTokens": 26436,
+        "inputTokens": 1,
+        "outputTokens": 25,
+        "stopReason": "unknown",
+        "textBlockCount": 0,
+        "thinkingBlockCount": 0,
+        "toolUseCount": 1,
+        "turnIndex": 3
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "MessageHandler:api-call",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 113,
+        "stage": "agent:sent",
+        "ts": 1772743418025
+      },
+      {
+        "seq": 113,
+        "stage": "hub:received",
+        "ts": 1772743418025
+      }
+    ],
+    "size": 506
+  },
+  {
+    "id": 44,
+    "timestamp": 1772743418042,
+    "emittedAt": 1772743418025,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "message": {
+            "anthropicId": "msg_01E2UfkLK3FyAh4qNa1D9hyv",
+            "content": [
+              {
+                "caller": {
+                  "type": "direct"
+                },
+                "id": "toolu_0153Jg8ekieqWY2XNFsi6LMV",
+                "input": {
+                  "file_path": "/Users/zac/Documents/juice/mort/mortician/src/hooks/use-relative-time.ts"
+                },
+                "name": "Read",
+                "type": "tool_use"
+              }
+            ],
+            "id": "v2mMsjb7TgF7odQujy0rq",
+            "role": "assistant"
+          }
+        },
+        "type": "APPEND_ASSISTANT_MESSAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 114,
+          "stage": "agent:sent",
+          "ts": 1772743418025
+        },
+        {
+          "seq": 114,
+          "stage": "hub:received",
+          "ts": 1772743418025
+        },
+        {
+          "seq": 114,
+          "stage": "hub:emitted",
+          "ts": 1772743418025
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 114,
+        "stage": "agent:sent",
+        "ts": 1772743418025
+      },
+      {
+        "seq": 114,
+        "stage": "hub:received",
+        "ts": 1772743418025
+      },
+      {
+        "seq": 114,
+        "stage": "hub:emitted",
+        "ts": 1772743418025
+      }
+    ],
+    "size": 666
+  },
+  {
+    "id": 45,
+    "timestamp": 1772743418049,
+    "emittedAt": 1772743418025,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "permission:decided",
+    "source": "PreToolUse:permission",
+    "payload": {
+      "event": "permission:decided",
+      "pipeline": [
+        {
+          "seq": 115,
+          "stage": "agent:sent",
+          "ts": 1772743418025
+        },
+        {
+          "seq": 115,
+          "stage": "hub:received",
+          "ts": 1772743418026
+        }
+      ],
+      "properties": {
+        "decision": "allow",
+        "evaluationTimeMs": 0,
+        "modeId": "implement",
+        "reason": "Implement mode: \"Read\" is not in the allowed tool list. All tools auto-approved.",
+        "toolName": "Read",
+        "toolUseId": "toolu_0153Jg8ekieqWY2XNFsi6LMV"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:permission",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 115,
+        "stage": "agent:sent",
+        "ts": 1772743418025
+      },
+      {
+        "seq": 115,
+        "stage": "hub:received",
+        "ts": 1772743418026
+      }
+    ],
+    "size": 530
+  },
+  {
+    "id": 46,
+    "timestamp": 1772743418052,
+    "emittedAt": 1772743418025,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:started",
+    "source": "PreToolUse:allow",
+    "payload": {
+      "event": "tool:started",
+      "pipeline": [
+        {
+          "seq": 116,
+          "stage": "agent:sent",
+          "ts": 1772743418025
+        },
+        {
+          "seq": 116,
+          "stage": "hub:received",
+          "ts": 1772743418026
+        }
+      ],
+      "properties": {
+        "permissionDecision": "allow",
+        "permissionReason": "Implement mode: \"Read\" is not in the allowed tool list. All tools auto-approved.",
+        "toolInput": "{\"file_path\":\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-relative-time.ts\"}",
+        "toolName": "Read",
+        "toolUseId": "toolu_0153Jg8ekieqWY2XNFsi6LMV"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:allow",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 116,
+        "stage": "agent:sent",
+        "ts": 1772743418025
+      },
+      {
+        "seq": 116,
+        "stage": "hub:received",
+        "ts": 1772743418026
+      }
+    ],
+    "size": 604
+  },
+  {
+    "id": 47,
+    "timestamp": 1772743418054,
+    "emittedAt": 1772743418030,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "isError": false,
+          "result": "{\"type\":\"text\",\"file\":{\"filePath\":\"/Users/zac/Documents/juice/mort/mortician/src/hooks/use-relative-time.ts\",\"content\":\"import { useState, useEffect } from \\\"react\\\";\\nimport { formatRelativeTime } from \\\"@/lib/utils/time-format\\\";\\n\\n/**\\n * Hook that returns auto-updating relative time string.\\n * Updates every 30 seconds while component is mounted.\\n */\\nexport function useRelativeTime(timestamp: number): string {\\n  const [relativeTime, setRelativeTime] = useState(() =>\\n    formatRelativeTime(timestamp)\\n  );\\n\\n  useEffect(() => {\\n    // Update immediately\\n    setRelativeTime(formatRelativeTime(timestamp));\\n\\n    // Update every 30 seconds\\n    const interval = setInterval(() => {\\n      setRelativeTime(formatRelativeTime(timestamp));\\n    }, 30000);\\n\\n    return () => clearInterval(interval);\\n  }, [timestamp]);\\n\\n  return relativeTime;\\n}\\n\",\"numLines\":27,\"startLine\":1,\"totalLines\":27}}",
+          "toolUseId": "toolu_0153Jg8ekieqWY2XNFsi6LMV"
+        },
+        "type": "MARK_TOOL_COMPLETE"
+      },
+      "pipeline": [
+        {
+          "seq": 117,
+          "stage": "agent:sent",
+          "ts": 1772743418030
+        },
+        {
+          "seq": 117,
+          "stage": "hub:received",
+          "ts": 1772743418030
+        },
+        {
+          "seq": 117,
+          "stage": "hub:emitted",
+          "ts": 1772743418030
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 117,
+        "stage": "agent:sent",
+        "ts": 1772743418030
+      },
+      {
+        "seq": 117,
+        "stage": "hub:received",
+        "ts": 1772743418030
+      },
+      {
+        "seq": 117,
+        "stage": "hub:emitted",
+        "ts": 1772743418030
+      }
+    ],
+    "size": 1386
+  },
+  {
+    "id": 48,
+    "timestamp": 1772743418058,
+    "emittedAt": 1772743418031,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:completed",
+    "source": "PostToolUse:complete",
+    "payload": {
+      "event": "tool:completed",
+      "pipeline": [
+        {
+          "seq": 118,
+          "stage": "agent:sent",
+          "ts": 1772743418031
+        },
+        {
+          "seq": 118,
+          "stage": "hub:received",
+          "ts": 1772743418031
+        }
+      ],
+      "properties": {
+        "durationMs": 6,
+        "resultLength": 912,
+        "resultTruncated": false,
+        "toolName": "Read",
+        "toolUseId": "toolu_0153Jg8ekieqWY2XNFsi6LMV"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PostToolUse:complete",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 118,
+        "stage": "agent:sent",
+        "ts": 1772743418031
+      },
+      {
+        "seq": 118,
+        "stage": "hub:received",
+        "ts": 1772743418031
+      }
+    ],
+    "size": 428
+  },
+  {
+    "id": 49,
+    "timestamp": 1772743418063,
+    "emittedAt": 1772743418062,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "toolName": "Read",
+          "toolUseId": "toolu_01GBQPJnrF13XB6mhirWv9Y6"
+        },
+        "type": "MARK_TOOL_RUNNING"
+      },
+      "pipeline": [
+        {
+          "seq": 130,
+          "stage": "agent:sent",
+          "ts": 1772743418062
+        },
+        {
+          "seq": 130,
+          "stage": "hub:received",
+          "ts": 1772743418062
+        },
+        {
+          "seq": 130,
+          "stage": "hub:emitted",
+          "ts": 1772743418062
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 130,
+        "stage": "agent:sent",
+        "ts": 1772743418062
+      },
+      {
+        "seq": 130,
+        "stage": "hub:received",
+        "ts": 1772743418062
+      },
+      {
+        "seq": 130,
+        "stage": "hub:emitted",
+        "ts": 1772743418062
+      }
+    ],
+    "size": 409
+  },
+  {
+    "id": 50,
+    "timestamp": 1772743418067,
+    "emittedAt": 1772743418063,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "usage": {
+            "cacheCreationTokens": 2896,
+            "cacheReadTokens": 26436,
+            "inputTokens": 1,
+            "outputTokens": 25
+          }
+        },
+        "type": "UPDATE_USAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 131,
+          "stage": "agent:sent",
+          "ts": 1772743418063
+        },
+        {
+          "seq": 131,
+          "stage": "hub:received",
+          "ts": 1772743418063
+        },
+        {
+          "seq": 131,
+          "stage": "hub:emitted",
+          "ts": 1772743418063
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 131,
+        "stage": "agent:sent",
+        "ts": 1772743418063
+      },
+      {
+        "seq": 131,
+        "stage": "hub:received",
+        "ts": 1772743418063
+      },
+      {
+        "seq": 131,
+        "stage": "hub:emitted",
+        "ts": 1772743418063
+      }
+    ],
+    "size": 436
+  },
+  {
+    "id": 51,
+    "timestamp": 1772743418073,
+    "emittedAt": 1772743418063,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "api:call",
+    "source": "MessageHandler:api-call",
+    "payload": {
+      "event": "api:call",
+      "pipeline": [
+        {
+          "seq": 132,
+          "stage": "agent:sent",
+          "ts": 1772743418063
+        },
+        {
+          "seq": 132,
+          "stage": "hub:received",
+          "ts": 1772743418063
+        }
+      ],
+      "properties": {
+        "cacheCreationTokens": 2896,
+        "cacheHitRate": 26436,
+        "cacheReadTokens": 26436,
+        "inputTokens": 1,
+        "outputTokens": 25,
+        "stopReason": "unknown",
+        "textBlockCount": 0,
+        "thinkingBlockCount": 0,
+        "toolUseCount": 1,
+        "turnIndex": 4
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "MessageHandler:api-call",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 132,
+        "stage": "agent:sent",
+        "ts": 1772743418063
+      },
+      {
+        "seq": 132,
+        "stage": "hub:received",
+        "ts": 1772743418063
+      }
+    ],
+    "size": 506
+  },
+  {
+    "id": 52,
+    "timestamp": 1772743418075,
+    "emittedAt": 1772743418063,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "message": {
+            "anthropicId": "msg_01E2UfkLK3FyAh4qNa1D9hyv",
+            "content": [
+              {
+                "caller": {
+                  "type": "direct"
+                },
+                "id": "toolu_01GBQPJnrF13XB6mhirWv9Y6",
+                "input": {
+                  "file_path": "/Users/zac/Documents/juice/mort/mortician/src/lib/slug.ts"
+                },
+                "name": "Read",
+                "type": "tool_use"
+              }
+            ],
+            "id": "OaPFMwb0SyrJpm5R0kO5U",
+            "role": "assistant"
+          }
+        },
+        "type": "APPEND_ASSISTANT_MESSAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 133,
+          "stage": "agent:sent",
+          "ts": 1772743418063
+        },
+        {
+          "seq": 133,
+          "stage": "hub:received",
+          "ts": 1772743418063
+        },
+        {
+          "seq": 133,
+          "stage": "hub:emitted",
+          "ts": 1772743418063
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 133,
+        "stage": "agent:sent",
+        "ts": 1772743418063
+      },
+      {
+        "seq": 133,
+        "stage": "hub:received",
+        "ts": 1772743418063
+      },
+      {
+        "seq": 133,
+        "stage": "hub:emitted",
+        "ts": 1772743418063
+      }
+    ],
+    "size": 651
+  },
+  {
+    "id": 53,
+    "timestamp": 1772743418080,
+    "emittedAt": 1772743418063,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "permission:decided",
+    "source": "PreToolUse:permission",
+    "payload": {
+      "event": "permission:decided",
+      "pipeline": [
+        {
+          "seq": 134,
+          "stage": "agent:sent",
+          "ts": 1772743418063
+        },
+        {
+          "seq": 134,
+          "stage": "hub:received",
+          "ts": 1772743418063
+        }
+      ],
+      "properties": {
+        "decision": "allow",
+        "evaluationTimeMs": 0,
+        "modeId": "implement",
+        "reason": "Implement mode: \"Read\" is not in the allowed tool list. All tools auto-approved.",
+        "toolName": "Read",
+        "toolUseId": "toolu_01GBQPJnrF13XB6mhirWv9Y6"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:permission",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 134,
+        "stage": "agent:sent",
+        "ts": 1772743418063
+      },
+      {
+        "seq": 134,
+        "stage": "hub:received",
+        "ts": 1772743418063
+      }
+    ],
+    "size": 530
+  },
+  {
+    "id": 54,
+    "timestamp": 1772743418083,
+    "emittedAt": 1772743418063,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:started",
+    "source": "PreToolUse:allow",
+    "payload": {
+      "event": "tool:started",
+      "pipeline": [
+        {
+          "seq": 135,
+          "stage": "agent:sent",
+          "ts": 1772743418063
+        },
+        {
+          "seq": 135,
+          "stage": "hub:received",
+          "ts": 1772743418064
+        }
+      ],
+      "properties": {
+        "permissionDecision": "allow",
+        "permissionReason": "Implement mode: \"Read\" is not in the allowed tool list. All tools auto-approved.",
+        "toolInput": "{\"file_path\":\"/Users/zac/Documents/juice/mort/mortician/src/lib/slug.ts\"}",
+        "toolName": "Read",
+        "toolUseId": "toolu_01GBQPJnrF13XB6mhirWv9Y6"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PreToolUse:allow",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 135,
+        "stage": "agent:sent",
+        "ts": 1772743418063
+      },
+      {
+        "seq": 135,
+        "stage": "hub:received",
+        "ts": 1772743418064
+      }
+    ],
+    "size": 589
+  },
+  {
+    "id": 55,
+    "timestamp": 1772743418087,
+    "emittedAt": 1772743418065,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "isError": false,
+          "result": "{\"type\":\"text\",\"file\":{\"filePath\":\"/Users/zac/Documents/juice/mort/mortician/src/lib/slug.ts\",\"content\":\"/**\\n * Converts a title into a URL-safe slug.\\n *\\n * @param title - The title to slugify\\n * @returns A slugified version of the title\\n */\\nexport function slugify(title: string): string {\\n  return title\\n    .toLowerCase()\\n    .replace(/[^a-z0-9\\\\s-]/g, \\\"\\\") // Remove special chars\\n    .replace(/\\\\s+/g, \\\"-\\\") // Spaces to hyphens\\n    .replace(/-+/g, \\\"-\\\") // Collapse multiple hyphens\\n    .replace(/^-|-$/g, \\\"\\\") // Trim hyphens\\n    .slice(0, 50); // Max length\\n}\\n\\n/**\\n * Resolves slug conflicts by appending a number suffix.\\n *\\n * @param baseSlug - The base slug to resolve conflicts for\\n * @param existingSlugs - Set of existing slugs to check against\\n * @returns A unique slug that doesn't conflict with existing slugs\\n */\\nexport function resolveSlugConflict(\\n  baseSlug: string,\\n  existingSlugs: Set<string>\\n): string {\\n  if (!existingSlugs.has(baseSlug)) return baseSlug;\\n\\n  let n = 1;\\n  while (existingSlugs.has(`${baseSlug}-${n}`)) {\\n    n++;\\n  }\\n  return `${baseSlug}-${n}`;\\n}\\n\",\"numLines\":36,\"startLine\":1,\"totalLines\":36}}",
+          "toolUseId": "toolu_01GBQPJnrF13XB6mhirWv9Y6"
+        },
+        "type": "MARK_TOOL_COMPLETE"
+      },
+      "pipeline": [
+        {
+          "seq": 136,
+          "stage": "agent:sent",
+          "ts": 1772743418065
+        },
+        {
+          "seq": 136,
+          "stage": "hub:received",
+          "ts": 1772743418065
+        },
+        {
+          "seq": 136,
+          "stage": "hub:emitted",
+          "ts": 1772743418065
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 136,
+        "stage": "agent:sent",
+        "ts": 1772743418065
+      },
+      {
+        "seq": 136,
+        "stage": "hub:received",
+        "ts": 1772743418065
+      },
+      {
+        "seq": 136,
+        "stage": "hub:emitted",
+        "ts": 1772743418065
+      }
+    ],
+    "size": 1670
+  },
+  {
+    "id": 56,
+    "timestamp": 1772743418091,
+    "emittedAt": 1772743418066,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "tool:completed",
+    "source": "PostToolUse:complete",
+    "payload": {
+      "event": "tool:completed",
+      "pipeline": [
+        {
+          "seq": 137,
+          "stage": "agent:sent",
+          "ts": 1772743418066
+        },
+        {
+          "seq": 137,
+          "stage": "hub:received",
+          "ts": 1772743418066
+        }
+      ],
+      "properties": {
+        "durationMs": 3,
+        "resultLength": 1175,
+        "resultTruncated": false,
+        "toolName": "Read",
+        "toolUseId": "toolu_01GBQPJnrF13XB6mhirWv9Y6"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "PostToolUse:complete",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 137,
+        "stage": "agent:sent",
+        "ts": 1772743418066
+      },
+      {
+        "seq": 137,
+        "stage": "hub:received",
+        "ts": 1772743418066
+      }
+    ],
+    "size": 429
+  },
+  {
+    "id": 57,
+    "timestamp": 1772743418096,
+    "emittedAt": 1772743418096,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "stream_delta",
+    "payload": {
+      "deltas": [],
+      "full": [],
+      "id": "qUjM-99mkfQi4HXlOrIBR",
+      "pipeline": [
+        {
+          "seq": 140,
+          "stage": "agent:sent",
+          "ts": 1772743418096
+        },
+        {
+          "seq": 140,
+          "stage": "hub:received",
+          "ts": 1772743418096
+        },
+        {
+          "seq": 140,
+          "stage": "hub:emitted",
+          "ts": 1772743418096
+        }
+      ],
+      "previousEventId": null,
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "stream_delta"
+    },
+    "pipeline": [
+      {
+        "seq": 140,
+        "stage": "agent:sent",
+        "ts": 1772743418096
+      },
+      {
+        "seq": 140,
+        "stage": "hub:received",
+        "ts": 1772743418096
+      },
+      {
+        "seq": 140,
+        "stage": "hub:emitted",
+        "ts": 1772743418096
+      }
+    ],
+    "size": 369
+  },
+  {
+    "id": 58,
+    "timestamp": 1772743420555,
+    "emittedAt": 1772743420554,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "stream_delta",
+    "payload": {
+      "deltas": [],
+      "full": [
+        {
+          "content": "A skull",
+          "type": "text"
+        }
+      ],
+      "id": "sOGvnshAMTPiKN2wFv-RW",
+      "pipeline": [
+        {
+          "seq": 153,
+          "stage": "agent:sent",
+          "ts": 1772743420554
+        },
+        {
+          "seq": 153,
+          "stage": "hub:received",
+          "ts": 1772743420554
+        },
+        {
+          "seq": 153,
+          "stage": "hub:emitted",
+          "ts": 1772743420554
+        }
+      ],
+      "previousEventId": null,
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "stream_delta"
+    },
+    "pipeline": [
+      {
+        "seq": 153,
+        "stage": "agent:sent",
+        "ts": 1772743420554
+      },
+      {
+        "seq": 153,
+        "stage": "hub:received",
+        "ts": 1772743420554
+      },
+      {
+        "seq": 153,
+        "stage": "hub:emitted",
+        "ts": 1772743420554
+      }
+    ],
+    "size": 404
+  },
+  {
+    "id": 59,
+    "timestamp": 1772743421022,
+    "emittedAt": 1772743421021,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "stream_delta",
+    "payload": {
+      "deltas": [
+        {
+          "append": " face grins bright,\ntime ticks on, words",
+          "index": 0,
+          "type": "text"
+        }
+      ],
+      "id": "eGCVIEk5h7eIi4UvExz3d",
+      "pipeline": [
+        {
+          "seq": 159,
+          "stage": "agent:sent",
+          "ts": 1772743421021
+        },
+        {
+          "seq": 159,
+          "stage": "hub:received",
+          "ts": 1772743421021
+        },
+        {
+          "seq": 159,
+          "stage": "hub:emitted",
+          "ts": 1772743421021
+        }
+      ],
+      "previousEventId": "sOGvnshAMTPiKN2wFv-RW",
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "stream_delta"
+    },
+    "pipeline": [
+      {
+        "seq": 159,
+        "stage": "agent:sent",
+        "ts": 1772743421021
+      },
+      {
+        "seq": 159,
+        "stage": "hub:received",
+        "ts": 1772743421021
+      },
+      {
+        "seq": 159,
+        "stage": "hub:emitted",
+        "ts": 1772743421021
+      }
+    ],
+    "size": 456
+  },
+  {
+    "id": 60,
+    "timestamp": 1772743422066,
+    "emittedAt": 1772743422065,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "stream_delta",
+    "payload": {
+      "deltas": [
+        {
+          "append": " become slugs—\nMort watches, patient.",
+          "index": 0,
+          "type": "text"
+        }
+      ],
+      "id": "gMOM1yzjrM_rL8YypD-1K",
+      "pipeline": [
+        {
+          "seq": 168,
+          "stage": "agent:sent",
+          "ts": 1772743422065
+        },
+        {
+          "seq": 168,
+          "stage": "hub:received",
+          "ts": 1772743422065
+        },
+        {
+          "seq": 168,
+          "stage": "hub:emitted",
+          "ts": 1772743422065
+        }
+      ],
+      "previousEventId": "eGCVIEk5h7eIi4UvExz3d",
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "stream_delta"
+    },
+    "pipeline": [
+      {
+        "seq": 168,
+        "stage": "agent:sent",
+        "ts": 1772743422065
+      },
+      {
+        "seq": 168,
+        "stage": "hub:received",
+        "ts": 1772743422065
+      },
+      {
+        "seq": 168,
+        "stage": "hub:emitted",
+        "ts": 1772743422065
+      }
+    ],
+    "size": 453
+  },
+  {
+    "id": 61,
+    "timestamp": 1772743422460,
+    "emittedAt": 1772743422459,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "usage": {
+            "cacheCreationTokens": 1300,
+            "cacheReadTokens": 29332,
+            "inputTokens": 1,
+            "outputTokens": 2
+          }
+        },
+        "type": "UPDATE_USAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 170,
+          "stage": "agent:sent",
+          "ts": 1772743422459
+        },
+        {
+          "seq": 170,
+          "stage": "hub:received",
+          "ts": 1772743422459
+        },
+        {
+          "seq": 170,
+          "stage": "hub:emitted",
+          "ts": 1772743422459
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 170,
+        "stage": "agent:sent",
+        "ts": 1772743422459
+      },
+      {
+        "seq": 170,
+        "stage": "hub:received",
+        "ts": 1772743422459
+      },
+      {
+        "seq": 170,
+        "stage": "hub:emitted",
+        "ts": 1772743422459
+      }
+    ],
+    "size": 435
+  },
+  {
+    "id": 62,
+    "timestamp": 1772743422472,
+    "emittedAt": 1772743422460,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "api:call",
+    "source": "MessageHandler:api-call",
+    "payload": {
+      "event": "api:call",
+      "pipeline": [
+        {
+          "seq": 171,
+          "stage": "agent:sent",
+          "ts": 1772743422460
+        },
+        {
+          "seq": 171,
+          "stage": "hub:received",
+          "ts": 1772743422460
+        }
+      ],
+      "properties": {
+        "cacheCreationTokens": 1300,
+        "cacheHitRate": 29332,
+        "cacheReadTokens": 29332,
+        "inputTokens": 1,
+        "outputTokens": 2,
+        "stopReason": "unknown",
+        "textBlockCount": 1,
+        "thinkingBlockCount": 0,
+        "toolUseCount": 0,
+        "turnIndex": 5
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "MessageHandler:api-call",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 171,
+        "stage": "agent:sent",
+        "ts": 1772743422460
+      },
+      {
+        "seq": 171,
+        "stage": "hub:received",
+        "ts": 1772743422460
+      }
+    ],
+    "size": 505
+  },
+  {
+    "id": 63,
+    "timestamp": 1772743422476,
+    "emittedAt": 1772743422460,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "message": {
+            "anthropicId": "msg_01RfBbMrw7mHzJB4K5w7JXBJ",
+            "content": [
+              {
+                "text": "A skull face grins bright,\ntime ticks on, words become slugs—\nMort watches, patient.",
+                "type": "text"
+              }
+            ],
+            "id": "Hewdh1sz5ZZXy5AJ7PGy2",
+            "role": "assistant"
+          }
+        },
+        "type": "APPEND_ASSISTANT_MESSAGE"
+      },
+      "pipeline": [
+        {
+          "seq": 172,
+          "stage": "agent:sent",
+          "ts": 1772743422460
+        },
+        {
+          "seq": 172,
+          "stage": "hub:received",
+          "ts": 1772743422460
+        },
+        {
+          "seq": 172,
+          "stage": "hub:emitted",
+          "ts": 1772743422460
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 172,
+        "stage": "agent:sent",
+        "ts": 1772743422460
+      },
+      {
+        "seq": 172,
+        "stage": "hub:received",
+        "ts": 1772743422460
+      },
+      {
+        "seq": 172,
+        "stage": "hub:emitted",
+        "ts": 1772743422460
+      }
+    ],
+    "size": 582
+  },
+  {
+    "id": 64,
+    "timestamp": 1772743422495,
+    "emittedAt": 1772743422494,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "thread_action",
+    "payload": {
+      "action": {
+        "payload": {
+          "metrics": {
+            "contextWindow": 200000,
+            "durationApiMs": 12153,
+            "numTurns": 5,
+            "totalCostUsd": 0.1111715
+          }
+        },
+        "type": "COMPLETE"
+      },
+      "pipeline": [
+        {
+          "seq": 176,
+          "stage": "agent:sent",
+          "ts": 1772743422494
+        },
+        {
+          "seq": 176,
+          "stage": "hub:received",
+          "ts": 1772743422494
+        },
+        {
+          "seq": 176,
+          "stage": "hub:emitted",
+          "ts": 1772743422494
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "thread_action"
+    },
+    "pipeline": [
+      {
+        "seq": 176,
+        "stage": "agent:sent",
+        "ts": 1772743422494
+      },
+      {
+        "seq": 176,
+        "stage": "hub:received",
+        "ts": 1772743422494
+      },
+      {
+        "seq": 176,
+        "stage": "hub:emitted",
+        "ts": 1772743422494
+      }
+    ],
+    "size": 432
+  },
+  {
+    "id": 65,
+    "timestamp": 1772743422502,
+    "emittedAt": 1772743422495,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "drain",
+    "name": "thread:lifecycle",
+    "source": "runAgentLoop:lifecycle",
+    "payload": {
+      "event": "thread:lifecycle",
+      "pipeline": [
+        {
+          "seq": 177,
+          "stage": "agent:sent",
+          "ts": 1772743422495
+        },
+        {
+          "seq": 177,
+          "stage": "hub:received",
+          "ts": 1772743422495
+        }
+      ],
+      "properties": {
+        "durationMs": 14423,
+        "transition": "completed"
+      },
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "source": "runAgentLoop:lifecycle",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "drain"
+    },
+    "pipeline": [
+      {
+        "seq": 177,
+        "stage": "agent:sent",
+        "ts": 1772743422495
+      },
+      {
+        "seq": 177,
+        "stage": "hub:received",
+        "ts": 1772743422495
+      }
+    ],
+    "size": 355
+  },
+  {
+    "id": 66,
+    "timestamp": 1772743422505,
+    "emittedAt": 1772743422496,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "event",
+    "name": "thread:status:changed",
+    "payload": {
+      "name": "thread:status:changed",
+      "payload": {
+        "status": "completed",
+        "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876"
+      },
+      "pipeline": [
+        {
+          "seq": 178,
+          "stage": "agent:sent",
+          "ts": 1772743422496
+        },
+        {
+          "seq": 178,
+          "stage": "hub:received",
+          "ts": 1772743422496
+        },
+        {
+          "seq": 178,
+          "stage": "hub:emitted",
+          "ts": 1772743422496
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "event"
+    },
+    "pipeline": [
+      {
+        "seq": 178,
+        "stage": "agent:sent",
+        "ts": 1772743422496
+      },
+      {
+        "seq": 178,
+        "stage": "hub:received",
+        "ts": 1772743422496
+      },
+      {
+        "seq": 178,
+        "stage": "hub:emitted",
+        "ts": 1772743422496
+      }
+    ],
+    "size": 402
+  },
+  {
+    "id": 67,
+    "timestamp": 1772743422508,
+    "emittedAt": 1772743422497,
+    "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+    "type": "log",
+    "payload": {
+      "level": "INFO",
+      "message": "[hub] session summary: totalSent=178, writeFailures=0, backpressureEvents=0, maxQueueDepth=0",
+      "pipeline": [
+        {
+          "seq": 179,
+          "stage": "agent:sent",
+          "ts": 1772743422497
+        },
+        {
+          "seq": 179,
+          "stage": "hub:received",
+          "ts": 1772743422497
+        },
+        {
+          "seq": 179,
+          "stage": "hub:emitted",
+          "ts": 1772743422497
+        }
+      ],
+      "senderId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "threadId": "6d618f84-596d-4a78-bb23-ad7b2212d876",
+      "type": "log"
+    },
+    "pipeline": [
+      {
+        "seq": 179,
+        "stage": "agent:sent",
+        "ts": 1772743422497
+      },
+      {
+        "seq": 179,
+        "stage": "hub:received",
+        "ts": 1772743422497
+      },
+      {
+        "seq": 179,
+        "stage": "hub:emitted",
+        "ts": 1772743422497
+      }
+    ],
+    "size": 406
+  }
+]

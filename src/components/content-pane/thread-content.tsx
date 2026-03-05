@@ -330,9 +330,10 @@ export function ThreadContent({
               prompt: userPrompt,
               sourcePath: workingDirectory,
               permissionMode: activeMetadata.permissionMode,
+              messageId,
             });
           } else {
-            await resumeSimpleAgent(threadId, userPrompt, workingDirectory);
+            await resumeSimpleAgent(threadId, userPrompt, workingDirectory, messageId);
           }
         } catch (error) {
           logger.error("[ThreadContent] Failed to spawn/resume agent:", error);

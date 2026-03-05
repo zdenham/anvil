@@ -40,7 +40,7 @@ import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { terminalSessionService } from "@/entities/terminal-sessions";
 import { createThread } from "@/lib/thread-creation-service";
 import { loadSettings } from "@/lib/app-data-store";
-import { useFullscreen } from "@/hooks/use-fullscreen";
+
 import { useTabSelectionSync } from "@/hooks/use-tab-selection-sync";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
@@ -51,6 +51,7 @@ import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
 import { handleCreatePr } from "@/lib/pr-actions";
 import { GlobalToast } from "@/components/ui/global-toast";
+import { WindowTitlebar } from "@/components/window-titlebar/window-titlebar";
 import type { ContentPaneView } from "@/components/content-pane/types";
 
 function slugify(name: string): string {
@@ -62,11 +63,8 @@ type NavTarget = "settings" | "logs";
 const VALID_NAV_TARGETS: NavTarget[] = ["settings", "logs"];
 
 export function MainWindowLayout() {
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Fullscreen Detection (for macOS top padding)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  const isFullscreen = useFullscreen();
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const lastRightPanelRef = useRef<import("@/hooks/use-right-panel").RightPanelState | null>(null);
 
   // Sync sidebar tree selection when the active tab changes (tab clicks, not just navigation)
   useTabSelectionSync();
@@ -700,11 +698,29 @@ export function MainWindowLayout() {
 
   return (
     <MainWindowProvider>
-      <div data-testid="main-layout" className={`flex flex-col h-full bg-surface-900 ${isFullscreen ? "pt-3" : ""}`}>
+      <div data-testid="main-layout" className="flex flex-col h-full bg-surface-900">
+        <WindowTitlebar
+          leftPanelOpen={leftPanelOpen}
+          rightPanelOpen={rightPanel.state.type !== "none"}
+          onToggleLeftPanel={() => setLeftPanelOpen((v) => !v)}
+          onToggleRightPanel={() => {
+            if (rightPanel.state.type !== "none") {
+              lastRightPanelRef.current = rightPanel.state;
+              rightPanel.close();
+            } else if (lastRightPanelRef.current) {
+              const prev = lastRightPanelRef.current;
+              if (prev.type === "file-browser") {
+                rightPanel.openFileBrowser(prev.repoId, prev.worktreeId, prev.rootPath);
+              } else if (prev.type === "search") {
+                rightPanel.openSearch();
+              }
+            }
+          }}
+        />
         {/* Main horizontal layout */}
         <div className="flex flex-1 min-h-0">
           {/* Left Panel: Tree Menu */}
-          <ResizablePanel
+          {leftPanelOpen && <ResizablePanel
             position="left"
             minWidth={200}
             defaultWidth="1/3"
@@ -736,7 +752,7 @@ export function MainWindowLayout() {
             <div className="px-3 py-2 border-t border-surface-800">
               <StatusLegend />
             </div>
-          </ResizablePanel>
+          </ResizablePanel>}
 
           {/* Center Panel: Split Layout */}
           <SplitLayoutContainer />

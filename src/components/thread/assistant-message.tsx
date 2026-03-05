@@ -53,7 +53,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                 const isLast = index === lastStreamingIndex;
 
                 return (
-                  <div key={`streaming-${renderBlock.type}-${index}`} className="relative">
+                  <div key={renderBlock.id ?? `streaming-${renderBlock.type}-${index}`} className="relative">
                     <TrickleBlock
                       block={{ type: renderBlock.type as "text" | "thinking", content: blockContent }}
                       isLast={isLast}
@@ -69,7 +69,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                 case "text":
                   return (
                     <TextBlock
-                      key={`text-${index}`}
+                      key={renderBlock.id ?? `text-${index}`}
                       content={(block as ContentBlock & { text: string }).text}
                       isStreaming={false}
                       workingDirectory={workingDirectory}
@@ -79,10 +79,10 @@ export const AssistantMessage = memo(function AssistantMessage({
                 case "thinking":
                   return (
                     <ThinkingBlock
-                      key={`thinking-${index}`}
+                      key={renderBlock.id ?? `thinking-${index}`}
                       content={(block as ContentBlock & { thinking: string }).thinking}
                       threadId={threadId}
-                      blockKey={`thinking-${index}`}
+                      blockKey={renderBlock.id ?? `thinking-${index}`}
                     />
                   );
 

@@ -19,7 +19,6 @@ import type { RunnerConfig, OrchestrationContext } from "./types.js";
 import type { AgentConfig } from "../agent-types/index.js";
 import {
   initState,
-  appendUserMessage,
   markToolComplete,
   updateFileChange,
   getHubClient,
@@ -435,10 +434,16 @@ export async function runAgentLoop(
     transition: "started",
   }, "runAgentLoop:lifecycle");
 
-  // Initialize state with prior messages (for UI), sessionId (for resume), toolStates (for UI rendering),
-  // and token usage (so context meter stays visible during resume)
-  await initState(context.threadPath, context.workingDir, priorMessages, options.threadWriter, priorSessionId, priorToolStates, lastCallUsage, cumulativeUsage, priorFileChanges);
-  await appendUserMessage(config.prompt);
+  // Initialize state with prior messages AND the new user message baked in.
+  // Using the frontend's messageId ensures the optimistic message the UI already
+  // rendered keeps the same ID when INIT replaces the state, preventing a
+  // flash where the message disappears and reappears.
+  const userMessage: StoredMessage = {
+    role: "user",
+    content: config.prompt,
+    id: config.messageId ?? crypto.randomUUID(),
+  };
+  await initState(context.threadPath, context.workingDir, [...priorMessages, userMessage], options.threadWriter, priorSessionId, priorToolStates, lastCallUsage, cumulativeUsage, priorFileChanges);
 
   // Persistence instance for plan detection and mention tracking
   const persistence = new NodePersistence(config.mortDir);

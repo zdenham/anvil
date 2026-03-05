@@ -27,6 +27,8 @@ export interface UseVirtualListOptions {
   atBottomThreshold?: number;
   /** Enable intent-based sticky scroll (opt-in) */
   sticky?: boolean;
+  /** When true, height growth triggers auto-scroll (use for streaming) */
+  autoScrollOnGrowth?: boolean;
   /** Callback when sticky state changes */
   onStickyChange?: (sticky: boolean) => void;
 }
@@ -213,12 +215,12 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
   // -- Content growth subscriber: auto-scroll when heights change --
   useEffect(() => {
-    if (!opts.sticky) return;
+    if (!opts.sticky || !opts.autoScrollOnGrowth) return;
     const unsub = list.subscribe(() => {
       coordinator.onContentGrew();
     });
     return unsub;
-  }, [list, coordinator, opts.sticky]);
+  }, [list, coordinator, opts.sticky, opts.autoScrollOnGrowth]);
 
   // -- Viewport ResizeObserver on scroll element --
   useEffect(() => {
@@ -236,9 +238,8 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   const roRef = useRef<ResizeObserver | null>(null);
   const observedRef = useRef(new Map<number, HTMLElement>());
 
-  const RESIZE_THROTTLE_MS = 80;
   const pendingHeightsRef = useRef<Map<number, number>>(new Map());
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rafIdRef = useRef<number | null>(null);
   const hasInitialMeasurementRef = useRef(false);
 
   if (!roRef.current && opts.itemHeight === undefined) {
@@ -267,16 +268,16 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
         return;
       }
 
-      if (resizeTimerRef.current === null) {
-        resizeTimerRef.current = setTimeout(() => {
-          resizeTimerRef.current = null;
+      if (rafIdRef.current === null) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
           const pending = pendingHeightsRef.current;
           if (pending.size === 0) return;
 
           const batch = Array.from(pending.entries()).map(([index, height]) => ({ index, height }));
           pending.clear();
           list.setItemHeights(batch);
-        }, RESIZE_THROTTLE_MS);
+        });
       }
     });
   }
@@ -286,9 +287,9 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       roRef.current?.disconnect();
       roRef.current = null;
       observedRef.current.clear();
-      if (resizeTimerRef.current !== null) {
-        clearTimeout(resizeTimerRef.current);
-        resizeTimerRef.current = null;
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
     };
   }, []);
