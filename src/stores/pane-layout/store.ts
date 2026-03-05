@@ -3,6 +3,7 @@ import type { Rollback } from "@/lib/optimistic";
 import type { ContentPaneView } from "@/components/content-pane/types";
 import type { PaneLayoutPersistedState, PaneGroup, TabItem } from "./types";
 import { splitLeafNode, getNodeAtPath, replaceNodeAtPath, collapseSplitAtPath } from "./split-tree";
+import { createGroup } from "./defaults";
 
 interface PaneLayoutState extends PaneLayoutPersistedState {
   _hydrated: boolean;
@@ -19,6 +20,12 @@ interface PaneLayoutState extends PaneLayoutPersistedState {
   _applySplitGroup: (groupId: string, dir: "horizontal" | "vertical", newGroup: PaneGroup) => Rollback;
   _applyUpdateSplitSizes: (path: number[], sizes: number[]) => Rollback;
   _applyCollapseSplit: (path: number[]) => Rollback;
+  _applySplitAndMoveTab: (
+    targetGroupId: string,
+    direction: "horizontal" | "vertical",
+    sourceGroupId: string,
+    tabId: string,
+  ) => { newGroupId: string; rollback: Rollback };
 }
 
 function updateGroup(s: PaneLayoutState, groupId: string, patch: Partial<PaneGroup>): Partial<PaneLayoutState> {
@@ -166,6 +173,41 @@ export const usePaneLayoutStore = create<PaneLayoutState>((set, get) => ({
     const prevRoot = get().root;
     set((s) => ({ root: collapseSplitAtPath(s.root, path) }));
     return () => set({ root: prevRoot });
+  },
+
+  _applySplitAndMoveTab: (targetGroupId, direction, sourceGroupId, tabId) => {
+    const prevRoot = get().root;
+    const prevGroups = get().groups;
+
+    const sourceGroup = prevGroups[sourceGroupId];
+    const tab = sourceGroup?.tabs.find((t) => t.id === tabId);
+    if (!sourceGroup || !tab) return { newGroupId: "", rollback: () => {} };
+
+    const newGroup = createGroup(tab);
+
+    set((s) => {
+      const src = s.groups[sourceGroupId];
+      if (!src) return s;
+
+      const srcTabs = src.tabs.filter((t) => t.id !== tabId);
+      const srcActive = src.activeTabId === tabId
+        ? (srcTabs[0]?.id ?? "")
+        : src.activeTabId;
+
+      return {
+        root: splitLeafNode(s.root, targetGroupId, direction, newGroup.id),
+        groups: {
+          ...s.groups,
+          [sourceGroupId]: { ...src, tabs: srcTabs, activeTabId: srcActive },
+          [newGroup.id]: newGroup,
+        },
+      };
+    });
+
+    return {
+      newGroupId: newGroup.id,
+      rollback: () => set({ root: prevRoot, groups: prevGroups }),
+    };
   },
 }));
 

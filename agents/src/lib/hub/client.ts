@@ -5,7 +5,6 @@ import type { PipelineStamp } from "@core/types/pipeline.js";
 import type { DiagnosticLoggingConfig } from "@core/types/diagnostic-logging.js";
 import { HubConnection } from "./connection.js";
 import { HeartbeatEmitter } from "./heartbeat.js";
-import { ReconnectQueue } from "./reconnect-queue.js";
 import { withRetry, type RetryOptions, DEFAULT_RETRY_OPTIONS } from "./retry.js";
 import { parseDiagnosticConfig } from "./diagnostic-config.js";
 import type { SocketMessage } from "./types.js";
@@ -21,7 +20,6 @@ export class HubClient extends EventEmitter {
   private socketPath: string;
   private heartbeat: HeartbeatEmitter;
   private diagnosticConfig: DiagnosticLoggingConfig;
-  private reconnectQueue = new ReconnectQueue();
   private statsTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Monotonic sequence number stamped on every outgoing message. */
@@ -87,10 +85,7 @@ export class HubClient extends EventEmitter {
     });
   }
 
-  /**
-   * Send a message through the hub with pipeline stamping.
-   * During reconnection, messages are queued (state messages deduplicated).
-   */
+  /** Send a message through the hub with pipeline stamping. Drops when not connected. */
   send(msg: Omit<SocketMessage, "senderId" | "threadId" | "pipeline">): void {
     const stamp: PipelineStamp = {
       stage: "agent:sent",
@@ -109,10 +104,8 @@ export class HubClient extends EventEmitter {
       this.emit("log", "DEBUG", `[hub] send seq=${stamp.seq} type=${msg.type}`);
     }
 
-    if (this.connectionState === "reconnecting") {
-      this.reconnectQueue.push(fullMsg);
-      this.trackQueueDepth(this.reconnectQueue.depth);
-      return;
+    if (this.connectionState !== "connected") {
+      return; // silently drop — client recovers from disk on seq gap
     }
 
     const ok = this.connection.write(fullMsg);
@@ -160,20 +153,12 @@ export class HubClient extends EventEmitter {
       this.connectionState = "connected";
       this.heartbeat.start();
       this.startStatsTimer();
-      this.flushReconnectQueue();
       this.emit("reconnected");
       return true;
     } catch {
       this.connectionState = "disconnected";
       this.emit("disconnect");
       return false;
-    }
-  }
-
-  private flushReconnectQueue(): void {
-    for (const msg of this.reconnectQueue.flush()) {
-      const ok = this.connection.write(msg);
-      if (ok) this.totalSent++;
     }
   }
 
@@ -187,10 +172,6 @@ export class HubClient extends EventEmitter {
   }
 
   // --- Public send helpers ---
-
-  sendState(state: unknown): void {
-    this.send({ type: "state", state });
-  }
 
   sendEvent(name: string, payload: unknown, source?: string): void {
     this.send({ type: "event", name, payload, ...(source && { source }) });

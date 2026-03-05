@@ -63,20 +63,20 @@ export function PaneGroup({ groupId }: PaneGroupProps) {
         activeTabId={group.activeTabId}
       />
       <InputStoreProvider active={isActiveGroup}>
-        <div className="flex-1 min-h-0">
+        <div className="relative flex-1 min-h-0">
           <ContentPane
             paneId={groupId}
             view={activeView}
             onClose={handleClose}
           />
+          {activeDrag && (
+            <DropZoneOverlay
+              groupId={groupId}
+              activeEdgeZone={activeEdgeZone}
+            />
+          )}
         </div>
       </InputStoreProvider>
-      {activeDrag && (
-        <DropZoneOverlay
-          groupId={groupId}
-          activeEdgeZone={activeEdgeZone}
-        />
-      )}
     </div>
   );
 }

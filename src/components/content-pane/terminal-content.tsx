@@ -176,6 +176,45 @@ export function TerminalContent({
     // Handle user input
     terminal.onData(handleInput);
 
+    // macOS keyboard shortcuts → terminal escape sequences
+    // xterm.js doesn't translate these natively; iTerm2/Terminal.app do.
+    terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if (event.type !== "keydown") return true;
+
+      const isMeta = event.metaKey;
+      const isAlt = event.altKey;
+
+      if (isMeta && event.key === "ArrowLeft") {
+        handleInput("\x01"); // Ctrl+A — beginning of line
+        return false;
+      }
+      if (isMeta && event.key === "ArrowRight") {
+        handleInput("\x05"); // Ctrl+E — end of line
+        return false;
+      }
+      if (isMeta && event.key === "Backspace") {
+        handleInput("\x15"); // Ctrl+U — kill line backward
+        return false;
+      }
+      if (isAlt && event.key === "ArrowLeft") {
+        handleInput("\x1bb"); // ESC+b — word back
+        return false;
+      }
+      if (isAlt && event.key === "ArrowRight") {
+        handleInput("\x1bf"); // ESC+f — word forward
+        return false;
+      }
+      if (isAlt && event.key === "Backspace") {
+        handleInput("\x17"); // Ctrl+W — delete word back
+        return false;
+      }
+
+      // Let Cmd+C, Cmd+V, etc. pass through to the webview
+      if (isMeta) return false;
+
+      return true;
+    });
+
     // Set up resize observer
     const resizeObserver = new ResizeObserver(() => {
       // Debounce resize handling

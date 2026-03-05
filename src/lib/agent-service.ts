@@ -359,9 +359,10 @@ export async function cancelAgentSocket(threadId: string): Promise<void> {
  */
 async function sendQueuedMessageSocket(
   threadId: string,
-  content: string
+  content: string,
+  externalMessageId?: string
 ): Promise<string> {
-  const messageId = crypto.randomUUID();
+  const messageId = externalMessageId ?? crypto.randomUUID();
   const timestamp = Date.now();
 
   // Add to store BEFORE sending (optimistic)
@@ -1126,8 +1127,9 @@ export function hasAgentProcess(threadId: string): boolean {
  */
 export async function sendQueuedMessage(
   threadId: string,
-  message: string
+  message: string,
+  messageId?: string
 ): Promise<string> {
-  return await sendQueuedMessageSocket(threadId, message);
+  return await sendQueuedMessageSocket(threadId, message, messageId);
 }
 

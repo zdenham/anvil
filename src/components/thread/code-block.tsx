@@ -56,6 +56,19 @@ function CopyButton({ code, isCopied, onCopy }: {
   );
 }
 
+const PlainCode = memo(function PlainCode({ code }: { code: string }) {
+  const lines = code.split("\n");
+  return (
+    <>
+      {lines.map((line, i) => (
+        <div key={i} className="whitespace-pre">
+          {line.length === 0 ? <span>&nbsp;</span> : <span className="text-zinc-300">{line}</span>}
+        </div>
+      ))}
+    </>
+  );
+});
+
 const HighlightedCode = memo(function HighlightedCode({ tokens }: { tokens: ThemedToken[][] }) {
   return (
     <>
@@ -176,7 +189,7 @@ export const CodeBlock = memo(function CodeBlock({ code, language = "plaintext",
       >
         <code className="before:content-none after:content-none">
           {isLoading || !tokens ? (
-            <pre className="text-zinc-300 whitespace-pre">{code}</pre>
+            <PlainCode code={code} />
           ) : (
             <HighlightedCode tokens={tokens} />
           )}

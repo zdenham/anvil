@@ -31,6 +31,8 @@ export interface ThreadInputSectionProps {
   permissionMode?: PermissionModeId;
   /** Called when mode should cycle (Shift+Tab or click) */
   onCycleMode?: () => void;
+  /** Called when cancel button is clicked (shown when provided) */
+  onCancel?: () => void;
 }
 
 export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionProps>(
@@ -45,6 +47,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
       threadId,
       permissionMode,
       onCycleMode,
+      onCancel,
     },
     ref
   ) {
@@ -62,6 +65,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
           placeholder={placeholder}
           autoFocus={autoFocus}
           onCycleMode={onCycleMode}
+          onCancel={onCancel}
         />
 
         {/* Status bar - below input when permission mode is provided */}

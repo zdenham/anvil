@@ -42,10 +42,10 @@ interface ZoneIndicatorProps {
 /** Visual indicator for the active edge zone. */
 function ZoneIndicator({ zone }: ZoneIndicatorProps) {
   const positionClasses: Record<string, string> = {
-    top: "top-0 left-0 right-0 h-[30px]",
-    bottom: "bottom-0 left-0 right-0 h-[30px]",
-    left: "top-0 left-0 bottom-0 w-[30px]",
-    right: "top-0 right-0 bottom-0 w-[30px]",
+    top: "top-0 left-0 right-0 h-[30%]",
+    bottom: "bottom-0 left-0 right-0 h-[30%]",
+    left: "top-0 left-0 bottom-0 w-[30%]",
+    right: "top-0 right-0 bottom-0 w-[30%]",
   };
 
   return (

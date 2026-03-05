@@ -61,7 +61,7 @@ class FrameRateMonitor {
         if (avgFps !== null) {
           const rounded = Math.round(avgFps * 10) / 10;
           if (rounded < this.threshold) {
-            logger.error(
+            logger.warn(
               `[frame-rate] Slow frame rate detected: ${rounded} FPS (threshold: ${this.threshold})`
             );
           }

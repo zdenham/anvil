@@ -8,6 +8,7 @@ import {
   resumeSimpleAgent,
   sendQueuedMessage,
   sendToAgent,
+  cancelAgent,
 } from "@/lib/agent-service";
 import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions.js";
 import { EventName } from "@core/types/events.js";
@@ -291,6 +292,11 @@ function ControlPanelWindowContent({
       // the mode is persisted to disk and will be read on next agent start
     }
   }, [threadId, permissionMode]);
+
+  const handleCancel = useCallback(async () => {
+    if (!threadId) return;
+    await cancelAgent(threadId);
+  }, [threadId]);
 
   // Derive status to handle optimistic state
   // If we have optimistic messages but no real state, treat as "running"
@@ -697,6 +703,7 @@ function ControlPanelWindowContent({
             threadId={threadId}
             permissionMode={permissionMode}
             onCycleMode={handleCycleMode}
+            onCancel={canQueueMessages ? handleCancel : undefined}
           />
         </div>
       </InputStoreProvider>

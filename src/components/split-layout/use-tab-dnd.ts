@@ -47,8 +47,10 @@ export interface ActiveEdgeZone {
   zone: NonNullable<EdgeZone>;
 }
 
-/** Pixel threshold from pane edge to trigger a drop zone. */
-const EDGE_THRESHOLD = 30;
+/** Fraction of panel dimension used for edge detection zones. */
+const EDGE_FRACTION = 0.3;
+/** Minimum pixel threshold so small panels stay usable. */
+const MIN_EDGE_PX = 30;
 
 /**
  * Detect which edge zone (if any) the cursor is over.
@@ -96,13 +98,16 @@ function detectEdgeZoneAtPoint(
     const contentRelY = clientY - rect.top - contentTop;
     const contentHeight = rect.height - contentTop;
 
-    if (contentRelY < EDGE_THRESHOLD && canV)
+    const edgeY = Math.max(contentHeight * EDGE_FRACTION, MIN_EDGE_PX);
+    const edgeX = Math.max(rect.width * EDGE_FRACTION, MIN_EDGE_PX);
+
+    if (contentRelY < edgeY && canV)
       return { groupId, zone: "top" };
-    if (contentRelY > contentHeight - EDGE_THRESHOLD && canV)
+    if (contentRelY > contentHeight - edgeY && canV)
       return { groupId, zone: "bottom" };
-    if (relX < EDGE_THRESHOLD && canH)
+    if (relX < edgeX && canH)
       return { groupId, zone: "left" };
-    if (relX > rect.width - EDGE_THRESHOLD && canH)
+    if (relX > rect.width - edgeX && canH)
       return { groupId, zone: "right" };
 
     // Inside the group content area but not on an edge
@@ -198,22 +203,12 @@ export function useTabDnd() {
         `[useTabDnd] Edge drop: tab ${drag.tabId} on ${zone} of group ${targetGroupId}`,
       );
 
-      const newGroupId = await paneLayoutService.splitGroup(
+      await paneLayoutService.splitAndMoveTab(
         targetGroupId,
         direction,
-      );
-      await paneLayoutService.moveTab(
         drag.sourceGroupId,
         drag.tabId,
-        newGroupId,
-        0,
       );
-
-      const fromGroup =
-        usePaneLayoutStore.getState().groups[drag.sourceGroupId];
-      if (fromGroup && fromGroup.tabs.length === 0) {
-        await paneLayoutService._removeEmptyGroup(drag.sourceGroupId);
-      }
       return;
     }
 
@@ -273,16 +268,12 @@ export function useTabDnd() {
         `[useTabDnd] Edge drop: tab ${tabId} on ${zone} of group ${targetGroupId}`,
       );
 
-      const newGroupId = await paneLayoutService.splitGroup(
+      await paneLayoutService.splitAndMoveTab(
         targetGroupId,
         direction,
+        sourceGroupId,
+        tabId,
       );
-      await paneLayoutService.moveTab(sourceGroupId, tabId, newGroupId, 0);
-
-      const fromGroup = usePaneLayoutStore.getState().groups[sourceGroupId];
-      if (fromGroup && fromGroup.tabs.length === 0) {
-        await paneLayoutService._removeEmptyGroup(sourceGroupId);
-      }
 
       setActiveDrag(null);
       setActiveEdgeZone(null);

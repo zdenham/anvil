@@ -14,7 +14,7 @@ export function WorkingIndicator({ className }: WorkingIndicatorProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-4 py-3",
+        "flex items-center gap-2 py-3",
         className
       )}
       role="status"

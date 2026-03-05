@@ -95,27 +95,6 @@ describe("HubClient", () => {
     });
   });
 
-  describe("sendState", () => {
-    it("formats state message correctly with pipeline stamp", async () => {
-      await client.connect();
-      mockConnection.write.mockClear();
-
-      client.sendState({ status: "running", progress: 50 });
-
-      expect(mockConnection.write).toHaveBeenCalledWith(
-        expect.objectContaining({
-          senderId: "thread-123",
-          threadId: "thread-123",
-          type: "state",
-          state: { status: "running", progress: 50 },
-          pipeline: expect.arrayContaining([
-            expect.objectContaining({ stage: "agent:sent" }),
-          ]),
-        }),
-      );
-    });
-  });
-
   describe("sendEvent", () => {
     it("formats event message correctly with pipeline stamp", async () => {
       await client.connect();

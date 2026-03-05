@@ -47,7 +47,9 @@ export function threadReducer(state: ThreadState, action: ThreadAction): ThreadS
   switch (action.type) {
     case "INIT":
       return applyInit(action.payload);
-    case "APPEND_USER_MESSAGE":
+    case "APPEND_USER_MESSAGE": {
+      // Deduplicate by ID — no-op if a message with this ID already exists
+      if (state.messages.some((m) => m.id === action.payload.id)) return state;
       return {
         ...state,
         messages: [
@@ -55,6 +57,7 @@ export function threadReducer(state: ThreadState, action: ThreadAction): ThreadS
           { role: "user" as const, content: action.payload.content, id: action.payload.id },
         ],
       };
+    }
     case "APPEND_ASSISTANT_MESSAGE":
       return applyAppendAssistantMessage(state, action.payload.message);
     case "MARK_TOOL_RUNNING":

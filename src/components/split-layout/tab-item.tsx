@@ -12,6 +12,7 @@ import { X, Pause } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
 import { paneLayoutService } from "@/stores/pane-layout";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui";
 import { useTabLabel } from "./use-tab-label";
 import { useTabTooltip } from "./use-tab-tooltip";
 import type { TabItem as TabItemType } from "@/stores/pane-layout/types";
@@ -89,39 +90,40 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
   );
 
   return (
-    <button
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      title={tooltip}
-      data-testid={`tab-item-${tab.id}`}
-      onClick={handleClick}
-      onAuxClick={handleAuxClick}
-      className={cn(
-        "group relative flex items-center gap-1.5 px-2.5 pt-[10px] pb-[9px] w-[160px] flex-shrink-0 text-xs font-medium transition-[color] duration-150",
-        "border-r border-surface-700",
-        isActive
-          ? "border-t bg-surface-900 text-surface-300 border-b border-b-surface-900"
-          : "bg-surface-900 text-surface-400 hover:text-surface-200 border-b border-b-surface-700",
-        isDragging && "opacity-50",
-      )}
-    >
-      <StatusDot status={status} />
-      <span className="flex-1 truncate text-left">{label}</span>
-      <span
-        role="button"
-        data-testid={`tab-close-${tab.id}`}
-        onClick={handleClose}
+    <Tooltip content={tooltip} side="top" delayDuration={200}>
+      <button
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        data-testid={`tab-item-${tab.id}`}
+        onClick={handleClick}
+        onAuxClick={handleAuxClick}
         className={cn(
-          "flex-shrink-0 p-0.5 rounded hover:bg-surface-600 transition-colors",
-          "opacity-100",
+          "group relative flex items-center gap-1.5 px-2.5 pt-[10px] pb-[9px] w-[160px] flex-shrink-0 text-xs font-medium transition-[color] duration-150",
+          "border-r border-surface-700",
+          isActive
+            ? "border-t bg-surface-900 text-surface-300 border-b border-b-surface-900"
+            : "bg-surface-900 text-surface-400 hover:text-surface-200 border-b border-b-surface-700",
+          isDragging && "opacity-50",
         )}
-        aria-label={`Close ${label}`}
       >
-        <X size={10} />
-      </span>
-    </button>
+        <StatusDot status={status} />
+        <span className="flex-1 truncate text-left">{label}</span>
+        <span
+          role="button"
+          data-testid={`tab-close-${tab.id}`}
+          onClick={handleClose}
+          className={cn(
+            "flex-shrink-0 p-0.5 rounded hover:bg-surface-600 transition-colors",
+            "opacity-100",
+          )}
+          aria-label={`Close ${label}`}
+        >
+          <X size={10} />
+        </span>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -136,7 +138,7 @@ function StatusDot({ status }: { status: TabStatus }) {
   return (
     <span
       className={cn(
-        "w-2 h-2 rounded-full flex-shrink-0",
+        "w-1.5 h-1.5 rounded-full flex-shrink-0",
         status === "streaming" && "bg-green-400 animate-pulse",
         status === "running" && "bg-green-400",
       )}

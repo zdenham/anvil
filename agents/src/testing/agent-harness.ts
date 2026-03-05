@@ -7,6 +7,8 @@ import { TestMortDirectory } from "./services/test-mort-directory.js";
 import { TestRepository } from "./services/test-repository.js";
 import { RunnerConfig, defaultRunnerConfig } from "./runner-config.js";
 import { MockHubServer } from "./mock-hub-server.js";
+import { threadReducer, type ThreadAction } from "@core/lib/thread-reducer.js";
+import type { ThreadState } from "@core/types/events.js";
 import type { SocketMessage } from "../lib/hub/types.js";
 import type {
   AgentRunOutput,
@@ -240,19 +242,22 @@ export class AgentTestHarness {
 
   /**
    * Collect state and event messages from socket output.
+   * Replays thread_action messages through the shared reducer to reconstruct states.
    */
   private collectMessages(
     socketMessages: SocketMessage[],
     states: AgentStateMessage[],
     events: AgentEventMessage[],
   ): void {
+    let currentState: ThreadState | undefined;
+
     for (const msg of socketMessages) {
-      if (msg.type === "state") {
-        const stateMsg = msg as unknown as { type: "state"; state: unknown };
-        states.push({
-          type: "state",
-          state: stateMsg.state as AgentStateMessage["state"],
-        });
+      if (msg.type === "thread_action" && msg.action) {
+        const action = msg.action as ThreadAction;
+        currentState = currentState
+          ? threadReducer(currentState, action)
+          : threadReducer(undefined as unknown as ThreadState, action);
+        states.push({ type: "state", state: currentState });
       } else if (msg.type === "event") {
         const eventMsg = msg as unknown as { type: "event"; name: string; payload: unknown };
         events.push({

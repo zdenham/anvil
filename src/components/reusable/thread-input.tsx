@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
+import { Square } from "lucide-react";
 import { TriggerSearchInput, type TriggerStateInfo } from "./trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { CursorBoundary } from "@/lib/cursor-boundary";
@@ -13,6 +14,8 @@ interface ThreadInputProps {
   autoFocus?: boolean;
   /** Called when Shift+Tab is pressed to cycle permission mode */
   onCycleMode?: () => void;
+  /** Called when cancel button is clicked (shown when agent is running) */
+  onCancel?: () => void;
   /** @deprecated Up/down arrows now cycle prompt history instead of navigating to quick actions */
   onNavigateToQuickActions?: () => void;
 }
@@ -28,6 +31,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   placeholder,
   autoFocus,
   onCycleMode,
+  onCancel,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onNavigateToQuickActions: _deprecated,
 }: ThreadInputProps, ref) {
@@ -159,7 +163,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
   return (
     <div className="flex gap-2 pb-3 bg-surface-900" data-thread-input data-testid="thread-input">
-      <div className="flex-1 min-w-0">
+      <div className="relative flex-1 min-w-0">
         <TriggerSearchInput
           ref={inputRef}
           value={value}
@@ -178,6 +182,16 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           aria-expanded={triggerState?.isActive}
           aria-autocomplete="list"
         />
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border border-red-400/60 flex items-center justify-center hover:bg-red-600/30 text-red-400 transition-colors"
+            aria-label="Cancel agent"
+            title="Cancel agent"
+          >
+            <Square size={8} className="fill-current" />
+          </button>
+        )}
       </div>
     </div>
   );

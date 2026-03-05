@@ -19,11 +19,6 @@ export interface RegisterMessage extends SocketMessage {
   parentId?: string;
 }
 
-export interface StateMessage extends SocketMessage {
-  type: "state";
-  state: unknown;
-}
-
 export interface EventMessage extends SocketMessage {
   type: "event";
   name: string;

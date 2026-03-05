@@ -79,8 +79,8 @@ class MockAgentClient {
     });
   }
 
-  sendState(state: unknown): void {
-    this.send({ type: "state", state });
+  sendThreadAction(action: { type: string; payload?: unknown }): void {
+    this.send({ type: "thread_action", action });
   }
 
   sendEvent(name: string, payload: unknown): void {
@@ -327,11 +327,11 @@ describe("MockHubServer", () => {
         server.waitForRegistration("thread-b", 1000),
       ]);
 
-      // Send state from client 1
-      client1.sendState({ status: "running", data: "from-a" });
+      // Send thread_action from client 1
+      client1.sendThreadAction({ type: "INIT", payload: { workingDirectory: "/a" } });
 
-      // Send state from client 2
-      client2.sendState({ status: "complete", data: "from-b" });
+      // Send thread_action from client 2
+      client2.sendThreadAction({ type: "INIT", payload: { workingDirectory: "/b" } });
 
       // Wait for messages to be received
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -339,15 +339,15 @@ describe("MockHubServer", () => {
       const messagesA = server.getMessagesForThread("thread-a");
       const messagesB = server.getMessagesForThread("thread-b");
 
-      expect(messagesA.some((m) => m.type === "state")).toBe(true);
-      expect(messagesB.some((m) => m.type === "state")).toBe(true);
+      expect(messagesA.some((m) => m.type === "thread_action")).toBe(true);
+      expect(messagesB.some((m) => m.type === "thread_action")).toBe(true);
 
       // Verify messages are correctly attributed
-      const stateA = messagesA.find((m) => m.type === "state");
-      const stateB = messagesB.find((m) => m.type === "state");
+      const actionA = messagesA.find((m) => m.type === "thread_action");
+      const actionB = messagesB.find((m) => m.type === "thread_action");
 
-      expect((stateA as any)?.state?.data).toBe("from-a");
-      expect((stateB as any)?.state?.data).toBe("from-b");
+      expect((actionA as any)?.action?.payload?.workingDirectory).toBe("/a");
+      expect((actionB as any)?.action?.payload?.workingDirectory).toBe("/b");
 
       client1.disconnect();
       client2.disconnect();
@@ -362,16 +362,16 @@ describe("MockHubServer", () => {
 
       await server.waitForRegistration("thread-collect", 1000);
 
-      client.sendState({ status: "running" });
+      client.sendThreadAction({ type: "INIT", payload: { workingDirectory: "/" } });
       client.sendEvent("tool:start", { tool: "Bash" });
-      client.sendState({ status: "complete" });
+      client.sendThreadAction({ type: "COMPLETE", payload: { metrics: {} } });
       client.sendEvent("tool:end", { tool: "Bash" });
 
       // Wait for messages
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const allMessages = server.getMessages();
-      expect(allMessages.length).toBeGreaterThanOrEqual(5); // register + 2 states + 2 events
+      expect(allMessages.length).toBeGreaterThanOrEqual(5); // register + 2 actions + 2 events
 
       const threadMessages = server.getMessagesForThread("thread-collect");
       expect(threadMessages.length).toBeGreaterThanOrEqual(5);
@@ -545,18 +545,18 @@ describe("MockHubServer", () => {
       await server.waitForRegistration("thread-exists", 1000);
 
       // Send event first
-      client.sendState({ status: "running" });
+      client.sendThreadAction({ type: "INIT", payload: { workingDirectory: "/" } });
 
       // Wait for it to be received
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Now wait for it - should resolve immediately
       const msg = await server.waitForMessage(
-        (msg) => msg.type === "state",
+        (msg) => msg.type === "thread_action",
         100
       );
 
-      expect(msg.type).toBe("state");
+      expect(msg.type).toBe("thread_action");
 
       client.disconnect();
     });
@@ -645,7 +645,7 @@ describe("MockHubServer", () => {
       childClient.disconnect();
     });
 
-    it("receives state messages", async () => {
+    it("receives thread_action messages", async () => {
       await server.start();
 
       const client = new MockAgentClient("thread-state");
@@ -654,21 +654,23 @@ describe("MockHubServer", () => {
 
       await server.waitForRegistration("thread-state", 1000);
 
-      client.sendState({
-        status: "running",
-        messages: [],
-        toolStates: { "tool-1": { status: "pending" } },
+      client.sendThreadAction({
+        type: "INIT",
+        payload: {
+          workingDirectory: "/test",
+          toolStates: { "tool-1": { status: "running", toolName: "Bash" } },
+        },
       });
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const stateMsg = server
+      const actionMsg = server
         .getMessagesForThread("thread-state")
-        .find((m) => m.type === "state");
+        .find((m) => m.type === "thread_action");
 
-      expect(stateMsg).toBeDefined();
-      expect((stateMsg as any).state.status).toBe("running");
-      expect((stateMsg as any).state.toolStates["tool-1"].status).toBe("pending");
+      expect(actionMsg).toBeDefined();
+      expect((actionMsg as any).action.type).toBe("INIT");
+      expect((actionMsg as any).action.payload.toolStates["tool-1"].status).toBe("running");
 
       client.disconnect();
     });

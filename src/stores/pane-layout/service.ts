@@ -162,6 +162,30 @@ export const paneLayoutService = {
     return newGroup.id;
   },
 
+  async splitAndMoveTab(
+    targetGroupId: string,
+    direction: "horizontal" | "vertical",
+    sourceGroupId: string,
+    tabId: string,
+  ): Promise<string> {
+    const { newGroupId } = usePaneLayoutStore
+      .getState()
+      ._applySplitAndMoveTab(targetGroupId, direction, sourceGroupId, tabId);
+    if (!newGroupId) return "";
+
+    // Clean up empty source group
+    const fromGroup = usePaneLayoutStore.getState().groups[sourceGroupId];
+    if (fromGroup && fromGroup.tabs.length === 0) {
+      await this._removeEmptyGroup(sourceGroupId);
+    }
+
+    await persistState();
+    logger.debug(
+      `[paneLayoutService] Split-and-move tab ${tabId} from ${sourceGroupId} to new group ${newGroupId} (${direction})`,
+    );
+    return newGroupId;
+  },
+
   async updateSplitSizes(path: number[], sizes: number[]): Promise<void> {
     usePaneLayoutStore.getState()._applyUpdateSplitSizes(path, sizes);
     await persistState();

@@ -6,7 +6,7 @@
  * Auto-scroll decisions are delegated to ScrollCoordinator.
  */
 
-import { useRef, useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useRef, useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { VirtualList, type VirtualItem, type ScrollToOptions } from "@/lib/virtual-list";
 import { ScrollCoordinator } from "@/lib/scroll-coordinator";
 
@@ -160,11 +160,19 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   // -- Scroll listener + coordinator attach/detach --
-  useEffect(() => {
+  // useLayoutEffect so we can pre-scroll to bottom before the browser paints,
+  // eliminating the flash-of-top-content on tab switch.
+  useLayoutEffect(() => {
     const el = opts.getScrollElement();
     if (!el) return;
 
     coordinator.attach(el);
+
+    // Pre-scroll to bottom on mount when sticky, before first paint
+    if (opts.sticky && el.scrollHeight > el.clientHeight) {
+      el.scrollTop = el.scrollHeight;
+    }
+
     list.updateScroll(el.scrollTop, el.clientHeight);
 
     const onScroll = () => {
@@ -231,6 +239,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   const RESIZE_THROTTLE_MS = 80;
   const pendingHeightsRef = useRef<Map<number, number>>(new Map());
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInitialMeasurementRef = useRef(false);
 
   if (!roRef.current && opts.itemHeight === undefined) {
     roRef.current = new ResizeObserver((entries) => {
@@ -245,6 +254,17 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
         if (!isNaN(index) && height > 0) {
           pendingHeightsRef.current.set(index, height);
         }
+      }
+
+      // First measurement batch — flush immediately (skip throttle)
+      if (!hasInitialMeasurementRef.current) {
+        hasInitialMeasurementRef.current = true;
+        const pending = pendingHeightsRef.current;
+        if (pending.size === 0) return;
+        const batch = Array.from(pending.entries()).map(([index, height]) => ({ index, height }));
+        pending.clear();
+        list.setItemHeights(batch);
+        return;
       }
 
       if (resizeTimerRef.current === null) {
@@ -272,6 +292,29 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       }
     };
   }, []);
+
+  // Synchronous initial measurement — read heights before first paint
+  // so the browser never shows estimated-height positions.
+  useLayoutEffect(() => {
+    const observed = observedRef.current;
+    if (observed.size === 0) return;
+
+    const batch: Array<{ index: number; height: number }> = [];
+    for (const [index, el] of observed) {
+      const height = Math.round(el.offsetHeight);
+      if (height > 0) {
+        batch.push({ index, height });
+      }
+    }
+
+    if (batch.length > 0) {
+      // Clear any pending async measurements for these items
+      for (const { index } of batch) {
+        pendingHeightsRef.current.delete(index);
+      }
+      list.setItemHeights(batch);
+    }
+  });
 
   const measureItem = useCallback(
     (el: HTMLElement | null) => {

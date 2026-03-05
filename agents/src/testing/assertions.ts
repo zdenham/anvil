@@ -5,7 +5,8 @@ import type {
   ToolExecutionState,
 } from "./types.js";
 import type { MockHubServer } from "./mock-hub-server.js";
-import type { StateMessage, EventMessage } from "../lib/hub/types.js";
+import type { EventMessage } from "../lib/hub/types.js";
+import { threadReducer, type ThreadAction } from "@core/lib/thread-reducer.js";
 
 export class AgentAssertions {
   constructor(private output: AgentRunOutput) {}
@@ -309,26 +310,21 @@ export function assertAgent(output: AgentRunOutput): AgentAssertions {
 export function assertReceivedState(
   hub: MockHubServer,
   threadId: string,
-  predicate: (state: unknown) => boolean
+  predicate: (state: unknown) => boolean,
 ): void {
-  const messages = hub.getMessagesForThread(threadId);
-  const stateMessages = messages.filter(
-    (m): m is StateMessage => m.type === "state"
-  );
-
-  const matchingState = stateMessages.find((msg) => predicate(msg.state));
+  const states = replayThreadStates(hub, threadId);
+  const matchingState = states.find((s) => predicate(s));
 
   if (!matchingState) {
-    const stateCount = stateMessages.length;
-    const stateSummary = stateMessages
-      .slice(-5) // Show last 5 states for debugging
-      .map((s) => JSON.stringify(s.state))
+    const summary = states
+      .slice(-5)
+      .map((s) => JSON.stringify(s))
       .join("\n  ");
 
     throw new Error(
       `No state matching predicate found for thread ${threadId}.\n` +
-        `Total state messages: ${stateCount}\n` +
-        `Last ${Math.min(5, stateCount)} states:\n  ${stateSummary || "(none)"}`
+        `Total states: ${states.length}\n` +
+        `Last ${Math.min(5, states.length)} states:\n  ${summary || "(none)"}`,
     );
   }
 }
@@ -448,18 +444,33 @@ export function assertReceivedEventsInOrder(
  */
 export function getFinalState(
   hub: MockHubServer,
-  threadId: string
-): unknown | undefined {
-  const messages = hub.getMessagesForThread(threadId);
-  const stateMessages = messages.filter(
-    (m): m is StateMessage => m.type === "state"
-  );
+  threadId: string,
+): ThreadState | undefined {
+  const states = replayThreadStates(hub, threadId);
+  return states.length > 0 ? states[states.length - 1] : undefined;
+}
 
-  if (stateMessages.length === 0) {
-    return undefined;
+/**
+ * Replay thread_action messages through the shared reducer to reconstruct states.
+ * Returns an array of intermediate states (one per action).
+ */
+function replayThreadStates(hub: MockHubServer, threadId: string): ThreadState[] {
+  const messages = hub.getMessagesForThread(threadId);
+  const actions = messages
+    .filter((m) => m.type === "thread_action" && m.action)
+    .map((m) => m.action as ThreadAction);
+
+  const states: ThreadState[] = [];
+  let current: ThreadState | undefined;
+
+  for (const action of actions) {
+    current = current
+      ? threadReducer(current, action)
+      : threadReducer(undefined as unknown as ThreadState, action);
+    states.push(current);
   }
 
-  return stateMessages[stateMessages.length - 1].state;
+  return states;
 }
 
 /**

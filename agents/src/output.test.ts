@@ -128,7 +128,7 @@ describe("output.ts - thread_action messages via hub", () => {
     mockSend = vi.fn();
     setHubClient({
       send: mockSend,
-      isConnected: true,
+      connectionState: "connected",
     } as unknown as Parameters<typeof setHubClient>[0]);
 
     await initState("/tmp/test-thread", "/tmp/workdir");
