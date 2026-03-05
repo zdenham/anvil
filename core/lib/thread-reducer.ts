@@ -109,47 +109,75 @@ function applyInit(payload: InitPayload): ThreadState {
     sessionId: payload.sessionId,
     lastCallUsage: payload.lastCallUsage,
     cumulativeUsage: payload.cumulativeUsage,
-    idMap: {},
+    wipMap: {},
+    blockIdMap: {},
   };
 }
 
 /**
  * Append or replace an assistant message.
- * If the message has an anthropicId and a streaming message with that ID exists (via idMap),
- * replace the streaming message in-place, carrying forward block IDs from the WIP.
- * Otherwise, append.
+ *
+ * If a WIP message exists for this anthropicId (via wipMap), replace it in-place
+ * and **consume** the wipMap entry so subsequent messages with the same anthropicId
+ * take the append path (the SDK splits responses into multiple messages).
+ *
+ * Block IDs are carried forward from streaming via blockIdMap, keyed by correlation
+ * key: `${anthropicId}:${blockIndex}` for text/thinking, or the Anthropic-provided
+ * `block.id` for tool_use blocks.
  */
 function applyAppendAssistantMessage(state: ThreadState, message: StoredMessage): ThreadState {
-  const idMap = state.idMap ?? {};
+  const wipMap = { ...(state.wipMap ?? {}) };
+  const blockIdMap = { ...(state.blockIdMap ?? {}) };
   const anthropicId = message.anthropicId;
 
-  if (anthropicId && idMap[anthropicId]) {
-    const streamingUuid = idMap[anthropicId];
-    const wipMsg = state.messages.find((m) => m.id === streamingUuid);
-    const wipBlocks = (wipMsg?.content as RenderContentBlock[]) ?? [];
+  // Resolve block IDs from blockIdMap (works whether or not a WIP exists)
+  const content = Array.isArray(message.content)
+    ? (message.content as RenderContentBlock[]).map((block, i) => {
+        const correlationKey = blockCorrelationKey(anthropicId, block, i);
+        if (correlationKey && blockIdMap[correlationKey]) {
+          const ourId = blockIdMap[correlationKey];
+          delete blockIdMap[correlationKey]; // consume
+          return { ...block, id: ourId };
+        }
+        return block;
+      })
+    : message.content;
 
-    // Carry forward block IDs from streaming into committed content
-    const content = Array.isArray(message.content)
-      ? (message.content as RenderContentBlock[]).map((block, i) => {
-          const wipBlock = wipBlocks[i];
-          if (wipBlock?.id && (block.type === "text" || block.type === "thinking")) {
-            return { ...block, id: wipBlock.id };
-          }
-          return block;
-        })
-      : message.content;
-
+  if (anthropicId && wipMap[anthropicId]) {
+    const streamingUuid = wipMap[anthropicId];
     const messages = state.messages.map((m) =>
       m.id === streamingUuid ? { ...message, id: streamingUuid, content } : m,
     );
-    return { ...state, messages };
+    // Consume wipMap entry — subsequent messages with same anthropicId will append
+    delete wipMap[anthropicId];
+    return { ...state, messages, wipMap, blockIdMap };
   }
 
-  // No streaming message to replace — append
+  // No WIP to replace — append
   return {
     ...state,
-    messages: [...state.messages, message],
+    messages: [...state.messages, { ...message, content }],
+    blockIdMap,
   };
+}
+
+/**
+ * Compute the correlation key for a content block.
+ * - tool_use blocks: use the Anthropic-provided `block.id`
+ * - text/thinking blocks: composite `${anthropicId}:${blockIndex}`
+ */
+function blockCorrelationKey(
+  anthropicId: string | undefined,
+  block: RenderContentBlock,
+  index: number,
+): string | undefined {
+  if (!anthropicId) return undefined;
+  // tool_use blocks have a stable id from the API
+  const b = block as unknown as { type: string; id?: string };
+  if (b.type === "tool_use" && b.id) {
+    return b.id;
+  }
+  return `${anthropicId}:${index}`;
 }
 
 /**
@@ -159,13 +187,13 @@ function applyStreamStart(
   state: ThreadState,
   payload: { anthropicMessageId: string },
 ): ThreadState {
-  const idMap = { ...(state.idMap ?? {}) };
+  const wipMap = { ...(state.wipMap ?? {}) };
 
-  // If we already have a message for this anthropicId, no-op
-  if (idMap[payload.anthropicMessageId]) return state;
+  // If we already have a WIP for this anthropicId, no-op
+  if (wipMap[payload.anthropicMessageId]) return state;
 
   const uuid = crypto.randomUUID();
-  idMap[payload.anthropicMessageId] = uuid;
+  wipMap[payload.anthropicMessageId] = uuid;
 
   const wipMessage: StoredMessage = {
     id: uuid,
@@ -177,25 +205,35 @@ function applyStreamStart(
   return {
     ...state,
     messages: [...state.messages, wipMessage],
-    idMap,
+    wipMap,
   };
 }
 
 /**
  * Apply streaming deltas to an in-flight assistant message.
- * If no message exists yet for this anthropicId, creates one first (implicit STREAM_START).
+ * If no WIP exists yet for this anthropicId, creates one (implicit STREAM_START).
+ * If the wipMap entry was already consumed (message committed), this is a late
+ * delta and we ignore it.
  */
 function applyStreamDelta(
   state: ThreadState,
   payload: { anthropicMessageId: string; deltas: BlockDelta[] },
 ): ThreadState {
-  const idMap = { ...(state.idMap ?? {}) };
+  const wipMap = { ...(state.wipMap ?? {}) };
+  const blockIdMap = { ...(state.blockIdMap ?? {}) };
   let messages = [...state.messages];
 
   // Implicit STREAM_START if needed
-  if (!idMap[payload.anthropicMessageId]) {
+  if (!wipMap[payload.anthropicMessageId]) {
+    // Check if this anthropicId was already committed (wipMap entry consumed).
+    // If any existing message has this anthropicId, it's a late delta — ignore.
+    const alreadyCommitted = messages.some(
+      (m) => m.anthropicId === payload.anthropicMessageId,
+    );
+    if (alreadyCommitted) return state;
+
     const uuid = crypto.randomUUID();
-    idMap[payload.anthropicMessageId] = uuid;
+    wipMap[payload.anthropicMessageId] = uuid;
     messages.push({
       id: uuid,
       anthropicId: payload.anthropicMessageId,
@@ -204,15 +242,21 @@ function applyStreamDelta(
     });
   }
 
-  const uuid = idMap[payload.anthropicMessageId];
+  const uuid = wipMap[payload.anthropicMessageId];
   const msgIdx = messages.findIndex((m) => m.id === uuid);
-  if (msgIdx === -1) return { ...state, idMap };
+  if (msgIdx === -1) return { ...state, wipMap, blockIdMap };
 
   const msg = messages[msgIdx];
   const blocks = [...(msg.content as RenderContentBlock[])];
 
   for (const delta of payload.deltas) {
     const existing = blocks[delta.index];
+    // Store block ID mapping: correlationKey → our nanoid
+    if (delta.blockId) {
+      const correlationKey = `${payload.anthropicMessageId}:${delta.index}`;
+      blockIdMap[correlationKey] = delta.blockId;
+    }
+
     if (existing) {
       const field = delta.type === "text" ? "text" : "thinking";
       blocks[delta.index] = {
@@ -231,7 +275,7 @@ function applyStreamDelta(
   messages = [...messages];
   messages[msgIdx] = { ...msg, content: blocks };
 
-  return { ...state, messages, idMap };
+  return { ...state, messages, wipMap, blockIdMap };
 }
 
 function applyMarkToolComplete(

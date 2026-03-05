@@ -241,7 +241,12 @@ function viewsMatch(a: ContentPaneView, b: ContentPaneView): boolean {
     case "terminal": return b.type === "terminal" && a.terminalId === b.terminalId;
     case "file": return b.type === "file" && a.filePath === b.filePath;
     case "pull-request": return b.type === "pull-request" && a.prId === b.prId;
-    case "changes": return b.type === "changes" && a.repoId === b.repoId && a.worktreeId === b.worktreeId;
+    case "changes":
+      return b.type === "changes" &&
+        a.repoId === b.repoId &&
+        a.worktreeId === b.worktreeId &&
+        a.commitHash === b.commitHash &&
+        a.uncommittedOnly === b.uncommittedOnly;
     default: return true; // empty, settings, logs, archive — match by type alone
   }
 }

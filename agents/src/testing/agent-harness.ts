@@ -216,9 +216,10 @@ export class AgentTestHarness {
         clearTimeoutHandler();
 
         // Collect messages from MockHubServer
+        let rawSocketMessages: SocketMessage[] = [];
         if (this.mockHub) {
-          const socketMessages = this.mockHub.getMessagesForThread(threadId);
-          this.collectMessages(socketMessages, states, events);
+          rawSocketMessages = this.mockHub.getMessagesForThread(threadId);
+          this.collectMessages(rawSocketMessages, states, events);
         }
 
         resolve({
@@ -230,6 +231,7 @@ export class AgentTestHarness {
             ? `${stderr}\n[Killed: timeout after ${timeout}ms]`
             : stderr,
           durationMs: Date.now() - startTime,
+          socketMessages: rawSocketMessages,
         });
       });
 

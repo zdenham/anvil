@@ -200,6 +200,65 @@ describe("paneLayoutService", () => {
     });
   });
 
+  describe("findOrOpenTab – changes views with different commits", () => {
+    it("replaces tab when commit hash differs", async () => {
+      seedState({
+        root: { type: "leaf", groupId: "g1" },
+        groups: {
+          g1: {
+            id: "g1",
+            tabs: [
+              {
+                id: "t1",
+                view: { type: "changes", repoId: "r1", worktreeId: "w1", uncommittedOnly: true },
+              },
+            ],
+            activeTabId: "t1",
+          },
+        },
+        activeGroupId: "g1",
+      });
+      await paneLayoutService.findOrOpenTab({
+        type: "changes",
+        repoId: "r1",
+        worktreeId: "w1",
+        commitHash: "abc123",
+      });
+      const tab = usePaneLayoutStore.getState().groups.g1.tabs[0];
+      expect(tab.view.type).toBe("changes");
+      if (tab.view.type === "changes") {
+        expect(tab.view.commitHash).toBe("abc123");
+      }
+    });
+
+    it("activates existing tab when same commit hash", async () => {
+      seedState({
+        root: { type: "leaf", groupId: "g1" },
+        groups: {
+          g1: {
+            id: "g1",
+            tabs: [
+              {
+                id: "t1",
+                view: { type: "changes", repoId: "r1", worktreeId: "w1", commitHash: "abc123" },
+              },
+              { id: "t2", view: { type: "empty" } },
+            ],
+            activeTabId: "t2",
+          },
+        },
+        activeGroupId: "g1",
+      });
+      await paneLayoutService.findOrOpenTab({
+        type: "changes",
+        repoId: "r1",
+        worktreeId: "w1",
+        commitHash: "abc123",
+      });
+      expect(usePaneLayoutStore.getState().groups.g1.activeTabId).toBe("t1");
+    });
+  });
+
   describe("setActiveGroup", () => {
     it("changes active group", async () => {
       seedState({

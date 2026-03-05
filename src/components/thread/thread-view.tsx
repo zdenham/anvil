@@ -59,7 +59,7 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
   }
 
   // Empty/idle state (don't flash EmptyState if streaming content still exists)
-  if (status === "idle" || (messages.length === 0 && !isRunning)) {
+  if (messages.length === 0 && (status === "idle" || !isRunning)) {
     return <EmptyState isRunning={isRunning} />;
   }
 

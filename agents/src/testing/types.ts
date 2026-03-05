@@ -13,6 +13,7 @@ export type {
 
 // Import for use in interface definitions
 import type { AgentLogMessage, AgentEventMessage, AgentStateMessage } from "@core/types/events.js";
+import type { SocketMessage } from "../lib/hub/types.js";
 
 /**
  * Collected output from an agent test run.
@@ -33,6 +34,8 @@ export interface AgentRunOutput {
   stderr: string;
   /** Total wall-clock duration in milliseconds */
   durationMs: number;
+  /** Raw socket messages for advanced assertions (stream_delta replay, etc.) */
+  socketMessages: SocketMessage[];
 }
 
 /**

@@ -73,7 +73,7 @@ describe("ThreadStateMachine", () => {
         makeActionEvent({ type: "APPEND_ASSISTANT_MESSAGE", payload: { message: msg } }),
       );
       expect(state.messages).toHaveLength(1);
-      expect(state.messages[0]).toBe(msg);
+      expect(state.messages[0]).toEqual(msg);
     });
 
     it("applies MARK_TOOL_RUNNING and MARK_TOOL_COMPLETE", () => {
@@ -202,7 +202,7 @@ describe("ThreadStateMachine", () => {
   // ── APPEND_ASSISTANT_MESSAGE replaces streaming ─────────────────────
   describe("committed action replaces streaming", () => {
     it("APPEND_ASSISTANT_MESSAGE replaces streaming message with same anthropicId", () => {
-      const machine = new ThreadStateMachine(makeState({ idMap: {} }));
+      const machine = new ThreadStateMachine(makeState({ wipMap: {}, blockIdMap: {} }));
       // Stream some content
       machine.apply(makeDelta("msg-1", [{ index: 0, type: "text", append: "streaming..." }]));
       expect(machine.getState().messages).toHaveLength(1);
@@ -308,7 +308,7 @@ describe("ThreadStateMachine", () => {
 
   // ── Sequence replay (determinism) ──────────────────────────────────
   describe("sequence replay", () => {
-    it("replaying same events produces identical state", () => {
+    it("replaying same events produces structurally identical state", () => {
       const events: TransportEvent[] = [
         makeActionEvent({ type: "INIT", payload: { workingDirectory: "/project" } }),
         makeActionEvent({ type: "APPEND_USER_MESSAGE", payload: { content: "hello", id: "u1" } }),
@@ -333,7 +333,19 @@ describe("ThreadStateMachine", () => {
 
       const result1 = replay(events);
       const result2 = replay(events);
-      expect(result1).toEqual(result2);
+
+      // WIP message UUIDs are non-deterministic (crypto.randomUUID), so compare
+      // everything except the generated message IDs and internal maps
+      expect(result1.messages.length).toBe(result2.messages.length);
+      for (let i = 0; i < result1.messages.length; i++) {
+        expect(result1.messages[i].role).toBe(result2.messages[i].role);
+        expect(result1.messages[i].content).toEqual(result2.messages[i].content);
+        expect(result1.messages[i].anthropicId).toBe(result2.messages[i].anthropicId);
+      }
+      expect(result1.status).toBe(result2.status);
+      expect(result1.metrics).toEqual(result2.metrics);
+      expect(result1.fileChanges).toEqual(result2.fileChanges);
+      expect(result1.toolStates).toEqual(result2.toolStates);
     });
   });
 

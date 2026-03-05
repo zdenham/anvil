@@ -10,7 +10,8 @@ function makeState(overrides: Partial<ThreadState> = {}): ThreadState {
     status: "running",
     timestamp: 0,
     toolStates: {},
-    idMap: {},
+    wipMap: {},
+    blockIdMap: {},
     ...overrides,
   };
 }
@@ -160,6 +161,175 @@ describe("threadReducer — streaming and block IDs", () => {
     expect(state.messages).toHaveLength(1);
     expect(state.messages[0].id).not.toContain("stream-");
     expect(state.messages[0].id).not.toContain("wip-");
-    expect(state.idMap?.["msg_test"]).toBe(state.messages[0].id);
+    expect(state.wipMap?.["msg_test"]).toBe(state.messages[0].id);
+  });
+});
+
+describe("threadReducer — SDK split messages (same anthropicId)", () => {
+  it("multiple APPEND_ASSISTANT_MESSAGE with same anthropicId all survive", () => {
+    let state = makeState();
+
+    // Stream some content for msg_abc
+    state = dispatch(state, {
+      type: "STREAM_DELTA",
+      payload: {
+        anthropicMessageId: "msg_abc",
+        deltas: [{ index: 0, type: "thinking", append: "thinking...", blockId: "blk-1" }],
+      },
+    });
+    expect(state.messages).toHaveLength(1);
+
+    // First committed message: thinking
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: {
+          id: "sdk-1",
+          anthropicId: "msg_abc",
+          role: "assistant",
+          content: [{ type: "thinking", thinking: "full thought" }],
+        },
+      },
+    });
+    // Replaces WIP — still 1 message
+    expect(state.messages).toHaveLength(1);
+    expect((state.messages[0].content as RenderContentBlock[])[0].thinking).toBe("full thought");
+    // wipMap entry consumed
+    expect(state.wipMap?.["msg_abc"]).toBeUndefined();
+
+    // Second committed message: tool_use (same anthropicId)
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: {
+          id: "sdk-2",
+          anthropicId: "msg_abc",
+          role: "assistant",
+          content: [{ type: "text", text: "using tool" }],
+        },
+      },
+    });
+    // Should APPEND, not replace — now 2 messages
+    expect(state.messages).toHaveLength(2);
+    expect((state.messages[0].content as RenderContentBlock[])[0].thinking).toBe("full thought");
+    expect((state.messages[1].content as RenderContentBlock[])[0].text).toBe("using tool");
+  });
+
+  it("reproduces the full SDK split pattern: 3 API calls with split messages", () => {
+    let state = makeState();
+
+    // API call 1: msg_A → thinking + tool_use (2 committed messages)
+    state = dispatch(state, {
+      type: "STREAM_DELTA",
+      payload: {
+        anthropicMessageId: "msg_A",
+        deltas: [{ index: 0, type: "thinking", append: "t1", blockId: "b1" }],
+      },
+    });
+
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: { id: "s1", anthropicId: "msg_A", role: "assistant", content: [{ type: "thinking", thinking: "thought 1" }] },
+      },
+    });
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: { id: "s2", anthropicId: "msg_A", role: "assistant", content: [{ type: "text", text: "tool_use 1" }] },
+      },
+    });
+
+    // API call 2: msg_B → thinking + text + tool_use + tool_use (4 committed messages)
+    state = dispatch(state, {
+      type: "STREAM_DELTA",
+      payload: {
+        anthropicMessageId: "msg_B",
+        deltas: [{ index: 0, type: "thinking", append: "t2", blockId: "b2" }],
+      },
+    });
+
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: { id: "s3", anthropicId: "msg_B", role: "assistant", content: [{ type: "thinking", thinking: "thought 2" }] },
+      },
+    });
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: { id: "s4", anthropicId: "msg_B", role: "assistant", content: [{ type: "text", text: "text 1" }] },
+      },
+    });
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: { id: "s5", anthropicId: "msg_B", role: "assistant", content: [{ type: "text", text: "tool_use 2" }] },
+      },
+    });
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: { id: "s6", anthropicId: "msg_B", role: "assistant", content: [{ type: "text", text: "tool_use 3" }] },
+      },
+    });
+
+    // All 6 messages should survive
+    expect(state.messages).toHaveLength(6);
+    expect((state.messages[0].content as RenderContentBlock[])[0].thinking).toBe("thought 1");
+    expect((state.messages[1].content as RenderContentBlock[])[0].text).toBe("tool_use 1");
+    expect((state.messages[2].content as RenderContentBlock[])[0].thinking).toBe("thought 2");
+    expect((state.messages[3].content as RenderContentBlock[])[0].text).toBe("text 1");
+    expect((state.messages[4].content as RenderContentBlock[])[0].text).toBe("tool_use 2");
+    expect((state.messages[5].content as RenderContentBlock[])[0].text).toBe("tool_use 3");
+
+    // Block ID from streaming carried forward to first committed message per anthropicId
+    expect((state.messages[0].content as RenderContentBlock[])[0].id).toBe("b1");
+    expect((state.messages[2].content as RenderContentBlock[])[0].id).toBe("b2");
+  });
+});
+
+describe("threadReducer — late stream deltas", () => {
+  it("ignores stream deltas that arrive after message is committed", () => {
+    let state = makeState();
+
+    // Stream then commit
+    state = dispatch(state, {
+      type: "STREAM_DELTA",
+      payload: {
+        anthropicMessageId: "msg_late",
+        deltas: [{ index: 0, type: "thinking", append: "thinking", blockId: "blk-late" }],
+      },
+    });
+
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: {
+        message: {
+          id: "committed",
+          anthropicId: "msg_late",
+          role: "assistant",
+          content: [{ type: "thinking", thinking: "final thought" }],
+        },
+      },
+    });
+
+    const messageCountBefore = state.messages.length;
+    const contentBefore = (state.messages[0].content as RenderContentBlock[])[0].thinking;
+
+    // Late delta arrives — should be ignored
+    state = dispatch(state, {
+      type: "STREAM_DELTA",
+      payload: {
+        anthropicMessageId: "msg_late",
+        deltas: [
+          { index: 0, type: "thinking", append: " EXTRA JUNK" },
+          { index: 1, type: "text", append: "orphan block" },
+        ],
+      },
+    });
+
+    expect(state.messages).toHaveLength(messageCountBefore);
+    expect((state.messages[0].content as RenderContentBlock[])[0].thinking).toBe(contentBefore);
   });
 });

@@ -22,12 +22,16 @@ import {
   PictureInPicture2,
   Terminal,
   Archive,
+  GitPullRequest,
 } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSession, terminalSessionService } from "@/entities/terminal-sessions";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { usePullRequestStore } from "@/entities/pull-requests/store";
+import { handleCreatePr } from "@/lib/pr-actions";
 import { Breadcrumb } from "./breadcrumb";
 import { useBreadcrumbContext } from "./use-breadcrumb-context";
 import { PullRequestHeader } from "./pull-request-header";
@@ -477,12 +481,20 @@ function ChangesHeader({
   onClose: () => void;
 }) {
   const { repoName, worktreeName } = useBreadcrumbContext(repoId, worktreeId);
+  const getWorktreePath = useRepoWorktreeLookupStore((s) => s.getWorktreePath);
+  const existingPrs = usePullRequestStore((s) => s.getPrsByWorktree(worktreeId));
+  const hasPr = existingPrs.length > 0;
 
   const itemLabel = (() => {
     if (commitHash) return commitHash.slice(0, 7);
     if (uncommittedOnly) return "Uncommitted";
     return "All Changes";
   })();
+
+  const handlePrClick = useCallback(() => {
+    const worktreePath = getWorktreePath(repoId, worktreeId);
+    handleCreatePr(repoId, worktreeId, worktreePath);
+  }, [repoId, worktreeId, getWorktreePath]);
 
   return (
     <div data-testid="content-pane-header" className="@container flex items-center gap-2.5 pl-3 pr-2 py-2 border-b border-surface-700">
@@ -494,7 +506,15 @@ function ChangesHeader({
         onCategoryClick={onClose}
       />
 
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={handlePrClick}
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-surface-300 hover:text-surface-100 hover:bg-surface-700 transition-colors"
+          aria-label={hasPr ? "View pull request" : "Create pull request"}
+        >
+          <GitPullRequest size={12} />
+          {hasPr ? "View PR" : "Create PR"}
+        </button>
         <button
           data-testid="close-pane-button"
           onClick={onClose}

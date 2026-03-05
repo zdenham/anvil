@@ -417,8 +417,10 @@ export const ThreadStateSchema = z.object({
   lastCallUsage: TokenUsageSchema.optional(),
   /** Cumulative token usage across all API calls (for total spend display) */
   cumulativeUsage: TokenUsageSchema.optional(),
-  /** Maps Anthropic SDK message IDs to our stable UUIDs */
-  idMap: z.record(z.string(), z.string()).optional(),
+  /** Maps anthropicMessageId → WIP message UUID (consumed on first commit) */
+  wipMap: z.record(z.string(), z.string()).optional(),
+  /** Maps correlation key → our stable block nanoid (consumed per-block on commit) */
+  blockIdMap: z.record(z.string(), z.string()).optional(),
 });
 export type ThreadState = z.infer<typeof ThreadStateSchema>;
 
