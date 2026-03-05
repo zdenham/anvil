@@ -50,7 +50,9 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
   ) {
     return (
       <div className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-1 pb-1">
+        {/* Quick actions hidden for now - low usage
         <QuickActionsPanel contextType={contextType} />
+        */}
 
         <ThreadInput
           ref={ref}

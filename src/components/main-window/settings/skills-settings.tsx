@@ -30,7 +30,7 @@ export function SkillsSettings() {
       const discoveredSkills = await skillsService.discover(repoPath, homeDir, mortDir);
       const freshRecord: Record<string, typeof discoveredSkills[0]> = {};
       for (const skill of discoveredSkills) {
-        freshRecord[skill.id] = skill;
+        freshRecord[skill.slug] = skill;
       }
       useSkillsStore.getState().hydrate(freshRecord, repoPath);
     } finally {
@@ -54,7 +54,7 @@ export function SkillsSettings() {
         // Hydrate the store with discovered skills
         const skillsRecord: Record<string, typeof discoveredSkills[0]> = {};
         for (const skill of discoveredSkills) {
-          skillsRecord[skill.id] = skill;
+          skillsRecord[skill.slug] = skill;
         }
         useSkillsStore.getState().hydrate(skillsRecord, repoPath);
       } finally {
@@ -111,7 +111,7 @@ export function SkillsSettings() {
                 </h4>
                 <div className="border border-surface-700 rounded-md px-3 bg-surface-800/30">
                   {projectSkills.map(skill => (
-                    <SkillListItem key={skill.id} skill={skill} />
+                    <SkillListItem key={skill.slug} skill={skill} />
                   ))}
                 </div>
               </div>
@@ -124,7 +124,7 @@ export function SkillsSettings() {
                 </h4>
                 <div className="border border-surface-700 rounded-md px-3 bg-surface-800/30">
                   {personalSkills.map(skill => (
-                    <SkillListItem key={skill.id} skill={skill} />
+                    <SkillListItem key={skill.slug} skill={skill} />
                   ))}
                 </div>
               </div>

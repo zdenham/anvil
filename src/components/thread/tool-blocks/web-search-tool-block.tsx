@@ -1,5 +1,5 @@
-import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -256,6 +256,21 @@ const RESULT_COLLAPSE_THRESHOLD = 5; // Number of results before offering collap
 const MAX_COLLAPSED_HEIGHT = 400; // Max height when collapsed (pixels)
 
 /**
+ * Extended props for WebSearchToolBlock.
+ * When rendered for a server_tool_use block, the parent passes result data
+ * via override props since server_tool_use results come from sibling content
+ * blocks rather than from toolStates.
+ */
+export interface WebSearchToolBlockProps extends ToolBlockProps {
+  /** Override result from server_tool_use sibling block (not from toolStates) */
+  serverResult?: string;
+  /** Override isError from server_tool_use sibling block */
+  serverIsError?: boolean;
+  /** Override status from server_tool_use sibling block */
+  serverStatus?: "running" | "complete";
+}
+
+/**
  * Specialized block for rendering WebSearch tool calls.
  * Displays search results in a clean, card-based format.
  */
@@ -263,13 +278,17 @@ export function WebSearchToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
-}: ToolBlockProps) {
+  serverResult,
+  serverIsError,
+  serverStatus,
+}: WebSearchToolBlockProps) {
+  const hookState = useToolState(threadId, id);
+
+  // Use server overrides when provided (server_tool_use path), otherwise fall back to hook
+  const status = serverStatus ?? hookState.status;
+  const result = serverResult ?? hookState.result;
+  const isError = serverIsError ?? hookState.isError ?? false;
   // 1. Parse input and result
   const webSearchInput = input as unknown as WebSearchInput;
   const query = webSearchInput.query || "";
@@ -338,16 +357,11 @@ export function WebSearchToolBlock({
           {/* Error indicator - only show on failure */}
           {!isRunning && showError && <StatusIcon isSuccess={false} size="sm" />}
 
-          {/* Duration and result count - right justified */}
+          {/* Result count - right justified */}
           <span className="flex items-center gap-2 shrink-0 ml-auto">
             {!isRunning && hasResults && (
               <span className="text-xs text-zinc-500">
                 {results.length} result{results.length !== 1 ? "s" : ""}
-              </span>
-            )}
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
               </span>
             )}
           </span>

@@ -4,7 +4,7 @@
  * Provides navigation functions that automatically route correctly based on
  * whether the component is rendering in the main window or the control panel.
  *
- * - Main window: Updates the content pane directly via contentPanesService
+ * - Main window: Updates the pane layout directly via paneLayoutService
  * - Control panel/NSPanel: Routes through Rust to show the control panel with the view
  *
  * This fixes Bug #3 from content-pane-navigation-fixes.md where quick actions

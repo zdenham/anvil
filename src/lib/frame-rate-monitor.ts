@@ -58,10 +58,13 @@ class FrameRateMonitor {
         this.frameTimes.length >= this.windowSize
       ) {
         const avgFps = this.getCurrentFps();
-        if (avgFps !== null && avgFps < this.threshold) {
-          logger.error(
-            `[frame-rate] Slow frame rate detected: ${avgFps.toFixed(1)} FPS (threshold: ${this.threshold})`
-          );
+        if (avgFps !== null) {
+          const rounded = Math.round(avgFps * 10) / 10;
+          if (rounded < this.threshold) {
+            logger.error(
+              `[frame-rate] Slow frame rate detected: ${rounded} FPS (threshold: ${this.threshold})`
+            );
+          }
         }
         this.lastEvalTime = now;
       }

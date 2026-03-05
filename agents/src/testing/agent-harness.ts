@@ -3,7 +3,6 @@ import { createInterface as createReadlineInterface } from "readline";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-import jsonpatch from "fast-json-patch";
 import { TestMortDirectory } from "./services/test-mort-directory.js";
 import { TestRepository } from "./services/test-repository.js";
 import { RunnerConfig, defaultRunnerConfig } from "./runner-config.js";
@@ -241,15 +240,12 @@ export class AgentTestHarness {
 
   /**
    * Collect state and event messages from socket output.
-   * Handles both legacy "state" messages and new "state_event" patch-based messages.
    */
   private collectMessages(
     socketMessages: SocketMessage[],
     states: AgentStateMessage[],
     events: AgentEventMessage[],
   ): void {
-    let lastState: unknown = null;
-
     for (const msg of socketMessages) {
       if (msg.type === "state") {
         const stateMsg = msg as unknown as { type: "state"; state: unknown };
@@ -257,29 +253,6 @@ export class AgentTestHarness {
           type: "state",
           state: stateMsg.state as AgentStateMessage["state"],
         });
-        lastState = stateMsg.state;
-      } else if (msg.type === "state_event") {
-        const eventMsg = msg as unknown as {
-          type: "state_event";
-          full?: unknown;
-          patches: jsonpatch.Operation[];
-          previousEventId: string | null;
-        };
-        if (eventMsg.full) {
-          lastState = eventMsg.full;
-        } else if (lastState && eventMsg.patches.length > 0) {
-          const result = jsonpatch.applyPatch(
-            structuredClone(lastState),
-            eventMsg.patches,
-          );
-          lastState = result.newDocument;
-        }
-        if (lastState) {
-          states.push({
-            type: "state",
-            state: lastState as AgentStateMessage["state"],
-          });
-        }
       } else if (msg.type === "event") {
         const eventMsg = msg as unknown as { type: "event"; name: string; payload: unknown };
         events.push({

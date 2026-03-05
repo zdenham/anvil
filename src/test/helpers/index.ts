@@ -14,6 +14,9 @@
 // Virtual filesystem
 export { VirtualFS, type SeedThreadOptions } from "./virtual-fs";
 
+// Event replay
+export { ReplayHarness } from "./event-replay";
+
 // Store seeding
 export { TestStores } from "./stores";
 

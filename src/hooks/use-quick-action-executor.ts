@@ -19,11 +19,11 @@ import {
 import { quickActionService } from '@/entities/quick-actions/service.js';
 import type { QuickActionMetadata } from '@/entities/quick-actions/types.js';
 import { toast } from '@/lib/toast.js';
-import { getActivePane } from '@/stores/content-panes/store.js';
+import { getActiveTab } from '@/stores/pane-layout/store.js';
+import { paneLayoutService } from '@/stores/pane-layout/service.js';
 import { useThreadStore } from '@/entities/threads/store.js';
 import { usePlanStore } from '@/entities/plans/store.js';
 import { logger } from '@/lib/logger-client.js';
-import { contentPanesService } from '@/stores/content-panes/service.js';
 
 interface ExecutorState {
   isExecuting: boolean;
@@ -48,8 +48,8 @@ interface UseQuickActionExecutorReturn {
  * For now, we provide what's synchronously available.
  */
 function buildExecutionContext(): QuickActionExecutionContext {
-  const activePane = getActivePane();
-  const view = activePane?.view;
+  const activeTab = getActiveTab();
+  const view = activeTab?.view;
 
   // Determine context type from active view
   let contextType: 'thread' | 'plan' | 'empty' = 'empty';
@@ -135,7 +135,7 @@ function buildExecutionContext(): QuickActionExecutionContext {
  */
 async function openLogsPanel(): Promise<void> {
   try {
-    await contentPanesService.setActivePaneView({ type: 'logs' });
+    await paneLayoutService.setActiveTabView({ type: 'logs' });
   } catch (error) {
     logger.warn('[useQuickActionExecutor] Failed to open logs panel:', error);
   }

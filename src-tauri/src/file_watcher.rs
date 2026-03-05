@@ -6,23 +6,13 @@
 
 use notify_debouncer_mini::notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
-use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Manager};
 
-/// Event payload emitted to frontend when watched files change.
-/// Includes the specific paths that changed so the frontend can
-/// update surgically instead of re-reading the entire directory.
-#[derive(Clone, Serialize)]
-struct FileWatcherEvent {
-    #[serde(rename = "watchId")]
-    watch_id: String,
-    #[serde(rename = "changedPaths")]
-    changed_paths: Vec<String>,
-}
+use crate::ws_server::push::EventBroadcaster;
 
 /// An active watch session. Dropping this stops the watcher automatically
 /// because `Debouncer` cleans up on drop.
@@ -82,6 +72,7 @@ pub fn start_watch(
     }
 
     let event_watch_id = watch_id.clone();
+    let broadcaster = app.state::<EventBroadcaster>().inner().clone();
     let mut debouncer = new_debouncer(
         Duration::from_millis(200),
         move |result: DebounceEventResult| match result {
@@ -90,13 +81,11 @@ pub fn start_watch(
                     .iter()
                     .map(|e| e.path.to_string_lossy().to_string())
                     .collect();
-                let _ = app.emit(
-                    "file-watcher:changed",
-                    FileWatcherEvent {
-                        watch_id: event_watch_id.clone(),
-                        changed_paths,
-                    },
-                );
+                let payload = serde_json::json!({
+                    "watchId": event_watch_id,
+                    "changedPaths": changed_paths,
+                });
+                broadcaster.broadcast("file-watcher:changed", payload);
             }
             Err(e) => {
                 tracing::warn!(error = %e, "File watcher error");

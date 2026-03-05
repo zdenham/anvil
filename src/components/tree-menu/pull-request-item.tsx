@@ -17,7 +17,7 @@ import type { TreeItemNode } from "@/stores/tree-menu/types";
 interface PullRequestItemProps {
   item: TreeItemNode;
   isSelected: boolean;
-  onSelect: (itemId: string, itemType: "pull-request") => void;
+  onSelect: (itemId: string, itemType: "pull-request", event?: React.MouseEvent) => void;
   tabIndex?: number;
   /** Index in the flat list for keyboard navigation */
   itemIndex?: number;
@@ -93,12 +93,20 @@ export function PullRequestItem({
     }
   };
 
-  const handleClick = useCallback(() => {
-    onSelect(item.id, "pull-request");
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    onSelect(item.id, "pull-request", e);
     if (item.isViewed === false) {
       pullRequestService.update(item.id, { isViewed: true });
     }
   }, [item.id, item.isViewed, onSelect]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Middle-click opens in new tab
+    if (e.button === 1) {
+      e.preventDefault();
+      onSelect(item.id, "pull-request", e);
+    }
+  }, [item.id, onSelect]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -106,11 +114,14 @@ export function PullRequestItem({
         case "Enter":
         case " ":
           e.preventDefault();
-          handleClick();
+          onSelect(item.id, "pull-request");
+          if (item.isViewed === false) {
+            pullRequestService.update(item.id, { isViewed: true });
+          }
           break;
       }
     },
-    [handleClick],
+    [item.id, item.isViewed, onSelect],
   );
 
   return (
@@ -121,6 +132,7 @@ export function PullRequestItem({
       data-tree-item-index={itemIndex}
       tabIndex={tabIndex}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}
       style={{ paddingLeft: `${TREE_INDENT_BASE}px` }}
       className={cn(

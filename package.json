@@ -52,7 +52,6 @@
     "@xterm/xterm": "^6.0.0",
     "ai": "^5.0.108",
     "clsx": "^2.1.1",
-    "fast-json-patch": "^3.1.1",
     "glob": "^13.0.0",
     "lucide-react": "^0.562.0",
     "material-icon-theme": "^5.31.0",

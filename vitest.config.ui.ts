@@ -18,6 +18,10 @@ export default defineConfig({
       "@core": resolve(__dirname, "./core"),
     },
   },
+  define: {
+    __PROJECT_ROOT__: JSON.stringify(process.cwd()),
+    __MORT_APP_SUFFIX__: JSON.stringify(""),
+  },
   test: {
     name: "ui",
     include: ["src/**/*.ui.test.{ts,tsx}"],

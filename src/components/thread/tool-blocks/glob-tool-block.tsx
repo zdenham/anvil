@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { formatDuration } from "@/lib/utils/time-format";
 import { toRelativePath, toRelativePaths } from "@/lib/utils/path-display";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { useWorkspaceRoot } from "@/hooks/use-workspace-root";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
@@ -58,13 +58,10 @@ export function GlobToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Use Zustand store for expand state to persist across virtualization remounts
   const isExpanded = useToolExpandStore((state) =>
     state.isToolExpanded(threadId, id)
@@ -140,12 +137,6 @@ export function GlobToolBlock({
           {/* Error indicator */}
           {!isRunning && isError && <StatusIcon isSuccess={false} />}
 
-          {/* Duration - right aligned */}
-          {durationMs !== undefined && !isRunning && (
-            <span className="text-xs text-muted-foreground ml-auto shrink-0">
-              {formatDuration(durationMs)}
-            </span>
-          )}
         </div>
 
         {/* Second line: icon + pattern + match count */}

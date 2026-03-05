@@ -1,4 +1,5 @@
 import type { MessageParam, ContentBlock } from "@anthropic-ai/sdk/resources/messages";
+import type { StoredMessage } from "@core/types/events";
 
 /**
  * A turn represents a single message in the thread.
@@ -7,22 +8,26 @@ import type { MessageParam, ContentBlock } from "@anthropic-ai/sdk/resources/mes
 export interface Turn {
   type: "user" | "assistant";
   message: MessageParam;
-  /** Index of this message in the original messages array */
-  messageIndex: number;
+  /** Stable ID of this message (from StoredMessage.id) */
+  messageId: string;
 }
 
 /**
  * Group messages into turns for rendering.
- * Simple 1:1 mapping - each MessageParam becomes one Turn.
+ * Simple 1:1 mapping - each StoredMessage becomes one Turn.
  *
- * @param messages - SDK MessageParam array from ThreadState
- * @returns Array of turns
+ * Messages are StoredMessage instances (MessageParam + id).
+ * The function accepts MessageParam[] for type compatibility but
+ * expects the actual objects to carry an `id` field.
+ *
+ * @param messages - StoredMessage array from ThreadState
+ * @returns Array of turns keyed by stable message ID
  */
-export function groupMessagesIntoTurns(messages: MessageParam[]): Turn[] {
-  return messages.map((msg, index) => ({
+export function groupMessagesIntoTurns(messages: StoredMessage[]): Turn[] {
+  return messages.map((msg) => ({
     type: msg.role as "user" | "assistant",
-    message: msg,
-    messageIndex: index,
+    message: msg as unknown as MessageParam,
+    messageId: msg.id,
   }));
 }
 

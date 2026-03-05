@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuickActionsStore } from '@/entities/quick-actions/store.js';
 import { useQuickActionExecutor } from '@/hooks/use-quick-action-executor.js';
-import { useContentPanesStore, getActivePane } from '@/stores/content-panes/store.js';
+import { usePaneLayoutStore, getActiveTab } from '@/stores/pane-layout/store.js';
 import { useModalStore } from '@/stores/modal-store.js';
 import type { ContentPaneView } from '@/components/content-pane/types.js';
 
@@ -28,9 +28,9 @@ export function useQuickActionHotkeys() {
   const actions = useQuickActionsStore((s) => s.actions);
   const { isExecuting, execute } = useQuickActionExecutor();
 
-  // Subscribe to active pane changes to re-register handler when view changes
-  const activePaneId = useContentPanesStore((s) => s.activePaneId);
-  const panes = useContentPanesStore((s) => s.panes);
+  // Subscribe to active group/tab changes so the handler re-registers when view changes
+  const activeGroupId = usePaneLayoutStore((s) => s.activeGroupId);
+  const groups = usePaneLayoutStore((s) => s.groups);
 
   // Subscribe to modal state
   const isModalOpen = useModalStore((s) => s.isOpen);
@@ -50,8 +50,8 @@ export function useQuickActionHotkeys() {
       // Don't trigger if not on a main view (DD #16)
       // Main views are: thread, plan, empty
       // NOT allowed on: settings, logs
-      const activePane = getActivePane();
-      if (!isMainView(activePane?.view)) return;
+      const activeTab = getActiveTab();
+      if (!isMainView(activeTab?.view)) return;
 
       // Don't trigger if focus is in an input/textarea
       const target = e.target;
@@ -79,5 +79,5 @@ export function useQuickActionHotkeys() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [actions, isExecuting, execute, activePaneId, panes, isModalOpen]);
+  }, [actions, isExecuting, execute, activeGroupId, groups, isModalOpen]);
 }

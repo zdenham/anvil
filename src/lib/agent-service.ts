@@ -7,8 +7,8 @@ import { threadService, settingsService } from "@/entities";
 import { eventBus } from "@/entities/events";
 import { shellEnvironmentCommands } from "./tauri-commands";
 import { parseAgentOutput } from "./agent-output-parser";
-import { EventName, type ThreadState, type OptimisticStreamPayload, type BlockDelta } from "@core/types/events.js";
-import type { Operation } from "fast-json-patch";
+import { EventName, type ThreadState, type BlockDelta } from "@core/types/events.js";
+import type { ThreadAction } from "@core/lib/thread-reducer.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
 import type { PipelineStamp } from "@core/types/pipeline.js";
 import { useHeartbeatStore } from "@/stores/heartbeat-store";
@@ -57,19 +57,14 @@ interface AgentSocketMessage {
   type: string;
   parentId?: string;
   // Flattened fields from the message
-  state?: ThreadState;
   name?: string;
   payload?: unknown;
-  blocks?: OptimisticStreamPayload["blocks"];
-  // state_event fields (patch-based state delta)
-  id?: string;
-  previousEventId?: string | null;
-  patches?: Operation[];
-  // full state for state_event, or full blocks for stream_delta
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  full?: any;
+  // thread_action fields (reducer-based state updates)
+  action?: ThreadAction;
   // stream_delta fields (append-only streaming deltas)
   deltas?: BlockDelta[];
+  /** SDK message ID for stream delta tracking */
+  messageId?: string;
   /** Pipeline stamps from upstream stages (agent:sent, hub:received, hub:emitted) */
   pipeline?: PipelineStamp[];
   /** Agent-side timestamp (for heartbeat messages) */
@@ -135,7 +130,7 @@ function trackPipelineSeq(msg: AgentSocketMessage): number {
 /**
  * Cleans up sequence tracking for a thread.
  */
-function cleanupSeqTracking(threadId: string): void {
+export function cleanupSeqTracking(threadId: string): void {
   lastSeqByThread.delete(threadId);
 }
 
@@ -156,11 +151,6 @@ export async function initAgentMessageListener(): Promise<void> {
 
   agentMessageUnlisten = await listen<AgentSocketMessage>("agent:message", (event) => {
     const msg = event.payload;
-    logger.debug(`[agent-service] Received agent:message`, {
-      threadId: msg.threadId,
-      type: msg.type,
-      senderId: msg.senderId,
-    });
 
     // Track pipeline sequence for all messages (gap detection)
     const seq = trackPipelineSeq(msg);
@@ -177,84 +167,59 @@ export async function initAgentMessageListener(): Promise<void> {
       debugStore.captureEvent(msg as unknown as Record<string, unknown>);
     }
 
-    switch (msg.type) {
-      case "state":
-        // Agent sent a full state update (deprecated — kept for backwards compat)
-        if (msg.state) {
-          eventBus.emit(EventName.AGENT_STATE, {
-            threadId: msg.threadId,
-            state: msg.state,
-          });
-        }
-        break;
-
-      case "state_event":
-        // Agent sent a patch-based state delta
-        if (msg.id) {
-          eventBus.emit(EventName.AGENT_STATE_DELTA, {
-            id: msg.id,
-            previousEventId: msg.previousEventId ?? null,
-            threadId: msg.threadId,
-            patches: msg.patches ?? [],
-            full: msg.full,
-          });
-        }
-        break;
-
-      case "event":
-        // Agent sent a named event - route based on event name
-        if (msg.name) {
-          routeAgentEvent(msg.threadId, msg.name, msg.payload);
-        }
-        break;
-
-      case "optimistic_stream":
-        // Agent sent a live streaming content snapshot (deprecated — kept for backwards compat)
-        if (msg.blocks) {
-          eventBus.emit(EventName.OPTIMISTIC_STREAM, {
-            threadId: msg.threadId,
-            blocks: msg.blocks,
-          });
-        }
-        break;
-
-      case "stream_delta":
-        // Agent sent streaming content deltas (append-only)
-        if (msg.id) {
-          eventBus.emit(EventName.STREAM_DELTA, {
-            id: msg.id,
-            previousEventId: msg.previousEventId ?? null,
-            threadId: msg.threadId,
-            deltas: msg.deltas ?? [],
-            full: msg.full,
-          });
-        }
-        break;
-
-      case "heartbeat":
-        // Agent sent a heartbeat — update heartbeat store
-        useHeartbeatStore.getState().updateHeartbeat(
-          msg.threadId,
-          msg.timestamp ?? Date.now(),
-          seq,
-        );
-        break;
-
-      case "log":
-        // Agent sent a log message - just log it, don't route to eventBus
-        logger.info(`[Agent ${msg.threadId}]`, msg.payload);
-        break;
-
-      case "drain":
-        // Forwarded for event debugger capture only — not routed to eventBus
-        break;
-
-      default:
-        logger.warn(`[agent-service] Unknown message type: ${msg.type}`);
-    }
+    routeAgentMessage(msg, seq);
   });
 
   logger.info("[agent-service] Agent message listener initialized");
+}
+
+/**
+ * Routes an agent socket message to the appropriate eventBus handler.
+ * Extracted so replay utilities can call it directly (bypassing Tauri transport).
+ */
+export function routeAgentMessage(msg: AgentSocketMessage, seq = 0): void {
+  switch (msg.type) {
+    case "thread_action":
+      if (msg.action) {
+        eventBus.emit(EventName.THREAD_ACTION, {
+          threadId: msg.threadId,
+          action: msg.action,
+        });
+      }
+      break;
+
+    case "event":
+      if (msg.name) {
+        routeAgentEvent(msg.threadId, msg.name, msg.payload);
+      }
+      break;
+
+    case "stream_delta":
+      eventBus.emit(EventName.STREAM_DELTA, {
+        threadId: msg.threadId,
+        deltas: msg.deltas ?? [],
+        messageId: msg.messageId,
+      });
+      break;
+
+    case "heartbeat":
+      useHeartbeatStore.getState().updateHeartbeat(
+        msg.threadId,
+        msg.timestamp ?? Date.now(),
+        seq,
+      );
+      break;
+
+    case "log":
+      logger.info(`[Agent ${msg.threadId}]`, msg.payload);
+      break;
+
+    case "drain":
+      break;
+
+    default:
+      logger.warn(`[agent-service] Unknown message type: ${msg.type}`);
+  }
 }
 
 /**

@@ -3,12 +3,11 @@ import { scoreMatch } from '@core/skills/index.js';
 import type { SkillMetadata, SkillSource } from './types.js';
 
 interface SkillsState {
-  skills: Record<string, SkillMetadata>;  // Keyed by ID
+  skills: Record<string, SkillMetadata>;  // Keyed by slug
   _hydrated: boolean;
   _lastDiscoveryPath: string | null;      // Track which repo we discovered for
 
   // Selectors
-  getSkill: (id: string) => SkillMetadata | undefined;
   getBySlug: (slug: string) => SkillMetadata | undefined;
   getAll: () => SkillMetadata[];
   getForSource: (source: SkillSource) => SkillMetadata[];
@@ -33,12 +32,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   _hydrated: false,
   _lastDiscoveryPath: null,
 
-  getSkill: (id) => get().skills[id],
-
-  getBySlug: (slug) => {
-    const normalized = slug.toLowerCase();
-    return Object.values(get().skills).find(s => s.slug === normalized);
-  },
+  getBySlug: (slug) => get().skills[slug.toLowerCase()],
 
   getAll: () => {
     return Object.values(get().skills)

@@ -98,7 +98,9 @@ function findMessage(messages: RunnerMessage[], type: string): RunnerMessage | u
   return messages.find((m) => m.type === type);
 }
 
-describeWithApi("PreToolUse hook long-timeout feasibility", () => {
+// Spike completed — confirmed custom hook timeouts work (see MEMORY.md).
+// These tests require live API calls taking 70-90s each and are not regression tests.
+describeWithApi.skip("PreToolUse hook long-timeout feasibility", () => {
 
   it("hook blocking for 90s with timeout:120 allows tool after delay", async () => {
     const output = await runTimeoutRunner(

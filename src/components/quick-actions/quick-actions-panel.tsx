@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useQuickActionsStore } from '@/entities/quick-actions/store.js';
 import { useQuickActionExecutor } from '@/hooks/use-quick-action-executor.js';
-import { contentPanesService } from '@/stores/content-panes/service.js';
+import { paneLayoutService } from '@/stores/pane-layout/service.js';
 import { cn } from '@/lib/utils.js';
 import type { QuickActionMetadata } from '@/entities/quick-actions/types.js';
 
@@ -190,7 +190,7 @@ export function QuickActionsPanel({ contextType }: QuickActionsPanelProps) {
   }, [handleKeyDown]);
 
   const handleConfigure = useCallback(() => {
-    contentPanesService.setActivePaneView({ type: 'settings' });
+    paneLayoutService.setActiveTabView({ type: 'settings' });
   }, []);
 
   // Empty state - show setup prompt

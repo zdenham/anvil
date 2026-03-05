@@ -15,15 +15,15 @@ import { logger } from "./logger-client";
 const BROADCAST_EVENTS = [
   // Agent lifecycle
   EventName.AGENT_SPAWNED,
-  EventName.AGENT_STATE,
-  EventName.AGENT_STATE_DELTA,
   EventName.AGENT_COMPLETED,
   EventName.AGENT_ERROR,
   EventName.AGENT_TOOL_COMPLETED,
   EventName.AGENT_CANCELLED,
 
+  // Thread state (reducer-based)
+  EventName.THREAD_ACTION,
+
   // Thread lifecycle
-  EventName.OPTIMISTIC_STREAM,
   EventName.STREAM_DELTA,
   EventName.THREAD_OPTIMISTIC_CREATED,
   EventName.THREAD_CREATED,
@@ -276,16 +276,7 @@ export function setupOutgoingBridge(): void {
       // Add source label for echo prevention
       const outgoingPayload: BroadcastPayload = { ...payload as object, _source: sourceLabel };
 
-      if (eventName === EventName.AGENT_STATE) {
-        const p = payload as Record<string, unknown>;
-        logger.log(`[event-bridge] ⚡ OUTGOING agent:state (#${outgoingEventCount}):`, {
-          threadId: p?.threadId,
-          messageCount: (p?.state as Record<string, unknown>)?.messages instanceof Array
-            ? ((p.state as Record<string, unknown[]>).messages).length
-            : undefined,
-          status: (p?.state as Record<string, unknown>)?.status,
-        });
-      } else if (eventName === EventName.ACTION_REQUESTED) {
+      if (eventName === EventName.ACTION_REQUESTED) {
         const p = payload as Record<string, unknown>;
         logger.log(`[event-bridge] 🔔 OUTGOING action-requested (#${outgoingEventCount}):`, {
           threadId: p?.threadId,
@@ -393,8 +384,8 @@ export async function setupIncomingBridge(options: IncomingBridgeOptions = {}): 
             const payload = event.payload as BroadcastPayload<Record<string, unknown>>;
 
             // Log ALL incoming events BEFORE echo check (for debugging)
-            if (eventName === EventName.AGENT_STATE || eventName === EventName.AGENT_COMPLETED) {
-              logger.log(`[event-bridge] 📥 RAW INCOMING ${eventName} on window "${currentLabel}":`, {
+            if (eventName === EventName.AGENT_COMPLETED) {
+              logger.log(`[event-bridge] RAW INCOMING ${eventName} on window "${currentLabel}":`, {
                 threadId: payload?.threadId,
                 source: payload?._source,
                 isEcho: payload._source === currentLabel,
@@ -416,16 +407,7 @@ export async function setupIncomingBridge(options: IncomingBridgeOptions = {}): 
             // infinite echo loop between windows.
             const sourceLabel = payload._source;
 
-            if (eventName === EventName.AGENT_STATE) {
-              logger.log(`[event-bridge] ⚡ INCOMING agent:state:`, {
-                threadId: payload?.threadId,
-                messageCount: (payload?.state as Record<string, unknown>)?.messages instanceof Array
-                  ? (payload.state as Record<string, unknown[]>).messages.length
-                  : undefined,
-                status: (payload?.state as Record<string, unknown>)?.status,
-                source: sourceLabel,
-              });
-            } else if (eventName === EventName.ACTION_REQUESTED) {
+            if (eventName === EventName.ACTION_REQUESTED) {
               logger.log(`[event-bridge] 🔔 INCOMING action-requested:`, {
                 threadId: payload?.threadId,
                 markdownLength: typeof payload?.markdown === 'string' ? payload.markdown.length : undefined,

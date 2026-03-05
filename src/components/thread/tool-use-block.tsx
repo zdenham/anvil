@@ -11,11 +11,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getToolDisplayName } from "@/lib/utils/tool-icons";
-import { formatDuration } from "@/lib/utils/time-format";
 import { formatToolInput } from "@/lib/utils/tool-formatters";
 import { InlineDiffBlock } from "./inline-diff-block";
 import { useToolDiff } from "./use-tool-diff";
-import type { ToolStatus } from "./tool-status-icon";
+import { useToolState } from "@/hooks/use-tool-state";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { StatusIcon } from "@/components/ui/status-icon";
@@ -31,14 +30,6 @@ interface ToolUseBlockProps {
   name: string;
   /** Tool input parameters */
   input: Record<string, unknown>;
-  /** Tool execution result (if completed) */
-  result?: string;
-  /** Whether the result was an error */
-  isError?: boolean;
-  /** Current execution status */
-  status: ToolStatus;
-  /** Execution duration in milliseconds */
-  durationMs?: number;
   /** Callback when user wants to expand diff to full viewer */
   onOpenDiff?: (filePath: string) => void;
   /** Thread ID for persisting expand state across virtualization */
@@ -81,13 +72,11 @@ export function ToolUseBlock({
   id,
   name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
   onOpenDiff,
   threadId,
 }: ToolUseBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Use Zustand store for expand state to persist across virtualization remounts
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
@@ -162,13 +151,8 @@ export function ToolUseBlock({
             {isRunning ? `Running ${displayName.toLowerCase()}` : displayName}
           </ShimmerText>
 
-          {/* Right side: duration, permission, and error indicators */}
+          {/* Right side: permission and error indicators */}
           <span className="flex items-center gap-2 shrink-0 ml-auto">
-            {durationMs !== undefined && !isRunning && !hasPendingPermission && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
-              </span>
-            )}
             {hasPendingPermission ? (
               <AlertTriangle className="h-4 w-4 text-amber-500" />
             ) : (

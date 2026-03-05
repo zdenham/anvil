@@ -22,7 +22,7 @@ interface RepoWorktreeSectionProps {
   section: RepoWorktreeSectionType;
   selectedItemId: string | null;
   onToggle: (sectionId: string) => void;
-  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => void;
+  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request", event?: React.MouseEvent) => void;
   showDivider: boolean;
   /** Called when user wants to create a new thread in this worktree */
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
@@ -159,6 +159,7 @@ export function RepoWorktreeSection({
 
   const handlePlusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isCreatingWorktree) return;
     setShowMenu(!showMenu);
   };
 
@@ -197,6 +198,7 @@ export function RepoWorktreeSection({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isCreatingWorktree) return; // Disable context menu while creating
     setShowMenu(false); // Close plus menu if open
     setContextMenuPosition({ top: e.clientY, left: e.clientX });
     setShowContextMenu(true);
@@ -397,7 +399,7 @@ export function RepoWorktreeSection({
         </button>
 
         {/* Section title */}
-        <span className="truncate font-mono">
+        <span className={cn("truncate font-mono", isCreatingWorktree && "text-surface-400")}>
           {section.repoName} /{' '}
           {isRenaming ? (
             <input
@@ -414,6 +416,11 @@ export function RepoWorktreeSection({
             section.worktreeName
           )}
         </span>
+
+        {/* Creating spinner — shown when worktree is being created */}
+        {isCreatingWorktree && (
+          <Loader2 size={12} className="flex-shrink-0 animate-spin text-surface-400" />
+        )}
 
         {/* Item count badge */}
         <span className="ml-auto text-xs text-surface-500 font-normal">

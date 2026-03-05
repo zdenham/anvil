@@ -15,7 +15,7 @@ import { useUnifiedInboxNavigation } from "./use-unified-inbox-navigation";
 import { useContextAwareNavigation } from "./use-context-aware-navigation";
 import { useNavigationBannerStore } from "@/stores/navigation-banner-store";
 import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
-import { contentPanesService } from "@/stores/content-panes/service";
+import { paneLayoutService } from "@/stores/pane-layout/service";
 import { logger } from "@/lib/logger-client";
 
 export type NavigationActionType = "archive" | "markUnread" | "nextItem";
@@ -124,7 +124,7 @@ export function useNavigateToNextItem(): UseNavigateToNextItemReturn {
         if (isMainWindow) {
           // In main window: show empty state in the content pane
           // Stay in main window, just clear the view
-          await contentPanesService.setActivePaneView({ type: "empty" });
+          await paneLayoutService.setActiveTabView({ type: "empty" });
         } else {
           // In control panel: close panel/window and focus main window
           await closeCurrentPanelOrWindow();

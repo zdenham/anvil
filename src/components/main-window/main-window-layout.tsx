@@ -5,7 +5,7 @@
  *
  * Structure:
  * - Left panel: TreePanelHeader + TreeMenu + StatusLegend (inside ResizablePanel)
- * - Right panel: ContentPaneContainer
+ * - Center panel: SplitLayoutContainer (recursive split tree with pane groups)
  *
  * Key responsibilities:
  * - Initialize stores on mount (content panes, tree menu, layout)
@@ -20,13 +20,13 @@ import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { TreeMenu, TreePanelHeader } from "@/components/tree-menu";
-import { ContentPaneContainer } from "@/components/content-pane";
+import { SplitLayoutContainer } from "@/components/split-layout";
 import { CommandPalette } from "@/components/command-palette";
 import { MainWindowProvider } from "./main-window-context";
 import { DebugPanel } from "@/components/debug-panel";
 import { ResizablePanelVertical } from "@/components/ui/resizable-panel-vertical";
 import { useDebugPanelStore, debugPanelService } from "@/stores/debug-panel";
-import { contentPanesService, setupContentPanesListeners } from "@/stores/content-panes";
+import { paneLayoutService, setupPaneLayoutListeners } from "@/stores/pane-layout";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { navigationService } from "@/stores/navigation-service";
 import { layoutService } from "@/stores/layout/service";
@@ -41,6 +41,7 @@ import { terminalSessionService } from "@/entities/terminal-sessions";
 import { createThread } from "@/lib/thread-creation-service";
 import { loadSettings } from "@/lib/app-data-store";
 import { useFullscreen } from "@/hooks/use-fullscreen";
+import { useTabSelectionSync } from "@/hooks/use-tab-selection-sync";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
 import { useRightPanel } from "@/hooks/use-right-panel";
@@ -67,11 +68,11 @@ export function MainWindowLayout() {
 
   const isFullscreen = useFullscreen();
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Quick Action Hotkeys (Cmd+0-9)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // Sync sidebar tree selection when the active tab changes (tab clicks, not just navigation)
+  useTabSelectionSync();
 
-  useQuickActionHotkeys();
+  // Quick action hotkeys disabled - low usage
+  // useQuickActionHotkeys();
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Right Panel (file browser / search)
@@ -102,7 +103,7 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [creatingWorktreeForRepo, setCreatingWorktreeForRepo] = useState<string | null>(null);
+  const [creatingSectionIds, setCreatingSectionIds] = useState<Set<string>>(new Set());
 
   // Listen for Command+P / Ctrl+P to open command palette
   useEffect(() => {
@@ -135,6 +136,22 @@ export function MainWindowLayout() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "d") {
         e.preventDefault();
         debugPanelService.toggle();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Listen for Command+W / Ctrl+W to close active tab
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "w") {
+        e.preventDefault();
+        const group = paneLayoutService.getActiveGroup();
+        const tab = paneLayoutService.getActiveTab();
+        if (group && tab) {
+          paneLayoutService.closeTab(group.id, tab.id);
+        }
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -222,7 +239,7 @@ export function MainWindowLayout() {
   useEffect(() => {
     // Setup listeners once (before hydration)
     if (!listenersInitialized.current) {
-      setupContentPanesListeners();
+      setupPaneLayoutListeners();
       listenersInitialized.current = true;
     }
 
@@ -230,7 +247,7 @@ export function MainWindowLayout() {
       try {
         // Initialize stores in parallel - error isolation
         await Promise.allSettled([
-          contentPanesService.hydrate(),
+          paneLayoutService.hydrate(),
           treeMenuService.hydrate(),
           layoutService.hydrate(),
           debugPanelService.hydrate(),
@@ -257,10 +274,12 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   useEffect(() => {
-    const unlisten = listen<ContentPaneView>("set-content-pane-view", async (event) => {
-      const view = event.payload;
+    const unlisten = listen<ContentPaneView & { targetWindow?: string }>("set-content-pane-view", async (event) => {
+      // Filter by targetWindow (WS broadcast goes to all windows)
+      const { targetWindow, ...view } = event.payload;
+      if (targetWindow && targetWindow !== "main") return;
       // Update both tree selection and content pane via navigation service
-      await navigationService.navigateToView(view);
+      await navigationService.navigateToView(view as ContentPaneView);
     });
 
     return () => {
@@ -269,12 +288,15 @@ export function MainWindowLayout() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Navigation Event Handler (from macOS menu)
+  // Navigation Event Handler (from macOS menu / tray)
   // ═══════════════════════════════════════════════════════════════════════════
 
   useEffect(() => {
-    const unlisten = listen<string>("navigate", async (event) => {
-      const target = event.payload as NavTarget;
+    const unlisten = listen<{ targetWindow?: string; tab: string }>("navigate", async (event) => {
+      // Filter by targetWindow (WS broadcast goes to all windows)
+      const { targetWindow, tab } = event.payload;
+      if (targetWindow && targetWindow !== "main") return;
+      const target = tab as NavTarget;
       if (VALID_NAV_TARGETS.includes(target)) {
         if (target === "settings") {
           await navigationService.navigateToView({ type: "settings" });
@@ -294,15 +316,17 @@ export function MainWindowLayout() {
   // Tree Selection Handler
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleItemSelect = useCallback(async (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => {
+  const handleItemSelect = useCallback(async (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request", event?: React.MouseEvent) => {
+    // Cmd+Click (metaKey) or middle-click (button === 1) opens in a new tab
+    const newTab = event?.metaKey || event?.button === 1;
     if (itemType === "thread") {
-      await navigationService.navigateToThread(itemId);
+      await navigationService.navigateToThread(itemId, { newTab });
     } else if (itemType === "plan") {
-      await navigationService.navigateToPlan(itemId);
+      await navigationService.navigateToPlan(itemId, { newTab });
     } else if (itemType === "terminal") {
-      await navigationService.navigateToTerminal(itemId);
+      await navigationService.navigateToTerminal(itemId, { newTab });
     } else if (itemType === "pull-request") {
-      await navigationService.navigateToView({ type: "pull-request", prId: itemId });
+      await navigationService.navigateToPullRequest(itemId, { newTab });
     }
   }, []);
 
@@ -414,21 +438,40 @@ export function MainWindowLayout() {
 
   const handleNewWorktree = useCallback(async (repoName: string) => {
     logger.info(`[MainWindowLayout] New worktree requested for repo ${repoName}`);
-    setCreatingWorktreeForRepo(repoName);
+
+    // Sync existing worktrees to get current names
+    const existingWorktrees = await worktreeService.sync(repoName);
+    const existingNames = new Set(existingWorktrees.map(w => w.name));
+
+    // Generate unique random name and temp ID
+    const worktreeName = generateUniqueWorktreeName(existingNames);
+    const tempWorktreeId = crypto.randomUUID();
+    logger.info(`[MainWindowLayout] Auto-generated worktree name: "${worktreeName}" (temp: ${tempWorktreeId})`);
+
+    // Resolve repoId from repoName
+    const lookupStore = useRepoWorktreeLookupStore.getState();
+    const repoId = lookupStore.getRepoIdByName(repoName);
+    if (!repoId) {
+      logger.error(`[MainWindowLayout] Could not find repoId for "${repoName}"`);
+      return;
+    }
+
+    // Optimistic insert — section appears immediately in sidebar
+    const sectionId = `${repoId}:${tempWorktreeId}`;
+    lookupStore.addOptimisticWorktree(repoId, tempWorktreeId, worktreeName);
+    setCreatingSectionIds((prev) => new Set([...prev, sectionId]));
+
+    // Expand the new section
+    await treeMenuService.expandSection(sectionId);
 
     try {
-      // Sync existing worktrees to get current names
-      const existingWorktrees = await worktreeService.sync(repoName);
-      const existingNames = new Set(existingWorktrees.map(w => w.name));
-
-      // Generate unique random name
-      const worktreeName = generateUniqueWorktreeName(existingNames);
-      logger.info(`[MainWindowLayout] Auto-generated worktree name: "${worktreeName}"`);
-
       await worktreeService.create(repoName, worktreeName);
 
-      // Re-sync worktrees to ensure new worktree is in settings, then refresh lookup store
+      // Re-sync and hydrate to get the real worktree data
       await worktreeService.sync(repoName);
+
+      // Remove temp entry before hydrate replaces it with real data
+      useRepoWorktreeLookupStore.getState().reconcileWorktree(repoId, tempWorktreeId);
       await useRepoWorktreeLookupStore.getState().hydrate();
 
       await treeMenuService.hydrate();
@@ -438,7 +481,6 @@ export function MainWindowLayout() {
         const slug = slugify(repoName);
         const settings = await loadSettings(slug);
         if (settings.worktreeSetupPrompt) {
-          // Find the newly created worktree from the synced list
           const syncedWorktrees = await worktreeService.sync(repoName);
           const newWorktree = syncedWorktrees.find(w => w.name === worktreeName);
           if (newWorktree) {
@@ -455,15 +497,20 @@ export function MainWindowLayout() {
           }
         }
       } catch (setupErr) {
-        // Don't fail worktree creation if setup thread fails
         logger.warn(`[MainWindowLayout] Failed to create setup thread (non-fatal):`, setupErr);
       }
 
       logger.info(`[MainWindowLayout] Created worktree "${worktreeName}" in ${repoName}`);
     } catch (error) {
+      // Rollback: remove optimistic entry
+      useRepoWorktreeLookupStore.getState().removeOptimisticWorktree(repoId, tempWorktreeId);
       logger.error(`[MainWindowLayout] Failed to create worktree:`, error);
     } finally {
-      setCreatingWorktreeForRepo(null);
+      setCreatingSectionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(sectionId);
+        return next;
+      });
     }
   }, []);
 
@@ -662,7 +709,7 @@ export function MainWindowLayout() {
             minWidth={200}
             defaultWidth="1/3"
             persistKey="tree-panel-width"
-            className="bg-surface-950 border-r border-surface-700 flex flex-col"
+            className="bg-surface-950 flex flex-col"
           >
             <TreePanelHeader
               onSettingsClick={handleSettingsClick}
@@ -678,7 +725,7 @@ export function MainWindowLayout() {
               onNewWorktree={handleNewWorktree}
               onNewRepo={handleNewRepo}
               onArchiveWorktree={handleArchiveWorktree}
-              creatingWorktreeForRepo={creatingWorktreeForRepo}
+              creatingSectionIds={creatingSectionIds}
               onPinToggle={handlePinToggle}
               onHide={handleHideSection}
               pinnedSectionId={pinnedSectionId}
@@ -691,8 +738,8 @@ export function MainWindowLayout() {
             </div>
           </ResizablePanel>
 
-          {/* Center Panel: Content Pane */}
-          <ContentPaneContainer />
+          {/* Center Panel: Split Layout */}
+          <SplitLayoutContainer />
 
           {/* Right Panel: File Browser or Search */}
           {rightPanel.state.type === "file-browser" && (

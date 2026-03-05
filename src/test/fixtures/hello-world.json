@@ -1,0 +1,229 @@
+[
+  {
+    "id": 1,
+    "timestamp": 1709500000000,
+    "emittedAt": 1709500000000,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "event",
+    "name": "thread:created",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "event",
+      "name": "thread:created",
+      "payload": {
+        "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+        "repoId": "00000000-0000-4000-a000-000000000001",
+        "worktreeId": "00000000-0000-4000-a000-000000000002"
+      },
+      "pipeline": [{ "stage": "hub:emitted", "seq": 1, "ts": 1709500000000 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 1, "ts": 1709500000000 }],
+    "size": 200
+  },
+  {
+    "id": 2,
+    "timestamp": 1709500000010,
+    "emittedAt": 1709500000010,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "thread_action",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "thread_action",
+      "action": {
+        "type": "INIT",
+        "payload": {
+          "workingDirectory": "/Users/test/code/my-project"
+        }
+      },
+      "pipeline": [{ "stage": "hub:emitted", "seq": 2, "ts": 1709500000010 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 2, "ts": 1709500000010 }],
+    "size": 180
+  },
+  {
+    "id": 3,
+    "timestamp": 1709500000020,
+    "emittedAt": 1709500000020,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "thread_action",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "thread_action",
+      "action": {
+        "type": "APPEND_USER_MESSAGE",
+        "payload": {
+          "content": "hey",
+          "id": "msg-user-1"
+        }
+      },
+      "pipeline": [{ "stage": "hub:emitted", "seq": 3, "ts": 1709500000020 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 3, "ts": 1709500000020 }],
+    "size": 160
+  },
+  {
+    "id": 4,
+    "timestamp": 1709500000100,
+    "emittedAt": 1709500000100,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "stream_delta",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "stream_delta",
+      "id": "sd-4",
+      "previousEventId": null,
+      "messageId": "msg-assistant-1",
+      "deltas": [
+        { "index": 0, "type": "text", "append": "Hello! " }
+      ],
+      "pipeline": [{ "stage": "hub:emitted", "seq": 4, "ts": 1709500000100 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 4, "ts": 1709500000100 }],
+    "size": 200
+  },
+  {
+    "id": 5,
+    "timestamp": 1709500000200,
+    "emittedAt": 1709500000200,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "stream_delta",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "stream_delta",
+      "id": "sd-5",
+      "previousEventId": "sd-4",
+      "messageId": "msg-assistant-1",
+      "deltas": [
+        { "index": 0, "type": "text", "append": "What can I help you with today?" }
+      ],
+      "pipeline": [{ "stage": "hub:emitted", "seq": 5, "ts": 1709500000200 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 5, "ts": 1709500000200 }],
+    "size": 220
+  },
+  {
+    "id": 6,
+    "timestamp": 1709500000300,
+    "emittedAt": 1709500000300,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "thread_action",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "thread_action",
+      "action": {
+        "type": "APPEND_ASSISTANT_MESSAGE",
+        "payload": {
+          "message": {
+            "id": "msg-assistant-1",
+            "role": "assistant",
+            "content": [
+              { "type": "text", "text": "Hello! What can I help you with today?" }
+            ]
+          }
+        }
+      },
+      "pipeline": [{ "stage": "hub:emitted", "seq": 6, "ts": 1709500000300 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 6, "ts": 1709500000300 }],
+    "size": 280
+  },
+  {
+    "id": 7,
+    "timestamp": 1709500000400,
+    "emittedAt": 1709500000400,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "thread_action",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "thread_action",
+      "action": {
+        "type": "COMPLETE",
+        "payload": {
+          "metrics": {
+            "durationApiMs": 1000,
+            "totalCostUsd": 0.01,
+            "numTurns": 1
+          }
+        }
+      },
+      "pipeline": [{ "stage": "hub:emitted", "seq": 7, "ts": 1709500000400 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 7, "ts": 1709500000400 }],
+    "size": 180
+  },
+  {
+    "id": 8,
+    "timestamp": 1709500000410,
+    "emittedAt": 1709500000410,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "event",
+    "name": "thread:name:generated",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "event",
+      "name": "thread:name:generated",
+      "payload": {
+        "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+        "name": "hey"
+      },
+      "pipeline": [{ "stage": "hub:emitted", "seq": 8, "ts": 1709500000410 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 8, "ts": 1709500000410 }],
+    "size": 180
+  },
+  {
+    "id": 9,
+    "timestamp": 1709500000420,
+    "emittedAt": 1709500000420,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "event",
+    "name": "thread:status:changed",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "event",
+      "name": "thread:status:changed",
+      "payload": {
+        "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+        "status": "idle"
+      },
+      "pipeline": [{ "stage": "hub:emitted", "seq": 9, "ts": 1709500000420 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 9, "ts": 1709500000420 }],
+    "size": 200
+  },
+  {
+    "id": 10,
+    "timestamp": 1709500000500,
+    "emittedAt": 1709500000500,
+    "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+    "senderId": "agent-1",
+    "type": "heartbeat",
+    "payload": {
+      "senderId": "agent-1",
+      "threadId": "a0a0a0a0-b1b1-4c2c-9d3d-e4e4e4e4e4e4",
+      "type": "heartbeat",
+      "timestamp": 1709500000500,
+      "pipeline": [{ "stage": "hub:emitted", "seq": 10, "ts": 1709500000500 }]
+    },
+    "pipeline": [{ "stage": "hub:emitted", "seq": 10, "ts": 1709500000500 }],
+    "size": 120
+  }
+]

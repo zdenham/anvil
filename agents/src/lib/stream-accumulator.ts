@@ -84,7 +84,6 @@ export class StreamAccumulator {
 
   private emitSnapshot(): void {
     this.dirty = false;
-    const blocks = this.blocks.filter(Boolean);
 
     if (!this.hubClient.isConnected) {
       logger.debug("[StreamAccumulator] Hub not connected, skipping delta");
@@ -94,31 +93,40 @@ export class StreamAccumulator {
     const eventId = nanoid();
 
     if (!this.lastEventId) {
-      // First emission — send full blocks
+      // First emission — send full blocks (filter undefined but preserve indices)
+      const fullBlocks: StreamBlock[] = [];
+      for (let i = 0; i < this.blocks.length; i++) {
+        const block = this.blocks[i];
+        if (!block) continue;
+        fullBlocks.push(block);
+      }
       this.hubClient.send({
         type: "stream_delta",
         threadId: this.threadId,
         id: eventId,
         previousEventId: null,
         deltas: [],
-        full: blocks,
+        full: fullBlocks,
       });
-      this.lastEmittedLengths = blocks.map((b) => b.content.length);
+      // Track emitted lengths at original indices to preserve alignment
+      this.lastEmittedLengths = this.blocks.map((b) => b?.content.length ?? 0);
     } else {
-      // Compute deltas — only append-only text since last emission
+      // Compute deltas — iterate original indices, skip undefined entries
       const deltas: Array<{
         index: number;
         type: "text" | "thinking";
         append: string;
       }> = [];
-      for (let i = 0; i < blocks.length; i++) {
+      for (let i = 0; i < this.blocks.length; i++) {
+        const block = this.blocks[i];
+        if (!block) continue;
         const prevLen = this.lastEmittedLengths[i] ?? 0;
-        const currentLen = blocks[i].content.length;
+        const currentLen = block.content.length;
         if (currentLen > prevLen) {
           deltas.push({
             index: i,
-            type: blocks[i].type,
-            append: blocks[i].content.slice(prevLen),
+            type: block.type,
+            append: block.content.slice(prevLen),
           });
         }
       }
@@ -130,7 +138,7 @@ export class StreamAccumulator {
           previousEventId: this.lastEventId,
           deltas,
         });
-        this.lastEmittedLengths = blocks.map((b) => b.content.length);
+        this.lastEmittedLengths = this.blocks.map((b) => b?.content.length ?? 0);
       }
     }
 

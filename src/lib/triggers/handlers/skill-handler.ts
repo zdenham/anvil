@@ -44,7 +44,7 @@ class SkillTriggerHandler implements TriggerHandler {
       : skillsService.getAll();
 
     return skills.map((skill) => ({
-      id: skill.id,
+      id: skill.slug,
       label: `/${skill.slug}`,
       description: skill.description || "",
       icon: SOURCE_ICONS[skill.source], // Lucide icon name from shared constants

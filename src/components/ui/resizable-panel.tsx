@@ -210,26 +210,20 @@ export function ResizablePanel({
         data-testid="resize-handle-horizontal"
         className={`
           absolute top-0 bottom-0 w-3 cursor-ew-resize z-10
-          ${position === "left" ? "-right-1" : "-left-1"}
+          ${position === "left" ? "-right-1.5" : "-left-1.5"}
         `}
         onMouseDown={handleDragStart}
         role="separator"
         aria-orientation="vertical"
         aria-label="Drag to resize"
       >
-        {/* Visual indicator - thin line centered in the hit area */}
+        {/* Visual indicator - thin line at panel edge */}
         <div
           className={`
-            absolute top-0 bottom-0 w-[2px] left-1/2 -translate-x-1/2
-            transition-colors
+            absolute top-0 bottom-0 w-px
+            ${position === "left" ? "right-1.5" : "left-1.5"}
+            transition-colors bg-surface-700
             ${isDragging ? "bg-accent-500/50" : "hover:bg-accent-500/30"}
-          `}
-        />
-        {/* Hover pill indicator */}
-        <div
-          className={`
-            absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-            w-1 h-8 rounded-full bg-surface-500 opacity-0 hover:opacity-100 transition-opacity
           `}
         />
       </div>

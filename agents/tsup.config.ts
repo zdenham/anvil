@@ -13,7 +13,10 @@ export default defineConfig({
   // CLI executable (cli.js) and ripgrep binaries (vendor/) that it needs to resolve at runtime.
   // Bundling the SDK breaks its internal path resolution for these files.
   // Current result: ~96MB app (vs 547MB before optimization)
-  noExternal: [/^(?!@anthropic-ai\/claude-agent-sdk)/],
+  // typescript must be external: its compiler uses dynamic require("fs") internally,
+  // which breaks when bundled into ESM. See plans/mort-repl/readme.md Phase 0 spike.
+  noExternal: [/^(?!@anthropic-ai\/claude-agent-sdk|typescript)/],
+  external: ["typescript"],
   esbuildOptions(options) {
     options.alias = {
       "@core": resolve(__dirname, "../core"),

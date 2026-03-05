@@ -115,7 +115,6 @@ import { setupQuickActionListeners } from "./quick-actions/listeners";
 import { draftService } from "./drafts/service";
 import { setupTerminalListeners } from "./terminal-sessions/listeners";
 import { syncManagedSkills } from "@/lib/skill-sync";
-import { setupStreamingListeners } from "@/stores/streaming-store";
 import { setupApiHealthListeners } from "./api-health/listeners";
 import { setupCommentListeners } from "./comments/listeners";
 import { pullRequestService } from "./pull-requests/service";
@@ -246,7 +245,6 @@ export function setupEntityListeners(options: EntityInitOptions = {}): void {
   setupWorktreeListeners();
   setupQuickActionListeners();
   setupTerminalListeners();
-  setupStreamingListeners();
   setupApiHealthListeners();
   setupCommentListeners();
 

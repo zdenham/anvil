@@ -1,7 +1,7 @@
 /**
- * Output Module Tests - Disk-as-Truth Ordering
+ * Output Module Tests - Reducer-based dispatch + disk-as-truth ordering.
  *
- * The disk-as-truth pattern requires: disk write MUST complete BEFORE stdout emit.
+ * The disk-as-truth pattern requires: disk write MUST complete BEFORE socket emit.
  * This ensures UI can safely read from disk when it receives the event signal.
  */
 
@@ -34,7 +34,14 @@ vi.mock("./lib/logger.js", () => ({
 }));
 
 // Import after mocks
-import { initState, emitState } from "./output.js";
+import {
+  initState,
+  emitState,
+  setHubClient,
+  appendAssistantMessage,
+  appendUserMessage,
+  getMessages,
+} from "./output.js";
 
 describe("output.ts - disk-before-emit ordering", () => {
   let mockThreadWriter: ThreadWriter;
@@ -108,5 +115,90 @@ describe("output.ts - disk-before-emit ordering", () => {
 
     await emitState();
     expect(mockThreadWriter.writeState).toHaveBeenCalled();
+  });
+});
+
+describe("output.ts - thread_action messages via hub", () => {
+  let mockSend: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    callOrder = [];
+    vi.clearAllMocks();
+
+    mockSend = vi.fn();
+    setHubClient({
+      send: mockSend,
+      isConnected: true,
+    } as unknown as Parameters<typeof setHubClient>[0]);
+
+    await initState("/tmp/test-thread", "/tmp/workdir");
+  });
+
+  it("sends thread_action with INIT action on initState", () => {
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const arg = mockSend.mock.calls[0][0];
+    expect(arg.type).toBe("thread_action");
+    expect(arg.action.type).toBe("INIT");
+  });
+
+  it("sends thread_action with APPEND_USER_MESSAGE on appendUserMessage", async () => {
+    mockSend.mockClear();
+    await appendUserMessage("hello");
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const arg = mockSend.mock.calls[0][0];
+    expect(arg.type).toBe("thread_action");
+    expect(arg.action.type).toBe("APPEND_USER_MESSAGE");
+    expect(arg.action.payload.content).toBe("hello");
+  });
+
+  it("emitState sends HYDRATE action with full state", async () => {
+    mockSend.mockClear();
+    await emitState();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const arg = mockSend.mock.calls[0][0];
+    expect(arg.type).toBe("thread_action");
+    expect(arg.action.type).toBe("HYDRATE");
+    expect(arg.action.payload.state).toBeDefined();
+    expect(arg.action.payload.state.workingDirectory).toBe("/tmp/workdir");
+  });
+});
+
+describe("output.ts - StoredMessage ID handling", () => {
+  beforeEach(async () => {
+    callOrder = [];
+    vi.clearAllMocks();
+    setHubClient(null as unknown as Parameters<typeof setHubClient>[0]);
+    await initState("/tmp/test-thread", "/tmp/workdir");
+  });
+
+  it("appendAssistantMessage stores the provided id", async () => {
+    await appendAssistantMessage({ id: "msg_sdk_123", role: "assistant", content: "Hello" });
+
+    const msgs = getMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].id).toBe("msg_sdk_123");
+  });
+
+  it("appendUserMessage generates an id via nanoid", async () => {
+    await appendUserMessage("Hi there");
+
+    const msgs = getMessages();
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].id).toBeDefined();
+    expect(typeof msgs[0].id).toBe("string");
+    expect(msgs[0].id.length).toBeGreaterThan(0);
+  });
+
+  it("initState accepts priorMessages with StoredMessage shape", async () => {
+    const prior = [
+      { id: "id-1", role: "user", content: "Hello" },
+      { id: "id-2", role: "assistant", content: "Hi" },
+    ];
+    await initState("/tmp/test-thread", "/tmp/workdir", prior);
+
+    const msgs = getMessages();
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].id).toBe("id-1");
+    expect(msgs[1].id).toBe("id-2");
   });
 });

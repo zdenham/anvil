@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { CollapsibleBlock } from "@/components/ui/collapsible-block";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
 import { ShimmerText } from "@/components/ui/shimmer-text";
@@ -85,10 +85,9 @@ function TodoItemRow({ todo }: { todo: TodoItem }) {
 export function TodoWriteToolBlock({
   id,
   input,
-  status,
-  durationMs,
   threadId,
 }: ToolBlockProps) {
+  const { status } = useToolState(threadId, id);
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
   const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
@@ -123,11 +122,6 @@ export function TodoWriteToolBlock({
             >
               Updating todos
             </ShimmerText>
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground ml-auto shrink-0">
-                {formatDuration(durationMs)}
-              </span>
-            )}
           </div>
           {/* Line 2: Command/details with icon (icon ONLY on this line) */}
           <div className="flex items-center gap-1 mt-0.5">

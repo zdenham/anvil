@@ -37,6 +37,18 @@ interface RepoWorktreeLookupState {
 
   /** Get current branch for a worktree. Returns null if not found. */
   getCurrentBranch: (repoId: string, worktreeId: string) => string | null;
+
+  /** Find repoId by repo name. Returns undefined if not found. */
+  getRepoIdByName: (repoName: string) => string | undefined;
+
+  /** Insert a placeholder worktree before the backend creates it */
+  addOptimisticWorktree: (repoId: string, tempWorktreeId: string, name: string) => void;
+
+  /** Replace the temp entry with the real one after backend success */
+  reconcileWorktree: (repoId: string, tempWorktreeId: string) => void;
+
+  /** Remove placeholder on error/rollback */
+  removeOptimisticWorktree: (repoId: string, tempWorktreeId: string) => void;
 }
 
 const REPOS_DIR = "repositories";
@@ -109,5 +121,45 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
   getCurrentBranch: (repoId: string, worktreeId: string): string | null => {
     const repo = get().repos.get(repoId);
     return repo?.worktrees.get(worktreeId)?.currentBranch ?? null;
+  },
+
+  getRepoIdByName: (repoName: string): string | undefined => {
+    for (const [repoId, info] of get().repos) {
+      if (info.name === repoName) return repoId;
+    }
+    return undefined;
+  },
+
+  addOptimisticWorktree: (repoId: string, tempWorktreeId: string, name: string) => {
+    const repos = new Map(get().repos);
+    const repo = repos.get(repoId);
+    if (!repo) return;
+
+    const worktrees = new Map(repo.worktrees);
+    worktrees.set(tempWorktreeId, { name, path: "", currentBranch: null });
+    repos.set(repoId, { ...repo, worktrees });
+    set({ repos });
+  },
+
+  reconcileWorktree: (repoId: string, tempWorktreeId: string) => {
+    const repos = new Map(get().repos);
+    const repo = repos.get(repoId);
+    if (!repo) return;
+
+    const worktrees = new Map(repo.worktrees);
+    worktrees.delete(tempWorktreeId);
+    repos.set(repoId, { ...repo, worktrees });
+    set({ repos });
+  },
+
+  removeOptimisticWorktree: (repoId: string, tempWorktreeId: string) => {
+    const repos = new Map(get().repos);
+    const repo = repos.get(repoId);
+    if (!repo) return;
+
+    const worktrees = new Map(repo.worktrees);
+    worktrees.delete(tempWorktreeId);
+    repos.set(repoId, { ...repo, worktrees });
+    set({ repos });
   },
 }));

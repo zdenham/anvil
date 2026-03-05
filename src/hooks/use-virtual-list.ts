@@ -3,10 +3,12 @@
  *
  * Thin wiring layer that owns all DOM interaction:
  * scroll listeners, ResizeObserver, and scrollTo calls.
+ * Auto-scroll decisions are delegated to ScrollCoordinator.
  */
 
 import { useRef, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { VirtualList, type VirtualItem, type ScrollToOptions } from "@/lib/virtual-list";
+import { ScrollCoordinator } from "@/lib/scroll-coordinator";
 
 export type { VirtualItem, ScrollToOptions } from "@/lib/virtual-list";
 
@@ -23,11 +25,6 @@ export interface UseVirtualListOptions {
   onAtBottomChange?: (atBottom: boolean) => void;
   /** Distance from bottom to count as "at bottom" */
   atBottomThreshold?: number;
-  /** Return a ScrollBehavior to auto-follow when content grows at the bottom, or false to skip */
-  followOutput?: (atBottom: boolean) => ScrollBehavior | false;
-  /** Return a ScrollBehavior when the item count increases (new blocks), or false to skip.
-   *  Falls back to followOutput if not provided. */
-  followCountChange?: (atBottom: boolean) => ScrollBehavior | false;
   /** Enable intent-based sticky scroll (opt-in) */
   sticky?: boolean;
   /** Callback when sticky state changes */
@@ -94,13 +91,32 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
   const list = listRef.current;
 
+  // -- ScrollCoordinator: single source of truth for sticky + auto-scroll --
+  const [isStickyState, setIsStickyState] = useState(true);
+
+  const coordinatorRef = useRef<ScrollCoordinator | null>(null);
+  if (!coordinatorRef.current) {
+    coordinatorRef.current = new ScrollCoordinator({
+      onStickyChange: (sticky) => {
+        setIsStickyState(sticky);
+        opts.onStickyChange?.(sticky);
+      },
+      reengageThreshold: 20,
+    });
+  }
+  const coordinator = coordinatorRef.current;
+
   // Sync count changes — silent (no subscriber notification) to avoid
   // setState-during-render warnings. useSyncExternalStore's getSnapshot
   // picks up the change naturally on this render pass.
   const prevCountRef = useRef(opts.count);
   if (opts.count !== prevCountRef.current) {
+    const countIncreased = opts.count > prevCountRef.current;
     prevCountRef.current = opts.count;
     list.setCount(opts.count, false);
+    if (countIncreased && opts.sticky) {
+      coordinator.onItemAdded();
+    }
   }
 
   // Sync option changes (also silent during render)
@@ -117,15 +133,6 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     }, false);
   }
   prevOptsRef.current = opts;
-
-  // -- Sticky mode state --
-  const [isSticky, setIsStickyState] = useState(true);
-  const isStickyRef = useRef(true);
-  const setSticky = useCallback((value: boolean) => {
-    if (isStickyRef.current === value) return;
-    isStickyRef.current = value;
-    setIsStickyState(value);
-  }, []);
 
   // -- useSyncExternalStore for reactive snapshot (items + totalHeight + isAtBottom) --
   const snapshotRef = useRef<VirtualSnapshot>({
@@ -152,55 +159,58 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  // -- Scroll listener on the scroll element --
+  // -- Scroll listener + coordinator attach/detach --
   useEffect(() => {
     const el = opts.getScrollElement();
     if (!el) return;
 
-    // Initialize with current dimensions
+    coordinator.attach(el);
     list.updateScroll(el.scrollTop, el.clientHeight);
 
     const onScroll = () => {
       list.updateScroll(el.scrollTop, el.clientHeight);
-
-      // Re-engage sticky when user scrolls to near bottom
-      if (opts.sticky && !isStickyRef.current) {
+      if (opts.sticky) {
         const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-        if (gap <= 20) {
-          setSticky(true);
-        }
+        coordinator.onScrollPositionChanged(gap);
       }
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
 
     if (!opts.sticky) {
-      return () => el.removeEventListener("scroll", onScroll);
+      return () => {
+        coordinator.detach();
+        el.removeEventListener("scroll", onScroll);
+      };
     }
 
-    // User-intent detection: wheel-up disengages sticky
     const onWheel = (e: WheelEvent) => {
-      if (e.deltaY < 0 && isStickyRef.current) {
-        setSticky(false);
-      }
+      if (e.deltaY < 0) coordinator.onUserScrolledUp();
     };
 
-    // User-intent detection: scrollbar drag disengages sticky
     const onPointerDown = (e: PointerEvent) => {
-      if (e.target === el && isStickyRef.current) {
-        setSticky(false);
-      }
+      if (e.target === el) coordinator.onUserScrolledUp();
     };
 
     el.addEventListener("wheel", onWheel, { passive: true });
     el.addEventListener("pointerdown", onPointerDown);
 
     return () => {
+      coordinator.detach();
       el.removeEventListener("scroll", onScroll);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [list, opts.getScrollElement, opts.sticky, setSticky]);
+  }, [list, coordinator, opts.getScrollElement, opts.sticky]);
+
+  // -- Content growth subscriber: auto-scroll when heights change --
+  useEffect(() => {
+    if (!opts.sticky) return;
+    const unsub = list.subscribe(() => {
+      coordinator.onContentGrew();
+    });
+    return unsub;
+  }, [list, coordinator, opts.sticky]);
 
   // -- Viewport ResizeObserver on scroll element --
   useEffect(() => {
@@ -215,13 +225,9 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   }, [list, opts.getScrollElement]);
 
   // -- Per-item height measurement via a single shared ResizeObserver --
-  // Items self-register by attaching `measureItem` as a ref callback.
-  // No MutationObserver needed — React tells us about mounts directly.
   const roRef = useRef<ResizeObserver | null>(null);
   const observedRef = useRef(new Map<number, HTMLElement>());
 
-  // Throttled ResizeObserver: collect height changes and flush at most every
-  // RESIZE_THROTTLE_MS to avoid 60fps layout recalculations during streaming.
   const RESIZE_THROTTLE_MS = 80;
   const pendingHeightsRef = useRef<Map<number, number>>(new Map());
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -241,7 +247,6 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
         }
       }
 
-      // Schedule a trailing-edge throttled flush
       if (resizeTimerRef.current === null) {
         resizeTimerRef.current = setTimeout(() => {
           resizeTimerRef.current = null;
@@ -278,7 +283,6 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       const index = parseInt(dataIndex, 10);
       if (isNaN(index)) return;
 
-      // If the DOM element changed for this index, swap observation
       const prev = observedRef.current.get(index);
       if (prev === el) return;
       if (prev) ro.unobserve(prev);
@@ -310,80 +314,9 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     prevAtBottomRef.current = snapshot.isAtBottom;
   }, [snapshot.isAtBottom, opts.onAtBottomChange]);
 
-  // -- stickyChange callback --
-  const prevStickyRef = useRef<boolean | undefined>(undefined);
-  useEffect(() => {
-    if (prevStickyRef.current !== undefined && prevStickyRef.current !== isSticky) {
-      opts.onStickyChange?.(isSticky);
-    }
-    prevStickyRef.current = isSticky;
-  }, [isSticky, opts.onStickyChange]);
-
-  // -- Unified auto-scroll: single rAF-deduplicated mechanism for both count
-  //    changes and height changes, preventing competing scroll targets. --
-  const autoScrollRafRef = useRef<number | null>(null);
-  const pendingScrollBehaviorRef = useRef<ScrollBehavior | null>(null);
-
-  const scheduleAutoScroll = useCallback((behavior: ScrollBehavior) => {
-    pendingScrollBehaviorRef.current = behavior;
-    if (autoScrollRafRef.current !== null) return; // Already scheduled
-    autoScrollRafRef.current = requestAnimationFrame(() => {
-      autoScrollRafRef.current = null;
-      const b = pendingScrollBehaviorRef.current;
-      pendingScrollBehaviorRef.current = null;
-      if (!b) return;
-
-      const el = opts.getScrollElement();
-      if (!el) return;
-      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (gap > 1) {
-        el.scrollTo({ top: el.scrollHeight, behavior: b });
-      }
-    });
-  }, [opts.getScrollElement]);
-
-  // Clean up pending rAF on unmount
-  useEffect(() => {
-    return () => {
-      if (autoScrollRafRef.current !== null) {
-        cancelAnimationFrame(autoScrollRafRef.current);
-      }
-    };
-  }, []);
-
-  // followOutput: auto-scroll when count increases while at bottom
-  const prevFollowCountRef = useRef(opts.count);
-  const followCountFn = opts.followCountChange ?? opts.followOutput;
-  useEffect(() => {
-    if (!followCountFn) return;
-    if (opts.count <= prevFollowCountRef.current) {
-      prevFollowCountRef.current = opts.count;
-      return;
-    }
-    prevFollowCountRef.current = opts.count;
-
-    const shouldFollow = opts.sticky ? isSticky : snapshot.isAtBottom;
-    const result = followCountFn(shouldFollow);
-    if (result === false) return;
-
-    scheduleAutoScroll(result);
-  }, [opts.count, followCountFn, opts.sticky, isSticky, snapshot.isAtBottom, scheduleAutoScroll]);
-
-  // followOutput: also follow height changes (streaming content growing)
-  useEffect(() => {
-    if (!opts.followOutput) return;
-
-    const unsub = list.subscribe(() => {
-      const shouldFollow = opts.sticky ? isStickyRef.current : list.isAtBottom;
-      if (!shouldFollow) return;
-      const result = opts.followOutput!(true);
-      if (result === false) return;
-
-      scheduleAutoScroll(result);
-    });
-
-    return unsub;
-  }, [list, opts.followOutput, opts.sticky, scheduleAutoScroll]);
+  const setSticky = useCallback((value: boolean) => {
+    coordinator.setSticky(value);
+  }, [coordinator]);
 
   const { items: snapshotItems } = snapshot;
   const lastItem = snapshotItems[snapshotItems.length - 1];
@@ -400,7 +333,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     scrollToIndex,
     measureItem,
     isAtBottom: snapshot.isAtBottom,
-    isSticky,
+    isSticky: isStickyState,
     setSticky,
     list,
   };

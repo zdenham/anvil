@@ -1,208 +1,173 @@
 import { memo } from "react";
 import type {
-  MessageParam,
   ContentBlock,
   ServerToolUseBlock,
   WebSearchToolResultBlock,
 } from "@anthropic-ai/sdk/resources/messages";
-import type { ToolExecutionState } from "@/lib/types/agent-messages";
+import type { RenderContentBlock } from "@core/types/events.js";
+import { useThreadContext } from "./thread-context";
+import { useMessageContent } from "@/hooks/use-thread-selectors";
 import { TextBlock } from "./text-block";
 import { ThinkingBlock } from "./thinking-block";
+import { TrickleBlock } from "./trickle-block";
+import { StreamingCursor } from "./streaming-cursor";
+import { ToolBlockRouter } from "./tool-block-router";
 import { ToolUseBlock } from "./tool-use-block";
-import { ToolPermissionWrapper } from "./tool-permission-wrapper";
-import { LiveAskUserQuestion } from "./live-ask-user-question";
-import { getSpecializedToolBlock } from "./tool-blocks";
+import { WebSearchToolBlock } from "./tool-blocks/web-search-tool-block";
 import { WorkspaceRootProvider } from "@/hooks/use-workspace-root";
 
 interface AssistantMessageProps {
-  /** The full messages array (needed to look up tool results from next message) */
-  messages: MessageParam[];
-  /** Index of this assistant message in the messages array */
-  messageIndex: number;
-  /** Whether this turn is still streaming */
-  isStreaming?: boolean;
-  /** Explicit tool states from the agent (optional for backwards compatibility with old state files) */
-  toolStates?: Record<string, ToolExecutionState>;
-  /** Callback when user responds to a tool (e.g., AskUserQuestion) */
-  onToolResponse?: (toolId: string, response: string) => void;
-  /** Thread ID for persisting expand state across virtualization */
-  threadId: string;
-  /** Working directory for resolving relative file paths in markdown */
-  workingDirectory?: string;
+  /** Stable ID of this assistant message */
+  messageId: string;
 }
 
 /**
  * Container for a single assistant turn.
- * Renders mixed content: text, thinking, tool use.
+ * Renders committed content (text, thinking, tool use) and streaming content
+ * (isStreaming blocks) inline via TrickleBlock + StreamingCursor.
  */
 export const AssistantMessage = memo(function AssistantMessage({
-  messages,
-  messageIndex,
-  isStreaming = false,
-  toolStates,
-  onToolResponse,
-  threadId,
-  workingDirectory,
+  messageId,
 }: AssistantMessageProps) {
-  const message = messages[messageIndex];
-  const content = (message.content as ContentBlock[]) ?? [];
+  const { threadId, workingDirectory } = useThreadContext();
+  const content = useMessageContent(threadId, messageId) as (ContentBlock | RenderContentBlock)[];
+
+  // Find the last streaming block index for cursor placement
+  const lastStreamingIndex = content.reduce(
+    (acc, block, i) => ((block as RenderContentBlock).isStreaming ? i : acc),
+    -1,
+  );
 
   return (
-    <WorkspaceRootProvider value={workingDirectory ?? ""}>
-    <article role="article" aria-label="Assistant response" className="group">
-      <div className="flex gap-3">
+    <WorkspaceRootProvider value={workingDirectory}>
+      <article role="article" aria-label="Assistant response" className="group">
+        <div className="flex gap-3">
+          <div className="flex-1 min-w-0 space-y-1.5">
+            {content.map((block, index) => {
+              const renderBlock = block as RenderContentBlock;
 
-        {/* Content */}
-        <div className="flex-1 min-w-0 space-y-1.5">
-          {content.map((block, index) => {
-            const isLastBlock = index === content.length - 1;
-            const showCursor = isStreaming && isLastBlock;
+              // Streaming text/thinking — render with TrickleBlock
+              if (renderBlock.isStreaming) {
+                const blockContent =
+                  (renderBlock.type === "text" ? renderBlock.text : renderBlock.thinking) ?? "";
+                const isLast = index === lastStreamingIndex;
 
-            switch (block.type) {
-              case "text":
                 return (
-                  <TextBlock
-                    key={`text-${index}`}
-                    content={block.text}
-                    isStreaming={showCursor}
-                    workingDirectory={workingDirectory}
-                  />
-                );
-
-              case "thinking":
-                return (
-                  <ThinkingBlock
-                    key={`thinking-${index}`}
-                    content={block.thinking}
-                    threadId={threadId}
-                    blockKey={`thinking-${index}`}
-                  />
-                );
-
-              case "tool_use": {
-                // Defensive: handle missing toolStates (old state files) or missing entry
-                const state = toolStates?.[block.id] ?? { status: "running" as const };
-
-                // Handle AskUserQuestion specially with interactive UI
-                if (block.name === "AskUserQuestion") {
-                  return (
-                    <LiveAskUserQuestion
-                      key={block.id}
-                      blockId={block.id}
-                      blockInput={block.input}
-                      toolState={state}
-                      threadId={threadId}
-                      onToolResponse={onToolResponse}
+                  <div key={`streaming-${renderBlock.type}-${index}`} className="relative">
+                    <TrickleBlock
+                      block={{ type: renderBlock.type as "text" | "thinking", content: blockContent }}
+                      isLast={isLast}
+                      workingDirectory={workingDirectory}
                     />
-                  );
-                }
-
-                // Check for specialized tool block component
-                const SpecializedBlock = getSpecializedToolBlock(block.name);
-                if (SpecializedBlock) {
-                  return (
-                    <ToolPermissionWrapper
-                      key={block.id}
-                      toolUseId={block.id}
-                      toolName={block.name}
-                      toolInput={block.input as Record<string, unknown>}
-                      threadId={threadId}
-                    >
-                      <SpecializedBlock
-                        id={block.id}
-                        name={block.name}
-                        input={block.input as Record<string, unknown>}
-                        result={state.result}
-                        isError={state.isError}
-                        status={state.status}
-                        threadId={threadId}
-                      />
-                    </ToolPermissionWrapper>
-                  );
-                }
-
-                return (
-                  <ToolUseBlock
-                    key={block.id}
-                    id={block.id}
-                    name={block.name}
-                    input={block.input as Record<string, unknown>}
-                    result={state.result}
-                    isError={state.isError}
-                    status={state.status}
-                    threadId={threadId}
-                  />
+                    {isLast && blockContent.length > 0 && <StreamingCursor />}
+                  </div>
                 );
               }
 
-              // Handle server-side tool use (e.g., web_search)
-              // See: https://docs.anthropic.com/en/docs/build-with-claude/tool-use/web-search-tool
-              case "server_tool_use": {
-                const serverBlock = block as ServerToolUseBlock;
-
-                // Find the corresponding web_search_tool_result block in the content array
-                // Results come as a separate block with matching tool_use_id
-                const resultBlock = content.find(
-                  (b): b is WebSearchToolResultBlock =>
-                    b.type === "web_search_tool_result" &&
-                    (b as WebSearchToolResultBlock).tool_use_id === serverBlock.id
-                ) as WebSearchToolResultBlock | undefined;
-
-                // Determine status based on whether we have results
-                const hasResult = !!resultBlock;
-                const isError = resultBlock?.content &&
-                  !Array.isArray(resultBlock.content) &&
-                  (resultBlock.content as { type?: string }).type === "web_search_tool_result_error";
-
-                // Serialize the result content for the tool block
-                const resultString = resultBlock
-                  ? JSON.stringify(resultBlock.content)
-                  : undefined;
-
-                // Use the specialized WebSearchToolBlock
-                const SpecializedBlock = getSpecializedToolBlock(serverBlock.name);
-                if (SpecializedBlock) {
+              // Committed content
+              switch (block.type) {
+                case "text":
                   return (
-                    <SpecializedBlock
-                      key={serverBlock.id}
-                      id={serverBlock.id}
-                      name={serverBlock.name}
-                      input={serverBlock.input as Record<string, unknown>}
-                      result={resultString}
-                      isError={isError}
-                      status={hasResult ? "complete" : "running"}
-                      threadId={threadId}
+                    <TextBlock
+                      key={`text-${index}`}
+                      content={(block as ContentBlock & { text: string }).text}
+                      isStreaming={false}
+                      workingDirectory={workingDirectory}
                     />
                   );
-                }
 
-                // Fallback to generic ToolUseBlock
-                return (
-                  <ToolUseBlock
-                    key={serverBlock.id}
-                    id={serverBlock.id}
-                    name={serverBlock.name}
-                    input={serverBlock.input as Record<string, unknown>}
-                    result={resultString}
-                    isError={isError}
-                    status={hasResult ? "complete" : "running"}
-                    threadId={threadId}
-                  />
-                );
+                case "thinking":
+                  return (
+                    <ThinkingBlock
+                      key={`thinking-${index}`}
+                      content={(block as ContentBlock & { thinking: string }).thinking}
+                      threadId={threadId}
+                      blockKey={`thinking-${index}`}
+                    />
+                  );
+
+                case "tool_use":
+                  return (
+                    <ToolBlockRouter
+                      key={(block as ContentBlock & { id: string }).id}
+                      toolUseId={(block as ContentBlock & { id: string }).id}
+                      toolName={(block as ContentBlock & { name: string }).name}
+                      toolInput={(block as ContentBlock & { input: unknown }).input as Record<string, unknown>}
+                    />
+                  );
+
+                case "server_tool_use":
+                  return (
+                    <ServerToolUseRenderer
+                      key={(block as ServerToolUseBlock).id}
+                      block={block as ServerToolUseBlock}
+                      content={content as ContentBlock[]}
+                    />
+                  );
+
+                case "web_search_tool_result":
+                  // Handled by server_tool_use case — skip to avoid duplicate rendering
+                  return null;
+
+                default:
+                  return null;
               }
-
-              // web_search_tool_result blocks are handled by the server_tool_use case above
-              // We skip them here to avoid duplicate rendering
-              case "web_search_tool_result":
-                return null;
-
-              default:
-                return null;
-            }
-          })}
+            })}
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
     </WorkspaceRootProvider>
   );
 });
+
+/** Renders server-side tool use blocks (e.g., web_search). */
+function ServerToolUseRenderer({
+  block,
+  content,
+}: {
+  block: ServerToolUseBlock;
+  content: ContentBlock[];
+}) {
+  const { threadId } = useThreadContext();
+
+  // Find the corresponding web_search_tool_result block in the content array
+  const resultBlock = content.find(
+    (b): b is WebSearchToolResultBlock =>
+      b.type === "web_search_tool_result" &&
+      (b as WebSearchToolResultBlock).tool_use_id === block.id,
+  ) as WebSearchToolResultBlock | undefined;
+
+  const hasResult = !!resultBlock;
+  const isError =
+    resultBlock?.content &&
+    !Array.isArray(resultBlock.content) &&
+    (resultBlock.content as { type?: string }).type === "web_search_tool_result_error";
+
+  const resultString = resultBlock ? JSON.stringify(resultBlock.content) : undefined;
+
+  // server_tool_use is always web_search — pass server overrides directly
+  const normalized = block.name.toLowerCase();
+  if (normalized === "web_search" || normalized === "websearch") {
+    return (
+      <WebSearchToolBlock
+        id={block.id}
+        name={block.name}
+        input={block.input as Record<string, unknown>}
+        threadId={threadId}
+        serverResult={resultString}
+        serverIsError={isError ? true : false}
+        serverStatus={hasResult ? "complete" : "running"}
+      />
+    );
+  }
+
+  // Fallback for any other server_tool_use type
+  return (
+    <ToolUseBlock
+      id={block.id}
+      name={block.name}
+      input={block.input as Record<string, unknown>}
+      threadId={threadId}
+    />
+  );
+}

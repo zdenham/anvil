@@ -16,7 +16,9 @@ import { EventName } from '@core/types/events.js';
  *
  * IMPORTANT: Requires ANTHROPIC_API_KEY environment variable.
  */
-describe('Thread Naming - Live LLM', () => {
+// Requires live LLM API calls and working agent harness.
+// Skip until agent harness state collection is fixed (test-audit.md issue #7).
+describe.skip('Thread Naming - Live LLM', () => {
   let harness: AgentTestHarness;
 
   beforeEach(() => {

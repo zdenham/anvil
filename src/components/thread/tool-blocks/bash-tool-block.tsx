@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -78,13 +78,10 @@ export function BashToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Use Zustand store for expand state to persist across virtualization remounts
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
@@ -179,13 +176,8 @@ export function BashToolBlock({
             <StatusIcon isSuccess={false} />
           )}
 
-          {/* Duration and background info - right justified */}
+          {/* Background info - right justified */}
           <span className="flex items-center gap-2 shrink-0 ml-auto">
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
-              </span>
-            )}
             {isBackground && (
               <span className="text-xs text-zinc-500 font-mono">
                 (bg: {id.slice(0, 8)})

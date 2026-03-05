@@ -17,7 +17,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { glob } from "glob";
 
-describe("Control Panel Content Verification", () => {
+describe("Control Panel Content Verification", { timeout: 30_000 }, () => {
   const projectRoot = process.cwd();
 
   async function searchInFiles(

@@ -1,7 +1,6 @@
 import { useThreadStore } from "@/entities/threads/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
 import { getAllOutputBuffers } from "@/entities/terminal-sessions/output-buffer";
-import { useStreamingStore } from "@/stores/streaming-store";
 import { useLogStore } from "@/entities/logs/store";
 import { useHeartbeatStore } from "@/stores/heartbeat-store";
 import { invoke } from "@/lib/invoke";
@@ -114,19 +113,26 @@ function measureTerminalSessions() {
 }
 
 function measureStreaming() {
-  const { activeStreams } = useStreamingStore.getState();
+  const { threadStates } = useThreadStore.getState();
+  let activeStreamCount = 0;
   let totalBlockContentBytes = 0;
 
-  for (const stream of Object.values(activeStreams)) {
-    for (const block of stream.blocks) {
-      totalBlockContentBytes += block.content.length;
+  for (const state of Object.values(threadStates)) {
+    if (!state?.messages?.length) continue;
+    const last = state.messages[state.messages.length - 1];
+    if (!last?.content || !Array.isArray(last.content)) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const streaming = (last.content as any[]).filter((b) => b.isStreaming === true);
+    if (streaming.length > 0) {
+      activeStreamCount++;
+      for (const block of streaming) {
+        const text = block.type === "text" ? block.text : block.thinking;
+        totalBlockContentBytes += (text ?? "").length;
+      }
     }
   }
 
-  return {
-    activeStreamCount: Object.keys(activeStreams).length,
-    totalBlockContentBytes,
-  };
+  return { activeStreamCount, totalBlockContentBytes };
 }
 
 async function fetchNativeRss(): Promise<number | null> {
@@ -170,7 +176,6 @@ export async function captureMemorySnapshot(): Promise<MemorySnapshot> {
 export function getMemorySummary() {
   const { threads, threadStates } = useThreadStore.getState();
   const outputBuffers = getAllOutputBuffers();
-  const { activeStreams } = useStreamingStore.getState();
 
   let totalBufferBytes = 0;
   for (const buffer of outputBuffers.values()) {
@@ -187,6 +192,8 @@ export function getMemorySummary() {
     cachedStateEstimateBytes += msgCount * 2048 + toolCount * 1024;
   }
 
+  const { activeStreamCount } = measureStreaming();
+
   return {
     jsHeap: getJsHeap(),
     threadMetadataCount: Object.keys(threads).length,
@@ -194,6 +201,6 @@ export function getMemorySummary() {
     cachedStateEstimateBytes,
     terminalBufferCount: outputBuffers.size,
     terminalBufferBytes: totalBufferBytes,
-    activeStreamCount: Object.keys(activeStreams).length,
+    activeStreamCount,
   };
 }

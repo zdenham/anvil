@@ -3,7 +3,7 @@
  *
  * This file runs before all UI tests and sets up:
  * - jest-dom matchers for DOM assertions
- * - Mocks for Tauri APIs (@tauri-apps/api/core and @tauri-apps/api/event)
+ * - Mocks for Tauri APIs (@tauri-apps/api/core)
  * - Automatic mock state reset between tests
  *
  * Tests using this setup can simulate the complete Tauri environment
@@ -14,8 +14,6 @@ import "@testing-library/jest-dom/vitest";
 import { vi, beforeEach, afterEach } from "vitest";
 import {
   mockInvoke,
-  mockEmit,
-  mockListen,
   resetAllMocks,
 } from "./mocks/tauri-api";
 import { TestEvents } from "./helpers/event-emitter";
@@ -31,10 +29,14 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
 }));
 
-// Mock @tauri-apps/api/event
-vi.mock("@tauri-apps/api/event", () => ({
-  emit: mockEmit,
-  listen: mockListen,
+// Mock the invoke wrapper to bypass transport detection (WebSocket/Tauri IPC)
+// and route all commands directly through mockInvoke
+vi.mock("@/lib/invoke", () => ({
+  invoke: mockInvoke,
+  connectWs: () => Promise.resolve(),
+  disconnectWs: () => {},
+  setEventDispatcher: () => {},
+  relayEvent: () => {},
 }));
 
 // Mock @tauri-apps/plugin-dialog (prevents "plugin not found" errors)

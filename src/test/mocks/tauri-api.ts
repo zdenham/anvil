@@ -193,6 +193,14 @@ export const mockInvoke = vi.fn(async (cmd: string, args?: Record<string, unknow
     case "get_agent_types":
       return ["research", "execution", "review", "merge"];
 
+    // Path resolution
+    case "get_paths_info":
+      return { data_dir: MOCK_MORT_DIR, config_dir: MOCK_MORT_DIR, app_suffix: "", is_alternate_build: false };
+
+    // Directory creation (no-op in virtual filesystem)
+    case "fs_mkdir":
+      return;
+
     // Logging
     case "web_log":
       capturedLogs.push({

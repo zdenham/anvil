@@ -132,7 +132,9 @@ function extractAgentFinalText(messages: RunnerMessage[]): string | null {
   return textBlock?.text ?? null;
 }
 
-describeWithApi("Phase 0.5: Two-phase hook + canUseTool spike", () => {
+// Spike completed — validated two-phase hook + canUseTool approach (see MEMORY.md).
+// These tests require live API calls and are not regression tests.
+describeWithApi.skip("Phase 0.5: Two-phase hook + canUseTool spike", () => {
   it("Approach 1 (two_phase): hook returns 'ask', canUseTool delivers answers", async () => {
     const output = await runRunner(
       { APPROACH: "two_phase" },

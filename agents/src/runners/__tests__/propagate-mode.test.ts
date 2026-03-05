@@ -13,7 +13,6 @@ vi.mock("../../output.js", () => ({
   appendAssistantMessage: vi.fn(),
   markToolRunning: vi.fn(),
   markToolComplete: vi.fn(),
-  relayEventsFromToolOutput: vi.fn(),
   updateFileChange: vi.fn(),
   complete: vi.fn(),
   error: vi.fn(),

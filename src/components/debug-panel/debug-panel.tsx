@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const TABS: { id: DebugPanelTab; label: string; icon: typeof ScrollText }[] = [
   { id: "logs", label: "Logs", icon: ScrollText },
   { id: "diagnostics", label: "Frame Rate", icon: Activity },
-  { id: "events", label: "Events", icon: Radio },
+  { id: "events", label: "Agent Events", icon: Radio },
   { id: "network", label: "Network", icon: Wifi },
 ];
 

@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useQuickActionHotkeys } from '../use-quick-action-hotkeys.js';
 import { useQuickActionsStore } from '@/entities/quick-actions/store.js';
-import { useContentPanesStore } from '@/stores/content-panes/store.js';
+import { usePaneLayoutStore } from '@/stores/pane-layout/store.js';
 import { useModalStore } from '@/stores/modal-store.js';
+import type { PaneLayoutPersistedState } from '@/stores/pane-layout/types.js';
 
 // Mock the executor hook
 const executeMock = vi.fn();
@@ -16,6 +17,22 @@ vi.mock('@/hooks/use-quick-action-executor.js', () => ({
     execute: executeMock,
   }),
 }));
+
+/** Helper to seed the pane-layout store with a given active tab view. */
+function seedPaneLayout(viewType: string, extra: Record<string, unknown> = {}): void {
+  const state: PaneLayoutPersistedState = {
+    root: { type: 'leaf', groupId: 'g1' },
+    groups: {
+      g1: {
+        id: 'g1',
+        tabs: [{ id: 't1', view: { type: viewType, ...extra } }],
+        activeTabId: 't1',
+      },
+    },
+    activeGroupId: 'g1',
+  };
+  usePaneLayoutStore.getState().hydrate(state);
+}
 
 describe('useQuickActionHotkeys', () => {
   beforeEach(() => {
@@ -38,15 +55,7 @@ describe('useQuickActionHotkeys', () => {
     });
 
     // Default to thread view (main view where hotkeys should work)
-    useContentPanesStore.setState({
-      panes: {
-        'pane-1': {
-          id: 'pane-1',
-          view: { type: 'thread', threadId: 'thread-123' },
-        },
-      },
-      activePaneId: 'pane-1',
-    });
+    seedPaneLayout('thread', { threadId: 'thread-123' });
 
     // No modal open by default
     useModalStore.setState({ openCount: 0, isOpen: false });
@@ -73,15 +82,7 @@ describe('useQuickActionHotkeys', () => {
 
   // DD #16 Compliance: Settings page
   it('does NOT trigger hotkeys on settings page (DD #16)', () => {
-    useContentPanesStore.setState({
-      panes: {
-        'pane-1': {
-          id: 'pane-1',
-          view: { type: 'settings' },
-        },
-      },
-      activePaneId: 'pane-1',
-    });
+    seedPaneLayout('settings');
 
     renderHook(() => useQuickActionHotkeys());
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true }));
@@ -90,15 +91,7 @@ describe('useQuickActionHotkeys', () => {
 
   // DD #16 Compliance: Logs page
   it('does NOT trigger hotkeys on logs page (DD #16)', () => {
-    useContentPanesStore.setState({
-      panes: {
-        'pane-1': {
-          id: 'pane-1',
-          view: { type: 'logs' },
-        },
-      },
-      activePaneId: 'pane-1',
-    });
+    seedPaneLayout('logs');
 
     renderHook(() => useQuickActionHotkeys());
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true }));
@@ -116,15 +109,7 @@ describe('useQuickActionHotkeys', () => {
 
   // DD #16 Compliance: Main views work
   it('triggers hotkeys on thread view (DD #16)', () => {
-    useContentPanesStore.setState({
-      panes: {
-        'pane-1': {
-          id: 'pane-1',
-          view: { type: 'thread', threadId: 'thread-123' },
-        },
-      },
-      activePaneId: 'pane-1',
-    });
+    seedPaneLayout('thread', { threadId: 'thread-123' });
 
     renderHook(() => useQuickActionHotkeys());
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true }));
@@ -132,15 +117,7 @@ describe('useQuickActionHotkeys', () => {
   });
 
   it('triggers hotkeys on plan view (DD #16)', () => {
-    useContentPanesStore.setState({
-      panes: {
-        'pane-1': {
-          id: 'pane-1',
-          view: { type: 'plan', planId: 'plan-123' },
-        },
-      },
-      activePaneId: 'pane-1',
-    });
+    seedPaneLayout('plan', { planId: 'plan-123' });
 
     renderHook(() => useQuickActionHotkeys());
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true }));
@@ -148,25 +125,19 @@ describe('useQuickActionHotkeys', () => {
   });
 
   it('triggers hotkeys on empty view (DD #16)', () => {
-    useContentPanesStore.setState({
-      panes: {
-        'pane-1': {
-          id: 'pane-1',
-          view: { type: 'empty' },
-        },
-      },
-      activePaneId: 'pane-1',
-    });
+    seedPaneLayout('empty');
 
     renderHook(() => useQuickActionHotkeys());
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', metaKey: true }));
     expect(executeMock).toHaveBeenCalled();
   });
 
-  it('does NOT trigger hotkeys when no active pane', () => {
-    useContentPanesStore.setState({
-      panes: {},
-      activePaneId: null,
+  it('does NOT trigger hotkeys when no active group', () => {
+    usePaneLayoutStore.setState({
+      root: { type: 'leaf', groupId: '' },
+      groups: {},
+      activeGroupId: '',
+      _hydrated: true,
     });
 
     renderHook(() => useQuickActionHotkeys());

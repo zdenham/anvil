@@ -6,9 +6,10 @@
  * (loading, empty, error, with messages).
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, testIds } from "@/test/helpers";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { StoredMessage } from "@core/types/events";
+import { useThreadStore } from "@/entities/threads/store";
 import { ThreadView } from "./thread-view";
 
 // Suppress logger output during tests
@@ -23,13 +24,17 @@ vi.mock("@/lib/logger-client", () => ({
 }));
 
 describe("ThreadView UI", () => {
+  beforeEach(() => {
+    // Reset store state between tests
+    useThreadStore.setState({ threads: {}, _threadsArray: [] });
+  });
+
   describe("loading state", () => {
     it("renders loading spinner when status is loading", () => {
       render(
         <ThreadView
           threadId="test-thread"
           messages={[]}
-          isStreaming={false}
           status="loading"
         />
       );
@@ -45,7 +50,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={[]}
-          isStreaming={false}
           status="idle"
         />
       );
@@ -55,12 +59,18 @@ describe("ThreadView UI", () => {
       expect(screen.getByRole("status", { name: "Loading thread content" })).toBeInTheDocument();
     });
 
-    it("renders waiting state when streaming with no messages", () => {
+    it("renders waiting state when running with no messages", () => {
+      // Set thread metadata so useIsThreadRunning returns true
+      useThreadStore.setState({
+        threads: {
+          "test-thread": { id: "test-thread", status: "running" } as never,
+        },
+      });
+
       render(
         <ThreadView
           threadId="test-thread"
           messages={[]}
-          isStreaming={true}
           status="running"
         />
       );
@@ -77,7 +87,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={[]}
-          isStreaming={false}
           status="error"
           error="Failed to connect to agent"
         />
@@ -95,7 +104,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={[]}
-          isStreaming={false}
           status="error"
           error="Connection failed"
           onRetry={mockRetry}
@@ -111,9 +119,9 @@ describe("ThreadView UI", () => {
   });
 
   describe("message rendering", () => {
-    const messages: MessageParam[] = [
-      { role: "user", content: "Hello, can you help me?" },
-      { role: "assistant", content: "Of course! I'd be happy to help." },
+    const messages: StoredMessage[] = [
+      { id: "msg-0", role: "user", content: "Hello, can you help me?" },
+      { id: "msg-1", role: "assistant", content: "Of course! I'd be happy to help." },
     ];
 
     it("renders thread panel with messages", async () => {
@@ -121,7 +129,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={messages}
-          isStreaming={false}
           status="running"
         />
       );
@@ -136,7 +143,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={messages}
-          isStreaming={false}
           status="running"
         />
       );
@@ -151,7 +157,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={messages}
-          isStreaming={false}
           status="error"
           error="Stream interrupted"
         />
@@ -171,7 +176,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={[]}
-          isStreaming={false}
           status="loading"
         />
       );
@@ -184,7 +188,6 @@ describe("ThreadView UI", () => {
         <ThreadView
           threadId="test-thread"
           messages={[]}
-          isStreaming={false}
           status="error"
         />
       );
@@ -193,15 +196,14 @@ describe("ThreadView UI", () => {
     });
 
     it("has proper main landmark for message view", async () => {
-      const messages: MessageParam[] = [
-        { role: "user", content: "Test message" },
+      const messages: StoredMessage[] = [
+        { id: "msg-0", role: "user", content: "Test message" },
       ];
 
       render(
         <ThreadView
           threadId="test-thread"
           messages={messages}
-          isStreaming={false}
           status="running"
         />
       );

@@ -1,0 +1,84 @@
+/**
+ * TabBar — horizontal tab strip above pane content.
+ *
+ * Renders TabItem components inside a SortableContext for drag-and-drop
+ * reordering within and across groups. Includes a "+" button for new tabs.
+ */
+
+import { useCallback, useMemo } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { Plus } from "lucide-react";
+import { paneLayoutService } from "@/stores/pane-layout";
+import { threadService } from "@/entities/threads/service";
+import { useMRUWorktree } from "@/hooks/use-mru-worktree";
+import { logger } from "@/lib/logger-client";
+import { TabItem } from "./tab-item";
+import type { TabItem as TabItemType } from "@/stores/pane-layout/types";
+
+interface TabBarProps {
+  groupId: string;
+  tabs: TabItemType[];
+  activeTabId: string;
+}
+
+export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
+  const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs]);
+  const { repoId, worktreeId } = useMRUWorktree();
+
+  // Make the tab bar itself a drop target so tabs can be dragged to empty areas
+  const { setNodeRef: setDroppableRef } = useDroppable({
+    id: `tab-bar-drop-${groupId}`,
+    data: { type: "tab-bar", groupId },
+  });
+
+  const handleNewTab = useCallback(() => {
+    if (!repoId || !worktreeId) {
+      // No worktree available — fall back to empty tab
+      logger.warn("[TabBar] No MRU worktree available, opening empty tab");
+      paneLayoutService.openTab({ type: "empty" }, groupId);
+      return;
+    }
+
+    const threadId = crypto.randomUUID();
+    threadService.createOptimistic({
+      id: threadId,
+      repoId,
+      worktreeId,
+      status: "idle",
+    });
+    paneLayoutService.openTab(
+      { type: "thread", threadId, autoFocus: true },
+      groupId,
+    );
+  }, [groupId, repoId, worktreeId]);
+
+  return (
+    <div
+      ref={setDroppableRef}
+      data-testid={`tab-bar-${groupId}`}
+      className="flex items-stretch bg-surface-900 overflow-x-auto scrollbar-none"
+    >
+      <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
+        {tabs.map((tab) => (
+          <TabItem
+            key={tab.id}
+            tab={tab}
+            groupId={groupId}
+            isActive={tab.id === activeTabId}
+          />
+        ))}
+      </SortableContext>
+      <button
+        data-testid={`tab-new-${groupId}`}
+        onClick={handleNewTab}
+        className="flex items-center justify-center w-7 flex-shrink-0 border-b border-surface-700 text-surface-400 hover:text-surface-200 hover:bg-surface-700 transition-colors"
+        aria-label="New tab"
+      >
+        <Plus size={12} />
+      </button>
+      {/* Spacer carries the bottom border across remaining width */}
+      <div className="flex-1 border-b border-surface-700" />
+    </div>
+  );
+}

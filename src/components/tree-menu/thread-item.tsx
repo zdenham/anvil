@@ -47,7 +47,7 @@ function focusTreeItem(index: number) {
 interface ThreadItemProps {
   item: TreeItemNode;
   isSelected: boolean;
-  onSelect: (itemId: string, itemType: EntityItemType) => void;
+  onSelect: (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => void;
   tabIndex?: number;
   /** Index in the flat list for keyboard navigation */
   itemIndex?: number;
@@ -120,13 +120,21 @@ export function ThreadItem({
     }
   };
 
-  const handleClick = async () => {
+  const handleClick = async (e: React.MouseEvent) => {
     if (isSelected && item.isFolder) {
       // Already selected - toggle expansion
       await treeMenuService.toggleSection(`thread:${item.id}`);
     } else {
-      // Not selected - just select
-      onSelect(item.id, "thread");
+      // Pass event so parent can detect Cmd+Click
+      onSelect(item.id, "thread", e);
+    }
+  };
+
+  const handleMouseDown = async (e: React.MouseEvent) => {
+    // Middle-click opens in new tab
+    if (e.button === 1) {
+      e.preventDefault();
+      onSelect(item.id, "thread", e);
     }
   };
 
@@ -219,6 +227,7 @@ export function ThreadItem({
         data-tree-item-index={itemIndex}
         tabIndex={tabIndex}
         onClick={handleClick}
+        onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
         onContextMenu={contextMenu.open}
         style={{ paddingLeft: `${indentPx}px` }}

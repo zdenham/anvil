@@ -70,9 +70,9 @@ vi.mock("@/lib/thread-creation-service", () => ({
 
 const mockSetActivePaneView = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("@/stores/content-panes", () => ({
-  contentPanesService: {
-    setActivePaneView: (...args: unknown[]) => mockSetActivePaneView(...args),
+vi.mock("@/stores/pane-layout", () => ({
+  paneLayoutService: {
+    setActiveTabView: (...args: unknown[]) => mockSetActivePaneView(...args),
   },
 }));
 

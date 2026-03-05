@@ -1,6 +1,6 @@
-import { formatDuration } from "@/lib/utils/time-format";
 import { toRelativePath } from "@/lib/utils/path-display";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { useWorkspaceRoot } from "@/hooks/use-workspace-root";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
@@ -29,13 +29,10 @@ export function WriteToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Expand state from Zustand store
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
@@ -105,14 +102,7 @@ export function WriteToolBlock({
           {/* Error indicator */}
           {!isRunning && isError && <StatusIcon isSuccess={false} />}
 
-          {/* Duration - right justified */}
-          <span className="ml-auto shrink-0">
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
-              </span>
-            )}
-          </span>
+          <span className="ml-auto shrink-0" />
         </div>
 
         {/* Second line: Icon + file path */}

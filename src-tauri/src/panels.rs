@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, Url,
+    AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size, Url,
     WebviewUrl,
 };
 use tauri_plugin_opener::OpenerExt;
@@ -65,8 +65,16 @@ pub const RESULT_ITEM_HEIGHT: f64 = 56.0;
 pub const RESULT_ITEM_HEIGHT_COMPACT: f64 = 32.0;
 pub const MAX_VISIBLE_RESULTS: usize = 8;
 
+use crate::ws_server::push::EventBroadcaster;
+
 // Store app handle globally to access from event callbacks
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
+
+/// Helper to broadcast an event via the WS EventBroadcaster stored in Tauri managed state.
+fn ws_broadcast(app: &AppHandle, event: &str, payload: serde_json::Value) {
+    let broadcaster = app.state::<EventBroadcaster>();
+    broadcaster.broadcast(event, payload);
+}
 
 /// Gets mouse location in CGEvent coordinates (origin at top-left of primary display).
 fn get_mouse_location() -> (f64, f64) {
@@ -246,8 +254,8 @@ pub fn create_spotlight_panel(app: &AppHandle) -> Result<(), Box<dyn std::error:
             }
 
 
-            // Emit event so frontend can reset state
-            let _ = app.emit_to(SPOTLIGHT_LABEL, "panel-hidden", ());
+            // Broadcast so frontend can reset state (with targetWindow for filtering)
+            ws_broadcast(app, "panel-hidden", serde_json::json!({ "targetWindow": SPOTLIGHT_LABEL }));
         }
     });
     panel.set_event_handler(Some(event_handler.as_ref()));
@@ -312,8 +320,8 @@ pub fn create_clipboard_panel(app: &AppHandle) -> Result<(), Box<dyn std::error:
             }
 
 
-            // Emit event so frontend can reset state
-            let _ = app.emit_to(CLIPBOARD_LABEL, "panel-hidden", ());
+            // Broadcast so frontend can reset state (with targetWindow for filtering)
+            ws_broadcast(app, "panel-hidden", serde_json::json!({ "targetWindow": CLIPBOARD_LABEL }));
         }
     });
     panel.set_event_handler(Some(event_handler.as_ref()));
@@ -336,9 +344,9 @@ pub fn show_spotlight(app: &AppHandle) -> Result<(), String> {
         panel.show_and_make_key();
         tracing::info!("[PanelFocus] show_spotlight: spotlight panel now KEY");
 
-        // Emit spotlight-shown event globally (emit_to doesn't work for NSPanels)
-        tracing::debug!("[Spotlight] show_spotlight: emitting spotlight-shown event");
-        let _ = app.emit("spotlight-shown", ());
+        // Broadcast spotlight-shown event via WS
+        tracing::debug!("[Spotlight] show_spotlight: broadcasting spotlight-shown event");
+        ws_broadcast(app, "spotlight-shown", serde_json::json!({}));
     }
     Ok(())
 }
@@ -366,9 +374,9 @@ pub fn toggle_spotlight(app: &AppHandle) {
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
             panel.show_and_make_key();
 
-            // Emit spotlight-shown event globally (emit_to doesn't work for NSPanels)
-            tracing::debug!("[Spotlight] toggle_spotlight: emitting spotlight-shown event");
-            let _ = app.emit("spotlight-shown", ());
+            // Broadcast spotlight-shown event via WS
+            tracing::debug!("[Spotlight] toggle_spotlight: broadcasting spotlight-shown event");
+            ws_broadcast(app, "spotlight-shown", serde_json::json!({}));
         }
     }
 }
@@ -618,8 +626,8 @@ pub fn create_error_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
 
             // Clear pending error when panel is hidden
             clear_pending_error();
-            // Emit event so frontend can reset state
-            let _ = app.emit_to(ERROR_LABEL, "panel-hidden", ());
+            // Broadcast so frontend can reset state (with targetWindow for filtering)
+            ws_broadcast(app, "panel-hidden", serde_json::json!({ "targetWindow": ERROR_LABEL }));
         }
     });
     panel.set_event_handler(Some(event_handler.as_ref()));
@@ -651,16 +659,13 @@ pub fn show_error(app: &AppHandle, message: &str, stack: Option<&str>) -> Result
             panel.show_and_make_key();
             tracing::info!("[ErrorPanel] Panel shown");
 
-            // Emit event globally (emit_to doesn't work reliably with NSPanel)
+            // Broadcast show-error event via WS
             let payload = serde_json::json!({
                 "message": message,
                 "stack": stack
             });
-            tracing::info!("[ErrorPanel] Emitting show-error event globally with payload: {:?}", payload);
-            match app.emit("show-error", &payload) {
-                Ok(_) => tracing::info!("[ErrorPanel] show-error event emitted successfully"),
-                Err(e) => tracing::error!("[ErrorPanel] Failed to emit show-error event: {:?}", e),
-            }
+            tracing::info!("[ErrorPanel] Broadcasting show-error event with payload: {:?}", payload);
+            ws_broadcast(app, "show-error", payload);
         }
         Err(e) => {
             tracing::error!("[ErrorPanel] Failed to get panel: {:?}", e);
@@ -843,8 +848,8 @@ pub fn create_control_panel(app: &AppHandle) -> Result<(), Box<dyn std::error::E
 
             // Clear pending control panel when panel is hidden
             clear_pending_control_panel();
-            // Emit event so frontend can reset state
-            let _ = app.emit_to(CONTROL_PANEL_LABEL, "panel-hidden", ());
+            // Broadcast so frontend can reset state (with targetWindow for filtering)
+            ws_broadcast(app, "panel-hidden", serde_json::json!({ "targetWindow": CONTROL_PANEL_LABEL }));
         }
     });
     panel.set_event_handler(Some(event_handler.as_ref()));
@@ -883,13 +888,13 @@ pub fn show_control_panel(
                 .as_panel()
                 .setFrameTopLeftPoint(tauri_nspanel::NSPoint::new(x, y));
 
-            // Emit event to frontend with task info
+            // Broadcast event to frontend with task info via WS
             let payload = serde_json::json!({
                 "threadId": thread_id,
                 "taskId": task_id,
                 "prompt": prompt
             });
-            let _ = app.emit("open-control-panel", &payload);
+            ws_broadcast(app, "open-control-panel", payload);
 
             // Show the panel and ensure it's focused
             // Note: show_and_make_key() already calls makeKeyAndOrderFront internally,
@@ -950,8 +955,8 @@ pub fn hide_control_panel(app: &AppHandle) -> Result<(), String> {
         unpin_control_panel();
         // Clear pending control panel when panel is hidden
         clear_pending_control_panel();
-        // Emit event so frontend can reset state
-        let _ = app.emit_to(CONTROL_PANEL_LABEL, "panel-hidden", ());
+        // Broadcast so frontend can reset state (with targetWindow for filtering)
+        ws_broadcast(app, "panel-hidden", serde_json::json!({ "targetWindow": CONTROL_PANEL_LABEL }));
     }
     Ok(())
 }

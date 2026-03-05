@@ -497,7 +497,7 @@ export function useTreeData(options?: { skipFiltering?: boolean }): RepoWorktree
 
   // Entity stores - reactive subscriptions
   const threads = useThreadStore((state) => state._threadsArray);
-  const plans = usePlanStore((state) => state.getAll());
+  const plans = usePlanStore((state) => state._plansArray);
   const terminals = useTerminalSessionStore((state) => state._sessionsArray);
   const pullRequests = usePullRequestStore((state) => state._prsArray);
   // Subscribe to prDetails so tree re-renders when details load

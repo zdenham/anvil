@@ -29,8 +29,8 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const { workingDirectory, repoId, worktreeId } = useMRUWorktree();
 
   // Get all threads and plans
-  const threads = useThreadStore((s) => s.getAllThreads());
-  const plans = usePlanStore((s) => s.getAll());
+  const threads = useThreadStore((s) => s._threadsArray);
+  const plans = usePlanStore((s) => s._plansArray);
 
   // Build searchable items list
   const items: PreviewableItem[] = useMemo(() => {

@@ -2,7 +2,6 @@ import type { ThreadStatus } from "./threads.js";
 import type { RelationType } from "./relations.js";
 import type { PermissionModeId } from "./permissions.js";
 import type { GatewayEvent } from "./gateway-events.js";
-import type { Operation } from "fast-json-patch";
 import { z } from "zod";
 
 // WorktreeState is defined in src/entities/repositories/types.ts
@@ -59,12 +58,13 @@ export const EventName = {
 
   // Agent process
   AGENT_SPAWNED: "agent:spawned",
-  AGENT_STATE: "agent:state",
-  AGENT_STATE_DELTA: "agent:state:delta",
   AGENT_COMPLETED: "agent:completed",
   AGENT_ERROR: "agent:error",
   AGENT_TOOL_COMPLETED: "agent:tool-completed",
   AGENT_CANCELLED: "agent:cancelled",
+
+  // Thread state (reducer-based)
+  THREAD_ACTION: "thread:action",
 
   // Orchestration
   WORKTREE_ALLOCATED: "worktree:allocated",
@@ -121,7 +121,6 @@ export const EventName = {
   GITHUB_WEBHOOK_EVENT: "github:webhook-event",
 
   // Streaming
-  OPTIMISTIC_STREAM: "optimistic:stream",
   STREAM_DELTA: "stream:delta",
 
   // API health
@@ -141,19 +140,6 @@ export type EventNameType = (typeof EventName)[keyof typeof EventName];
 // ============================================================================
 
 /**
- * Optimistic stream payload - full accumulated content snapshot.
- * Replaces previous snapshot (NOT a delta).
- */
-export interface OptimisticStreamPayload {
-  threadId: string;
-  /** Full accumulated content snapshot - NOT a delta. Replaces previous snapshot. */
-  blocks: Array<{
-    type: "text" | "thinking";
-    content: string;
-  }>;
-}
-
-/**
  * Block delta for streaming — append-only, simpler than JSON Patch.
  * Streaming content only grows during generation (no edits/deletes).
  */
@@ -164,15 +150,13 @@ export interface BlockDelta {
 }
 
 /**
- * Stream delta event payload — append-only deltas with event chain.
- * When `previousEventId` is null, `full` carries the complete block snapshot.
+ * Stream delta event payload — append-only deltas from the socket.
  */
 export interface StreamDeltaPayload {
-  id: string;
-  previousEventId: string | null;
   threadId: string;
   deltas: BlockDelta[];
-  full?: Array<{ type: "text" | "thinking"; content: string }>;
+  /** Stable SDK message ID (from message_start). Used by reducer for WIP message tracking. */
+  messageId?: string;
 }
 
 /**
@@ -191,18 +175,13 @@ export interface EventPayloads {
 
   // Agent events
   [EventName.AGENT_SPAWNED]: { threadId: string; repoId: string };
-  [EventName.AGENT_STATE]: { threadId: string; state: ThreadState };
-  [EventName.AGENT_STATE_DELTA]: {
-    id: string;
-    previousEventId: string | null;
-    threadId: string;
-    patches: Operation[];
-    full?: ThreadState;
-  };
   [EventName.AGENT_COMPLETED]: { threadId: string; exitCode: number; costUsd?: number };
   [EventName.AGENT_ERROR]: { threadId: string; error: string };
   [EventName.AGENT_TOOL_COMPLETED]: { threadId: string; repoId: string };
   [EventName.AGENT_CANCELLED]: { threadId: string };
+
+  // Thread state (reducer-based)
+  [EventName.THREAD_ACTION]: { threadId: string; action: import("@core/lib/thread-reducer.js").ThreadAction };
 
   // Orchestration events
   [EventName.WORKTREE_ALLOCATED]: { worktree: WorktreeStatePayload; mergeBase: string };
@@ -304,7 +283,6 @@ export interface EventPayloads {
   };
 
   // Streaming
-  [EventName.OPTIMISTIC_STREAM]: OptimisticStreamPayload;
   [EventName.STREAM_DELTA]: StreamDeltaPayload;
 
   // API health
@@ -381,15 +359,46 @@ export const ToolExecutionStateSchema = z.object({
 export type ToolExecutionState = z.infer<typeof ToolExecutionStateSchema>;
 
 /**
+ * Content block within a StoredMessage.
+ *
+ * The `isStreaming` flag is client-only — set by ThreadStateMachine on
+ * in-flight blocks during streaming. It is never persisted to disk and
+ * disappears when committed state replaces the WIP message.
+ */
+export interface RenderContentBlock {
+  type: "text" | "thinking";
+  text?: string;
+  thinking?: string;
+  isStreaming?: boolean;
+}
+
+/**
+ * A message stored in thread state with a stable ID for identification.
+ *
+ * Assistant messages use the API-assigned ID (e.g. msg_013Zva...).
+ * User messages use a generated nanoid.
+ *
+ * Structurally extends SDK MessageParam — the `role` and `content` fields
+ * come from the SDK type, with `id` added for stable keying.
+ */
+export interface StoredMessage {
+  id: string;
+  /** SDK message ID (e.g. msg_013Zva...) for correlating stream deltas with committed messages */
+  anthropicId?: string;
+  role: string;
+  content: unknown;
+  [key: string]: unknown;
+}
+
+/**
  * Complete thread state snapshot emitted during execution.
  *
  * NOTE: The `status` field uses AgentThreadStatus values.
  * This is a subset of the full ThreadStatus - agents never emit
  * state for "idle" or "paused" threads.
  *
- * MessageParam is from the Anthropic SDK - we use z.any() for messages
- * since the SDK already validates these and we don't want to duplicate
- * their schema definitions.
+ * Messages are StoredMessage instances (MessageParam + id).
+ * We use z.any() since the SDK already validates message structure.
  */
 export const ThreadStateSchema = z.object({
   messages: z.array(z.any()),
@@ -406,6 +415,8 @@ export const ThreadStateSchema = z.object({
   lastCallUsage: TokenUsageSchema.optional(),
   /** Cumulative token usage across all API calls (for total spend display) */
   cumulativeUsage: TokenUsageSchema.optional(),
+  /** Maps Anthropic SDK message IDs to our stable UUIDs */
+  idMap: z.record(z.string(), z.string()).optional(),
 });
 export type ThreadState = z.infer<typeof ThreadStateSchema>;
 
@@ -425,8 +436,6 @@ export const EventNameSchema = z.enum([
   EventName.THREAD_FILE_CREATED,
   EventName.THREAD_FILE_MODIFIED,
   EventName.AGENT_SPAWNED,
-  EventName.AGENT_STATE,
-  EventName.AGENT_STATE_DELTA,
   EventName.AGENT_COMPLETED,
   EventName.AGENT_ERROR,
   EventName.AGENT_TOOL_COMPLETED,
@@ -459,7 +468,7 @@ export const EventNameSchema = z.enum([
   EventName.GATEWAY_EVENT,
   EventName.GATEWAY_STATUS,
   EventName.GITHUB_WEBHOOK_EVENT,
-  EventName.OPTIMISTIC_STREAM,
+  EventName.THREAD_ACTION,
   EventName.STREAM_DELTA,
   EventName.COMMENT_ADDED,
   EventName.COMMENT_UPDATED,

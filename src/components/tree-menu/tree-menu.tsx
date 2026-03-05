@@ -11,8 +11,9 @@ interface TreeMenuProps {
    * Called when an item is selected.
    * @param itemId - The ID of the selected item
    * @param itemType - The type of the selected item
+   * @param event - Optional mouse event for detecting Cmd+Click / middle-click
    */
-  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => void;
+  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request", event?: React.MouseEvent) => void;
   /** Called when user wants to create a new thread in a worktree */
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   /** Called when user wants to create a new terminal in a worktree */
@@ -25,8 +26,8 @@ interface TreeMenuProps {
   onNewRepo?: () => void;
   /** Called when user wants to archive a worktree */
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
-  /** Name of repo currently having a worktree created (for spinner) */
-  creatingWorktreeForRepo?: string | null;
+  /** Set of section IDs ("repoId:worktreeId") currently being created */
+  creatingSectionIds?: Set<string>;
   /** Called when user pins/unpins a section */
   onPinToggle?: (sectionId: string) => void;
   /** Called when user hides a section */
@@ -46,7 +47,7 @@ interface TreeMenuProps {
  * Supports keyboard navigation: ArrowUp/Down, ArrowLeft/Right, Enter/Space, Home/End.
  * Uses ARIA tree pattern for accessibility.
  */
-export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr, onNewWorktree, onNewRepo, onArchiveWorktree, creatingWorktreeForRepo, onPinToggle, onHide, pinnedSectionId, onOpenFiles, fileBrowserWorktreeId, className }: TreeMenuProps) {
+export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr, onNewWorktree, onNewRepo, onArchiveWorktree, creatingSectionIds, onPinToggle, onHide, pinnedSectionId, onOpenFiles, fileBrowserWorktreeId, className }: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sections = useTreeData();
   const selectedItemId = useTreeMenuStore((state) => state.selectedItemId);
@@ -103,9 +104,9 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr,
 
   // Handle item selection
   const handleItemSelect = useCallback(
-    async (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request") => {
+    async (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request", event?: React.MouseEvent) => {
       await treeMenuService.setSelectedItem(itemId);
-      onItemSelect(itemId, itemType);
+      onItemSelect(itemId, itemType, event);
     },
     [onItemSelect]
   );
@@ -247,7 +248,7 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr,
           onNewRepo={onNewRepo}
           onArchiveWorktree={onArchiveWorktree}
           onRefresh={handleRefreshTreeMenu}
-          isCreatingWorktree={creatingWorktreeForRepo === section.repoName}
+          isCreatingWorktree={creatingSectionIds?.has(section.id) ?? false}
           onPinToggle={onPinToggle}
           onHide={onHide}
           isPinned={pinnedSectionId === section.id}

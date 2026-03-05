@@ -1,30 +1,16 @@
 import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useVirtualList } from "@/hooks/use-virtual-list";
 import { useScrolling } from "@/hooks/use-scrolling";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import { useIsThreadRunning } from "@/hooks/use-is-thread-running";
 import type { Turn } from "@/lib/utils/turn-grouping";
-import type { ToolExecutionState } from "@/lib/types/agent-messages";
 import { cn } from "@/lib/utils";
 import { TurnRenderer } from "./turn-renderer";
 import { WorkingIndicator } from "./working-indicator";
-import { StreamingContent } from "./streaming-content";
-import { useStreamingStore } from "@/stores/streaming-store";
+import { useThreadContext } from "./thread-context";
 
 interface MessageListProps {
-  /** Thread ID for persisting expand state across virtualization */
-  threadId: string;
   /** Turns to render */
   turns: Turn[];
-  /** Full messages array (needed for tool result lookup) */
-  messages: MessageParam[];
-  /** Whether the thread is streaming */
-  isStreaming?: boolean;
-  /** Explicit tool states from the agent */
-  toolStates?: Record<string, ToolExecutionState>;
-  /** Callback when user responds to a tool (e.g., AskUserQuestion) */
-  onToolResponse?: (toolId: string, response: string) => void;
-  /** Working directory for resolving relative file paths in markdown */
-  workingDirectory?: string;
 }
 
 export interface MessageListRef {
@@ -40,56 +26,26 @@ export interface MessageListRef {
  * items with automatic scroll anchoring during streaming.
  */
 export const MessageList = forwardRef<MessageListRef, MessageListProps>(function MessageList({
-  threadId,
   turns,
-  messages,
-  isStreaming = false,
-  toolStates,
-  onToolResponse,
-  workingDirectory,
 }, ref) {
+  const { threadId } = useThreadContext();
+  const isRunning = useIsThreadRunning(threadId);
   const scrollerRef = useRef<HTMLDivElement>(null);
   useScrolling(scrollerRef);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
-  // Show working indicator when streaming but no assistant content yet
+  // Show working indicator when running but no assistant content yet
   const showWorkingIndicator = useMemo(() => {
-    if (!isStreaming || turns.length === 0) return false;
+    if (!isRunning || turns.length === 0) return false;
     const lastTurn = turns[turns.length - 1];
     return lastTurn?.type === "user";
-  }, [isStreaming, turns]);
-
-  // Check if we have active streaming data for this thread
-  const hasStreamingContent = useStreamingStore(
-    (s) => {
-      const stream = s.activeStreams[threadId];
-      return !!stream && stream.blocks.length > 0;
-    }
-  );
+  }, [isRunning, turns]);
 
   const getScrollElement = useCallback(() => scrollerRef.current, []);
 
-  const followOutput = useCallback(
-    (atBottom: boolean) => {
-      if (isStreaming && atBottom) return "auto" as ScrollBehavior;
-      return false as const;
-    },
-    [isStreaming],
-  );
-
-  // Smooth scroll when new blocks appear (tool results, new messages)
-  const followCountChange = useCallback(
-    (atBottom: boolean) => {
-      if (isStreaming && atBottom) return "smooth" as ScrollBehavior;
-      return false as const;
-    },
-    [isStreaming],
-  );
-
-  // Always reserve the streaming slot so virtual count stays stable (avoids
-  // N -> N+1 -> N offset recalculations when streaming starts/stops).
-  const showStreamingSlot = hasStreamingContent || showWorkingIndicator;
-  const virtualCount = turns.length + 1;
+  // Reserve an extra slot for the working indicator so virtual count stays
+  // stable while streaming (avoids N -> N+1 -> N offset recalculations).
+  const virtualCount = turns.length + (showWorkingIndicator ? 1 : 0);
 
   const { items, totalHeight, scrollToIndex: scrollTo, measureItem, setSticky } = useVirtualList({
     count: virtualCount,
@@ -98,8 +54,6 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     overscan: 200,
     atBottomThreshold: 300,
     onAtBottomChange: setIsAtBottom,
-    followOutput,
-    followCountChange,
     sticky: true,
   });
 
@@ -140,7 +94,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
       >
         <div style={{ height: totalHeight, position: "relative" }}>
           {items.map((item) => {
-            const isStreamingSlot = item.index >= turns.length;
+            const isWorkingSlot = item.index >= turns.length;
 
             return (
               <div
@@ -156,23 +110,12 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
                 }}
               >
                 <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", item.index === 0 && "pt-12")}>
-                  {isStreamingSlot ? (
-                    showStreamingSlot ? (
-                      hasStreamingContent
-                        ? <StreamingContent threadId={threadId} workingDirectory={workingDirectory} />
-                        : <WorkingIndicator />
-                    ) : null
+                  {isWorkingSlot ? (
+                    <WorkingIndicator />
                   ) : (
                     <TurnRenderer
                       turn={turns[item.index]}
                       turnIndex={item.index}
-                      messages={messages}
-                      isLast={item.index === turns.length - 1 && !showStreamingSlot}
-                      isStreaming={isStreaming}
-                      toolStates={toolStates}
-                      onToolResponse={onToolResponse}
-                      threadId={threadId}
-                      workingDirectory={workingDirectory}
                     />
                   )}
                 </div>

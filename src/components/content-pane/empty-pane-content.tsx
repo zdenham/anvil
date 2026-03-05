@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { useMRUWorktree } from "@/hooks/use-mru-worktree";
 import { createThread } from "@/lib/thread-creation-service";
-import { contentPanesService } from "@/stores/content-panes/service";
+import { paneLayoutService } from "@/stores/pane-layout/service";
 import { useDraftSync, clearCurrentDraft } from "@/hooks/useDraftSync";
 import { useInputStore } from "@/stores/input-store";
 import { logger } from "@/lib/logger-client";
@@ -55,7 +55,7 @@ export function EmptyPaneContent() {
       });
 
       // Switch view to the new thread
-      await contentPanesService.setActivePaneView({ type: "thread", threadId });
+      await paneLayoutService.setActiveTabView({ type: "thread", threadId });
     },
     [repoId, worktreeId, workingDirectory, clearContent]
   );

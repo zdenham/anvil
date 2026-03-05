@@ -42,7 +42,7 @@ mod menu;
 mod tray;
 
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use agent_hub::AgentHub;
@@ -401,12 +401,19 @@ fn show_main_window_with_view(app: AppHandle, view: serde_json::Value) -> Result
         e.to_string()
     })?;
 
-    // Emit event TO main window specifically to set the content pane view
-    window.emit("set-content-pane-view", &view)
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to emit set-content-pane-view event");
-            e.to_string()
-        })?;
+    // Broadcast set-content-pane-view via WS (with targetWindow for filtering)
+    let broadcaster = app.state::<ws_server::push::EventBroadcaster>();
+    let mut payload_with_target = serde_json::json!({ "targetWindow": MAIN_WINDOW_LABEL });
+    if let Some(obj) = payload_with_target.as_object_mut() {
+        if let Some(view_obj) = view.as_object() {
+            for (k, v) in view_obj {
+                obj.insert(k.clone(), v.clone());
+            }
+        } else {
+            obj.insert("view".to_string(), view);
+        }
+    }
+    broadcaster.broadcast("set-content-pane-view", payload_with_target);
 
     tracing::info!("[MainWindow] Main window shown with view");
     Ok(())
@@ -460,10 +467,10 @@ fn show_control_panel(app: AppHandle) -> Result<(), String> {
 fn show_control_panel_with_view(app: AppHandle, view: serde_json::Value) -> Result<(), String> {
     tracing::info!("[ControlPanel] show_control_panel_with_view called: {:?}", view);
 
-    // Emit event to control panel window
-    // NOTE: Must use emit() not emit_to() - emit_to() doesn't work with NSPanels
+    // Broadcast event to control panel window via WS
     let payload = serde_json::json!({ "view": view });
-    let _ = app.emit("open-control-panel", &payload);
+    let broadcaster = app.state::<ws_server::push::EventBroadcaster>();
+    broadcaster.broadcast("open-control-panel", payload);
 
     // Show the panel
     panels::show_control_panel_simple(&app)
@@ -744,6 +751,8 @@ pub fn run() {
     let broadcaster = ws_server::push::EventBroadcaster::new();
     // Bridge AgentHub events to WS clients so browser mode receives agent:message
     agent_hub.set_ws_broadcaster(broadcaster.clone());
+    // Clone for Tauri managed state so any module with AppHandle can broadcast
+    let managed_broadcaster = broadcaster.clone();
     let ws_state = Arc::new(ws_server::WsState {
         lock_manager: lock_manager.clone(),
         terminal_state: terminal_state.clone(),
@@ -777,7 +786,8 @@ pub fn run() {
         .manage(agent_hub.clone())
         .manage(terminal_state)
         .manage(file_watcher_state)
-        .manage(profiling::ProfilingState(std::sync::Mutex::new(false)));
+        .manage(profiling::ProfilingState(std::sync::Mutex::new(false)))
+        .manage(managed_broadcaster);
 
     builder
         .on_window_event(|window, event| {
@@ -824,9 +834,13 @@ pub fn run() {
                 // Show main window if hidden
                 let _ = show_main_window(app.clone());
 
-                // Emit navigation event to frontend
-                if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-                    let _ = window.emit("navigate", tab);
+                // Broadcast navigation event to frontend via WS
+                {
+                    let broadcaster = app.state::<ws_server::push::EventBroadcaster>();
+                    broadcaster.broadcast("navigate", serde_json::json!({
+                        "targetWindow": MAIN_WINDOW_LABEL,
+                        "tab": tab
+                    }));
                 }
             }
 
@@ -1010,7 +1024,7 @@ pub fn run() {
 
             // Start the AgentHub socket server
             let hub: tauri::State<'_, Arc<AgentHub>> = app.state();
-            if let Err(e) = hub.start(app.handle().clone()) {
+            if let Err(e) = hub.start() {
                 tracing::error!(error = %e, "Failed to start AgentHub");
             }
 

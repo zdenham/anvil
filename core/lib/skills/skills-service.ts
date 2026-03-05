@@ -35,8 +35,7 @@ const SKILL_LOCATIONS: SkillLocation[] = [
  *   const service = new SkillsService(nodeFsAdapter);
  */
 export class SkillsService {
-  private skills: Map<string, SkillMetadata> = new Map();
-  private slugIndex: Map<string, string> = new Map();
+  private skills: Map<string, SkillMetadata> = new Map();  // Keyed by slug
   private lastDiscoveryPath: string | null = null;
 
   constructor(private fs: FSAdapter) {}
@@ -53,7 +52,6 @@ export class SkillsService {
    */
   async discover(repoPath: string, homeDir: string, mortDataDir: string): Promise<SkillMetadata[]> {
     this.skills.clear();
-    this.slugIndex.clear();
     this.lastDiscoveryPath = repoPath;
 
     for (const location of SKILL_LOCATIONS) {
@@ -103,7 +101,7 @@ export class SkillsService {
     }
 
     // Skip if we already have a skill with this slug (higher priority wins)
-    if (this.slugIndex.has(slug)) return;
+    if (this.skills.has(slug)) return;
 
     try {
       const content = await this.fs.readFile(skillPath);
@@ -112,11 +110,7 @@ export class SkillsService {
       // Skip non-user-invocable skills
       if (frontmatter['user-invocable'] === false) return;
 
-      const id = crypto.randomUUID();
-      this.slugIndex.set(slug, id);
-
-      this.skills.set(id, {
-        id,
+      this.skills.set(slug, {
         slug,
         name: frontmatter.name || slug,
         description: frontmatter.description || '',
@@ -132,18 +126,10 @@ export class SkillsService {
   }
 
   /**
-   * Get a skill by its ID.
-   */
-  getById(id: string): SkillMetadata | undefined {
-    return this.skills.get(id);
-  }
-
-  /**
    * Get a skill by its slug (case-insensitive).
    */
   getBySlug(slug: string): SkillMetadata | undefined {
-    const id = this.slugIndex.get(slug.toLowerCase());
-    return id ? this.skills.get(id) : undefined;
+    return this.skills.get(slug.toLowerCase());
   }
 
   /**

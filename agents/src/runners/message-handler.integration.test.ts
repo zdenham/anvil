@@ -34,7 +34,6 @@ vi.mock("../output.js", () => ({
     mockCalls.complete.push(metrics);
   }),
   updateUsage: vi.fn(),
-  relayEventsFromToolOutput: vi.fn(),
 }));
 
 // Mock logger

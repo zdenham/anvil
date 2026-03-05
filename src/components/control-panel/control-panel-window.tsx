@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { X } from "lucide-react";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { StoredMessage } from "@core/types/events";
 import { useControlPanelParams } from "./use-control-panel-params";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
@@ -238,7 +238,7 @@ function ControlPanelWindowContent({
   // Toast state for "coming soon" messages
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Set this thread as active so AGENT_STATE events update the store
+  // Set this thread as active so THREAD_ACTION events update the store
   // Also refresh thread from disk if not in store (handles cross-window sync)
   useEffect(() => {
     logger.debug(`[ControlPanelWindow] useEffect FIRED for threadId: ${threadId}`);
@@ -266,7 +266,6 @@ function ControlPanelWindowContent({
     });
   }, [threadId]);
 
-  const toolStates = useMemo(() => activeState?.toolStates ?? {}, [activeState?.toolStates]);
   const entityStatus = activeMetadata?.status ?? "idle";
   // Derive working directory from thread's worktreeId via repo settings
   const workingDirectory = useWorkingDirectory(activeMetadata);
@@ -314,7 +313,7 @@ function ControlPanelWindowContent({
 
 
   // Create optimistic messages when store is empty
-  const messages = useMemo((): MessageParam[] => {
+  const messages = useMemo((): StoredMessage[] => {
     // If we have messages from the store, use those (real data)
     if (activeState?.messages && activeState.messages.length > 0) {
       return activeState.messages;
@@ -322,7 +321,7 @@ function ControlPanelWindowContent({
 
     // If we have a prompt but no messages yet, show optimistic message
     if (prompt) {
-      return [{ role: "user", content: prompt }];
+      return [{ id: "optimistic-0", role: "user", content: prompt }];
     }
 
     return [];
@@ -672,9 +671,7 @@ function ControlPanelWindowContent({
               ref={messageListRef}
               threadId={threadId}
               messages={messages}
-              isStreaming={isStreaming}
               status={viewStatus}
-              toolStates={toolStates}
             />
           )}
 

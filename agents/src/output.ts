@@ -1,8 +1,6 @@
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join, isAbsolute, relative } from "path";
 import { z } from "zod";
-import jsonpatch from "fast-json-patch";
-import { nanoid } from "nanoid";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ThreadWriter } from "./services/thread-writer.js";
 import { logger } from "./lib/logger.js";
@@ -45,12 +43,6 @@ let metadataPath: string;
 let state: ThreadState;
 let threadWriter: ThreadWriter | null = null;
 let hubClient: HubClient | null = null;
-
-/** Previous emitted state snapshot for computing JSON Patch diffs. */
-let previousEmittedState: ThreadState | null = null;
-
-/** Last event chain ID for linking sequential state emissions. */
-let lastEventId: string | null = null;
 
 /** Track last logged connection state to avoid spamming on every write. */
 let lastLoggedConnectionState: string | null = null;
@@ -128,10 +120,6 @@ export async function initState(
   metadataPath = join(threadPath, "metadata.json");
   threadWriter = writer ?? null;
 
-  // Reset event chain so first emission sends full state snapshot
-  previousEmittedState = null;
-  lastEventId = null;
-
   state = {
     messages: priorMessages,
     fileChanges: priorFileChanges ?? [],
@@ -149,10 +137,6 @@ export async function initState(
 /**
  * Emit current state to socket and write to file.
  *
- * Computes JSON Patch diffs between previous and current state, then sends
- * a StateEvent with patches (or full state on first emission). Each event
- * carries a unique ID and a pointer to the previous event for gap detection.
- *
  * IMPORTANT: Disk write completes BEFORE socket emit (disk-as-truth pattern).
  * This ensures UI can safely read from disk when it receives the event signal.
  *
@@ -167,29 +151,8 @@ export async function emitState(): Promise<void> {
   // Write to disk FIRST (await completion) — full state, disk-as-truth preserved
   await writeStateToDisk(snapshot);
 
-  // Build and emit state event with patch diffs
-  const eventId = nanoid();
-  const previousEventId = lastEventId;
-
-  if (previousEmittedState) {
-    const patches = jsonpatch.compare(previousEmittedState, snapshot);
-    emitViaSocket(() => hubClient?.sendStateEvent({
-      id: eventId,
-      previousEventId,
-      patches,
-    }));
-  } else {
-    // First emit or after reset — send full state
-    emitViaSocket(() => hubClient?.sendStateEvent({
-      id: eventId,
-      previousEventId: null,
-      patches: [],
-      full: snapshot,
-    }));
-  }
-
-  previousEmittedState = snapshot;
-  lastEventId = eventId;
+  // Send full state snapshot via socket
+  emitViaSocket(() => hubClient?.sendState(snapshot));
 }
 
 /**
@@ -218,10 +181,15 @@ export async function appendUserMessage(content: string): Promise<void> {
 }
 
 /**
- * Append an assistant message. Just push - SDK guarantees ordering.
- * No replace logic needed with includePartialMessages: false.
+ * Append an assistant message with a stable UUID and anthropicId for reducer matching.
+ *
+ * The `id` is a nanoid-generated UUID used by the frontend/reducer.
+ * The `anthropicId` is the original SDK message ID (e.g. `msg_013Zva...`)
+ * used by APPEND_ASSISTANT_MESSAGE to find and replace the streaming WIP message.
  */
-export async function appendAssistantMessage(message: MessageParam): Promise<void> {
+export async function appendAssistantMessage(
+  message: MessageParam & { id?: string; anthropicId?: string },
+): Promise<void> {
   // Defensive: log warning if consecutive assistant messages (shouldn't happen with SDK)
   const lastMsg = state.messages[state.messages.length - 1];
   if (lastMsg?.role === "assistant") {

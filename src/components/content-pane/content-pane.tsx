@@ -10,7 +10,8 @@
 
 import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { useThreadStore } from "@/entities/threads/store";
-import { ContentPaneHeader } from "./content-pane-header";
+// ContentPaneHeader commented out — breadcrumb info moved to tab tooltip
+// import { ContentPaneHeader } from "./content-pane-header";
 import { FindBar } from "./find-bar";
 import { ThreadContent } from "./thread-content";
 import { PlanContent } from "./plan-content";
@@ -61,12 +62,11 @@ export function ContentPane({
   }, [view]);
 
   // Track thread tab state locally
-  const [threadTab, setThreadTab] = useState<"conversation" | "changes">(
+  // TODO: setThreadTab needs a new home (was in ContentPaneHeader)
+  const [threadTab, _setThreadTab] = useState<"conversation" | "changes">(
     "conversation"
   );
-
-  // Derive streaming state for header
-  const isStreaming = useThreadStreamingState(view);
+  void _setThreadTab;
 
   // Thread data selectors for both ThreadContent and ChangesTab
   const threadId = view.type === "thread" ? view.threadId : null;
@@ -137,6 +137,7 @@ export function ContentPane({
 
   return (
     <div data-testid="content-pane" className="flex flex-col h-full bg-surface-900">
+      {/* Commented out: header content moved to tab tooltip
       <ContentPaneHeader
         view={view}
         threadTab={threadTab}
@@ -145,6 +146,7 @@ export function ContentPane({
         onClose={onClose}
         onPopOut={onPopOut}
       />
+      */}
 
       <div ref={contentRef} className="flex-1 min-h-0 relative">
         {isSearchable && findBarOpen && (
@@ -247,14 +249,16 @@ function getViewKey(view: ContentPaneView): string {
   }
 }
 
-function useThreadStreamingState(view: ContentPaneView): boolean {
-  const threadId = view.type === "thread" ? view.threadId : null;
-  const status = useThreadStore(
-    useCallback(
-      (s) => (threadId ? s.threads[threadId]?.status : null),
-      [threadId]
-    )
-  );
-  return status === "running";
-}
+// Streaming state helper — currently unused since header is commented out,
+// but kept for when cancel button moves to a new location.
+// function useThreadStreamingState(view: ContentPaneView): boolean {
+//   const threadId = view.type === "thread" ? view.threadId : null;
+//   const status = useThreadStore(
+//     useCallback(
+//       (s) => (threadId ? s.threads[threadId]?.status : null),
+//       [threadId]
+//     )
+//   );
+//   return status === "running";
+// }
 

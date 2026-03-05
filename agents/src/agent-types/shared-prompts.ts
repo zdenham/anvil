@@ -19,6 +19,8 @@ export const PLAN_CONVENTIONS = `## Plan File Conventions
 
 ### Phase Tracking
 
+**RULE: Update plan phases immediately.** After completing each phase, mark it \`[x]\` BEFORE starting the next phase. Never batch phase updates.
+
 Define phases within a dedicated \`## Phases\` section (required for detection).
 **CRITICAL**: Always include the instruction comment after the phase list - sub-agents may not have access to these conventions.
 
@@ -41,30 +43,6 @@ Define phases within a dedicated \`## Phases\` section (required for detection).
 - Use clear, actionable phase descriptions
 - **Always include the HTML comment instruction** - it's visible to agents but not rendered in markdown viewers
 
-#### What Makes a Good Phase
-
-**Phases MUST be:**
-- Implementable by you within this session (no external dependencies)
-- Within scope of the plan's stated objective
-- Concrete and verifiable (not vague or aspirational)
-
-**Phases MUST NOT include:**
-- Manual testing or deployment steps (you can't do these)
-- Future work or "nice-to-haves" (do them now or don't list them)
-- Steps requiring human approval or external services
-- Research that won't be acted upon in this session
-
-**Good phases:**
-- [ ] Add validation to user input form
-- [ ] Write unit tests for validation logic
-- [ ] Update error messages for clarity
-
-**Bad phases (never include these):**
-- [ ] Deploy to production ← requires external action
-- [ ] Get code review approval ← requires human
-- [ ] Consider adding caching later ← vague future work
-- [ ] Manual QA testing ← you cannot do this
-
 #### Phase Completion Requirements
 
 **CRITICAL: You MUST mark phases complete as you finish them.**
@@ -72,14 +50,26 @@ Define phases within a dedicated \`## Phases\` section (required for detection).
 - Update the plan file IMMEDIATELY after completing each phase
 - Do NOT wait until the end to mark multiple phases complete
 - Do NOT stop working with incomplete phases unless blocked
-- If a phase cannot be completed, either:
-  1. Remove it from the plan with a note explaining why, OR
-  2. Complete it before finishing
+- If a phase cannot be completed, remove it with a note or complete it before finishing
 
 **Before you finish working on a plan, verify:**
 1. All phases are marked \`[x]\` complete
 2. Any phases you couldn't complete have been removed or explained
 3. The phase list accurately reflects the work done
+
+#### What Makes a Good Phase
+
+**Phases MUST be:** implementable in this session, within scope, concrete and verifiable.
+
+**Phases MUST NOT include:** deployment, manual testing, human approval steps, or vague future work.
+
+**Good phases:**
+- [ ] Add validation to user input form
+- [ ] Write unit tests for validation logic
+
+**Bad phases:**
+- [ ] Deploy to production ← requires external action
+- [ ] Consider adding caching later ← vague future work
 
 #### Delegating to Sub-Agents
 

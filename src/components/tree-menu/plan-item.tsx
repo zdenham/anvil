@@ -72,7 +72,7 @@ function focusTreeItem(index: number) {
 interface PlanItemProps {
   item: TreeItemNode;
   isSelected: boolean;
-  onSelect: (itemId: string, itemType: EntityItemType) => void;
+  onSelect: (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => void;
   tabIndex?: number;
   /** Index in the flat list for keyboard navigation */
   itemIndex?: number;
@@ -161,13 +161,21 @@ export function PlanItem({
     contextMenu.open(e);
   }, [contextMenu]);
 
-  const handleClick = async () => {
+  const handleClick = async (e: React.MouseEvent) => {
     if (isSelected && item.isFolder) {
       // Already selected - toggle expansion
       await treeMenuService.toggleSection(`plan:${item.id}`);
     } else {
-      // Not selected - just select
-      onSelect(item.id, "plan");
+      // Pass event so parent can detect Cmd+Click
+      onSelect(item.id, "plan", e);
+    }
+  };
+
+  const handleMouseDown = async (e: React.MouseEvent) => {
+    // Middle-click opens in new tab
+    if (e.button === 1) {
+      e.preventDefault();
+      onSelect(item.id, "plan", e);
     }
   };
 
@@ -259,6 +267,7 @@ export function PlanItem({
           data-tree-item-index={itemIndex}
           tabIndex={tabIndex}
           onClick={handleClick}
+          onMouseDown={handleMouseDown}
           onKeyDown={handleKeyDown}
           onContextMenu={handleContextMenuOpen}
           style={{ paddingLeft: `${indentPx}px` }}

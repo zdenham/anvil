@@ -4,7 +4,7 @@ use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager,
+    AppHandle, Manager,
 };
 
 use crate::panels;
@@ -78,7 +78,12 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
                 let _ = window.show();
                 let _ = window.set_focus();
-                let _ = window.emit("navigate", "settings");
+                // Broadcast navigate event via WS (with targetWindow for filtering)
+                let broadcaster = app.state::<crate::ws_server::push::EventBroadcaster>();
+                broadcaster.broadcast("navigate", serde_json::json!({
+                    "targetWindow": MAIN_WINDOW_LABEL,
+                    "tab": "settings"
+                }));
             }
         }
         "quit" => {

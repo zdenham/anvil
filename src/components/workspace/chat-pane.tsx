@@ -1,14 +1,12 @@
 import { useState, useCallback } from "react";
 import { ChevronRight, ChevronLeft, MessageSquare } from "lucide-react";
 import { ThreadView } from "@/components/thread/thread-view";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
-import type { ToolExecutionState } from "@/lib/types/agent-messages";
+import type { StoredMessage } from "@core/types/events";
 type ThreadStatus = "idle" | "loading" | "running" | "completed" | "error";
 
 interface ChatPaneProps {
   threadId: string | null;
-  messages: MessageParam[];
-  isStreaming: boolean;
+  messages: StoredMessage[];
   status: ThreadStatus;
   error?: string;
   onRetry?: () => void;
@@ -17,8 +15,6 @@ interface ChatPaneProps {
   onToggleCollapse?: () => void;
   /** Width of the chat pane (controlled externally for resizing) */
   width?: number;
-  /** Explicit tool states from the agent */
-  toolStates?: Record<string, ToolExecutionState>;
 }
 
 const DEFAULT_CHAT_PANE_WIDTH = 400;
@@ -31,14 +27,12 @@ const COLLAPSED_WIDTH = 40;
 export function ChatPane({
   threadId,
   messages,
-  isStreaming,
   status,
   error,
   onRetry,
   isCollapsed: controlledIsCollapsed,
   onToggleCollapse: controlledOnToggle,
   width = DEFAULT_CHAT_PANE_WIDTH,
-  toolStates,
 }: ChatPaneProps) {
   // Internal state for uncontrolled mode
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(() => {
@@ -95,11 +89,9 @@ export function ChatPane({
           <ThreadView
             threadId={threadId}
             messages={messages}
-            isStreaming={isStreaming}
             status={status}
             error={error}
             onRetry={onRetry}
-            toolStates={toolStates}
           />
         ) : (
           <ChatEmptyState />

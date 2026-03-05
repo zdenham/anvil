@@ -8,6 +8,7 @@ import { logger } from "@/lib/logger-client";
 export interface CapturedEvent {
   id: number;
   timestamp: number;
+  emittedAt: number | null;
   threadId: string;
   senderId: string;
   type: string;
@@ -27,6 +28,11 @@ interface EventDebuggerFilters {
 interface EventDebuggerState {
   events: CapturedEvent[];
   isCapturing: boolean;
+  isReplaying: boolean;
+  replayState: "idle" | "playing" | "paused";
+  replayIndex: number;
+  replaySpeed: number;
+  replayTimerId: number | null;
   maxEvents: number;
   filters: EventDebuggerFilters;
   selectedEventId: number | null;
@@ -45,6 +51,12 @@ interface EventDebuggerActions {
   setDiskState: (threadId: string, state: Record<string, unknown>) => void;
   setDiskStateLoading: (loading: boolean) => void;
   filteredEvents: () => CapturedEvent[];
+  startReplay: () => Promise<void>;
+  pauseReplay: () => void;
+  resumeReplay: () => void;
+  stepForward: () => void;
+  setReplaySpeed: (speed: number) => void;
+  stopReplay: () => void;
 }
 
 // ============================================================================
@@ -97,6 +109,11 @@ export const useEventDebuggerStore = create<
 >((set, get) => ({
   events: [],
   isCapturing: false,
+  isReplaying: false,
+  replayState: "idle" as const,
+  replayIndex: 0,
+  replaySpeed: 1,
+  replayTimerId: null,
   maxEvents: 500,
   filters: {
     types: new Set<string>(),
@@ -113,16 +130,18 @@ export const useEventDebuggerStore = create<
     const state = get();
     if (!state.isCapturing) return;
 
+    const pipeline = extractPipeline(msg);
     const captured: CapturedEvent = {
       id: nextId++,
       timestamp: Date.now(),
+      emittedAt: pipeline?.find((s) => s.stage === "agent:sent")?.ts ?? null,
       threadId: String(msg.threadId ?? ""),
       senderId: String(msg.senderId ?? ""),
       type: String(msg.type ?? "unknown"),
       name: extractName(msg),
       source: typeof msg.source === "string" ? msg.source : undefined,
       payload: msg,
-      pipeline: extractPipeline(msg),
+      pipeline,
       size: computeSize(msg),
     };
 
@@ -191,4 +210,110 @@ export const useEventDebuggerStore = create<
       return true;
     });
   },
+
+  startReplay: async () => {
+    const state = get();
+    const threadId = state.filters.threadId;
+    if (!threadId) return;
+
+    // Clear thread state before replay (lazy import to avoid circular dep)
+    const { clearThreadStateForReplay } = await import("@/lib/replay-utils");
+    clearThreadStateForReplay(threadId);
+
+    set({ isReplaying: true, replayState: "playing", replayIndex: 0 });
+    scheduleNextReplayTick(get, set);
+  },
+
+  pauseReplay: () => {
+    const state = get();
+    if (state.replayTimerId !== null) {
+      window.clearTimeout(state.replayTimerId);
+    }
+    set({ replayState: "paused", replayTimerId: null });
+  },
+
+  resumeReplay: () => {
+    set({ replayState: "playing" });
+    scheduleNextReplayTick(get, set);
+  },
+
+  stepForward: async () => {
+    const state = get();
+    // Pause if playing
+    if (state.replayTimerId !== null) {
+      window.clearTimeout(state.replayTimerId);
+    }
+    set({ replayState: "paused", replayTimerId: null });
+    await dispatchReplayTick(get, set);
+  },
+
+  setReplaySpeed: (speed: number) => {
+    set({ replaySpeed: speed });
+  },
+
+  stopReplay: () => {
+    const state = get();
+    if (state.replayTimerId !== null) {
+      window.clearTimeout(state.replayTimerId);
+    }
+    set({
+      isReplaying: false,
+      replayState: "idle",
+      replayIndex: 0,
+      replayTimerId: null,
+    });
+  },
 }));
+
+// ============================================================================
+// Replay Scheduling Helpers
+// ============================================================================
+
+type StoreGet = () => EventDebuggerState & EventDebuggerActions;
+type StoreSet = (partial: Partial<EventDebuggerState>) => void;
+
+async function dispatchReplayTick(get: StoreGet, set: StoreSet): Promise<void> {
+  const { replayEvent } = await import("@/lib/event-replayer");
+  const state = get();
+  const events = state.filteredEvents();
+
+  if (state.replayIndex >= events.length) {
+    set({ isReplaying: false, replayState: "idle", replayTimerId: null });
+    return;
+  }
+
+  const event = events[state.replayIndex];
+  replayEvent(event);
+  set({ replayIndex: state.replayIndex + 1 });
+}
+
+function scheduleNextReplayTick(get: StoreGet, set: StoreSet): void {
+  const state = get();
+  const events = state.filteredEvents();
+
+  if (state.replayState !== "playing") return;
+  if (state.replayIndex >= events.length) {
+    set({ isReplaying: false, replayState: "idle", replayTimerId: null });
+    return;
+  }
+
+  // Compute delay from emittedAt deltas between consecutive events
+  let delayMs = 0;
+  if (state.replayIndex > 0) {
+    const prev = events[state.replayIndex - 1];
+    const curr = events[state.replayIndex];
+    const prevTs = prev.emittedAt ?? prev.timestamp;
+    const currTs = curr.emittedAt ?? curr.timestamp;
+    delayMs = Math.max(0, (currTs - prevTs) / state.replaySpeed);
+  }
+
+  // Cap delay to avoid very long waits
+  delayMs = Math.min(delayMs, 2000 / state.replaySpeed);
+
+  const timerId = window.setTimeout(async () => {
+    await dispatchReplayTick(get, set);
+    scheduleNextReplayTick(get, set);
+  }, delayMs);
+
+  set({ replayTimerId: timerId });
+}

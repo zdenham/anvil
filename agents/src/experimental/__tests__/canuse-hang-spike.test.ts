@@ -91,7 +91,9 @@ function findMessage(messages: RunnerMessage[], type: string): RunnerMessage | u
   return messages.find((m) => m.type === type);
 }
 
-describeWithApi("canUseTool hang spike", () => {
+// Spike completed — confirmed canUseTool hang bug and that close() fixes it.
+// These tests require live API calls and are not regression tests.
+describeWithApi.skip("canUseTool hang spike", () => {
   const HANG_TIMEOUT_MS = 30_000;
   const CLEAN_EXIT_THRESHOLD_MS = 20_000;
 

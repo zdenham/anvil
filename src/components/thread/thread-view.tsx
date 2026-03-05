@@ -1,8 +1,9 @@
 import { useMemo, forwardRef } from "react";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
-import type { ToolExecutionState } from "@/lib/types/agent-messages";
+import type { StoredMessage } from "@core/types/events";
 import { groupMessagesIntoTurns } from "@/lib/utils/turn-grouping";
+import { useIsThreadRunning } from "@/hooks/use-is-thread-running";
 import { MessageList, type MessageListRef } from "./message-list";
+import { ThreadProvider } from "./thread-context";
 import { LoadingState } from "./loading-state";
 import { EmptyState } from "./empty-state";
 import { ErrorState } from "./error-state";
@@ -14,20 +15,14 @@ type ThreadStatus = "idle" | "loading" | "running" | "completed" | "error" | "ca
 interface ThreadViewProps {
   /** Thread ID for persisting expand state across virtualization */
   threadId: string;
-  /** Messages from the thread (SDK MessageParam format) */
-  messages: MessageParam[];
-  /** Whether the thread is streaming */
-  isStreaming: boolean;
+  /** Messages from the thread (StoredMessage with stable id) */
+  messages: StoredMessage[];
   /** Thread status */
   status: ThreadStatus;
   /** Error message if status is error */
   error?: string;
   /** Callback to retry loading */
   onRetry?: () => void;
-  /** Explicit tool states from the agent */
-  toolStates?: Record<string, ToolExecutionState>;
-  /** Callback when user responds to a tool (e.g., AskUserQuestion) */
-  onToolResponse?: (toolId: string, response: string) => void;
   /** Working directory for resolving relative file paths in markdown */
   workingDirectory?: string;
 }
@@ -41,14 +36,13 @@ interface ThreadViewProps {
 export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function ThreadView({
   threadId,
   messages,
-  isStreaming,
   status,
   error,
   onRetry,
-  toolStates,
-  onToolResponse,
   workingDirectory,
 }, ref) {
+  const isRunning = useIsThreadRunning(threadId);
+
   // Group messages into turns
   const turns = useMemo(() => {
     return groupMessagesIntoTurns(messages);
@@ -65,8 +59,8 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
   }
 
   // Empty/idle state (don't flash EmptyState if streaming content still exists)
-  if (status === "idle" || (messages.length === 0 && !isStreaming)) {
-    return <EmptyState isRunning={isStreaming} />;
+  if (status === "idle" || (messages.length === 0 && !isRunning)) {
+    return <EmptyState isRunning={isRunning} />;
   }
 
   return (
@@ -78,16 +72,12 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
     >
       <StatusAnnouncement status={status} error={error} />
 
-      <MessageList
-        ref={ref}
-        threadId={threadId}
-        turns={turns}
-        messages={messages}
-        isStreaming={isStreaming}
-        toolStates={toolStates}
-        onToolResponse={onToolResponse}
-        workingDirectory={workingDirectory}
-      />
+      <ThreadProvider threadId={threadId} workingDirectory={workingDirectory ?? ""}>
+        <MessageList
+          ref={ref}
+          turns={turns}
+        />
+      </ThreadProvider>
 
       {/* Error banner for errors during streaming */}
       {status === "error" && messages.length > 0 && (

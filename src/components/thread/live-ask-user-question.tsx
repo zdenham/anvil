@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import type { ToolExecutionState } from "@/lib/types/agent-messages";
 import { parseAllQuestions, parseAskUserQuestionInput } from "@core/types/ask-user-question.js";
 import { logger } from "@/lib/logger-client";
 import { AskUserQuestionBlock } from "./ask-user-question-block";
@@ -7,13 +6,12 @@ import { QuestionCarousel } from "./question-carousel";
 import { ToolUseBlock } from "./tool-use-block";
 import { useQuestionStore } from "@/entities/questions/store";
 import { questionService } from "@/entities/questions/service";
+import { useToolState } from "@/hooks/use-tool-state";
 
 interface LiveAskUserQuestionProps {
   blockId: string;
   blockInput: unknown;
-  toolState: ToolExecutionState;
   threadId: string;
-  onToolResponse?: (toolId: string, response: string) => void;
 }
 
 /**
@@ -56,10 +54,9 @@ function extractAnswerFromInput(blockInput: unknown, question: string): string |
 export function LiveAskUserQuestion({
   blockId,
   blockInput,
-  toolState,
   threadId,
-  onToolResponse,
 }: LiveAskUserQuestionProps) {
+  const toolState = useToolState(threadId, blockId);
   const questionRequest = useQuestionStore(
     useCallback((s) => s.getRequestByToolUseId(blockId), [blockId]),
   );
@@ -84,9 +81,6 @@ export function LiveAskUserQuestion({
           id={blockId}
           name="AskUserQuestion"
           input={blockInput as Record<string, unknown>}
-          result={toolState.result}
-          isError={toolState.isError}
-          status={toolState.status}
           threadId={threadId}
         />
       );
@@ -136,9 +130,6 @@ export function LiveAskUserQuestion({
         id={blockId}
         name="AskUserQuestion"
         input={blockInput as Record<string, unknown>}
-        result={toolState.result}
-        isError={toolState.isError}
-        status={toolState.status}
         threadId={threadId}
       />
     );
@@ -157,7 +148,7 @@ export function LiveAskUserQuestion({
       allowMultiple={parsed.multiSelect}
       status={toolState.status === "complete" ? "answered" : "pending"}
       result={cleanResult}
-      onSubmit={(response) => onToolResponse?.(blockId, response)}
+      onSubmit={() => { /* Historical question — no-op, already answered */ }}
     />
   );
 }

@@ -3,7 +3,6 @@
  * Maps tool names to specialized rendering components.
  */
 import type { ComponentType } from "react";
-import type { ToolStatus } from "../tool-status-icon";
 import { BashToolBlock } from "./bash-tool-block";
 import { EditToolBlock } from "./edit-tool-block";
 import { EnterPlanModeToolBlock } from "./enterplanmode-tool-block";
@@ -30,17 +29,7 @@ export interface ToolBlockProps {
   name: string;
   /** Tool input parameters */
   input: Record<string, unknown>;
-  /** Tool execution result (if completed) */
-  result?: string;
-  /** Whether the result was an error */
-  isError?: boolean;
-  /** Current execution status */
-  status: ToolStatus;
-  /** Execution duration in milliseconds */
-  durationMs?: number;
-  /** Whether this block is focused for keyboard navigation */
-  isFocused?: boolean;
-  /** Thread ID for persisting expand state across virtualization */
+  /** Thread ID for store selectors and expand state */
   threadId: string;
 }
 

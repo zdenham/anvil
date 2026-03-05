@@ -116,6 +116,13 @@ export function setEventDispatcher(dispatcher: EventDispatcher): void {
   eventDispatcher = dispatcher;
 }
 
+/** Relay an event through the WS server for cross-window broadcast. */
+export function relayEvent(event: string, payload: unknown): void {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ relay: true, event, payload }));
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // WebSocket Connection Management
 // ═══════════════════════════════════════════════════════════════════════════

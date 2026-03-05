@@ -4,11 +4,16 @@ import {
   type PostToolUseHookInput,
   type PostToolUseFailureHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { StoredMessage } from "@core/types/events.js";
 import { relative, isAbsolute, join, resolve } from "path";
 import { readFileSync, writeFileSync, readdirSync, realpathSync, mkdirSync, existsSync } from "fs";
 import crypto from "crypto";
 import { parsePhases } from "../lib/phase-parser.js";
+import {
+  shouldFirePhaseReminder,
+  shouldIncrementFileModCount,
+  PHASE_REMINDER_TEXT,
+} from "./phase-reminder.js";
 import type { PhaseInfo } from "@core/types/plans.js";
 import type { RunnerConfig, OrchestrationContext } from "./types.js";
 import type { AgentConfig } from "../agent-types/index.js";
@@ -16,7 +21,6 @@ import {
   initState,
   appendUserMessage,
   markToolComplete,
-  relayEventsFromToolOutput,
   updateFileChange,
   getHubClient,
 } from "../output.js";
@@ -41,6 +45,7 @@ import type { PermissionEvaluator } from "../lib/permission-evaluator.js";
 import type { PermissionGate } from "../lib/permission-gate.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
 import { createCommentResolutionHook } from "../hooks/comment-resolution-hook.js";
+import { createReplHook } from "../hooks/repl-hook.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -383,7 +388,7 @@ export interface AgentLoopOptions {
  */
 export interface PriorState {
   /** Prior conversation messages - kept for UI display */
-  messages: MessageParam[];
+  messages: StoredMessage[];
   /** SDK session ID from previous run - used for resume */
   sessionId?: string;
   /** Prior tool states - preserved so resumed conversations show completed tools correctly */
@@ -460,6 +465,10 @@ export async function runAgentLoop(
   // Tools that modify files and should be tracked for diffing
   const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
 
+  // Phase reminder state: track incomplete phases to nudge agent to update plan
+  let currentPlanPhaseInfo: PhaseInfo | null = null;
+  let fileModToolsSinceLastReminder = 0;
+
   // Build hooks for state tracking and side effects
   const { permissionEvaluator, permissionGate, questionGate } = options;
 
@@ -529,6 +538,24 @@ export async function runAgentLoop(
             },
           ]
         : []),
+      // REPL hook — intercepts mort-repl Bash calls for programmatic agent orchestration
+      // Must be before comment resolution and permission hooks
+      {
+        matcher: "Bash" as const,
+        hooks: [
+          createReplHook({
+            context: {
+              threadId: context.threadId,
+              repoId: context.repoId,
+              worktreeId: context.worktreeId,
+              workingDir: context.workingDir,
+              permissionModeId: context.permissionModeId,
+              mortDir: config.mortDir,
+            },
+            emitEvent,
+          }),
+        ],
+      },
       // Comment resolution hook — intercepts mort-resolve-comment Bash calls
       // Must be before the catch-all permission hook so it gets first look at Bash calls
       {
@@ -868,9 +895,6 @@ export async function runAgentLoop(
               resultTruncated: toolResponse.length > 10000,
             }, "PostToolUse:complete");
 
-            // Side effect: relay embedded events to stdout
-            relayEventsFromToolOutput(toolResponse);
-
             // Track file changes for file-modifying tools
             // This must be done here because PostToolUse hooks fire before/instead of
             // SDK user messages, so MessageHandler may never see the tool result.
@@ -910,6 +934,8 @@ export async function runAgentLoop(
                       phaseInfo = parsePhases(content);
                       if (phaseInfo) {
                         logger.info(`[PostToolUse] 📋 Parsed phases: ${phaseInfo.completed}/${phaseInfo.total}`);
+                        // Keep closure in sync for phase reminders
+                        currentPlanPhaseInfo = phaseInfo;
                       }
                     } catch (parseErr) {
                       logger.warn(`[PostToolUse] Failed to parse phases: ${parseErr}`);
@@ -976,6 +1002,33 @@ export async function runAgentLoop(
             // Side effect: notify strategy of file changes
             if (options.onFileChange) {
               options.onFileChange(input.tool_name);
+            }
+
+            // Phase reminder: nudge agent to mark plan phases complete (implement mode only)
+            {
+              const toolInput = input.tool_input as { file_path?: string; notebook_path?: string };
+              const filePath = toolInput.file_path ?? toolInput.notebook_path;
+
+              if (shouldIncrementFileModCount(input.tool_name, filePath, context.workingDir)) {
+                fileModToolsSinceLastReminder++;
+              }
+
+              if (shouldFirePhaseReminder({
+                toolName: input.tool_name,
+                filePath,
+                workingDir: context.workingDir,
+                permissionModeId: context.permissionModeId,
+                phaseInfo: currentPlanPhaseInfo,
+                fileModCount: fileModToolsSinceLastReminder,
+              })) {
+                fileModToolsSinceLastReminder = 0;
+                return {
+                  hookSpecificOutput: {
+                    hookEventName: "PostToolUse" as const,
+                    additionalContext: PHASE_REMINDER_TEXT,
+                  },
+                };
+              }
             }
 
             // Handle Task tool completion: mark thread completed, add response to state.json
@@ -1182,8 +1235,6 @@ export async function runAgentLoop(
         onToolResult: async (toolName, toolUseId, result) => {
           // Mark tool as complete in state
           await markToolComplete(toolUseId, result, false);
-          // Side effect: relay embedded events
-          relayEventsFromToolOutput(result);
           if (options.onFileChange) {
             options.onFileChange(toolName);
           }

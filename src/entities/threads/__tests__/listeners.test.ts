@@ -185,35 +185,22 @@ describe("setupThreadListeners", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // AGENT_STATE event tests
+  // THREAD_ACTION event tests
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("AGENT_STATE event", () => {
-    it("refreshes state only if thread is active", async () => {
-      const threadId = "active-state-thread";
-
-      // Set as active thread
+  describe("THREAD_ACTION event", () => {
+    it("dispatches action to thread store", () => {
+      const threadId = "action-thread";
       useThreadStore.getState().setActiveThread(threadId);
 
-      triggerEvent(EventName.AGENT_STATE, { threadId, state: {} });
+      triggerEvent(EventName.THREAD_ACTION, {
+        threadId,
+        action: { type: "INIT", payload: { workingDirectory: "/project" } },
+      });
 
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(threadService.loadThreadState).toHaveBeenCalledWith(threadId);
-    });
-
-    it("does not refresh state if thread is not active", async () => {
-      const threadId = "inactive-state-thread";
-      const otherThreadId = "other-thread";
-
-      // Set different thread as active
-      useThreadStore.getState().setActiveThread(otherThreadId);
-
-      triggerEvent(EventName.AGENT_STATE, { threadId, state: {} });
-
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(threadService.loadThreadState).not.toHaveBeenCalled();
+      const state = useThreadStore.getState().threadStates[threadId];
+      expect(state).toBeDefined();
+      expect(state?.status).toBe("running");
     });
   });
 
@@ -260,6 +247,71 @@ describe("setupThreadListeners", () => {
       expect(threadService.refreshById).toHaveBeenCalledWith(threadId);
       // but loadThreadState should not be called for inactive thread
       expect(threadService.loadThreadState).not.toHaveBeenCalled();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // No disk reads during streaming
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("no disk reads during streaming", () => {
+    it("THREAD_ACTION does not call refreshById or loadThreadState", () => {
+      const threadId = "streaming-thread";
+      useThreadStore.getState().setActiveThread(threadId);
+
+      triggerEvent(EventName.THREAD_ACTION, {
+        threadId,
+        action: { type: "INIT", payload: { workingDirectory: "/tmp" } },
+      });
+
+      expect(threadService.refreshById).not.toHaveBeenCalled();
+      expect(threadService.loadThreadState).not.toHaveBeenCalled();
+    });
+
+    it("AGENT_COMPLETED still reads from disk", async () => {
+      const threadId = "completed-disk-thread";
+      useThreadStore.getState().setActiveThread(threadId);
+
+      triggerEvent(EventName.AGENT_COMPLETED, { threadId, exitCode: 0 });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(threadService.refreshById).toHaveBeenCalledWith(threadId);
+      expect(threadService.loadThreadState).toHaveBeenCalledWith(threadId);
+    });
+
+    it("syncs usage from ThreadState into metadata store via THREAD_ACTION", () => {
+      const threadId = "usage-sync-thread";
+      const thread = createThreadMetadata({ id: threadId });
+      useThreadStore.getState()._applyCreate(thread);
+      useThreadStore.getState().setActiveThread(threadId);
+
+      // Dispatch INIT followed by UPDATE_USAGE
+      triggerEvent(EventName.THREAD_ACTION, {
+        threadId,
+        action: { type: "INIT", payload: { workingDirectory: "/tmp" } },
+      });
+
+      triggerEvent(EventName.THREAD_ACTION, {
+        threadId,
+        action: {
+          type: "UPDATE_USAGE",
+          payload: {
+            usage: {
+              inputTokens: 1000,
+              outputTokens: 500,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 200,
+            },
+          },
+        },
+      });
+
+      // Usage should be synced to thread metadata (not via disk read)
+      const updatedThread = useThreadStore.getState().threads[threadId];
+      expect(updatedThread.cumulativeUsage).toBeDefined();
+      expect(updatedThread.cumulativeUsage?.inputTokens).toBe(1000);
+      expect(threadService.refreshById).not.toHaveBeenCalled();
     });
   });
 

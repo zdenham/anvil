@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
+import { nanoid } from "nanoid";
 
 /**
  * Absolute path to this runner script.
@@ -54,9 +55,12 @@ function loadPriorState(historyFile: string | undefined): PriorState {
 
     const result: PriorState = { messages: [] };
 
-    // Load messages for UI history display
+    // Load messages for UI history display, backfilling missing IDs
     if (Array.isArray(state.messages)) {
-      result.messages = state.messages;
+      result.messages = state.messages.map((msg: Record<string, unknown>) => ({
+        ...msg,
+        id: typeof msg.id === "string" ? msg.id : nanoid(),
+      }));
     } else {
       logger.warn(`[runner] state.messages is not an array: ${typeof state.messages}`);
     }

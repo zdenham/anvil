@@ -11,8 +11,6 @@ export type {
   SocketMessage,
   RegisterMessage,
   StateMessage,
-  StateEvent,
-  StateEventMessage,
   EventMessage,
   HeartbeatMessage,
   DrainMessage,

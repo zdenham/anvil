@@ -27,7 +27,7 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Manager};
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::time::FormatTime;
 use tracing_subscriber::layer::SubscriberExt;
@@ -133,6 +133,7 @@ pub struct LogEvent {
 struct LogBuffer {
     logs: Mutex<Vec<LogEvent>>,
     app_handle: Mutex<Option<AppHandle>>,
+    broadcaster: Mutex<Option<crate::ws_server::push::EventBroadcaster>>,
     /// Tracks last emit time for each unique log message (for throttling duplicates)
     last_emit: Mutex<HashMap<String, (Instant, u64)>>, // (last_time, suppressed_count)
 }
@@ -145,11 +146,16 @@ impl LogBuffer {
         Self {
             logs: Mutex::new(Vec::new()),
             app_handle: Mutex::new(None),
+            broadcaster: Mutex::new(None),
             last_emit: Mutex::new(HashMap::new()),
         }
     }
 
     fn set_app_handle(&self, handle: AppHandle) {
+        // Extract broadcaster from Tauri managed state
+        if let Ok(mut bc_guard) = self.broadcaster.lock() {
+            *bc_guard = Some(handle.state::<crate::ws_server::push::EventBroadcaster>().inner().clone());
+        }
         if let Ok(mut guard) = self.app_handle.lock() {
             *guard = Some(handle);
         }
@@ -196,10 +202,12 @@ impl LogBuffer {
             log.message = format!("{} (repeated {} times)", log.message, suppressed_count + 1);
         }
 
-        // Emit to frontend if app handle is available
-        if let Ok(guard) = self.app_handle.lock() {
-            if let Some(handle) = guard.as_ref() {
-                let _ = handle.emit("log-event", &log);
+        // Broadcast to frontend via WS
+        if let Ok(guard) = self.broadcaster.lock() {
+            if let Some(ref broadcaster) = *guard {
+                if let Ok(payload) = serde_json::to_value(&log) {
+                    broadcaster.broadcast("log-event", payload);
+                }
             }
         }
 

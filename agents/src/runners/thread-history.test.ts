@@ -31,7 +31,6 @@ vi.mock("../output.js", () => ({
   markToolComplete: vi.fn(async () => {}),
   complete: vi.fn(async () => {}),
   setSessionId: vi.fn(async () => {}),
-  relayEventsFromToolOutput: vi.fn(),
   getHubClient: vi.fn(),
   updateFileChange: vi.fn(),
 }));

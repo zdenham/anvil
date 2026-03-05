@@ -15,9 +15,8 @@ export type SkillSource =
  * Full skill metadata - used by frontend for display and management.
  */
 export interface SkillMetadata {
-  id: string;                    // Stable UUID
   name: string;                  // Display name (from frontmatter or directory name)
-  slug: string;                  // Directory/file name for lookups (lowercase)
+  slug: string;                  // Directory/file name for lookups (lowercase, serves as unique key)
   description: string;
   source: SkillSource;
   path: string;                  // Full path to SKILL.md or command.md

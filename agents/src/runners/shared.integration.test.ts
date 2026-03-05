@@ -47,7 +47,6 @@ vi.mock("../output.js", () => ({
     mockCalls.complete.push(metrics);
   }),
   setSessionId: vi.fn(async () => {}),
-  relayEventsFromToolOutput: vi.fn(),
   getHubClient: vi.fn(),
   updateFileChange: vi.fn(),
 }));

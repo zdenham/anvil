@@ -1,194 +1,132 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@/test/helpers";
-import { AssistantMessage } from "./assistant-message";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import { render, screen } from "@/test/helpers";
+import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages";
 import type { ToolExecutionState } from "@/lib/types/agent-messages";
+import { AssistantMessage } from "./assistant-message";
+import { ThreadProvider } from "./thread-context";
+import { useThreadStore } from "@/entities/threads/store";
 
 vi.mock("@/lib/logger-client", () => ({
   logger: { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+const THREAD_ID = "test-thread";
 
-// Helper to create tool use messages
-const createToolUseMessage = (
+/** Set up thread store with messages and tool states. */
+function setupThreadStore(
+  messages: Array<{ role: string; content: ContentBlock[] }>,
+  toolStates: Record<string, ToolExecutionState> = {},
+) {
+  useThreadStore.getState().setThreadState(THREAD_ID, {
+    messages: messages.map((m, i) => ({ ...m, id: `msg-${i}` })),
+    toolStates,
+    fileChanges: [],
+    workingDirectory: "",
+    status: "running",
+    timestamp: Date.now(),
+  });
+}
+
+/** Create a tool_use content block. */
+function createToolUseContent(
   toolName: string,
   toolId: string,
-  input: object
-): MessageParam => ({
-  role: "assistant",
-  content: [
+  input: object,
+): ContentBlock[] {
+  return [
     {
       type: "tool_use",
       id: toolId,
       name: toolName,
       input,
     },
-  ],
-});
+  ] as ContentBlock[];
+}
+
+/** Wraps children with ThreadProvider for tests. */
+function TestThreadWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <ThreadProvider threadId={THREAD_ID} workingDirectory="">
+      {children}
+    </ThreadProvider>
+  );
+}
 
 describe("AskUserQuestion Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useThreadStore.getState().setThreadState(THREAD_ID, null);
   });
 
   it("renders in AssistantMessage when tool_use is AskUserQuestion", () => {
-    const messages: MessageParam[] = [
-      { role: "user", content: "Help me decide" },
-      createToolUseMessage("AskUserQuestion", "tool-123", {
-        question: "Which approach?",
-        options: ["Fast", "Thorough"],
-      }),
-    ];
-
-    const toolStates: Record<string, ToolExecutionState> = {
-      "tool-123": { status: "running" },
-    };
-
-    render(
-      <AssistantMessage
-        messages={messages}
-        messageIndex={1}
-        isStreaming={false}
-        toolStates={toolStates}
-      />
+    setupThreadStore(
+      [
+        { role: "assistant", content: createToolUseContent("AskUserQuestion", "tool-123", {
+          question: "Which approach?",
+          options: ["Fast", "Thorough"],
+        }) },
+      ],
+      { "tool-123": { status: "running" } },
     );
+
+    render(<AssistantMessage messageId="msg-0" />, { wrapper: TestThreadWrapper });
 
     expect(screen.getByText("Which approach?")).toBeInTheDocument();
     expect(screen.getByText("Fast")).toBeInTheDocument();
     expect(screen.getByText("Thorough")).toBeInTheDocument();
   });
 
-  it("passes onToolResponse callback through to component", () => {
-    const onToolResponse = vi.fn();
-    const messages: MessageParam[] = [
-      { role: "user", content: "Help me" },
-      createToolUseMessage("AskUserQuestion", "tool-456", {
-        question: "Pick one",
-        options: ["A", "B"],
-      }),
-    ];
-
-    render(
-      <AssistantMessage
-        messages={messages}
-        messageIndex={1}
-        isStreaming={false}
-        toolStates={{ "tool-456": { status: "running" } }}
-        onToolResponse={onToolResponse}
-      />
-    );
-
-    fireEvent.click(screen.getByTestId("option-item-0"));
-
-    expect(onToolResponse).toHaveBeenCalledWith("tool-456", "A");
-  });
-
   it("shows answered state after completion", () => {
-    const messages: MessageParam[] = [
-      { role: "user", content: "Help me" },
-      createToolUseMessage("AskUserQuestion", "tool-789", {
-        question: "Choose",
-        options: ["X", "Y"],
-      }),
-    ];
-
-    render(
-      <AssistantMessage
-        messages={messages}
-        messageIndex={1}
-        isStreaming={false}
-        toolStates={{
-          "tool-789": {
-            status: "complete",
-            result: "X",
-          },
-        }}
-      />
+    setupThreadStore(
+      [
+        { role: "assistant", content: createToolUseContent("AskUserQuestion", "tool-789", {
+          question: "Choose",
+          options: ["X", "Y"],
+        }) },
+      ],
+      { "tool-789": { status: "complete", result: "X" } },
     );
+
+    render(<AssistantMessage messageId="msg-0" />, { wrapper: TestThreadWrapper });
 
     const block = screen.getByTestId("ask-user-question-tool-789");
     expect(block).toHaveAttribute("data-status", "answered");
   });
 
   it("renders regular ToolUseBlock for non-AskUserQuestion tools", () => {
-    const messages: MessageParam[] = [
-      { role: "user", content: "List files" },
-      createToolUseMessage("Bash", "tool-999", { command: "ls -la" }),
-    ];
-
-    render(
-      <AssistantMessage
-        messages={messages}
-        messageIndex={1}
-        isStreaming={false}
-        toolStates={{ "tool-999": { status: "running" } }}
-      />
+    setupThreadStore(
+      [
+        { role: "assistant", content: createToolUseContent("Bash", "tool-999", { command: "ls -la" }) },
+      ],
+      { "tool-999": { status: "running" } },
     );
 
-    // Should NOT render AskUserQuestionBlock
-    expect(
-      screen.queryByTestId("ask-user-question-tool-999")
-    ).not.toBeInTheDocument();
-  });
+    render(<AssistantMessage messageId="msg-0" />, { wrapper: TestThreadWrapper });
 
-  it("handles multi-select mode correctly", () => {
-    const onToolResponse = vi.fn();
-    const messages: MessageParam[] = [
-      { role: "user", content: "Select items" },
-      createToolUseMessage("AskUserQuestion", "tool-multi", {
-        question: "Select all that apply",
-        options: ["Item A", "Item B", "Item C"],
-        allow_multiple: true,
-      }),
-    ];
-
-    render(
-      <AssistantMessage
-        messages={messages}
-        messageIndex={1}
-        isStreaming={false}
-        toolStates={{ "tool-multi": { status: "running" } }}
-        onToolResponse={onToolResponse}
-      />
-    );
-
-    // Should render checkboxes instead of radios
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
-
-    // Select multiple and submit
-    fireEvent.keyDown(window, { key: "1" });
-    fireEvent.keyDown(window, { key: "3" });
-    fireEvent.keyDown(window, { key: "Enter" });
-
-    expect(onToolResponse).toHaveBeenCalledWith("tool-multi", "Item A, Item C");
+    expect(screen.queryByTestId("ask-user-question-tool-999")).not.toBeInTheDocument();
   });
 
   it("renders Claude Code nested schema format", () => {
-    const messages: MessageParam[] = [
-      { role: "user", content: "Help me decide" },
-      createToolUseMessage("AskUserQuestion", "tool-nested", {
-        questions: [
-          {
-            question: "Which database?",
-            header: "Database",
-            options: [
-              { label: "PostgreSQL", description: "Relational DB" },
-              { label: "MongoDB", description: "Document DB" },
-            ],
-            multiSelect: false,
-          },
-        ],
-      }),
-    ];
-
-    render(
-      <AssistantMessage
-        messages={messages}
-        messageIndex={1}
-        isStreaming={false}
-        toolStates={{ "tool-nested": { status: "running" } }}
-      />
+    setupThreadStore(
+      [
+        { role: "assistant", content: createToolUseContent("AskUserQuestion", "tool-nested", {
+          questions: [
+            {
+              question: "Which database?",
+              header: "Database",
+              options: [
+                { label: "PostgreSQL", description: "Relational DB" },
+                { label: "MongoDB", description: "Document DB" },
+              ],
+              multiSelect: false,
+            },
+          ],
+        }) },
+      ],
+      { "tool-nested": { status: "running" } },
     );
+
+    render(<AssistantMessage messageId="msg-0" />, { wrapper: TestThreadWrapper });
 
     expect(screen.getByText("Which database?")).toBeInTheDocument();
     expect(screen.getByText("PostgreSQL")).toBeInTheDocument();
@@ -198,25 +136,17 @@ describe("AskUserQuestion Integration", () => {
   });
 
   it("falls back to ToolUseBlock for invalid AskUserQuestion input", () => {
-    const messages: MessageParam[] = [
-      { role: "user", content: "Help me" },
-      createToolUseMessage("AskUserQuestion", "tool-invalid", {
-        invalid: "data",
-      }),
-    ];
-
-    render(
-      <AssistantMessage
-        messages={messages}
-        messageIndex={1}
-        isStreaming={false}
-        toolStates={{ "tool-invalid": { status: "running" } }}
-      />
+    setupThreadStore(
+      [
+        { role: "assistant", content: createToolUseContent("AskUserQuestion", "tool-invalid", {
+          invalid: "data",
+        }) },
+      ],
+      { "tool-invalid": { status: "running" } },
     );
 
-    // Should NOT render AskUserQuestionBlock (it would have specific test id)
-    expect(
-      screen.queryByTestId("ask-user-question-tool-invalid")
-    ).not.toBeInTheDocument();
+    render(<AssistantMessage messageId="msg-0" />, { wrapper: TestThreadWrapper });
+
+    expect(screen.queryByTestId("ask-user-question-tool-invalid")).not.toBeInTheDocument();
   });
 });

@@ -209,11 +209,13 @@ export function useContentSearch(
   }, [updateCurrentHighlight, scrollToMatch]);
 
   const clear = useCallback(() => {
+    queryRef.current = "";
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     setQuery("");
     setMatchCount(0);
     setCurrentMatch(0);
-    clearHighlights();
-  }, [clearHighlights]);
+    rangesRef.current = [];
+  }, []);
 
   return { query, setQuery, setQueryAndNavigate, matchCount, currentMatch, goToNext, goToPrevious, clear };
 }

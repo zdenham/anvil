@@ -1,48 +1,40 @@
 /**
  * ContentPaneContainer
  *
- * Container that renders content panes based on the content-panes store.
- * Currently supports single-pane mode; architecture ready for future multi-pane.
- *
- * Uses the contentPanesService for all state management (disk-as-truth pattern).
+ * DEPRECATED: Replaced by SplitLayoutContainer -> PaneGroup -> ContentPane.
+ * Kept for backward compatibility with control-panel window.
  */
 
-import { useContentPanesStore } from "@/stores/content-panes/store";
-import { contentPanesService } from "@/stores/content-panes/service";
+import { usePaneLayoutStore } from "@/stores/pane-layout/store";
+import { paneLayoutService } from "@/stores/pane-layout/service";
 import { ContentPane } from "./content-pane";
 import { showMainWindowWithView } from "@/lib/hotkey-service";
 import { invoke } from "@/lib/invoke";
 
 /**
  * Container component that renders the active content pane.
- * Integrates with the content-panes store for state management.
+ * @deprecated Use SplitLayoutContainer + PaneGroup instead.
  */
 export function ContentPaneContainer() {
-  const panes = useContentPanesStore((state) => state.panes);
-  const activePaneId = useContentPanesStore((state) => state.activePaneId);
+  const activeGroupId = usePaneLayoutStore((s) => s.activeGroupId);
+  const groups = usePaneLayoutStore((s) => s.groups);
 
-  // Get the active pane
-  const activePane = activePaneId ? panes[activePaneId] : null;
+  const group = activeGroupId ? groups[activeGroupId] : null;
+  const activeTab = group?.tabs.find((t) => t.id === group.activeTabId);
 
-  // Handle close - clear pane view to empty
   const handleClose = async () => {
-    await contentPanesService.clearActivePane();
+    if (group && activeTab) {
+      await paneLayoutService.closeTab(group.id, activeTab.id);
+    }
   };
 
-  // Handle pop-out - open in main window instead of standalone window
   const handlePopOut = async () => {
-    if (!activePane) return;
-    const view = activePane.view;
-
-    // Open in main window instead of standalone window
-    await showMainWindowWithView(view);
-
-    // Focus the main window
+    if (!activeTab) return;
+    await showMainWindowWithView(activeTab.view);
     await invoke("show_main_window");
   };
 
-  // If no active pane, render empty state
-  if (!activePane) {
+  if (!activeTab) {
     return (
       <div className="flex-1 flex items-center justify-center bg-surface-900 text-surface-500">
         <p>No pane selected</p>
@@ -53,8 +45,8 @@ export function ContentPaneContainer() {
   return (
     <div className="flex-1 min-w-0 bg-surface-900">
       <ContentPane
-        paneId={activePane.id}
-        view={activePane.view}
+        paneId={group!.id}
+        view={activeTab.view}
         onClose={handleClose}
         onPopOut={handlePopOut}
       />

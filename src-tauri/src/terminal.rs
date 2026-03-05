@@ -7,9 +7,10 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Manager};
 
 use crate::paths;
+use crate::ws_server::push::EventBroadcaster;
 
 /// Represents an active terminal session with its PTY master and child process.
 pub struct TerminalSession {
@@ -189,9 +190,10 @@ pub async fn spawn_terminal(
     rows: u16,
     cwd: String,
 ) -> Result<u32, String> {
+    let broadcaster = app.state::<EventBroadcaster>().inner().clone();
     let emit: Arc<dyn Fn(&str, serde_json::Value) + Send + Sync> =
         Arc::new(move |event: &str, payload: serde_json::Value| {
-            let _ = app.emit(event, payload);
+            broadcaster.broadcast(event, payload);
         });
     spawn_terminal_inner(&state, cols, rows, cwd, emit)
 }
@@ -295,8 +297,9 @@ pub async fn kill_terminal(
     app: AppHandle,
     id: u32,
 ) -> Result<(), String> {
+    let broadcaster = app.state::<EventBroadcaster>();
     kill_terminal_inner(&state, id, |event, payload| {
-        let _ = app.emit(event, payload);
+        broadcaster.broadcast(event, payload);
     })
 }
 
@@ -349,7 +352,8 @@ pub async fn kill_terminals_by_cwd(
     app: AppHandle,
     cwd: String,
 ) -> Result<Vec<u32>, String> {
+    let broadcaster = app.state::<EventBroadcaster>();
     kill_terminals_by_cwd_inner(&state, &cwd, |event, payload| {
-        let _ = app.emit(event, payload);
+        broadcaster.broadcast(event, payload);
     })
 }

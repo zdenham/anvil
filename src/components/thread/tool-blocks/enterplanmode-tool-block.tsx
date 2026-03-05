@@ -5,6 +5,7 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { Map } from "lucide-react";
 import type { ToolBlockProps } from "./index";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 
 /**
  * EnterPlanMode tool block - renders when agent enters plan mode.
@@ -25,11 +26,10 @@ export function EnterPlanModeToolBlock({
   id,
   name: _name,
   input: _input, // Empty object, not used
-  result,
-  isError = false,
-  status,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Use Zustand store for expand state to persist across virtualization remounts
   const isExpanded = useToolExpandStore((state) =>
     state.isToolExpanded(threadId, id)

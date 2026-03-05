@@ -9,6 +9,7 @@ import type {
   SDKTaskProgressMessage,
   SDKTaskNotificationMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { nanoid } from "nanoid";
 import type { StreamAccumulator } from "../lib/stream-accumulator.js";
 import {
   appendAssistantMessage,
@@ -182,6 +183,8 @@ export class MessageHandler {
     await appendAssistantMessage({
       role: "assistant",
       content: msg.message.content as Parameters<typeof appendAssistantMessage>[0]["content"],
+      id: nanoid(),
+      anthropicId: msg.message.id,
     });
 
     return true;

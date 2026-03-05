@@ -546,7 +546,7 @@ export const threadService = {
 
   /**
    * Loads thread state from disk into the consolidated store.
-   * Called when active thread changes or when AGENT_STATE events are received.
+   * Called when active thread changes or when AGENT_COMPLETED events are received.
    * State is stored keyed by threadId, so late-arriving updates don't affect active view.
    */
   async loadThreadState(threadId: string): Promise<void> {

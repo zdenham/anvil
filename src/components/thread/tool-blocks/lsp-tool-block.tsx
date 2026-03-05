@@ -1,7 +1,7 @@
 import * as React from "react";
-import { formatDuration } from "@/lib/utils/time-format";
 import { toRelativePath } from "@/lib/utils/path-display";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { useWorkspaceRoot } from "@/hooks/use-workspace-root";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
@@ -146,13 +146,9 @@ export function LSPToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
   const setIsExpanded = (expanded: boolean) => setToolExpanded(threadId, id, expanded);
@@ -215,14 +211,7 @@ export function LSPToolBlock({
           {/* Error indicator */}
           {!isRunning && isError && <StatusIcon isSuccess={false} />}
 
-          {/* Duration on right */}
-          <span className="flex items-center gap-2 shrink-0 ml-auto">
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
-              </span>
-            )}
-          </span>
+          <span className="flex items-center gap-2 shrink-0 ml-auto" />
         </div>
 
         {/* Second line: command/details with icon (icon goes here, not on first line) */}

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -72,13 +72,10 @@ export function ExitPlanModeToolBlock({
   id,
   name: _name,
   input: _input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Parse result - never display raw JSON
   const {
     status: approvalStatus,
@@ -137,12 +134,6 @@ export function ExitPlanModeToolBlock({
             />
           )}
 
-          {/* Duration - right justified */}
-          {durationMs !== undefined && !isRunning && (
-            <span className="text-xs text-muted-foreground ml-auto">
-              {formatDuration(durationMs)}
-            </span>
-          )}
         </div>
 
         {/* Second Line - Details with icon */}

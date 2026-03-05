@@ -124,7 +124,9 @@ function extractAgentFinalText(messages: RunnerMessage[]): string | null {
   return textBlock?.text ?? null;
 }
 
-describeWithApi("AskUserQuestion hook spike", () => {
+// Spike completed — validated updatedInput.answers approach (see MEMORY.md).
+// These tests require live API calls and are not regression tests.
+describeWithApi.skip("AskUserQuestion hook spike", () => {
   it("Approach 1: allow + updatedInput.answers", async () => {
     const output = await runRunner(
       { APPROACH: "allow_updated" },

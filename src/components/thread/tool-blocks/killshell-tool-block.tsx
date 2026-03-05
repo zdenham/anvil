@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -25,13 +25,10 @@ export function KillShellToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Use Zustand store for expand state to persist across virtualization remounts
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
@@ -77,14 +74,7 @@ export function KillShellToolBlock({
             <StatusIcon isSuccess={!isError} />
           )}
 
-          {/* Duration - right justified */}
-          <span className="flex items-center gap-2 shrink-0 ml-auto">
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
-              </span>
-            )}
-          </span>
+          <span className="flex items-center gap-2 shrink-0 ml-auto" />
         </div>
       </div>
 

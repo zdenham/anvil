@@ -16,10 +16,9 @@ vi.mock('@/stores/tree-menu/service', () => ({
   },
 }));
 
-vi.mock('@/stores/content-panes/service', () => ({
-  contentPanesService: {
-    setActivePaneView: vi.fn().mockResolvedValue(undefined),
-    clearActivePane: vi.fn().mockResolvedValue(undefined),
+vi.mock('@/stores/pane-layout/service', () => ({
+  paneLayoutService: {
+    setActiveTabView: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -103,7 +102,7 @@ vi.mock('@tauri-apps/plugin-shell', () => ({
 // Import the module under test - must use dynamic import after mocks
 import { handleSDKEvent } from '../quick-action-executor.js';
 import { treeMenuService } from '@/stores/tree-menu/service';
-import { contentPanesService } from '@/stores/content-panes/service';
+import { paneLayoutService } from '@/stores/pane-layout/service';
 import { navigationService } from '@/stores/navigation-service';
 
 describe('handleSDKEvent', () => {

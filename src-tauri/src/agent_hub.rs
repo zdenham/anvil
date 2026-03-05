@@ -15,8 +15,6 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter};
-
 use crate::ws_server::push::EventBroadcaster;
 
 /// Message structure for socket communication between agents and the hub.
@@ -170,7 +168,7 @@ impl AgentHub {
     /// 2. Binds to the Unix socket
     /// 3. Accepts incoming connections
     /// 4. Spawns handler threads for each connection
-    pub fn start(&self, app_handle: AppHandle) -> Result<(), String> {
+    pub fn start(&self) -> Result<(), String> {
         // Clean up stale socket first
         self.cleanup_stale_socket()?;
 
@@ -213,7 +211,6 @@ impl AgentHub {
                         tracing::info!("New agent connection accepted");
                         let agents = agents.clone();
                         let hierarchy = hierarchy.clone();
-                        let app_handle = app_handle.clone();
                         let diag_config = diagnostic_config.clone();
                         let ws_bc = ws_broadcaster.clone();
 
@@ -223,7 +220,6 @@ impl AgentHub {
                                 stream,
                                 agents,
                                 hierarchy,
-                                app_handle,
                                 diag_config,
                                 ws_bc,
                             );
@@ -286,7 +282,6 @@ impl AgentHub {
         stream: UnixStream,
         agents: Arc<RwLock<HashMap<String, AgentWriter>>>,
         hierarchy: Arc<RwLock<HashMap<String, Option<String>>>>,
-        app_handle: AppHandle,
         diagnostic_config: DiagnosticConfigState,
         ws_broadcaster: Arc<RwLock<Option<EventBroadcaster>>>,
     ) {
@@ -481,9 +476,7 @@ impl AgentHub {
                             );
                         }
 
-                        // Also forward to frontend for event debugger
-                        let _ = app_handle.emit("agent:message", &raw_msg);
-                        // Forward to WS clients (browser mode)
+                        // Forward to WS clients
                         if let Ok(guard) = ws_broadcaster.read() {
                             if let Some(ref broadcaster) = *guard {
                                 broadcaster.broadcast("agent:message", raw_msg.clone());
@@ -492,34 +485,20 @@ impl AgentHub {
                         continue;
                     }
 
-                    // Forward all other messages to Tauri/UI
-                    match app_handle.emit("agent:message", &raw_msg) {
-                        Ok(()) => {
-                            // Inject hub:emitted stamp after successful emit
-                            append_pipeline_stamp(&mut raw_msg, "hub:emitted", seq);
+                    // Inject hub:emitted stamp
+                    append_pipeline_stamp(&mut raw_msg, "hub:emitted", seq);
 
-                            if diag_pipeline {
-                                tracing::debug!(
-                                    agent_id = %msg_sender_id,
-                                    msg_type = %msg_type,
-                                    seq = ?seq,
-                                    stage = "hub:emitted",
-                                    "Pipeline diagnostic: message emitted"
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            // Always log emit failures with seq info
-                            tracing::warn!(
-                                agent_id = %msg_sender_id,
-                                seq = ?seq,
-                                error = %e,
-                                "EMIT FAILED"
-                            );
-                        }
+                    if diag_pipeline {
+                        tracing::debug!(
+                            agent_id = %msg_sender_id,
+                            msg_type = %msg_type,
+                            seq = ?seq,
+                            stage = "hub:emitted",
+                            "Pipeline diagnostic: message emitted"
+                        );
                     }
 
-                    // Forward to WS clients (browser mode)
+                    // Forward to WS clients (sole transport)
                     if let Ok(guard) = ws_broadcaster.read() {
                         if let Some(ref broadcaster) = *guard {
                             broadcaster.broadcast("agent:message", raw_msg.clone());

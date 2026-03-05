@@ -17,7 +17,7 @@ function getTextColorClass(isAlive: boolean, isSelected: boolean): string {
 interface TerminalItemProps {
   item: TreeItemNode;
   isSelected: boolean;
-  onSelect: (itemId: string, itemType: "terminal") => void;
+  onSelect: (itemId: string, itemType: "terminal", event?: React.MouseEvent) => void;
   tabIndex?: number;
   /** Index in the flat list for keyboard navigation */
   itemIndex?: number;
@@ -77,8 +77,16 @@ export function TerminalItem({
     }
   };
 
-  const handleClick = () => {
-    onSelect(item.id, "terminal");
+  const handleClick = (e: React.MouseEvent) => {
+    onSelect(item.id, "terminal", e);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Middle-click opens in new tab
+    if (e.button === 1) {
+      e.preventDefault();
+      onSelect(item.id, "terminal", e);
+    }
   };
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -102,6 +110,7 @@ export function TerminalItem({
       data-tree-item-index={itemIndex}
       tabIndex={tabIndex}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}
       style={{ paddingLeft: `${indentPx}px` }}
       className={cn(

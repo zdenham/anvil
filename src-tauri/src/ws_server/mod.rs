@@ -148,6 +148,19 @@ async fn process_requests(
             _ => continue,
         };
 
+        // Check for relay messages (cross-window broadcast via WS)
+        if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&text) {
+            if raw.get("relay").and_then(|v| v.as_bool()) == Some(true) {
+                if let (Some(event), Some(payload)) = (
+                    raw.get("event").and_then(|v| v.as_str()),
+                    raw.get("payload"),
+                ) {
+                    state.broadcaster.broadcast(event, payload.clone());
+                }
+                continue;
+            }
+        }
+
         let request: WsRequest = match serde_json::from_str(&text) {
             Ok(r) => r,
             Err(e) => {

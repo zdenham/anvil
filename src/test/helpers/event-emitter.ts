@@ -90,10 +90,10 @@ export class TestEvents {
   }
 
   /**
-   * Emit agent:state with thread state snapshot.
+   * Emit thread:action with a reducer action.
    */
-  static async agentState(threadId: string, state: ThreadState): Promise<void> {
-    await this.emitAndWait(EventName.AGENT_STATE, { threadId, state });
+  static async threadAction(threadId: string, action: import("@core/lib/thread-reducer.js").ThreadAction): Promise<void> {
+    await this.emitAndWait(EventName.THREAD_ACTION, { threadId, action });
   }
 
   /**
@@ -131,18 +131,26 @@ export class TestEvents {
     // Spawn
     await this.agentSpawned(threadId, repoId);
 
-    // Stream messages
-    const accumulatedMessages: ThreadState["messages"] = [];
+    // Init state via thread action
+    await this.threadAction(threadId, {
+      type: "INIT",
+      payload: { workingDirectory: "/test/worktree" },
+    });
+
+    // Stream messages via thread actions
     for (const msg of messages) {
-      accumulatedMessages.push(msg);
-      await this.agentState(threadId, {
-        messages: [...accumulatedMessages],
-        fileChanges: [],
-        workingDirectory: "/test/worktree",
-        status: "running",
-        timestamp: Date.now(),
-        toolStates: {},
-      });
+      const storedMsg = msg as import("@core/types/events.js").StoredMessage;
+      if (storedMsg.role === "user") {
+        await this.threadAction(threadId, {
+          type: "APPEND_USER_MESSAGE",
+          payload: { content: String(storedMsg.content), id: storedMsg.id ?? crypto.randomUUID() },
+        });
+      } else {
+        await this.threadAction(threadId, {
+          type: "APPEND_ASSISTANT_MESSAGE",
+          payload: { message: storedMsg },
+        });
+      }
     }
 
     // Complete

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/utils/time-format";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { useThreadStore } from "@/entities/threads/store";
 import { useChildThreadToolCount } from "@/hooks/use-child-thread-tool-count";
 import { ShimmerText } from "@/components/ui/shimmer-text";
@@ -101,13 +101,10 @@ export function TaskToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Check if this Task created a sub-agent thread
   const childThread = useThreadStore((state) =>
     state.getChildThreadByParentToolUseId(id)
@@ -187,13 +184,8 @@ export function TaskToolBlock({
             {isRunning ? "Running sub-agent" : "Sub-agent"}
           </ShimmerText>
 
-          {/* Right side: duration and error indicator */}
+          {/* Right side: error indicator */}
           <span className="flex items-center gap-2 shrink-0 ml-auto">
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
-              </span>
-            )}
             {isError && !isRunning && <StatusIcon isSuccess={false} />}
           </span>
         </div>

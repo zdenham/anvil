@@ -21,7 +21,7 @@
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { flushSync } from "react-dom";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { StoredMessage } from "@core/types/events";
 import { ArrowLeft } from "lucide-react";
 import { ContextMeter } from "@/components/content-pane/context-meter";
 import { FindBar } from "@/components/content-pane/find-bar";
@@ -136,12 +136,12 @@ export function ThreadContent({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Track optimistic messages sent but not yet persisted to state.json
-  const [optimisticMessages, setOptimisticMessages] = useState<MessageParam[]>([]);
+  const [optimisticMessages, setOptimisticMessages] = useState<StoredMessage[]>([]);
   // Track the real message count when optimistic messages were added
   // This helps us know when the real state has caught up
   const realMessageCountWhenOptimisticAdded = useRef<number>(0);
 
-  // Set this thread as active so AGENT_STATE events update the store
+  // Set this thread as active so THREAD_ACTION events update the store
   // Also refresh thread from disk if not in store (handles cross-window sync)
   useEffect(() => {
     logger.debug(`[ThreadContent] useEffect FIRED for threadId: ${threadId}`);
@@ -166,10 +166,6 @@ export function ThreadContent({
     });
   }, [threadId]);
 
-  const toolStates = useMemo(
-    () => activeState?.toolStates ?? {},
-    [activeState?.toolStates]
-  );
   const entityStatus = activeMetadata?.status ?? "idle";
 
   // Derive working directory from thread's worktreeId via repo settings
@@ -215,8 +211,6 @@ export function ThreadContent({
           ? "cancelled"
           : entityStatus;
 
-  const isStreaming = viewStatus === "running";
-
   // Determine if we can queue messages (agent is running) or resume (agent is idle/completed)
   const canQueueMessages = viewStatus === "running";
   const resumableStatuses: ViewStatus[] = [
@@ -229,13 +223,13 @@ export function ThreadContent({
 
 
   // Compute messages with optimistic message support
-  const messages = useMemo((): MessageParam[] => {
+  const messages = useMemo((): StoredMessage[] => {
     const realMessages = activeState?.messages ?? [];
 
     // If no real messages, check initialPrompt first (for thread-creation-service path)
     // and also check if there are no local optimistic messages
     if (realMessages.length === 0 && initialPrompt && optimisticMessages.length === 0) {
-      return [{ role: "user", content: initialPrompt }];
+      return [{ id: "optimistic-initial", role: "user", content: initialPrompt }];
     }
 
     // Append optimistic messages, filtering out any already present in real state
@@ -343,7 +337,7 @@ export function ThreadContent({
       // Use flushSync to force immediate render of the optimistic message
       // This prevents the message from being cleared before it's ever displayed
       flushSync(() => {
-        setOptimisticMessages((prev) => [...prev, { role: "user", content: userPrompt }]);
+        setOptimisticMessages((prev) => [...prev, { id: `optimistic-${crypto.randomUUID()}`, role: "user", content: userPrompt }]);
       });
 
       // Queue message if agent is currently running
@@ -497,9 +491,7 @@ export function ThreadContent({
             ref={messageListRef}
             threadId={threadId}
             messages={messages}
-            isStreaming={isStreaming}
             status={viewStatus}
-            toolStates={toolStates}
             workingDirectory={workingDirectory || undefined}
             error={activeState?.error}
           />

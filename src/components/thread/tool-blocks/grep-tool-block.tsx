@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { Search, FileText } from "lucide-react";
-import { formatDuration } from "@/lib/utils/time-format";
 import { toRelativePath } from "@/lib/utils/path-display";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { useWorkspaceRoot } from "@/hooks/use-workspace-root";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ShimmerText } from "@/components/ui/shimmer-text";
@@ -356,13 +356,10 @@ export function GrepToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
-  isFocused: _isFocused,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Use Zustand store for expand state to persist across virtualization remounts
   const isExpanded = useToolExpandStore((state) =>
     state.isToolExpanded(threadId, id)
@@ -464,14 +461,7 @@ export function GrepToolBlock({
           {/* Error indicator */}
           {!isRunning && isError && <StatusIcon isSuccess={false} />}
 
-          {/* Duration - right aligned */}
-          <span className="flex items-center gap-2 shrink-0 ml-auto">
-            {durationMs !== undefined && !isRunning && (
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(durationMs)}
-              </span>
-            )}
-          </span>
+          <span className="flex items-center gap-2 shrink-0 ml-auto" />
         </div>
 
         {/* Line 2: Icon + Command/Details (pattern + match summary) */}

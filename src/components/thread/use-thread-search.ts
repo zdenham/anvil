@@ -9,7 +9,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import type { RefObject } from "react";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { StoredMessage } from "@core/types/events";
 import type { UseContentSearchReturn } from "@/components/content-pane/use-content-search";
 import type { MessageListRef } from "./message-list";
 
@@ -30,7 +30,7 @@ interface SearchMatch {
 }
 
 /** Extract searchable text segments from messages. */
-function buildSegments(messages: MessageParam[]): SearchableSegment[] {
+function buildSegments(messages: StoredMessage[]): SearchableSegment[] {
   const segments: SearchableSegment[] = [];
 
   for (let i = 0; i < messages.length; i++) {
@@ -138,7 +138,7 @@ export interface UseThreadSearchReturn extends UseContentSearchReturn {
 }
 
 export function useThreadSearch(
-  messages: MessageParam[],
+  messages: StoredMessage[],
   messageListRef: RefObject<MessageListRef | null>,
   scrollerRef: RefObject<HTMLElement | null>,
 ): UseThreadSearchReturn {
@@ -413,12 +413,13 @@ export function useThreadSearch(
   }, [navigateToMatch]);
 
   const clear = useCallback(() => {
+    queryRef.current = "";
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     setQuery("");
     setMatchCount(0);
     setCurrentMatch(0);
     matchesRef.current = [];
-    clearHighlights();
-  }, [clearHighlights]);
+  }, []);
 
   const setQueryAndNavigate = useCallback((q: string, matchIdx: number, snippet?: string) => {
     initialNavRef.current = matchIdx;

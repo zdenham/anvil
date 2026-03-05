@@ -1,7 +1,7 @@
-import { formatDuration } from "@/lib/utils/time-format";
 import { toRelativePath } from "@/lib/utils/path-display";
 import { getLanguageFromPath } from "@/lib/language-detection";
 import { useToolExpandStore } from "@/stores/tool-expand-store";
+import { useToolState } from "@/hooks/use-tool-state";
 import { useWorkspaceRoot } from "@/hooks/use-workspace-root";
 import { CollapsibleBlock } from "@/components/ui/collapsible-block";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -58,12 +58,10 @@ export function ReadToolBlock({
   id,
   name: _name,
   input,
-  result,
-  isError = false,
-  status,
-  durationMs,
   threadId,
 }: ToolBlockProps) {
+  const { status, result, isError } = useToolState(threadId, id);
+
   // Persist expand state across virtualization
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
   const setToolExpanded = useToolExpandStore((state) => state.setToolExpanded);
@@ -96,12 +94,6 @@ export function ReadToolBlock({
         {/* Error indicator */}
         {!isRunning && isError && <StatusIcon isSuccess={false} />}
 
-        {/* Duration - right justified */}
-        {durationMs !== undefined && !isRunning && (
-          <span className="ml-auto text-xs text-muted-foreground shrink-0">
-            {formatDuration(durationMs)}
-          </span>
-        )}
       </div>
 
       {/* Second line: File path with icon (icon ONLY on this line) */}

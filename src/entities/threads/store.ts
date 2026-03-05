@@ -5,9 +5,33 @@ import type { ThreadState as DiskThreadState } from "@/lib/types/agent-messages"
 import { logger } from "@/lib/logger-client";
 import { eventBus } from "../events";
 import { EventName } from "../../../core/types/events";
+import {
+  ThreadStateMachine,
+  type TransportEvent,
+  type ThreadRenderState,
+} from "@/lib/thread-state-machine";
 
 // Re-export types for consumers
 export type { DiskThreadState as ThreadState, ThreadMetadata };
+export type { TransportEvent, ThreadRenderState };
+
+/** Machine instances live outside Zustand to avoid serialization issues. */
+const machines = new Map<string, ThreadStateMachine>();
+
+/** Get or create a machine for a thread. */
+function getOrCreateMachine(threadId: string): ThreadStateMachine {
+  let machine = machines.get(threadId);
+  if (!machine) {
+    machine = new ThreadStateMachine();
+    machines.set(threadId, machine);
+  }
+  return machine;
+}
+
+/** Destroy the machine for a thread (e.g., on panel hide). */
+export function clearMachineState(threadId: string): void {
+  machines.delete(threadId);
+}
 
 interface ThreadStoreState {
   // All thread metadata (always in memory, lightweight)
@@ -19,8 +43,8 @@ interface ThreadStoreState {
   // Currently active thread
   activeThreadId: string | null;
 
-  // Lazily-loaded states keyed by threadId (from disk state.json)
-  threadStates: Record<string, DiskThreadState>;
+  // Lazily-loaded states keyed by threadId. Includes WIP streaming blocks via ThreadStateMachine.
+  threadStates: Record<string, ThreadRenderState>;
 
   // Loading state for the active thread
   activeThreadLoading: boolean;
@@ -50,8 +74,11 @@ interface ThreadStoreActions {
   setActiveThreadLoading: (loading: boolean) => void;
   setThreadError: (threadId: string, error: string | null) => void;
 
+  /** Dispatch a transport event to the thread's state machine. */
+  dispatch: (threadId: string, event: TransportEvent) => void;
+
   /** Derived getter */
-  getActiveThreadState: () => DiskThreadState | undefined;
+  getActiveThreadState: () => ThreadRenderState | undefined;
 
   /** Read state management */
   markThreadAsRead: (threadId: string) => void;
@@ -116,19 +143,31 @@ export const useThreadStore = create<
       threadId,
       hasState: !!state,
       messageCount: state?.messages?.length ?? 0,
-      // DEBUG: Log tool states to diagnose spinner bug
       hasToolStates: !!state?.toolStates,
-      toolStatesKeys: state?.toolStates ? Object.keys(state.toolStates) : [],
       toolStatesCount: state?.toolStates ? Object.keys(state.toolStates).length : 0,
     });
-    set((prev) => {
-      if (state) {
-        return { threadStates: { ...prev.threadStates, [threadId]: state } };
-      }
-      // Remove thread state without lodash omit
-      const { [threadId]: _, ...rest } = prev.threadStates;
-      return { threadStates: rest };
-    });
+    if (!state) {
+      machines.delete(threadId);
+      set((prev) => {
+        const { [threadId]: _, ...rest } = prev.threadStates;
+        return { threadStates: rest };
+      });
+      return;
+    }
+    // Hydrate through machine so it tracks state and clears WIP
+    const machine = getOrCreateMachine(threadId);
+    const renderState = machine.apply({ type: "HYDRATE", state });
+    set((prev) => ({
+      threadStates: { ...prev.threadStates, [threadId]: renderState },
+    }));
+  },
+
+  dispatch: (threadId, event) => {
+    const machine = getOrCreateMachine(threadId);
+    const renderState = machine.apply(event);
+    set((prev) => ({
+      threadStates: { ...prev.threadStates, [threadId]: renderState },
+    }));
   },
 
   setActiveThreadLoading: (loading) => {
