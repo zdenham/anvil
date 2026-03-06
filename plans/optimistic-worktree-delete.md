@@ -20,10 +20,10 @@ Mirror the optimistic creation pattern (`handleNewWorktree` at lines 439-515): r
 
 ## Phases
 
-- [ ] Add `removeOptimisticWorktreeByRealId` to lookup store
-- [ ] Close open tabs belonging to the worktree being archived
-- [ ] Refactor `handleArchiveWorktree` to be optimistic
-- [ ] Parallelize the background archive operations
+- [x] Add `removeOptimisticWorktreeByRealId` to lookup store
+- [x] Close open tabs belonging to the worktree being archived
+- [x] Refactor `handleArchiveWorktree` to be optimistic
+- [x] Parallelize the background archive operations
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

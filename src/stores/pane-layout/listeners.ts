@@ -31,6 +31,34 @@ async function closeMatchingTabs(
 }
 
 /**
+ * Close all tabs belonging to a worktree.
+ * Takes pre-resolved entity IDs to avoid coupling to entity services.
+ */
+export async function closeTabsByWorktree(opts: {
+  worktreeId: string;
+  threadIds: Set<string>;
+  planIds: Set<string>;
+  terminalIds: Set<string>;
+}): Promise<void> {
+  await closeMatchingTabs((view) => {
+    switch (view.type) {
+      case "thread":
+        return opts.threadIds.has(view.threadId as string);
+      case "plan":
+        return opts.planIds.has(view.planId as string);
+      case "terminal":
+        return opts.terminalIds.has(view.terminalId as string);
+      case "changes":
+        return view.worktreeId === opts.worktreeId;
+      case "file":
+        return view.worktreeId === opts.worktreeId;
+      default:
+        return false;
+    }
+  });
+}
+
+/**
  * Setup pane layout event listeners.
  * Handles THREAD_ARCHIVED and PLAN_ARCHIVED events to close
  * tabs showing archived content across all groups.

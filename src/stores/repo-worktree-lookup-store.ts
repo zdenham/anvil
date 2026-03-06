@@ -3,7 +3,7 @@ import { appData } from "@/lib/app-data-store";
 import { RepositorySettingsSchema } from "@core/types/repositories.js";
 import { logger } from "@/lib/logger-client";
 
-interface WorktreeLookupInfo {
+export interface WorktreeLookupInfo {
   name: string;
   path: string;
   currentBranch: string | null;
@@ -49,6 +49,9 @@ interface RepoWorktreeLookupState {
 
   /** Remove placeholder on error/rollback */
   removeOptimisticWorktree: (repoId: string, tempWorktreeId: string) => void;
+
+  /** Restore a worktree entry (rollback after failed optimistic delete) */
+  restoreWorktree: (repoId: string, worktreeId: string, info: WorktreeLookupInfo) => void;
 }
 
 const REPOS_DIR = "repositories";
@@ -159,6 +162,17 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
 
     const worktrees = new Map(repo.worktrees);
     worktrees.delete(tempWorktreeId);
+    repos.set(repoId, { ...repo, worktrees });
+    set({ repos });
+  },
+
+  restoreWorktree: (repoId: string, worktreeId: string, info: WorktreeLookupInfo) => {
+    const repos = new Map(get().repos);
+    const repo = repos.get(repoId);
+    if (!repo) return;
+
+    const worktrees = new Map(repo.worktrees);
+    worktrees.set(worktreeId, info);
     repos.set(repoId, { ...repo, worktrees });
     set({ repos });
   },

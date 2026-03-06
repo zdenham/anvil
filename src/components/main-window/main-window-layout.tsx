@@ -26,7 +26,7 @@ import { MainWindowProvider } from "./main-window-context";
 import { DebugPanel } from "@/components/debug-panel";
 import { ResizablePanelVertical } from "@/components/ui/resizable-panel-vertical";
 import { useDebugPanelStore, debugPanelService } from "@/stores/debug-panel";
-import { paneLayoutService, setupPaneLayoutListeners } from "@/stores/pane-layout";
+import { paneLayoutService, setupPaneLayoutListeners, closeTabsByWorktree } from "@/stores/pane-layout";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { navigationService } from "@/stores/navigation-service";
 import { layoutService } from "@/stores/layout/service";
@@ -49,8 +49,10 @@ import { FileBrowserPanel } from "@/components/file-browser/file-browser-panel";
 import { SearchPanel } from "@/components/search-panel";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
+import { pullRequestService } from "@/entities/pull-requests";
 import { handleCreatePr } from "@/lib/pr-actions";
 import { GlobalToast } from "@/components/ui/global-toast";
+import { toast } from "@/lib/toast";
 import { WindowTitlebar } from "@/components/window-titlebar/window-titlebar";
 import type { ContentPaneView } from "@/components/content-pane/types";
 
@@ -590,9 +592,10 @@ export function MainWindowLayout() {
   const handleArchiveWorktree = useCallback(async (repoName: string, worktreeId: string, worktreeName: string) => {
     logger.info(`[MainWindowLayout] Archive worktree requested: ${worktreeName} (${worktreeId}) in repo ${repoName}`);
 
-    // Get threads and plans in this worktree to show counts in confirmation
+    // Get entities in this worktree for confirmation counts and tab closure
     const threads = threadService.getByWorktree(worktreeId);
     const plans = planService.getByWorktree(worktreeId);
+    const terminals = terminalSessionService.getByWorktree(worktreeId);
     const threadCount = threads.length;
     const planCount = plans.length;
 
@@ -614,37 +617,61 @@ export function MainWindowLayout() {
       return;
     }
 
-    try {
-      // Kill all terminal sessions in the worktree
-      await terminalSessionService.archiveByWorktree(worktreeId);
-      logger.info(`[MainWindowLayout] Archived terminal sessions for worktree ${worktreeId}`);
-
-      // Archive all threads in the worktree
-      for (const thread of threads) {
-        await threadService.archive(thread.id);
-        logger.info(`[MainWindowLayout] Archived thread ${thread.id}`);
-      }
-
-      // Archive all plans in the worktree
-      for (const plan of plans) {
-        await planService.archive(plan.id);
-        logger.info(`[MainWindowLayout] Archived plan ${plan.id}`);
-      }
-
-      // Delete the worktree
-      await worktreeService.delete(repoName, worktreeName);
-
-      // Sync worktrees and refresh lookup store
-      await worktreeService.sync(repoName);
-      await useRepoWorktreeLookupStore.getState().hydrate();
-
-      // Refresh tree menu
-      await treeMenuService.hydrate();
-
-      logger.info(`[MainWindowLayout] Successfully archived worktree "${worktreeName}" with ${threadCount} threads, ${planCount} plans`);
-    } catch (error) {
-      logger.error(`[MainWindowLayout] Failed to archive worktree:`, error);
+    // Capture worktree info for rollback
+    const lookupStore = useRepoWorktreeLookupStore.getState();
+    const repoId = lookupStore.getRepoIdByName(repoName);
+    if (!repoId) {
+      logger.error(`[MainWindowLayout] Could not find repoId for "${repoName}"`);
+      return;
     }
+    const repo = lookupStore.repos.get(repoId);
+    const worktreeInfo = repo?.worktrees.get(worktreeId);
+
+    // ── Optimistic UI removal ──
+    lookupStore.removeOptimisticWorktree(repoId, worktreeId);
+    await closeTabsByWorktree({
+      worktreeId,
+      threadIds: new Set(threads.map(t => t.id)),
+      planIds: new Set(plans.map(p => p.id)),
+      terminalIds: new Set(terminals.map(t => t.id)),
+    });
+    await treeMenuService.hydrate();
+
+    // ── Background archive (fire-and-forget with rollback) ──
+    (async () => {
+      try {
+        // Parallelize entity archiving
+        await Promise.all([
+          terminalSessionService.archiveByWorktree(worktreeId),
+          ...threads.map(t => threadService.archive(t.id)),
+          ...plans.map(p => planService.archive(p.id)),
+          pullRequestService.archiveByWorktree(worktreeId),
+        ]);
+
+        // Delete worktree after entities are archived
+        await worktreeService.delete(repoName, worktreeName);
+
+        // Reconcile with disk
+        await worktreeService.sync(repoName);
+        await useRepoWorktreeLookupStore.getState().hydrate();
+        await treeMenuService.hydrate();
+
+        logger.info(`[MainWindowLayout] Successfully archived worktree "${worktreeName}" with ${threadCount} threads, ${planCount} plans`);
+      } catch (error) {
+        logger.error(`[MainWindowLayout] Failed to archive worktree, rolling back:`, error);
+
+        // Rollback: restore the worktree entry
+        if (worktreeInfo) {
+          useRepoWorktreeLookupStore.getState().restoreWorktree(repoId, worktreeId, worktreeInfo);
+        }
+        // Re-hydrate to reconcile with actual disk state
+        await useRepoWorktreeLookupStore.getState().hydrate();
+        await treeMenuService.hydrate();
+
+        const errorMsg = error instanceof Error ? error.message : "Unknown error";
+        toast.error(`Failed to archive worktree "${worktreeName}": ${errorMsg}`);
+      }
+    })();
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -767,7 +794,7 @@ export function MainWindowLayout() {
               persistKey="right-panel-width"
               closeThreshold={120}
               onClose={rightPanel.close}
-              className="bg-surface-950 border-l border-surface-700"
+              className="bg-surface-950"
             >
               <FileBrowserPanel
                 key={rightPanel.state.worktreeId}
@@ -787,7 +814,7 @@ export function MainWindowLayout() {
               persistKey="right-panel-width"
               closeThreshold={120}
               onClose={rightPanel.close}
-              className="bg-surface-950 border-l border-surface-700"
+              className="bg-surface-950"
             >
               <SearchPanel
                 onClose={rightPanel.close}
