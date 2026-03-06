@@ -1,4 +1,4 @@
-import ts from "typescript";
+import { transform } from "sucrase";
 import { logger } from "../logger.js";
 import type { ReplContext, ReplResult } from "./types.js";
 
@@ -62,17 +62,14 @@ export class MortReplRunner {
   }
 
   /**
-   * Transpile TypeScript code to ESNext JavaScript using ts.transpileModule.
-   * This strips type annotations while preserving async/await and other syntax.
+   * Transpile TypeScript code to JavaScript using sucrase.
+   * Strips type annotations while preserving async/await and other syntax.
    */
   transpile(code: string): string {
-    const result = ts.transpileModule(code, {
-      compilerOptions: {
-        target: ts.ScriptTarget.ESNext,
-        module: ts.ModuleKind.ESNext,
-      },
+    const result = transform(code, {
+      transforms: ["typescript"],
     });
-    return result.outputText;
+    return result.code;
   }
 
   /**

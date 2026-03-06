@@ -728,11 +728,15 @@ fn get_accessibility_status() -> serde_json::Value {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let run_start = std::time::Instant::now();
+
     // Initialize paths first (required by logging which reads device_id from config)
     paths::initialize();
 
     // Initialize logging (uses config::get_device_id() for log server)
     logging::initialize();
+
+    tracing::info!(elapsed_ms = %run_start.elapsed().as_millis(), "[startup] paths + logging initialized");
 
     // Create AgentHub with socket path in data directory
     let socket_path = paths::data_dir()
@@ -1009,6 +1013,7 @@ pub fn run() {
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
+            let setup_start = std::time::Instant::now();
 
             // NOTE: paths::initialize() is called in run() before logging::initialize()
             // because logging needs to read device_id from config
@@ -1017,31 +1022,32 @@ pub fn run() {
             // in the frontend. This avoids triggering the Documents permission prompt before the UI
             // renders, which would bypass the normal permission grant flow.
 
-            // Ensure .mort directories exist (NEW)
+            let t = std::time::Instant::now();
             if let Err(e) = ensure_mort_directories() {
                 tracing::error!("Failed to ensure .mort directories: {}", e);
             }
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] ensure_mort_directories");
 
-            // Start the AgentHub socket server
+            let t = std::time::Instant::now();
             let hub: tauri::State<'_, Arc<AgentHub>> = app.state();
             if let Err(e) = hub.start() {
                 tracing::error!(error = %e, "Failed to start AgentHub");
             }
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] agent_hub.start");
 
             // Set up log buffer to emit events to frontend
             logging::set_app_handle(app.handle().clone());
 
             // Set activation policy to Accessory for proper panel behavior
-            // This removes the app from the Dock (desired for spotlight-style apps)
             let _ = app
                 .handle()
                 .set_activation_policy(ActivationPolicy::Accessory);
 
-            // Clear any stale repository locks from previous sessions
             mort_commands::clear_all_locks();
 
-            // Initialize config module (uses consolidated .mort/settings/ directory)
+            let t = std::time::Instant::now();
             config::initialize();
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] config::initialize");
 
             // Auto-identify via gh CLI (best-effort, don't block startup)
             std::thread::spawn(|| {
@@ -1051,31 +1057,43 @@ pub fn run() {
                 }
             });
 
-            // Run TypeScript migrations (spawns Node.js process)
+            let t = std::time::Instant::now();
             if let Err(e) = run_ts_migrations(app) {
-                // Log error but don't block app startup (graceful degradation)
                 tracing::warn!(error = %e, "TypeScript migrations failed (non-fatal)");
             }
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] run_ts_migrations");
 
-            // Initialize panels module with app handle for event callbacks
+            let t = std::time::Instant::now();
             panels::initialize(app.handle());
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] panels::initialize");
 
-            // Create panels
+            let t = std::time::Instant::now();
             if let Err(e) = panels::create_spotlight_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create spotlight panel");
             }
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] create_spotlight_panel");
+
+            let t = std::time::Instant::now();
             if let Err(e) = panels::create_clipboard_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create clipboard panel");
             }
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] create_clipboard_panel");
+
+            let t = std::time::Instant::now();
             if let Err(e) = panels::create_error_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create error panel");
             }
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] create_error_panel");
+
+            let t = std::time::Instant::now();
             if let Err(e) = panels::create_control_panel(app.handle()) {
                 tracing::error!(error = %e, "Failed to create control panel");
             }
-            // Build and set the native macOS menu bar
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] create_control_panel");
+
             #[cfg(target_os = "macos")]
             {
+                let t = std::time::Instant::now();
                 match menu::build_menu(app.handle()) {
                     Ok(menu) => {
                         if let Err(e) = app.set_menu(menu) {
@@ -1086,25 +1104,29 @@ pub fn run() {
                         tracing::error!(error = %e, "Failed to build application menu");
                     }
                 }
+                tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] menu::build_menu");
             }
 
-            // Initialize system tray icon (macOS only)
             #[cfg(target_os = "macos")]
             {
+                let t = std::time::Instant::now();
                 if let Err(e) = tray::init(app.handle()) {
                     tracing::error!(error = %e, "[Tray] Failed to initialize system tray");
                 }
+                tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] tray::init");
             }
 
-            // Initialize icon cache (extracts icons in background)
+            let t = std::time::Instant::now();
             icons::initialize(app.handle());
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] icons::initialize");
 
-            // Initialize app index (builds search index in background)
+            let t = std::time::Instant::now();
             app_search::initialize();
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] app_search::initialize");
 
-            // Initialize clipboard monitoring
+            let t = std::time::Instant::now();
             clipboard::initialize(app.handle());
-
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] clipboard::initialize");
 
             // Handle main window visibility and hotkey registration based on onboarding state
             let onboarded = config::is_onboarded();
@@ -1157,6 +1179,11 @@ pub fn run() {
                     })
                     .expect("Failed to register clipboard hotkey");
             }
+
+            tracing::info!(
+                total_ms = %setup_start.elapsed().as_millis(),
+                "[startup] === RUST SETUP COMPLETE ==="
+            );
 
             Ok(())
         })

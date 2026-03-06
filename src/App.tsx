@@ -9,6 +9,7 @@ import { spotlightShortcutCommands } from "./lib/tauri-commands";
 import { initializeTriggers } from "./lib/triggers";
 import { bootstrapMortDirectory } from "./lib/mort-bootstrap";
 import { initAgentMessageListener, cleanupAgentMessageListener } from "./lib/agent-service";
+import { logger } from "./lib/logger-client";
 
 // Initialize trigger system for @ file mentions
 initializeTriggers();
@@ -25,34 +26,37 @@ function App() {
 
   useEffect(() => {
     async function checkInitialState() {
+      const t0 = performance.now();
+
+      const tOnboarded = performance.now();
       const onboarded = await isOnboarded();
+      logger.info(`[startup] isOnboarded: ${(performance.now() - tOnboarded).toFixed(0)}ms`);
 
       if (!onboarded) {
         setAppState({ status: "onboarding" });
+        logger.info(`[startup] checkInitialState total: ${(performance.now() - t0).toFixed(0)}ms (→ onboarding)`);
         return;
       }
 
       // Check accessibility permission for onboarded users
-      // Accessibility is needed for clipboard paste and keyboard automation
+      const tAccess = performance.now();
       const hasAccessibility = await spotlightShortcutCommands
         .checkAccessibilityPermission()
         .catch((err) => {
-          console.error("[App] Accessibility check failed:", err);
+          logger.error("[App] Accessibility check failed:", err);
           return false;
         });
-
-      console.log("[App] Accessibility permission check result:", hasAccessibility);
+      logger.info(`[startup] checkAccessibilityPermission: ${(performance.now() - tAccess).toFixed(0)}ms`);
 
       if (!hasAccessibility) {
-        console.log("[App] Showing permissions prompt");
         setAppState({ status: "permissions-prompt" });
       } else {
-        console.log("[App] Accessibility granted, proceeding to ready state");
         setAppState({ status: "ready" });
       }
+      logger.info(`[startup] checkInitialState total: ${(performance.now() - t0).toFixed(0)}ms (→ ${hasAccessibility ? "ready" : "permissions-prompt"})`);
     }
 
-    checkInitialState().catch(console.error);
+    checkInitialState().catch((err) => logger.error("[startup] checkInitialState failed:", err));
   }, []);
 
   // IMPORTANT: Bootstrap only runs when status is 'ready'
@@ -62,15 +66,31 @@ function App() {
     if (appState.status !== "ready") return;
 
     async function bootstrap() {
+      const t0 = performance.now();
+
+      let t = performance.now();
       const window = getCurrentWindow();
       await window.setSize(new LogicalSize(900, 600));
-      // Bootstrap .mort directory structure before hydrating entities
+      logger.info(`[startup] window.setSize: ${(performance.now() - t).toFixed(0)}ms`);
+
+      t = performance.now();
       await bootstrapMortDirectory();
+      logger.info(`[startup] bootstrapMortDirectory: ${(performance.now() - t).toFixed(0)}ms`);
+
+      t = performance.now();
       await hydrateEntities();
+      logger.info(`[startup] hydrateEntities: ${(performance.now() - t).toFixed(0)}ms`);
+
+      t = performance.now();
       setupEntityListeners();
-      // Initialize agent message listener for socket IPC
+      logger.info(`[startup] setupEntityListeners: ${(performance.now() - t).toFixed(0)}ms`);
+
+      t = performance.now();
       await initAgentMessageListener();
+      logger.info(`[startup] initAgentMessageListener: ${(performance.now() - t).toFixed(0)}ms`);
+
       setIsHydrated(true);
+      logger.info(`[startup] === BOOTSTRAP COMPLETE === total: ${(performance.now() - t0).toFixed(0)}ms`);
     }
 
     bootstrap();

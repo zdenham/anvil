@@ -139,84 +139,66 @@ export interface EntityInitOptions {
  */
 export async function hydrateEntities(options: EntityInitOptions = {}): Promise<void> {
   const { isMainWindow = true } = options;
-  logger.log("[entities:hydrate] Starting entity hydration...", { isMainWindow });
+  const t0 = performance.now();
+
+  async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    const t = performance.now();
+    const result = await fn();
+    logger.info(`[startup:hydrate] ${label}: ${(performance.now() - t).toFixed(0)}ms`);
+    return result;
+  }
 
   try {
-    // First, hydrate the core entities in parallel
-    await Promise.all([
-      threadService.hydrate(),
-      repoService.hydrate(),
-      settingsService.hydrate(),
-      planService.hydrate(),
-      relationService.hydrate(),
-    ]);
-    logger.log("[entities:hydrate] Core entities hydrated successfully");
+    // Core entities in parallel — time each + the whole block
+    await timed("core entities (parallel)", () => Promise.all([
+      timed("threadService.hydrate", () => threadService.hydrate()),
+      timed("repoService.hydrate", () => repoService.hydrate()),
+      timed("settingsService.hydrate", () => settingsService.hydrate()),
+      timed("planService.hydrate", () => planService.hydrate()),
+      timed("relationService.hydrate", () => relationService.hydrate()),
+    ]));
 
-    // Clean up orphaned relation edges (both sides missing → delete, one side → archive)
-    await relationService.cleanupOrphaned();
+    await timed("relationService.cleanupOrphaned", () => relationService.cleanupOrphaned());
 
-    // After plans are hydrated, refresh parent relationships for all repos
-    // This ensures the isFolder and parentId fields are up-to-date
-    // Get unique repoIds from existing plans since repos don't directly expose their UUIDs
-    const allPlans = planService.getAll();
-    const repoIds = [...new Set(allPlans.map(p => p.repoId))];
-    for (const repoId of repoIds) {
-      await planService.refreshParentRelationships(repoId);
-    }
-    logger.log("[entities:hydrate] Plan parent relationships refreshed");
+    // Refresh parent relationships for all repos
+    await timed("planService.refreshParentRelationships", async () => {
+      const allPlans = planService.getAll();
+      const repoIds = [...new Set(allPlans.map(p => p.repoId))];
+      for (const repoId of repoIds) {
+        await planService.refreshParentRelationships(repoId);
+      }
+    });
 
-    // After repositories are hydrated, build the repo/worktree lookup cache
-    // This must happen after repoService.hydrate() since it reads repo settings
-    await useRepoWorktreeLookupStore.getState().hydrate();
-    logger.log("[entities:hydrate] Repo/worktree lookup hydrated");
-
-    // Then hydrate tree menu UI state
-    await treeMenuService.hydrate();
-    logger.log("[entities:hydrate] Tree menu state hydrated");
-
-    // Hydrate quick actions (from manifest + registry)
-    await quickActionService.hydrate();
-    logger.log("[entities:hydrate] Quick actions hydrated");
-
-    // Hydrate drafts (input persistence)
-    await draftService.hydrate();
-    logger.log("[entities:hydrate] Drafts hydrated");
-
-    // Hydrate pull requests
-    await pullRequestService.hydrate();
-    logger.log("[entities:hydrate] Pull requests hydrated");
-
-    // Sync managed skills from bundled plugin to ~/.mort
-    await syncManagedSkills();
-    logger.log("[entities:hydrate] Managed skills synced");
+    await timed("repoWorktreeLookup.hydrate", () => useRepoWorktreeLookupStore.getState().hydrate());
+    await timed("treeMenuService.hydrate", () => treeMenuService.hydrate());
+    await timed("quickActionService.hydrate", () => quickActionService.hydrate());
+    await timed("draftService.hydrate", () => draftService.hydrate());
+    await timed("pullRequestService.hydrate", () => pullRequestService.hydrate());
+    await timed("syncManagedSkills", () => syncManagedSkills());
 
     // Gateway SSE connection + channel setup: main window only.
-    // Each window runs in its own JS context, so without this guard every
-    // window would open its own SSE connection and independently process
-    // (and act on) the same webhook events — causing duplicate agent spawns.
     if (isMainWindow) {
-      // Hydrate gateway channels from disk (starts SSE connection)
-      await gatewayChannelService.hydrate();
-      logger.log("[entities:hydrate] Gateway channels hydrated");
+      await timed("gatewayChannelService.hydrate", () => gatewayChannelService.hydrate());
 
-      // Ensure a gateway channel exists for each repo (idempotent)
       const repos = repoService.getAll();
-      for (const repo of repos) {
-        try {
-          await ensureGatewayChannelForRepo(repo);
-        } catch (e) {
-          // Non-fatal: channel creation failure is retried on next launch
-          logger.error(`[entities:hydrate] Failed to ensure gateway channel for ${repo.name}:`, e);
+      await timed(`ensureGatewayChannelForRepo (${repos.length} repos)`, async () => {
+        for (const repo of repos) {
+          const tr = performance.now();
+          try {
+            await ensureGatewayChannelForRepo(repo);
+          } catch (e) {
+            logger.error(`[startup:hydrate] Failed to ensure gateway channel for ${repo.name}:`, e);
+          }
+          logger.info(`[startup:hydrate]   gateway channel ${repo.name}: ${(performance.now() - tr).toFixed(0)}ms`);
         }
-      }
-      logger.log("[entities:hydrate] Gateway channels ensured for all repos");
+      });
     } else {
-      logger.log("[entities:hydrate] Skipping gateway setup (non-main window)");
+      logger.info("[startup:hydrate] Skipping gateway setup (non-main window)");
     }
 
-    logger.log("[entities:hydrate] All entities hydrated successfully");
+    logger.info(`[startup:hydrate] === HYDRATION COMPLETE === total: ${(performance.now() - t0).toFixed(0)}ms`);
   } catch (error) {
-    logger.error("[entities:hydrate] Hydration failed!", error);
+    logger.error("[startup:hydrate] Hydration failed!", error);
     throw error;
   }
 }
