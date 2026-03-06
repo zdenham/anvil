@@ -43,7 +43,6 @@ import { loadSettings } from "@/lib/app-data-store";
 
 import { useTabSelectionSync } from "@/hooks/use-tab-selection-sync";
 import { useTreeData } from "@/hooks/use-tree-data";
-import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
 import { useRightPanel } from "@/hooks/use-right-panel";
 import { FileBrowserPanel } from "@/components/file-browser/file-browser-panel";
 import { SearchPanel } from "@/components/search-panel";

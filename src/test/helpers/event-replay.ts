@@ -15,7 +15,7 @@ import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
 import { VirtualFS } from "./virtual-fs";
 import { MOCK_MORT_DIR } from "../mocks/tauri-api";
-import { waitForReact, flushPromises } from "./event-emitter";
+import { waitForReact } from "./event-emitter";
 import type { CapturedEvent } from "@/stores/event-debugger-store";
 import type { ThreadState } from "@core/types/events";
 

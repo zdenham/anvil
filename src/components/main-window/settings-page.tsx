@@ -2,7 +2,6 @@ import { HotkeySettings } from "./settings/hotkey-settings";
 import { ClipboardHotkeySettings } from "./settings/clipboard-hotkey-settings";
 import { RepositorySettings } from "./settings/repository-settings";
 import { AboutSettings } from "./settings/about-settings";
-import { QuickActionsSettings } from "@/components/settings/quick-actions-settings";
 import { SkillsSettings } from "./settings/skills-settings";
 
 export function SettingsPage() {

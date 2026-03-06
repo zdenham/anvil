@@ -15,7 +15,6 @@
 import { forwardRef } from "react";
 import { ThreadInput, type ThreadInputRef } from "./thread-input";
 import { ThreadInputStatusBar } from "./thread-input-status-bar";
-import { QuickActionsPanel } from "@/components/quick-actions/quick-actions-panel";
 import type { PermissionModeId } from "@core/types/permissions.js";
 
 export interface ThreadInputSectionProps {
@@ -40,7 +39,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
     {
       onSubmit,
       workingDirectory,
-      contextType,
+      contextType: _contextType,
       disabled = false,
       placeholder,
       autoFocus,

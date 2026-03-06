@@ -90,7 +90,7 @@ export function stopRecoveryPolling(threadId: string): void {
  * Call on app unmount or cleanup.
  */
 export function stopAllRecoveryPolling(): void {
-  for (const [threadId, interval] of activePollers) {
+  for (const [, interval] of activePollers) {
     clearInterval(interval);
   }
   activePollers.clear();
