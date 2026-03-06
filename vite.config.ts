@@ -5,6 +5,7 @@ import { resolve } from "path";
 const host = process.env.TAURI_DEV_HOST;
 const vitePort = parseInt(process.env.MORT_VITE_PORT || "1420", 10);
 const appSuffix = process.env.MORT_APP_SUFFIX || "";
+const wsPort = parseInt(process.env.MORT_WS_PORT || "9600", 10);
 const disableHmr = process.env.MORT_DISABLE_HMR === "true";
 
 // https://vitejs.dev/config/
@@ -15,6 +16,7 @@ export default defineConfig(async () => ({
   define: {
     __PROJECT_ROOT__: JSON.stringify(process.cwd()),
     __MORT_APP_SUFFIX__: JSON.stringify(appSuffix),
+    __MORT_WS_PORT__: JSON.stringify(wsPort),
   },
 
   // Path aliases

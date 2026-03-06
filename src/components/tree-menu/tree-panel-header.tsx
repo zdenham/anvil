@@ -72,7 +72,7 @@ export function TreePanelHeader({
   }, [isRefreshing]);
 
   return (
-    <div data-testid="tree-panel-header" className="pl-3 pr-2 py-2 border-b border-surface-700 flex items-center gap-2.5">
+    <div data-testid="tree-panel-header" className="pl-3 pr-2 py-2 border-b border-dashed border-surface-700 flex items-center gap-2.5">
       <MortLogo size={4} />
       <h1 className="font-semibold text-surface-100 font-mono text-sm">
         MORT{appSuffix ? ` ${appSuffix.toUpperCase()}` : ""}

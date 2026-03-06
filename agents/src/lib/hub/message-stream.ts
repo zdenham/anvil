@@ -6,7 +6,7 @@ import { logger } from "../logger.js";
 type EventEmitter = (name: string, payload: Record<string, unknown>) => void;
 
 // Callback to append user message to state
-type AppendUserMessage = (content: string) => Promise<void>;
+type AppendUserMessage = (id: string, content: string) => Promise<void>;
 
 /**
  * A message stream that bridges socket messages to the SDK's async iterable interface.
@@ -88,7 +88,7 @@ export class SocketMessageStream {
         // Append the user message to thread state.
         // Note: The SDK does NOT return injected user messages, so we must append manually.
         if (this.appendUserMessage) {
-          await this.appendUserMessage(msg.content);
+          await this.appendUserMessage(msg.id, msg.content);
           logger.info(`[SocketMessageStream] Appended user message to state`);
         }
 

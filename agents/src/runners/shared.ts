@@ -1050,9 +1050,16 @@ export async function runAgentLoop(
                   return { continue: true };
                 }
 
-                const taskResponse = typeof input.tool_response === "string"
-                  ? JSON.parse(input.tool_response)
-                  : input.tool_response;
+                let taskResponse: Record<string, unknown>;
+                try {
+                  taskResponse = typeof input.tool_response === "string"
+                    ? JSON.parse(input.tool_response)
+                    : (input.tool_response as Record<string, unknown>);
+                } catch {
+                  // tool_response is a plain string (error message, cancellation, etc.)
+                  // Wrap it as content so we still mark the child as completed
+                  taskResponse = { content: [{ type: "text", text: String(input.tool_response) }] };
+                }
 
                 // Detect background tasks: the SDK returns an output_file path and
                 // task_id when a task is launched in background, instead of the full result.
@@ -1198,6 +1205,26 @@ export async function runAgentLoop(
             logger.debug(
               `[PostToolUseFailure] ${input.tool_name}: ${input.error}`
             );
+
+            // Mark child thread as errored so it doesn't stay "running" forever
+            if (input.tool_name === "Task" || input.tool_name === "Agent") {
+              const childThreadId = toolUseIdToChildThreadId.get(input.tool_use_id);
+              if (childThreadId) {
+                const childThreadPath = join(config.mortDir, "threads", childThreadId);
+                const metadataPath = join(childThreadPath, "metadata.json");
+                if (existsSync(metadataPath)) {
+                  const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+                  metadata.status = "error";
+                  metadata.updatedAt = Date.now();
+                  writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+                }
+                emitEvent(EventName.THREAD_STATUS_CHANGED, {
+                  threadId: childThreadId,
+                  status: "error",
+                }, "PostToolUseFailure:subagent");
+                toolUseIdToChildThreadId.delete(input.tool_use_id);
+              }
+            }
 
             return { continue: true };
           },

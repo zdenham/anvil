@@ -1,7 +1,6 @@
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join, isAbsolute, relative } from "path";
 import { z } from "zod";
-import { nanoid } from "nanoid";
 import type { ThreadWriter } from "./services/thread-writer.js";
 import { logger } from "./lib/logger.js";
 import { threadReducer, type ThreadAction } from "@core/lib/thread-reducer.js";
@@ -181,8 +180,8 @@ async function writeStateToDisk(payload: ThreadState): Promise<void> {
 /**
  * Append a user message to the thread.
  */
-export async function appendUserMessage(content: string): Promise<void> {
-  dispatch({ type: "APPEND_USER_MESSAGE", payload: { content, id: nanoid() } });
+export async function appendUserMessage(id: string, content: string): Promise<void> {
+  dispatch({ type: "APPEND_USER_MESSAGE", payload: { content, id } });
   await writeToDisk();
 }
 

@@ -241,6 +241,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   const pendingHeightsRef = useRef<Map<number, number>>(new Map());
   const rafIdRef = useRef<number | null>(null);
   const hasInitialMeasurementRef = useRef(false);
+  const measureDirtyRef = useRef(false);
 
   if (!roRef.current && opts.itemHeight === undefined) {
     roRef.current = new ResizeObserver((entries) => {
@@ -296,7 +297,11 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
   // Synchronous initial measurement — read heights before first paint
   // so the browser never shows estimated-height positions.
+  // Gated by dirtyRef to avoid forcing layout reflow on every render.
   useLayoutEffect(() => {
+    if (!measureDirtyRef.current) return;
+    measureDirtyRef.current = false;
+
     const observed = observedRef.current;
     if (observed.size === 0) return;
 
@@ -333,6 +338,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
       observedRef.current.set(index, el);
       ro.observe(el);
+      measureDirtyRef.current = true;
     },
     [],
   );

@@ -230,7 +230,7 @@ export function ThreadItem({
         )}
       >
         {/* Folder toggle chevron or status dot - both use same fixed width */}
-        {item.isFolder ? (
+        {item.isFolder && isSelected ? (
           <button
             type="button"
             className={cn(

@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
 
 /**
- * Sets a `data-scrolling` attribute on the referenced element while it is
+ * Adds an `is-scrolling` class to the referenced element while it is
  * actively scrolling. Removes it after a short debounce once scrolling stops.
  *
  * Useful for hiding hover-triggered UI (e.g. gutter buttons) during scroll
@@ -13,12 +13,17 @@ export function useScrolling(ref: RefObject<HTMLElement | null>, debounceMs = 15
     if (!el) return;
 
     let timer: number;
+    let scrolling = false;
 
     const onScroll = () => {
-      el.setAttribute("data-scrolling", "");
+      if (!scrolling) {
+        scrolling = true;
+        el.classList.add("is-scrolling");
+      }
       clearTimeout(timer);
       timer = window.setTimeout(() => {
-        el.removeAttribute("data-scrolling");
+        scrolling = false;
+        el.classList.remove("is-scrolling");
       }, debounceMs);
     };
 

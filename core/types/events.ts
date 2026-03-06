@@ -94,6 +94,9 @@ export const EventName = {
   // Queued message acknowledgement
   QUEUED_MESSAGE_ACK: "queued-message:ack",
 
+  // Terminal lifecycle
+  TERMINAL_ARCHIVED: "terminal:archived",
+
   // Plan lifecycle
   PLAN_DETECTED: "plan:detected",
   PLAN_CREATED: "plan:created",
@@ -252,6 +255,9 @@ export interface EventPayloads {
     threadId: string;
     messageId: string;
   };
+
+  // Terminal events
+  [EventName.TERMINAL_ARCHIVED]: { terminalId: string };
 
   // Plan events
   [EventName.PLAN_DETECTED]: { planId: string };
@@ -458,6 +464,7 @@ export const EventNameSchema = z.enum([
   EventName.QUESTION_REQUEST,
   EventName.QUESTION_RESPONSE,
   EventName.QUEUED_MESSAGE_ACK,
+  EventName.TERMINAL_ARCHIVED,
   EventName.PLAN_DETECTED,
   EventName.PLAN_CREATED,
   EventName.PLAN_UPDATED,

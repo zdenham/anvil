@@ -165,6 +165,35 @@ describe("paneLayoutService", () => {
       expect(usePaneLayoutStore.getState().groups[newGroupId]).toBeDefined();
       expect(usePaneLayoutStore.getState().root.type).toBe("split");
     });
+
+    it("activates the new group after split", async () => {
+      seedState(makeSimpleState());
+      expect(usePaneLayoutStore.getState().activeGroupId).toBe("g1");
+      const newGroupId = await paneLayoutService.splitGroup("g1", "horizontal");
+      expect(usePaneLayoutStore.getState().activeGroupId).toBe(newGroupId);
+    });
+  });
+
+  describe("splitAndMoveTab", () => {
+    it("activates the new group after split-and-move", async () => {
+      seedState({
+        root: { type: "leaf", groupId: "g1" },
+        groups: {
+          g1: {
+            id: "g1",
+            tabs: [
+              { id: "t1", view: { type: "empty" } },
+              { id: "t2", view: { type: "settings" } },
+            ],
+            activeTabId: "t1",
+          },
+        },
+        activeGroupId: "g1",
+      });
+      const newGroupId = await paneLayoutService.splitAndMoveTab("g1", "horizontal", "g1", "t2");
+      expect(newGroupId).not.toBe("");
+      expect(usePaneLayoutStore.getState().activeGroupId).toBe(newGroupId);
+    });
   });
 
   describe("findOrOpenTab", () => {

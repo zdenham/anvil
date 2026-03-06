@@ -8,6 +8,7 @@
 import { gitCommands, fsCommands } from "@/lib/tauri-commands";
 import { parseDiff, type ParsedDiff, type ParsedDiffFile } from "@/lib/diff-parser";
 import { logger } from "@/lib/logger-client";
+import { updateRangeDiffCache } from "./changes-diff-cache";
 
 export const MAX_DISPLAYED_FILES = 300;
 
@@ -77,15 +78,42 @@ export async function fetchRawDiff(params: {
     return { raw, parsed: parseDiff(raw), mergeBase: null };
   }
 
-  // All changes mode — fetch to ensure origin refs are current, then resolve merge base
+  // All changes mode — use local refs (fast, no network call)
+  const mergeBase = await resolveMergeBase(worktreePath, currentBranch, defaultBranch);
+  const raw = await gitCommands.diffRange(worktreePath, mergeBase);
+  const parsed = parseDiff(raw);
+  updateRangeDiffCache(worktreePath, { raw, parsed, mergeBase });
+  return { raw, parsed, mergeBase };
+}
+
+/**
+ * Runs `git fetch origin` in the background, then checks if the merge-base changed.
+ * If it changed, recomputes the diff and updates the range cache.
+ */
+export async function backgroundFetchOrigin(params: {
+  worktreePath: string;
+  defaultBranch: string;
+  currentBranch: string | null;
+  previousMergeBase: string;
+}): Promise<{ changed: boolean; result?: FetchDiffResult }> {
+  const { worktreePath, defaultBranch, currentBranch, previousMergeBase } = params;
+
   try {
     await gitCommands.fetch(worktreePath, "origin");
   } catch {
-    logger.warn("[changes] fetch failed, proceeding with stale refs");
+    logger.warn("[changes] background fetch failed");
+    return { changed: false };
   }
-  const mergeBase = await resolveMergeBase(worktreePath, currentBranch, defaultBranch);
-  const raw = await gitCommands.diffRange(worktreePath, mergeBase);
-  return { raw, parsed: parseDiff(raw), mergeBase };
+
+  const newMergeBase = await resolveMergeBase(worktreePath, currentBranch, defaultBranch);
+  if (newMergeBase === previousMergeBase) {
+    return { changed: false };
+  }
+
+  const raw = await gitCommands.diffRange(worktreePath, newMergeBase);
+  const parsed = parseDiff(raw);
+  updateRangeDiffCache(worktreePath, { raw, parsed, mergeBase: newMergeBase });
+  return { changed: true, result: { raw, parsed, mergeBase: newMergeBase } };
 }
 
 // ─── Diff processing ────────────────────────────────────────────────────────

@@ -167,6 +167,7 @@ export const paneLayoutService = {
     const tab = createTab(view ?? { type: "empty" });
     const newGroup = createGroup(tab);
     usePaneLayoutStore.getState()._applySplitGroup(groupId, direction, newGroup);
+    usePaneLayoutStore.getState()._applySetActiveGroup(newGroup.id);
     await persistState();
     logger.debug(`[paneLayoutService] Split group ${groupId} ${direction}, new group ${newGroup.id}`);
     return newGroup.id;
@@ -182,6 +183,7 @@ export const paneLayoutService = {
       .getState()
       ._applySplitAndMoveTab(targetGroupId, direction, sourceGroupId, tabId);
     if (!newGroupId) return "";
+    usePaneLayoutStore.getState()._applySetActiveGroup(newGroupId);
 
     // Clean up empty source group
     const fromGroup = usePaneLayoutStore.getState().groups[sourceGroupId];

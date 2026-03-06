@@ -31,7 +31,7 @@ vi.mock("../output.js", () => ({
   initState: vi.fn(async (...args) => {
     mockCalls.initState.push(args);
   }),
-  appendUserMessage: vi.fn(async (content) => {
+  appendUserMessage: vi.fn(async (_id, content) => {
     mockCalls.appendUserMessage.push(content);
   }),
   appendAssistantMessage: vi.fn(async (message) => {

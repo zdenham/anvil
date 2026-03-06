@@ -5,6 +5,8 @@ import { invoke } from "@/lib/invoke";
 import { useTerminalSessionStore } from "./store";
 import type { TerminalSession } from "./types";
 import { logger } from "@/lib/logger-client";
+import { eventBus } from "@/entities/events";
+import { EventName } from "@core/types/events.js";
 
 /**
  * Service for managing terminal sessions.
@@ -82,6 +84,7 @@ class TerminalSessionService {
       await invoke("kill_terminal", { id: this.getNumericId(id) });
       this.numericIds.delete(id);
       useTerminalSessionStore.getState().removeSession(id);
+      eventBus.emit(EventName.TERMINAL_ARCHIVED, { terminalId: id });
 
       logger.info("[TerminalService] Terminal archived", { terminalId: id });
     } catch (error) {

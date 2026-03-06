@@ -20,6 +20,7 @@ import {
   setSessionId,
   updateUsage,
   writeUsageToMetadata,
+  getHubClient,
 } from "../output.js";
 import { logger } from "../lib/logger.js";
 import { getChildThreadId, emitEvent } from "./shared.js";
@@ -229,7 +230,7 @@ export class MessageHandler {
         logger.info(`[MessageHandler] Emitted ack for queued message: ${msg.uuid}`);
       }
 
-      await appendUserMessage(content);
+      await appendUserMessage(msg.uuid ?? nanoid(), content);
       logger.info("[MessageHandler] Processed queued user message");
       return true;
     }
@@ -564,6 +565,7 @@ export class MessageHandler {
    */
   private async handleForChildThread(childThreadId: string, message: SDKMessage): Promise<boolean> {
     const state = this.getChildThreadState(childThreadId);
+    const hub = getHubClient();
 
     switch (message.type) {
       case "assistant": {
@@ -577,6 +579,10 @@ export class MessageHandler {
         for (const block of msg.message.content) {
           if (block.type === "tool_use") {
             state.toolStates[block.id] = { status: "running", toolName: block.name };
+            hub?.sendActionForThread(childThreadId, {
+              type: "MARK_TOOL_RUNNING",
+              payload: { toolUseId: block.id, toolName: block.name },
+            });
           }
         }
 
@@ -597,12 +603,22 @@ export class MessageHandler {
             cacheCreationTokens: (prev?.cacheCreationTokens ?? 0) + turnUsage.cacheCreationTokens,
             cacheReadTokens: (prev?.cacheReadTokens ?? 0) + turnUsage.cacheReadTokens,
           };
+
+          hub?.sendActionForThread(childThreadId, {
+            type: "UPDATE_USAGE",
+            payload: { usage: turnUsage },
+          });
         }
 
         // Append message
-        state.messages.push({
-          role: "assistant",
+        const storedMessage = {
+          role: "assistant" as const,
           content: msg.message.content as Parameters<typeof appendAssistantMessage>[0]["content"],
+        };
+        state.messages.push(storedMessage);
+        hub?.sendActionForThread(childThreadId, {
+          type: "APPEND_ASSISTANT_MESSAGE",
+          payload: { message: storedMessage },
         });
 
         // Write usage to child's metadata.json BEFORE emitting event
@@ -635,6 +651,11 @@ export class MessageHandler {
             isError,
             toolName: existingState?.toolName,
           };
+
+          hub?.sendActionForThread(childThreadId, {
+            type: "MARK_TOOL_COMPLETE",
+            payload: { toolUseId, result, isError },
+          });
 
           logger.debug(
             `[MessageHandler] handleForChildThread(${childThreadId}): tool_result toolUseId=${toolUseId}`

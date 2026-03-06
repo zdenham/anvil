@@ -73,7 +73,7 @@ vi.mock("../output.js", () => {
       mockCalls.initState.push({ threadPath, workingDirectory, priorMessages });
       writeFileSync(statePath, JSON.stringify(state, null, 2));
     }),
-    appendUserMessage: vi.fn(async (content: string) => {
+    appendUserMessage: vi.fn(async (_id: string, content: string) => {
       state.messages.push({ role: "user", content });
       state.timestamp = Date.now();
       mockCalls.appendUserMessage.push(content);

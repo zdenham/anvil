@@ -91,7 +91,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     >
       <div
         ref={scrollerRef}
-        style={{ height: "100%", overflow: "auto", overflowAnchor: "auto" }}
+        style={{ height: "100%", overflow: "auto", overflowAnchor: "none" }}
       >
         <div style={{ height: totalHeight, position: "relative" }}>
           {items.map((item) => {
@@ -107,6 +107,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
                   top: 0,
                   left: 0,
                   width: "100%",
+                  contain: "layout style",
                   transform: `translate3d(0, ${item.start}px, 0)`,
                 }}
               >

@@ -50,7 +50,7 @@ export function WindowTitlebar({
   return (
     <div
       data-tauri-drag-region
-      className="pl-[76px] pr-2 h-[32px] flex items-center gap-2 border-b border-dashed border-surface-600/40 bg-surface-900 flex-shrink-0"
+      className="pl-[76px] pr-2 h-[32px] flex items-center gap-2 border-b border-surface-600/40 bg-surface-900 flex-shrink-0"
     >
       {/* Breadcrumb — centered */}
       <div data-tauri-drag-region className="flex-1 flex justify-center min-w-0">

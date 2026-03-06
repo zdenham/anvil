@@ -173,6 +173,42 @@ export class HubClient extends EventEmitter {
 
   // --- Public send helpers ---
 
+  /** Send a message on behalf of a different thread (e.g., child sub-agent). */
+  sendForThread(threadId: string, msg: Omit<SocketMessage, "senderId" | "threadId" | "pipeline">): void {
+    const stamp: PipelineStamp = {
+      stage: "agent:sent",
+      seq: ++this.seq,
+      ts: Date.now(),
+    };
+
+    const fullMsg = {
+      ...msg,
+      senderId: this.threadId,
+      threadId,
+      pipeline: [stamp],
+    } as SocketMessage;
+
+    if (this.diagnosticConfig.pipeline) {
+      this.emit("log", "DEBUG", `[hub] sendForThread seq=${stamp.seq} type=${msg.type} child=${threadId}`);
+    }
+
+    if (this.connectionState !== "connected") {
+      return;
+    }
+
+    const ok = this.connection.write(fullMsg);
+    if (ok) {
+      this.totalSent++;
+    } else {
+      this.totalWriteFailures++;
+    }
+  }
+
+  /** Send a ThreadAction scoped to a specific thread (e.g., child sub-agent). */
+  sendActionForThread(threadId: string, action: unknown): void {
+    this.sendForThread(threadId, { type: "thread_action", action });
+  }
+
   sendEvent(name: string, payload: unknown, source?: string): void {
     this.send({ type: "event", name, payload, ...(source && { source }) });
   }

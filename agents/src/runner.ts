@@ -232,10 +232,10 @@ async function main(): Promise<void> {
         }
         case "queued_message": {
           // Inject queued message into the SDK via message stream
-          const { content } = msg.payload;
-          const messageId = crypto.randomUUID();
-          logger.info(`[runner] Received queued message, injecting into stream: ${messageId}`);
-          messageStream.push(messageId, content);
+          // Use the frontend's ID to preserve dedup across the chain
+          const { id, content } = msg.payload;
+          logger.info(`[runner] Received queued message, injecting into stream: ${id}`);
+          messageStream.push(id as import("crypto").UUID, content);
           break;
         }
         case "diagnostic_config": {

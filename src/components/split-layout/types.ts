@@ -23,7 +23,3 @@ export interface SplitResizeHandleProps {
   sizes: number[];
 }
 
-/** Props for the placeholder leaf pane (until 03-tab-system is merged). */
-export interface PaneGroupContainerProps {
-  groupId: string;
-}

@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 /* Hide diff gutter buttons while scrolling to prevent hover flicker */
-[data-scrolling] .gutter-btn {
+.is-scrolling .gutter-btn {
   opacity: 0 !important;
   pointer-events: none;
 }

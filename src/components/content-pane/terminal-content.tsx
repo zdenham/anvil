@@ -14,6 +14,9 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { SearchAddon } from "@xterm/addon-search";
+import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { listen, type UnlistenFn } from "@/lib/events";
 import "@xterm/xterm/css/xterm.css";
 
@@ -81,20 +84,18 @@ export function TerminalContent({
     [terminalId]
   );
 
-  // Handle resize - notify the PTY backend with debounce to avoid hammering during drag
-  const resizeTimeoutRef = useRef<number | null>(null);
+  // Handle resize - notify the PTY backend with a single rAF debounce
+  const resizeRafRef = useRef<number | null>(null);
   const handleResize = useCallback(() => {
     const terminal = terminalRef.current;
     const fitAddon = fitAddonRef.current;
     if (!terminal || !fitAddon) return;
 
-    // Clear any pending resize
-    if (resizeTimeoutRef.current) {
-      clearTimeout(resizeTimeoutRef.current);
+    if (resizeRafRef.current) {
+      cancelAnimationFrame(resizeRafRef.current);
     }
 
-    // Debounce the actual resize by 100ms
-    resizeTimeoutRef.current = window.setTimeout(() => {
+    resizeRafRef.current = requestAnimationFrame(() => {
       try {
         fitAddon.fit();
         const session = useTerminalSessionStore.getState().sessions[terminalId];
@@ -114,7 +115,7 @@ export function TerminalContent({
           error: err,
         });
       }
-    }, 100);
+    });
   }, [terminalId]);
 
   // Initialize xterm.js
@@ -136,8 +137,13 @@ export function TerminalContent({
       fontFamily: "Menlo, Monaco, 'Courier New', monospace",
       fontSize: 13,
       lineHeight: 1.2,
+      letterSpacing: 0,
       theme: MORT_TERMINAL_THEME,
       allowProposedApi: true,
+      scrollback: 5000,
+      rescaleOverlappingGlyphs: true,
+      customGlyphs: true,
+      drawBoldTextInBrightColors: false,
     });
 
     const fitAddon = new FitAddon();
@@ -160,6 +166,17 @@ export function TerminalContent({
     }
 
     terminal.open(containerRef.current);
+
+    // Unicode graphemes — proper emoji, CJK, and compound character width calculation
+    const unicodeAddon = new UnicodeGraphemesAddon();
+    terminal.loadAddon(unicodeAddon);
+    terminal.unicode.activeVersion = "15";
+
+    // Clickable URLs in terminal output
+    terminal.loadAddon(new WebLinksAddon());
+
+    // OSC 52 clipboard integration
+    terminal.loadAddon(new ClipboardAddon());
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
@@ -217,8 +234,7 @@ export function TerminalContent({
 
     // Set up resize observer
     const resizeObserver = new ResizeObserver(() => {
-      // Debounce resize handling
-      requestAnimationFrame(handleResize);
+      handleResize();
     });
     resizeObserver.observe(containerRef.current);
 
@@ -265,8 +281,8 @@ export function TerminalContent({
       unsubOutput();
       exitUnlisten?.();
       resizeObserver.disconnect();
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
+      if (resizeRafRef.current) {
+        cancelAnimationFrame(resizeRafRef.current);
       }
       terminal.dispose();
       terminalRef.current = null;
@@ -284,9 +300,13 @@ export function TerminalContent({
     <div
       ref={containerRef}
       data-testid="terminal-content"
-      className="w-full h-full bg-surface-950 p-2"
+      className="w-full h-full bg-surface-950"
       onClick={handleClick}
-      style={{ overflow: "hidden" }}
+      style={{
+        overflow: "hidden",
+        WebkitFontSmoothing: "antialiased",
+        MozOsxFontSmoothing: "grayscale",
+      }}
     />
   );
 }

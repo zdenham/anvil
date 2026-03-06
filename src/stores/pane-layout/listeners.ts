@@ -88,5 +88,17 @@ export function setupPaneLayoutListeners(): void {
     },
   );
 
+  eventBus.on(
+    EventName.TERMINAL_ARCHIVED,
+    ({ terminalId }: EventPayloads[typeof EventName.TERMINAL_ARCHIVED]) => {
+      closeMatchingTabs(
+        (view) => view.type === "terminal" && view.terminalId === terminalId,
+      ).catch((e) => {
+        logger.error(`[PaneLayoutListener] Failed to close archived terminal tabs ${terminalId}:`, e);
+      });
+      logger.info(`[PaneLayoutListener] Closed tabs for archived terminal ${terminalId}`);
+    },
+  );
+
   logger.debug("[PaneLayoutListener] Pane layout listeners initialized");
 }

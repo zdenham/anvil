@@ -5,6 +5,7 @@ import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { CursorBoundary } from "@/lib/cursor-boundary";
 import { usePromptHistory } from "@/hooks/use-prompt-history";
 import { useInputStore } from "@/stores/input-store";
+import { usePaneGroupMaybe } from "@/components/split-layout/pane-group-context";
 
 interface ThreadInputProps {
   onSubmit: (prompt: string) => void;
@@ -35,6 +36,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onNavigateToQuickActions: _deprecated,
 }: ThreadInputProps, ref) {
+  const paneGroup = usePaneGroupMaybe();
   const value = useInputStore((s) => s.content);
   const setStoreContent = useInputStore((s) => s.setContent);
   const [triggerState, setTriggerState] = useState<TriggerStateInfo | null>(null);
@@ -58,6 +60,10 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       inputRef.current?.focus();
     }
   }), []);
+
+  const handleFocus = useCallback(() => {
+    paneGroup?.activate();
+  }, [paneGroup]);
 
   const handleSubmit = useCallback(() => {
     if (value.trim() && !disabled) {
@@ -169,6 +175,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onFocus={handleFocus}
           onTriggerStateChange={handleTriggerStateChange}
           disabled={disabled}
           placeholder={getPlaceholder()}

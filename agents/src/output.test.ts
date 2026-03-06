@@ -143,12 +143,13 @@ describe("output.ts - thread_action messages via hub", () => {
 
   it("sends thread_action with APPEND_USER_MESSAGE on appendUserMessage", async () => {
     mockSend.mockClear();
-    await appendUserMessage("hello");
+    await appendUserMessage("msg-1", "hello");
     expect(mockSend).toHaveBeenCalledTimes(1);
     const arg = mockSend.mock.calls[0][0];
     expect(arg.type).toBe("thread_action");
     expect(arg.action.type).toBe("APPEND_USER_MESSAGE");
     expect(arg.action.payload.content).toBe("hello");
+    expect(arg.action.payload.id).toBe("msg-1");
   });
 
   it("emitState sends HYDRATE action with full state", async () => {
@@ -179,14 +180,12 @@ describe("output.ts - StoredMessage ID handling", () => {
     expect(msgs[0].id).toBe("msg_sdk_123");
   });
 
-  it("appendUserMessage generates an id via nanoid", async () => {
-    await appendUserMessage("Hi there");
+  it("appendUserMessage uses the provided id", async () => {
+    await appendUserMessage("custom-id-123", "Hi there");
 
     const msgs = getMessages();
     expect(msgs).toHaveLength(1);
-    expect(msgs[0].id).toBeDefined();
-    expect(typeof msgs[0].id).toBe("string");
-    expect(msgs[0].id.length).toBeGreaterThan(0);
+    expect(msgs[0].id).toBe("custom-id-123");
   });
 
   it("initState accepts priorMessages with StoredMessage shape", async () => {

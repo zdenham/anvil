@@ -85,6 +85,9 @@ pub fn spawn_terminal_inner(
     cmd.arg("-l");
     cmd.cwd(&cwd);
     cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    cmd.env("LANG", "en_US.UTF-8");
+    cmd.env("LC_ALL", "en_US.UTF-8");
     if let Ok(home) = std::env::var("HOME") {
         cmd.env("HOME", home);
     }
@@ -151,7 +154,7 @@ fn spawn_reader_thread(
 ) {
     std::thread::spawn(move || {
         let _span = tracing::info_span!("terminal_reader", terminal_id = id).entered();
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; 16384]; // 16KB — reduce syscall + IPC overhead
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {

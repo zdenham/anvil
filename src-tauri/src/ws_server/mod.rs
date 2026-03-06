@@ -1,4 +1,4 @@
-//! WebSocket server + HTTP file serving on `127.0.0.1:9600`.
+//! WebSocket server + HTTP file serving (port set via MORT_WS_PORT at build time).
 //!
 //! Provides a secondary transport layer alongside Tauri IPC so the frontend
 //! can run in any browser (Chrome, Playwright) while talking to the real
@@ -37,7 +37,9 @@ pub fn dispatch_agent_pid_map() -> dispatch_agent::AgentPidMap {
     dispatch_agent::new_pid_map()
 }
 
-const BIND_ADDR: &str = "127.0.0.1:9600";
+fn bind_addr() -> String {
+    format!("127.0.0.1:{}", crate::build_info::WS_PORT)
+}
 
 /// Shared state passed to all WS and HTTP handlers.
 pub struct WsState {
@@ -61,9 +63,10 @@ pub async fn start(state: Arc<WsState>) -> Result<(), Box<dyn std::error::Error 
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
-    tracing::info!("WS server listening on ws://{}", BIND_ADDR);
-    tracing::info!("File server listening on http://{}/files", BIND_ADDR);
+    let addr = bind_addr();
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    tracing::info!("WS server listening on ws://{}", addr);
+    tracing::info!("File server listening on http://{}/files", addr);
 
     axum::serve(listener, app).await?;
     Ok(())

@@ -11,7 +11,7 @@
 
 import { isTauri } from "./runtime";
 
-const FILE_SERVER_URL = "http://127.0.0.1:9600/files";
+const FILE_SERVER_URL = `http://127.0.0.1:${__MORT_WS_PORT__}/files`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Eager Module Loading

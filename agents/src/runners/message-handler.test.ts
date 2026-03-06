@@ -16,7 +16,8 @@ vi.mock("../output.js", () => ({
   complete: vi.fn(),
   setSessionId: vi.fn(),
   updateUsage: vi.fn(),
-  getHubClient: vi.fn(() => null), // Required by emitEvent in shared.js
+  writeUsageToMetadata: vi.fn(),
+  getHubClient: vi.fn(() => null),
 }));
 
 // Mock the logger
@@ -39,6 +40,17 @@ vi.mock("./shared.js", async () => {
   };
 });
 
+// Mock fs for child thread state management
+vi.mock("fs", async () => {
+  const actual = await vi.importActual("fs");
+  return {
+    ...actual,
+    existsSync: vi.fn(() => false),
+    readFileSync: vi.fn(() => "{}"),
+    writeFileSync: vi.fn(),
+  };
+});
+
 // Import mocked functions for assertions
 import {
   appendAssistantMessage,
@@ -46,9 +58,10 @@ import {
   markToolRunning,
   markToolComplete,
   complete,
+  getHubClient,
 } from "../output.js";
 import { logger } from "../lib/logger.js";
-import { emitEvent } from "./shared.js";
+import { emitEvent, getChildThreadId } from "./shared.js";
 
 describe("MessageHandler", () => {
   let handler: MessageHandler;
@@ -251,7 +264,7 @@ describe("MessageHandler", () => {
       const shouldContinue = await handler.handle(msg);
 
       expect(shouldContinue).toBe(true);
-      expect(appendUserMessage).toHaveBeenCalledWith("Follow-up question from user");
+      expect(appendUserMessage).toHaveBeenCalledWith("uuid-456", "Follow-up question from user");
       expect(logger.info).toHaveBeenCalledWith(
         "[MessageHandler] Processed queued user message"
       );
@@ -277,7 +290,7 @@ describe("MessageHandler", () => {
       const shouldContinue = await handler.handle(msg);
 
       expect(shouldContinue).toBe(true);
-      expect(appendUserMessage).toHaveBeenCalledWith("First part\nSecond part");
+      expect(appendUserMessage).toHaveBeenCalledWith("uuid-456", "First part\nSecond part");
     });
   });
 
@@ -478,10 +491,10 @@ describe("MessageHandler", () => {
       await handler.handle(msg);
 
       // Verify emitEvent was called with ack event
-      expect(emitEvent).toHaveBeenCalledWith("queued-message:ack", { messageId: testUuid });
+      expect(emitEvent).toHaveBeenCalledWith("queued-message:ack", { messageId: testUuid }, "MessageHandler:queued-ack");
 
       // Verify appendUserMessage was also called
-      expect(appendUserMessage).toHaveBeenCalledWith("Follow-up from user");
+      expect(appendUserMessage).toHaveBeenCalledWith(testUuid, "Follow-up from user");
     });
 
     it("does NOT emit ack when uuid is missing", async () => {
@@ -506,7 +519,7 @@ describe("MessageHandler", () => {
       );
 
       // But appendUserMessage should still be called
-      expect(appendUserMessage).toHaveBeenCalledWith("Message without uuid");
+      expect(appendUserMessage).toHaveBeenCalledWith(expect.any(String), "Message without uuid");
     });
 
     it("does NOT emit ack for synthetic messages", async () => {
@@ -592,6 +605,246 @@ describe("MessageHandler", () => {
 
       // Verify emitEvent (ack) is called before appendUserMessage
       expect(callOrder).toEqual(["emitEvent", "appendUserMessage"]);
+    });
+  });
+
+  describe("handleForChildThread - hub emission", () => {
+    const CHILD_THREAD_ID = "child-thread-123";
+    let childHandler: MessageHandler;
+    let mockSendActionForThread: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      // Set up getChildThreadId to return a child thread ID for known parent_tool_use_id
+      vi.mocked(getChildThreadId).mockImplementation((toolUseId: string) =>
+        toolUseId === "toolu_task" ? CHILD_THREAD_ID : undefined
+      );
+
+      // Create handler with mortDir so child thread routing activates
+      const tmpDir = "/tmp/test-mort";
+      childHandler = new MessageHandler(tmpDir);
+
+      // Mock hub client
+      mockSendActionForThread = vi.fn();
+      vi.mocked(getHubClient).mockReturnValue({
+        sendActionForThread: mockSendActionForThread,
+        connectionState: "connected",
+      } as any);
+    });
+
+    it("emits MARK_TOOL_RUNNING for tool_use blocks in assistant messages", async () => {
+      const msg: SDKAssistantMessage = {
+        type: "assistant",
+        message: {
+          id: "msg_child_1",
+          type: "message",
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_inner", name: "Read", input: { path: "/test" } },
+          ],
+          model: "claude-opus-4-6",
+          stop_reason: "tool_use",
+          stop_sequence: null,
+          container: null,
+          usage: {
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            cache_creation: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-child-1" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      await childHandler.handle(msg);
+
+      expect(mockSendActionForThread).toHaveBeenCalledWith(CHILD_THREAD_ID, {
+        type: "MARK_TOOL_RUNNING",
+        payload: { toolUseId: "toolu_inner", toolName: "Read" },
+      });
+    });
+
+    it("emits UPDATE_USAGE for assistant messages with usage", async () => {
+      const msg: SDKAssistantMessage = {
+        type: "assistant",
+        message: {
+          id: "msg_child_2",
+          type: "message",
+          role: "assistant",
+          content: [{ type: "text", text: "Done", citations: null }],
+          model: "claude-opus-4-6",
+          stop_reason: "end_turn",
+          stop_sequence: null,
+          container: null,
+          usage: {
+            input_tokens: 200,
+            output_tokens: 100,
+            cache_creation_input_tokens: 10,
+            cache_read_input_tokens: 20,
+            cache_creation: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-child-2" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      await childHandler.handle(msg);
+
+      expect(mockSendActionForThread).toHaveBeenCalledWith(CHILD_THREAD_ID, {
+        type: "UPDATE_USAGE",
+        payload: {
+          usage: {
+            inputTokens: 200,
+            outputTokens: 100,
+            cacheCreationTokens: 10,
+            cacheReadTokens: 20,
+          },
+        },
+      });
+    });
+
+    it("emits APPEND_ASSISTANT_MESSAGE for assistant messages", async () => {
+      const msg: SDKAssistantMessage = {
+        type: "assistant",
+        message: {
+          id: "msg_child_3",
+          type: "message",
+          role: "assistant",
+          content: [{ type: "text", text: "Hello from sub-agent", citations: null }],
+          model: "claude-opus-4-6",
+          stop_reason: "end_turn",
+          stop_sequence: null,
+          container: null,
+          usage: {
+            input_tokens: 50,
+            output_tokens: 25,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            cache_creation: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-child-3" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      await childHandler.handle(msg);
+
+      expect(mockSendActionForThread).toHaveBeenCalledWith(CHILD_THREAD_ID, {
+        type: "APPEND_ASSISTANT_MESSAGE",
+        payload: {
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "Hello from sub-agent", citations: null }],
+          },
+        },
+      });
+    });
+
+    it("emits MARK_TOOL_COMPLETE for user messages with tool results", async () => {
+      // First send an assistant message with a tool_use so the child state has a tool
+      const assistantMsg: SDKAssistantMessage = {
+        type: "assistant",
+        message: {
+          id: "msg_child_4",
+          type: "message",
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_inner_2", name: "Bash", input: { command: "ls" } },
+          ],
+          model: "claude-opus-4-6",
+          stop_reason: "tool_use",
+          stop_sequence: null,
+          container: null,
+          usage: {
+            input_tokens: 50,
+            output_tokens: 25,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            cache_creation: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-child-4" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+      await childHandler.handle(assistantMsg);
+      mockSendActionForThread.mockClear();
+
+      // Now send the tool result
+      const userMsg: SDKUserMessage = {
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_inner_2",
+              content: "file1.ts\nfile2.ts",
+            },
+          ],
+        },
+        parent_tool_use_id: "toolu_task",
+        tool_use_result: "file1.ts\nfile2.ts",
+        uuid: "uuid-child-5" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      await childHandler.handle(userMsg);
+
+      expect(mockSendActionForThread).toHaveBeenCalledWith(CHILD_THREAD_ID, {
+        type: "MARK_TOOL_COMPLETE",
+        payload: { toolUseId: "toolu_inner_2", result: "file1.ts\nfile2.ts", isError: false },
+      });
+    });
+
+    it("gracefully handles null hub client (disk-only fallback)", async () => {
+      vi.mocked(getHubClient).mockReturnValue(null);
+
+      const msg: SDKAssistantMessage = {
+        type: "assistant",
+        message: {
+          id: "msg_child_6",
+          type: "message",
+          role: "assistant",
+          content: [{ type: "text", text: "No hub", citations: null }],
+          model: "claude-opus-4-6",
+          stop_reason: "end_turn",
+          stop_sequence: null,
+          container: null,
+          usage: {
+            input_tokens: 50,
+            output_tokens: 25,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            cache_creation: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-child-6" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      // Should not throw
+      const result = await childHandler.handle(msg);
+      expect(result).toBe(true);
+      // No hub calls should be made
+      expect(mockSendActionForThread).not.toHaveBeenCalled();
     });
   });
 });

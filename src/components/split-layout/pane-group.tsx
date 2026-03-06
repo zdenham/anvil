@@ -13,6 +13,7 @@ import { InputStoreProvider } from "@/stores/input-store";
 import { TabBar } from "./tab-bar";
 import { DropZoneOverlay } from "./drop-zone-overlay";
 import { useDndBridge } from "./dnd-context-bridge";
+import { PaneGroupProvider } from "./pane-group-context";
 
 interface PaneGroupProps {
   groupId: string;
@@ -29,10 +30,11 @@ export function PaneGroup({ groupId }: PaneGroupProps) {
   );
 
   const handleActivate = useCallback(() => {
-    if (!isActiveGroup) {
+    // Read imperatively to avoid stale closure from isActiveGroup dep
+    if (usePaneLayoutStore.getState().activeGroupId !== groupId) {
       paneLayoutService.setActiveGroup(groupId);
     }
-  }, [groupId, isActiveGroup]);
+  }, [groupId]);
 
   const activeTabId = group?.activeTabId ?? "";
 
@@ -48,31 +50,33 @@ export function PaneGroup({ groupId }: PaneGroupProps) {
   const activeView = activeTab?.view ?? { type: "empty" as const };
 
   return (
-    <div
-      data-testid={`pane-group-${groupId}`}
-      onClick={handleActivate}
-      className="relative flex flex-col h-full overflow-hidden"
-    >
-      <TabBar
-        groupId={groupId}
-        tabs={group.tabs}
-        activeTabId={group.activeTabId}
-      />
-      <InputStoreProvider active={isActiveGroup}>
-        <div className="relative flex-1 min-h-0">
-          <ContentPane
-            paneId={groupId}
-            view={activeView}
-            onClose={handleClose}
-          />
-          {activeDrag && (
-            <DropZoneOverlay
-              groupId={groupId}
-              activeEdgeZone={activeEdgeZone}
+    <PaneGroupProvider groupId={groupId}>
+      <div
+        data-testid={`pane-group-${groupId}`}
+        onPointerDownCapture={handleActivate}
+        className="relative flex flex-col h-full overflow-hidden"
+      >
+        <TabBar
+          groupId={groupId}
+          tabs={group.tabs}
+          activeTabId={group.activeTabId}
+        />
+        <InputStoreProvider active={isActiveGroup}>
+          <div className="relative flex-1 min-h-0">
+            <ContentPane
+              paneId={groupId}
+              view={activeView}
+              onClose={handleClose}
             />
-          )}
-        </div>
-      </InputStoreProvider>
-    </div>
+            {activeDrag && (
+              <DropZoneOverlay
+                groupId={groupId}
+                activeEdgeZone={activeEdgeZone}
+              />
+            )}
+          </div>
+        </InputStoreProvider>
+      </div>
+    </PaneGroupProvider>
   );
 }

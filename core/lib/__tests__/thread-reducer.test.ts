@@ -84,6 +84,20 @@ describe("threadReducer", () => {
       expect(result.messages[0]).toEqual({ role: "user", content: "hello", id: "msg-1" });
     });
 
+    it("deduplicates by id (no-op if message with same id exists)", () => {
+      const state = makeState({
+        messages: [{ id: "msg-1", role: "user", content: "hello" }],
+      });
+      const result = threadReducer(state, {
+        type: "APPEND_USER_MESSAGE",
+        payload: { content: "hello again", id: "msg-1" },
+      });
+      // Same reference means no mutation occurred
+      expect(result).toBe(state);
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].content).toBe("hello");
+    });
+
     it("returns new array reference (immutable)", () => {
       const state = makeState({ messages: [{ id: "0", role: "user", content: "old" }] });
       const result = threadReducer(state, {
@@ -383,6 +397,94 @@ describe("threadReducer", () => {
       const result1 = replay(actions);
       const result2 = replay(actions);
       expect(result1).toEqual(result2);
+    });
+  });
+
+  // ── CHILD THREAD: actions on empty state (no INIT) ─────────────────
+  describe("child thread actions on empty state", () => {
+    // Child threads receive actions before INIT because the parent emits
+    // MARK_TOOL_RUNNING, APPEND_ASSISTANT_MESSAGE etc. via sendActionForThread.
+    // The frontend lazily creates a ThreadStateMachine with empty state.
+
+    it("MARK_TOOL_RUNNING on empty state", () => {
+      const state = makeState();
+      const result = threadReducer(state, {
+        type: "MARK_TOOL_RUNNING",
+        payload: { toolUseId: "tool_1", toolName: "Read" },
+      });
+      expect(result.toolStates["tool_1"]).toEqual({
+        status: "running",
+        toolName: "Read",
+      });
+      expect(result.messages).toEqual([]);
+    });
+
+    it("APPEND_ASSISTANT_MESSAGE on empty state", () => {
+      const state = makeState();
+      const result = threadReducer(state, {
+        type: "APPEND_ASSISTANT_MESSAGE",
+        payload: {
+          message: { role: "assistant", content: [{ type: "text", text: "hello from sub-agent" }] },
+        },
+      });
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].role).toBe("assistant");
+    });
+
+    it("MARK_TOOL_COMPLETE on empty state (unknown tool)", () => {
+      const state = makeState();
+      const result = threadReducer(state, {
+        type: "MARK_TOOL_COMPLETE",
+        payload: { toolUseId: "tool_1", result: "done", isError: false },
+      });
+      expect(result.toolStates["tool_1"].status).toBe("complete");
+      expect(result.toolStates["tool_1"].toolName).toBeUndefined();
+    });
+
+    it("UPDATE_USAGE on empty state", () => {
+      const state = makeState();
+      const result = threadReducer(state, {
+        type: "UPDATE_USAGE",
+        payload: { usage: makeUsage({ inputTokens: 500, outputTokens: 200 }) },
+      });
+      expect(result.lastCallUsage).toEqual(
+        expect.objectContaining({ inputTokens: 500, outputTokens: 200 }),
+      );
+      expect(result.cumulativeUsage).toEqual(
+        expect.objectContaining({ inputTokens: 500, outputTokens: 200 }),
+      );
+    });
+
+    it("sequential child thread actions accumulate correctly", () => {
+      let state = makeState();
+
+      // Tool running
+      state = threadReducer(state, {
+        type: "MARK_TOOL_RUNNING",
+        payload: { toolUseId: "t1", toolName: "Bash" },
+      });
+
+      // Assistant message
+      state = threadReducer(state, {
+        type: "APPEND_ASSISTANT_MESSAGE",
+        payload: {
+          message: { role: "assistant", content: [{ type: "text", text: "running ls" }] },
+        },
+      });
+
+      // Tool complete
+      state = threadReducer(state, {
+        type: "MARK_TOOL_COMPLETE",
+        payload: { toolUseId: "t1", result: "file1.ts", isError: false },
+      });
+
+      expect(state.messages).toHaveLength(1);
+      expect(state.toolStates["t1"]).toEqual({
+        status: "complete",
+        result: "file1.ts",
+        isError: false,
+        toolName: "Bash",
+      });
     });
   });
 });

@@ -11,7 +11,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { logger } from "@/lib/logger-client";
-import { fetchRawDiff, processParsedDiff, fetchFileContents } from "./changes-diff-fetcher";
+import { fetchRawDiff, processParsedDiff, fetchFileContents, backgroundFetchOrigin } from "./changes-diff-fetcher";
+import { getCachedRangeDiff, updateCachedFileContents } from "./changes-diff-cache";
 import type { FileContentEntry } from "./changes-diff-fetcher";
 import type { ParsedDiff, ParsedDiffFile } from "@/lib/diff-parser";
 
@@ -68,7 +69,21 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
         return;
       }
 
-      setLoading(true);
+      const isRangeMode = !commitHash && !uncommittedOnly;
+
+      // Stale-while-revalidate: show cached range diff immediately (no spinner)
+      const cached = isRangeMode ? getCachedRangeDiff(worktreePath) : undefined;
+      if (cached) {
+        setParsedDiff(cached.parsed);
+        setRawDiffString(cached.raw);
+        setMergeBase(cached.mergeBase);
+        if (Object.keys(cached.fileContents).length > 0) {
+          setFileContents(cached.fileContents);
+        }
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       try {
@@ -85,6 +100,23 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
         setParsedDiff(result.parsed);
         setRawDiffString(result.raw);
         setMergeBase(result.mergeBase);
+
+        // Background: fetch origin and re-diff if merge-base changed
+        if (isRangeMode && result.mergeBase) {
+          backgroundFetchOrigin({
+            worktreePath,
+            defaultBranch,
+            currentBranch,
+            previousMergeBase: result.mergeBase,
+          }).then((bgResult) => {
+            if (generationRef.current !== gen) return;
+            if (bgResult.changed && bgResult.result) {
+              setParsedDiff(bgResult.result.parsed);
+              setRawDiffString(bgResult.result.raw);
+              setMergeBase(bgResult.result.mergeBase);
+            }
+          });
+        }
       } catch (err) {
         if (generationRef.current !== gen) return;
         const message = err instanceof Error ? err.message : "Failed to fetch diff";
@@ -120,6 +152,9 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
     }).then((contents) => {
       if (contentGenRef.current === gen) {
         setFileContents(contents);
+        if (!commitHash && !uncommittedOnly) {
+          updateCachedFileContents(worktreePath, contents);
+        }
       }
     }).catch((err) => {
       logger.warn("[useChangesData] file content fetch failed:", err);

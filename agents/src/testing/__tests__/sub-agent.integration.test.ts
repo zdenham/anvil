@@ -1039,4 +1039,82 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
     },
     180000
   );
+
+  // ===========================================================================
+  // Phase 5: Child thread actions emitted via socket replay to valid state
+  // ===========================================================================
+
+  it(
+    "child thread actions are emitted via socket and replay to valid state",
+    async () => {
+      harness = new AgentTestHarness();
+      const output = await harness.run({
+        prompt: `Use the Agent tool with subagent_type="Explore" to find TypeScript files. Description: "Find TS". Do nothing else.`,
+        timeout: 120000,
+      });
+      assertAgent(output).succeeded();
+
+      // Find child thread ID from metadata on disk
+      const mortDir = harness.tempDirPath!;
+      const threadsDir = join(mortDir, "threads");
+      const threadDirs = readdirSync(threadsDir);
+      let childThreadId: string | undefined;
+      for (const dir of threadDirs) {
+        const metaPath = join(threadsDir, dir, "metadata.json");
+        if (existsSync(metaPath)) {
+          const meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+          if (meta.parentThreadId) {
+            childThreadId = dir;
+            break;
+          }
+        }
+      }
+      expect(childThreadId).toBeDefined();
+
+      // KEY: MockHubServer received thread_action messages for the child thread
+      const hub = harness.getMockHub()!;
+      const childMessages = hub.getMessagesForThread(childThreadId!);
+      const childActions = childMessages.filter(
+        (m: any) => m.type === "thread_action"
+      );
+      expect(childActions.length).toBeGreaterThan(0);
+
+      // Replay child actions through threadReducer — same as frontend would
+      const { threadReducer } = await import("@core/lib/thread-reducer.js");
+      type ThreadAction = Parameters<typeof threadReducer>[1];
+      let childState: ThreadState = {
+        messages: [],
+        fileChanges: [],
+        workingDirectory: "",
+        status: "running",
+        timestamp: 0,
+        toolStates: {},
+      };
+      for (const msg of childActions) {
+        childState = threadReducer(
+          childState,
+          (msg as any).action as ThreadAction
+        );
+      }
+
+      // Replayed state should have messages (sub-agent ran)
+      expect(childState.messages.length).toBeGreaterThan(0);
+
+      // Replayed state should have tool states (Explore agent uses Read/Glob/Grep)
+      const toolEntries = Object.values(childState.toolStates);
+      expect(toolEntries.length).toBeGreaterThan(0);
+
+      // Compare with disk state — replay captures streaming actions but disk also
+      // includes the initial user message (PreToolUse) and final assistant response
+      // (PostToolUse), so disk will have more messages than the socket replay.
+      const diskStatePath = join(threadsDir, childThreadId!, "state.json");
+      if (existsSync(diskStatePath)) {
+        const diskState = JSON.parse(readFileSync(diskStatePath, "utf-8"));
+        expect(diskState.messages.length).toBeGreaterThanOrEqual(
+          childState.messages.length
+        );
+      }
+    },
+    120000
+  );
 });

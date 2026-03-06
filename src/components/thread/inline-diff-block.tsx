@@ -389,7 +389,7 @@ function DiffContentWithComments({
                 onClose={() => setActiveCommentLine(null)}
               />
             )}
-            <InlineCommentDisplay comments={lineComments} />
+            {lineComments.length > 0 && <InlineCommentDisplay comments={lineComments} />}
           </div>
         );
       })}

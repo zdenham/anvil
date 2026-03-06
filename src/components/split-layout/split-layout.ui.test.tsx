@@ -26,7 +26,7 @@ vi.mock("@/lib/logger-client", () => ({
   },
 }));
 
-// Mock hotkey-service and invoke (used by PaneGroupContainer)
+// Mock hotkey-service and invoke
 vi.mock("@/lib/hotkey-service", () => ({
   showMainWindowWithView: vi.fn(),
 }));

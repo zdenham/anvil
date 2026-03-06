@@ -12,7 +12,7 @@
 
 import { isTauri } from "./runtime";
 
-const WS_URL = "ws://localhost:9600/ws";
+const WS_URL = `ws://localhost:${__MORT_WS_PORT__}/ws`;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 // ═══════════════════════════════════════════════════════════════════════════
