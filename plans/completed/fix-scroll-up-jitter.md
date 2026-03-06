@@ -150,9 +150,9 @@ The `transform` only affects compositing (no layout reflow), so it's cheap to ap
 
 ## Phases
 
-- [ ] Add `_scrollCorrection` tracking to VirtualList — anchor-based delta in `setItemHeights()`, getter, and `absorbScrollCorrection()` method
-- [ ] Add `scrollCorrection` to VirtualSnapshot, return from `useVirtualList`, add debounced absorption in scroll handler
-- [ ] Apply correction transform in `message-list.tsx` inner container
+- [x] Add `_scrollCorrection` tracking to VirtualList — anchor-based delta in `setItemHeights()`, getter, and `absorbScrollCorrection()` method
+- [x] Add `scrollCorrection` to VirtualSnapshot, return from `useVirtualList`, add debounced absorption in scroll handler
+- [x] Apply correction transform in `message-list.tsx` inner container
 - [ ] Test: verify scrolling up from bottom no longer jitters, sticky auto-scroll still works, correction absorbs on scroll idle
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->

@@ -153,6 +153,11 @@ function applyAppendAssistantMessage(state: ThreadState, message: StoredMessage)
     return { ...state, messages, wipMap, blockIdMap };
   }
 
+  // Deduplicate by ID — no-op if a message with this ID already exists.
+  // Guards against HYDRATE + socket replay races: disk state already
+  // contains the message, then the same action arrives via socket.
+  if (state.messages.some((m) => m.id === message.id)) return state;
+
   // No WIP to replace — append
   return {
     ...state,
@@ -191,6 +196,10 @@ function applyStreamStart(
 
   // If we already have a WIP for this anthropicId, no-op
   if (wipMap[payload.anthropicMessageId]) return state;
+
+  // If a committed message with this anthropicId already exists (post-HYDRATE),
+  // don't create a phantom WIP.
+  if (state.messages.some((m) => m.anthropicId === payload.anthropicMessageId)) return state;
 
   const uuid = crypto.randomUUID();
   wipMap[payload.anthropicMessageId] = uuid;

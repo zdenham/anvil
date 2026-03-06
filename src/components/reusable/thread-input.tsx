@@ -192,7 +192,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
         {onCancel && (
           <button
             onClick={onCancel}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border border-red-400/60 flex items-center justify-center hover:bg-red-600/30 text-red-400 transition-colors"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border border-accent-400/50 flex items-center justify-center hover:bg-accent-400/20 text-accent-400 cancel-pulse transition-colors"
             aria-label="Cancel agent"
             title="Cancel agent"
           >

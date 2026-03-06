@@ -239,6 +239,16 @@ textarea {
   user-select: none;
 }
 
+/* Cancel button - subtle pulse */
+.cancel-pulse {
+  animation: cancelPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes cancelPulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.5; }
+}
+
 /* Status dot - running state with glow animation */
 .status-dot-running {
   background-color: #22c55e; /* green-500 */

@@ -289,6 +289,100 @@ describe("threadReducer — SDK split messages (same anthropicId)", () => {
   });
 });
 
+describe("threadReducer — HYDRATE + socket replay dedup", () => {
+  it("APPEND_ASSISTANT_MESSAGE is no-op if message ID already exists (post-HYDRATE)", () => {
+    const existing: StoredMessage = {
+      id: "msg-abc",
+      anthropicId: "msg_001",
+      role: "assistant",
+      content: [{ type: "thinking", thinking: "original thought" }],
+    };
+
+    // Simulate HYDRATE: state already has the message, wipMap is empty
+    let state = makeState({ messages: [existing], wipMap: {} });
+
+    // Same message arrives via socket replay
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: { message: existing },
+    });
+
+    // Should NOT duplicate
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0].id).toBe("msg-abc");
+  });
+
+  it("APPEND_ASSISTANT_MESSAGE still appends genuinely new messages", () => {
+    const existing: StoredMessage = {
+      id: "msg-abc",
+      anthropicId: "msg_001",
+      role: "assistant",
+      content: [{ type: "thinking", thinking: "thought" }],
+    };
+
+    let state = makeState({ messages: [existing], wipMap: {} });
+
+    // Different message (different ID) should still append
+    const newMsg: StoredMessage = {
+      id: "msg-def",
+      anthropicId: "msg_001",
+      role: "assistant",
+      content: [{ type: "text", text: "tool use" }],
+    };
+
+    state = dispatch(state, {
+      type: "APPEND_ASSISTANT_MESSAGE",
+      payload: { message: newMsg },
+    });
+
+    expect(state.messages).toHaveLength(2);
+    expect(state.messages[1].id).toBe("msg-def");
+  });
+
+  it("STREAM_START is no-op if committed message with same anthropicId exists (post-HYDRATE)", () => {
+    const existing: StoredMessage = {
+      id: "msg-abc",
+      anthropicId: "msg_001",
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+    };
+
+    // Simulate HYDRATE: committed message exists, wipMap is empty
+    let state = makeState({ messages: [existing], wipMap: {} });
+
+    // Late STREAM_START for the same anthropicId arrives via socket
+    state = dispatch(state, {
+      type: "STREAM_START",
+      payload: { anthropicMessageId: "msg_001" },
+    });
+
+    // Should NOT create a phantom WIP
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0].id).toBe("msg-abc");
+    expect(state.wipMap?.["msg_001"]).toBeUndefined();
+  });
+
+  it("STREAM_START still works for genuinely new streams", () => {
+    const existing: StoredMessage = {
+      id: "msg-abc",
+      anthropicId: "msg_001",
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+    };
+
+    let state = makeState({ messages: [existing], wipMap: {} });
+
+    // New stream with different anthropicId should still create WIP
+    state = dispatch(state, {
+      type: "STREAM_START",
+      payload: { anthropicMessageId: "msg_002" },
+    });
+
+    expect(state.messages).toHaveLength(2);
+    expect(state.wipMap?.["msg_002"]).toBe(state.messages[1].id);
+  });
+});
+
 describe("threadReducer — late stream deltas", () => {
   it("ignores stream deltas that arrive after message is committed", () => {
     let state = makeState();
