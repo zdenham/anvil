@@ -56,7 +56,7 @@ export const AnnotatedLineRow = memo(function AnnotatedLineRow({
         ${onLineClick ? "cursor-pointer hover:brightness-110" : ""}
         group
       `}
-      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 24px', contentVisibilityMargin: '500px' }}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 24px', contentVisibilityMargin: '500px' } as React.CSSProperties}
       onClick={onLineClick ? handleClick : undefined}
       onKeyDown={onLineClick ? handleKeyDown : undefined}
       tabIndex={onLineClick ? 0 : undefined}
