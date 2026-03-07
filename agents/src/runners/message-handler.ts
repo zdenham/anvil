@@ -666,19 +666,6 @@ export class MessageHandler {
             payload: { toolUseId, result, isError },
           });
 
-          // Append user message to state for proper [user, assistant, user, ...] structure
-          const userMessageId = nanoid();
-          const userContent = msg.message?.content;
-          state.messages.push({
-            role: "user",
-            content: userContent,
-            id: userMessageId,
-          });
-          hub?.sendActionForThread(childThreadId, {
-            type: "APPEND_USER_MESSAGE",
-            payload: { content: typeof userContent === "string" ? userContent : JSON.stringify(userContent), id: userMessageId },
-          });
-
           logger.debug(
             `[MessageHandler] handleForChildThread(${childThreadId}): tool_result toolUseId=${toolUseId}`
           );

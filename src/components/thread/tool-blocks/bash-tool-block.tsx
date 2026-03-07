@@ -142,34 +142,15 @@ export function BashToolBlock({
           }
         }}
       >
-        {/* Primary line: description or command */}
+        {/* Line 1: Description label */}
         <div className="flex items-center gap-2">
-          {description ? (
-            <>
-              <ExpandChevron isExpanded={isExpanded} size="md" />
-              <ShimmerText
-                isShimmering={isRunning}
-                className="text-sm text-zinc-200 truncate min-w-0"
-              >
-                {description}
-              </ShimmerText>
-            </>
-          ) : (
-            <code className="text-sm font-mono flex items-center gap-1 min-w-0 flex-1">
-              <ExpandChevron isExpanded={isExpanded} size="sm" />
-              <DollarSign className="w-3.5 h-3.5 text-green-400 shrink-0" />
-              <ShimmerText
-                isShimmering={isRunning}
-                className="text-zinc-200 truncate"
-              >
-                {command}
-              </ShimmerText>
-            </code>
-          )}
-          {/* Copy button on first line only when no description */}
-          {!description && (
-            <CopyButton text={command} label="Copy command" alwaysVisible />
-          )}
+          <ExpandChevron isExpanded={isExpanded} size="md" />
+          <ShimmerText
+            isShimmering={isRunning}
+            className="text-sm text-zinc-200 truncate min-w-0"
+          >
+            {description || (isRunning ? "Running command" : "Bash")}
+          </ShimmerText>
 
           {/* Error indicator - only show on failure */}
           {!isRunning && exitCode !== null && exitCode !== 0 && (
@@ -186,16 +167,14 @@ export function BashToolBlock({
           </span>
         </div>
 
-        {/* Secondary line: command when description exists */}
-        {description && (
-          <div className="flex items-center gap-1 mt-0.5">
-            <code className="text-xs font-mono text-zinc-500 flex items-center gap-1 min-w-0 flex-1">
-              <DollarSign className="w-3 h-3 text-green-400/60 shrink-0" />
-              <span className="truncate">{command}</span>
-            </code>
-            <CopyButton text={command} label="Copy command" alwaysVisible className="ml-auto" />
-          </div>
-        )}
+        {/* Line 2: $ command */}
+        <div className="flex items-center gap-1 mt-0.5">
+          <code className="text-xs font-mono text-zinc-500 flex items-center gap-1 min-w-0 flex-1">
+            <DollarSign className="w-3 h-3 text-green-400/60 shrink-0" />
+            <span className="truncate">{command}</span>
+          </code>
+          <CopyButton text={command} label="Copy command" alwaysVisible className="ml-auto" />
+        </div>
       </div>
 
       {/* Expanded Output */}
