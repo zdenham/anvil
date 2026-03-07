@@ -29,4 +29,4 @@ export type TerminalSession = z.infer<typeof TerminalSessionSchema>;
 /**
  * Maximum lines to keep in the output buffer for scrollback.
  */
-export const OUTPUT_BUFFER_MAX_LINES = 5000;
+export const OUTPUT_BUFFER_MAX_LINES = 10_000;

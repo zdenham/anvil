@@ -7,6 +7,16 @@ import type {
   SDKToolProgressMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 
+// Mock the stream-accumulator module with a proper class
+vi.mock("../lib/stream-accumulator.js", () => {
+  const MockStreamAccumulator = vi.fn(function (this: Record<string, unknown>) {
+    this.handleDelta = vi.fn();
+    this.flush = vi.fn();
+    this.reset = vi.fn();
+  });
+  return { StreamAccumulator: MockStreamAccumulator };
+});
+
 // Mock the output module
 vi.mock("../output.js", () => ({
   appendAssistantMessage: vi.fn(),
@@ -142,6 +152,8 @@ describe("MessageHandler", () => {
       expect(appendAssistantMessage).toHaveBeenCalledWith({
         role: "assistant",
         content: [{ type: "text", text: "Hello!", citations: null }],
+        id: expect.any(String),
+        anthropicId: "msg_123",
       });
     });
   });
@@ -747,6 +759,8 @@ describe("MessageHandler", () => {
           message: {
             role: "assistant",
             content: [{ type: "text", text: "Hello from sub-agent", citations: null }],
+            id: expect.any(String),
+            anthropicId: "msg_child_3",
           },
         },
       });
@@ -845,6 +859,171 @@ describe("MessageHandler", () => {
       expect(result).toBe(true);
       // No hub calls should be made
       expect(mockSendActionForThread).not.toHaveBeenCalled();
+    });
+
+    it("includes id and anthropicId on child assistant messages", async () => {
+      const msg: SDKAssistantMessage = {
+        type: "assistant",
+        message: {
+          id: "msg_child_ids",
+          type: "message",
+          role: "assistant",
+          content: [{ type: "text", text: "With IDs", citations: null }],
+          model: "claude-opus-4-6",
+          stop_reason: "end_turn",
+          stop_sequence: null,
+          container: null,
+          usage: {
+            input_tokens: 50,
+            output_tokens: 25,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            cache_creation: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-child-ids" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      await childHandler.handle(msg);
+
+      // The APPEND_ASSISTANT_MESSAGE payload should include id and anthropicId
+      const appendCall = mockSendActionForThread.mock.calls.find(
+        (call: unknown[]) => (call[1] as { type: string }).type === "APPEND_ASSISTANT_MESSAGE"
+      );
+      expect(appendCall).toBeDefined();
+      const payload = (appendCall![1] as { payload: { message: { id: string; anthropicId: string } } }).payload;
+      expect(payload.message.id).toEqual(expect.any(String));
+      expect(payload.message.id.length).toBeGreaterThan(0);
+      expect(payload.message.anthropicId).toBe("msg_child_ids");
+    });
+
+    it("appends user message to state and emits APPEND_USER_MESSAGE for tool results", async () => {
+      // First send an assistant message with a tool_use
+      const assistantMsg: SDKAssistantMessage = {
+        type: "assistant",
+        message: {
+          id: "msg_child_user_1",
+          type: "message",
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_user_test", name: "Read", input: { path: "/test" } },
+          ],
+          model: "claude-opus-4-6",
+          stop_reason: "tool_use",
+          stop_sequence: null,
+          container: null,
+          usage: {
+            input_tokens: 50,
+            output_tokens: 25,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            cache_creation: null,
+            server_tool_use: null,
+            service_tier: null,
+          },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-child-user-1" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+      await childHandler.handle(assistantMsg);
+      mockSendActionForThread.mockClear();
+
+      // Now send the tool result
+      const userMsg: SDKUserMessage = {
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_user_test",
+              content: "file contents here",
+            },
+          ],
+        },
+        parent_tool_use_id: "toolu_task",
+        tool_use_result: "file contents here",
+        uuid: "uuid-child-user-2" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      await childHandler.handle(userMsg);
+
+      // Should emit both MARK_TOOL_COMPLETE and APPEND_USER_MESSAGE
+      expect(mockSendActionForThread).toHaveBeenCalledWith(CHILD_THREAD_ID, {
+        type: "MARK_TOOL_COMPLETE",
+        payload: { toolUseId: "toolu_user_test", result: "file contents here", isError: false },
+      });
+
+      const appendCall = mockSendActionForThread.mock.calls.find(
+        (call: unknown[]) => (call[1] as { type: string }).type === "APPEND_USER_MESSAGE"
+      );
+      expect(appendCall).toBeDefined();
+      const payload = (appendCall![1] as { payload: { id: string; content: string } }).payload;
+      expect(payload.id).toEqual(expect.any(String));
+      expect(payload.id.length).toBeGreaterThan(0);
+    });
+
+    it("routes stream_event to per-child StreamAccumulator", async () => {
+      const { StreamAccumulator: MockStreamAccumulator } = await import("../lib/stream-accumulator.js");
+
+      const streamMsg = {
+        type: "stream_event" as const,
+        event: {
+          type: "content_block_delta" as const,
+          index: 0,
+          delta: { type: "text_delta" as const, text: "hello" },
+        },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-stream-1" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+
+      await childHandler.handle(streamMsg as any);
+
+      // StreamAccumulator should have been constructed with hub and child thread ID
+      expect(MockStreamAccumulator).toHaveBeenCalledWith(
+        expect.objectContaining({ sendActionForThread: mockSendActionForThread }),
+        CHILD_THREAD_ID,
+      );
+
+      // handleDelta should have been called
+      const instance = (MockStreamAccumulator as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+      expect(instance.handleDelta).toHaveBeenCalledWith(streamMsg.event);
+    });
+
+    it("flushes and cleans up child accumulator on message_stop", async () => {
+      const { StreamAccumulator: MockStreamAccumulator } = await import("../lib/stream-accumulator.js");
+
+      // First send a delta to create the accumulator
+      const deltaMsg = {
+        type: "stream_event" as const,
+        event: { type: "content_block_delta" as const, index: 0, delta: { type: "text_delta" as const, text: "hi" } },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-stream-2" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+      await childHandler.handle(deltaMsg as any);
+
+      const instance = (MockStreamAccumulator as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+
+      // Now send message_stop
+      const stopMsg = {
+        type: "stream_event" as const,
+        event: { type: "message_stop" as const },
+        parent_tool_use_id: "toolu_task",
+        uuid: "uuid-stream-3" as `${string}-${string}-${string}-${string}-${string}`,
+        session_id: "session-child",
+      };
+      await childHandler.handle(stopMsg as any);
+
+      expect(instance.flush).toHaveBeenCalled();
+      expect(instance.reset).toHaveBeenCalled();
     });
   });
 });

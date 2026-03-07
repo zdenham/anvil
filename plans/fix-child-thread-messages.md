@@ -54,6 +54,15 @@ No `AGENT_COMPLETED` event is emitted for child threads either — only `THREAD_
 **Parent**: `initState()` → `dispatch({ type: "INIT" })` + disk write. On reconnect, `emitState()` sends `HYDRATE`.
 **Child**: Initial state written as raw JSON (`shared.ts:799-815`). No `INIT` dispatched, no `HYDRATE` sent. If user is viewing a child thread when it starts, there's no initial state in the client reducer.
 
+**INIT vs HYDRATE distinction:** `INIT` constructs a fresh state from individual fields (workingDirectory, messages, etc.) and sets `wipMap: {}`, `blockIdMap: {}`. `HYDRATE` replaces state wholesale with a snapshot (`return { ...payload.state }`). For child threads, **INIT is correct** — it follows the same event-sourcing pattern as parent threads. The client-side `getOrCreateMachine(threadId)` (`store.ts:22-29`) creates a `ThreadStateMachine` with empty default state (no wipMap, no blockIdMap). Sending INIT as the first action lets the reducer properly construct the state with these maps. HYDRATE is only for the reconnection path where the client reads from disk via `loadThreadState` → `store.setThreadState` → `machine.apply({ type: "HYDRATE", state })`.
+
+### 8. No `wipMap`/`blockIdMap` on child thread state
+
+**Parent**: `applyInit()` initializes `wipMap: {}` and `blockIdMap: {}`. These track streaming → committed message transitions: `wipMap[anthropicId]` maps to the WIP message UUID so `APPEND_ASSISTANT_MESSAGE` can replace it in-place (stable React keys). `blockIdMap[correlationKey]` preserves block IDs across the transition.
+**Child**: Initial state (`shared.ts:799-811`) has no `wipMap` or `blockIdMap`. The direct mutation code doesn't maintain them either.
+
+**Resolution:** Sending INIT as the first socket action (Phase 5) solves the client-side gap — `applyInit()` creates these maps. For the disk state (used on reconnection via HYDRATE), we should add `wipMap: {}` and `blockIdMap: {}` to the initial state object so cold-start reads are consistent. The disk-side direct mutation code should also maintain these maps when streaming is added (Phase 3) so HYDRATE snapshots during active streaming are accurate.
+
 ### Not applicable for child threads
 
 - **`SET_SESSION_ID`**: The SDK doesn't support resuming sub-agent sessions. Not relevant.
@@ -73,7 +82,7 @@ The root fix is: **child threads should use the same event/reducer pattern as pa
 2. **Assistant messages** (`message-handler.ts:~614`): Add `id: nanoid()`, `anthropicId: msg.message.id`
 3. **PostToolUse final response** (`shared.ts:~1145`): Add `id: nanoid()` to the appended assistant message
 4. Ensure the `APPEND_ASSISTANT_MESSAGE` hub action payload includes the `id`/`anthropicId` fields
-5. **Add `wipMap: {}` and `blockIdMap: {}` to child initial state** (`shared.ts:~799`): The client-side reducer needs these maps to handle streaming → committed message replacement. Without them, `STREAM_DELTA` → `APPEND_ASSISTANT_MESSAGE` transitions won't replace WIP messages in-place — they'll either error or create duplicates.
+5. **Add `wipMap: {}` and `blockIdMap: {}` to child initial state on disk** (`shared.ts:~799`): Not needed for the live socket path (INIT creates them in the reducer), but needed for reconnection — `loadThreadState` reads from disk and applies HYDRATE, which does wholesale replacement. If these fields are missing from the disk snapshot, the client's reducer will lose streaming state on reconnect.
 
 ### Phase 2: Append user (tool-result) messages to child state
 
@@ -104,11 +113,13 @@ This restores the proper `[user, assistant, user, assistant, ...]` conversation 
 2. In PostToolUseFailure:SubAgent (`shared.ts:~1217`), send an `ERROR` action via hub
 3. Emit `AGENT_COMPLETED` event (not just `THREAD_STATUS_CHANGED`) so the listener in `listeners.ts:159` fires — this triggers `loadThreadState` for visible threads and marks them unread
 
-### Phase 5: Send HYDRATE on child thread creation
+### Phase 5: Send INIT on child thread creation
 
 **File:** `agents/src/runners/shared.ts`
 
-After writing initial `state.json` (~line 815), send a `HYDRATE` action via `hub.sendActionForThread(childThreadId, { type: "HYDRATE", payload: { state: initialState } })` so the client-side reducer has the initial state if the user is already viewing the thread.
+After writing initial `state.json` (~line 815), send an `INIT` action via `hub.sendActionForThread(childThreadId, { type: "INIT", payload: { workingDirectory: context.workingDir, messages: [initialUserMessage] } })`. This follows the same event-sourcing pattern as parent threads — the client-side reducer constructs the state (including `wipMap: {}`, `blockIdMap: {}`) from INIT fields. Subsequent actions (APPEND_ASSISTANT_MESSAGE, STREAM_START, etc.) build state incrementally.
+
+HYDRATE is reserved for the reconnection path where `loadThreadState` reads the full snapshot from disk.
 
 ### Phase 6: Tests
 
@@ -120,12 +131,12 @@ After writing initial `state.json` (~line 815), send a `HYDRATE` action via `hub
 
 ## Phases
 
-- [ ] Add `id` fields to all child thread messages (message-handler.ts, shared.ts)
-- [ ] Append user/tool-result messages to child state + send APPEND_USER_MESSAGE action
-- [ ] Add streaming support via per-child StreamAccumulator
-- [ ] Dispatch COMPLETE/ERROR actions + emit AGENT_COMPLETED for child threads
-- [ ] Send HYDRATE action on child thread creation
-- [ ] Add/update tests, verify integration tests pass
+- [x] Add `id`/`anthropicId` fields + `wipMap`/`blockIdMap` to child thread messages and state
+- [x] Append user/tool-result messages to child state + send APPEND_USER_MESSAGE action
+- [x] Add streaming support via per-child StreamAccumulator
+- [x] Dispatch COMPLETE/ERROR actions + emit AGENT_COMPLETED for child threads
+- [x] Send INIT action on child thread creation
+- [x] Add/update tests, verify integration tests pass
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -136,5 +147,5 @@ After writing initial `state.json` (~line 815), send a `HYDRATE` action via `hub
 | File | Change |
 |------|--------|
 | `agents/src/runners/message-handler.ts` | Add `id`/`anthropicId` to child messages; append user messages; extend `getParentToolUseId` for `stream_event`; handle streaming with per-child accumulator |
-| `agents/src/runners/shared.ts` | Add `id` to initial user message; add `id` to PostToolUse final response; send COMPLETE/ERROR actions + AGENT_COMPLETED; send HYDRATE on creation |
+| `agents/src/runners/shared.ts` | Add `id` to initial user message + `wipMap`/`blockIdMap` to disk state; add `id` to PostToolUse final response; send COMPLETE/ERROR actions + AGENT_COMPLETED; send INIT on creation |
 | `agents/src/runners/message-handler.test.ts` | Tests for all new child thread behaviors |

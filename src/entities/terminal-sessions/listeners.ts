@@ -30,8 +30,9 @@ export function setupTerminalListeners(): () => void {
   // Listen for terminal output — decode once, store + notify subscribers
   listen<TerminalOutputPayload>("terminal:output", (event) => {
     const { id, data } = event.payload;
-    const text = decodeOutput(data);
-    appendOutput(String(id), text);
+    const termId = String(id);
+    const text = decodeOutput(termId, data);
+    appendOutput(termId, text);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   // Listen for terminal exit (process ended)

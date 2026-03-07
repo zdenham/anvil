@@ -42,10 +42,10 @@ export class ScrollCoordinator {
   }
 
   /** Content height increased (ResizeObserver / height measurement).
-   *  Use "auto" (instant) to avoid visible lag during streaming. */
+   *  Use "smooth" so streaming text flows fluidly instead of snapping. */
   onContentGrew(): void {
     if (!this._sticky) return;
-    this._schedule("auto");
+    this._schedule("smooth");
   }
 
   /** New item added (count increased).

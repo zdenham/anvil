@@ -10,7 +10,6 @@ import { useMessageContent } from "@/hooks/use-thread-selectors";
 import { TextBlock } from "./text-block";
 import { ThinkingBlock } from "./thinking-block";
 import { TrickleBlock } from "./trickle-block";
-import { StreamingCursor } from "./streaming-cursor";
 import { ToolBlockRouter } from "./tool-block-router";
 import { ToolUseBlock } from "./tool-use-block";
 import { WebSearchToolBlock } from "./tool-blocks/web-search-tool-block";
@@ -24,7 +23,7 @@ interface AssistantMessageProps {
 /**
  * Container for a single assistant turn.
  * Renders committed content (text, thinking, tool use) and streaming content
- * (isStreaming blocks) inline via TrickleBlock + StreamingCursor.
+ * (isStreaming blocks) inline via TrickleBlock.
  */
 export const AssistantMessage = memo(function AssistantMessage({
   messageId,
@@ -59,7 +58,6 @@ export const AssistantMessage = memo(function AssistantMessage({
                       isLast={isLast}
                       workingDirectory={workingDirectory}
                     />
-                    {isLast && blockContent.length > 0 && <StreamingCursor />}
                   </div>
                 );
               }

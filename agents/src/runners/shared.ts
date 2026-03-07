@@ -796,18 +796,20 @@ export async function runAgentLoop(
               );
 
               // Create initial state.json with the user message (the task prompt)
+              const initialUserMessage = {
+                role: "user",
+                content: [{ type: "text", text: taskPrompt }],
+                id: crypto.randomUUID(),
+              };
               const initialState = {
-                messages: [
-                  {
-                    role: "user",
-                    content: [{ type: "text", text: taskPrompt }],
-                  },
-                ],
+                messages: [initialUserMessage],
                 fileChanges: [],
                 workingDirectory: context.workingDir,
                 status: "running",
                 timestamp: now,
                 toolStates: {},
+                wipMap: {},
+                blockIdMap: {},
               };
               writeFileSync(
                 join(childThreadPath, "state.json"),
@@ -816,6 +818,17 @@ export async function runAgentLoop(
 
               // Map toolUseId → childThreadId (the ONLY map we need)
               toolUseIdToChildThreadId.set(toolUseId, childThreadId);
+
+              // Send INIT action so client-side reducer constructs state
+              // with wipMap/blockIdMap (same event-sourcing pattern as parent threads)
+              const hub = getHubClient();
+              hub?.sendActionForThread(childThreadId, {
+                type: "INIT",
+                payload: {
+                  workingDirectory: context.workingDir,
+                  messages: [initialUserMessage],
+                },
+              });
 
               // Emit THREAD_CREATED event
               emitEvent(EventName.THREAD_CREATED, {
@@ -1119,7 +1132,7 @@ export async function runAgentLoop(
                 // assistant message event. Append it so the child thread shows the complete conversation.
                 if (taskResponse.content && Array.isArray(taskResponse.content)) {
                   interface ThreadState {
-                    messages: Array<{ role: string; content: unknown }>;
+                    messages: Array<{ role: string; content: unknown; id?: string }>;
                     fileChanges: unknown[];
                     workingDirectory: string;
                     status: string;
@@ -1145,6 +1158,7 @@ export async function runAgentLoop(
                   state.messages.push({
                     role: "assistant",
                     content: taskResponse.content,
+                    id: crypto.randomUUID(),
                   });
 
                   state.status = "complete";
@@ -1163,10 +1177,24 @@ export async function runAgentLoop(
                   resultLength: toolResponse.length,
                 }, "PostToolUse:subagent");
 
+                // Send COMPLETE action via hub (triggers markOrphanedTools in reducer)
+                const hub = getHubClient();
+                hub?.sendActionForThread(childThreadId, {
+                  type: "COMPLETE",
+                  payload: { metrics: {} },
+                });
+
                 // Emit THREAD_STATUS_CHANGED
                 emitEvent(EventName.THREAD_STATUS_CHANGED, {
                   threadId: childThreadId,
                   status: "completed",
+                }, "PostToolUse:subagent");
+
+                // Emit AGENT_COMPLETED so listeners fire (loadThreadState, mark unread)
+                emitEvent(EventName.AGENT_COMPLETED, {
+                  threadId: childThreadId,
+                  exitCode: 0,
+                  costUsd: taskResponse.total_cost_usd as number | undefined,
                 }, "PostToolUse:subagent");
 
                 // Cleanup the map (foreground tasks only — bg tasks cleaned up by task_notification)
@@ -1218,10 +1246,24 @@ export async function runAgentLoop(
                   metadata.updatedAt = Date.now();
                   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
                 }
+                // Send ERROR action via hub (triggers markOrphanedTools in reducer)
+                const hub = getHubClient();
+                hub?.sendActionForThread(childThreadId, {
+                  type: "ERROR",
+                  payload: { message: input.error },
+                });
+
                 emitEvent(EventName.THREAD_STATUS_CHANGED, {
                   threadId: childThreadId,
                   status: "error",
                 }, "PostToolUseFailure:subagent");
+
+                // Emit AGENT_COMPLETED so listeners fire (loadThreadState, mark unread)
+                emitEvent(EventName.AGENT_COMPLETED, {
+                  threadId: childThreadId,
+                  exitCode: 1,
+                }, "PostToolUseFailure:subagent");
+
                 toolUseIdToChildThreadId.delete(input.tool_use_id);
               }
             }

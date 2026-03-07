@@ -17,8 +17,19 @@ const newlineCounts = new Map<string, number>();
 type OutputCallback = (text: string) => void;
 const outputListeners = new Map<string, Set<OutputCallback>>();
 
-/** Shared TextDecoder — avoids per-event allocation */
-const decoder = new TextDecoder();
+/** Per-terminal TextDecoder instances with stream mode enabled.
+ * Each terminal gets its own decoder so interleaved chunks don't corrupt
+ * each other's buffered partial UTF-8 sequences. */
+const decoders = new Map<string, TextDecoder>();
+
+function getDecoder(id: string): TextDecoder {
+  let dec = decoders.get(id);
+  if (!dec) {
+    dec = new TextDecoder("utf-8");
+    decoders.set(id, dec);
+  }
+  return dec;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,10 +62,11 @@ function indexAfterNthNewline(s: string, n: number): number {
 
 /**
  * Decode raw PTY bytes into a string.
- * Uses the shared TextDecoder to avoid per-event instantiation.
+ * Uses a per-terminal TextDecoder with `stream: true` so multi-byte UTF-8
+ * characters split across chunks are buffered and decoded correctly.
  */
-export function decodeOutput(data: number[]): string {
-  return decoder.decode(new Uint8Array(data));
+export function decodeOutput(id: string, data: number[]): string {
+  return getDecoder(id).decode(new Uint8Array(data), { stream: true });
 }
 
 /**
@@ -94,11 +106,12 @@ export function getOutputBuffer(id: string): string {
   return buffers.get(id) || "";
 }
 
-/** Delete a terminal's output buffer. */
+/** Delete a terminal's output buffer and decoder. */
 export function clearOutputBuffer(id: string): void {
   buffers.delete(id);
   newlineCounts.delete(id);
   outputListeners.delete(id);
+  decoders.delete(id);
 }
 
 /** Read-only access to all buffers (for memory diagnostics). */

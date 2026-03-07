@@ -93,7 +93,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         ref={scrollerRef}
         style={{ height: "100%", overflow: "auto", overflowAnchor: "none" }}
       >
-        <div style={{ height: totalHeight, position: "relative" }}>
+        <div style={{ height: totalHeight + 30, position: "relative" }}>
           {items.map((item) => {
             const isWorkingSlot = item.index >= turns.length;
 

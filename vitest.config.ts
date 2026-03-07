@@ -13,6 +13,7 @@ export default defineConfig({
   define: {
     __PROJECT_ROOT__: JSON.stringify(process.cwd()),
     __MORT_APP_SUFFIX__: JSON.stringify(""),
+    __MORT_WS_PORT__: JSON.stringify("0"),
   },
   test: {
     environment: "jsdom",

@@ -209,10 +209,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   }), [resolvedWorkingDirectory, onFileClick]);
 
   // Pre-process content to auto-link bare file paths in text
-  const processedContent = useMemo(
-    () => resolvedWorkingDirectory ? autoLinkFilePaths(content) : content,
-    [content, resolvedWorkingDirectory]
-  );
+  // When streaming, append a cursor character inline so it renders inside the last paragraph
+  const processedContent = useMemo(() => {
+    const linked = resolvedWorkingDirectory ? autoLinkFilePaths(content) : content;
+    return isStreaming ? linked + "●" : linked;
+  }, [content, resolvedWorkingDirectory, isStreaming]);
 
   return (
     <div className={cn("prose prose-invert prose-sm prose-p:leading-relaxed max-w-none", className)}>

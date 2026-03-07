@@ -12,7 +12,13 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
+// WebGL addon disabled — causes visible flicker on resize due to the WebGL spec
+// requiring framebuffer clear on canvas dimension change. xterm.js defers the
+// re-render to the next rAF via its internal RenderDebouncer, so there's always
+// a 1-frame gap where the cleared canvas is visible. The canvas 2D renderer
+// doesn't have this problem because it repaints synchronously.
+// Re-enable when xterm.js 6.1.0 stable ships (includes sync render fix, PR #5529).
+// import { WebglAddon } from "@xterm/addon-webgl";
 import { SearchAddon } from "@xterm/addon-search";
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -35,12 +41,12 @@ interface TerminalExitPayload {
  * Matches the app's surface colors.
  */
 const MORT_TERMINAL_THEME = {
-  background: "#0f0f0f", // surface-950
+  background: "#141514", // surface-900
   foreground: "#e5e5e5", // neutral-200
   cursor: "#e5e5e5",
-  cursorAccent: "#0f0f0f",
+  cursorAccent: "#141514",
   selectionBackground: "rgba(255, 255, 255, 0.2)",
-  black: "#0f0f0f",
+  black: "#141514",
   red: "#f87171", // red-400
   green: "#4ade80", // green-400
   yellow: "#facc15", // yellow-400
@@ -84,39 +90,48 @@ export function TerminalContent({
     [terminalId]
   );
 
-  // Handle resize - notify the PTY backend with a single rAF debounce
-  const resizeRafRef = useRef<number | null>(null);
-  const handleResize = useCallback(() => {
-    const terminal = terminalRef.current;
-    const fitAddon = fitAddonRef.current;
-    if (!terminal || !fitAddon) return;
+  // Handle resize - notify the PTY backend synchronously.
+  // Skips sub-pixel oscillations (< 3px) caused by devicePixelContentBoxSize
+  // rounding errors during layout shifts (xterm.js #4922, fixed in 6.1.0).
+  const lastDimsRef = useRef({ width: 0, height: 0 });
+  const handleResize = useCallback(
+    (force?: boolean) => {
+      const container = containerRef.current;
+      const terminal = terminalRef.current;
+      const fitAddon = fitAddonRef.current;
+      if (!container || !terminal || !fitAddon) return;
 
-    if (resizeRafRef.current) {
-      cancelAnimationFrame(resizeRafRef.current);
-    }
+      const { clientWidth, clientHeight } = container;
+      const last = lastDimsRef.current;
+      if (
+        !force &&
+        Math.abs(clientWidth - last.width) < 3 &&
+        Math.abs(clientHeight - last.height) < 3
+      ) {
+        return;
+      }
+      last.width = clientWidth;
+      last.height = clientHeight;
 
-    resizeRafRef.current = requestAnimationFrame(() => {
       try {
         fitAddon.fit();
         const session = useTerminalSessionStore.getState().sessions[terminalId];
         if (!session?.isAlive) return;
-        terminalSessionService
-          .resize(terminalId, terminal.cols, terminal.rows)
-          .catch((err) => {
-            logger.debug("[TerminalContent] Failed to resize terminal", {
-              terminalId,
-              error: err,
-            });
+        terminalSessionService.resize(terminalId, terminal.cols, terminal.rows).catch((err) => {
+          logger.debug("[TerminalContent] Failed to resize terminal", {
+            terminalId,
+            error: err,
           });
+        });
       } catch (err) {
-        // fitAddon.fit() can throw if container has no dimensions
         logger.debug("[TerminalContent] Fit failed (container may not be visible)", {
           terminalId,
           error: err,
         });
       }
-    });
-  }, [terminalId]);
+    },
+    [terminalId]
+  );
 
   // Initialize xterm.js
   useEffect(() => {
@@ -136,11 +151,11 @@ export function TerminalContent({
       cursorStyle: "block",
       fontFamily: "Menlo, Monaco, 'Courier New', monospace",
       fontSize: 13,
-      lineHeight: 1.2,
+      lineHeight: 1.0,
       letterSpacing: 0,
       theme: MORT_TERMINAL_THEME,
       allowProposedApi: true,
-      scrollback: 5000,
+      scrollback: 10_000,
       rescaleOverlappingGlyphs: true,
       customGlyphs: true,
       drawBoldTextInBrightColors: false,
@@ -152,18 +167,9 @@ export function TerminalContent({
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(searchAddon);
 
-    // Try WebGL addon (falls back to canvas if unavailable)
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
-      });
-      terminal.loadAddon(webglAddon);
-    } catch (err) {
-      logger.warn("[TerminalContent] WebGL addon failed to load, using canvas", {
-        error: err,
-      });
-    }
+    // WebGL addon intentionally omitted — see import comment above.
+    // The canvas 2D renderer is used instead; it's flicker-free on resize and
+    // more than fast enough for terminal text rendering.
 
     terminal.open(containerRef.current);
 
@@ -180,9 +186,9 @@ export function TerminalContent({
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Fit to container
+    // Fit to container (force bypasses threshold on first fit)
     setTimeout(() => {
-      handleResize();
+      handleResize(true);
     }, 0);
 
     // Restore scrollback buffer if we have one (only at mount time)
@@ -281,9 +287,6 @@ export function TerminalContent({
       unsubOutput();
       exitUnlisten?.();
       resizeObserver.disconnect();
-      if (resizeRafRef.current) {
-        cancelAnimationFrame(resizeRafRef.current);
-      }
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
@@ -297,16 +300,18 @@ export function TerminalContent({
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      data-testid="terminal-content"
-      className="w-full h-full bg-surface-950"
-      onClick={handleClick}
-      style={{
-        overflow: "hidden",
-        WebkitFontSmoothing: "antialiased",
-        MozOsxFontSmoothing: "grayscale",
-      }}
-    />
+    <div className="w-full h-full bg-surface-900 p-3" onClick={handleClick}>
+      <div
+        ref={containerRef}
+        data-testid="terminal-content"
+        className="w-full h-full bg-[#141514]"
+        style={{
+          overflow: "hidden",
+          contain: "strict",
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
+        }}
+      />
+    </div>
   );
 }

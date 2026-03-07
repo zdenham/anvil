@@ -27,14 +27,14 @@ describe("TextBlock", () => {
     it("renders content during streaming", () => {
       render(<TextBlock content="Hello world" isStreaming={true} />);
 
-      expect(screen.getByText("Hello world")).toBeInTheDocument();
+      expect(screen.getByText(/Hello world/)).toBeInTheDocument();
     });
 
-    it("shows streaming cursor during streaming", () => {
+    it("shows inline cursor character during streaming", () => {
       render(<TextBlock content="Hello world" isStreaming={true} />);
 
-      // StreamingCursor has aria-hidden cursor and sr-only text
-      expect(screen.getByText("Assistant is typing")).toBeInTheDocument();
+      // Cursor character is appended inline to the markdown content
+      expect(screen.getByText(/●/)).toBeInTheDocument();
     });
 
     it("has prose styles in MarkdownRenderer during streaming", () => {
@@ -63,11 +63,11 @@ describe("TextBlock", () => {
       expect(screen.getByText("Hello world")).toBeInTheDocument();
     });
 
-    it("does not show streaming cursor when complete", () => {
+    it("does not show cursor character when complete", () => {
       render(<TextBlock content="Hello world" isStreaming={false} />);
 
-      // StreamingCursor's sr-only text should not be present
-      expect(screen.queryByText("Assistant is typing")).not.toBeInTheDocument();
+      // Cursor character should not be appended when not streaming
+      expect(screen.queryByText(/●/)).not.toBeInTheDocument();
     });
 
     it("code blocks are syntax-highlighted in non-streaming mode", () => {
@@ -105,8 +105,8 @@ const x = 1;
     it("defaults to non-streaming mode (uses MarkdownRenderer)", () => {
       render(<TextBlock content="Hello world" />);
 
-      // Should not show streaming cursor (default is not streaming)
-      expect(screen.queryByText("Assistant is typing")).not.toBeInTheDocument();
+      // Should not show cursor character (default is not streaming)
+      expect(screen.queryByText(/●/)).not.toBeInTheDocument();
     });
   });
 

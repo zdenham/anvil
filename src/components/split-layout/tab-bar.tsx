@@ -11,6 +11,7 @@ import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortabl
 import { Plus } from "lucide-react";
 import { paneLayoutService } from "@/stores/pane-layout";
 import { threadService } from "@/entities/threads/service";
+import { terminalSessionService } from "@/entities/terminal-sessions";
 import { useMRUWorktree } from "@/hooks/use-mru-worktree";
 import { logger } from "@/lib/logger-client";
 import { TabItem } from "./tab-item";
@@ -33,15 +34,34 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
   });
 
   const handleNewTab = useCallback(async () => {
+    // If the group's active tab is a terminal, create another terminal
+    const activeTab = tabs.find((t) => t.id === activeTabId);
+    if (activeTab?.view.type === "terminal") {
+      const existingSession = terminalSessionService.get(activeTab.view.terminalId);
+      if (existingSession) {
+        try {
+          const session = await terminalSessionService.create(
+            existingSession.worktreeId,
+            existingSession.worktreePath,
+          );
+          paneLayoutService.openTab(
+            { type: "terminal", terminalId: session.id },
+            groupId,
+          );
+          return;
+        } catch (err) {
+          logger.error("[TabBar] Failed to create terminal, falling back to thread", err);
+        }
+      }
+    }
+
     if (!repoId || !worktreeId) {
-      // No worktree available — fall back to empty tab
       logger.warn("[TabBar] No MRU worktree available, opening empty tab");
       paneLayoutService.openTab({ type: "empty" }, groupId);
       return;
     }
 
     const threadId = crypto.randomUUID();
-    // create() persists to disk AND updates the store, so the thread is archivable
     await threadService.create({
       id: threadId,
       repoId,
@@ -52,7 +72,7 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
       { type: "thread", threadId, autoFocus: true },
       groupId,
     );
-  }, [groupId, repoId, worktreeId]);
+  }, [groupId, tabs, activeTabId, repoId, worktreeId]);
 
   return (
     <div

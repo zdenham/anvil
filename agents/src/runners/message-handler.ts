@@ -10,7 +10,7 @@ import type {
   SDKTaskNotificationMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { nanoid } from "nanoid";
-import type { StreamAccumulator } from "../lib/stream-accumulator.js";
+import { StreamAccumulator } from "../lib/stream-accumulator.js";
 import {
   appendAssistantMessage,
   appendUserMessage,
@@ -47,6 +47,9 @@ export class MessageHandler {
 
   // In-memory state cache for child threads (childThreadId -> state)
   private childThreadStates = new Map<string, ThreadState>();
+
+  // Per-child stream accumulators (childThreadId -> StreamAccumulator)
+  private childAccumulators = new Map<string, StreamAccumulator>();
 
   /** Turn counter incremented on each assistant message with usage */
   private turnIndex = 0;
@@ -511,6 +514,10 @@ export class MessageHandler {
       const parentId = (message as SDKToolProgressMessage).parent_tool_use_id;
       return parentId ?? null;
     }
+    if (message.type === "stream_event") {
+      const parentId = (message as SDKPartialAssistantMessage).parent_tool_use_id;
+      return parentId ?? null;
+    }
     return null;
   }
 
@@ -610,10 +617,12 @@ export class MessageHandler {
           });
         }
 
-        // Append message
+        // Append message with IDs for stable React keys and WIP correlation
         const storedMessage = {
           role: "assistant" as const,
           content: msg.message.content as Parameters<typeof appendAssistantMessage>[0]["content"],
+          id: nanoid(),
+          anthropicId: msg.message.id,
         };
         state.messages.push(storedMessage);
         hub?.sendActionForThread(childThreadId, {
@@ -657,11 +666,46 @@ export class MessageHandler {
             payload: { toolUseId, result, isError },
           });
 
+          // Append user message to state for proper [user, assistant, user, ...] structure
+          const userMessageId = nanoid();
+          const userContent = msg.message?.content;
+          state.messages.push({
+            role: "user",
+            content: userContent,
+            id: userMessageId,
+          });
+          hub?.sendActionForThread(childThreadId, {
+            type: "APPEND_USER_MESSAGE",
+            payload: { content: typeof userContent === "string" ? userContent : JSON.stringify(userContent), id: userMessageId },
+          });
+
           logger.debug(
             `[MessageHandler] handleForChildThread(${childThreadId}): tool_result toolUseId=${toolUseId}`
           );
         }
         await this.emitChildThreadState(childThreadId, state);
+        return true;
+      }
+
+      case "stream_event": {
+        const msg = message as SDKPartialAssistantMessage;
+        if (!hub) return true;
+
+        // Create per-child accumulator on first stream event
+        let childAccumulator = this.childAccumulators.get(childThreadId);
+        if (!childAccumulator) {
+          childAccumulator = new StreamAccumulator(hub, childThreadId);
+          this.childAccumulators.set(childThreadId, childAccumulator);
+        }
+
+        childAccumulator.handleDelta(msg.event);
+
+        if (msg.event.type === "message_stop") {
+          childAccumulator.flush();
+          childAccumulator.reset();
+          this.childAccumulators.delete(childThreadId);
+        }
+
         return true;
       }
 

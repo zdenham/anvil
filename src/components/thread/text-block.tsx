@@ -1,6 +1,5 @@
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { StreamingCursor } from "./streaming-cursor";
 import { MarkdownRenderer } from "./markdown-renderer";
 
 interface TextBlockProps {
@@ -26,7 +25,6 @@ export const TextBlock = memo(function TextBlock({
   return (
     <div className={cn("relative", className)}>
       <MarkdownRenderer content={content} isStreaming={isStreaming} workingDirectory={workingDirectory} />
-      {isStreaming && <StreamingCursor className="ml-1" />}
     </div>
   );
 });
