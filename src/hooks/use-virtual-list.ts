@@ -31,6 +31,8 @@ export interface UseVirtualListOptions {
   autoScrollOnGrowth?: boolean;
   /** Callback when sticky state changes */
   onStickyChange?: (sticky: boolean) => void;
+  /** When true, re-snap to bottom after each measurement batch until heights stabilize */
+  initialScrollToBottom?: boolean;
 }
 
 export interface UseVirtualListResult {
@@ -102,6 +104,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       onStickyChange: (sticky) => {
         setIsStickyState(sticky);
         opts.onStickyChange?.(sticky);
+        if (!sticky) pendingScrollToBottomRef.current = false;
       },
       reengageThreshold: 20,
     });
@@ -235,6 +238,10 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   }, [list, opts.getScrollElement]);
 
   // -- Per-item height measurement via a single shared ResizeObserver --
+  // Ref so the RO callback (created once) can access the latest scroll element
+  const getScrollElementRef = useRef(opts.getScrollElement);
+  getScrollElementRef.current = opts.getScrollElement;
+
   const roRef = useRef<ResizeObserver | null>(null);
   const observedRef = useRef(new Map<number, HTMLElement>());
 
@@ -242,6 +249,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   const rafIdRef = useRef<number | null>(null);
   const hasInitialMeasurementRef = useRef(false);
   const measureDirtyRef = useRef(false);
+  const pendingScrollToBottomRef = useRef(!!opts.initialScrollToBottom);
 
   if (!roRef.current && opts.itemHeight === undefined) {
     roRef.current = new ResizeObserver((entries) => {
@@ -265,7 +273,18 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
         if (pending.size === 0) return;
         const batch = Array.from(pending.entries()).map(([index, height]) => ({ index, height }));
         pending.clear();
-        list.setItemHeights(batch);
+        const changed = list.setItemHeights(batch);
+        const el = getScrollElementRef.current();
+        if (el) {
+          if (pendingScrollToBottomRef.current) {
+            el.scrollTop = el.scrollHeight;
+            list.updateScroll(el.scrollTop, el.clientHeight);
+            if (changed === 0) pendingScrollToBottomRef.current = false;
+          } else if (changed !== 0) {
+            el.scrollTop += changed;
+            list.updateScroll(el.scrollTop, el.clientHeight);
+          }
+        }
         return;
       }
 
@@ -277,7 +296,18 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
           const batch = Array.from(pending.entries()).map(([index, height]) => ({ index, height }));
           pending.clear();
-          list.setItemHeights(batch);
+          const changed = list.setItemHeights(batch);
+          const el = getScrollElementRef.current();
+          if (el) {
+            if (pendingScrollToBottomRef.current) {
+              el.scrollTop = el.scrollHeight;
+              list.updateScroll(el.scrollTop, el.clientHeight);
+              if (changed === 0) pendingScrollToBottomRef.current = false;
+            } else if (changed !== 0) {
+              el.scrollTop += changed;
+              list.updateScroll(el.scrollTop, el.clientHeight);
+            }
+          }
         });
       }
     });
@@ -318,7 +348,18 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       for (const { index } of batch) {
         pendingHeightsRef.current.delete(index);
       }
-      list.setItemHeights(batch);
+      const changed = list.setItemHeights(batch);
+      const el = opts.getScrollElement();
+      if (el) {
+        if (pendingScrollToBottomRef.current) {
+          el.scrollTop = el.scrollHeight;
+          list.updateScroll(el.scrollTop, el.clientHeight);
+          if (changed === 0) pendingScrollToBottomRef.current = false;
+        } else if (changed !== 0) {
+          el.scrollTop += changed;
+          list.updateScroll(el.scrollTop, el.clientHeight);
+        }
+      }
     }
   });
 

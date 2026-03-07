@@ -3,6 +3,7 @@
  *
  * Lists archived threads with the ability to unarchive them.
  * Accessible from the tree panel header dropdown.
+ * Uses paginated loading — fetches 50 threads at a time via Rust-side grep.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -16,23 +17,43 @@ import type { ThreadMetadata } from "@/entities/threads/types";
 
 const ROW_HEIGHT = 44;
 const OVERSCAN = 660; // ~15 rows
+const PAGE_SIZE = 50;
 
 export function ArchiveView() {
   const [threads, setThreads] = useState<ThreadMetadata[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [unarchiving, setUnarchiving] = useState<Set<string>>(new Set());
 
   const loadArchived = useCallback(async () => {
     try {
-      const archived = await threadService.listArchived();
-      archived.sort((a, b) => b.updatedAt - a.updatedAt);
-      setThreads(archived);
+      const result = await threadService.listArchived({ limit: PAGE_SIZE, offset: 0 });
+      setThreads(result.threads);
+      setTotal(result.total);
     } catch (err) {
       logger.error("[ArchiveView] Failed to load archived threads:", err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const result = await threadService.listArchived({
+        limit: PAGE_SIZE,
+        offset: threads.length,
+      });
+      setThreads((prev) => [...prev, ...result.threads]);
+      setTotal(result.total);
+    } catch (err) {
+      logger.error("[ArchiveView] Failed to load more archived threads:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [threads.length, loadingMore]);
 
   useEffect(() => {
     loadArchived();
@@ -56,10 +77,28 @@ export function ArchiveView() {
     return () => clearInterval(interval);
   }, []);
 
+  // Load more when scrolled near the bottom
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || loadingMore || threads.length >= total) return;
+    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (remaining < 500) {
+      loadMore();
+    }
+  }, [loadMore, loadingMore, threads.length, total]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
   const handleUnarchive = useCallback(async (threadId: string) => {
     setUnarchiving((prev) => new Set(prev).add(threadId));
     // Optimistically remove from list
     setThreads((prev) => prev.filter((t) => t.id !== threadId));
+    setTotal((prev) => prev - 1);
 
     try {
       await threadService.unarchive(threadId);
@@ -95,31 +134,41 @@ export function ArchiveView() {
   }
 
   return (
-    <div data-testid="archive-view" ref={scrollRef} className="h-full overflow-y-auto">
-      <div
-        className="relative p-3"
-        style={{ height: totalHeight }}
-      >
-        {items.map((item) => {
-          const thread = threads[item.index];
-          return (
-            <div
-              key={thread.id}
-              className="absolute left-0 right-0 px-3"
-              style={{
-                height: item.size,
-                transform: `translateY(${item.start}px)`,
-              }}
-            >
-              <ArchivedThreadRow
-                thread={thread}
-                now={now}
-                isUnarchiving={unarchiving.has(thread.id)}
-                onUnarchive={handleUnarchive}
-              />
-            </div>
-          );
-        })}
+    <div data-testid="archive-view" className="flex flex-col h-full">
+      <div className="px-4 py-2 text-xs text-surface-500 border-b border-surface-800">
+        {total.toLocaleString()} archived threads
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div
+          className="relative p-3"
+          style={{ height: totalHeight }}
+        >
+          {items.map((item) => {
+            const thread = threads[item.index];
+            return (
+              <div
+                key={thread.id}
+                className="absolute left-0 right-0 px-3"
+                style={{
+                  height: item.size,
+                  transform: `translateY(${item.start}px)`,
+                }}
+              >
+                <ArchivedThreadRow
+                  thread={thread}
+                  now={now}
+                  isUnarchiving={unarchiving.has(thread.id)}
+                  onUnarchive={handleUnarchive}
+                />
+              </div>
+            );
+          })}
+        </div>
+        {loadingMore && (
+          <div className="flex justify-center py-3">
+            <Loader2 size={16} className="animate-spin text-surface-500" />
+          </div>
+        )}
       </div>
     </div>
   );

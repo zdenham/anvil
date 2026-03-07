@@ -149,10 +149,10 @@ If we want consistency, those can migrate to flow layout too, but it's not neces
 
 ## Phases
 
-- [ ] Switch message-list.tsx from absolute positioning to flow layout with paddingBefore/paddingAfter spacers
-- [ ] Change `setItemHeights()` to return the anchor correction delta
-- [ ] Apply immediate scrollTop correction in the ResizeObserver callback in use-virtual-list.ts
-- [ ] Re-enable `overflowAnchor: "auto"` on scroll container (helps on Chromium-based Tauri targets, no-op on WebKit)
+- [x] Switch message-list.tsx from absolute positioning to flow layout with paddingBefore/paddingAfter spacers
+- [x] Change `setItemHeights()` to return the anchor correction delta
+- [x] Apply immediate scrollTop correction in the ResizeObserver callback in use-virtual-list.ts
+- [x] Re-enable `overflowAnchor: "auto"` on scroll container (helps on Chromium-based Tauri targets, no-op on WebKit)
 - [ ] Verify: scroll up from bottom of long thread — no jitter, no jolt, sticky auto-scroll still works
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->

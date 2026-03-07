@@ -2791,6 +2791,7 @@ dependencies = [
  "portable-pty",
  "pprof",
  "raw-window-handle",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",

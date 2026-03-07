@@ -915,6 +915,8 @@ pub fn run() {
             filesystem::fs_git_worktree_remove,
             filesystem::fs_list_dir,
             filesystem::fs_is_git_repo,
+            filesystem::fs_grep,
+            filesystem::fs_bulk_read,
             // Git commands
             git_commands::git_fetch,
             git_commands::git_get_default_branch,

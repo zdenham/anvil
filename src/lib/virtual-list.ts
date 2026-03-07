@@ -104,7 +104,11 @@ export class VirtualList {
     this._invalidate();
   }
 
-  setItemHeights(entries: Array<{ index: number; height: number }>): void {
+  setItemHeights(entries: Array<{ index: number; height: number }>): number {
+    // Find anchor (first item at or past scrollTop) before any changes
+    const anchorIndex = this._count > 0 ? this._binarySearchOffset(this._scrollTop) : -1;
+    const anchorOffsetBefore = anchorIndex >= 0 ? this._offsets[anchorIndex] : 0;
+
     let minChanged = this._count;
     let anyChanged = false;
 
@@ -116,9 +120,14 @@ export class VirtualList {
       anyChanged = true;
     }
 
-    if (!anyChanged) return;
+    if (!anyChanged) return 0;
     this._rebuildOffsetsFrom(minChanged);
+
+    // How much the anchor shifted — caller uses this for scrollTop correction
+    const correction = anchorIndex >= 0 ? this._offsets[anchorIndex] - anchorOffsetBefore : 0;
+
     this._invalidate();
+    return correction;
   }
 
   setOptions(opts: Partial<VirtualListOptions>, notify = true): void {

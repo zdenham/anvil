@@ -218,8 +218,6 @@ function ControlPanelWindowContent({
   const inputRef = useRef<ThreadInputRef>(null);
   const messageListRef = useRef<MessageListRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasScrolledOnMount = useRef(false);
-
   // Window drag behavior via reusable hook
   // Only use custom drag for NSPanel, standalone windows use native decorations
   const { dragProps } = useWindowDrag({
@@ -401,24 +399,6 @@ function ControlPanelWindowContent({
       unlisten.then((unlistenFn) => unlistenFn());
     };
   }, [isStandaloneWindow]);
-
-  // Reset scroll tracking when threadId changes (navigating to a different thread)
-  useEffect(() => {
-    hasScrolledOnMount.current = false;
-  }, [threadId]);
-
-  // Auto-scroll to bottom ONLY on initial mount when opening panel with messages
-  useEffect(() => {
-    if (!hasScrolledOnMount.current && messages.length > 0 && messageListRef.current) {
-      hasScrolledOnMount.current = true;
-      // Small delay to ensure the DOM has rendered the messages
-      const timer = setTimeout(() => {
-        messageListRef.current?.scrollToBottom();
-      }, 100);
-
-      return () => clearTimeout(timer);
-    }
-  }, [messages.length > 0]);
 
   // Reset quick actions state when threadId changes
   useEffect(() => {

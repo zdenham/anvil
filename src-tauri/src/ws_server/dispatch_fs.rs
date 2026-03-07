@@ -83,6 +83,20 @@ pub async fn dispatch(
             crate::filesystem::fs_git_worktree_remove(repo_path, worktree_path)?;
             Ok(serde_json::Value::Null)
         }
+        "fs_grep" => {
+            let dir: String = extract_arg(&args, "dir")?;
+            let pattern: String = extract_arg(&args, "pattern")?;
+            let file_glob: String = extract_arg(&args, "fileGlob")?;
+            let result = crate::filesystem::grep(&dir, &pattern, &file_glob)?;
+            Ok(serde_json::to_value(result).unwrap())
+        }
+        "fs_bulk_read" => {
+            let paths: Vec<String> = serde_json::from_value(
+                args.get("paths").cloned().ok_or("Missing 'paths'")?
+            ).map_err(|e| format!("Invalid paths: {}", e))?;
+            let result = crate::filesystem::bulk_read(&paths);
+            Ok(serde_json::to_value(result).unwrap())
+        }
         // Mort filesystem commands
         "fs_get_repo_dir" => {
             let repo_name: String = extract_arg(&args, "repoName")?;

@@ -47,7 +47,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   // stable while streaming (avoids N -> N+1 -> N offset recalculations).
   const virtualCount = turns.length + (showWorkingIndicator ? 1 : 0);
 
-  const { items, totalHeight, scrollToIndex: scrollTo, measureItem, setSticky } = useVirtualList({
+  const { items, totalHeight, paddingBefore, paddingAfter, scrollToIndex: scrollTo, measureItem, setSticky } = useVirtualList({
     count: virtualCount,
     getScrollElement,
     estimateHeight: 100,
@@ -56,6 +56,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     onAtBottomChange: setIsAtBottom,
     sticky: true,
     autoScrollOnGrowth: isRunning,
+    initialScrollToBottom: true,
   });
 
   const scrollToBottom = useCallback(() => {
@@ -74,13 +75,6 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     getScrollerElement: () => scrollerRef.current,
   }), [scrollToBottom, scrollToIndex]);
 
-  // Scroll to bottom on mount if we have turns
-  const mountedRef = useRef(false);
-  if (!mountedRef.current && turns.length > 0) {
-    mountedRef.current = true;
-    // Deferred to after first paint via rAF in the effect below
-  }
-
   return (
     <div
       data-testid="message-list"
@@ -91,39 +85,34 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     >
       <div
         ref={scrollerRef}
-        style={{ height: "100%", overflow: "auto", overflowAnchor: "none" }}
+        style={{ height: "100%", overflow: "auto", overflowAnchor: "auto" }}
       >
-        <div style={{ height: totalHeight + 30, position: "relative" }}>
-          {items.map((item) => {
-            const isWorkingSlot = item.index >= turns.length;
+        <div style={{ minHeight: totalHeight + 30 }}>
+        <div style={{ height: paddingBefore }} />
+        {items.map((item) => {
+          const isWorkingSlot = item.index >= turns.length;
 
-            return (
-              <div
-                key={item.key}
-                ref={measureItem}
-                data-index={item.index}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  contain: "layout style",
-                  transform: `translate3d(0, ${item.start}px, 0)`,
-                }}
-              >
-                <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", item.index === 0 && "pt-12")}>
-                  {isWorkingSlot ? (
-                    <WorkingIndicator />
-                  ) : (
-                    <TurnRenderer
-                      turn={turns[item.index]}
-                      turnIndex={item.index}
-                    />
-                  )}
-                </div>
+          return (
+            <div
+              key={item.key}
+              ref={measureItem}
+              data-index={item.index}
+              style={{ contain: "layout style" }}
+            >
+              <div className={cn("px-4 py-2 w-full max-w-[900px] mx-auto", item.index === 0 && "pt-12")}>
+                {isWorkingSlot ? (
+                  <WorkingIndicator />
+                ) : (
+                  <TurnRenderer
+                    turn={turns[item.index]}
+                    turnIndex={item.index}
+                  />
+                )}
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
+        <div style={{ height: paddingAfter + 30 }} />
         </div>
       </div>
 

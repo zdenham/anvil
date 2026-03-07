@@ -1,4 +1,4 @@
-import { FilesystemClient, type DirEntry } from "./filesystem-client";
+import { FilesystemClient, type DirEntry, type GrepMatch } from "./filesystem-client";
 import { logger } from "./logger-client";
 
 /**
@@ -160,6 +160,33 @@ class AppDataStore {
     if (await this.fs.exists(fullPath)) {
       await this.fs.removeAll(fullPath);
     }
+  }
+
+  /**
+   * Searches files matching a glob under a relative directory for lines matching a regex.
+   * Single IPC call — all I/O happens in Rust.
+   */
+  async grep(dir: string, pattern: string, fileGlob: string): Promise<GrepMatch[]> {
+    const fullDir = await this.resolvePath(dir);
+    return this.fs.grep(fullDir, pattern, fileGlob);
+  }
+
+  /**
+   * Reads multiple files in a single IPC call and parses as JSON.
+   * Paths are relative to the data directory.
+   * Returns parsed objects in the same order. Null for missing/invalid files.
+   */
+  async bulkReadJson<T>(paths: string[]): Promise<(T | null)[]> {
+    const fullPaths = await Promise.all(paths.map((p) => this.resolvePath(p)));
+    const results = await this.fs.bulkRead(fullPaths);
+    return results.map((content) => {
+      if (!content) return null;
+      try {
+        return JSON.parse(content) as T;
+      } catch {
+        return null;
+      }
+    });
   }
 
   /**

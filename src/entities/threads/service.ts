@@ -776,23 +776,51 @@ export const threadService = {
   },
 
   /**
-   * Lists all archived threads.
-   * Returns ThreadMetadata for threads in archive/threads/ directory.
+   * Lists archived threads with pagination using Rust-side grep.
+   * Single IPC call reads all metadata files in Rust, extracts updatedAt timestamps,
+   * then only fetches full metadata for the requested page.
    */
-  async listArchived(): Promise<ThreadMetadata[]> {
-    const pattern = `${ARCHIVE_THREADS_DIR}/*/metadata.json`;
-    const files = await appData.glob(pattern);
-    const threads: ThreadMetadata[] = [];
+  async listArchived(opts?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{ threads: ThreadMetadata[]; total: number }> {
+    // Single IPC call — Rust reads all archived metadata.json files
+    const matches = await appData.grep(
+      ARCHIVE_THREADS_DIR,
+      '"updatedAt"\\s*:\\s*\\d+',
+      "metadata.json"
+    );
 
-    for (const filePath of files) {
-      const raw = await appData.readJson(filePath);
-      const result = raw ? ThreadMetadataSchema.safeParse(raw) : null;
-      if (result?.success) {
-        threads.push(result.data);
+    // Parse thread ID from path, timestamp from matched line
+    const entries: Array<{ id: string; updatedAt: number }> = [];
+    for (const match of matches) {
+      const id = extractThreadIdFromPath(match.path);
+      const tsMatch = match.line.match(/(\d{10,})/);
+      if (id && tsMatch) {
+        entries.push({ id, updatedAt: parseInt(tsMatch[1], 10) });
       }
     }
 
-    return threads;
+    // Sort by updatedAt descending
+    entries.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    const limit = opts?.limit ?? 50;
+    const offset = opts?.offset ?? 0;
+    const page = entries.slice(offset, offset + limit);
+
+    // Bulk-read full metadata for the visible page — 1 IPC call
+    const paths = page.map(({ id }) => `${ARCHIVE_THREADS_DIR}/${id}/metadata.json`);
+    const rawResults = await appData.bulkReadJson<unknown>(paths);
+
+    const threads: ThreadMetadata[] = [];
+    for (let i = 0; i < page.length; i++) {
+      const parsed = rawResults[i] ? ThreadMetadataSchema.safeParse(rawResults[i]) : null;
+      if (parsed?.success) {
+        threads.push(parsed.data);
+      }
+    }
+
+    return { threads, total: entries.length };
   },
 
   /**
@@ -855,3 +883,13 @@ export const threadService = {
       .filter((p: PlanMetadata | undefined): p is PlanMetadata => p !== undefined);
   },
 };
+
+/**
+ * Extracts thread ID from an absolute metadata.json path.
+ * Path format: /Users/.../.mort/archive/threads/{id}/metadata.json
+ */
+function extractThreadIdFromPath(absPath: string): string | null {
+  const parts = absPath.split("/");
+  const metaIdx = parts.lastIndexOf("metadata.json");
+  return metaIdx > 0 ? parts[metaIdx - 1] : null;
+}

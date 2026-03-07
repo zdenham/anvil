@@ -13,6 +13,16 @@ export const DirEntrySchema = z.object({
 });
 export type DirEntry = z.infer<typeof DirEntrySchema>;
 
+/**
+ * Schema for grep match results returned by fs_grep
+ */
+export const GrepMatchSchema = z.object({
+  path: z.string(),
+  line: z.string(),
+  lineNumber: z.number(),
+});
+export type GrepMatch = z.infer<typeof GrepMatchSchema>;
+
 // Re-export PathsInfo for backwards compatibility
 export type { PathsInfo };
 
@@ -150,6 +160,23 @@ export class FilesystemClient {
     worktreePath: string
   ): Promise<void> {
     await invoke("fs_git_worktree_remove", { repoPath, worktreePath });
+  }
+
+  /**
+   * Searches files matching a glob pattern under a directory for lines matching a regex.
+   * Single IPC call — all I/O happens in Rust.
+   */
+  async grep(dir: string, pattern: string, fileGlob: string): Promise<GrepMatch[]> {
+    const raw = await invoke<unknown>("fs_grep", { dir, pattern, fileGlob });
+    return z.array(GrepMatchSchema).parse(raw);
+  }
+
+  /**
+   * Reads multiple files in a single IPC call.
+   * Returns contents in the same order as paths. Null for files that fail to read.
+   */
+  async bulkRead(paths: string[]): Promise<(string | null)[]> {
+    return invoke<(string | null)[]>("fs_bulk_read", { paths });
   }
 
   /**

@@ -192,6 +192,69 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Result of a grep match across files
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrepMatch {
+    pub path: String,
+    pub line: String,
+    pub line_number: usize,
+}
+
+/// Searches files matching a glob pattern under a directory for lines matching a regex.
+/// All I/O happens in Rust — single IPC call for searching many files.
+pub fn grep(dir: &str, pattern: &str, file_glob: &str) -> Result<Vec<GrepMatch>, String> {
+    let re = regex::Regex::new(pattern).map_err(|e| format!("Invalid regex: {}", e))?;
+    let base = Path::new(dir);
+    let mut results = Vec::new();
+
+    let entries = fs::read_dir(base).map_err(|e| format!("Failed to read dir: {}", e))?;
+    for entry in entries.flatten() {
+        if !entry.path().is_dir() {
+            continue;
+        }
+        let file_path = entry.path().join(file_glob);
+        if !file_path.exists() {
+            continue;
+        }
+
+        if let Ok(contents) = fs::read_to_string(&file_path) {
+            for (i, line) in contents.lines().enumerate() {
+                if re.is_match(line) {
+                    results.push(GrepMatch {
+                        path: file_path.to_string_lossy().to_string(),
+                        line: line.to_string(),
+                        line_number: i + 1,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+/// Searches files matching a glob pattern under a directory for lines matching a regex.
+#[tauri::command]
+pub fn fs_grep(dir: String, pattern: String, file_glob: String) -> Result<Vec<GrepMatch>, String> {
+    grep(&dir, &pattern, &file_glob)
+}
+
+/// Reads multiple files in a single IPC call.
+/// Returns contents in the same order as paths. Null for files that fail to read.
+pub fn bulk_read(paths: &[String]) -> Vec<Option<String>> {
+    paths
+        .iter()
+        .map(|p| fs::read_to_string(p).ok())
+        .collect()
+}
+
+/// Reads multiple files in a single IPC call.
+#[tauri::command]
+pub fn fs_bulk_read(paths: Vec<String>) -> Vec<Option<String>> {
+    bulk_read(&paths)
+}
+
 /// Checks if a directory is a git repository
 #[tauri::command]
 pub fn fs_is_git_repo(path: String) -> bool {
