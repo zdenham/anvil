@@ -45,6 +45,9 @@ interface WindowStub {
   onFocusChanged: (
     handler: (event: { payload: boolean }) => void,
   ) => Promise<UnlistenFn>;
+  onDragDropEvent: (
+    handler: (event: { payload: { type: string; paths: string[] } }) => void,
+  ) => Promise<UnlistenFn>;
   close: () => Promise<void>;
   show: () => Promise<void>;
   hide: () => Promise<void>;
@@ -57,6 +60,7 @@ const noopWindow: WindowStub = {
   isFullscreen: async () => false,
   onResized: async () => () => {},
   onFocusChanged: async () => () => {},
+  onDragDropEvent: async () => () => {},
   close: async () => {},
   show: async () => {},
   hide: async () => {},

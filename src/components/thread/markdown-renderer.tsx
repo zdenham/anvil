@@ -212,7 +212,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   // When streaming, append a cursor character inline so it renders inside the last paragraph
   const processedContent = useMemo(() => {
     const linked = resolvedWorkingDirectory ? autoLinkFilePaths(content) : content;
-    return isStreaming ? linked + "●" : linked;
+    return isStreaming ? linked + " ●" : linked;
   }, [content, resolvedWorkingDirectory, isStreaming]);
 
   return (

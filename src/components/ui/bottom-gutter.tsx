@@ -13,7 +13,7 @@ export function BottomGutter() {
   return (
     <div className="flex items-center justify-between px-3 py-1 border-t border-dashed border-surface-600/40 bg-surface-900">
       <StatusLegend />
-      <QuickActionsPanel />
+      <QuickActionsPanel contextType="thread" />
     </div>
   );
 }

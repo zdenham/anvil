@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useCallback } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import { Link } from "@tiptap/extension-link";
@@ -32,8 +32,9 @@ interface TiptapEditorProps {
 }
 
 /** Type-safe accessor for tiptap-markdown storage */
-function getEditorMarkdown(editor: { storage: Record<string, unknown> }): string | undefined {
-  const store = editor.storage.markdown as { getMarkdown?: () => string } | undefined;
+function getEditorMarkdown(editor: Editor): string | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const store = (editor.storage as any).markdown as { getMarkdown?: () => string } | undefined;
   return store?.getMarkdown?.();
 }
 
