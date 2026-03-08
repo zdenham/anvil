@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2, ChevronRight, Copy } from "lucide-react";
+import { Archive, Loader2, ChevronRight, Copy, CircleDot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import {
@@ -10,6 +10,7 @@ import {
 import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
+import { useThreadStore } from "@/entities/threads/store";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 
@@ -288,6 +289,14 @@ export function ThreadItem({
     </ItemPreviewTooltip>
     {contextMenu.show && (
       <ContextMenu position={contextMenu.position} onClose={contextMenu.close}>
+        <ContextMenuItem
+          icon={CircleDot}
+          label="Mark Unread"
+          onClick={async () => {
+            await useThreadStore.getState().markThreadAsUnread(item.id);
+            contextMenu.close();
+          }}
+        />
         <ContextMenuItem
           icon={Copy}
           label="Copy Thread ID"

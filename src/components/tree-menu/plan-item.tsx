@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2, ChevronRight, Check, Trash2, GitBranch } from "lucide-react";
+import { Archive, Loader2, ChevronRight, Check, Trash2, GitBranch, CircleDot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import {
@@ -356,6 +356,14 @@ export function PlanItem({
             </>
           ) : (
             <>
+              <ContextMenuItem
+                icon={CircleDot}
+                label="Mark Unread"
+                onClick={async () => {
+                  await planService.markAsUnread(item.id);
+                  contextMenu.close();
+                }}
+              />
               <ContextMenuItem
                 icon={Archive}
                 label="Archive"

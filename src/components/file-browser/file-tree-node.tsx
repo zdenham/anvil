@@ -1,4 +1,5 @@
-import { ChevronRight, ChevronDown, Loader2, Copy, FileText, Folder, ExternalLink } from "lucide-react";
+import { useEffect } from "react";
+import { ChevronRight, ChevronDown, Loader2, Copy, FileText, Folder, FolderPlus, FilePlus, ExternalLink } from "lucide-react";
 import { Command } from "@tauri-apps/plugin-shell";
 import type { DirEntry } from "@/lib/filesystem-client";
 import { useChangesViewStore } from "@/stores/changes-view-store";
@@ -11,6 +12,12 @@ import {
   ContextMenuDivider,
   useContextMenu,
 } from "@/components/ui/context-menu";
+import { InlineCreationInput } from "./inline-creation-input";
+
+export interface CreatingEntry {
+  parentPath: string;
+  type: "file" | "directory";
+}
 
 interface FileTreeNodeProps {
   entries: DirEntry[];
@@ -18,6 +25,10 @@ interface FileTreeNodeProps {
   tree: FileTreeState;
   rootPath: string;
   onFileClick: (entry: DirEntry) => void;
+  creatingEntry?: CreatingEntry | null;
+  onCreateEntry?: (parentPath: string, type: "file" | "directory") => void;
+  onConfirmCreate?: (name: string) => void;
+  onCancelCreate?: () => void;
 }
 
 export function FileTreeNode({
@@ -26,9 +37,31 @@ export function FileTreeNode({
   tree,
   rootPath,
   onFileClick,
+  creatingEntry,
+  onCreateEntry,
+  onConfirmCreate,
+  onCancelCreate,
 }: FileTreeNodeProps) {
+  // Determine the parent path for entries at this depth.
+  // At depth 0, it's rootPath. Otherwise, derive from first entry's path.
+  const parentPath = depth === 0
+    ? rootPath
+    : entries.length > 0
+      ? entries[0].path.substring(0, entries[0].path.lastIndexOf("/"))
+      : null;
+
+  const showInlineInput = creatingEntry && parentPath && creatingEntry.parentPath === parentPath;
+
   return (
     <>
+      {showInlineInput && onConfirmCreate && onCancelCreate && (
+        <InlineCreationInput
+          type={creatingEntry.type}
+          depth={depth}
+          onConfirm={onConfirmCreate}
+          onCancel={onCancelCreate}
+        />
+      )}
       {entries.map((entry) => (
         <FileTreeEntry
           key={entry.path}
@@ -37,6 +70,10 @@ export function FileTreeNode({
           tree={tree}
           rootPath={rootPath}
           onFileClick={onFileClick}
+          creatingEntry={creatingEntry}
+          onCreateEntry={onCreateEntry}
+          onConfirmCreate={onConfirmCreate}
+          onCancelCreate={onCancelCreate}
         />
       ))}
     </>
@@ -51,10 +88,12 @@ function EntryContextMenu({
   entry,
   rootPath,
   menu,
+  onCreateEntry,
 }: {
   entry: DirEntry;
   rootPath: string;
   menu: ReturnType<typeof useContextMenu>;
+  onCreateEntry?: (parentPath: string, type: "file" | "directory") => void;
 }) {
   if (!menu.show) return null;
 
@@ -62,8 +101,34 @@ function EntryContextMenu({
     ? entry.path.slice(rootPath.length).replace(/^\//, "")
     : entry.name;
 
+  // For directories, create inside the directory. For files, create in the parent directory.
+  const targetDir = entry.isDirectory
+    ? entry.path
+    : entry.path.substring(0, entry.path.lastIndexOf("/"));
+
   return (
     <ContextMenu position={menu.position} onClose={menu.close}>
+      {onCreateEntry && (
+        <>
+          <ContextMenuItem
+            icon={FilePlus}
+            label="New File…"
+            onClick={() => {
+              menu.close();
+              onCreateEntry(targetDir, "file");
+            }}
+          />
+          <ContextMenuItem
+            icon={FolderPlus}
+            label="New Folder…"
+            onClick={() => {
+              menu.close();
+              onCreateEntry(targetDir, "directory");
+            }}
+          />
+          <ContextMenuDivider />
+        </>
+      )}
       <ContextMenuItem
         icon={Copy}
         label="Copy relative path"
@@ -112,6 +177,10 @@ interface FileTreeEntryProps {
   tree: FileTreeState;
   rootPath: string;
   onFileClick: (entry: DirEntry) => void;
+  creatingEntry?: CreatingEntry | null;
+  onCreateEntry?: (parentPath: string, type: "file" | "directory") => void;
+  onConfirmCreate?: (name: string) => void;
+  onCancelCreate?: () => void;
 }
 
 function FileTreeEntry({
@@ -120,6 +189,10 @@ function FileTreeEntry({
   tree,
   rootPath,
   onFileClick,
+  creatingEntry,
+  onCreateEntry,
+  onConfirmCreate,
+  onCancelCreate,
 }: FileTreeEntryProps) {
   const isExpanded = tree.expandedPaths.has(entry.path);
   const isLoading = tree.loadingPaths.has(entry.path);
@@ -137,6 +210,10 @@ function FileTreeEntry({
         rootPath={rootPath}
         onFileClick={onFileClick}
         children={children}
+        creatingEntry={creatingEntry}
+        onCreateEntry={onCreateEntry}
+        onConfirmCreate={onConfirmCreate}
+        onCancelCreate={onCancelCreate}
       />
     );
   }
@@ -158,7 +235,7 @@ function FileTreeEntry({
         <span className="truncate flex-1 text-left">{entry.name}</span>
         <DiffStats entryPath={entry.path} rootPath={rootPath} />
       </button>
-      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} />
+      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} onCreateEntry={onCreateEntry} />
     </>
   );
 }
@@ -200,6 +277,10 @@ interface FolderEntryProps {
   rootPath: string;
   onFileClick: (entry: DirEntry) => void;
   children: DirEntry[] | undefined;
+  creatingEntry?: CreatingEntry | null;
+  onCreateEntry?: (parentPath: string, type: "file" | "directory") => void;
+  onConfirmCreate?: (name: string) => void;
+  onCancelCreate?: () => void;
 }
 
 function FolderEntry({
@@ -211,9 +292,21 @@ function FolderEntry({
   rootPath,
   onFileClick,
   children,
+  creatingEntry,
+  onCreateEntry,
+  onConfirmCreate,
+  onCancelCreate,
 }: FolderEntryProps) {
   const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
   const menu = useContextMenu();
+
+  // Auto-expand when creating inside this folder
+  const isCreatingInside = creatingEntry?.parentPath === entry.path;
+  useEffect(() => {
+    if (isCreatingInside && !isExpanded) {
+      tree.toggleFolder(entry.path);
+    }
+  }, [isCreatingInside, isExpanded, tree, entry.path]);
 
   return (
     <>
@@ -231,15 +324,19 @@ function FolderEntry({
         )}
         <span className="truncate">{entry.name}</span>
       </button>
-      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} />
+      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} onCreateEntry={onCreateEntry} />
 
-      {isExpanded && children && (
+      {isExpanded && (
         <FileTreeNode
-          entries={children}
+          entries={children ?? []}
           depth={depth + 1}
           tree={tree}
           rootPath={rootPath}
           onFileClick={onFileClick}
+          creatingEntry={creatingEntry}
+          onCreateEntry={onCreateEntry}
+          onConfirmCreate={onConfirmCreate}
+          onCancelCreate={onCancelCreate}
         />
       )}
     </>

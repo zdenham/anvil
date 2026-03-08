@@ -341,11 +341,130 @@ textarea {
 
 @keyframes chevronPulse {
   0%, 100% {
-    opacity: 1;
+    color: #22c55e; /* green-500 */
   }
   50% {
-    opacity: 0.5;
+    color: #15803d; /* green-700 */
   }
+}
+
+/* CodeMirror 6 editor overrides to match app theme */
+.cm-editor-container .cm-editor {
+  height: 100%;
+  font-family: 'Atkinson Hyperlegible Mono', monospace;
+  font-size: 13px;
+  background-color: #141514; /* surface-900 — match content pane background */
+}
+
+.cm-editor-container .cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-editor-container .cm-scroller {
+  overflow: auto;
+}
+
+.cm-editor-container .cm-editor .cm-content {
+  caret-color: #ffffff; /* white cursor */
+}
+
+/* Override oneDark gutter background to match */
+.cm-editor-container .cm-editor .cm-gutters {
+  background-color: #141514; /* surface-900 */
+  border-right-color: #3a3c3a; /* surface-700 */
+}
+
+/* Active line background — subtle highlight */
+.cm-editor-container .cm-editor .cm-activeLine,
+.cm-editor-container .cm-editor .cm-activeLineGutter {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Tiptap WYSIWYG editor styles */
+.tiptap-editor .ProseMirror {
+  @apply prose prose-invert prose-sm prose-p:leading-relaxed max-w-none;
+  outline: none;
+  min-height: 100%;
+}
+
+/* Tighter list spacing — prose-sm defaults are too generous */
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  @apply my-1;
+}
+
+.tiptap-editor .ProseMirror li {
+  @apply my-0;
+}
+
+.tiptap-editor .ProseMirror li p {
+  @apply my-0;
+}
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  @apply text-surface-500 float-left h-0 pointer-events-none;
+}
+
+/* Code blocks — Shiki-highlighted with header bar */
+.tiptap-editor .tiptap-shiki-code-block {
+  @apply bg-zinc-900 border border-zinc-800 rounded-lg my-2 overflow-hidden;
+}
+
+.tiptap-editor .tiptap-code-content {
+  @apply p-3 overflow-x-auto;
+  font-family: 'Atkinson Hyperlegible Mono', monospace;
+  font-size: 13px;
+  white-space: pre;
+  outline: none;
+  margin: 0;
+}
+
+/* Inline code — amber-400 to match MarkdownRenderer */
+.tiptap-editor .ProseMirror code:not(.tiptap-code-content code) {
+  @apply text-amber-400 bg-zinc-800/50 px-1 py-0.5 rounded;
+  font-size: 0.875em;
+}
+
+/* Tables */
+.tiptap-editor table {
+  @apply border-collapse w-full my-2;
+}
+
+.tiptap-editor th {
+  @apply bg-zinc-800/50 border-b border-zinc-700 px-2 py-1.5 text-left font-medium text-zinc-300 text-sm;
+}
+
+.tiptap-editor td {
+  @apply border-b border-zinc-800 px-2 py-1.5 text-zinc-400 text-sm;
+}
+
+/* Task list checkboxes */
+.tiptap-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap-editor ul[data-type="taskList"] li {
+  @apply flex items-start gap-2;
+}
+
+.tiptap-editor ul[data-type="taskList"] li label input[type="checkbox"] {
+  @apply mt-1 accent-surface-400;
+}
+
+/* Links */
+.tiptap-editor a {
+  @apply text-zinc-200 underline;
+}
+
+.tiptap-editor a:hover {
+  @apply text-white;
+}
+
+/* Horizontal rule */
+.tiptap-editor hr {
+  @apply border-t border-dashed border-surface-700 my-3;
 }
 
 /* Find-in-page highlight styles (CSS Custom Highlight API) */

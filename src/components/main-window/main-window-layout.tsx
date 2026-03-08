@@ -161,7 +161,7 @@ export function MainWindowLayout() {
   // Priority: 1) Selected thread/plan's worktree, 2) Most recent worktree
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "n") {
         e.preventDefault();
 
         let repoId: string | undefined;

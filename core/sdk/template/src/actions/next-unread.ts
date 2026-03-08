@@ -2,7 +2,7 @@ export default {
   id: 'next-unread',
   title: 'Next Unread',
   description: 'Proceed to next unread item',
-  contexts: ['empty'],
+  contexts: ['thread', 'plan', 'empty'],
 
   async execute(_context, sdk) {
     await sdk.ui.navigateToNextUnread();
