@@ -12,9 +12,12 @@
  * - EmptyPaneContent: For creating new threads from the empty state
  */
 
-import { forwardRef } from "react";
+import { forwardRef, useCallback, useRef } from "react";
 import { ThreadInput, type ThreadInputRef } from "./thread-input";
 import { ThreadInputStatusBar } from "./thread-input-status-bar";
+import { AttachmentPreviewStrip } from "./attachment-preview-strip";
+import { useFileDrop } from "@/hooks/use-file-drop";
+import { useInputStore } from "@/stores/input-store";
 import type { PermissionModeId } from "@core/types/permissions.js";
 
 export interface ThreadInputSectionProps {
@@ -50,11 +53,28 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
     },
     ref
   ) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const content = useInputStore((s) => s.content);
+    const appendContent = useInputStore((s) => s.appendContent);
+
+    const handleFileDrop = useCallback(
+      (paths: string[]) => {
+        if (paths.length === 0) return;
+        const currentContent = content;
+        const prefix = currentContent && !currentContent.endsWith("\n") ? "\n" : "";
+        appendContent(prefix + paths.join("\n"));
+      },
+      [content, appendContent],
+    );
+
+    const isDragging = useFileDrop(containerRef, handleFileDrop);
+
     return (
-      <div className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-1 pb-1">
-        {/* Quick actions hidden for now - low usage
-        <QuickActionsPanel contextType={contextType} />
-        */}
+      <div
+        ref={containerRef}
+        className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-1 pb-1"
+      >
+        <AttachmentPreviewStrip content={content} />
 
         <ThreadInput
           ref={ref}
@@ -63,6 +83,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
           workingDirectory={workingDirectory ?? undefined}
           placeholder={placeholder}
           autoFocus={autoFocus}
+          className={isDragging ? "ring-2 ring-accent-500" : undefined}
           onCycleMode={onCycleMode}
           onCancel={onCancel}
         />

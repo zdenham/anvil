@@ -8,6 +8,7 @@ import { LoadingState } from "./loading-state";
 import { EmptyState } from "./empty-state";
 import { ErrorState } from "./error-state";
 import { StatusAnnouncement } from "./status-announcement";
+import { CancelledBanner } from "./cancelled-banner";
 
 
 type ThreadStatus = "idle" | "loading" | "running" | "completed" | "error" | "cancelled";
@@ -78,6 +79,9 @@ export const ThreadView = forwardRef<MessageListRef, ThreadViewProps>(function T
           turns={turns}
         />
       </ThreadProvider>
+
+      {/* Cancelled banner at end of thread */}
+      {status === "cancelled" && <CancelledBanner />}
 
       {/* Error banner for errors during streaming */}
       {status === "error" && messages.length > 0 && (

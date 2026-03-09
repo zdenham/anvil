@@ -670,6 +670,20 @@ export class MessageHandler {
             `[MessageHandler] handleForChildThread(${childThreadId}): tool_result toolUseId=${toolUseId}`
           );
         }
+
+        // Append user message to state so child thread has proper
+        // [user, assistant, user, assistant, ...] conversation structure
+        const userMsg = {
+          role: "user" as const,
+          content: msg.message.content,
+          id: nanoid(),
+        };
+        state.messages.push(userMsg);
+        hub?.sendActionForThread(childThreadId, {
+          type: "APPEND_USER_MESSAGE",
+          payload: { id: userMsg.id, content: userMsg.content },
+        });
+
         await this.emitChildThreadState(childThreadId, state);
         return true;
       }

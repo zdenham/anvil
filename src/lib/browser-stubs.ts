@@ -36,6 +36,12 @@ if (isTauri()) {
 
 type UnlistenFn = () => void;
 
+export type DragDropPayload =
+  | { type: "enter"; paths: string[]; position: { x: number; y: number } }
+  | { type: "over"; position: { x: number; y: number } }
+  | { type: "drop"; paths: string[]; position: { x: number; y: number } }
+  | { type: "leave" };
+
 interface WindowStub {
   label: string;
   setSize: (size: unknown) => Promise<void>;
@@ -46,7 +52,7 @@ interface WindowStub {
     handler: (event: { payload: boolean }) => void,
   ) => Promise<UnlistenFn>;
   onDragDropEvent: (
-    handler: (event: { payload: { type: string; paths: string[] } }) => void,
+    handler: (event: { payload: DragDropPayload }) => void,
   ) => Promise<UnlistenFn>;
   close: () => Promise<void>;
   show: () => Promise<void>;

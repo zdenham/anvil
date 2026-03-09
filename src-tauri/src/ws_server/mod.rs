@@ -32,9 +32,12 @@ use crate::terminal::TerminalState;
 
 use types::WsRequest;
 
-/// Create a new agent PID map (re-exported for `lib.rs`).
-pub fn dispatch_agent_pid_map() -> dispatch_agent::AgentPidMap {
-    dispatch_agent::new_pid_map()
+// Re-export for use by process_commands and lib.rs
+pub use dispatch_agent::AgentProcessMap;
+
+/// Create a new agent process map (re-exported for `lib.rs`).
+pub fn new_agent_process_map() -> AgentProcessMap {
+    dispatch_agent::new_process_map()
 }
 
 fn bind_addr() -> String {
@@ -49,7 +52,7 @@ pub struct WsState {
     pub file_watcher_state: FileWatcherState,
     pub diagnostic_config: DiagnosticConfigState,
     pub broadcaster: push::EventBroadcaster,
-    pub agent_pids: dispatch_agent::AgentPidMap,
+    pub agent_processes: dispatch_agent::AgentProcessMap,
 }
 
 /// Start the WebSocket + HTTP server on the configured port.

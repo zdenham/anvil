@@ -6,7 +6,7 @@ When cancelling a running agent, the thread stays in green "running" state. The 
 
 ## Root Cause
 
-**Duplicate signal handlers in `agents/src/runner.ts`** — two SIGTERM handlers are registered in sequence:
+**Duplicate signal handlers in** `agents/src/runner.ts` — two SIGTERM handlers are registered in sequence:
 
 ```
 Line 310:  process.on("SIGTERM", () => { cleanup(); process.exit(0); });    ← FIRES FIRST
@@ -34,17 +34,19 @@ Even if the root cause is fixed, there are defense gaps:
 ## Phases
 
 - [x] Phase 1: Fix the root cause (duplicate signal handlers)
+
 - [x] Phase 2: Frontend defense in depth
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
 ## Phase 1: Fix the root cause (duplicate signal handlers)
 
-**`agents/src/runner.ts`** — Remove the early SIGTERM/SIGINT handlers at lines 310-318.
+`agents/src/runner.ts` — Remove the early SIGTERM/SIGINT handlers at lines 310-318.
 
 Before:
+
 ```ts
 // Register cleanup handlers
 process.on("SIGTERM", () => {
@@ -61,12 +63,14 @@ process.on("exit", cleanup);
 ```
 
 After:
+
 ```ts
 // Hub disconnect on any exit path (natural, abort, crash)
 process.on("exit", cleanup);
 ```
 
 The `process.on("exit", cleanup)` stays — it handles hub disconnect for all exit paths. The SIGTERM/SIGINT handling is done properly by `setupSignalHandlers()` at line 358, which:
+
 - Aborts the controller → SDK throws AbortError
 - Catch block runs `strategy.cleanup(context, "cancelled")` → writes "cancelled" to metadata
 - Exits with code 130
@@ -74,6 +78,7 @@ The `process.on("exit", cleanup)` stays — it handles hub disconnect for all ex
 ### Verification
 
 After this fix, SIGTERM should produce:
+
 - Metadata on disk: `{ status: "cancelled" }`
 - Exit code: 130
 - Frontend: `code === 130` → `markCancelled()` → thread shows "cancelled" + banner
@@ -84,7 +89,7 @@ Three changes to handle edge cases (lost events, SIGKILL, agent crashes):
 
 ### 2a: Handle all termination signals in agent_close handler
 
-**`src/lib/agent-service.ts`** — in both `spawnSimpleAgent` and `resumeSimpleAgent` close handlers, expand the cancellation detection:
+`src/lib/agent-service.ts` — in both `spawnSimpleAgent` and `resumeSimpleAgent` close handlers, expand the cancellation detection:
 
 ```ts
 // Current: only handles exit code 130
@@ -102,7 +107,7 @@ This handles the SIGKILL escalation path (5s timeout → SIGKILL → signal 9, n
 
 ### 2b: Cancel fallback when process already gone
 
-**`src/lib/agent-service.ts`** — in `cancelAgent()`, when the invoke returns false (no process found), fall back to marking cancelled directly:
+`src/lib/agent-service.ts` — in `cancelAgent()`, when the invoke returns false (no process found), fall back to marking cancelled directly:
 
 ```ts
 export async function cancelAgent(threadId: string): Promise<boolean> {
@@ -131,7 +136,7 @@ This is the direct fix for the user's scenario: repeated cancel clicks finding n
 
 ### 2c: AGENT_COMPLETED safety net for stuck "running" status
 
-**`src/entities/threads/listeners.ts`** — in the `AGENT_COMPLETED` handler, after `refreshById`, check if the thread is still stuck in "running" and force a terminal status:
+`src/entities/threads/listeners.ts` — in the `AGENT_COMPLETED` handler, after `refreshById`, check if the thread is still stuck in "running" and force a terminal status:
 
 ```ts
 eventBus.on(EventName.AGENT_COMPLETED, async ({ threadId, exitCode }) => {
@@ -155,7 +160,7 @@ eventBus.on(EventName.AGENT_COMPLETED, async ({ threadId, exitCode }) => {
 ### Files to modify
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `agents/src/runner.ts` | Remove duplicate SIGTERM/SIGINT handlers (lines 310-318) |
 | `src/lib/agent-service.ts` | Expand signal detection in close handlers + cancel fallback |
 | `src/entities/threads/listeners.ts` | Safety net in AGENT_COMPLETED handler |

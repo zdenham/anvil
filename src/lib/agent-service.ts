@@ -795,8 +795,10 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
       agentProcesses.delete(options.threadId);
       cleanupSeqTracking(options.threadId);
 
-      if (code.code === 130) {
-        // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
+      // Detect cancellation: exit code 130 (SIGINT/SIGTERM handled), or signal-based
+      // termination (SIGKILL escalation after 5s timeout gives signal 9, no exit code)
+      const wasCancelled = code.code === 130 || code.signal === 15 || code.signal === 9;
+      if (wasCancelled) {
         await threadService.markCancelled(options.threadId);
         eventBus.emit(EventName.AGENT_CANCELLED, {
           threadId: options.threadId,
@@ -956,9 +958,11 @@ export async function resumeSimpleAgent(
       agentProcesses.delete(threadId);
       cleanupSeqTracking(threadId);
 
-      if (code.code === 130) {
-        // Cancelled via SIGINT/SIGTERM (exit code 128 + 2)
-        logger.info("[agent-service] resumeSimpleAgent: exit code 130, marking as cancelled");
+      // Detect cancellation: exit code 130 (SIGINT/SIGTERM handled), or signal-based
+      // termination (SIGKILL escalation after 5s timeout gives signal 9, no exit code)
+      const wasCancelled = code.code === 130 || code.signal === 15 || code.signal === 9;
+      if (wasCancelled) {
+        logger.info("[agent-service] resumeSimpleAgent: cancelled, marking thread", { exitCode: code.code, signal: code.signal });
         await threadService.markCancelled(threadId);
         eventBus.emit(EventName.AGENT_CANCELLED, {
           threadId,
@@ -1006,73 +1010,38 @@ export async function resumeSimpleAgent(
  * Cancels a running simple agent.
  */
 export async function cancelSimpleAgent(threadId: string): Promise<void> {
-  const pid = agentProcesses.get(threadId);
-  if (pid) {
-    await invoke("kill_process", { pid });
-    agentProcesses.delete(threadId);
-    activeSimpleProcesses.delete(threadId);
-    logger.info("[agent-service] Cancelled agent", { threadId });
-  }
+  await cancelAgent(threadId);
 }
 
 /**
- * Cancels a running agent.
- * Tries socket communication first (for graceful cancellation),
- * falls back to SIGTERM for process-based agents.
+ * Cancels a running agent via Rust-side SIGTERM with auto-escalation to SIGKILL.
  *
- * Socket-connected agents receive a cancel message and can clean up gracefully.
- * Process-based agents receive SIGTERM via OS signal.
+ * Uses the Rust AgentProcessMap (populated at spawn time) so cancellation doesn't
+ * depend on socket health or JS-side PID lookups. Rust sends SIGTERM, waits up to
+ * 5s for graceful exit, then escalates to SIGKILL if needed.
  *
- * @returns true if cancel was sent/process was killed, false if no agent found
+ * @returns true if cancel was initiated, false if no agent found
  */
 export async function cancelAgent(threadId: string): Promise<boolean> {
-  logger.info(`[agent-service] cancelAgent called for threadId=${threadId}`);
+  logger.info(`[agent-service] cancelAgent: ${threadId}`);
 
-  // Try socket first (preferred for graceful cancellation)
-  const isSocketConnected = await isAgentSocketConnected(threadId);
-  if (isSocketConnected) {
-    try {
-      await cancelAgentSocket(threadId);
-      logger.info(`[agent-service] Sent cancel via socket to agent ${threadId}`);
-      return true;
-    } catch (error) {
-      logger.warn(`[agent-service] Socket cancel failed, trying SIGTERM:`, error);
-      // Fall through to SIGTERM
-    }
-  }
+  const result = await invoke<boolean>("agent_cancel", { threadId });
 
-  // Fall back to SIGTERM for process-based agents
-  try {
-    // Get PID from thread metadata (persisted to disk)
+  agentProcesses.delete(threadId);
+  activeSimpleProcesses.delete(threadId);
+
+  if (!result) {
+    // Process already exited — agent_close may have been missed.
+    // Force-transition if thread is still "running".
     const thread = threadService.get(threadId);
-    if (!thread?.pid) {
-      logger.warn(`[agent-service] No PID found for thread: ${threadId}`);
-      return false;
+    if (thread?.status === "running") {
+      logger.warn(`[agent-service] cancelAgent: process gone but thread still running, forcing cancelled`);
+      await threadService.markCancelled(threadId);
+      eventBus.emit(EventName.AGENT_CANCELLED, { threadId });
     }
-
-    logger.info(`[agent-service] Found PID ${thread.pid} for thread ${threadId}, sending SIGTERM via Rust...`);
-
-    // Use Rust command to send SIGTERM - works from any window
-    const result = await invoke<boolean>("kill_process", { pid: thread.pid });
-
-    if (result) {
-      logger.info(`[agent-service] SIGTERM sent successfully to PID ${thread.pid}`);
-      // Clear PID from metadata (close handler will also do this, but clear eagerly)
-      await threadService.update(threadId, { pid: null });
-      // Clean up local references if we have them
-      agentProcesses.delete(threadId);
-      activeSimpleProcesses.delete(threadId);
-    } else {
-      logger.warn(`[agent-service] Process ${thread.pid} not found (already exited)`);
-      // Clear stale PID
-      await threadService.update(threadId, { pid: null });
-    }
-
-    return result;
-  } catch (error) {
-    logger.error(`[agent-service] Failed to cancel agent:`, error);
-    return false;
   }
+
+  return result;
 }
 
 /**
@@ -1138,4 +1107,3 @@ export async function sendQueuedMessage(
 ): Promise<string> {
   return await sendQueuedMessageSocket(threadId, message, messageId);
 }
-

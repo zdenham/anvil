@@ -4,6 +4,7 @@ import { useQuickActionExecutor } from '@/hooks/use-quick-action-executor.js';
 import { usePaneLayoutStore, getActiveTab } from '@/stores/pane-layout/store.js';
 import { useModalStore } from '@/stores/modal-store.js';
 import type { ContentPaneView } from '@/components/content-pane/types.js';
+import type { QuickActionContext, QuickActionMetadata } from '@/entities/quick-actions/types.js';
 
 /**
  * Check if the current view is a main view where quick actions are allowed.
@@ -13,6 +14,16 @@ import type { ContentPaneView } from '@/components/content-pane/types.js';
 function isMainView(view: ContentPaneView | undefined): boolean {
   if (!view) return false;
   return view.type === 'thread' || view.type === 'plan' || view.type === 'empty';
+}
+
+function viewTypeToActionContext(viewType: ContentPaneView['type']): QuickActionContext {
+  if (viewType === 'thread') return 'thread';
+  if (viewType === 'plan') return 'plan';
+  return 'empty';
+}
+
+function actionMatchesContext(action: QuickActionMetadata, context: QuickActionContext): boolean {
+  return action.contexts.includes(context) || action.contexts.includes('all');
 }
 
 /**
@@ -66,9 +77,10 @@ export function useQuickActionHotkeys() {
         }
       }
 
+      const context = viewTypeToActionContext(activeTab!.view.type);
       const hotkey = parseInt(e.key, 10);
       const action = Object.values(actions).find(
-        (a) => a.hotkey === hotkey && a.enabled
+        (a) => a.hotkey === hotkey && a.enabled && actionMatchesContext(a, context)
       );
 
       if (action) {

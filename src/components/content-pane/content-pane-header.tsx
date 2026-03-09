@@ -13,9 +13,10 @@
  * - Works identically in any container
  */
 
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import {
   StopCircle,
+  Loader2,
   X,
   GitCompare,
   MessageSquare,
@@ -208,9 +209,16 @@ function ThreadHeader({
     thread?.worktreeId
   );
 
-  // Cancel agent via service (service encapsulates communication)
+  // Cancel agent via service — optimistic UI swap to "cancelling" state
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Reset cancelling state when streaming stops
+  useEffect(() => {
+    if (!isStreaming) setIsCancelling(false);
+  }, [isStreaming]);
+
   const handleCancel = useCallback(async () => {
-    // Import cancelAgent from agent-service dynamically to avoid tight coupling
+    setIsCancelling(true);
     const { cancelAgent } = await import("@/lib/agent-service");
     await cancelAgent(threadId);
   }, [threadId]);
@@ -263,11 +271,16 @@ function ThreadHeader({
         {isStreaming && (
           <button
             onClick={handleCancel}
-            className="px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors flex items-center gap-1 text-xs"
-            aria-label="Cancel agent"
+            disabled={isCancelling}
+            className={`px-1.5 py-0.5 rounded transition-colors flex items-center gap-1 text-xs ${
+              isCancelling
+                ? "bg-surface-700/50 text-surface-400 cursor-not-allowed"
+                : "bg-red-600/20 text-red-400 hover:bg-red-600/30"
+            }`}
+            aria-label={isCancelling ? "Cancelling agent" : "Cancel agent"}
           >
-            <StopCircle size={12} />
-            Cancel
+            {isCancelling ? <Loader2 size={12} className="animate-spin" /> : <StopCircle size={12} />}
+            {isCancelling ? "Cancelling..." : "Cancel"}
           </button>
         )}
 

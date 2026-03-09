@@ -324,4 +324,213 @@ describe("FileBrowserPanel", () => {
       );
     });
   });
+
+  // =========================================================================
+  // File/Folder Creation
+  // =========================================================================
+
+  it("shows 'New File' and 'New Folder' in context menu", async () => {
+    render(
+      <FileBrowserPanel
+        rootPath="/project"
+        repoId="repo-1"
+        worktreeId="wt-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("App.tsx")).toBeInTheDocument();
+    });
+
+    fireEvent.contextMenu(screen.getByText("App.tsx"));
+
+    expect(screen.getByText("New File…")).toBeInTheDocument();
+    expect(screen.getByText("New Folder…")).toBeInTheDocument();
+  });
+
+  it("shows context menu items on folders too", async () => {
+    render(
+      <FileBrowserPanel
+        rootPath="/project"
+        repoId="repo-1"
+        worktreeId="wt-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("src")).toBeInTheDocument();
+    });
+
+    fireEvent.contextMenu(screen.getByText("src"));
+
+    expect(screen.getByText("New File…")).toBeInTheDocument();
+    expect(screen.getByText("New Folder…")).toBeInTheDocument();
+  });
+
+  it("shows inline input when 'New File' is clicked from context menu", async () => {
+    render(
+      <FileBrowserPanel
+        rootPath="/project"
+        repoId="repo-1"
+        worktreeId="wt-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("App.tsx")).toBeInTheDocument();
+    });
+
+    fireEvent.contextMenu(screen.getByText("App.tsx"));
+    fireEvent.click(screen.getByText("New File…"));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("filename")).toBeInTheDocument();
+    });
+  });
+
+  it("creates file via fs_write_file on Enter", async () => {
+    mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "fs_list_dir") {
+        const path = args?.path as string;
+        if (path === "/project") return makeDirEntries();
+        if (path === "/project/src") return makeNestedEntries();
+        throw new Error(`Directory not found: ${path}`);
+      }
+      if (cmd === "fs_write_file") return;
+      if (cmd === "web_log") return;
+      throw new Error(`Unmocked command: ${cmd}`);
+    });
+
+    render(
+      <FileBrowserPanel
+        rootPath="/project"
+        repoId="repo-1"
+        worktreeId="wt-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("App.tsx")).toBeInTheDocument();
+    });
+
+    // Right-click file → "New File…" → targets parent directory (/project)
+    fireEvent.contextMenu(screen.getByText("App.tsx"));
+    fireEvent.click(screen.getByText("New File…"));
+
+    const input = await screen.findByPlaceholderText("filename");
+    fireEvent.change(input, { target: { value: "new-file.ts" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("fs_write_file", {
+        path: "/project/new-file.ts",
+        contents: "",
+      });
+    });
+
+    // Should navigate to the new file
+    expect(navigationService.navigateToFile).toHaveBeenCalledWith(
+      "/project/new-file.ts",
+      { repoId: "repo-1", worktreeId: "wt-1" }
+    );
+  });
+
+  it("creates folder via fs_mkdir on Enter", async () => {
+    mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "fs_list_dir") {
+        const path = args?.path as string;
+        if (path === "/project") return makeDirEntries();
+        if (path === "/project/src") return makeNestedEntries();
+        throw new Error(`Directory not found: ${path}`);
+      }
+      if (cmd === "fs_mkdir") return;
+      if (cmd === "web_log") return;
+      throw new Error(`Unmocked command: ${cmd}`);
+    });
+
+    render(
+      <FileBrowserPanel
+        rootPath="/project"
+        repoId="repo-1"
+        worktreeId="wt-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("App.tsx")).toBeInTheDocument();
+    });
+
+    fireEvent.contextMenu(screen.getByText("App.tsx"));
+    fireEvent.click(screen.getByText("New Folder…"));
+
+    const input = await screen.findByPlaceholderText("folder name");
+    fireEvent.change(input, { target: { value: "new-folder" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("fs_mkdir", {
+        path: "/project/new-folder",
+      });
+    });
+
+    // Should NOT navigate for folder creation
+    expect(navigationService.navigateToFile).not.toHaveBeenCalled();
+  });
+
+  it("cancels creation on Escape", async () => {
+    render(
+      <FileBrowserPanel
+        rootPath="/project"
+        repoId="repo-1"
+        worktreeId="wt-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("App.tsx")).toBeInTheDocument();
+    });
+
+    fireEvent.contextMenu(screen.getByText("App.tsx"));
+    fireEvent.click(screen.getByText("New File…"));
+
+    const input = await screen.findByPlaceholderText("filename");
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText("filename")).not.toBeInTheDocument();
+    });
+  });
+
+  it("rejects names with path separators", async () => {
+    render(
+      <FileBrowserPanel
+        rootPath="/project"
+        repoId="repo-1"
+        worktreeId="wt-1"
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("App.tsx")).toBeInTheDocument();
+    });
+
+    fireEvent.contextMenu(screen.getByText("App.tsx"));
+    fireEvent.click(screen.getByText("New File…"));
+
+    const input = await screen.findByPlaceholderText("filename");
+    fireEvent.change(input, { target: { value: "bad/name.ts" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // Input should still be visible (creation not confirmed)
+    expect(screen.getByPlaceholderText("filename")).toBeInTheDocument();
+    // fs_write_file should NOT have been called
+    expect(mockInvoke).not.toHaveBeenCalledWith("fs_write_file", expect.anything());
+  });
 });

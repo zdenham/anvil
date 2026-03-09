@@ -156,11 +156,20 @@ export function setupThreadListeners(): void {
   // ═══════════════════════════════════════════════════════════════════════════
 
   // Agent completed - always refresh metadata, only refresh state if active
-  eventBus.on(EventName.AGENT_COMPLETED, async ({ threadId }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
+  eventBus.on(EventName.AGENT_COMPLETED, async ({ threadId, exitCode }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
     try {
       const store = useThreadStore.getState();
       // Always refresh metadata (lightweight)
       await threadService.refreshById(threadId);
+
+      // Safety net: if metadata on disk still says "running" after the process
+      // exited, the agent crashed before writing its final status. Force-transition.
+      const freshThread = threadService.get(threadId);
+      if (freshThread?.status === "running") {
+        logger.warn(`[ThreadListener] Thread ${threadId} still "running" after process exit (code=${exitCode}), forcing status`);
+        const forcedStatus = exitCode === 130 ? "cancelled" : exitCode === 0 ? "completed" : "error";
+        await threadService.setStatus(threadId, forcedStatus);
+      }
 
       // Mark thread as unread when it completes (user needs to see the results)
       await store.markThreadAsUnread(threadId);

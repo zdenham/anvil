@@ -13,6 +13,18 @@ function getPersistedState(): TreeMenuPersistedState {
   return { expandedSections, selectedItemId, pinnedSectionId, hiddenSectionIds };
 }
 
+/**
+ * Get default expansion state for a section/folder key.
+ * Repo/worktree sections default expanded (true).
+ * Plan folders, thread folders, and changes folders default collapsed (false).
+ */
+function getDefaultExpanded(sectionId: string): boolean {
+  if (sectionId.startsWith("plan:") || sectionId.startsWith("thread:") || sectionId.startsWith("changes:")) {
+    return false;
+  }
+  return true;
+}
+
 export const treeMenuService = {
   /**
    * Hydrates the tree menu store from disk.
@@ -54,7 +66,7 @@ export const treeMenuService = {
    * Writes to disk first, then updates store.
    */
   async toggleSection(sectionId: string): Promise<void> {
-    const current = useTreeMenuStore.getState().expandedSections[sectionId] ?? true;
+    const current = useTreeMenuStore.getState().expandedSections[sectionId] ?? getDefaultExpanded(sectionId);
     const newExpanded = !current;
 
     // Write to disk first (disk as truth)
@@ -81,7 +93,7 @@ export const treeMenuService = {
    * Expands a section.
    */
   async expandSection(sectionId: string): Promise<void> {
-    const current = useTreeMenuStore.getState().expandedSections[sectionId];
+    const current = useTreeMenuStore.getState().expandedSections[sectionId] ?? getDefaultExpanded(sectionId);
     if (current === true) return; // Already expanded
 
     const newState: TreeMenuPersistedState = {
@@ -106,7 +118,7 @@ export const treeMenuService = {
    * Collapses a section.
    */
   async collapseSection(sectionId: string): Promise<void> {
-    const current = useTreeMenuStore.getState().expandedSections[sectionId];
+    const current = useTreeMenuStore.getState().expandedSections[sectionId] ?? getDefaultExpanded(sectionId);
     if (current === false) return; // Already collapsed
 
     const newState: TreeMenuPersistedState = {

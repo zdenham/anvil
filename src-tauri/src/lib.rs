@@ -757,6 +757,8 @@ pub fn run() {
     agent_hub.set_ws_broadcaster(broadcaster.clone());
     // Clone for Tauri managed state so any module with AppHandle can broadcast
     let managed_broadcaster = broadcaster.clone();
+    // Shared agent process map — Rust-side PID tracking for reliable cancellation
+    let agent_processes = ws_server::new_agent_process_map();
     let ws_state = Arc::new(ws_server::WsState {
         lock_manager: lock_manager.clone(),
         terminal_state: terminal_state.clone(),
@@ -764,7 +766,7 @@ pub fn run() {
         file_watcher_state: file_watcher_state.clone(),
         diagnostic_config: diagnostic_config.clone(),
         broadcaster,
-        agent_pids: ws_server::dispatch_agent_pid_map(),
+        agent_processes: agent_processes.clone(),
     });
 
     // Spawn WS server on a background tokio task
@@ -791,7 +793,8 @@ pub fn run() {
         .manage(terminal_state)
         .manage(file_watcher_state)
         .manage(profiling::ProfilingState(std::sync::Mutex::new(false)))
-        .manage(managed_broadcaster);
+        .manage(managed_broadcaster)
+        .manage(agent_processes);
 
     builder
         .on_window_event(|window, event| {
@@ -959,6 +962,7 @@ pub fn run() {
             mort_commands::get_agent_types,
             // Process commands
             process_commands::kill_process,
+            process_commands::agent_cancel,
             // Shell commands
             shell::run_internal_update,
             // Thread commands

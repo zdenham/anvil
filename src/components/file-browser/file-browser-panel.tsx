@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { FilesystemClient, type DirEntry } from "@/lib/filesystem-client";
 import { navigationService } from "@/stores/navigation-service";
-import { useChangesViewStore } from "@/stores/changes-view-store";
 import { logger } from "@/lib/logger-client";
+import { useChangesViewStore } from "@/stores/changes-view-store";
 import { useFileTree, type FileTreeState } from "./use-file-tree";
 import { FileBrowserHeader } from "./file-browser-header";
-import { FileTreeNode } from "./file-tree-node";
+import { FileTreeNode, type CreatingEntry } from "./file-tree-node";
+import { InlineCreationInput } from "./inline-creation-input";
 import { FileBrowserError } from "./file-browser-error";
 import { filterChangedEntries } from "./filter-changed-files";
 
@@ -29,40 +30,9 @@ export function FileBrowserPanel({
 }: FileBrowserPanelProps) {
   const tree = useFileTree(rootPath, worktreeId);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  // Inline file/folder creation state
-  const [creatingEntry, setCreatingEntry] = useState<{
-    parentPath: string;
-    type: "file" | "directory";
-  } | null>(null);
-
-  const handleCreateEntry = useCallback((parentPath: string, type: "file" | "directory") => {
-    setCreatingEntry({ parentPath, type });
-  }, []);
-
-  const handleCancelCreate = useCallback(() => {
-    setCreatingEntry(null);
-  }, []);
-
-  const handleConfirmCreate = useCallback(async (name: string) => {
-    if (!creatingEntry) return;
-    const fullPath = `${creatingEntry.parentPath}/${name}`;
-    try {
-      if (creatingEntry.type === "directory") {
-        await fsClient.mkdir(fullPath);
-      } else {
-        await fsClient.writeFile(fullPath, "");
-      }
-      setCreatingEntry(null);
-      tree.refreshAll();
-      if (creatingEntry.type === "file") {
-        navigationService.navigateToFile(fullPath, { repoId, worktreeId });
-      }
-    } catch (err) {
-      logger.error("[FileBrowserPanel] Failed to create entry:", err);
-      setCreatingEntry(null);
-    }
-  }, [creatingEntry, tree.refreshAll, repoId, worktreeId]);
+  const [creatingEntry, setCreatingEntry] = useState<CreatingEntry>(null);
+  const creatingEntryRef = useRef(creatingEntry);
+  creatingEntryRef.current = creatingEntry;
 
   // Changes view state from cross-component store
   const activeWorktreeId = useChangesViewStore((s) => s.activeWorktreeId);
@@ -114,10 +84,10 @@ export function FileBrowserPanel({
     };
   }, [isChangesViewActive, tree, changedAbsolutePaths]);
 
-  // Keyboard: Escape closes panel, Cmd+Shift+N creates file at root
+  // Keyboard: Escape closes panel (unless in creation mode)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !creatingEntryRef.current) {
         onClose();
       }
     };
@@ -127,7 +97,7 @@ export function FileBrowserPanel({
     return () => el?.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Cmd+Shift+N — create new file at root (document-level so it works even without panel focus)
+  // Keyboard: Cmd+Shift+N creates new file at root
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "n") {
@@ -156,6 +126,33 @@ export function FileBrowserPanel({
     [isChangesViewActive, rootPath, repoId, worktreeId, selectFile]
   );
 
+  const handleStartCreate = useCallback((parentPath: string, type: "file" | "directory") => {
+    setCreatingEntry({ parentPath, type });
+    if (parentPath !== rootPath && !tree.expandedPaths.has(parentPath)) {
+      tree.toggleFolder(parentPath);
+    }
+  }, [rootPath, tree]);
+
+  const handleConfirmCreate = useCallback(async (name: string) => {
+    if (!creatingEntry) return;
+    const fullPath = `${creatingEntry.parentPath}/${name}`;
+    try {
+      if (creatingEntry.type === "file") {
+        await fsClient.writeFile(fullPath, "");
+        navigationService.navigateToFile(fullPath, { repoId, worktreeId });
+      } else {
+        await fsClient.mkdir(fullPath);
+      }
+    } catch (err) {
+      logger.error("[FileBrowserPanel] Failed to create entry:", err);
+    }
+    setCreatingEntry(null);
+  }, [creatingEntry, repoId, worktreeId]);
+
+  const handleCancelCreate = useCallback(() => {
+    setCreatingEntry(null);
+  }, []);
+
   // Error state — matches StalePlanView pattern
   if (tree.error) {
     return (
@@ -175,10 +172,20 @@ export function FileBrowserPanel({
         onClose={onClose}
       />
       <div className="overflow-y-auto flex-1 py-1">
+        {creatingEntry?.parentPath === rootPath && (
+          <InlineCreationInput
+            type={creatingEntry.type}
+            depth={0}
+            onConfirm={handleConfirmCreate}
+            onCancel={handleCancelCreate}
+          />
+        )}
         {filteredTree.rootChildren.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-surface-500 text-xs">
-            {isChangesViewActive ? "No changed files" : "Empty directory"}
-          </div>
+          !creatingEntry && (
+            <div className="flex items-center justify-center h-full text-surface-500 text-xs">
+              {isChangesViewActive ? "No changed files" : "Empty directory"}
+            </div>
+          )
         ) : (
           <FileTreeNode
             entries={filteredTree.rootChildren}
@@ -187,7 +194,7 @@ export function FileBrowserPanel({
             rootPath={rootPath}
             onFileClick={handleFileClick}
             creatingEntry={creatingEntry}
-            onCreateEntry={handleCreateEntry}
+            onStartCreate={handleStartCreate}
             onConfirmCreate={handleConfirmCreate}
             onCancelCreate={handleCancelCreate}
           />

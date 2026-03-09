@@ -16,10 +16,10 @@ When `mort-repl` is invoked via Bash, the UI shows it as a generic bash command 
 
 ## Phases
 
-- [ ] Detect mort-repl in BashToolBlock and render syntax-highlighted code
-- [ ] Suppress error/denial UI for mort-repl results
-- [ ] Update repl hook deny message to instruct agent to treat as success
-- [ ] Add tests
+- [x] Detect mort-repl in BashToolBlock and render syntax-highlighted code
+- [x] Suppress error/denial UI for mort-repl results
+- [x] Update repl hook deny message to instruct agent to treat as success
+- [x] Add tests
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

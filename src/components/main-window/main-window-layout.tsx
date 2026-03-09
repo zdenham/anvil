@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { listen } from "@/lib/events";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
-import { StatusLegend } from "@/components/ui/status-legend";
+import { BottomGutter } from "@/components/ui/bottom-gutter";
 import { TreeMenu, TreePanelHeader } from "@/components/tree-menu";
 import { SplitLayoutContainer } from "@/components/split-layout";
 import { CommandPalette } from "@/components/command-palette";
@@ -42,6 +42,7 @@ import { createThread } from "@/lib/thread-creation-service";
 import { loadSettings } from "@/lib/app-data-store";
 
 import { useTabSelectionSync } from "@/hooks/use-tab-selection-sync";
+import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useRightPanel } from "@/hooks/use-right-panel";
 import { FileBrowserPanel } from "@/components/file-browser/file-browser-panel";
@@ -70,8 +71,7 @@ export function MainWindowLayout() {
   // Sync sidebar tree selection when the active tab changes (tab clicks, not just navigation)
   useTabSelectionSync();
 
-  // Quick action hotkeys disabled - low usage
-  // useQuickActionHotkeys();
+  useQuickActionHotkeys();
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Right Panel (file browser / search)
@@ -775,9 +775,6 @@ export function MainWindowLayout() {
               fileBrowserWorktreeId={rightPanel.fileBrowserWorktreeId}
               className="flex-1 min-h-0"
             />
-            <div className="px-3 py-2 border-t border-surface-800">
-              <StatusLegend />
-            </div>
           </ResizablePanel>}
 
           {/* Center Panel: Split Layout */}
@@ -823,6 +820,9 @@ export function MainWindowLayout() {
             </ResizablePanel>
           )}
         </div>
+
+        {/* Bottom gutter: status legend + quick actions */}
+        <BottomGutter />
 
         {/* Debug Panel (Cmd+Shift+D) */}
         {debugPanelOpen && (

@@ -1,26 +1,26 @@
 /**
  * FileContent
  *
- * Displays a file from disk with syntax highlighting or media preview.
+ * Displays a file from disk with editing via CodeMirror 6.
  * Reads fresh from disk on every mount (no caching).
  *
  * - Media files (images, video, audio, PDF): rendered via asset protocol URL
- * - SVG files: rendered visually with source toggle
+ * - SVG files: rendered visually with source toggle (source = CM6 editor)
  * - Markdown files: rendered via MarkdownRenderer with source toggle
- * - Code/text files: line-numbered, syntax-highlighted via Shiki
+ * - Code/text files: editable via CodeMirror 6
  * - Binary/missing files: error message
  */
 
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { convertFileSrc } from "@/lib/browser-stubs";
 import { FilesystemClient } from "@/lib/filesystem-client";
 import { getLanguageFromPath } from "@/lib/language-detection";
 import { getFileCategory, type FileCategory } from "@/lib/file-categories";
-import { useCodeHighlight } from "@/hooks/use-code-highlight";
-import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
+import { CodeMirrorEditor } from "./code-mirror-editor";
+import { TiptapEditor } from "./tiptap-editor";
 import { MediaPreview } from "./media-preview";
+import { useFileDirtyStore } from "@/stores/file-dirty-store";
 import { logger } from "@/lib/logger-client";
-import type { ThemedToken } from "@/lib/syntax-highlighter";
 
 const filesystemClient = new FilesystemClient();
 
@@ -43,22 +43,32 @@ function isBinaryContent(content: string): boolean {
 export function FileContent({ filePath, lineNumber }: FileContentProps) {
   const [fileState, setFileState] = useState<FileState>({ status: "loading" });
   const [viewMode, setViewMode] = useState<"rendered" | "source">("rendered");
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [savedContent, setSavedContent] = useState<string>("");
+  const [currentContent, setCurrentContent] = useState<string>("");
+  const setDirty = useFileDirtyStore((s) => s.setDirty);
+
+  const isDirty = savedContent !== currentContent;
+
+  // Sync dirty state to global store for tab indicator
+  useEffect(() => {
+    setDirty(filePath, isDirty);
+    return () => setDirty(filePath, false);
+  }, [filePath, isDirty, setDirty]);
 
   useEffect(() => {
     setFileState({ status: "loading" });
     setViewMode("rendered");
+    setSavedContent("");
+    setCurrentContent("");
 
     const category = getFileCategory(filePath);
 
-    // Non-text media files skip readFile entirely — use asset protocol
     if (category !== "text" && category !== "svg") {
       const assetUrl = convertFileSrc(filePath);
       setFileState({ status: "media", category, assetUrl });
       return;
     }
 
-    // SVG: prepare asset URL for rendered mode, but also load text for source mode
     const assetUrl = category === "svg" ? convertFileSrc(filePath) : null;
     let cancelled = false;
 
@@ -77,12 +87,13 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
         } else {
           const language = getLanguageFromPath(filePath);
           setFileState({ status: "loaded", content, language });
+          setSavedContent(content);
+          setCurrentContent(content);
         }
       } catch (err) {
         if (cancelled) return;
         logger.error("[FileContent] Failed to read file:", err);
 
-        // SVG can still render visually even if text read fails
         if (assetUrl) {
           setFileState({ status: "media", category: "svg", assetUrl });
         } else {
@@ -95,26 +106,18 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
     return () => { cancelled = true; };
   }, [filePath]);
 
-  // Scroll to the target line after content renders
-  useEffect(() => {
-    if (!lineNumber || fileState.status !== "loaded") return;
+  const handleSave = useCallback(async (content: string) => {
+    try {
+      await filesystemClient.writeFile(filePath, content);
+      setSavedContent(content);
+    } catch (err) {
+      logger.error("[FileContent] Failed to save file:", err);
+    }
+  }, [filePath]);
 
-    // Allow a frame for the DOM to render before scrolling
-    const frameId = requestAnimationFrame(() => {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      const targetEl = container.querySelector(
-        `[data-line-number="${lineNumber}"]`
-      ) as HTMLElement | null;
-
-      if (targetEl) {
-        targetEl.scrollIntoView({ block: "center", behavior: "smooth" });
-      }
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [lineNumber, fileState.status]);
+  const handleChange = useCallback((content: string) => {
+    setCurrentContent(content);
+  }, []);
 
   if (fileState.status === "loading") {
     return <CenteredMessage>Loading...</CenteredMessage>;
@@ -132,8 +135,13 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
         filePath={filePath}
         viewMode={viewMode}
         renderToggle={() => <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />}
-        renderHighlighted={(content, lang) => (
-          <HighlightedFileView content={content} language={lang} />
+        renderSource={(content, lang) => (
+          <CodeMirrorEditor
+            value={content}
+            language={lang}
+            onSave={(c) => handleSave(c)}
+            onChange={handleChange}
+          />
         )}
       />
     );
@@ -142,25 +150,27 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
   const { content, language } = fileState;
   const isMarkdown = language === "markdown" || language === "mdx";
 
-  if (isMarkdown && viewMode === "rendered") {
+  if (isMarkdown) {
     return (
       <div data-testid="file-content" className="flex flex-col h-full">
-        <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="max-w-[900px] mx-auto p-4">
-            <MarkdownRenderer content={content} />
-          </div>
-        </div>
+        <TiptapEditor
+          initialContent={currentContent}
+          onChange={handleChange}
+          onSave={handleSave}
+        />
       </div>
     );
   }
 
   return (
     <div data-testid="file-content" className="flex flex-col h-full">
-      {isMarkdown && <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />}
-      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
-        <HighlightedFileView content={content} language={language} />
-      </div>
+      <CodeMirrorEditor
+        value={content}
+        language={language}
+        lineNumber={lineNumber}
+        onSave={handleSave}
+        onChange={handleChange}
+      />
     </div>
   );
 }
@@ -183,7 +193,7 @@ function ViewModeToggle({
   onToggle: (mode: "rendered" | "source") => void;
 }) {
   return (
-    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-surface-700">
+    <div className="flex items-center gap-1 px-3 py-1.5">
       <button
         onClick={() => onToggle("rendered")}
         className={`px-2 py-0.5 text-xs rounded transition-colors ${
@@ -204,85 +214,6 @@ function ViewModeToggle({
       >
         Source
       </button>
-    </div>
-  );
-}
-
-/** Renders syntax-highlighted file content with line numbers */
-const HighlightedFileView = memo(function HighlightedFileView({
-  content,
-  language,
-}: {
-  content: string;
-  language: string;
-}) {
-  const { tokens, isLoading } = useCodeHighlight(content, language);
-  const lines = content.split("\n");
-  const gutterWidth = `${Math.max(String(lines.length).length * 0.6 + 0.5, 2)}rem`;
-
-  if (isLoading || !tokens) {
-    return <PlainFileView lines={lines} gutterWidth={gutterWidth} />;
-  }
-
-  return (
-    <div className="font-mono text-sm leading-relaxed text-surface-300">
-      {tokens.map((lineTokens, i) => (
-        <FileLine key={i} lineNumber={i + 1} tokens={lineTokens} gutterWidth={gutterWidth} />
-      ))}
-    </div>
-  );
-});
-
-/** Single highlighted line with line number gutter */
-const FileLine = memo(function FileLine({
-  lineNumber,
-  tokens,
-  gutterWidth,
-}: {
-  lineNumber: number;
-  tokens: ThemedToken[];
-  gutterWidth: string;
-}) {
-  return (
-    <div data-line-number={lineNumber} className="flex hover:bg-surface-800/50 transition-colors duration-300">
-      <span
-        className="text-zinc-500 select-none text-right pr-2 font-mono text-xs shrink-0 pt-px"
-        style={{ width: gutterWidth }}
-      >
-        {lineNumber}
-      </span>
-      <code className="flex-1 px-2 whitespace-pre">
-        {tokens.length === 0 ? (
-          <span>&nbsp;</span>
-        ) : (
-          tokens.map((token, j) => (
-            <span key={j} style={{ color: token.color }}>
-              {token.content}
-            </span>
-          ))
-        )}
-      </code>
-    </div>
-  );
-});
-
-/** Fallback: plain text with line numbers while highlighting loads */
-function PlainFileView({ lines, gutterWidth }: { lines: string[]; gutterWidth: string }) {
-  return (
-    <div className="font-mono text-sm leading-relaxed">
-      {lines.map((line, i) => (
-        <div key={i} data-line-number={i + 1} className="flex hover:bg-surface-800/50 transition-colors duration-300">
-          <span
-            className="text-zinc-500 select-none text-right pr-2 font-mono text-xs shrink-0 pt-px"
-            style={{ width: gutterWidth }}
-          >
-            {i + 1}
-          </span>
-          <code className="flex-1 px-2 whitespace-pre text-zinc-300">
-            {line || "\u00a0"}
-          </code>
-        </div>
-      ))}
     </div>
   );
 }

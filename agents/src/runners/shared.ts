@@ -45,6 +45,7 @@ import type { PermissionGate } from "../lib/permission-gate.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
 import { createCommentResolutionHook } from "../hooks/comment-resolution-hook.js";
 import { createReplHook } from "../hooks/repl-hook.js";
+import { createSafeGitHook } from "../hooks/safe-git-hook.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -543,6 +544,14 @@ export async function runAgentLoop(
             },
           ]
         : []),
+      // Safe git hook — blocks destructive git commands in the main worktree
+      // Must be before all other Bash hooks
+      {
+        matcher: "Bash" as const,
+        hooks: [
+          createSafeGitHook(),
+        ],
+      },
       // REPL hook — intercepts mort-repl Bash calls for programmatic agent orchestration
       // Must be before comment resolution and permission hooks
       {

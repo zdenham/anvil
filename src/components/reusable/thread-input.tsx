@@ -6,6 +6,7 @@ import { CursorBoundary } from "@/lib/cursor-boundary";
 import { usePromptHistory } from "@/hooks/use-prompt-history";
 import { useInputStore } from "@/stores/input-store";
 import { usePaneGroupMaybe } from "@/components/split-layout/pane-group-context";
+import { cn } from "@/lib/utils";
 
 interface ThreadInputProps {
   onSubmit: (prompt: string) => void;
@@ -13,6 +14,7 @@ interface ThreadInputProps {
   workingDirectory?: string;
   placeholder?: string;
   autoFocus?: boolean;
+  className?: string;
   /** Called when Shift+Tab is pressed to cycle permission mode */
   onCycleMode?: () => void;
   /** Called when cancel button is clicked (shown when agent is running) */
@@ -31,6 +33,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   workingDirectory,
   placeholder,
   autoFocus,
+  className: extraClassName,
   onCycleMode,
   onCancel,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -184,7 +187,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           variant="compact"
           autoFocus={autoFocus}
           // disableDropdown defaults to false, so dropdown renders for @ tags
-          className="min-h-[40px] max-h-[120px] flex-1 border-surface-600 focus:border-secondary-500 disabled:opacity-60 disabled:cursor-not-allowed placeholder:text-surface-500"
+          className={cn("min-h-[40px] max-h-[120px] flex-1 border-surface-600 focus:border-secondary-500 disabled:opacity-60 disabled:cursor-not-allowed placeholder:text-surface-500", extraClassName)}
           aria-label="Message input"
           aria-expanded={triggerState?.isActive}
           aria-autocomplete="list"

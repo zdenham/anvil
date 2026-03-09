@@ -116,13 +116,62 @@ describe("createReplHook", () => {
       const result = await hook(makeHookInput('mort-repl "return 42"'));
 
       expect(result).toEqual({
-        reason: "mort-repl result:\n42",
+        reason: expect.stringContaining("mort-repl result:\n42"),
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
           permissionDecision: "deny",
           permissionDecisionReason: "mort-repl result:\n42",
         },
       });
+    });
+
+    it("includes system instruction prefix for successful results", async () => {
+      mockExtractCode.mockReturnValue("return 42");
+      mockExecute.mockResolvedValue({
+        success: true,
+        value: 42,
+        logs: [],
+        durationMs: 5,
+      });
+      mockFormatResult.mockReturnValue("mort-repl result:\n42");
+
+      const hook = createReplHook({
+        context: mockContext,
+        emitEvent: mockEmitEvent,
+      });
+
+      const result = (await hook(makeHookInput('mort-repl "return 42"'))) as {
+        reason: string;
+      };
+
+      expect(result.reason).toMatch(
+        /\[System:.*successful.*\]\n\nmort-repl result:\n42/,
+      );
+    });
+
+    it("includes system instruction prefix for error results", async () => {
+      mockExtractCode.mockReturnValue("throw new Error('oops')");
+      mockExecute.mockResolvedValue({
+        success: false,
+        value: undefined,
+        logs: [],
+        error: "oops",
+        durationMs: 2,
+      });
+      mockFormatResult.mockReturnValue("mort-repl error:\noops");
+
+      const hook = createReplHook({
+        context: mockContext,
+        emitEvent: mockEmitEvent,
+      });
+
+      const result = (await hook(
+        makeHookInput('mort-repl "throw new Error(\'oops\')"'),
+      )) as { reason: string };
+
+      expect(result.reason).toMatch(
+        /\[System:.*error.*not as a permission denial.*\]\n\nmort-repl error:\noops/,
+      );
     });
 
     it("deny response has correct hookEventName and permissionDecision", async () => {

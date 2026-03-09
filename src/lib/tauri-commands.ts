@@ -84,7 +84,7 @@ export const gitCommands = {
     invoke<void>("git_create_branch", { repoPath, branchName, baseBranch }),
 
   /**
-   * Checkout a branch in a worktree (with force to discard uncommitted changes).
+   * Checkout a branch in a worktree.
    */
   checkoutBranch: (worktreePath: string, branch: string) =>
     invoke<void>("git_checkout_branch", { worktreePath, branch }),

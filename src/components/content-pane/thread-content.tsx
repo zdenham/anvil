@@ -171,10 +171,6 @@ export function ThreadContent({
   // Permission mode from thread metadata (defaults to "implement")
   const permissionMode: PermissionModeId = activeMetadata?.permissionMode ?? "implement";
 
-  const handleCancel = useCallback(async () => {
-    await cancelAgent(threadId);
-  }, [threadId]);
-
   // Cycle to next permission mode: implement -> plan -> approve -> implement
   const handleCycleMode = useCallback(async () => {
     if (!threadId) return;
@@ -203,6 +199,21 @@ export function ThreadContent({
       : entityStatus === "cancelled"
         ? "cancelled"
         : entityStatus;
+
+  // Optimistic cancelling state — shows feedback immediately on cancel click
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Reset isCancelling when thread transitions out of running state
+  useEffect(() => {
+    if (viewStatus !== "running") {
+      setIsCancelling(false);
+    }
+  }, [viewStatus]);
+
+  const handleCancel = useCallback(async () => {
+    setIsCancelling(true);
+    await cancelAgent(threadId);
+  }, [threadId]);
 
   // Determine if we can queue messages (agent is running) or resume (agent is idle/completed)
   const canQueueMessages = viewStatus === "running";
@@ -404,11 +415,12 @@ export function ThreadContent({
             onSubmit={handleSubmit}
             workingDirectory={workingDirectory}
             contextType={messages.length === 0 ? "empty" : "thread"}
-            placeholder={canQueueMessages ? "Queue a follow-up message..." : undefined}
+            placeholder={isCancelling ? "Cancelling..." : canQueueMessages ? "Queue a follow-up message..." : undefined}
             threadId={threadId}
             permissionMode={permissionMode}
             onCycleMode={handleCycleMode}
-            onCancel={canQueueMessages ? handleCancel : undefined}
+            onCancel={canQueueMessages && !isCancelling ? handleCancel : undefined}
+            disabled={isCancelling}
           />
         )}
 

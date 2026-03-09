@@ -7,6 +7,7 @@ import { QuickActionListItem } from './quick-action-list-item.js';
 import { QuickActionEditModal } from './quick-action-edit-modal.js';
 import { Button } from '@/components/reusable/Button.js';
 import { toast } from '@/lib/toast.js';
+import { buildQuickActions } from '@/lib/quick-actions-build.js';
 
 export function QuickActionsSettings() {
   const actionsRecord = useQuickActionsStore((s) => s.actions);
@@ -50,12 +51,14 @@ export function QuickActionsSettings() {
   const handleRebuild = async () => {
     setIsRebuilding(true);
     try {
-      // This would invoke a Tauri command to run npm build
-      // For now, just refresh the manifest
-      await quickActionService.reloadManifest();
-      toast.success('Actions reloaded');
+      const result = await buildQuickActions();
+      if (result.success) {
+        toast.success('Actions rebuilt');
+      } else {
+        toast.error(`Build failed: ${result.error}`);
+      }
     } catch (e) {
-      toast.error(`Failed to reload: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Failed to build: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setIsRebuilding(false);
     }
@@ -77,7 +80,7 @@ export function QuickActionsSettings() {
           onClick={handleRebuild}
           disabled={isRebuilding}
         >
-          {isRebuilding ? 'Reloading...' : 'Reload Actions'}
+          {isRebuilding ? 'Rebuilding...' : 'Rebuild Actions'}
         </Button>
       </div>
 
@@ -86,7 +89,7 @@ export function QuickActionsSettings() {
           Actions are defined in <code className="text-accent-400">~/.mort/quick-actions/src/actions/</code>
         </p>
         <p className="mt-1">
-          After editing, run <code className="text-accent-400">npm run build</code> then click "Reload Actions"
+          After editing, click "Rebuild Actions" to compile and reload.
         </p>
       </div>
 

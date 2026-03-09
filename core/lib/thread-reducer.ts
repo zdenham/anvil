@@ -359,7 +359,8 @@ function applyError(
 
 function applyCancelled(state: ThreadState): ThreadState {
   const toolStates = markOrphanedTools(state.toolStates);
-  return { ...state, toolStates, status: "cancelled" };
+  // Clear wipMap to commit all WIP streaming content — partial but valuable
+  return { ...state, toolStates, wipMap: {}, status: "cancelled" };
 }
 
 function markOrphanedTools(

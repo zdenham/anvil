@@ -10,6 +10,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { X, Pause } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
+import { useFileDirtyStore } from "@/stores/file-dirty-store";
 import { paneLayoutService } from "@/stores/pane-layout";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui";
@@ -43,10 +44,21 @@ interface TabItemProps {
   isActive: boolean;
 }
 
+/** Check if a file tab has unsaved changes. */
+function useFileDirty(view: ContentPaneView): boolean {
+  return useFileDirtyStore(
+    useCallback(
+      (s) => (view.type === "file" ? s.dirtyFiles.has(view.filePath) : false),
+      [view],
+    ),
+  );
+}
+
 export function TabItem({ tab, groupId, isActive }: TabItemProps) {
   const label = useTabLabel(tab.view);
   const tooltip = useTabTooltip(tab.view);
   const status = useTabStatus(tab.view);
+  const isFileDirty = useFileDirty(tab.view);
 
   const dragData: TabDragData = useMemo(
     () => ({ type: "tab", tabId: tab.id, groupId, view: tab.view }),
@@ -120,7 +132,13 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
           )}
           aria-label={`Close ${label}`}
         >
-          <X size={10} />
+          {isFileDirty ? (
+            <span className="flex items-center justify-center w-[10px] h-[10px]">
+              <span className="w-2 h-2 rounded-full bg-surface-300" />
+            </span>
+          ) : (
+            <X size={10} />
+          )}
         </span>
       </button>
     </Tooltip>

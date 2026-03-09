@@ -306,17 +306,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Register cleanup handlers
-  process.on("SIGTERM", () => {
-    cleanup();
-    process.exit(0);
-  });
-
-  process.on("SIGINT", () => {
-    cleanup();
-    process.exit(0);
-  });
-
+  // Hub disconnect on any exit path (natural, abort, crash)
   process.on("exit", cleanup);
 
   try {

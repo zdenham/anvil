@@ -7,6 +7,7 @@ import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
 import { DollarSign } from "lucide-react";
+import { extractReplCode, ReplToolBlock } from "./repl-tool-block";
 import type { ToolBlockProps } from "./index";
 
 interface BashInput {
@@ -89,6 +90,21 @@ export function BashToolBlock({
 
   const bashInput = input as unknown as BashInput;
   const command = bashInput.command || "";
+
+  // Detect mort-repl commands and render with dedicated component
+  const replCode = extractReplCode(command);
+  if (replCode !== null) {
+    return (
+      <ReplToolBlock
+        id={id}
+        threadId={threadId}
+        code={replCode}
+        result={result}
+        isRunning={status === "running"}
+      />
+    );
+  }
+
   const description = bashInput.description;
   const isBackground = bashInput.run_in_background;
 

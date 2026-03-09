@@ -303,11 +303,11 @@ pub async fn git_create_branch(
     Ok(())
 }
 
-/// Checkout a branch in a worktree (with force to discard uncommitted changes)
+/// Checkout a branch in a worktree.
 #[tauri::command]
 pub async fn git_checkout_branch(worktree_path: String, branch: String) -> Result<(), String> {
     let output = shell::command("git")
-        .args(["checkout", "--force", &branch])
+        .args(["checkout", &branch])
         .current_dir(&worktree_path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -322,12 +322,12 @@ pub async fn git_checkout_branch(worktree_path: String, branch: String) -> Resul
     Ok(())
 }
 
-/// Checkout a specific commit in detached HEAD mode (with force to discard uncommitted changes)
+/// Checkout a specific commit in detached HEAD mode.
 /// This is useful when the branch is already checked out elsewhere (e.g., in the main repo)
 #[tauri::command]
 pub async fn git_checkout_commit(worktree_path: String, commit: String) -> Result<(), String> {
     let output = shell::command("git")
-        .args(["checkout", "--force", "--detach", &commit])
+        .args(["checkout", "--detach", &commit])
         .current_dir(&worktree_path)
         .output()
         .map_err(|e| e.to_string())?;

@@ -10,13 +10,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 
-/// Shared map of running agent PIDs, keyed by threadId.
-pub type AgentPidMap = Arc<Mutex<HashMap<String, u32>>>;
+/// Tracked state for a running agent process.
+pub struct AgentProcess {
+    pub pid: u32,
+    /// Fired by the close watcher when the process exits.
+    pub exited: Arc<Notify>,
+}
 
-/// Create a new empty agent PID map.
-pub fn new_pid_map() -> AgentPidMap {
+/// Shared map of running agent processes, keyed by threadId.
+pub type AgentProcessMap = Arc<Mutex<HashMap<String, AgentProcess>>>;
+
+/// Create a new empty agent process map.
+pub fn new_process_map() -> AgentProcessMap {
     Arc::new(Mutex::new(HashMap::new()))
 }
 
@@ -29,6 +36,7 @@ pub async fn dispatch(
     match cmd {
         "agent_spawn" => spawn_agent(args, state).await,
         "agent_kill" => kill_agent(args, state).await,
+        "agent_cancel" => cancel_agent(args, state).await,
         _ => Err(format!("unknown agent command: {}", cmd)),
     }
 }
@@ -69,8 +77,12 @@ async fn spawn_agent(
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
-    // Track PID for kill support
-    state.agent_pids.lock().await.insert(thread_id.clone(), pid);
+    // Track process for cancel support
+    let exited = Arc::new(Notify::new());
+    state.agent_processes.lock().await.insert(thread_id.clone(), AgentProcess {
+        pid,
+        exited: exited.clone(),
+    });
 
     // Spawn stdout line reader
     if let Some(stdout) = stdout {
@@ -105,14 +117,15 @@ async fn spawn_agent(
     }
 
     // Spawn close watcher — owns the child, waits for exit
-    let pids = state.agent_pids.clone();
+    let processes = state.agent_processes.clone();
     let broadcaster = state.broadcaster.clone();
     let tid = thread_id.clone();
     tokio::spawn(async move {
         let status = child.wait().await;
 
-        // Remove from PID map
-        pids.lock().await.remove(&tid);
+        // Wake cancel_agent if it's waiting, then remove from map
+        exited.notify_waiters();
+        processes.lock().await.remove(&tid);
 
         let (code, signal) = match status {
             Ok(s) => {
@@ -156,7 +169,7 @@ async fn kill_agent(
 ) -> Result<serde_json::Value, String> {
     let thread_id: String = extract_arg(&args, "threadId")?;
 
-    let pid = state.agent_pids.lock().await.get(&thread_id).copied();
+    let pid = state.agent_processes.lock().await.get(&thread_id).map(|p| p.pid);
 
     match pid {
         Some(pid) => {
@@ -169,4 +182,45 @@ async fn kill_agent(
             Ok(serde_json::json!({ "killed": false }))
         }
     }
+}
+
+/// Cancel an agent: SIGTERM with auto-escalation to SIGKILL after 5s.
+///
+/// Uses the Rust-side AgentProcessMap so cancellation doesn't depend on
+/// socket health or JS-side PID lookups.
+async fn cancel_agent(
+    args: serde_json::Value,
+    state: &WsState,
+) -> Result<serde_json::Value, String> {
+    let thread_id: String = extract_arg(&args, "threadId")?;
+
+    let entry = state
+        .agent_processes
+        .lock()
+        .await
+        .get(&thread_id)
+        .map(|p| (p.pid, p.exited.clone()));
+
+    let Some((pid, exited)) = entry else {
+        tracing::warn!(thread_id = %thread_id, "cancel_agent: no process found (already exited)");
+        return Ok(serde_json::json!(false));
+    };
+
+    tracing::info!(thread_id = %thread_id, pid = pid, "cancel_agent: sending SIGTERM");
+    crate::process_commands::send_signal(pid, crate::process_commands::SignalKind::Term)?;
+
+    // Race: process exits (event-driven via Notify) vs 5s timeout
+    let graceful = tokio::select! {
+        _ = exited.notified() => true,
+        _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => false,
+    };
+
+    if !graceful {
+        tracing::warn!(thread_id = %thread_id, pid = pid, "cancel_agent: SIGTERM timed out, sending SIGKILL");
+        let _ = crate::process_commands::send_signal(pid, crate::process_commands::SignalKind::Kill);
+    } else {
+        tracing::info!(thread_id = %thread_id, pid = pid, "cancel_agent: process exited gracefully");
+    }
+
+    Ok(serde_json::json!(true))
 }

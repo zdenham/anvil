@@ -20,8 +20,8 @@ interface MediaPreviewProps {
   viewMode: "rendered" | "source";
   /** Render the view-mode toggle bar */
   renderToggle: () => React.ReactNode;
-  /** Render syntax-highlighted source code */
-  renderHighlighted: (content: string, language: string) => React.ReactNode;
+  /** Render source code editor */
+  renderSource: (content: string, language: string) => React.ReactNode;
 }
 
 export function MediaPreview({
@@ -30,7 +30,7 @@ export function MediaPreview({
   filePath,
   viewMode,
   renderToggle,
-  renderHighlighted,
+  renderSource,
 }: MediaPreviewProps) {
   if (category === "svg") {
     return (
@@ -39,7 +39,7 @@ export function MediaPreview({
         filePath={filePath}
         viewMode={viewMode}
         renderToggle={renderToggle}
-        renderHighlighted={renderHighlighted}
+        renderSource={renderSource}
       />
     );
   }
@@ -98,13 +98,13 @@ function SvgPreview({
   filePath,
   viewMode,
   renderToggle,
-  renderHighlighted,
+  renderSource,
 }: {
   assetUrl: string;
   filePath: string;
   viewMode: "rendered" | "source";
   renderToggle: () => React.ReactNode;
-  renderHighlighted: (content: string, language: string) => React.ReactNode;
+  renderSource: (content: string, language: string) => React.ReactNode;
 }) {
   const [sourceContent, setSourceContent] = useState<string | null>(null);
   const filename = filePath.split("/").pop() ?? "image.svg";
@@ -140,7 +140,7 @@ function SvgPreview({
       ) : (
         <div className="flex-1 min-h-0 overflow-auto">
           {sourceContent ? (
-            renderHighlighted(sourceContent, "xml")
+            renderSource(sourceContent, "xml")
           ) : (
             <div className="flex items-center justify-center h-full text-surface-400 text-sm">
               Loading source...

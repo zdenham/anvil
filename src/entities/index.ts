@@ -122,6 +122,7 @@ import { setupPullRequestListeners } from "./pull-requests/listeners";
 import { gatewayChannelService } from "./gateway-channels/service";
 import { setupGatewayChannelListeners } from "./gateway-channels/listeners";
 import { ensureGatewayChannelForRepo } from "./gateway-channels/ensure-channel";
+import { buildQuickActions } from "@/lib/quick-actions-build.js";
 
 export interface EntityInitOptions {
   /**
@@ -172,6 +173,12 @@ export async function hydrateEntities(options: EntityInitOptions = {}): Promise<
     await timed("repoWorktreeLookup.hydrate", () => useRepoWorktreeLookupStore.getState().hydrate());
     await timed("treeMenuService.hydrate", () => treeMenuService.hydrate());
     await timed("quickActionService.hydrate", () => quickActionService.hydrate());
+
+    // Fire-and-forget background build (non-blocking)
+    buildQuickActions().catch((e) => {
+      logger.warn('Background quick actions build failed', { error: String(e) });
+    });
+
     await timed("draftService.hydrate", () => draftService.hydrate());
     await timed("pullRequestService.hydrate", () => pullRequestService.hydrate());
     await timed("syncManagedSkills", () => syncManagedSkills());

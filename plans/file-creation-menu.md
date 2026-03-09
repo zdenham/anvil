@@ -5,6 +5,7 @@ Create new files/folders from the file browser context menu and via `Cmd+Shift+N
 ## Context
 
 **Existing infrastructure:**
+
 - `FileBrowserPanel` (`src/components/file-browser/file-browser-panel.tsx`) — file tree with `rootPath`, `repoId`, `worktreeId`
 - `FileTreeNode` / `EntryContextMenu` (`src/components/file-browser/file-tree-node.tsx`) — already has right-click context menus on files/folders with "Copy path", "Open in Cursor"
 - `ContextMenu` UI primitives (`src/components/ui/context-menu.tsx`) — `useContextMenu`, `ContextMenu`, `ContextMenuItem`, `ContextMenuDivider`
@@ -17,12 +18,16 @@ Create new files/folders from the file browser context menu and via `Cmd+Shift+N
 ## Phases
 
 - [x] Add "New File" and "New Folder" to the file tree context menu
+
 - [x] Add inline rename input for entering the new file/folder name
+
 - [x] Add `Cmd+Shift+N` keyboard shortcut for creating a file at root
+
 - [x] Guard existing `Cmd+N` handler to exclude `Shift` key
+
 - [x] Write tests
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -44,6 +49,7 @@ The menu items don't create the file directly — they trigger an inline creatio
 When the user clicks "New File…" or "New Folder…" from the context menu, show an inline text input at the target location in the file tree (similar to VS Code's inline rename).
 
 **State management:** Add a `creatingEntry` state to `FileTreeNode` or `FileBrowserPanel`:
+
 ```ts
 type CreatingEntry = {
   parentPath: string;   // directory where the new entry will be created
@@ -52,6 +58,7 @@ type CreatingEntry = {
 ```
 
 **UI behavior:**
+
 - The inline input appears at the top of the target folder's children (expand the folder if collapsed)
 - Input gets auto-focus
 - **Enter** → validate name, create file/folder via `FilesystemClient.writeFile(path, "")` or `FilesystemClient.mkdir(path)`, clear creating state. The file watcher handles tree refresh.
@@ -81,11 +88,13 @@ This creates a new file at the **root** of the file browser. The file browser pa
 ## Phase 4: Guard existing `Cmd+N` handler
 
 In `main-window-layout.tsx` line 164, the current check is:
+
 ```ts
 if ((e.metaKey || e.ctrlKey) && e.key === "n") {
 ```
 
 On macOS, `e.key` is `"n"` (lowercase) even when Shift is held with metaKey. Add a `!e.shiftKey` guard:
+
 ```ts
 if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "n") {
 ```
@@ -102,7 +111,7 @@ This prevents `Cmd+Shift+N` from also creating a new thread.
 ## Files to modify
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `src/components/file-browser/file-tree-node.tsx` | Add "New File…" / "New Folder…" context menu items, inline creation input |
 | `src/components/file-browser/file-browser-panel.tsx` | Add `creatingEntry` state, `Cmd+Shift+N` handler, pass props down |
 | `src/components/main-window/main-window-layout.tsx` | Add `!e.shiftKey` guard on Cmd+N handler |
