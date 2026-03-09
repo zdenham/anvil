@@ -115,15 +115,6 @@ function trackPipelineSeq(msg: AgentSocketMessage): number {
 
   lastSeqByThread.set(msg.threadId, seq);
 
-  // Diagnostic pipeline logging (opt-in)
-  const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
-  if (diagnosticConfig?.pipeline && msg.pipeline) {
-    const stages = msg.pipeline.map(
-      (s) => `${s.stage}@${s.seq}(${s.ts})`
-    ).join(" -> ");
-    logger.debug(`[agent-service] Pipeline trail: ${stages} -> frontend:received@${seq}(${Date.now()})`);
-  }
-
   return seq;
 }
 
