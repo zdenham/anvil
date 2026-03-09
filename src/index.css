@@ -286,7 +286,9 @@ textarea {
 
 /* Working indicator - Claude Code style pulsing dot (alias for backwards compatibility) */
 .working-dot {
-  @apply status-dot-running;
+  background-color: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  animation: statusDotPulse 2.5s ease-in-out infinite;
   width: 8px;
   height: 8px;
   border-radius: 50%;

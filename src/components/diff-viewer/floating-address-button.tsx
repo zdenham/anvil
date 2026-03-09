@@ -7,6 +7,7 @@ import {
   resumeSimpleAgent,
 } from "@/lib/agent-service";
 import { createThread } from "@/lib/thread-creation-service";
+import { navigationService } from "@/stores/navigation-service";
 import { logger } from "@/lib/logger-client";
 import { useUnresolvedInDiff } from "@/hooks/use-unresolved-in-diff";
 import type { InlineComment } from "@core/types/comments.js";
@@ -49,8 +50,10 @@ export const FloatingAddressButton = memo(function FloatingAddressButton() {
           } else {
             await resumeSimpleAgent(threadId, prompt, worktreePath);
           }
+          await navigationService.navigateToThread(threadId, { newTab: true });
         } else {
-          await createThread({ prompt, repoId, worktreeId, worktreePath });
+          const { threadId: newThreadId } = await createThread({ prompt, repoId, worktreeId, worktreePath });
+          await navigationService.navigateToThread(newThreadId, { newTab: true });
         }
       } catch (err) {
         logger.error("[FloatingAddressButton] Failed to send comments to agent", err);

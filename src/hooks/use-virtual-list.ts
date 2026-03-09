@@ -33,6 +33,8 @@ export interface UseVirtualListOptions {
   onStickyChange?: (sticky: boolean) => void;
   /** When true, re-snap to bottom after each measurement batch until heights stabilize */
   initialScrollToBottom?: boolean;
+  /** Returns the content wrapper element for transform-based scroll correction */
+  getContentWrapper?: () => HTMLElement | null;
 }
 
 export interface UseVirtualListResult {
@@ -175,13 +177,46 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
     // Pre-scroll to bottom on mount when sticky, before first paint
     if (opts.sticky && el.scrollHeight > el.clientHeight) {
+      correctionRef.current = 0;
+      const wrapper = getContentWrapperRef.current?.();
+      if (wrapper) wrapper.style.transform = "";
       el.scrollTop = el.scrollHeight;
     }
 
     list.updateScroll(el.scrollTop, el.clientHeight);
 
     const onScroll = () => {
-      list.updateScroll(el.scrollTop, el.clientHeight);
+      // Track scrolling state for transform-based correction
+      isScrollingRef.current = true;
+      if (scrollIdleTimerRef.current !== null) {
+        clearTimeout(scrollIdleTimerRef.current);
+      }
+      scrollIdleTimerRef.current = setTimeout(() => {
+        isScrollingRef.current = false;
+        scrollIdleTimerRef.current = null;
+        // Absorb accumulated correction into scrollTop now that momentum stopped
+        if (correctionRef.current !== 0) {
+          el.scrollTop += correctionRef.current;
+          const wrapper = getContentWrapperRef.current?.();
+          if (wrapper) wrapper.style.transform = "";
+          correctionRef.current = 0;
+          list.updateScroll(el.scrollTop, el.clientHeight);
+        }
+      }, 150);
+
+      // Overscroll-past-top guard — see block comment on correctionRef above.
+      // Absorb entire correction in one shot when effective position would go
+      // negative. scrollTop clamps to 0, giving a hard stop at the list top.
+      if (correctionRef.current < 0 && el.scrollTop + correctionRef.current < 0) {
+        el.scrollTop = Math.max(0, el.scrollTop + correctionRef.current);
+        correctionRef.current = 0;
+        const wrapper = getContentWrapperRef.current?.();
+        if (wrapper) wrapper.style.transform = "";
+      }
+
+      // Feed effective scroll position (including any transform correction)
+      const effectiveScrollTop = el.scrollTop + correctionRef.current;
+      list.updateScroll(effectiveScrollTop, el.clientHeight);
       if (opts.sticky) {
         const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
         coordinator.onScrollPositionChanged(gap);
@@ -192,6 +227,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
 
     if (!opts.sticky) {
       return () => {
+        if (scrollIdleTimerRef.current !== null) clearTimeout(scrollIdleTimerRef.current);
         coordinator.detach();
         el.removeEventListener("scroll", onScroll);
       };
@@ -209,6 +245,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     el.addEventListener("pointerdown", onPointerDown);
 
     return () => {
+      if (scrollIdleTimerRef.current !== null) clearTimeout(scrollIdleTimerRef.current);
       coordinator.detach();
       el.removeEventListener("scroll", onScroll);
       el.removeEventListener("wheel", onWheel);
@@ -231,7 +268,7 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
     if (!el) return;
 
     const ro = new ResizeObserver(() => {
-      list.updateScroll(el.scrollTop, el.clientHeight);
+      list.updateScroll(el.scrollTop + correctionRef.current, el.clientHeight);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -241,6 +278,42 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
   // Ref so the RO callback (created once) can access the latest scroll element
   const getScrollElementRef = useRef(opts.getScrollElement);
   getScrollElementRef.current = opts.getScrollElement;
+
+  // -- Transform-based scroll correction --
+  //
+  // When items get measured (ResizeObserver), heights above the viewport change,
+  // shifting the anchor item's offset. We need to correct scrollTop to keep the
+  // anchor visually stable. But during macOS momentum scrolling, writing to
+  // scrollTop fights the compositor and causes visible jitter.
+  //
+  // Solution: accumulate corrections as CSS transforms on the content wrapper
+  // (`translateY(-correction)`) and defer the scrollTop write until momentum
+  // stops (the 150ms idle timer in onScroll).
+  //
+  // OVERSCROLL-PAST-TOP GUARD:
+  // Items are often shorter than `estimateHeight`, so correction goes negative
+  // (items above shrank → anchor offset decreased). The transform shifts content
+  // DOWN by |correction| pixels. When the user scrolls up, scrollTop decreases
+  // toward 0 while the transform keeps content pushed down — creating a blank
+  // gap at the top that the user can't scroll past (scrollTop can't go negative).
+  //
+  // Fix: in onScroll, when `scrollTop + correction < 0`, absorb the entire
+  // correction into scrollTop immediately (one-time write, clamps to 0) and
+  // clear the transform. This snaps to the true list top.
+  //
+  // Why absorb-all instead of per-frame capping? A per-frame cap
+  // (`correction = -scrollTop`) vibrates: each frame the ResizeObserver adds
+  // correction for newly-measured items, then the next onScroll caps it back,
+  // causing a visible oscillation. A single full absorption settles in one frame.
+  //
+  // The scroll container also uses `overscroll-behavior: contain` (set in
+  // message-list.tsx) to prevent macOS elastic bounce at the boundary, giving
+  // a hard stop when the correction is absorbed.
+  const correctionRef = useRef(0);
+  const isScrollingRef = useRef(false);
+  const scrollIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const getContentWrapperRef = useRef(opts.getContentWrapper);
+  getContentWrapperRef.current = opts.getContentWrapper;
 
   const roRef = useRef<ResizeObserver | null>(null);
   const observedRef = useRef(new Map<number, HTMLElement>());
@@ -277,12 +350,22 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
         const el = getScrollElementRef.current();
         if (el) {
           if (pendingScrollToBottomRef.current) {
+            correctionRef.current = 0;
+            const wrapper = getContentWrapperRef.current?.();
+            if (wrapper) wrapper.style.transform = "";
             el.scrollTop = el.scrollHeight;
             list.updateScroll(el.scrollTop, el.clientHeight);
             if (changed === 0) pendingScrollToBottomRef.current = false;
           } else if (changed !== 0) {
-            el.scrollTop += changed;
-            list.updateScroll(el.scrollTop, el.clientHeight);
+            if (isScrollingRef.current && getContentWrapperRef.current) {
+              correctionRef.current += changed;
+              const wrapper = getContentWrapperRef.current();
+              if (wrapper) wrapper.style.transform = `translateY(${-correctionRef.current}px)`;
+              list.updateScroll(el.scrollTop + correctionRef.current, el.clientHeight);
+            } else {
+              el.scrollTop += changed;
+              list.updateScroll(el.scrollTop, el.clientHeight);
+            }
           }
         }
         return;
@@ -300,12 +383,22 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
           const el = getScrollElementRef.current();
           if (el) {
             if (pendingScrollToBottomRef.current) {
+              correctionRef.current = 0;
+              const wrapper = getContentWrapperRef.current?.();
+              if (wrapper) wrapper.style.transform = "";
               el.scrollTop = el.scrollHeight;
               list.updateScroll(el.scrollTop, el.clientHeight);
               if (changed === 0) pendingScrollToBottomRef.current = false;
             } else if (changed !== 0) {
-              el.scrollTop += changed;
-              list.updateScroll(el.scrollTop, el.clientHeight);
+              if (isScrollingRef.current && getContentWrapperRef.current) {
+                correctionRef.current += changed;
+                const wrapper = getContentWrapperRef.current();
+                if (wrapper) wrapper.style.transform = `translateY(${-correctionRef.current}px)`;
+                list.updateScroll(el.scrollTop + correctionRef.current, el.clientHeight);
+              } else {
+                el.scrollTop += changed;
+                list.updateScroll(el.scrollTop, el.clientHeight);
+              }
             }
           }
         });
@@ -352,12 +445,22 @@ export function useVirtualList(opts: UseVirtualListOptions): UseVirtualListResul
       const el = opts.getScrollElement();
       if (el) {
         if (pendingScrollToBottomRef.current) {
+          correctionRef.current = 0;
+          const wrapper = getContentWrapperRef.current?.();
+          if (wrapper) wrapper.style.transform = "";
           el.scrollTop = el.scrollHeight;
           list.updateScroll(el.scrollTop, el.clientHeight);
           if (changed === 0) pendingScrollToBottomRef.current = false;
         } else if (changed !== 0) {
-          el.scrollTop += changed;
-          list.updateScroll(el.scrollTop, el.clientHeight);
+          if (isScrollingRef.current && getContentWrapperRef.current) {
+            correctionRef.current += changed;
+            const wrapper = getContentWrapperRef.current();
+            if (wrapper) wrapper.style.transform = `translateY(${-correctionRef.current}px)`;
+            list.updateScroll(el.scrollTop + correctionRef.current, el.clientHeight);
+          } else {
+            el.scrollTop += changed;
+            list.updateScroll(el.scrollTop, el.clientHeight);
+          }
         }
       }
     }

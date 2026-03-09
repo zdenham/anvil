@@ -6,3 +6,4 @@ export {
   GhCliApiError,
   type GhCliError,
 } from "./errors";
+export type { MergeMethod, RepoMergeSettings } from "./pr-queries";

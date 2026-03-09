@@ -380,6 +380,8 @@ export interface AgentLoopOptions {
   permissionGate?: PermissionGate;
   /** Question gate for AskUserQuestion async answer flow */
   questionGate?: import("../lib/question-gate.js").QuestionGate;
+  /** Proxy config for network debug — injected only into SDK query() env, not subprocess env */
+  proxyConfig?: { port: number; certPath: string };
 }
 
 /**
@@ -1333,7 +1335,17 @@ export async function runAgentLoop(
         options: {
           // Strip CLAUDECODE env var to prevent "nested session" error on SDK v0.2.59+.
           // The bundled CLI refuses to start if this variable is present.
-          env: { ...process.env, CLAUDECODE: undefined },
+          // Inject proxy vars here (not process.env) so only SDK API calls go through
+          // the proxy — Bash tool subprocesses (gh, git, curl) stay unaffected.
+          env: {
+            ...process.env,
+            CLAUDECODE: undefined,
+            ...(options.proxyConfig && {
+              HTTPS_PROXY: `http://127.0.0.1:${options.proxyConfig.port}`,
+              HTTP_PROXY: `http://127.0.0.1:${options.proxyConfig.port}`,
+              NODE_EXTRA_CA_CERTS: options.proxyConfig.certPath,
+            }),
+          },
           cwd: context.workingDir,
           additionalDirectories: [config.mortDir],
           plugins: [{ type: "local" as const, path: config.mortDir }],

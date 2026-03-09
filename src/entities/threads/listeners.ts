@@ -8,7 +8,7 @@ import { logger } from "@/lib/logger-client.js";
 import { useHeartbeatStore, startHeartbeatMonitor } from "@/stores/heartbeat-store.js";
 import { handleStaleness, setupRecoveryCleanupListeners } from "@/lib/state-recovery.js";
 import { settingsService } from "../settings/service.js";
-import { sendToAgent } from "@/lib/agent-service.js";
+import { isAgentRunning, sendToAgent } from "@/lib/agent-service.js";
 
 /**
  * Clears chain state for a thread (e.g. on deactivation or panel hide).
@@ -164,8 +164,11 @@ export function setupThreadListeners(): void {
 
       // Safety net: if metadata on disk still says "running" after the process
       // exited, the agent crashed before writing its final status. Force-transition.
+      // Only force-transition if this thread had a frontend-tracked process.
+      // Socket-routed AGENT_COMPLETED events (child thread completions) don't have
+      // entries in agentProcesses — their lifecycle is managed by the parent agent.
       const freshThread = threadService.get(threadId);
-      if (freshThread?.status === "running") {
+      if (freshThread?.status === "running" && !isAgentRunning(threadId)) {
         logger.warn(`[ThreadListener] Thread ${threadId} still "running" after process exit (code=${exitCode}), forcing status`);
         const forcedStatus = exitCode === 130 ? "cancelled" : exitCode === 0 ? "completed" : "error";
         await threadService.setStatus(threadId, forcedStatus);

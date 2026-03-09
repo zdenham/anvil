@@ -68,12 +68,18 @@ vi.mock("@/lib/thread-creation-service", () => ({
   createThread: (...args: unknown[]) => mockCreateThread(...args),
 }));
 
-const mockSetActivePaneView = vi.fn().mockResolvedValue(undefined);
+const mockNavigateToThread = vi.fn().mockResolvedValue(undefined);
+const mockNavigateToPullRequest = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("@/stores/pane-layout", () => ({
-  paneLayoutService: {
-    setActiveTabView: (...args: unknown[]) => mockSetActivePaneView(...args),
+vi.mock("@/stores/navigation-service", () => ({
+  navigationService: {
+    navigateToThread: (...args: unknown[]) => mockNavigateToThread(...args),
+    navigateToPullRequest: (...args: unknown[]) => mockNavigateToPullRequest(...args),
   },
+}));
+
+vi.mock("@/lib/invoke", () => ({
+  invoke: vi.fn().mockResolvedValue("/usr/bin:/usr/local/bin"),
 }));
 
 // Mock Tauri Command for getBranchInfo
@@ -109,7 +115,8 @@ describe("handleCreatePr", () => {
 
     expect(mockGetCurrentBranchPr).not.toHaveBeenCalled();
     expect(mockCreateThread).not.toHaveBeenCalled();
-    expect(mockSetActivePaneView).not.toHaveBeenCalled();
+    expect(mockNavigateToThread).not.toHaveBeenCalled();
+    expect(mockNavigateToPullRequest).not.toHaveBeenCalled();
   });
 
   it("opens existing PR when one is found for the branch", async () => {
@@ -121,10 +128,7 @@ describe("handleCreatePr", () => {
 
     await handleCreatePr("repo-1", "wt-1", "/path/to/worktree");
 
-    expect(mockSetActivePaneView).toHaveBeenCalledWith({
-      type: "pull-request",
-      prId: "existing-pr-id",
-    });
+    expect(mockNavigateToPullRequest).toHaveBeenCalledWith("existing-pr-id", { newTab: true });
     expect(mockCreateThread).not.toHaveBeenCalled();
   });
 
@@ -142,10 +146,7 @@ describe("handleCreatePr", () => {
         repoSlug: "owner/repo",
       }),
     );
-    expect(mockSetActivePaneView).toHaveBeenCalledWith({
-      type: "pull-request",
-      prId: "new-pr-id",
-    });
+    expect(mockNavigateToPullRequest).toHaveBeenCalledWith("new-pr-id", { newTab: true });
   });
 
   it("spawns create-pr agent when no PR exists", async () => {
@@ -158,12 +159,9 @@ describe("handleCreatePr", () => {
       repoId: "repo-1",
       worktreeId: "wt-1",
       worktreePath: "/path/to/worktree",
-      permissionMode: "approve",
+      permissionMode: "implement",
     });
 
-    expect(mockSetActivePaneView).toHaveBeenCalledWith({
-      type: "thread",
-      threadId: "thread-1",
-    });
+    expect(mockNavigateToThread).toHaveBeenCalledWith("thread-1", { newTab: true });
   });
 });

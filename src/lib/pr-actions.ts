@@ -14,7 +14,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { GhCli } from "./gh-cli";
 import { pullRequestService } from "@/entities/pull-requests";
 import { createThread } from "@/lib/thread-creation-service";
-import { paneLayoutService } from "@/stores/pane-layout";
+import { navigationService } from "@/stores/navigation-service";
 import { logger } from "./logger-client";
 import { toast } from "./toast";
 
@@ -77,7 +77,7 @@ async function openExistingPr(
     });
   }
 
-  paneLayoutService.setActiveTabView({ type: "pull-request", prId: pr.id });
+  await navigationService.navigateToPullRequest(pr.id, { newTab: true });
   logger.info("[pr-actions] Opened existing PR", { prId: pr.id, prNumber });
 }
 
@@ -95,11 +95,11 @@ async function spawnCreatePrAgent(
     repoId,
     worktreeId,
     worktreePath,
-    permissionMode: "approve",
+    permissionMode: "implement",
   });
 
-  // Open thread pane so the user can watch the agent work.
-  paneLayoutService.setActiveTabView({ type: "thread", threadId });
+  // Open thread in a new tab so the user can watch the agent work.
+  await navigationService.navigateToThread(threadId, { newTab: true });
   logger.info("[pr-actions] Spawned create-pr agent thread", { threadId, repoId });
 }
 

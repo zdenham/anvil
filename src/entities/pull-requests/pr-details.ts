@@ -14,7 +14,7 @@ import {
 } from "./types";
 import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
-import { GhCli } from "@/lib/gh-cli";
+import { GhCli, type MergeMethod, type RepoMergeSettings } from "@/lib/gh-cli";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 
 const PR_DIR = "pull-requests";
@@ -101,6 +101,44 @@ export async function deletePr(id: string): Promise<void> {
     rollback();
     throw error;
   }
+}
+
+/**
+ * Fetch and cache repo merge settings for a PR.
+ * Returns cached settings if already fetched for this repo.
+ */
+export async function fetchMergeSettings(
+  pr: PullRequestMetadata,
+): Promise<RepoMergeSettings | null> {
+  const cached = usePullRequestStore.getState().repoMergeSettings[pr.repoSlug];
+  if (cached) return cached;
+
+  const worktreePath = useRepoWorktreeLookupStore
+    .getState()
+    .getWorktreePath(pr.repoId, pr.worktreeId);
+  if (!worktreePath) return null;
+
+  const ghCli = new GhCli(worktreePath);
+  const settings = await ghCli.getRepoMergeSettings(pr.repoSlug);
+  usePullRequestStore.getState().setRepoMergeSettings(pr.repoSlug, settings);
+  return settings;
+}
+
+/**
+ * Merge a PR and refresh its details so the UI updates.
+ */
+export async function mergePr(
+  pr: PullRequestMetadata,
+  method: MergeMethod,
+): Promise<void> {
+  const worktreePath = useRepoWorktreeLookupStore
+    .getState()
+    .getWorktreePath(pr.repoId, pr.worktreeId);
+  if (!worktreePath) throw new Error(`No worktree path for PR ${pr.id}`);
+
+  const ghCli = new GhCli(worktreePath);
+  await ghCli.mergePr(pr.prNumber, method);
+  await fetchPrDetails(pr);
 }
 
 /**

@@ -37,7 +37,7 @@ export function UserMessage({ turn }: UserMessageProps) {
           onClose={() => setLightboxSrc(null)}
         />
       )}
-      <div className="max-w-[80%] flex flex-col items-end gap-1">
+      <div className="max-w-[80%] flex flex-col items-end gap-1 overflow-hidden">
         {imagePaths.length > 0 && (
           <div className="flex gap-2 flex-wrap justify-end">
             {imagePaths.map((path) => (
@@ -60,7 +60,7 @@ export function UserMessage({ turn }: UserMessageProps) {
               "shadow-sm",
             )}
           >
-            <p className="whitespace-pre-wrap break-words">{textContent}</p>
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{textContent}</p>
           </div>
         )}
       </div>

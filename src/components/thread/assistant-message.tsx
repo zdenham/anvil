@@ -57,6 +57,8 @@ export const AssistantMessage = memo(function AssistantMessage({
                       block={{ type: renderBlock.type as "text" | "thinking", content: blockContent }}
                       isLast={isLast}
                       workingDirectory={workingDirectory}
+                      threadId={threadId}
+                      blockKey={renderBlock.id ?? `thinking-${index}`}
                     />
                   </div>
                 );

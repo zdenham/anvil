@@ -22,6 +22,10 @@ import {
   getPrChecks,
   getPrComments,
   getRepoSlug,
+  getRepoMergeSettings,
+  mergePr,
+  type MergeMethod,
+  type RepoMergeSettings,
 } from "./pr-queries";
 import {
   createWebhook,
@@ -114,5 +118,19 @@ export class GhCli {
     Array<{ id: number; config: { url: string } }>
   > {
     return listWebhooks(this.cwd);
+  }
+
+  /**
+   * Fetch which merge methods the repo allows.
+   */
+  async getRepoMergeSettings(repoSlug: string): Promise<RepoMergeSettings> {
+    return getRepoMergeSettings(this.cwd, repoSlug);
+  }
+
+  /**
+   * Merge a PR using the given method.
+   */
+  async mergePr(prNumber: number, method: MergeMethod): Promise<void> {
+    return mergePr(this.cwd, prNumber, method);
   }
 }

@@ -19,6 +19,7 @@ import { PrInfoSection } from "./pr-info-section";
 import { PrDescriptionSection } from "./pr-description-section";
 import { PrChecksSection } from "./pr-checks-section";
 import { PrCommentsSection } from "./pr-comments-section";
+import { PrMergeSection } from "./pr-merge-section";
 import { PrAutoAddressToggle } from "./pr-auto-address-toggle";
 import type { PullRequestContentProps } from "./types";
 
@@ -61,12 +62,19 @@ export function PullRequestContent({ prId, onPopOut: _onPopOut }: PullRequestCon
               <PrInfoSection
                 details={details}
                 prNumber={pr.prNumber}
+                url={details.url}
                 headBranch={pr.headBranch}
                 baseBranch={pr.baseBranch}
                 reviewDecision={details.reviewDecision}
               />
               <PrDescriptionSection body={details.body} />
               <PrChecksSection checks={details.checks} />
+              <PrMergeSection
+                prId={pr.id}
+                repoSlug={pr.repoSlug}
+                state={details.state}
+                isDraft={details.isDraft}
+              />
               <PrCommentsSection comments={details.reviewComments} />
             </>
           )}

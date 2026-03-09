@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Rollback } from "@/lib/optimistic";
+import type { RepoMergeSettings } from "@/lib/gh-cli";
 import type { PullRequestMetadata, PullRequestDetails } from "./types";
 
 interface PullRequestStoreState {
@@ -11,6 +12,8 @@ interface PullRequestStoreState {
   prDetails: Record<string, PullRequestDetails>;
   /** Loading state per PR (for skeleton display on first load) */
   prDetailsLoading: Record<string, boolean>;
+  /** Cached repo merge settings, keyed by repoSlug */
+  repoMergeSettings: Record<string, RepoMergeSettings>;
   _hydrated: boolean;
 }
 
@@ -37,6 +40,7 @@ interface PullRequestStoreActions {
   setPrDetails(id: string, details: PullRequestDetails): void;
   setPrDetailsLoading(id: string, loading: boolean): void;
   clearPrDetails(id: string): void;
+  setRepoMergeSettings(repoSlug: string, settings: RepoMergeSettings): void;
 }
 
 export const usePullRequestStore = create<
@@ -49,6 +53,7 @@ export const usePullRequestStore = create<
   _prsArray: [],
   prDetails: {},
   prDetailsLoading: {},
+  repoMergeSettings: {},
   _hydrated: false,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -178,5 +183,11 @@ export const usePullRequestStore = create<
       const { [id]: _, ...rest } = state.prDetails;
       return { prDetails: rest };
     });
+  },
+
+  setRepoMergeSettings: (repoSlug, settings) => {
+    set((state) => ({
+      repoMergeSettings: { ...state.repoMergeSettings, [repoSlug]: settings },
+    }));
   },
 }));

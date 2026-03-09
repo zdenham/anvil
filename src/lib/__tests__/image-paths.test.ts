@@ -35,6 +35,16 @@ describe("extractImagePaths", () => {
     const content = "Check this image\n/tmp/cat.gif\nPretty cool right?\n/tmp/dog.webp";
     expect(extractImagePaths(content)).toEqual(["/tmp/cat.gif", "/tmp/dog.webp"]);
   });
+
+  it("does not match image path with trailing text on same line", () => {
+    // This is the core reason attachments must be stored separately from text:
+    // typing after a path (even with a space) breaks the match.
+    expect(extractImagePaths("/Users/zac/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png hey")).toEqual([]);
+  });
+
+  it("does not match image path with text appended without space", () => {
+    expect(extractImagePaths("/Users/me/photo.pnghello")).toEqual([]);
+  });
 });
 
 describe("stripImagePaths", () => {

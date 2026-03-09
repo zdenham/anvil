@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { logger } from "@/lib/logger-client";
+import { settingsService } from "@/entities/settings";
 import type { NetworkRequest, NetworkDebuggerState } from "./types";
 
 // ============================================================================
@@ -148,6 +149,9 @@ export const useNetworkDebuggerStore = create<
     const next = !get().isCapturing;
     logger.info(`[network-debugger] Capture ${next ? "started" : "stopped"}`);
     set({ isCapturing: next });
+
+    // Persist so next agent spawn knows whether to start proxy
+    settingsService.set("networkDebugEnabled", next);
   },
 
   clearRequests: () => {

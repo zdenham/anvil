@@ -250,6 +250,7 @@ function routeAgentEvent(threadId: string, eventName: string, payload: unknown):
     case EventName.WORKTREE_NAME_GENERATED:
     case EventName.ACTION_REQUESTED:
     case EventName.AGENT_CANCELLED:
+    case EventName.AGENT_COMPLETED:
     case EventName.THREAD_NAME_GENERATED:
     case EventName.PLAN_DETECTED:
     case EventName.COMMENT_ADDED:
@@ -747,9 +748,11 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     envVars.MORT_DIAGNOSTIC_LOGGING = diagnosticEnv;
   }
 
-  // Enable network debugging unconditionally — near-zero overhead,
-  // hub socket handles the volume fine. Settings toggle can be added later.
-  envVars.MORT_NETWORK_DEBUG = "1";
+  // Only enable network proxy when user has clicked Record in the debug panel
+  const networkDebugEnabled = useSettingsStore.getState().workspace.networkDebugEnabled;
+  if (networkDebugEnabled) {
+    envVars.MORT_NETWORK_DEBUG = "1";
+  }
 
   // Line buffer for stdout — server sends lines individually via push events,
   // but handleSimpleAgentOutput still expects to do its own line buffering.
@@ -915,6 +918,10 @@ export async function resumeSimpleAgent(
   };
   if (resumeDiagnosticConfig) {
     resumeEnvVars.MORT_DIAGNOSTIC_LOGGING = JSON.stringify(resumeDiagnosticConfig);
+  }
+  const resumeNetworkDebug = useSettingsStore.getState().workspace.networkDebugEnabled;
+  if (resumeNetworkDebug) {
+    resumeEnvVars.MORT_NETWORK_DEBUG = "1";
   }
 
   const stdoutBuffer = { value: "" };

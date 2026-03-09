@@ -207,3 +207,52 @@ export async function getRepoSlug(cwd: string): Promise<string> {
   );
   return result.stdout.trim();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Merge
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type MergeMethod = "merge" | "squash" | "rebase";
+
+export interface RepoMergeSettings {
+  allowedMethods: MergeMethod[];
+  defaultMethod: MergeMethod;
+}
+
+/**
+ * Fetch which merge methods the repo allows via the REST API.
+ */
+export async function getRepoMergeSettings(
+  cwd: string,
+  repoSlug: string,
+): Promise<RepoMergeSettings> {
+  const raw = await execGhJson<{
+    allow_merge_commit: boolean;
+    allow_squash_merge: boolean;
+    allow_rebase_merge: boolean;
+  }>(
+    ["api", `repos/${repoSlug}`, "--jq", "{allow_merge_commit, allow_squash_merge, allow_rebase_merge}"],
+    cwd,
+  );
+
+  const allowed: MergeMethod[] = [];
+  if (raw.allow_squash_merge) allowed.push("squash");
+  if (raw.allow_merge_commit) allowed.push("merge");
+  if (raw.allow_rebase_merge) allowed.push("rebase");
+
+  return { allowedMethods: allowed, defaultMethod: allowed[0] ?? "squash" };
+}
+
+/**
+ * Merge a PR using the given method. Deletes the remote head branch after merge.
+ */
+export async function mergePr(
+  cwd: string,
+  prNumber: number,
+  method: MergeMethod,
+): Promise<void> {
+  await execGh(
+    ["pr", "merge", String(prNumber), `--${method}`, "--delete-branch"],
+    cwd,
+  );
+}

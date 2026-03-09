@@ -42,6 +42,8 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   const paneGroup = usePaneGroupMaybe();
   const value = useInputStore((s) => s.content);
   const setStoreContent = useInputStore((s) => s.setContent);
+  const attachments = useInputStore((s) => s.attachments);
+  const clearAttachments = useInputStore((s) => s.clearAttachments);
   const [triggerState, setTriggerState] = useState<TriggerStateInfo | null>(null);
   const inputRef = useRef<TriggerSearchInputRef>(null);
 
@@ -69,12 +71,15 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   }, [paneGroup]);
 
   const handleSubmit = useCallback(() => {
-    if (value.trim() && !disabled) {
-      onSubmit(value.trim());
+    const text = value.trim();
+    if ((text || attachments.length > 0) && !disabled) {
+      const parts = [...attachments, text].filter(Boolean);
+      onSubmit(parts.join("\n"));
       setStoreContent("");
+      clearAttachments();
       resetHistory();
     }
-  }, [value, disabled, onSubmit, resetHistory, setStoreContent]);
+  }, [value, attachments, disabled, onSubmit, resetHistory, setStoreContent, clearAttachments]);
 
 
   const handleKeyDown = useCallback(
@@ -88,7 +93,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
       // Enter submits (unless Shift is held for newline, or trigger dropdown is active)
       // Only consume Enter if there's content to submit - otherwise let it propagate to quick actions
-      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && value.trim()) {
+      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && (value.trim() || attachments.length > 0)) {
         e.preventDefault();
         e.stopPropagation();
         handleSubmit();

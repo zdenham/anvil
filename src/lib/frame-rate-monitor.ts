@@ -16,7 +16,7 @@ class FrameRateMonitor {
   private lastEvalTime: number = 0;
 
   constructor(opts?: FrameRateMonitorOptions) {
-    this.threshold = opts?.threshold ?? 30;
+    this.threshold = opts?.threshold ?? 24;
     this.windowSize = opts?.windowSize ?? 60;
     this.evalIntervalMs = opts?.evalIntervalMs ?? 2000;
   }

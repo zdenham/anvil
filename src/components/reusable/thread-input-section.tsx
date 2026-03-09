@@ -54,17 +54,16 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
     ref
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const content = useInputStore((s) => s.content);
-    const appendContent = useInputStore((s) => s.appendContent);
+    const attachments = useInputStore((s) => s.attachments);
+    const addAttachments = useInputStore((s) => s.addAttachments);
+    const removeAttachment = useInputStore((s) => s.removeAttachment);
 
     const handleFileDrop = useCallback(
       (paths: string[]) => {
         if (paths.length === 0) return;
-        const currentContent = content;
-        const prefix = currentContent && !currentContent.endsWith("\n") ? "\n" : "";
-        appendContent(prefix + paths.join("\n"));
+        addAttachments(paths);
       },
-      [content, appendContent],
+      [addAttachments],
     );
 
     const isDragging = useFileDrop(containerRef, handleFileDrop);
@@ -74,7 +73,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
         ref={containerRef}
         className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-1 pb-1"
       >
-        <AttachmentPreviewStrip content={content} />
+        <AttachmentPreviewStrip attachments={attachments} onRemove={removeAttachment} />
 
         <ThreadInput
           ref={ref}

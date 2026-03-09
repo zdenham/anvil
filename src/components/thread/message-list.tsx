@@ -31,6 +31,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   const { threadId } = useThreadContext();
   const isRunning = useIsThreadRunning(threadId);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const contentWrapperRef = useRef<HTMLDivElement>(null);
   useScrolling(scrollerRef);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
@@ -42,6 +43,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   }, [isRunning, turns]);
 
   const getScrollElement = useCallback(() => scrollerRef.current, []);
+  const getContentWrapper = useCallback(() => contentWrapperRef.current, []);
 
   // Reserve an extra slot for the working indicator so virtual count stays
   // stable while streaming (avoids N -> N+1 -> N offset recalculations).
@@ -50,6 +52,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
   const { items, totalHeight, paddingBefore, paddingAfter, scrollToIndex: scrollTo, measureItem, setSticky } = useVirtualList({
     count: virtualCount,
     getScrollElement,
+    getContentWrapper,
     estimateHeight: 100,
     overscan: 200,
     atBottomThreshold: 300,
@@ -83,11 +86,14 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
       aria-live="polite"
       aria-relevant="additions"
     >
+      {/* overscrollBehavior: "contain" prevents macOS elastic bounce at scroll
+          boundaries. This pairs with the overscroll-past-top correction guard in
+          useVirtualList to give a hard stop at the top of the list. */}
       <div
         ref={scrollerRef}
-        style={{ height: "100%", overflow: "auto", overflowAnchor: "auto" }}
+        style={{ height: "100%", overflow: "auto", overflowAnchor: "auto", overscrollBehavior: "contain" }}
       >
-        <div style={{ minHeight: totalHeight + 30 }}>
+        <div ref={contentWrapperRef} style={{ minHeight: totalHeight + 30 }}>
         <div style={{ height: paddingBefore }} />
         {items.map((item) => {
           const isWorkingSlot = item.index >= turns.length;

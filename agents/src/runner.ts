@@ -355,7 +355,10 @@ async function main(): Promise<void> {
     // Contains both messages (for UI) and sessionId (for SDK resume)
     const priorState = loadPriorState(config.historyFile);
 
-    // Initialize network proxy if debug flag is set
+    // Initialize network proxy if debug flag is set.
+    // Proxy config is passed through options so only the SDK query() env gets
+    // proxy vars — subprocess tools (Bash → gh, git, curl) stay unaffected.
+    let proxyConfig: { port: number; certPath: string } | undefined;
     if (process.env.MORT_NETWORK_DEBUG === "1") {
       logger.info("[runner] Network debug enabled, starting proxy interceptor");
       const { CertManager } = await import("./lib/proxy/cert-manager.js");
@@ -371,11 +374,7 @@ async function main(): Promise<void> {
       });
 
       const { port } = await proxy.start();
-
-      // Inject into process.env so SDK subprocess inherits
-      process.env.HTTPS_PROXY = `http://127.0.0.1:${port}`;
-      process.env.HTTP_PROXY = `http://127.0.0.1:${port}`;
-      process.env.NODE_EXTRA_CA_CERTS = certManager.certPath;
+      proxyConfig = { port, certPath: certManager.certPath };
 
       // Clean up on abort
       abortController.signal.addEventListener("abort", () => proxy.stop());
@@ -389,6 +388,7 @@ async function main(): Promise<void> {
       permissionEvaluator,
       permissionGate,
       questionGate,
+      proxyConfig,
     });
 
     // Safety timeout: if cleanup or process.exit hangs, force exit.

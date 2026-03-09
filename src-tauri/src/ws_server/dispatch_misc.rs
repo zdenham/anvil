@@ -167,6 +167,13 @@ async fn dispatch_part3(
             let result = crate::profiling::get_process_memory()?;
             Ok(serde_json::to_value(result).unwrap())
         }
+        "write_memory_snapshot" => {
+            let snapshot_json: String = extract_arg(&args, "snapshotJson")?;
+            let logs_dir = crate::paths::config_dir().join("logs");
+            let result =
+                crate::profiling::write_memory_snapshot_inner(snapshot_json, &logs_dir)?;
+            Ok(serde_json::to_value(result).unwrap())
+        }
 
         // ── Terminal (stateful — TerminalState) ──────────────────────────
         "list_terminals" => {

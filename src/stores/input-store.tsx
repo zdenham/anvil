@@ -5,6 +5,9 @@ export interface InputState {
   // Current active input content
   content: string;
 
+  // Image attachments (separate from text to survive typing)
+  attachments: string[];
+
   // For focusing from outside
   focusRequested: boolean;
 
@@ -12,6 +15,9 @@ export interface InputState {
   setContent: (content: string) => void;
   appendContent: (content: string) => void;
   clearContent: () => void;
+  addAttachments: (paths: string[]) => void;
+  removeAttachment: (path: string) => void;
+  clearAttachments: () => void;
   requestFocus: () => void;
   clearFocusRequest: () => void;
 }
@@ -21,10 +27,14 @@ export type InputStore = ReturnType<typeof createInputStore>;
 export const createInputStore = () =>
   createStore<InputState>((set) => ({
     content: '',
+    attachments: [],
     focusRequested: false,
     setContent: (content) => set({ content }),
     appendContent: (content) => set((s) => ({ content: s.content + content })),
     clearContent: () => set({ content: '' }),
+    addAttachments: (paths) => set((s) => ({ attachments: [...s.attachments, ...paths] })),
+    removeAttachment: (path) => set((s) => ({ attachments: s.attachments.filter((p) => p !== path) })),
+    clearAttachments: () => set({ attachments: [] }),
     requestFocus: () => set({ focusRequested: true }),
     clearFocusRequest: () => set({ focusRequested: false }),
   }));

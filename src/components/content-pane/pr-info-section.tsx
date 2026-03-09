@@ -5,11 +5,13 @@
  */
 
 import { GitBranch } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { PullRequestDetails } from "@/entities/pull-requests/types";
 
 interface PrInfoSectionProps {
   details: PullRequestDetails;
   prNumber: number;
+  url: string;
   headBranch: string;
   baseBranch: string;
   reviewDecision: PullRequestDetails["reviewDecision"];
@@ -67,7 +69,7 @@ function ReviewDecisionBadge({ decision }: { decision: PullRequestDetails["revie
   );
 }
 
-export function PrInfoSection({ details, prNumber, headBranch, baseBranch, reviewDecision }: PrInfoSectionProps) {
+export function PrInfoSection({ details, prNumber, url, headBranch, baseBranch, reviewDecision }: PrInfoSectionProps) {
   return (
     <div className="space-y-2">
       {/* Title row */}
@@ -75,9 +77,12 @@ export function PrInfoSection({ details, prNumber, headBranch, baseBranch, revie
         <h2 className="text-2xl font-bold font-mono text-surface-100 leading-snug">
           {details.title}
         </h2>
-        <span className="text-xl font-mono text-surface-500 mt-0.5 shrink-0">
+        <button
+          onClick={() => openUrl(url)}
+          className="text-xl font-mono text-surface-500 mt-0.5 shrink-0 hover:underline hover:text-surface-300 transition-colors"
+        >
           #{prNumber}
-        </span>
+        </button>
       </div>
 
       {/* State and branch info */}
@@ -86,7 +91,7 @@ export function PrInfoSection({ details, prNumber, headBranch, baseBranch, revie
         <ReviewDecisionBadge decision={reviewDecision} />
         <div className="flex items-center gap-1.5 text-xs text-surface-400">
           <GitBranch size={12} className="shrink-0" />
-          <span className="truncate max-w-[200px]">{baseBranch}</span>
+          <span className="truncate max-w-[200px]">origin/{baseBranch}</span>
           <span className="text-surface-600">&larr;</span>
           <span className="truncate max-w-[200px]">{headBranch}</span>
         </div>

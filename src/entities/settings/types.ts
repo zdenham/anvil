@@ -57,6 +57,13 @@ export const WorkspaceSettingsSchema = z.object({
    * When absent, all diagnostic modules are disabled.
    */
   diagnosticLogging: DiagnosticLoggingConfigSchema.optional(),
+
+  /**
+   * Whether the MITM network debug proxy is enabled for agent processes.
+   * Optional for backwards compatibility — defaults to off (no proxy).
+   * Controlled by the Record button in the debug panel's Network tab.
+   */
+  networkDebugEnabled: z.boolean().optional(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 

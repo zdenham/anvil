@@ -1,6 +1,7 @@
 import { appData } from "@/lib/app-data-store";
 import { logger } from "@/lib/logger-client";
 import { useDebugPanelStore } from "./store";
+import { useNetworkDebuggerStore } from "@/stores/network-debugger";
 import { DebugPanelPersistedStateSchema, type DebugPanelTab, type DebugPanelPersistedState } from "./types";
 
 const UI_STATE_PATH = "ui/debug-panel.json";
@@ -59,6 +60,13 @@ export const debugPanelService = {
 
   close(): void {
     useDebugPanelStore.getState()._applyClose();
+
+    // Turn off network capture when debug panel closes so the proxy
+    // doesn't silently run on subsequent agent spawns
+    const networkStore = useNetworkDebuggerStore.getState();
+    if (networkStore.isCapturing) {
+      networkStore.toggleCapture();
+    }
   },
 
   setActiveTab(tab: DebugPanelTab): void {

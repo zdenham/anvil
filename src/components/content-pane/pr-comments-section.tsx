@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
+import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
 import { CollapsibleBlock } from "@/components/ui/collapsible-block";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import type { PullRequestDetails } from "@/entities/pull-requests/types";
@@ -80,9 +81,9 @@ function CommentRow({
         )}
       </div>
       {comment.body && (
-        <p className="mt-1 text-xs text-surface-400 whitespace-pre-wrap leading-relaxed">
-          {comment.body}
-        </p>
+        <div className="mt-1 text-xs text-surface-400 leading-relaxed [&_.prose]:text-xs [&_.prose]:text-surface-400">
+          <MarkdownRenderer content={comment.body} />
+        </div>
       )}
     </div>
   );

@@ -504,9 +504,16 @@ function ChangesHeader({
     return "All Changes";
   })();
 
-  const handlePrClick = useCallback(() => {
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handlePrClick = useCallback(async () => {
     const worktreePath = getWorktreePath(repoId, worktreeId);
-    handleCreatePr(repoId, worktreeId, worktreePath);
+    setIsCreating(true);
+    try {
+      await handleCreatePr(repoId, worktreeId, worktreePath);
+    } finally {
+      setIsCreating(false);
+    }
   }, [repoId, worktreeId, getWorktreePath]);
 
   return (
@@ -522,11 +529,15 @@ function ChangesHeader({
       <div className="ml-auto flex items-center gap-2">
         <button
           onClick={handlePrClick}
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-surface-300 hover:text-surface-100 hover:bg-surface-700 transition-colors"
+          disabled={isCreating}
+          className={hasPr
+            ? "flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-surface-300 hover:text-surface-100 hover:bg-surface-700 transition-colors"
+            : "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-accent-500 text-accent-900 hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+          }
           aria-label={hasPr ? "View pull request" : "Create pull request"}
         >
-          <GitPullRequest size={12} />
-          {hasPr ? "View PR" : "Create PR"}
+          {isCreating ? <Loader2 size={12} className="animate-spin" /> : <GitPullRequest size={12} />}
+          {isCreating ? "Creating..." : hasPr ? "View PR" : "Create PR"}
         </button>
         <button
           data-testid="close-pane-button"

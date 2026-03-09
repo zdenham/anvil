@@ -12,10 +12,13 @@ import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
 import {
   fetchPrDetails,
+  fetchMergeSettings,
+  mergePr as mergePrDetails,
   archivePr,
   deletePr,
   listArchivedPrs,
 } from "./pr-details";
+import type { MergeMethod, RepoMergeSettings } from "@/lib/gh-cli";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Directory Constants
@@ -225,6 +228,20 @@ export const pullRequestService = {
     const pr = this.get(id);
     if (!pr) return null;
     return fetchPrDetails(pr);
+  },
+
+  /** Fetch and cache repo merge settings for a PR. */
+  async fetchMergeSettings(id: string): Promise<RepoMergeSettings | null> {
+    const pr = this.get(id);
+    if (!pr) return null;
+    return fetchMergeSettings(pr);
+  },
+
+  /** Merge a PR using the given method. */
+  async merge(id: string, method: MergeMethod): Promise<void> {
+    const pr = this.get(id);
+    if (!pr) throw new Error(`PR not found: ${id}`);
+    await mergePrDetails(pr, method);
   },
 
   /** List all archived PRs. */

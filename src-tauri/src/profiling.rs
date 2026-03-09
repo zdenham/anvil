@@ -159,15 +159,23 @@ pub async fn write_memory_snapshot(
     app: tauri::AppHandle,
     snapshot_json: String,
 ) -> Result<String, String> {
-    use std::fs;
-    use std::io::Write;
-
     let logs_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("logs");
-    fs::create_dir_all(&logs_dir).map_err(|e| e.to_string())?;
+    write_memory_snapshot_inner(snapshot_json, &logs_dir)
+}
+
+/// Inner implementation callable without `AppHandle` (used by WS dispatcher).
+pub fn write_memory_snapshot_inner(
+    snapshot_json: String,
+    logs_dir: &std::path::Path,
+) -> Result<String, String> {
+    use std::fs;
+    use std::io::Write;
+
+    fs::create_dir_all(logs_dir).map_err(|e| e.to_string())?;
 
     let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
     let path = logs_dir.join(format!("memory-snapshot-{}.json", timestamp));

@@ -86,7 +86,7 @@ describe("frame-rate-monitor", () => {
     expect(fps!).toBeCloseTo(60, 0);
   });
 
-  it("logs error when frame rate drops below threshold", () => {
+  it("logs warning when frame rate drops below threshold", () => {
     startFrameRateMonitor({
       windowSize: 10,
       threshold: 30,
@@ -96,7 +96,7 @@ describe("frame-rate-monitor", () => {
     // Simulate slow frames: ~20fps = 50ms per frame
     simulateFrames(11, 50);
 
-    expect(logger.error).toHaveBeenCalledWith(
+    expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("[frame-rate] Slow frame rate detected")
     );
   });
@@ -111,7 +111,7 @@ describe("frame-rate-monitor", () => {
     // Simulate fast frames: ~60fps
     simulateFrames(11, 16.67);
 
-    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("respects evaluation interval (no log spam)", () => {
@@ -142,6 +142,6 @@ describe("frame-rate-monitor", () => {
     // Simulate slow frames
     simulateFrames(11, 50);
 
-    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });
