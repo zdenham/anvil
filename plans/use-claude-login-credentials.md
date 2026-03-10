@@ -15,6 +15,7 @@ The Claude Agent SDK's `query()` spawns Claude Code CLI as a subprocess. That su
 ### Credential Storage
 
 `claude login` stores credentials in the macOS Keychain under service `Claude Code-credentials`:
+
 ```json
 {
   "claudeAiOauth": {
@@ -28,7 +29,8 @@ The Claude Agent SDK's `query()` spawns Claude Code CLI as a subprocess. That su
 
 ## Current Auth Flow (What Changes)
 
-**`src/lib/agent-service.ts`** — two spawn functions (`startSimpleAgent`, `resumeSimpleAgent`):
+`src/lib/agent-service.ts` — two spawn functions (`startSimpleAgent`, `resumeSimpleAgent`):
+
 ```ts
 // Lines 714-721 and 878-885: Currently REQUIRES an API key
 const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
@@ -38,7 +40,8 @@ if (!apiKey) throw new Error("Anthropic API key not configured");
 const envVars = { ANTHROPIC_API_KEY: apiKey, ... };
 ```
 
-**`src/entities/settings/store.ts`** — `isConfigured()` currently requires both repo AND apiKey:
+`src/entities/settings/store.ts` — `isConfigured()` currently requires both repo AND apiKey:
+
 ```ts
 isConfigured: () => {
   const { repository, anthropicApiKey } = get().workspace;
@@ -46,7 +49,8 @@ isConfigured: () => {
 }
 ```
 
-**`agents/src/runners/shared.ts:1343`** — `query()` passes `process.env` through to the CLI:
+`agents/src/runners/shared.ts:1343` — `query()` passes `process.env` through to the CLI:
+
 ```ts
 env: { ...process.env, CLAUDECODE: undefined, ... }
 ```
@@ -56,17 +60,20 @@ env: { ...process.env, CLAUDECODE: undefined, ... }
 ## Phases
 
 - [ ] Add auth method to settings schema and store
+
 - [ ] Update agent spawn to support no-API-key mode
+
 - [ ] Add Claude login detection (keychain probe)
+
 - [ ] Add auth method UI in settings
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
 ## Phase 1: Add Auth Method to Settings Schema
 
-**`src/entities/settings/types.ts`**
+`src/entities/settings/types.ts`
 
 Add an `authMethod` field to `WorkspaceSettingsSchema`:
 
@@ -78,7 +85,7 @@ authMethod: z.enum(["api-key", "claude-login", "default"]).optional(),
 - `"claude-login"` — don't pass API key, let CLI use keychain credentials
 - `"default"` / `undefined` — current behavior (use built-in key from env)
 
-**`src/entities/settings/store.ts`**
+`src/entities/settings/store.ts`
 
 Update `isConfigured()` to allow Claude Login auth without an API key:
 
@@ -92,13 +99,14 @@ isConfigured: () => {
 ```
 
 Add a selector:
+
 ```ts
 getAuthMethod: () => get().workspace.authMethod ?? "default",
 ```
 
 ## Phase 2: Update Agent Spawn to Support No-API-Key Mode
 
-**`src/lib/agent-service.ts`** — both `startSimpleAgent` (~line 714) and `resumeSimpleAgent` (~line 878):
+`src/lib/agent-service.ts` — both `startSimpleAgent` (\~line 714) and `resumeSimpleAgent` (\~line 878):
 
 Replace the hard requirement for an API key:
 
@@ -148,7 +156,7 @@ env: {
 
 We need a way to detect whether the user has Claude Code credentials, so the UI can show status.
 
-**New file: `src/lib/claude-login-detector.ts`** (~50 lines)
+**New file:** `src/lib/claude-login-detector.ts` (\~50 lines)
 
 ```ts
 import { Command } from "@tauri-apps/plugin-shell";
@@ -189,7 +197,7 @@ export async function detectClaudeLogin(): Promise<ClaudeLoginStatus> {
 
 ## Phase 4: Add Auth Method UI
 
-**New file: `src/components/main-window/settings/auth-settings.tsx`** (~80 lines)
+**New file:** `src/components/main-window/settings/auth-settings.tsx` (\~80 lines)
 
 A settings section that shows:
 
@@ -219,7 +227,7 @@ Run this in your terminal if not detected.
 ## Files Changed Summary
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `src/entities/settings/types.ts` | Add `authMethod` field to schema |
 | `src/entities/settings/store.ts` | Update `isConfigured()`, add `getAuthMethod()` |
 | `src/lib/agent-service.ts` | Make API key optional when `authMethod === "claude-login"` |

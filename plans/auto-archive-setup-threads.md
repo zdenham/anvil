@@ -13,6 +13,7 @@ After a setup thread's agent completes successfully, auto-archive the thread so 
 ### How the agent determines success
 
 The agent already emits a final status during `strategy.cleanup()` in `simple-runner-strategy.ts:532-537`:
+
 - `"completed"` on success (from `runner.ts:403`)
 - `"error"` on failure (from `runner.ts:446`)
 - `"cancelled"` on abort (from `runner.ts:425`)
@@ -28,6 +29,7 @@ mort-repl "await mort.archive(mort.context.threadId)"
 ```
 
 **Why this approach:**
+
 - Aligns with the direction of making the SDK more robust for UI control
 - The agent self-determines success — it only reaches the archive call if all prior setup steps succeeded (the agent naturally stops on error)
 - Keeps the pattern consistent: the SDK is the bridge between agent logic and UI actions
@@ -40,12 +42,16 @@ Listen for `thread:status-changed` where `status === "completed"` and the thread
 ## Phases
 
 - [ ] Add `archive()` method to `MortReplSdk` that emits `thread:archived` event
+
 - [ ] Wire up the archive event in the repl hook context (ensure `emitEvent` is available)
+
 - [ ] Update the frontend `thread:archived` listener to handle agent-emitted archives (verify it works when the event comes from the agent process rather than a UI action)
+
 - [ ] Update the default `worktreeSetupPrompt` documentation/example to include the `mort-repl` archive call at the end
+
 - [ ] Add tests: unit test for `MortReplSdk.archive()`, integration test confirming the event flows through
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 

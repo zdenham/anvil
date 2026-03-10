@@ -1,7 +1,7 @@
 {
   "name": "mort",
   "private": true,
-  "version": "v0.0.64",
+  "version": "v0.0.65",
   "type": "module",
   "scripts": {
     "dev": "./scripts/dev-mort.sh dev",
