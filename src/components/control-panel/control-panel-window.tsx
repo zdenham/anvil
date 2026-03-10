@@ -547,12 +547,6 @@ function ControlPanelWindowContent({
         setShowFollowUpInput(true);
       } else if (action === "respond") {
         inputRef.current?.focus();
-      } else if (action === "archive") {
-        await threadService.archive(threadId, instanceId);
-        await navigateToNextItemOrFallback(currentItem, { actionType: "archive" });
-      } else if (action === "markUnread") {
-        await useThreadStore.getState().markThreadAsUnread(threadId);
-        await navigateToNextItemOrFallback(currentItem, { actionType: "markUnread" });
       }
     } catch (error) {
       logger.error(`[ControlPanelWindow] Failed to handle quick action ${action}:`, error);

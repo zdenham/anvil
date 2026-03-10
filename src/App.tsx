@@ -65,6 +65,8 @@ function App() {
   useEffect(() => {
     if (appState.status !== "ready") return;
 
+    let cleanupEntityListeners: (() => void) | null = null;
+
     async function bootstrap() {
       const t0 = performance.now();
 
@@ -82,7 +84,7 @@ function App() {
       logger.info(`[startup] hydrateEntities: ${(performance.now() - t).toFixed(0)}ms`);
 
       t = performance.now();
-      setupEntityListeners();
+      cleanupEntityListeners = setupEntityListeners();
       logger.info(`[startup] setupEntityListeners: ${(performance.now() - t).toFixed(0)}ms`);
 
       t = performance.now();
@@ -95,9 +97,10 @@ function App() {
 
     bootstrap();
 
-    // Cleanup on unmount
+    // Cleanup on unmount (handles StrictMode double-mount)
     return () => {
       cleanupAgentMessageListener();
+      cleanupEntityListeners?.();
     };
   }, [appState.status]);
 

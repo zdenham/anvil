@@ -35,12 +35,17 @@ let prCreatedHandler: ((p: EventPayloads[typeof EventName.PR_CREATED]) => void) 
 let prUpdatedHandler: ((p: EventPayloads[typeof EventName.PR_UPDATED]) => void) | null = null;
 let prArchivedHandler: ((p: EventPayloads[typeof EventName.PR_ARCHIVED]) => void) | null = null;
 let webhookHandler: ((p: EventPayloads[typeof EventName.GITHUB_WEBHOOK_EVENT]) => void) | null = null;
+let prDetectedHandler: ((p: EventPayloads[typeof EventName.PR_DETECTED]) => void) | null = null;
 
-export function setupPullRequestListeners(): void {
+export function setupPullRequestListeners(): () => void {
   cleanupPrListeners();
   setupInternalPrListeners();
   setupGatewayWebhookListener();
   logger.info("[PullRequestListener] PR entity listeners initialized");
+
+  return () => {
+    cleanupPrListeners();
+  };
 }
 
 function cleanupPrListeners(): void {
@@ -48,6 +53,7 @@ function cleanupPrListeners(): void {
   if (prUpdatedHandler) eventBus.off(EventName.PR_UPDATED, prUpdatedHandler);
   if (prArchivedHandler) eventBus.off(EventName.PR_ARCHIVED, prArchivedHandler);
   if (webhookHandler) eventBus.off(EventName.GITHUB_WEBHOOK_EVENT, webhookHandler);
+  if (prDetectedHandler) eventBus.off(EventName.PR_DETECTED, prDetectedHandler);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -85,6 +91,33 @@ function setupInternalPrListeners(): void {
     }
   };
   eventBus.on(EventName.PR_ARCHIVED, prArchivedHandler);
+
+  prDetectedHandler = async ({ repoId, worktreeId, repoSlug, prNumber }: EventPayloads[typeof EventName.PR_DETECTED]) => {
+    try {
+      // Idempotent: pullRequestService.create deduplicates by repoId + prNumber
+      const currentBranch = useRepoWorktreeLookupStore
+        .getState()
+        .getCurrentBranch(repoId, worktreeId);
+
+      const baseBranch = useRepoWorktreeLookupStore
+        .getState()
+        .getDefaultBranch(repoId);
+
+      await pullRequestService.create({
+        prNumber,
+        repoId,
+        worktreeId,
+        repoSlug,
+        headBranch: currentBranch ?? "",
+        baseBranch,
+      });
+
+      logger.info(`[PrListener] Created PR entity from agent detection: #${prNumber}`);
+    } catch (e) {
+      logger.error(`[PrListener] Failed to create PR from agent detection #${prNumber}:`, e);
+    }
+  };
+  eventBus.on(EventName.PR_DETECTED, prDetectedHandler);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

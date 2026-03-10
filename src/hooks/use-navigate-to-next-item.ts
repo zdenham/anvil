@@ -18,7 +18,7 @@ import { closeCurrentPanelOrWindow } from "@/lib/panel-navigation";
 import { paneLayoutService } from "@/stores/pane-layout/service";
 import { logger } from "@/lib/logger-client";
 
-export type NavigationActionType = "archive" | "markUnread" | "nextItem";
+export type NavigationActionType = "nextItem";
 
 export interface UseNavigateToNextItemReturn {
   /**
@@ -41,15 +41,8 @@ export interface UseNavigateToNextItemReturn {
  */
 function getCompletionMessage(
   actionType: NavigationActionType | undefined,
-  itemType: "thread" | "plan"
 ): string {
-  const itemLabel = itemType === "thread" ? "Thread" : "Plan";
-
   switch (actionType) {
-    case "archive":
-      return `${itemLabel} archived`;
-    case "markUnread":
-      return "Marked unread";
     case "nextItem":
       return "Skipped";
     default:
@@ -84,7 +77,7 @@ export function useNavigateToNextItem(): UseNavigateToNextItemReturn {
 
       if (nextItem && !isSameItem) {
         // Navigate to the next item
-        const completionMessage = getCompletionMessage(actionType, currentItem.type);
+        const completionMessage = getCompletionMessage(actionType);
 
         logger.info(`[useNavigateToNextItem] Navigating to next item`, {
           from: currentItem,
@@ -108,7 +101,7 @@ export function useNavigateToNextItem(): UseNavigateToNextItemReturn {
         return true;
       } else {
         // No more unread items (or only current item is unread)
-        const completionMessage = getCompletionMessage(actionType, currentItem.type);
+        const completionMessage = getCompletionMessage(actionType);
 
         logger.info(`[useNavigateToNextItem] No more unread items`, {
           currentItem,

@@ -1077,6 +1077,32 @@ export async function runAgentLoop(
                   logger.info(`[PostToolUse] Detected git worktree add command, triggering sync`);
                 }
               }
+
+              // Detect PR creation via Bash — trigger PR sync
+              if (/gh\s+pr\s+create\b/.test(command)) {
+                const response = typeof input.tool_response === "string"
+                  ? input.tool_response
+                  : JSON.stringify(input.tool_response);
+
+                // gh pr create outputs the URL on success: https://github.com/owner/repo/pull/123
+                const prUrlMatch = response.match(
+                  /https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/
+                );
+
+                if (prUrlMatch && context.repoId && context.worktreeId) {
+                  const repoSlug = prUrlMatch[1];
+                  const prNumber = parseInt(prUrlMatch[2], 10);
+
+                  emitEvent(EventName.PR_DETECTED, {
+                    repoId: context.repoId,
+                    worktreeId: context.worktreeId,
+                    repoSlug,
+                    prNumber,
+                  }, "PostToolUse:gh-pr-create");
+
+                  logger.info(`[PostToolUse] Detected gh pr create: #${prNumber} on ${repoSlug}`);
+                }
+              }
             }
 
             // Handle Task tool completion: mark thread completed, add response to state.json

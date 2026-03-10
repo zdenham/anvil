@@ -5,87 +5,92 @@ import { planService } from '@/entities/plans/index.js';
 import { useThreadStore } from '@/entities/threads/store.js';
 import { logger } from '@/lib/logger-client.js';
 
-export function setupQuickActionListeners(): void {
-  // When registry changes on disk (e.g., from another window), refresh
-  eventBus.on('quick-actions:registry-changed', async () => {
+export function setupQuickActionListeners(): () => void {
+  const handleRegistryChanged = async () => {
     logger.info('[QuickActionListener] Registry changed, rehydrating...');
     await quickActionService.hydrate();
-  });
+  };
 
-  // When manifest is rebuilt, refresh
-  eventBus.on('quick-actions:manifest-changed', async () => {
+  const handleManifestChanged = async () => {
     logger.info('[QuickActionListener] Manifest changed, rehydrating...');
     await quickActionService.hydrate();
-  });
+  };
 
-  // SDK write operation event handlers (DD #24, #33)
-  // The SDK emits events through stdout, Mort handles the actual disk write
-  // These handlers perform the mutation and update Zustand stores
-
-  eventBus.on('sdk:thread:archive', async (payload: { threadId: string }) => {
+  const handleThreadArchive = async (payload: { threadId: string }) => {
     logger.info(`[QuickActionListener] SDK thread archive: ${payload.threadId}`);
     await threadService.archive(payload.threadId);
-  });
+  };
 
-  // Note: threadService.unarchive() does not exist yet - will need to be implemented
-  // eventBus.on('sdk:thread:unarchive', async (payload: { threadId: string }) => {
-  //   await threadService.unarchive(payload.threadId);
-  // });
-
-  eventBus.on('sdk:thread:markRead', async (payload: { threadId: string }) => {
+  const handleThreadMarkRead = async (payload: { threadId: string }) => {
     logger.info(`[QuickActionListener] SDK thread markRead: ${payload.threadId}`);
-    // Thread read state is managed via the store
     useThreadStore.getState().markThreadAsRead(payload.threadId);
-  });
+  };
 
-  eventBus.on('sdk:thread:markUnread', async (payload: { threadId: string }) => {
+  const handleThreadMarkUnread = async (payload: { threadId: string }) => {
     logger.info(`[QuickActionListener] SDK thread markUnread: ${payload.threadId}`);
-    // Thread read state is managed via the store
     await useThreadStore.getState().markThreadAsUnread(payload.threadId);
-  });
+  };
 
-  eventBus.on('sdk:thread:delete', async (payload: { threadId: string }) => {
+  const handleThreadDelete = async (payload: { threadId: string }) => {
     logger.info(`[QuickActionListener] SDK thread delete: ${payload.threadId}`);
     await threadService.delete(payload.threadId);
-  });
+  };
 
-  eventBus.on('sdk:plan:archive', async (payload: { planId: string }) => {
+  const handlePlanArchive = async (payload: { planId: string }) => {
     logger.info(`[QuickActionListener] SDK plan archive: ${payload.planId}`);
     await planService.archive(payload.planId);
-  });
+  };
 
-  // Note: planService.unarchive() does not exist yet - will need to be implemented
-  // eventBus.on('sdk:plan:unarchive', async (payload: { planId: string }) => {
-  //   await planService.unarchive(payload.planId);
-  // });
-
-  eventBus.on('sdk:plan:markRead', async (payload: { planId: string }) => {
+  const handlePlanMarkRead = async (payload: { planId: string }) => {
     logger.info(`[QuickActionListener] SDK plan markRead: ${payload.planId}`);
     await planService.markAsRead(payload.planId);
-  });
+  };
 
-  eventBus.on('sdk:plan:markUnread', async (payload: { planId: string }) => {
+  const handlePlanMarkUnread = async (payload: { planId: string }) => {
     logger.info(`[QuickActionListener] SDK plan markUnread: ${payload.planId}`);
     await planService.markAsUnread(payload.planId);
-  });
+  };
 
-  eventBus.on('sdk:plan:delete', async (payload: { planId: string }) => {
+  const handlePlanDelete = async (payload: { planId: string }) => {
     logger.info(`[QuickActionListener] SDK plan delete: ${payload.planId}`);
     await planService.delete(payload.planId);
-  });
+  };
 
-  // Navigation events (these update UI state, not disk)
-  eventBus.on('sdk:navigate', async (payload: { route: string }) => {
+  const handleNavigate = async (payload: { route: string }) => {
     logger.info(`[QuickActionListener] SDK navigate: ${payload.route}`);
-    // Router navigation handled by UI layer
-    // TODO: Implement navigation routing when executor is built
-  });
+  };
 
-  eventBus.on('sdk:navigateToNextUnread', async () => {
+  const handleNavigateToNextUnread = async () => {
     logger.info('[QuickActionListener] SDK navigateToNextUnread');
-    // Find and navigate to next unread item, or empty state if none (DD #29)
-    // TODO: Implement navigation to next unread when executor is built
-  });
+  };
+
+  eventBus.on('quick-actions:registry-changed', handleRegistryChanged);
+  eventBus.on('quick-actions:manifest-changed', handleManifestChanged);
+  eventBus.on('sdk:thread:archive', handleThreadArchive);
+  eventBus.on('sdk:thread:markRead', handleThreadMarkRead);
+  eventBus.on('sdk:thread:markUnread', handleThreadMarkUnread);
+  eventBus.on('sdk:thread:delete', handleThreadDelete);
+  eventBus.on('sdk:plan:archive', handlePlanArchive);
+  eventBus.on('sdk:plan:markRead', handlePlanMarkRead);
+  eventBus.on('sdk:plan:markUnread', handlePlanMarkUnread);
+  eventBus.on('sdk:plan:delete', handlePlanDelete);
+  eventBus.on('sdk:navigate', handleNavigate);
+  eventBus.on('sdk:navigateToNextUnread', handleNavigateToNextUnread);
 
   logger.info('[QuickActionListener] Quick action listeners initialized');
+
+  return () => {
+    eventBus.off('quick-actions:registry-changed', handleRegistryChanged);
+    eventBus.off('quick-actions:manifest-changed', handleManifestChanged);
+    eventBus.off('sdk:thread:archive', handleThreadArchive);
+    eventBus.off('sdk:thread:markRead', handleThreadMarkRead);
+    eventBus.off('sdk:thread:markUnread', handleThreadMarkUnread);
+    eventBus.off('sdk:thread:delete', handleThreadDelete);
+    eventBus.off('sdk:plan:archive', handlePlanArchive);
+    eventBus.off('sdk:plan:markRead', handlePlanMarkRead);
+    eventBus.off('sdk:plan:markUnread', handlePlanMarkUnread);
+    eventBus.off('sdk:plan:delete', handlePlanDelete);
+    eventBus.off('sdk:navigate', handleNavigate);
+    eventBus.off('sdk:navigateToNextUnread', handleNavigateToNextUnread);
+  };
 }

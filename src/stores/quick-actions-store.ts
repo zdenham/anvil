@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { create } from 'zustand';
 import type { ControlPanelViewType } from "@/entities/events";
 
-export type ActionType = "markUnread" | "archive" | "respond" | "nextItem" | "closePanel" | "followUp" | "createThread" | "editPlan" | "deletePlan" | "toggleView";
+export type ActionType = "respond" | "nextItem" | "closePanel" | "followUp" | "createThread" | "editPlan" | "deletePlan" | "toggleView";
 
 export interface ActionConfig {
   key: ActionType;
@@ -14,8 +14,7 @@ export interface ActionConfig {
 
 // Thread view default actions
 export const threadDefaultActions: Array<ActionConfig> = [
-  { key: "archive", label: "Archive", description: "complete and file away" },
-  { key: "markUnread", label: "Mark unread", description: "return to inbox for later" },
+  { key: "nextItem", label: "Next unread", description: "proceed to next unread item" },
   { key: "respond", label: "Type something to respond" },
 ];
 
@@ -27,11 +26,6 @@ export const threadStreamingActions: Array<ActionConfig> = [
     description: "proceed to next unread item",
   },
   {
-    key: "closePanel",
-    label: "Close",
-    description: "close this panel",
-  },
-  {
     key: "followUp",
     label: "Type something to queue a follow up",
   },
@@ -39,8 +33,7 @@ export const threadStreamingActions: Array<ActionConfig> = [
 
 // Plan view actions
 export const planDefaultActions: Array<ActionConfig> = [
-  { key: "archive", label: "Archive", description: "complete and file away" },
-  { key: "markUnread", label: "Mark unread", description: "return to inbox for later" },
+  { key: "nextItem", label: "Next unread", description: "proceed to next unread item" },
   { key: "respond", label: "Type something to respond" },
 ];
 

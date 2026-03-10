@@ -1,6 +1,6 @@
 import { threadService } from "@/entities";
 import { eventBus } from "@/entities/events";
-import { EventName } from "@core/types/events.js";
+import { EventName, type EventPayloads } from "@core/types/events.js";
 import { logger } from "./logger-client";
 import { useHeartbeatStore } from "@/stores/heartbeat-store";
 
@@ -120,12 +120,20 @@ export async function handleStaleness(threadId: string): Promise<void> {
  * Sets up listeners to clean up recovery polling when agents complete.
  * Call once at app initialization.
  */
-export function setupRecoveryCleanupListeners(): void {
-  eventBus.on(EventName.AGENT_COMPLETED, ({ threadId }) => {
+export function setupRecoveryCleanupListeners(): () => void {
+  const handleCompleted = ({ threadId }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
     stopRecoveryPolling(threadId);
-  });
+  };
 
-  eventBus.on(EventName.AGENT_CANCELLED, ({ threadId }) => {
+  const handleCancelled = ({ threadId }: EventPayloads[typeof EventName.AGENT_CANCELLED]) => {
     stopRecoveryPolling(threadId);
-  });
+  };
+
+  eventBus.on(EventName.AGENT_COMPLETED, handleCompleted);
+  eventBus.on(EventName.AGENT_CANCELLED, handleCancelled);
+
+  return () => {
+    eventBus.off(EventName.AGENT_COMPLETED, handleCompleted);
+    eventBus.off(EventName.AGENT_CANCELLED, handleCancelled);
+  };
 }

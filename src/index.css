@@ -350,6 +350,21 @@ textarea {
   }
 }
 
+/* Running folder chevron - amber with pulse (needs-input) */
+.chevron-needs-input {
+  color: #fbbf24; /* amber-400 — matches status-dot-needs-input */
+  animation: chevronNeedsInputPulse 2s ease-in-out infinite;
+}
+
+@keyframes chevronNeedsInputPulse {
+  0%, 100% {
+    color: #fbbf24; /* amber-400 */
+  }
+  50% {
+    color: #b45309; /* amber-700 */
+  }
+}
+
 /* CodeMirror 6 editor overrides to match app theme */
 .cm-editor-container .cm-editor {
   height: 100%;

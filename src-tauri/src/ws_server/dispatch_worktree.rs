@@ -38,7 +38,8 @@ pub async fn dispatch(
         }
         "worktree_sync" => {
             let repo_name: String = extract_arg(&args, "repoName")?;
-            let result = crate::worktree_commands::worktree_sync(repo_name).await?;
+            let mark_new_as_external: Option<bool> = args.get("markNewAsExternal").and_then(|v| v.as_bool());
+            let result = crate::worktree_commands::worktree_sync(repo_name, mark_new_as_external).await?;
             Ok(serde_json::to_value(result).unwrap())
         }
         _ => Err(format!("unknown worktree command: {}", cmd)),

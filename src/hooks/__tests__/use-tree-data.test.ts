@@ -637,7 +637,7 @@ describe("buildUnifiedTree", () => {
   });
 
   describe("type-priority sorting", () => {
-    it("sorts: Files → PR → terminal → Changes → thread", () => {
+    it("sorts: Files → PR → Changes → terminal → thread", () => {
       const thread = createThread({
         id: "thread-1",
         createdAt: BASE_TIME + 5000,
@@ -664,10 +664,10 @@ describe("buildUnifiedTree", () => {
       // Get direct children of worktree (depth 1: repo=0, worktree=0, children=1)
       const children = items.filter(i => i.depth === 1);
       const types = children.map(i => i.type);
-      expect(types).toEqual(["files", "pull-request", "terminal", "changes", "thread"]);
+      expect(types).toEqual(["files", "pull-request", "changes", "terminal", "thread"]);
     });
 
-    it("DnD-positioned items (with sortKey) override type priority", () => {
+    it("DnD-positioned thread (with sortKey) stays below operational items", () => {
       const thread = createThread({
         id: "dnd-thread",
         visualSettings: { parentId: WORKTREE_ID, sortKey: "a0" },
@@ -677,8 +677,52 @@ describe("buildUnifiedTree", () => {
         expandedSections: { [WORKTREE_ID]: true },
       });
       const children = items.filter(i => i.depth === 1);
-      expect(children[0].id).toBe("dnd-thread");
-      expect(children[1].type).toBe("files");
+      const types = children.map(i => i.type);
+      // Files and Changes (operational) must appear before thread regardless of sortKey
+      expect(types.indexOf("files")).toBeLessThan(types.indexOf("thread"));
+      expect(types.indexOf("changes")).toBeLessThan(types.indexOf("thread"));
+    });
+
+    it("DnD sortKey orders within same tier", () => {
+      const keyedThread = createThread({
+        id: "keyed-thread",
+        createdAt: BASE_TIME + 1000,
+        visualSettings: { parentId: WORKTREE_ID, sortKey: "a0" },
+      });
+      const unkeyedThread = createThread({
+        id: "unkeyed-thread",
+        createdAt: BASE_TIME + 5000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        threads: [keyedThread, unkeyedThread],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const threadItems = items.filter(i => i.type === "thread");
+      // Keyed items sort before unkeyed within the same tier
+      expect(threadItems[0].id).toBe("keyed-thread");
+      expect(threadItems[1].id).toBe("unkeyed-thread");
+    });
+
+    it("terminal sorts below threads/folders (both fallback tier 99 vs tier 3)", () => {
+      const thread = createThread({
+        id: "thread-1",
+        createdAt: BASE_TIME + 1000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const terminal = createTerminal({
+        id: "term-1",
+        createdAt: BASE_TIME + 5000, // newer, but lower priority tier
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        threads: [thread],
+        terminals: [terminal],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const children = items.filter(i => i.depth === 1);
+      const types = children.map(i => i.type);
+      expect(types.indexOf("terminal")).toBeLessThan(types.indexOf("thread"));
     });
 
     it("within same tier, items sort by createdAt descending", () => {

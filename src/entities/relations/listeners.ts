@@ -1,5 +1,5 @@
 import { eventBus } from "../events";
-import { EventName } from "@core/types/events.js";
+import { EventName, type EventPayloads } from "@core/types/events.js";
 import { relationService } from "./service";
 import { planService } from "../plans/service";
 import { logger } from "@/lib/logger-client";
@@ -12,50 +12,58 @@ import { logger } from "@/lib/logger-client";
  * - Archive relations when threads/plans are archived
  * - Mark plans as unread when relations are created/upgraded to 'modified'
  */
-export function setupRelationListeners(): void {
-  // When thread is updated (e.g., refreshed from disk), refresh its relations
-  eventBus.on(EventName.THREAD_UPDATED, async ({ threadId }) => {
+export function setupRelationListeners(): () => void {
+  const handleThreadUpdated = async ({ threadId }: EventPayloads[typeof EventName.THREAD_UPDATED]) => {
     logger.debug(`[relations:listeners] THREAD_UPDATED: refreshing relations for ${threadId}`);
     await relationService.refreshByThread(threadId);
-  });
+  };
 
-  // When plan is updated (e.g., refreshed from disk), refresh its relations
-  eventBus.on(EventName.PLAN_UPDATED, async ({ planId }) => {
+  const handlePlanUpdated = async ({ planId }: EventPayloads[typeof EventName.PLAN_UPDATED]) => {
     logger.debug(`[relations:listeners] PLAN_UPDATED: refreshing relations for ${planId}`);
     await relationService.refreshByPlan(planId);
-  });
+  };
 
-  // When a relation is created (emitted by agent), refresh from disk and mark unread if modified
-  eventBus.on(EventName.RELATION_CREATED, async ({ planId, threadId, type }) => {
+  const handleRelationCreated = async ({ planId, threadId, type }: EventPayloads[typeof EventName.RELATION_CREATED]) => {
     logger.debug(`[relations:listeners] RELATION_CREATED: ${planId}-${threadId} (${type})`);
-    // Refresh by thread to pick up the new relation from disk
     await relationService.refreshByThread(threadId);
-    // Mark plan as unread if this was a modification
     if (type === 'modified') {
       logger.debug(`[relations:listeners] RELATION_CREATED (modified): marking plan ${planId} as unread`);
       await planService.markAsUnread(planId);
     }
-  });
+  };
 
-  // When thread is archived, archive its relations
-  eventBus.on(EventName.THREAD_ARCHIVED, async ({ threadId }) => {
+  const handleThreadArchived = async ({ threadId }: EventPayloads[typeof EventName.THREAD_ARCHIVED]) => {
     logger.debug(`[relations:listeners] THREAD_ARCHIVED: ${threadId}`);
     await relationService.archiveByThread(threadId);
-  });
+  };
 
-  // When plan is archived, archive its relations
-  eventBus.on(EventName.PLAN_ARCHIVED, async ({ planId }) => {
+  const handlePlanArchived = async ({ planId }: EventPayloads[typeof EventName.PLAN_ARCHIVED]) => {
     logger.debug(`[relations:listeners] PLAN_ARCHIVED: ${planId}`);
     await relationService.archiveByPlan(planId);
-  });
+  };
 
-  // When a relation is upgraded to 'modified', mark the plan as unread
-  eventBus.on(EventName.RELATION_UPDATED, async ({ planId, type, previousType }) => {
+  const handleRelationUpdated = async ({ planId, type, previousType }: EventPayloads[typeof EventName.RELATION_UPDATED]) => {
     if (type === 'modified' && previousType !== 'modified') {
       logger.debug(`[relations:listeners] RELATION_UPDATED (upgraded to modified): marking plan ${planId} as unread`);
       await planService.markAsUnread(planId);
     }
-  });
+  };
+
+  eventBus.on(EventName.THREAD_UPDATED, handleThreadUpdated);
+  eventBus.on(EventName.PLAN_UPDATED, handlePlanUpdated);
+  eventBus.on(EventName.RELATION_CREATED, handleRelationCreated);
+  eventBus.on(EventName.THREAD_ARCHIVED, handleThreadArchived);
+  eventBus.on(EventName.PLAN_ARCHIVED, handlePlanArchived);
+  eventBus.on(EventName.RELATION_UPDATED, handleRelationUpdated);
 
   logger.log("[relations:listeners] Relation listeners initialized");
+
+  return () => {
+    eventBus.off(EventName.THREAD_UPDATED, handleThreadUpdated);
+    eventBus.off(EventName.PLAN_UPDATED, handlePlanUpdated);
+    eventBus.off(EventName.RELATION_CREATED, handleRelationCreated);
+    eventBus.off(EventName.THREAD_ARCHIVED, handleThreadArchived);
+    eventBus.off(EventName.PLAN_ARCHIVED, handlePlanArchived);
+    eventBus.off(EventName.RELATION_UPDATED, handleRelationUpdated);
+  };
 }

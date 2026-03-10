@@ -194,14 +194,9 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
     const currentItem = { type: "plan" as const, id: planId };
 
     try {
-      if (action === "archive") {
-        await planService.archive(planId, instanceId);
-        await navigateToNextItemOrFallback(currentItem, { actionType: "archive" });
-      } else if (action === "markUnread") {
-        await planService.markAsUnread(planId);
-        await navigateToNextItemOrFallback(currentItem, { actionType: "markUnread" });
+      if (action === "nextItem") {
+        await navigateToNextItemOrFallback(currentItem, { actionType: "nextItem" });
       } else if (action === "respond") {
-        // Focus the message input
         inputRef.current?.focus();
       } else if (action === "closePanel") {
         await closeCurrentPanelOrWindow();

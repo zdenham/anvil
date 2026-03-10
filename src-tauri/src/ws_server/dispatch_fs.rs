@@ -90,6 +90,12 @@ pub async fn dispatch(
             let result = crate::filesystem::grep(&dir, &pattern, &file_glob)?;
             Ok(serde_json::to_value(result).unwrap())
         }
+        "fs_write_binary" => {
+            let path: String = extract_arg(&args, "path")?;
+            let base64_data: String = extract_arg(&args, "base64Data")?;
+            crate::filesystem::fs_write_binary(path, base64_data)?;
+            Ok(serde_json::Value::Null)
+        }
         "fs_bulk_read" => {
             let paths: Vec<String> = serde_json::from_value(
                 args.get("paths").cloned().ok_or("Missing 'paths'")?

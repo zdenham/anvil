@@ -9,6 +9,7 @@ import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
 import { usePermissionStore } from "@/entities/permissions/store";
+import { useQuestionStore } from "@/entities/questions/store";
 import { usePullRequestStore } from "@/entities/pull-requests/store";
 import { useFolderStore } from "@/entities/folders/store";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
@@ -61,7 +62,7 @@ export interface TreeBuildContext {
 const ROOT = "__ROOT__";
 
 /** Type-based sort priority — lower number sorts first within a parent.
- *  Only applies to items without an explicit sortKey (non-DnD items). */
+ *  Always applied as the first sort dimension; sortKey only orders within a tier. */
 const TYPE_SORT_PRIORITY: Partial<Record<TreeItemType, number>> = {
   files: 0,
   "pull-request": 1,
@@ -70,7 +71,7 @@ const TYPE_SORT_PRIORITY: Partial<Record<TreeItemType, number>> = {
 };
 
 function typePriority(node: TreeItemNode): number {
-  return TYPE_SORT_PRIORITY[node.type] ?? 3;
+  return TYPE_SORT_PRIORITY[node.type] ?? 99;
 }
 
 /** Resolve the expand-state key for a given node */
@@ -214,19 +215,21 @@ export function buildUnifiedTree(
   const childrenMap = buildChildrenMap(allNodes);
 
   // Step 3: Sort children per parent.
-  // Items with sortKey are ordered lexicographically (ascending).
-  // Items without sortKey are ordered by createdAt descending (newest first).
-  // Items with sortKey sort before items without, so DnD-positioned items
-  // appear in their designated spot.
+  // Type priority is the first dimension (operational items above conversations).
+  // Within the same tier, sortKey orders lexicographically, then createdAt desc.
   for (const children of childrenMap.values()) {
     children.sort((a, b) => {
-      if (a.sortKey && b.sortKey) return a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
-      if (a.sortKey && !b.sortKey) return -1;
-      if (!a.sortKey && b.sortKey) return 1;
-      // Type priority: operational items above conversations
+      // 1. Type priority: operational items always above conversations
       const pa = typePriority(a);
       const pb = typePriority(b);
       if (pa !== pb) return pa - pb;
+
+      // 2. Within same tier: sortKey items first, ordered lexicographically
+      if (a.sortKey && b.sortKey) return a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
+      if (a.sortKey && !b.sortKey) return -1;
+      if (!a.sortKey && b.sortKey) return 1;
+
+      // 3. Both without sortKey: newest first
       return b.createdAt - a.createdAt;
     });
   }
@@ -318,15 +321,19 @@ export function useTreeData(): TreeItemNode[] {
     [threads],
   );
 
-  // Derived: threads with pending permission input
+  // Derived: threads with pending permission or question input
   const permissionRequests = usePermissionStore((state) => state.requests);
+  const questionRequests = useQuestionStore((state) => state.requests);
   const threadsWithPendingInput = useMemo(() => {
     const ids = new Set<string>();
     for (const req of Object.values(permissionRequests)) {
       if (req.status === "pending") ids.add(req.threadId);
     }
+    for (const req of Object.values(questionRequests)) {
+      if (req.status === "pending") ids.add(req.threadId);
+    }
     return ids;
-  }, [permissionRequests]);
+  }, [permissionRequests, questionRequests]);
 
   return useMemo(() => {
     const ctx: TreeBuildContext = {

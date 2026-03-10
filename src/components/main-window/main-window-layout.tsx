@@ -332,7 +332,7 @@ export function MainWindowLayout() {
           logger.warn("[MainWindowLayout] Failed to revive terminal (non-fatal):", err);
         }
       }
-      await navigationService.navigateToTerminal(itemId, { newTab });
+      await navigationService.navigateToTerminal(itemId, { bottomPane: true });
     } else if (itemType === "pull-request") {
       await navigationService.navigateToPullRequest(itemId, { newTab });
     }

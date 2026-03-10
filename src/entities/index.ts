@@ -239,41 +239,55 @@ export async function hydrateEntities(options: EntityInitOptions = {}): Promise<
 /**
  * Initialize all entity event listeners.
  * Call once at app startup, after setting up the event bridge.
- * Safe to call multiple times (HMR) — listeners with cleanup patterns
- * will deregister before re-registering.
+ * Safe to call multiple times (HMR / StrictMode) — previous listeners
+ * are cleaned up before re-registering.
  */
-let listenersInitialized = false;
+let cleanupFns: Array<() => void> = [];
 
-export function setupEntityListeners(options: EntityInitOptions = {}): void {
+export function setupEntityListeners(options: EntityInitOptions = {}): () => void {
   const { isMainWindow = true } = options;
-  if (listenersInitialized) {
-    logger.warn("[entities:listeners] Re-initializing entity listeners (HMR?)");
+
+  // Clean up previous listeners before re-registering (idempotent)
+  if (cleanupFns.length > 0) {
+    logger.warn("[entities:listeners] Cleaning up previous listeners before re-init");
+    for (const cleanup of cleanupFns) {
+      cleanup();
+    }
+    cleanupFns = [];
   }
+
   logger.log("[entities:listeners] Setting up entity listeners...", { isMainWindow });
-  setupThreadListeners();
-  setupRepositoryListeners();
-  setupPermissionListeners();
-  setupQuestionListeners();
-  setupPlanListeners();
-  setupRelationListeners();
-  setupTreeMenuListeners();
-  setupWorktreeListeners();
-  setupQuickActionListeners();
-  setupTerminalListeners();
-  setupApiHealthListeners();
-  setupCommentListeners();
-  setupFolderListeners();
+  cleanupFns.push(setupThreadListeners());
+  cleanupFns.push(setupRepositoryListeners());
+  cleanupFns.push(setupPermissionListeners());
+  cleanupFns.push(setupQuestionListeners());
+  cleanupFns.push(setupPlanListeners());
+  cleanupFns.push(setupRelationListeners());
+  cleanupFns.push(setupTreeMenuListeners());
+  cleanupFns.push(setupWorktreeListeners());
+  cleanupFns.push(setupQuickActionListeners());
+  cleanupFns.push(setupTerminalListeners());
+  cleanupFns.push(setupApiHealthListeners());
+  cleanupFns.push(setupCommentListeners());
+  cleanupFns.push(setupFolderListeners());
 
   // Gateway event routing + PR webhook handlers: main window only.
   // These listeners process SSE events and spawn agents — running them in
   // multiple windows causes duplicate agent spawns per webhook event.
   if (isMainWindow) {
-    setupPullRequestListeners();
-    setupGatewayChannelListeners();
+    cleanupFns.push(setupPullRequestListeners());
+    cleanupFns.push(setupGatewayChannelListeners());
   } else {
     logger.log("[entities:listeners] Skipping gateway/PR listeners (non-main window)");
   }
 
-  listenersInitialized = true;
   logger.log("[entities:listeners] All entity listeners initialized");
+
+  // Return master cleanup for the caller
+  return () => {
+    for (const cleanup of cleanupFns) {
+      cleanup();
+    }
+    cleanupFns = [];
+  };
 }

@@ -88,9 +88,24 @@ After completing the phase, update the plan file to mark phase 2 complete with [
 
 export const WORKTREE_POLICY = `## Worktree Policy
 
-Do NOT use the \`EnterWorktree\` tool — it is disabled. Mort manages worktree creation.
-If your task requires a new worktree, inform the user and they will create one from the sidebar.
-If you absolutely must create a worktree, use \`git worktree add\` via the Bash tool.`;
+Do NOT use the \`EnterWorktree\` tool — it is disabled.
+If you need to create a worktree, use Bash and follow this flow to match the UI:
+
+\\\`\\\`\\\`bash
+# 1. Fetch latest from origin
+git fetch origin
+
+# 2. Get the default branch name
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+
+# 3. Get the remote HEAD commit
+COMMIT=$(git rev-parse "origin/$DEFAULT_BRANCH")
+
+# 4. Create worktree detached at that commit
+git worktree add --detach <path> "$COMMIT"
+\\\`\\\`\\\`
+
+This ensures the worktree starts from the latest remote default branch, not your local HEAD which may be stale.`;
 
 /**
  * Helper to compose prompt sections with proper spacing.

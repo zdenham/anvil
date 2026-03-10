@@ -1,12 +1,13 @@
-import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Square } from "lucide-react";
 import { TriggerSearchInput, type TriggerStateInfo } from "./trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { CursorBoundary } from "@/lib/cursor-boundary";
 import { usePromptHistory } from "@/hooks/use-prompt-history";
 import { useInputStore } from "@/stores/input-store";
-import { useImagePaste } from "@/hooks/use-image-paste";
+import { writeImageToTempFile, MAX_IMAGE_SIZE_BYTES } from "@/lib/image-paste";
 import { usePaneGroupMaybe } from "@/components/split-layout/pane-group-context";
+import { logger } from "@/lib/logger-client";
 import { cn } from "@/lib/utils";
 
 interface ThreadInputProps {
@@ -41,19 +42,46 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   onNavigateToQuickActions: _deprecated,
 }: ThreadInputProps, ref) {
   const paneGroup = usePaneGroupMaybe();
-  const value = useInputStore((s) => s.content);
+  const content = useInputStore((s) => s.content);
   const setStoreContent = useInputStore((s) => s.setContent);
+  const appendContent = useInputStore((s) => s.appendContent);
   const [triggerState, setTriggerState] = useState<TriggerStateInfo | null>(null);
+  const [isPasting, setIsPasting] = useState(false);
   const inputRef = useRef<TriggerSearchInputRef>(null);
-  const addAttachments = useInputStore((s) => s.addAttachments);
 
-  // Track the underlying textarea element for the paste hook
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  useEffect(() => {
-    textareaRef.current = inputRef.current?.getElement() ?? null;
-  });
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
 
-  useImagePaste(textareaRef, (path) => addAttachments([path]));
+    const types = Array.from(items).map((i) => i.type);
+    logger.log("[image-paste] paste event", { itemCount: items.length, types });
+
+    for (const item of items) {
+      if (!item.type.startsWith("image/")) continue;
+      e.preventDefault();
+
+      const blob = item.getAsFile();
+      if (!blob) continue;
+
+      logger.log("[image-paste] image item", { type: blob.type, size: blob.size });
+
+      if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+        logger.warn("[image-paste] image too large", { size: blob.size });
+        continue;
+      }
+
+      setIsPasting(true);
+      writeImageToTempFile(blob)
+        .then((path) => {
+          logger.log("[image-paste] saved", { path });
+          const prefix = content.trim() ? "\n" : "";
+          appendContent(prefix + path);
+        })
+        .catch((err) => logger.error("[image-paste] save failed", { error: String(err) }))
+        .finally(() => setIsPasting(false));
+      break;
+    }
+  }, [content, appendContent]);
 
   const { handleHistoryNavigation, resetHistory, isInHistoryMode } = usePromptHistory({
     onQueryChange: (query: string) => {
@@ -79,13 +107,13 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   }, [paneGroup]);
 
   const handleSubmit = useCallback(() => {
-    const text = value.trim();
+    const text = content.trim();
     if (text && !disabled) {
       onSubmit(text);
       setStoreContent("");
       resetHistory();
     }
-  }, [value, disabled, onSubmit, resetHistory, setStoreContent]);
+  }, [content, disabled, onSubmit, resetHistory, setStoreContent]);
 
 
   const handleKeyDown = useCallback(
@@ -99,7 +127,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
       // Enter submits (unless Shift is held for newline, or trigger dropdown is active)
       // Only consume Enter if there's content to submit - otherwise let it propagate to quick actions
-      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && value.trim()) {
+      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && content.trim()) {
         e.preventDefault();
         e.stopPropagation();
         handleSubmit();
@@ -113,7 +141,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           return;
         }
 
-        const isEmpty = value.trim() === "";
+        const isEmpty = content.trim() === "";
         const textarea = e.target as HTMLTextAreaElement;
 
         // === HISTORY NAVIGATION LOGIC (follows spotlight pattern) ===
@@ -155,7 +183,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       // Note: Arrow keys, Tab, plain Enter are handled by TriggerSearchInput
       // when trigger is active and dropdown is enabled
     },
-    [handleSubmit, triggerState?.isActive, value, isInHistoryMode, handleHistoryNavigation, onCycleMode]
+    [handleSubmit, triggerState?.isActive, content, isInHistoryMode, handleHistoryNavigation, onCycleMode]
   );
 
   const handleTriggerStateChange = useCallback((state: TriggerStateInfo) => {
@@ -186,9 +214,10 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       <div className="relative flex-1 min-w-0">
         <TriggerSearchInput
           ref={inputRef}
-          value={value}
+          value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onFocus={handleFocus}
           onTriggerStateChange={handleTriggerStateChange}
           disabled={disabled}
@@ -203,6 +232,9 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
           aria-expanded={triggerState?.isActive}
           aria-autocomplete="list"
         />
+        {isPasting && (
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-surface-400">Pasting image...</div>
+        )}
         {onCancel && (
           <button
             onClick={onCancel}

@@ -284,7 +284,9 @@ export function ThreadItem({
               "flex-shrink-0 w-3 h-3 flex items-center justify-center rounded",
               item.status === "running"
                 ? "chevron-running"
-                : "text-surface-400 hover:bg-surface-700"
+                : item.status === "needs-input"
+                  ? "chevron-needs-input"
+                  : "text-surface-400 hover:bg-surface-700"
             )}
             onClick={handleFolderToggle}
             aria-label={item.isExpanded ? "Collapse folder" : "Expand folder"}
@@ -316,7 +318,6 @@ export function ThreadItem({
         ) : (
           <span
             className={cn("truncate flex-1", getTextColorClass(item.status, isSelected))}
-            title={item.title}
             onDoubleClick={handleDoubleClick}
           >
             {item.title}

@@ -5,7 +5,7 @@ import { threadService } from "./service.js";
 import { useThreadStore, clearMachineState } from "./store.js";
 import { getVisibleThreadIds } from "@/stores/pane-layout/store.js";
 import { logger } from "@/lib/logger-client.js";
-import { useHeartbeatStore, startHeartbeatMonitor } from "@/stores/heartbeat-store.js";
+import { useHeartbeatStore, startHeartbeatMonitor, stopHeartbeatMonitor } from "@/stores/heartbeat-store.js";
 import { handleStaleness, setupRecoveryCleanupListeners } from "@/lib/state-recovery.js";
 import { settingsService } from "../settings/service.js";
 import { isAgentRunning, sendToAgent } from "@/lib/agent-service.js";
@@ -48,10 +48,8 @@ function syncUsageFromState(threadId: string, store: ReturnType<typeof useThread
 /**
  * Setup thread event listeners.
  */
-export function setupThreadListeners(): void {
-  // Optimistic thread creation - creates placeholder in store for immediate UI feedback
-  // Will be overwritten by THREAD_CREATED when disk version is available
-  eventBus.on(EventName.THREAD_OPTIMISTIC_CREATED, ({ threadId, repoId, worktreeId, prompt, status, permissionMode }: EventPayloads[typeof EventName.THREAD_OPTIMISTIC_CREATED]) => {
+export function setupThreadListeners(): () => void {
+  const handleOptimisticCreated = ({ threadId, repoId, worktreeId, prompt, status, permissionMode }: EventPayloads[typeof EventName.THREAD_OPTIMISTIC_CREATED]) => {
     const eventReceivedAt = Date.now();
     try {
       const existingThread = useThreadStore.getState().threads[threadId];
@@ -85,18 +83,17 @@ export function setupThreadListeners(): void {
     } catch (e) {
       logger.error(`[ThreadListener] Failed to create optimistic thread ${threadId}:`, e);
     }
-  });
+  };
 
-  // Thread created on disk - refresh from disk (overwrites any optimistic version)
-  eventBus.on(EventName.THREAD_CREATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_CREATED]) => {
+  const handleCreated = async ({ threadId }: EventPayloads[typeof EventName.THREAD_CREATED]) => {
     try {
       await threadService.refreshById(threadId);
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh created thread ${threadId}:`, e);
     }
-  });
+  };
 
-  eventBus.on(EventName.THREAD_UPDATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_UPDATED]) => {
+  const handleUpdated = async ({ threadId }: EventPayloads[typeof EventName.THREAD_UPDATED]) => {
     try {
       await threadService.refreshById(threadId);
 
@@ -108,9 +105,9 @@ export function setupThreadListeners(): void {
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh updated thread ${threadId}:`, e);
     }
-  });
+  };
 
-  eventBus.on(EventName.THREAD_STATUS_CHANGED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_STATUS_CHANGED]) => {
+  const handleStatusChanged = async ({ threadId }: EventPayloads[typeof EventName.THREAD_STATUS_CHANGED]) => {
     try {
       await threadService.refreshById(threadId);
 
@@ -123,23 +120,15 @@ export function setupThreadListeners(): void {
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh thread status ${threadId}:`, e);
     }
-  });
+  };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Thread state actions — reducer-based state updates
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  eventBus.on(EventName.THREAD_ACTION, ({ threadId, action }) => {
+  const handleAction = ({ threadId, action }: EventPayloads[typeof EventName.THREAD_ACTION]) => {
     const store = useThreadStore.getState();
     store.dispatch(threadId, { type: "THREAD_ACTION", action });
     syncUsageFromState(threadId, useThreadStore.getState());
-  });
+  };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Streaming — dispatched as ThreadAction through the reducer
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  eventBus.on(EventName.STREAM_DELTA, (payload) => {
+  const handleStreamDelta = (payload: EventPayloads[typeof EventName.STREAM_DELTA]) => {
     if (!payload.messageId) {
       logger.warn("[ThreadListener] stream_delta missing messageId, skipping");
       return;
@@ -149,24 +138,13 @@ export function setupThreadListeners(): void {
       type: "THREAD_ACTION",
       action: { type: "STREAM_DELTA", payload: { anthropicMessageId: payload.messageId, deltas: payload.deltas } },
     });
-  });
+  };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Agent completion / cancellation
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  // Agent completed - always refresh metadata, only refresh state if active
-  eventBus.on(EventName.AGENT_COMPLETED, async ({ threadId, exitCode }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
+  const handleAgentCompleted = async ({ threadId, exitCode }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
     try {
       const store = useThreadStore.getState();
-      // Always refresh metadata (lightweight)
       await threadService.refreshById(threadId);
 
-      // Safety net: if metadata on disk still says "running" after the process
-      // exited, the agent crashed before writing its final status. Force-transition.
-      // Only force-transition if this thread had a frontend-tracked process.
-      // Socket-routed AGENT_COMPLETED events (child thread completions) don't have
-      // entries in agentProcesses — their lifecycle is managed by the parent agent.
       const freshThread = threadService.get(threadId);
       if (freshThread?.status === "running" && !isAgentRunning(threadId)) {
         logger.warn(`[ThreadListener] Thread ${threadId} still "running" after process exit (code=${exitCode}), forcing status`);
@@ -174,12 +152,9 @@ export function setupThreadListeners(): void {
         await threadService.setStatus(threadId, forcedStatus);
       }
 
-      // Mark thread as unread when it completes (user needs to see the results)
       await store.markThreadAsUnread(threadId);
       logger.info(`[ThreadListener] Marked thread ${threadId} as unread (agent completed)`);
 
-      // Refresh state if this thread is active or visible in any pane group.
-      // loadThreadState -> setThreadState -> HYDRATE through machine -> clears WIP
       const isVisible =
         store.activeThreadId === threadId ||
         getVisibleThreadIds().includes(threadId);
@@ -187,7 +162,6 @@ export function setupThreadListeners(): void {
         await threadService.loadThreadState(threadId);
       }
 
-      // Cascade: refresh parent so aggregate cost displays update
       const thread = threadService.get(threadId);
       if (thread?.parentThreadId) {
         await threadService.refreshById(thread.parentThreadId);
@@ -195,13 +169,11 @@ export function setupThreadListeners(): void {
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh completed thread ${threadId}:`, e);
     }
-  });
+  };
 
-  // Thread archived - remove from store
-  eventBus.on(EventName.THREAD_ARCHIVED, ({ threadId }: EventPayloads[typeof EventName.THREAD_ARCHIVED]) => {
+  const handleArchived = ({ threadId }: EventPayloads[typeof EventName.THREAD_ARCHIVED]) => {
     try {
       const store = useThreadStore.getState();
-      // Remove from store (disk already updated by archive operation)
       if (store.threads[threadId]) {
         store._applyDelete(threadId);
         logger.info(`[ThreadListener] Removed archived thread ${threadId} from store`);
@@ -209,37 +181,50 @@ export function setupThreadListeners(): void {
     } catch (e) {
       logger.error(`[ThreadListener] Failed to handle thread archive ${threadId}:`, e);
     }
-  });
+  };
 
-  // Thread name generated - refresh thread metadata to show new name
-  eventBus.on(EventName.THREAD_NAME_GENERATED, async ({ threadId }: EventPayloads[typeof EventName.THREAD_NAME_GENERATED]) => {
+  const handleNameGenerated = async ({ threadId }: EventPayloads[typeof EventName.THREAD_NAME_GENERATED]) => {
     try {
       await threadService.refreshById(threadId);
       logger.info(`[ThreadListener] Refreshed thread ${threadId} after name generated`);
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh thread after name generated ${threadId}:`, e);
     }
-  });
+  };
 
-  // Panel hidden - clear active thread to prevent marking threads as read when panel is not visible
-  // This allows useMarkThreadAsRead to simply check if the thread is active rather than polling panel visibility
-  eventBus.on("panel-hidden", () => {
+  const handlePanelHidden = () => {
     const store = useThreadStore.getState();
     if (store.activeThreadId) {
       logger.info(`[ThreadListener] Panel hidden, clearing active thread: ${store.activeThreadId}`);
-      // Clear chain + machine state so the next activation triggers a full sync
       clearChainState(store.activeThreadId);
       store.setActiveThread(null);
     }
-  });
+  };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Heartbeat Monitoring & Recovery
-  // ═══════════════════════════════════════════════════════════════════════════
+  const handleHeartbeatCompleted = ({ threadId }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
+    useHeartbeatStore.getState().removeThread(threadId);
+    clearChainState(threadId);
+  };
 
-  // Start heartbeat monitor with staleness handler
+  const handleHeartbeatCancelled = ({ threadId }: EventPayloads[typeof EventName.AGENT_CANCELLED]) => {
+    useHeartbeatStore.getState().removeThread(threadId);
+    clearChainState(threadId);
+  };
+
+  // Register all handlers
+  eventBus.on(EventName.THREAD_OPTIMISTIC_CREATED, handleOptimisticCreated);
+  eventBus.on(EventName.THREAD_CREATED, handleCreated);
+  eventBus.on(EventName.THREAD_UPDATED, handleUpdated);
+  eventBus.on(EventName.THREAD_STATUS_CHANGED, handleStatusChanged);
+  eventBus.on(EventName.THREAD_ACTION, handleAction);
+  eventBus.on(EventName.STREAM_DELTA, handleStreamDelta);
+  eventBus.on(EventName.AGENT_COMPLETED, handleAgentCompleted);
+  eventBus.on(EventName.THREAD_ARCHIVED, handleArchived);
+  eventBus.on(EventName.THREAD_NAME_GENERATED, handleNameGenerated);
+  eventBus.on("panel-hidden", handlePanelHidden);
+
+  // Heartbeat monitoring & recovery
   startHeartbeatMonitor(async (threadId: string) => {
-    // 1. Auto-enable all diagnostic modules
     const allEnabled = {
       pipeline: true,
       heartbeat: true,
@@ -248,40 +233,44 @@ export function setupThreadListeners(): void {
     };
     try {
       await settingsService.set("diagnosticLogging", allEnabled);
-      // Update Rust hub diagnostic state so pipeline logging activates there too
       await invoke("update_diagnostic_config", { config: allEnabled });
       logger.warn("[diagnostics] Auto-enabled all diagnostic modules due to heartbeat staleness");
     } catch (err) {
       logger.error("[diagnostics] Failed to auto-enable diagnostics:", err);
     }
 
-    // 2. Relay diagnostic config to in-flight agents via hub
-    // NOTE: type must be "diagnostic_config" (underscore) to match agent-side TauriToAgentMessage
     try {
       await sendToAgent(threadId, {
         type: "diagnostic_config",
         payload: allEnabled,
       });
     } catch (err) {
-      // Agent may not be reachable — that's expected when pipeline is broken
       logger.debug("[diagnostics] Failed to relay diagnostic config to agent:", err);
     }
 
-    // 3. Trigger disk recovery + polling fallback
     await handleStaleness(threadId);
   });
 
-  // Clean up heartbeat tracking and chain state when agent finishes
-  eventBus.on(EventName.AGENT_COMPLETED, ({ threadId }: EventPayloads[typeof EventName.AGENT_COMPLETED]) => {
-    useHeartbeatStore.getState().removeThread(threadId);
-    clearChainState(threadId);
-  });
+  eventBus.on(EventName.AGENT_COMPLETED, handleHeartbeatCompleted);
+  eventBus.on(EventName.AGENT_CANCELLED, handleHeartbeatCancelled);
 
-  eventBus.on(EventName.AGENT_CANCELLED, ({ threadId }: EventPayloads[typeof EventName.AGENT_CANCELLED]) => {
-    useHeartbeatStore.getState().removeThread(threadId);
-    clearChainState(threadId);
-  });
+  // Recovery polling cleanup (stops polling on agent complete/cancel)
+  const cleanupRecovery = setupRecoveryCleanupListeners();
 
-  // Set up recovery polling cleanup (stops polling on agent complete/cancel)
-  setupRecoveryCleanupListeners();
+  return () => {
+    eventBus.off(EventName.THREAD_OPTIMISTIC_CREATED, handleOptimisticCreated);
+    eventBus.off(EventName.THREAD_CREATED, handleCreated);
+    eventBus.off(EventName.THREAD_UPDATED, handleUpdated);
+    eventBus.off(EventName.THREAD_STATUS_CHANGED, handleStatusChanged);
+    eventBus.off(EventName.THREAD_ACTION, handleAction);
+    eventBus.off(EventName.STREAM_DELTA, handleStreamDelta);
+    eventBus.off(EventName.AGENT_COMPLETED, handleAgentCompleted);
+    eventBus.off(EventName.THREAD_ARCHIVED, handleArchived);
+    eventBus.off(EventName.THREAD_NAME_GENERATED, handleNameGenerated);
+    eventBus.off("panel-hidden", handlePanelHidden);
+    eventBus.off(EventName.AGENT_COMPLETED, handleHeartbeatCompleted);
+    eventBus.off(EventName.AGENT_CANCELLED, handleHeartbeatCancelled);
+    stopHeartbeatMonitor();
+    cleanupRecovery();
+  };
 }

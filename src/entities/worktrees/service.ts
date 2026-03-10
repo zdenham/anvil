@@ -47,8 +47,8 @@ class WorktreeServiceClient {
    * - Removes worktrees from settings that no longer exist on disk
    * - Preserves names and metadata for known worktrees
    */
-  async sync(repoName: string): Promise<WorktreeState[]> {
-    return invoke("worktree_sync", { repoName });
+  async sync(repoName: string, markNewAsExternal?: boolean): Promise<WorktreeState[]> {
+    return invoke("worktree_sync", { repoName, markNewAsExternal });
   }
 }
 

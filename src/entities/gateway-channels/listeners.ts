@@ -20,7 +20,7 @@ let gatewayEventHandler: ((event: GatewayEvent) => void) | null = null;
 const GATEWAY_EVENT_KEY = "gateway:event" as const;
 const GITHUB_WEBHOOK_EVENT_KEY = "github:webhook-event" as const;
 
-export function setupGatewayChannelListeners(): void {
+export function setupGatewayChannelListeners(): () => void {
   // Clean up previous handler (HMR safety)
   if (gatewayEventHandler) {
     eventBus.off(GATEWAY_EVENT_KEY, gatewayEventHandler);
@@ -41,4 +41,11 @@ export function setupGatewayChannelListeners(): void {
   };
 
   eventBus.on(GATEWAY_EVENT_KEY, gatewayEventHandler);
+
+  return () => {
+    if (gatewayEventHandler) {
+      eventBus.off(GATEWAY_EVENT_KEY, gatewayEventHandler);
+      gatewayEventHandler = null;
+    }
+  };
 }

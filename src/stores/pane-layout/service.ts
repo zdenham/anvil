@@ -204,6 +204,18 @@ export const paneLayoutService = {
   },
 
   async openInBottomPane(view: ContentPaneView): Promise<string> {
+    // Check if a matching tab already exists in any group — just activate it
+    const { groups } = usePaneLayoutStore.getState();
+    for (const group of Object.values(groups)) {
+      const match = group.tabs.find((t) => viewsMatch(t.view, view));
+      if (match) {
+        usePaneLayoutStore.getState()._applySetActiveGroup(group.id);
+        usePaneLayoutStore.getState()._applySetActiveTab(group.id, match.id);
+        await persistState();
+        return match.id;
+      }
+    }
+
     const { root, activeGroupId } = usePaneLayoutStore.getState();
 
     // If root is already a vertical split, reuse the last child leaf as the bottom group

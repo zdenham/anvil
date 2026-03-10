@@ -89,7 +89,8 @@ export function useInlineRename({
   }, [renameValue, validate, currentName, onRename, cancelRename]);
 
   const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => setRenameValue(e.target.value),
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setRenameValue(e.target.value.replace(/ /g, "-")),
     [],
   );
 

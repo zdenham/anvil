@@ -38,6 +38,7 @@ const BROADCAST_EVENTS = [
   EventName.WORKTREE_RELEASED,
   EventName.WORKTREE_NAME_GENERATED,
   EventName.WORKTREE_SYNCED,
+  EventName.PR_DETECTED,
 
   // User interaction
   EventName.ACTION_REQUESTED,

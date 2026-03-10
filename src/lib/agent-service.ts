@@ -248,6 +248,8 @@ function routeAgentEvent(threadId: string, eventName: string, payload: unknown):
     case EventName.WORKTREE_ALLOCATED:
     case EventName.WORKTREE_RELEASED:
     case EventName.WORKTREE_NAME_GENERATED:
+    case EventName.WORKTREE_SYNCED:
+    case EventName.PR_DETECTED:
     case EventName.ACTION_REQUESTED:
     case EventName.AGENT_CANCELLED:
     case EventName.AGENT_COMPLETED:

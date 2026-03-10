@@ -19,11 +19,11 @@ This plan makes terminals persistent and self-healing: each worktree always has 
 
 ## Phases
 
-- [ ] Revive dead terminals on click (respawn PTY, reuse UUID)
+- [x] Revive dead terminals on click (respawn PTY, reuse UUID)
 
-- [ ] Ensure at least one terminal per worktree on hydration
+- [x] Ensure at least one terminal per worktree on hydration
 
-- [ ] Clean up stale exited terminals on hydration
+- [x] Clean up stale exited terminals on hydration
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

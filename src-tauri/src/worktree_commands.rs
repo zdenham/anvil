@@ -305,7 +305,7 @@ pub async fn worktree_touch(repo_name: String, worktree_path: String) -> Result<
 /// - Removes worktrees from settings that no longer exist on disk
 /// - Preserves names and metadata for known worktrees
 #[tauri::command]
-pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, String> {
+pub async fn worktree_sync(repo_name: String, mark_new_as_external: Option<bool>) -> Result<Vec<WorktreeState>, String> {
     let mut settings = load_settings(&repo_name)?;
 
     let source_path = settings
@@ -367,7 +367,7 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
                 last_accessed_at: Some(now),
                 current_branch: git_wt.branch.clone(),
                 is_renamed: false,
-                is_external: !is_source,
+                is_external: if is_source { false } else { mark_new_as_external.unwrap_or(true) },
             });
         }
     }
