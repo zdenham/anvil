@@ -236,7 +236,9 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
   return (
     <div data-testid="plan-content-pane" className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
       {/* Main content area */}
-      {isContentLoading ? null : isStale || content === null ? (
+      {isContentLoading ? (
+        <div className="flex-1 min-h-0" />
+      ) : isStale || content === null ? (
         <div className="flex-1 min-h-0 overflow-y-auto w-full pt-8">
           <div className="w-full max-w-[900px] mx-auto p-4">
             <StalePlanView plan={plan} />

@@ -111,7 +111,13 @@ export function TiptapEditor({ initialContent, onChange, onSave }: TiptapEditorP
     }
   }, [editor, initialContent]);
 
-  if (!editor) return null;
+  if (!editor) {
+    return (
+      <div className="tiptap-editor flex-1 min-h-0 overflow-y-auto pt-8">
+        <div className="max-w-[900px] mx-auto p-4" />
+      </div>
+    );
+  }
 
   return (
     <div className="tiptap-editor flex-1 min-h-0 overflow-y-auto pt-8">

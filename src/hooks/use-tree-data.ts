@@ -380,14 +380,19 @@ export function buildTreeFromEntities(
   };
 
   // First, create sections for ALL known repos/worktrees (even empty ones)
+  // Also build a set of known worktreeIds to filter orphaned entities
+  // (prevents ghost "repo/main" sections during worktree archival race condition)
+  const knownWorktreeIds = new Set<string>();
   for (const repo of allRepos) {
     for (const wt of repo.worktrees) {
       ensureSection(repo.repoId, wt.worktreeId);
+      knownWorktreeIds.add(wt.worktreeId);
     }
   }
 
-  // Group threads by section
+  // Group threads by section (skip orphaned entities from archived worktrees)
   for (const thread of threads) {
+    if (!knownWorktreeIds.has(thread.worktreeId)) continue;
     const sectionId = ensureSection(thread.repoId, thread.worktreeId);
     threadsBySection.get(sectionId)!.push(thread);
 
@@ -397,8 +402,9 @@ export function buildTreeFromEntities(
     }
   }
 
-  // Group plans by section
+  // Group plans by section (skip orphaned entities from archived worktrees)
   for (const plan of plans) {
+    if (!knownWorktreeIds.has(plan.worktreeId)) continue;
     const sectionId = ensureSection(plan.repoId, plan.worktreeId);
     plansBySection.get(sectionId)!.push(plan);
 
@@ -410,6 +416,7 @@ export function buildTreeFromEntities(
 
   // Group terminals by section (using worktreeId only - terminals store worktreeId)
   for (const terminal of terminals) {
+    if (!knownWorktreeIds.has(terminal.worktreeId)) continue;
     // Find the section ID for this terminal's worktreeId
     for (const [sectionId, info] of sectionInfo) {
       if (info.worktreeId === terminal.worktreeId) {
@@ -423,8 +430,9 @@ export function buildTreeFromEntities(
     }
   }
 
-  // Group pull requests by section
+  // Group pull requests by section (skip orphaned entities from archived worktrees)
   for (const pr of pullRequests) {
+    if (!knownWorktreeIds.has(pr.worktreeId)) continue;
     const sectionId = ensureSection(pr.repoId, pr.worktreeId);
     prsBySection.get(sectionId)!.push(pr);
 
