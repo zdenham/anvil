@@ -15,6 +15,7 @@ import {
   fetchMergeSettings,
   mergePr as mergePrDetails,
   archivePr,
+  unarchivePr,
   deletePr,
   listArchivedPrs,
 } from "./pr-details";
@@ -76,6 +77,9 @@ export const pullRequestService = {
       isViewed: options?.isViewed ?? true,
       createdAt: now,
       updatedAt: now,
+      visualSettings: {
+        parentId: input.worktreeId,
+      },
     };
 
     const prPath = `${PR_DIR}/${metadata.id}`;
@@ -129,7 +133,7 @@ export const pullRequestService = {
     updates: Partial<
       Pick<
         PullRequestMetadata,
-        "worktreeId" | "autoAddressEnabled" | "gatewayChannelId" | "isViewed"
+        "worktreeId" | "autoAddressEnabled" | "gatewayChannelId" | "isViewed" | "visualSettings"
       >
     >,
   ): Promise<PullRequestMetadata> {
@@ -205,6 +209,11 @@ export const pullRequestService = {
   /** Archive a PR entity. Delegates to pr-details module. */
   async archive(id: string): Promise<void> {
     await archivePr(id);
+  },
+
+  /** Unarchive a PR entity. Delegates to pr-details module. */
+  async unarchive(id: string): Promise<void> {
+    await unarchivePr(id);
   },
 
   /** Archive all PRs for a worktree. */

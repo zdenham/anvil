@@ -1,2 +1,2 @@
 #!/bin/sh
-exec node "/Users/zac/Documents/juice/mort/mortician/agents/src/cli/mort.js" "$@"
+exec node "/Users/zac/.mort/repositories/mortician/ivory-dragonfly/agents/src/cli/mort.js" "$@"

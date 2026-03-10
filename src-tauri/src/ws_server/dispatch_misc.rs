@@ -226,6 +226,17 @@ async fn dispatch_part3(
         }
 
         // ── File Watcher (stateful — FileWatcherState) ───────────────────
+        "start_watch" => {
+            let watch_id: String = extract_arg(&args, "watchId")?;
+            let path: String = extract_arg(&args, "path")?;
+            let recursive: bool = extract_opt_arg(&args, "recursive").unwrap_or(false);
+            crate::file_watcher::start_watch_inner(
+                &state.file_watcher_state,
+                &state.broadcaster,
+                watch_id, path, recursive,
+            )?;
+            Ok(serde_json::Value::Null)
+        }
         "stop_watch" => {
             let watch_id: String = extract_arg(&args, "watchId")?;
             crate::file_watcher::stop_watch_inner(&state.file_watcher_state, &watch_id)?;

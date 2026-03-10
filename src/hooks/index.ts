@@ -48,9 +48,5 @@ export { useContextAwareNavigation } from "./use-context-aware-navigation";
 // Tree data utilities
 export {
   useTreeData,
-  useTreeSections,
-  useSelectedTreeItem,
-  useSectionItems,
   useExpandedSections,
-  buildTreeFromEntities,
 } from "./use-tree-data";

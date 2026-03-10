@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PlanMetadataSchema } from "@core/types/plans";
 import { usePlanStore } from "../store";
 import { planService } from "../service";
-import { getPlanDisplayName, getParentPath } from "../utils";
+import { getPlanDisplayName, getParentPath, computeNewRelativePath } from "../utils";
 import type { PlanMetadata } from "../types";
 
 // Mock dependencies
@@ -29,6 +29,17 @@ vi.mock("@/lib/logger-client", () => ({
 
 vi.mock("@/lib/persistence", () => ({
   persistence: {
+    ensureDir: vi.fn().mockResolvedValue(undefined),
+    writeJson: vi.fn().mockResolvedValue(undefined),
+    readJson: vi.fn().mockResolvedValue(null),
+    exists: vi.fn().mockResolvedValue(false),
+    glob: vi.fn().mockResolvedValue([]),
+    removeDir: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock("@/lib/app-data-store", () => ({
+  appData: {
     ensureDir: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
     readJson: vi.fn().mockResolvedValue(null),
@@ -1026,5 +1037,201 @@ describe("usePlanStore optimistic updates", () => {
 
       expect(usePlanStore.getState()._plansArray).toHaveLength(0);
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. refreshSinglePlanParent Visual Settings Sync Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("PlanService.refreshSinglePlanParent visual settings sync", () => {
+  const repoId = "550e8400-e29b-41d4-a716-446655440001";
+  const worktreeId = "550e8400-e29b-41d4-a716-446655440011";
+
+  beforeEach(() => {
+    usePlanStore.setState({
+      plans: {},
+      _plansArray: [],
+      _hydrated: false,
+    });
+    vi.clearAllMocks();
+  });
+
+  it("should sync visualSettings.parentId when parent is detected and visual parent is worktreeId default", async () => {
+    // Parent plan: auth.md
+    const parentPlan = createPlanMetadata({
+      id: "parent-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth.md",
+    });
+    // Child plan: auth/login.md with visual parent = worktreeId (agent default)
+    const childPlan = createPlanMetadata({
+      id: "child-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth/login.md",
+      visualSettings: { parentId: worktreeId },
+    });
+
+    usePlanStore.getState().hydrate({
+      "parent-plan-id": parentPlan,
+      "child-plan-id": childPlan,
+    });
+
+    await planService.refreshSinglePlanParent("child-plan-id");
+
+    const updated = usePlanStore.getState().getPlan("child-plan-id");
+    expect(updated?.parentId).toBe("parent-plan-id");
+    expect(updated?.visualSettings?.parentId).toBe("parent-plan-id");
+  });
+
+  it("should sync visualSettings.parentId when visual parent is undefined", async () => {
+    const parentPlan = createPlanMetadata({
+      id: "parent-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth.md",
+    });
+    const childPlan = createPlanMetadata({
+      id: "child-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth/login.md",
+      // No visualSettings at all
+    });
+
+    usePlanStore.getState().hydrate({
+      "parent-plan-id": parentPlan,
+      "child-plan-id": childPlan,
+    });
+
+    await planService.refreshSinglePlanParent("child-plan-id");
+
+    const updated = usePlanStore.getState().getPlan("child-plan-id");
+    expect(updated?.parentId).toBe("parent-plan-id");
+    expect(updated?.visualSettings?.parentId).toBe("parent-plan-id");
+  });
+
+  it("should NOT override visualSettings.parentId when user manually repositioned via DnD", async () => {
+    const manualParentId = "550e8400-e29b-41d4-a716-446655440099";
+    const parentPlan = createPlanMetadata({
+      id: "parent-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth.md",
+    });
+    const childPlan = createPlanMetadata({
+      id: "child-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth/login.md",
+      // User manually dragged this to a different visual parent
+      visualSettings: { parentId: manualParentId },
+    });
+
+    usePlanStore.getState().hydrate({
+      "parent-plan-id": parentPlan,
+      "child-plan-id": childPlan,
+    });
+
+    await planService.refreshSinglePlanParent("child-plan-id");
+
+    const updated = usePlanStore.getState().getPlan("child-plan-id");
+    // Domain parent should be updated
+    expect(updated?.parentId).toBe("parent-plan-id");
+    // Visual parent should NOT be overridden — user manually repositioned
+    expect(updated?.visualSettings?.parentId).toBe(manualParentId);
+  });
+
+  it("should set visual parent to worktreeId when no domain parent detected", async () => {
+    // Plan with no detectable parent, visual parent is undefined
+    const plan = createPlanMetadata({
+      id: "orphan-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "standalone.md",
+    });
+
+    usePlanStore.getState().hydrate({
+      "orphan-plan-id": plan,
+    });
+
+    await planService.refreshSinglePlanParent("orphan-plan-id");
+
+    const updated = usePlanStore.getState().getPlan("orphan-plan-id");
+    // No parent detected, visual parent should default to worktreeId
+    expect(updated?.visualSettings?.parentId).toBe(worktreeId);
+  });
+
+  it("should sync visual parent when current visual matches old domain parent", async () => {
+    const oldParentId = "550e8400-e29b-41d4-a716-446655440088";
+    const parentPlan = createPlanMetadata({
+      id: "new-parent-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth.md",
+    });
+    // Child was previously parented to oldParentId (both domain and visual)
+    const childPlan = createPlanMetadata({
+      id: "child-plan-id",
+      repoId,
+      worktreeId,
+      relativePath: "auth/login.md",
+      parentId: oldParentId,
+      visualSettings: { parentId: oldParentId },
+    });
+
+    usePlanStore.getState().hydrate({
+      "new-parent-plan-id": parentPlan,
+      "child-plan-id": childPlan,
+    });
+
+    await planService.refreshSinglePlanParent("child-plan-id");
+
+    const updated = usePlanStore.getState().getPlan("child-plan-id");
+    expect(updated?.parentId).toBe("new-parent-plan-id");
+    // Visual should follow since it matched the old domain parent
+    expect(updated?.visualSettings?.parentId).toBe("new-parent-plan-id");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. computeNewRelativePath Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("computeNewRelativePath", () => {
+  it("should place plan at plans root when target is worktree", () => {
+    expect(computeNewRelativePath("login.md", "worktree")).toBe("plans/login.md");
+  });
+
+  it("should place plan inside folder plan's directory (readme.md parent)", () => {
+    expect(
+      computeNewRelativePath("login.md", "plan", "plans/auth/readme.md"),
+    ).toBe("plans/auth/login.md");
+  });
+
+  it("should place plan inside folder plan's directory (README.md case-insensitive)", () => {
+    expect(
+      computeNewRelativePath("login.md", "plan", "plans/auth/README.md"),
+    ).toBe("plans/auth/login.md");
+  });
+
+  it("should create subdirectory for regular plan parent", () => {
+    // plans/security.md → plans/security/login.md
+    expect(
+      computeNewRelativePath("login.md", "plan", "plans/security.md"),
+    ).toBe("plans/security/login.md");
+  });
+
+  it("should handle nested plan parent", () => {
+    // plans/features/auth.md → plans/features/auth/login.md
+    expect(
+      computeNewRelativePath("login.md", "plan", "plans/features/auth.md"),
+    ).toBe("plans/features/auth/login.md");
+  });
+
+  it("should fall back to plans root when plan target has no relativePath", () => {
+    expect(computeNewRelativePath("login.md", "plan", undefined)).toBe("plans/login.md");
   });
 });

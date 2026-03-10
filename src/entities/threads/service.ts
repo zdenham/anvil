@@ -209,6 +209,9 @@ export const threadService = {
       git: input.git,
       isRead: true, // New threads start as read
       permissionMode: "implement",
+      visualSettings: {
+        parentId: input.worktreeId,
+      },
       turns: [
         {
           index: 0,
@@ -715,12 +718,30 @@ export const threadService = {
    *
    * @param threadId - The thread ID to archive
    * @param originInstanceId - Optional instance ID of the window that initiated the archive
+   * @param options.skipVisualCascade - Skip visual cascade (used by cascadeArchive to prevent recursion)
    */
-  async archive(threadId: string, originInstanceId?: string | null): Promise<void> {
+  async archive(
+    threadId: string,
+    originInstanceId?: string | null,
+    options?: { skipVisualCascade?: boolean },
+  ): Promise<void> {
     const thread = this.get(threadId);
     if (!thread) return;
 
-    // Get all descendant threads for cascaded archival
+    // Visual cascade: archive visual children (from tree model, not domain)
+    if (!options?.skipVisualCascade) {
+      try {
+        const { cascadeArchive, buildCurrentChildrenMap } = await import("@/lib/cascade-archive");
+        const childrenMap = buildCurrentChildrenMap();
+        if (childrenMap.has(threadId)) {
+          await cascadeArchive(threadId, "thread", childrenMap, originInstanceId);
+        }
+      } catch (err) {
+        logger.warn(`[threadService.archive] Visual cascade failed, continuing:`, err);
+      }
+    }
+
+    // Get all descendant threads for cascaded archival (existing domain logic)
     const descendantIds = this.getDescendantThreadIds(threadId);
     const allThreadIds = [threadId, ...descendantIds];
 

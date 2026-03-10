@@ -90,6 +90,37 @@ export async function archivePr(id: string): Promise<void> {
 }
 
 /**
+ * Unarchive a PR entity.
+ * Moves from archive directory back to active directory.
+ */
+export async function unarchivePr(id: string): Promise<void> {
+  const archivePath = `${ARCHIVE_PR_DIR}/${id}`;
+  const metadataPath = `${archivePath}/metadata.json`;
+
+  const raw = await appData.readJson(metadataPath);
+  const result = raw ? PullRequestMetadataSchema.safeParse(raw) : null;
+  if (!result?.success) {
+    logger.warn(`[pullRequestService.unarchive] PR ${id} not found in archive`);
+    return;
+  }
+
+  const metadata = result.data;
+  const destPath = `${PR_DIR}/${id}`;
+
+  await appData.ensureDir(destPath);
+  await appData.writeJson(`${destPath}/metadata.json`, metadata);
+  await appData.removeDir(archivePath);
+
+  usePullRequestStore.getState()._applyCreate(metadata);
+  eventBus.emit(EventName.PR_CREATED, {
+    prId: id,
+    repoId: metadata.repoId,
+    worktreeId: metadata.worktreeId,
+  });
+  logger.info(`[pullRequestService.unarchive] Unarchived PR ${id}`);
+}
+
+/**
  * Delete a PR entity permanently (from archive).
  */
 export async function deletePr(id: string): Promise<void> {

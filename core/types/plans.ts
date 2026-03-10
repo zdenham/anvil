@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VisualSettingsSchema } from './visual-settings.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Plan Entity Types - Zod schemas with derived types
@@ -37,6 +38,8 @@ export const PlanMetadataSchema = z.object({
   createdAt: z.number(),               // Unix milliseconds
   updatedAt: z.number(),               // Unix milliseconds
   phaseInfo: PhaseInfoSchema.optional(), // Phase tracking - null/undefined means no ## Phases section
+  /** Visual settings for sidebar tree positioning */
+  visualSettings: VisualSettingsSchema.optional(),
 });
 
 /** Plan metadata persisted to disk */
@@ -57,4 +60,8 @@ export interface UpdatePlanInput {
   parentId?: string;
   isFolder?: boolean;
   phaseInfo?: PhaseInfo;
+  visualSettings?: z.infer<typeof VisualSettingsSchema>;
+  relativePath?: string;
+  worktreeId?: string;
+  repoId?: string;
 }

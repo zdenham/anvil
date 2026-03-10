@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VisualSettingsSchema } from "./visual-settings.js";
 
 /**
  * Persisted PR metadata -- the binding between a GitHub PR and a Mort worktree.
@@ -47,6 +48,8 @@ export const PullRequestMetadataSchema = z.object({
   createdAt: z.number(),
   /** Unix epoch milliseconds */
   updatedAt: z.number(),
+  /** Visual settings for sidebar tree positioning */
+  visualSettings: VisualSettingsSchema.optional(),
 });
 
 export type PullRequestMetadata = z.infer<typeof PullRequestMetadataSchema>;

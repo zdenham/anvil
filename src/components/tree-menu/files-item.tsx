@@ -1,6 +1,6 @@
 import { FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TREE_INDENT_BASE } from "@/lib/tree-indent";
+import { getTreeIndentPx } from "@/lib/tree-indent";
 
 interface FilesItemProps {
   repoId: string;
@@ -8,6 +8,8 @@ interface FilesItemProps {
   worktreePath: string;
   isActive: boolean;
   onOpenFiles: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  /** Indentation depth (defaults to 0) */
+  depth?: number;
 }
 
 /**
@@ -17,7 +19,7 @@ interface FilesItemProps {
  * Per decisions: click or Enter opens file browser; selection alone does not.
  * TODO: Integrate into focusableItems for full keyboard nav
  */
-export function FilesItem({ repoId, worktreeId, worktreePath, isActive, onOpenFiles }: FilesItemProps) {
+export function FilesItem({ repoId, worktreeId, worktreePath, isActive, onOpenFiles, depth }: FilesItemProps) {
   const handleClick = () => {
     onOpenFiles(repoId, worktreeId, worktreePath);
   };
@@ -36,7 +38,7 @@ export function FilesItem({ repoId, worktreeId, worktreePath, isActive, onOpenFi
       tabIndex={-1}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      style={{ paddingLeft: `${TREE_INDENT_BASE}px` }}
+      style={{ paddingLeft: `${getTreeIndentPx(depth ?? 0)}px` }}
       className={cn(
         "flex items-center gap-1.5 w-full pr-2 py-1 text-xs",
         "hover:bg-surface-800 rounded cursor-pointer select-none",

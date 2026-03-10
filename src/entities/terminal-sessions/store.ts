@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TerminalSession } from "./types";
+import type { Rollback } from "@/lib/optimistic";
 import { clearOutputBuffer } from "./output-buffer";
 
 interface TerminalSessionStoreState {
@@ -35,6 +36,13 @@ interface TerminalSessionStoreActions {
   /** Get sessions by worktree ID */
   getSessionsByWorktree: (worktreeId: string) => TerminalSession[];
 
+  /** Hydrate store from disk (called once at app start) */
+  hydrate: (sessions: Record<string, TerminalSession>) => void;
+
+  /** Optimistic apply methods - return rollback functions */
+  _applyCreate: (session: TerminalSession) => Rollback;
+  _applyUpdate: (id: string, updates: Partial<TerminalSession>) => Rollback;
+  _applyDelete: (id: string) => Rollback;
 }
 
 export const useTerminalSessionStore = create<
@@ -115,4 +123,83 @@ export const useTerminalSessionStore = create<
   getSessionsByWorktree: (worktreeId) =>
     get()._sessionsArray.filter((s) => s.worktreeId === worktreeId),
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Hydration
+  // ═══════════════════════════════════════════════════════════════════════════
+  hydrate: (sessions) => {
+    set({
+      sessions,
+      _sessionsArray: Object.values(sessions).filter((s) => !s.isArchived),
+      _hydrated: true,
+    });
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Optimistic Apply Methods
+  // ═══════════════════════════════════════════════════════════════════════════
+  _applyCreate: (session: TerminalSession): Rollback => {
+    set((state) => {
+      const newSessions = { ...state.sessions, [session.id]: session };
+      return {
+        sessions: newSessions,
+        _sessionsArray: Object.values(newSessions).filter((s) => !s.isArchived),
+      };
+    });
+    return () =>
+      set((state) => {
+        const { [session.id]: _, ...rest } = state.sessions;
+        return {
+          sessions: rest,
+          _sessionsArray: Object.values(rest).filter((s) => !s.isArchived),
+        };
+      });
+  },
+
+  _applyUpdate: (id: string, updates: Partial<TerminalSession>): Rollback => {
+    const prev = get().sessions[id];
+    if (!prev) return () => {};
+
+    const updated = { ...prev, ...updates };
+    set((state) => {
+      const newSessions = { ...state.sessions, [id]: updated };
+      return {
+        sessions: newSessions,
+        _sessionsArray: Object.values(newSessions).filter((s) => !s.isArchived),
+      };
+    });
+    return () =>
+      set((state) => {
+        const restoredSessions = prev
+          ? { ...state.sessions, [id]: prev }
+          : state.sessions;
+        return {
+          sessions: restoredSessions,
+          _sessionsArray: Object.values(restoredSessions).filter((s) => !s.isArchived),
+        };
+      });
+  },
+
+  _applyDelete: (id: string): Rollback => {
+    const prev = get().sessions[id];
+    if (!prev) return () => {};
+
+    clearOutputBuffer(id);
+    set((state) => {
+      const { [id]: _, ...rest } = state.sessions;
+      return {
+        sessions: rest,
+        _sessionsArray: Object.values(rest).filter((s) => !s.isArchived),
+      };
+    });
+    return () =>
+      set((state) => {
+        const restoredSessions = prev
+          ? { ...state.sessions, [id]: prev }
+          : state.sessions;
+        return {
+          sessions: restoredSessions,
+          _sessionsArray: Object.values(restoredSessions).filter((s) => !s.isArchived),
+        };
+      });
+  },
 }));

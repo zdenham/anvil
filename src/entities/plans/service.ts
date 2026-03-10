@@ -193,16 +193,20 @@ class PlanService {
   async create(input: CreatePlanInput): Promise<PlanMetadata> {
     const id = generateId();
     const now = Date.now();
+    const domainParentId = input.parentId ?? this.detectParentPlan(input.relativePath, input.repoId);
 
     const plan: PlanMetadata = {
       id,
       repoId: input.repoId,
       worktreeId: input.worktreeId,
       relativePath: input.relativePath,
-      parentId: input.parentId ?? this.detectParentPlan(input.relativePath, input.repoId),
+      parentId: domainParentId,
       isRead: false, // Always start unread
       createdAt: now,
       updatedAt: now,
+      visualSettings: {
+        parentId: domainParentId ?? input.worktreeId,
+      },
     };
 
     // Optimistic update with rollback
@@ -585,12 +589,30 @@ class PlanService {
    *
    * @param planId - The plan ID to archive
    * @param originInstanceId - Optional instance ID of the window that initiated the archive
+   * @param options.skipVisualCascade - Skip visual cascade (used by cascadeArchive to prevent recursion)
    */
-  async archive(planId: string, originInstanceId?: string | null): Promise<void> {
+  async archive(
+    planId: string,
+    originInstanceId?: string | null,
+    options?: { skipVisualCascade?: boolean },
+  ): Promise<void> {
     const plan = this.get(planId);
     if (!plan) return;
 
-    // If this plan has children, use cascading archive
+    // Visual cascade: archive visual children (from tree model, not domain)
+    if (!options?.skipVisualCascade) {
+      try {
+        const { cascadeArchive, buildCurrentChildrenMap } = await import("@/lib/cascade-archive");
+        const childrenMap = buildCurrentChildrenMap();
+        if (childrenMap.has(planId)) {
+          await cascadeArchive(planId, "plan", childrenMap, originInstanceId);
+        }
+      } catch (err) {
+        logger.warn(`[planService:archive] Visual cascade failed, continuing:`, err);
+      }
+    }
+
+    // If this plan has children, use cascading archive (existing domain logic)
     const children = usePlanStore.getState().getChildren(planId);
     if (children.length > 0) {
       logger.debug(`[planService:archive] Plan ${planId} has ${children.length} children, using cascading archive`);
@@ -692,6 +714,34 @@ class PlanService {
     return plans;
   }
 
+  /**
+   * Unarchives a plan.
+   * Moves metadata from archive/plans/{id} back to plans/{id}.
+   * Note: the markdown file is NOT moved back from plans/completed/ automatically.
+   */
+  async unarchive(planId: string): Promise<void> {
+    const archivePath = `${ARCHIVE_PLANS_DIR}/${planId}`;
+    const metadataPath = `${archivePath}/metadata.json`;
+
+    const raw = await appData.readJson(metadataPath);
+    const result = raw ? PlanMetadataSchema.safeParse(raw) : null;
+    if (!result?.success) {
+      logger.warn(`[planService:unarchive] Plan ${planId} not found in archive`);
+      return;
+    }
+
+    const metadata = result.data;
+    const destPath = `${PLANS_DIRECTORY}/${planId}`;
+
+    await appData.ensureDir(destPath);
+    await appData.writeJson(`${destPath}/metadata.json`, metadata);
+    await appData.removeDir(archivePath);
+
+    usePlanStore.getState()._applyCreate(metadata);
+    eventBus.emit(EventName.PLAN_CREATED, { planId, repoId: metadata.repoId });
+    logger.info(`[planService:unarchive] Unarchived plan ${planId}`);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Folder Status Methods
   // ═══════════════════════════════════════════════════════════════════════════
@@ -751,8 +801,25 @@ class PlanService {
     const oldParentId = plan.parentId;
     const detectedParentId = this.detectParentPlan(plan.relativePath, plan.repoId);
 
-    if (plan.parentId !== detectedParentId) {
-      await this.update(planId, { parentId: detectedParentId, isRead: plan.isRead });
+    const needsParentUpdate = plan.parentId !== detectedParentId;
+
+    // Sync visual parent if it still matches the old default
+    // (don't override manual user repositioning via DnD)
+    const currentVisualParent = plan.visualSettings?.parentId;
+    const wasDefault = currentVisualParent === oldParentId
+      || currentVisualParent === plan.worktreeId
+      || !currentVisualParent;
+    const newVisualParent = detectedParentId ?? plan.worktreeId;
+    const needsVisualUpdate = wasDefault && currentVisualParent !== newVisualParent;
+
+    if (needsParentUpdate || needsVisualUpdate) {
+      await this.update(planId, {
+        parentId: detectedParentId,
+        isRead: plan.isRead,
+        ...(needsVisualUpdate && {
+          visualSettings: { ...plan.visualSettings, parentId: newVisualParent },
+        }),
+      });
     }
 
     // Also update the old and new parent's folder status
@@ -793,6 +860,251 @@ class PlanService {
 
     // Archive the parent last
     await this._archiveSingle(planId, originInstanceId);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Plan Move Methods (intra-worktree file moves + cross-worktree transfers)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Move a plan to a new location on disk.
+   * Handles intra-worktree file moves and cross-worktree transfers.
+   * For folder plans (with descendants), moves the entire directory.
+   *
+   * @returns The plan ID after the move (same for intra-worktree, new UUID for cross-worktree).
+   */
+  async movePlan(
+    planId: string,
+    opts: {
+      targetWorktreeId: string;
+      targetRepoId: string;
+      newRelativePath: string;
+      targetWorktreePath: string;
+      visualSettings?: { parentId?: string; sortKey?: string };
+    },
+  ): Promise<string> {
+    const plan = this.get(planId);
+    if (!plan) throw new Error(`Plan not found: ${planId}`);
+
+    const { resolvePlanPath } = await import("./utils");
+    const fs = new FilesystemClient();
+    const oldAbsPath = await resolvePlanPath(plan);
+    const newAbsPath = `${opts.targetWorktreePath}/${opts.newRelativePath}`;
+
+    // Check for collision at destination
+    if (oldAbsPath !== newAbsPath && await fs.exists(newAbsPath)) {
+      throw new Error(`Plan file already exists at destination: ${opts.newRelativePath}`);
+    }
+
+    // Ensure destination directory exists
+    const destDir = newAbsPath.substring(0, newAbsPath.lastIndexOf("/"));
+    await fs.mkdir(destDir);
+
+    const isCrossWorktree = plan.worktreeId !== opts.targetWorktreeId;
+    const descendants = this.getDescendants(planId);
+
+    if (descendants.length > 0) {
+      return this._moveFolderPlan(plan, descendants, oldAbsPath, opts, fs);
+    }
+
+    if (isCrossWorktree) {
+      return this._moveCrossWorktree(plan, oldAbsPath, newAbsPath, opts, fs);
+    }
+    return this._moveIntraWorktree(plan, oldAbsPath, newAbsPath, opts, fs);
+  }
+
+  /**
+   * Intra-worktree move: rename file on disk, update metadata in place.
+   */
+  private async _moveIntraWorktree(
+    plan: PlanMetadata,
+    oldAbsPath: string,
+    newAbsPath: string,
+    opts: {
+      newRelativePath: string;
+      visualSettings?: { parentId?: string; sortKey?: string };
+    },
+    fs: FilesystemClient,
+  ): Promise<string> {
+    if (oldAbsPath !== newAbsPath) {
+      await fs.move(oldAbsPath, newAbsPath);
+    }
+
+    const newParentId = this.detectParentPlan(opts.newRelativePath, plan.repoId);
+    const updates: Partial<PlanMetadata> = {
+      relativePath: opts.newRelativePath,
+      parentId: newParentId,
+      updatedAt: Date.now(),
+      ...(opts.visualSettings && {
+        visualSettings: { ...plan.visualSettings, ...opts.visualSettings },
+      }),
+    };
+
+    usePlanStore.getState()._applyUpdate(plan.id, updates);
+    const updated = usePlanStore.getState().getPlan(plan.id);
+    if (updated) {
+      await appData.writeJson(`${PLANS_DIRECTORY}/${plan.id}/metadata.json`, updated);
+    }
+
+    if (plan.parentId) await this.updateFolderStatus(plan.parentId);
+    if (newParentId) await this.updateFolderStatus(newParentId);
+    await this._cleanupEmptyParentDir(oldAbsPath, fs);
+
+    logger.info(`[planService:movePlan] Moved plan ${plan.id} to ${opts.newRelativePath}`);
+    return plan.id;
+  }
+
+  /**
+   * Cross-worktree move: read → write → delete file, delete old metadata + create new.
+   */
+  private async _moveCrossWorktree(
+    plan: PlanMetadata,
+    oldAbsPath: string,
+    newAbsPath: string,
+    opts: {
+      targetWorktreeId: string;
+      targetRepoId: string;
+      newRelativePath: string;
+      visualSettings?: { parentId?: string; sortKey?: string };
+    },
+    fs: FilesystemClient,
+  ): Promise<string> {
+    const content = await fs.readFile(oldAbsPath);
+    await fs.writeFile(newAbsPath, content);
+
+    try { await fs.remove(oldAbsPath); } catch {
+      logger.warn(`[planService:movePlan] Could not delete source file: ${oldAbsPath}`);
+    }
+
+    const oldParentId = plan.parentId;
+    usePlanStore.getState()._applyDelete(plan.id);
+    await appData.removeDir(`${PLANS_DIRECTORY}/${plan.id}`);
+
+    const newPlan = await this.create({
+      repoId: opts.targetRepoId,
+      worktreeId: opts.targetWorktreeId,
+      relativePath: opts.newRelativePath,
+    });
+
+    if (opts.visualSettings) {
+      await this.update(newPlan.id, {
+        isRead: newPlan.isRead,
+        visualSettings: { ...newPlan.visualSettings, ...opts.visualSettings },
+      });
+    }
+
+    if (oldParentId) await this.updateFolderStatus(oldParentId);
+    await this._cleanupEmptyParentDir(oldAbsPath, fs);
+
+    logger.info(`[planService:movePlan] Cross-worktree: ${plan.id} → ${newPlan.id}`);
+    return newPlan.id;
+  }
+
+  /**
+   * Move a folder plan (plan with descendants) — moves entire directory.
+   */
+  private async _moveFolderPlan(
+    plan: PlanMetadata,
+    descendants: PlanMetadata[],
+    oldAbsPath: string,
+    opts: {
+      targetWorktreeId: string;
+      targetRepoId: string;
+      newRelativePath: string;
+      targetWorktreePath: string;
+      visualSettings?: { parentId?: string; sortKey?: string };
+    },
+    fs: FilesystemClient,
+  ): Promise<string> {
+    const oldRelDir = plan.relativePath.substring(0, plan.relativePath.lastIndexOf("/"));
+    const newRelDir = opts.newRelativePath.substring(0, opts.newRelativePath.lastIndexOf("/"));
+    const oldDir = oldAbsPath.substring(0, oldAbsPath.lastIndexOf("/"));
+    const newDir = `${opts.targetWorktreePath}/${newRelDir}`;
+    const isCrossWorktree = plan.worktreeId !== opts.targetWorktreeId;
+
+    await fs.mkdir(newDir);
+
+    if (isCrossWorktree) {
+      await fs.copyDirectory(oldDir, newDir);
+      await fs.removeAll(oldDir);
+    } else if (oldDir !== newDir) {
+      await fs.move(oldDir, newDir);
+    }
+
+    // Update all descendants
+    for (const desc of descendants) {
+      const newDescRelPath = desc.relativePath.replace(oldRelDir, newRelDir);
+      await this._updateMovedPlanMetadata(desc, newDescRelPath, opts, isCrossWorktree);
+    }
+
+    // Update the plan itself
+    const resultId = await this._updateMovedPlanMetadata(plan, opts.newRelativePath, opts, isCrossWorktree);
+
+    // Apply visual settings to the root plan
+    if (opts.visualSettings) {
+      const targetId = resultId ?? plan.id;
+      const target = this.get(targetId);
+      if (target) {
+        await this.update(targetId, {
+          isRead: target.isRead,
+          visualSettings: { ...target.visualSettings, ...opts.visualSettings },
+        });
+      }
+    }
+
+    if (plan.parentId) await this.updateFolderStatus(plan.parentId);
+    logger.info(`[planService:movePlan] Moved folder plan ${plan.id} (${descendants.length} descendants)`);
+    return resultId ?? plan.id;
+  }
+
+  /**
+   * Update a single plan's metadata after a move.
+   * For intra-worktree: updates in place. For cross-worktree: deletes + creates.
+   * Returns the new plan ID for cross-worktree moves, undefined for intra.
+   */
+  private async _updateMovedPlanMetadata(
+    plan: PlanMetadata,
+    newRelativePath: string,
+    opts: { targetWorktreeId: string; targetRepoId: string },
+    isCrossWorktree: boolean,
+  ): Promise<string | undefined> {
+    if (isCrossWorktree) {
+      usePlanStore.getState()._applyDelete(plan.id);
+      await appData.removeDir(`${PLANS_DIRECTORY}/${plan.id}`);
+      const newPlan = await this.create({
+        repoId: opts.targetRepoId,
+        worktreeId: opts.targetWorktreeId,
+        relativePath: newRelativePath,
+      });
+      return newPlan.id;
+    }
+
+    const newParentId = this.detectParentPlan(newRelativePath, plan.repoId);
+    usePlanStore.getState()._applyUpdate(plan.id, {
+      relativePath: newRelativePath,
+      parentId: newParentId,
+      updatedAt: Date.now(),
+    });
+    const updated = usePlanStore.getState().getPlan(plan.id);
+    if (updated) {
+      await appData.writeJson(`${PLANS_DIRECTORY}/${plan.id}/metadata.json`, updated);
+    }
+    return undefined;
+  }
+
+  /**
+   * Remove the parent directory if it's empty after a file was moved out of it.
+   */
+  private async _cleanupEmptyParentDir(filePath: string, fs: FilesystemClient): Promise<void> {
+    const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+    try {
+      const entries = await fs.listDir(dir);
+      if (entries.length === 0) {
+        await fs.remove(dir);
+      }
+    } catch {
+      // Directory may not exist
+    }
   }
 
 }

@@ -255,7 +255,8 @@ export function TerminalContent({
     // Listen for PTY exit
     let exitUnlisten: UnlistenFn | undefined;
     listen<TerminalExitPayload>("terminal:exit", (event) => {
-      if (String(event.payload.id) === terminalId) {
+      const resolvedId = terminalSessionService.resolveByPtyId(event.payload.id);
+      if (resolvedId === terminalId) {
         logger.info("[TerminalContent] Terminal exit event received", {
           terminalId,
           instanceId,

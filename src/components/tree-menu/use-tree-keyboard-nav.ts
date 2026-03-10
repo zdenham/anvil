@@ -12,6 +12,17 @@ function focusItem(index: number) {
   element?.focus();
 }
 
+/**
+ * Resolve the expand-state key for a given node.
+ * Must match the expandKey() convention in use-tree-data.ts:
+ *   worktree -> item.id
+ *   everything else -> "type:id"
+ */
+function getExpandKey(item: TreeItemNode): string {
+  if (item.type === "worktree") return item.id;
+  return `${item.type}:${item.id}`;
+}
+
 interface UseTreeKeyboardNavOptions {
   /** Flat list of visible tree items */
   items: TreeItemNode[];
@@ -24,7 +35,7 @@ interface UseTreeKeyboardNavOptions {
 /**
  * Keyboard navigation hook for tree menu items.
  *
- * Supports nested plan navigation:
+ * Supports all container types (worktree, folder, thread, plan):
  * - ArrowRight on collapsed folder: expand
  * - ArrowRight on expanded folder: move to first child
  * - ArrowLeft on expanded folder: collapse
@@ -47,18 +58,15 @@ export function useTreeKeyboardNav({
       switch (e.key) {
         case "ArrowRight":
           // Expand folder or move to first child
-          if (currentItem.type === "plan" && currentItem.isFolder) {
+          if (currentItem.isFolder) {
             if (!currentItem.isExpanded) {
               e.preventDefault();
-              // Expand the folder
-              await treeMenuService.expandSection(`plan:${currentItem.id}`);
+              await treeMenuService.expandSection(getExpandKey(currentItem));
             } else {
-              // Move to first child (next item in flat list if it's a child)
               e.preventDefault();
               const nextIndex = activeIndex + 1;
               if (nextIndex < items.length) {
                 const nextItem = items[nextIndex];
-                // Check if next item is a child (has greater depth)
                 if (nextItem.depth > currentItem.depth) {
                   focusItem(nextIndex);
                   await treeMenuService.setSelectedItem(nextItem.id);
@@ -71,12 +79,9 @@ export function useTreeKeyboardNav({
 
         case "ArrowLeft":
           e.preventDefault();
-          // Collapse folder or move to parent
-          if (currentItem.type === "plan" && currentItem.isFolder && currentItem.isExpanded) {
-            // Collapse the folder
-            await treeMenuService.collapseSection(`plan:${currentItem.id}`);
+          if (currentItem.isFolder && currentItem.isExpanded) {
+            await treeMenuService.collapseSection(getExpandKey(currentItem));
           } else if (currentItem.parentId) {
-            // Find and focus parent
             const parentIndex = items.findIndex(
               (i) => i.id === currentItem.parentId
             );
@@ -138,13 +143,11 @@ export function useTreeItemKeyboardNav(
     async (e: React.KeyboardEvent) => {
       switch (e.key) {
         case "ArrowRight":
-          // Expand folder or move to first child
-          if (item.type === "plan" && item.isFolder) {
+          if (item.isFolder) {
             if (!item.isExpanded) {
               e.preventDefault();
-              await treeMenuService.expandSection(`plan:${item.id}`);
+              await treeMenuService.expandSection(getExpandKey(item));
             } else {
-              // Move to first child
               e.preventDefault();
               const nextIndex = index + 1;
               if (nextIndex < items.length && items[nextIndex].depth > item.depth) {
@@ -159,8 +162,8 @@ export function useTreeItemKeyboardNav(
 
         case "ArrowLeft":
           e.preventDefault();
-          if (item.type === "plan" && item.isFolder && item.isExpanded) {
-            await treeMenuService.collapseSection(`plan:${item.id}`);
+          if (item.isFolder && item.isExpanded) {
+            await treeMenuService.collapseSection(getExpandKey(item));
           } else if (item.parentId) {
             const parentIndex = items.findIndex((i) => i.id === item.parentId);
             if (parentIndex >= 0) {

@@ -1,6 +1,6 @@
 import { GitCommit } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
+import { getTreeIndentPx } from "@/lib/tree-indent";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 
 interface CommitItemProps {
@@ -33,7 +33,7 @@ export function CommitItem({ item, isSelected, onNavigate }: CommitItemProps) {
     }
   };
 
-  const indentPx = TREE_INDENT_BASE + TREE_INDENT_STEP;
+  const indentPx = getTreeIndentPx(item.depth);
   const displayAuthor = item.commitAuthor
     ? shortAuthor(item.commitAuthor)
     : undefined;
@@ -43,6 +43,7 @@ export function CommitItem({ item, isSelected, onNavigate }: CommitItemProps) {
       role="treeitem"
       aria-selected={isSelected}
       data-testid={`commit-item-${item.commitHash ?? item.id}`}
+      data-tree-item-id={item.id}
       tabIndex={-1}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

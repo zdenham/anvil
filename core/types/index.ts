@@ -69,3 +69,9 @@ export * from "./gateway-channel.js";
 
 // Comments - inline diff comment annotations
 export * from "./comments.js";
+
+// Visual settings - sidebar tree positioning
+export * from "./visual-settings.js";
+
+// Folder types - sidebar folder entities
+export * from "./folders.js";

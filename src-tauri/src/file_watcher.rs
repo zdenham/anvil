@@ -54,16 +54,17 @@ pub fn create_file_watcher_state() -> FileWatcherState {
     Arc::new(Mutex::new(FileWatcherManager::new()))
 }
 
-/// Creates a debounced watcher for a directory, emits `file-watcher:changed` events.
-#[tauri::command]
-pub fn start_watch(
-    state: tauri::State<'_, FileWatcherState>,
-    app: AppHandle,
+/// Creates a debounced watcher for a directory (standalone, callable from WS server).
+pub fn start_watch_inner(
+    state: &FileWatcherState,
+    broadcaster: &EventBroadcaster,
     watch_id: String,
     path: String,
     recursive: bool,
 ) -> Result<(), String> {
-    let mut manager = state.lock().unwrap();
+    let mut manager = state
+        .lock()
+        .map_err(|e| format!("Failed to lock file watcher state: {}", e))?;
 
     // Prevent duplicate watches
     if manager.sessions.contains_key(&watch_id) {
@@ -72,7 +73,7 @@ pub fn start_watch(
     }
 
     let event_watch_id = watch_id.clone();
-    let broadcaster = app.state::<EventBroadcaster>().inner().clone();
+    let broadcaster = broadcaster.clone();
     let mut debouncer = new_debouncer(
         Duration::from_millis(200),
         move |result: DebounceEventResult| match result {
@@ -114,6 +115,19 @@ pub fn start_watch(
         },
     );
     Ok(())
+}
+
+/// Creates a debounced watcher for a directory, emits `file-watcher:changed` events.
+#[tauri::command]
+pub fn start_watch(
+    state: tauri::State<'_, FileWatcherState>,
+    app: AppHandle,
+    watch_id: String,
+    path: String,
+    recursive: bool,
+) -> Result<(), String> {
+    let broadcaster = app.state::<EventBroadcaster>().inner().clone();
+    start_watch_inner(&state, &broadcaster, watch_id, path, recursive)
 }
 
 /// Tears down a specific watcher (standalone, callable from WS server).

@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2, ChevronRight, Check, Trash2, GitBranch, CircleDot } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Archive, Loader2, ChevronRight, Check, Trash2, GitBranch, CircleDot, ArrowRightLeft, CornerLeftUp } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import {
@@ -15,6 +17,9 @@ import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { planService } from "@/entities/plans/service";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
+import { useMoveToStore } from "./use-move-to";
+import { updateVisualSettings } from "@/lib/visual-settings";
+import type { TreeDragData } from "./use-tree-dnd";
 
 /**
  * Get text color class based on item status.
@@ -99,6 +104,16 @@ export function PlanItem({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const contextMenu = useContextMenu();
   const [confirmAction, setConfirmAction] = useState<"delete" | "deleteGit" | null>(null);
+
+  // ── Drag and drop ────────────────────────────────────────────────
+  const dragData: TreeDragData = useMemo(
+    () => ({ type: "tree-item", item }),
+    [item],
+  );
+  const {
+    attributes: dragAttrs, listeners: dragListeners, setNodeRef,
+    transform, transition, isDragging,
+  } = useSortable({ id: item.id, data: dragData });
 
   // Click outside to cancel confirmation
   useEffect(() => {
@@ -259,18 +274,26 @@ export function PlanItem({
     <>
       <ItemPreviewTooltip itemId={item.id} itemType="plan">
         <div
+          ref={setNodeRef}
+          {...dragAttrs}
+          {...dragListeners}
           role="treeitem"
           aria-selected={isSelected}
           aria-expanded={item.isFolder ? item.isExpanded : undefined}
           aria-level={item.depth + 1}
           data-testid={`plan-item-${item.id}`}
+          data-tree-item-id={item.id}
           data-tree-item-index={itemIndex}
           tabIndex={tabIndex}
           onClick={handleClick}
           onMouseDown={handleMouseDown}
           onKeyDown={handleKeyDown}
           onContextMenu={handleContextMenuOpen}
-          style={{ paddingLeft: `${indentPx}px` }}
+          style={{
+            paddingLeft: `${indentPx}px`,
+            transform: CSS.Transform.toString(transform),
+            transition,
+          }}
           className={cn(
             "group flex items-center gap-1.5 py-0.5 pr-1 cursor-pointer",
             "text-[13px] leading-[22px]",
@@ -278,7 +301,8 @@ export function PlanItem({
             "outline-none focus:bg-accent-500/10",
             isSelected
               ? "bg-accent-500/20 text-surface-100"
-              : "text-surface-300 hover:bg-accent-500/10"
+              : "text-surface-300 hover:bg-accent-500/10",
+            isDragging && "opacity-50",
           )}
         >
           {/* Folder toggle chevron (when selected) or status dot - both use same fixed width */}
@@ -364,6 +388,28 @@ export function PlanItem({
                   contextMenu.close();
                 }}
               />
+              <ContextMenuItem
+                icon={ArrowRightLeft}
+                label="Move to..."
+                onClick={() => {
+                  contextMenu.close();
+                  useMoveToStore.getState().openMoveDialog(item);
+                }}
+              />
+              {item.parentId && item.parentId !== item.worktreeId && (
+                <ContextMenuItem
+                  icon={CornerLeftUp}
+                  label="Move to root"
+                  onClick={async () => {
+                    contextMenu.close();
+                    await updateVisualSettings("plan", item.id, {
+                      parentId: item.worktreeId,
+                      sortKey: undefined,
+                    });
+                  }}
+                />
+              )}
+              <ContextMenuDivider />
               <ContextMenuItem
                 icon={Archive}
                 label="Archive"

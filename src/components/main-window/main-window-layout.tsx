@@ -86,23 +86,22 @@ export function MainWindowLayout() {
   // Tree Data (for Command+N new thread in most recent worktree)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Use unfiltered data for Command+N (need all sections regardless of pin/hide)
-  const treeSections = useTreeData({ skipFiltering: true });
+  // Flat tree items for Command+N / Command+T worktree resolution
+  const treeItems = useTreeData();
 
-  // Get pin/hide state for passing to TreeMenu
-  const pinnedSectionId = useTreeMenuStore((state) => state.pinnedSectionId);
-  const hiddenSectionIds = useTreeMenuStore((state) => state.hiddenSectionIds);
+  // Pinned worktree state for passing to TreeMenu
+  const pinnedWorktreeId = useTreeMenuStore((state) => state.pinnedWorktreeId);
 
-  // Store ref to treeSections for use in keyboard handler (avoids stale closure)
-  const treeSectionsRef = useRef(treeSections);
-  treeSectionsRef.current = treeSections;
+  // Store ref to treeItems for use in keyboard handler (avoids stale closure)
+  const treeItemsRef = useRef(treeItems);
+  treeItemsRef.current = treeItems;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Command Palette State
   // ═══════════════════════════════════════════════════════════════════════════
 
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [creatingSectionIds, setCreatingSectionIds] = useState<Set<string>>(new Set());
+  const [creatingWorktreeIds, setCreatingWorktreeIds] = useState<Set<string>>(new Set());
 
   // Listen for Command+P / Ctrl+P to open command palette
   useEffect(() => {
@@ -176,10 +175,10 @@ export function MainWindowLayout() {
           if (selectedThread) {
             repoId = selectedThread.repoId;
             worktreeId = selectedThread.worktreeId;
-            const section = treeSectionsRef.current.find(
-              s => s.repoId === repoId && s.worktreeId === worktreeId
+            const worktreeNode = treeItemsRef.current.find(
+              i => i.type === "worktree" && i.repoId === repoId && (i.worktreeId === worktreeId || i.id === worktreeId)
             );
-            worktreeName = section?.worktreeName ?? "unknown";
+            worktreeName = worktreeNode?.worktreeName ?? "unknown";
             logger.info(`[MainWindowLayout] Command+N: Creating new thread in selected thread's worktree "${worktreeName}"`);
           } else {
             // Try plan
@@ -187,25 +186,26 @@ export function MainWindowLayout() {
             if (selectedPlan) {
               repoId = selectedPlan.repoId;
               worktreeId = selectedPlan.worktreeId;
-              const section = treeSectionsRef.current.find(
-                s => s.repoId === repoId && s.worktreeId === worktreeId
+              const worktreeNode = treeItemsRef.current.find(
+                i => i.type === "worktree" && i.repoId === repoId && (i.worktreeId === worktreeId || i.id === worktreeId)
               );
-              worktreeName = section?.worktreeName ?? "unknown";
+              worktreeName = worktreeNode?.worktreeName ?? "unknown";
               logger.info(`[MainWindowLayout] Command+N: Creating new thread in selected plan's worktree "${worktreeName}"`);
             }
           }
         }
 
-        // 2. Fallback to most recently used worktree
+        // 2. Fallback to most recent worktree
         if (!repoId || !worktreeId) {
-          const sections = treeSectionsRef.current;
-          if (sections.length === 0) {
+          const allItems = treeItemsRef.current;
+          const worktrees = allItems.filter(i => i.type === "worktree");
+          if (worktrees.length === 0) {
             logger.warn("[MainWindowLayout] Command+N: No worktrees available");
             return;
           }
-          const mostRecent = sections[0];
-          repoId = mostRecent.repoId;
-          worktreeId = mostRecent.worktreeId;
+          const mostRecent = worktrees[0];
+          repoId = mostRecent.repoId!;
+          worktreeId = mostRecent.worktreeId ?? mostRecent.id;
           worktreeName = mostRecent.worktreeName;
           logger.info(`[MainWindowLayout] Command+N: Creating new thread in most recent worktree "${worktreeName}"`);
         }
@@ -394,40 +394,41 @@ export function MainWindowLayout() {
         if (selectedItemId) {
           const selectedThread = threadService.get(selectedItemId);
           if (selectedThread) {
-            const section = treeSectionsRef.current.find(
-              s => s.repoId === selectedThread.repoId && s.worktreeId === selectedThread.worktreeId
+            const worktreeNode = treeItemsRef.current.find(
+              i => i.type === "worktree" && i.repoId === selectedThread.repoId && (i.worktreeId === selectedThread.worktreeId || i.id === selectedThread.worktreeId)
             );
-            if (section) {
-              worktreeId = section.worktreeId;
-              worktreePath = section.worktreePath;
+            if (worktreeNode) {
+              worktreeId = worktreeNode.worktreeId ?? worktreeNode.id;
+              worktreePath = worktreeNode.worktreePath;
             }
           } else {
             const selectedPlan = planService.get(selectedItemId);
             if (selectedPlan) {
-              const section = treeSectionsRef.current.find(
-                s => s.repoId === selectedPlan.repoId && s.worktreeId === selectedPlan.worktreeId
+              const worktreeNode = treeItemsRef.current.find(
+                i => i.type === "worktree" && i.repoId === selectedPlan.repoId && (i.worktreeId === selectedPlan.worktreeId || i.id === selectedPlan.worktreeId)
               );
-              if (section) {
-                worktreeId = section.worktreeId;
-                worktreePath = section.worktreePath;
+              if (worktreeNode) {
+                worktreeId = worktreeNode.worktreeId ?? worktreeNode.id;
+                worktreePath = worktreeNode.worktreePath;
               }
             }
           }
         }
 
-        // 2. Fallback to most recently used worktree
+        // 2. Fallback to most recent worktree
         if (!worktreeId || !worktreePath) {
-          const sections = treeSectionsRef.current;
-          if (sections.length === 0) {
+          const allItems = treeItemsRef.current;
+          const worktrees = allItems.filter(i => i.type === "worktree");
+          if (worktrees.length === 0) {
             logger.warn("[MainWindowLayout] Command+T: No worktrees available");
             return;
           }
-          const mostRecent = sections[0];
-          worktreeId = mostRecent.worktreeId;
+          const mostRecent = worktrees[0];
+          worktreeId = mostRecent.worktreeId ?? mostRecent.id;
           worktreePath = mostRecent.worktreePath;
         }
 
-        await handleNewTerminal(worktreeId, worktreePath);
+        await handleNewTerminal(worktreeId, worktreePath!);
       }
     };
 
@@ -455,13 +456,12 @@ export function MainWindowLayout() {
       return;
     }
 
-    // Optimistic insert — section appears immediately in sidebar
-    const sectionId = `${repoId}:${tempWorktreeId}`;
+    // Optimistic insert — worktree appears immediately in sidebar
     lookupStore.addOptimisticWorktree(repoId, tempWorktreeId, worktreeName);
-    setCreatingSectionIds((prev) => new Set([...prev, sectionId]));
+    setCreatingWorktreeIds((prev) => new Set([...prev, tempWorktreeId]));
 
-    // Expand the new section
-    await treeMenuService.expandSection(sectionId);
+    // Expand the new worktree node
+    await treeMenuService.expandSection(tempWorktreeId);
 
     try {
       await worktreeService.create(repoName, worktreeName);
@@ -505,9 +505,9 @@ export function MainWindowLayout() {
       useRepoWorktreeLookupStore.getState().removeOptimisticWorktree(repoId, tempWorktreeId);
       logger.error(`[MainWindowLayout] Failed to create worktree:`, error);
     } finally {
-      setCreatingSectionIds((prev) => {
+      setCreatingWorktreeIds((prev) => {
         const next = new Set(prev);
-        next.delete(sectionId);
+        next.delete(tempWorktreeId);
         return next;
       });
     }
@@ -550,41 +550,21 @@ export function MainWindowLayout() {
   // Pin/Hide Handlers (workspace filtering)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handlePinToggle = useCallback(async (sectionId: string) => {
-    logger.info(`[MainWindowLayout] Pin toggle requested for section ${sectionId}`);
+  const handlePinToggle = useCallback(async (worktreeId: string) => {
+    logger.info(`[MainWindowLayout] Pin toggle requested for worktree ${worktreeId}`);
     try {
-      await treeMenuService.togglePinSection(sectionId);
+      await treeMenuService.togglePinWorktree(worktreeId);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to toggle pin:`, err);
     }
   }, []);
 
-  const handleHideSection = useCallback(async (sectionId: string) => {
-    logger.info(`[MainWindowLayout] Hide section requested: ${sectionId}`);
-
-    // Prevent hiding the last visible section
-    const visibleCount = treeSections.filter(s =>
-      s.id !== sectionId && !hiddenSectionIds.includes(s.id)
-    ).length;
-
-    if (visibleCount === 0 && !pinnedSectionId) {
-      logger.warn(`[MainWindowLayout] Cannot hide last visible section`);
-      return;
-    }
-
-    try {
-      await treeMenuService.hideSection(sectionId);
-    } catch (err) {
-      logger.error(`[MainWindowLayout] Failed to hide section:`, err);
-    }
-  }, [treeSections, hiddenSectionIds, pinnedSectionId]);
-
   const handleUnhideAll = useCallback(async () => {
-    logger.info(`[MainWindowLayout] Unhide all sections requested`);
+    logger.info(`[MainWindowLayout] Unpin all requested`);
     try {
-      await treeMenuService.unhideAll();
+      await treeMenuService.pinWorktree(null);
     } catch (err) {
-      logger.error(`[MainWindowLayout] Failed to unhide all:`, err);
+      logger.error(`[MainWindowLayout] Failed to unpin:`, err);
     }
   }, []);
 
@@ -757,7 +737,7 @@ export function MainWindowLayout() {
               onSettingsClick={handleSettingsClick}
               onArchiveClick={handleArchiveClick}
               onUnhideAll={handleUnhideAll}
-              hasHiddenOrPinned={pinnedSectionId !== null || hiddenSectionIds.length > 0}
+              hasHiddenOrPinned={pinnedWorktreeId !== null}
             />
             <TreeMenu
               onItemSelect={handleItemSelect}
@@ -767,10 +747,9 @@ export function MainWindowLayout() {
               onNewWorktree={handleNewWorktree}
               onNewRepo={handleNewRepo}
               onArchiveWorktree={handleArchiveWorktree}
-              creatingSectionIds={creatingSectionIds}
+              creatingWorktreeIds={creatingWorktreeIds}
               onPinToggle={handlePinToggle}
-              onHide={handleHideSection}
-              pinnedSectionId={pinnedSectionId}
+              pinnedWorktreeId={pinnedWorktreeId}
               onOpenFiles={rightPanel.openFileBrowser}
               fileBrowserWorktreeId={rightPanel.fileBrowserWorktreeId}
               className="flex-1 min-h-0"

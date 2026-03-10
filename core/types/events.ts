@@ -95,6 +95,8 @@ export const EventName = {
   QUEUED_MESSAGE_ACK: "queued-message:ack",
 
   // Terminal lifecycle
+  TERMINAL_CREATED: "terminal:created",
+  TERMINAL_UPDATED: "terminal:updated",
   TERMINAL_ARCHIVED: "terminal:archived",
 
   // Plan lifecycle
@@ -134,6 +136,12 @@ export const EventName = {
   COMMENT_UPDATED: "comment:updated",
   COMMENT_RESOLVED: "comment:resolved",
   COMMENT_DELETED: "comment:deleted",
+
+  // Folder lifecycle
+  FOLDER_CREATED: "folder:created",
+  FOLDER_UPDATED: "folder:updated",
+  FOLDER_DELETED: "folder:deleted",
+  FOLDER_ARCHIVED: "folder:archived",
 } as const;
 
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
@@ -257,6 +265,8 @@ export interface EventPayloads {
   };
 
   // Terminal events
+  [EventName.TERMINAL_CREATED]: { terminalId: string; worktreeId: string };
+  [EventName.TERMINAL_UPDATED]: { terminalId: string };
   [EventName.TERMINAL_ARCHIVED]: { terminalId: string };
 
   // Plan events
@@ -303,6 +313,12 @@ export interface EventPayloads {
   [EventName.COMMENT_UPDATED]: { worktreeId: string; commentId: string };
   [EventName.COMMENT_RESOLVED]: { worktreeId: string; commentId: string };
   [EventName.COMMENT_DELETED]: { worktreeId: string; commentId: string };
+
+  // Folder events
+  [EventName.FOLDER_CREATED]: { folderId: string };
+  [EventName.FOLDER_UPDATED]: { folderId: string };
+  [EventName.FOLDER_DELETED]: { folderId: string };
+  [EventName.FOLDER_ARCHIVED]: { folderId: string };
 }
 
 // ============================================================================
@@ -464,6 +480,8 @@ export const EventNameSchema = z.enum([
   EventName.QUESTION_REQUEST,
   EventName.QUESTION_RESPONSE,
   EventName.QUEUED_MESSAGE_ACK,
+  EventName.TERMINAL_CREATED,
+  EventName.TERMINAL_UPDATED,
   EventName.TERMINAL_ARCHIVED,
   EventName.PLAN_DETECTED,
   EventName.PLAN_CREATED,
@@ -485,6 +503,10 @@ export const EventNameSchema = z.enum([
   EventName.COMMENT_UPDATED,
   EventName.COMMENT_RESOLVED,
   EventName.COMMENT_DELETED,
+  EventName.FOLDER_CREATED,
+  EventName.FOLDER_UPDATED,
+  EventName.FOLDER_DELETED,
+  EventName.FOLDER_ARCHIVED,
 ]);
 
 /**

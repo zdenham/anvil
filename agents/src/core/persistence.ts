@@ -45,10 +45,12 @@ interface PlanMetadata {
   repoId: string;
   worktreeId: string;
   relativePath: string;
+  parentId?: string;
   isRead: boolean;
   createdAt: number;
   updatedAt: number;
   phaseInfo?: PhaseInfo;
+  visualSettings?: { parentId?: string; sortKey?: string };
 }
 
 /**
@@ -90,6 +92,58 @@ export abstract class MortPersistence {
       // Fall back to direct relative if realpath fails (file may not exist yet)
       return relative(workingDir, absolutePath);
     }
+  }
+
+  /**
+   * Detect parent plan from file path structure.
+   * Mirrors frontend's detectParentPlan logic for defense in depth.
+   */
+  async detectParentPlan(repoId: string, relativePath: string): Promise<string | undefined> {
+    const parts = relativePath.split('/');
+    const filename = parts[parts.length - 1];
+
+    // readme.md files: parent is at the directory level above
+    if (filename.toLowerCase() === 'readme.md') {
+      if (parts.length <= 2) return undefined;
+      const parentDir = parts.slice(0, -2).join('/');
+      // Look for readme.md in parent directory
+      const readmeParent = await this.findPlanByPathCaseInsensitive(repoId, `${parentDir}/readme.md`);
+      if (readmeParent) return readmeParent.id;
+      // Look for sibling .md file (e.g., plans/auth.md for plans/auth/)
+      const siblingParent = await this.findPlanByPath(repoId, parts.slice(0, -2).join('/') + '.md');
+      if (siblingParent) return siblingParent.id;
+      return undefined;
+    }
+
+    if (parts.length <= 1) return undefined;
+
+    // Walk up the tree looking for nearest ancestor
+    for (let i = parts.length - 2; i >= 0; i--) {
+      const ancestorDir = parts.slice(0, i + 1).join('/');
+      // Pattern 1: readme.md in this directory
+      const readmeParent = await this.findPlanByPathCaseInsensitive(repoId, `${ancestorDir}/readme.md`);
+      if (readmeParent && readmeParent.relativePath !== relativePath) return readmeParent.id;
+      // Pattern 2: sibling .md file (e.g., plans/auth.md for plans/auth/*)
+      const siblingParent = await this.findPlanByPath(repoId, ancestorDir + '.md');
+      if (siblingParent) return siblingParent.id;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Find plan by repoId and relativePath (case-insensitive filename match).
+   */
+  private async findPlanByPathCaseInsensitive(repoId: string, relativePath: string): Promise<PlanMetadata | null> {
+    const targetLower = relativePath.toLowerCase();
+    const dirs = await this.listDirs(PLANS_DIR);
+    for (const dir of dirs) {
+      const plan = await this.read<PlanMetadata>(`${PLANS_DIR}/${dir}/metadata.json`);
+      if (plan && plan.repoId === repoId && plan.relativePath.toLowerCase() === targetLower) {
+        return plan;
+      }
+    }
+    return null;
   }
 
   /**
@@ -141,14 +195,20 @@ export abstract class MortPersistence {
     const now = Date.now();
     const id = crypto.randomUUID();
 
+    const detectedParentId = await this.detectParentPlan(input.repoId, input.relativePath);
+
     const plan: PlanMetadata = {
       id,
       repoId: input.repoId,
       worktreeId: input.worktreeId,
       relativePath: input.relativePath,
+      parentId: detectedParentId,
       isRead: false,
       createdAt: now,
       updatedAt: now,
+      visualSettings: {
+        parentId: detectedParentId ?? input.worktreeId,
+      },
       ...(input.phaseInfo && { phaseInfo: input.phaseInfo }),
     };
 

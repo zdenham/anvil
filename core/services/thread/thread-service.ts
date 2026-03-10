@@ -62,6 +62,9 @@ export class ThreadService {
       isRead: false, // New threads start as unread since they're running
       pid: process.pid, // Write our own PID for cross-window cancellation
       permissionMode: "implement",
+      visualSettings: {
+        parentId: input.parentThreadId ?? input.worktreeId,
+      },
       turns: [initialTurn],
     };
 

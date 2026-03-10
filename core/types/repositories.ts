@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VisualSettingsSchema } from "./visual-settings.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Persisted Types - Zod schemas with derived types
@@ -41,6 +42,8 @@ export const WorktreeStateSchema = z.object({
   currentBranch: z.string().nullable().optional(),
   /** Whether this worktree has been renamed from its initial animal name */
   isRenamed: z.boolean().optional(),
+  /** Visual settings for sidebar tree positioning */
+  visualSettings: VisualSettingsSchema.optional(),
 });
 export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
 

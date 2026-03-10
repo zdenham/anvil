@@ -1,9 +1,19 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Archive, Loader2, Terminal } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Archive, Loader2, Terminal, ArrowRightLeft, CornerLeftUp } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
+import {
+  useContextMenu,
+  ContextMenu,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { terminalSessionService } from "@/entities/terminal-sessions";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
+import { useMoveToStore } from "./use-move-to";
+import { updateVisualSettings } from "@/lib/visual-settings";
+import type { TreeDragData } from "./use-tree-dnd";
 
 /**
  * Get text color class based on terminal state.
@@ -38,6 +48,17 @@ export function TerminalItem({
   const [confirming, setConfirming] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const contextMenu = useContextMenu();
+
+  // ── Drag and drop ────────────────────────────────────────────────
+  const dragData: TreeDragData = useMemo(
+    () => ({ type: "tree-item", item }),
+    [item],
+  );
+  const {
+    attributes: dragAttrs, listeners: dragListeners, setNodeRef,
+    transform, transition, isDragging,
+  } = useSortable({ id: item.id, data: dragData });
 
   // Terminals with "unread" status are exited (see use-tree-data.ts)
   const isAlive = item.status !== "unread";
@@ -103,16 +124,26 @@ export function TerminalItem({
   const indentPx = TREE_INDENT_BASE + (item.depth * TREE_INDENT_STEP);
 
   return (
+    <>
     <div
+      ref={setNodeRef}
+      {...dragAttrs}
+      {...dragListeners}
       role="treeitem"
       aria-selected={isSelected}
       data-testid={`terminal-item-${item.id}`}
+      data-tree-item-id={item.id}
       data-tree-item-index={itemIndex}
       tabIndex={tabIndex}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}
-      style={{ paddingLeft: `${indentPx}px` }}
+      onContextMenu={contextMenu.open}
+      style={{
+        paddingLeft: `${indentPx}px`,
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
       className={cn(
         "group flex items-center gap-1.5 py-0.5 pr-1 cursor-pointer",
         "text-[13px] leading-[22px]",
@@ -120,7 +151,8 @@ export function TerminalItem({
         "outline-none focus:bg-accent-500/10",
         isSelected
           ? "bg-accent-500/20 text-surface-100"
-          : "text-surface-300 hover:bg-accent-500/10"
+          : "text-surface-300 hover:bg-accent-500/10",
+        isDragging && "opacity-50",
       )}
     >
       {/* Terminal icon - same width as status dot */}
@@ -163,5 +195,31 @@ export function TerminalItem({
         )}
       </button>
     </div>
+    {contextMenu.show && (
+      <ContextMenu position={contextMenu.position} onClose={contextMenu.close}>
+        <ContextMenuItem
+          icon={ArrowRightLeft}
+          label="Move to..."
+          onClick={() => {
+            contextMenu.close();
+            useMoveToStore.getState().openMoveDialog(item);
+          }}
+        />
+        {item.parentId && item.parentId !== item.worktreeId && (
+          <ContextMenuItem
+            icon={CornerLeftUp}
+            label="Move to root"
+            onClick={async () => {
+              contextMenu.close();
+              await updateVisualSettings("terminal", item.id, {
+                parentId: item.worktreeId,
+                sortKey: undefined,
+              });
+            }}
+          />
+        )}
+      </ContextMenu>
+    )}
+    </>
   );
 }

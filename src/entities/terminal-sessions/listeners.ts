@@ -1,9 +1,10 @@
 /**
  * Terminal session event listeners.
- * Connects Tauri PTY events to the frontend store.
+ * Connects Tauri PTY events to the frontend store and disk persistence.
  */
 import { listen } from "@/lib/events";
 import { useTerminalSessionStore } from "./store";
+import { terminalSessionService } from "./service";
 import { decodeOutput, appendOutput } from "./output-buffer";
 import { logger } from "@/lib/logger-client";
 
@@ -30,25 +31,30 @@ export function setupTerminalListeners(): () => void {
   // Listen for terminal output — decode once, store + notify subscribers
   listen<TerminalOutputPayload>("terminal:output", (event) => {
     const { id, data } = event.payload;
-    const termId = String(id);
+    const termId = terminalSessionService.resolveByPtyId(id);
+    if (!termId) return; // Unknown PTY ID — ignore
     const text = decodeOutput(termId, data);
     appendOutput(termId, text);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   // Listen for terminal exit (process ended)
   listen<TerminalExitPayload>("terminal:exit", (event) => {
-    const terminalId = String(event.payload.id);
-    logger.info("[TerminalListeners] Terminal exited", { terminalId });
+    const ptyId = event.payload.id;
+    const termId = terminalSessionService.resolveByPtyId(ptyId);
+    if (!termId) return;
 
-    useTerminalSessionStore.getState().markExited(terminalId);
+    logger.info("[TerminalListeners] Terminal exited", { terminalId: termId, ptyId });
+    terminalSessionService.markExited(termId);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   // Listen for terminal killed (archived)
   listen<TerminalKilledPayload>("terminal:killed", (event) => {
-    const terminalId = String(event.payload.id);
-    logger.info("[TerminalListeners] Terminal killed", { terminalId });
+    const ptyId = event.payload.id;
+    const termId = terminalSessionService.resolveByPtyId(ptyId);
+    if (!termId) return;
 
-    useTerminalSessionStore.getState().removeSession(terminalId);
+    logger.info("[TerminalListeners] Terminal killed", { terminalId: termId, ptyId });
+    useTerminalSessionStore.getState().removeSession(termId);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   logger.info("[TerminalListeners] Terminal event listeners set up");

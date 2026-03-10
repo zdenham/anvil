@@ -3,14 +3,14 @@ import type { Rollback } from "@/lib/optimistic";
 import type { TreeMenuPersistedState } from "./types";
 
 interface TreeMenuState {
-  /** Expansion state for each section, keyed by section id */
+  /** Expansion state for each node, keyed by expand key */
   expandedSections: Record<string, boolean>;
   /** Currently selected thread or plan id */
   selectedItemId: string | null;
-  /** ID of pinned section ("repoId:worktreeId") or null if none pinned */
-  pinnedSectionId: string | null;
-  /** Array of hidden section IDs ("repoId:worktreeId") */
-  hiddenSectionIds: string[];
+  /** UUID of pinned worktree node, or null if none pinned */
+  pinnedWorktreeId: string | null;
+  /** ID of the node currently in inline rename mode, or null */
+  renamingNodeId: string | null;
   /** Whether store has been hydrated from disk */
   _hydrated: boolean;
 }
@@ -20,11 +20,10 @@ interface TreeMenuActions {
   hydrate: (state: TreeMenuPersistedState) => void;
 
   /** Optimistic apply methods - called by service after disk write */
-  _applySetExpanded: (sectionId: string, expanded: boolean) => Rollback;
+  _applySetExpanded: (nodeId: string, expanded: boolean) => Rollback;
   _applySetSelectedItem: (itemId: string | null) => Rollback;
-  _applySetPinned: (sectionId: string | null) => Rollback;
-  _applySetHidden: (sectionId: string, hidden: boolean) => Rollback;
-  _applyUnhideAll: () => Rollback;
+  _applySetPinned: (worktreeId: string | null) => Rollback;
+  _applySetRenaming: (nodeId: string | null) => Rollback;
 }
 
 export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, get) => ({
@@ -33,8 +32,8 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
   // ═══════════════════════════════════════════════════════════════════════════
   expandedSections: {},
   selectedItemId: null,
-  pinnedSectionId: null,
-  hiddenSectionIds: [],
+  pinnedWorktreeId: null,
+  renamingNodeId: null,
   _hydrated: false,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -44,8 +43,7 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
     set({
       expandedSections: state.expandedSections,
       selectedItemId: state.selectedItemId,
-      pinnedSectionId: state.pinnedSectionId ?? null,
-      hiddenSectionIds: state.hiddenSectionIds ?? [],
+      pinnedWorktreeId: state.pinnedWorktreeId ?? null,
       _hydrated: true,
     });
   },
@@ -53,20 +51,20 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
   // ═══════════════════════════════════════════════════════════════════════════
   // Optimistic Apply Methods
   // ═══════════════════════════════════════════════════════════════════════════
-  _applySetExpanded: (sectionId: string, expanded: boolean): Rollback => {
-    const prev = get().expandedSections[sectionId];
+  _applySetExpanded: (nodeId: string, expanded: boolean): Rollback => {
+    const prev = get().expandedSections[nodeId];
     set((state) => ({
       expandedSections: {
         ...state.expandedSections,
-        [sectionId]: expanded,
+        [nodeId]: expanded,
       },
     }));
     return () =>
       set((state) => ({
         expandedSections: prev !== undefined
-          ? { ...state.expandedSections, [sectionId]: prev }
+          ? { ...state.expandedSections, [nodeId]: prev }
           : (() => {
-              const { [sectionId]: _, ...rest } = state.expandedSections;
+              const { [nodeId]: _, ...rest } = state.expandedSections;
               return rest;
             })(),
       }));
@@ -78,37 +76,23 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
     return () => set({ selectedItemId: prev });
   },
 
-  _applySetPinned: (sectionId: string | null): Rollback => {
-    const prev = get().pinnedSectionId;
-    set({ pinnedSectionId: sectionId });
-    return () => set({ pinnedSectionId: prev });
+  _applySetPinned: (worktreeId: string | null): Rollback => {
+    const prev = get().pinnedWorktreeId;
+    set({ pinnedWorktreeId: worktreeId });
+    return () => set({ pinnedWorktreeId: prev });
   },
 
-  _applySetHidden: (sectionId: string, hidden: boolean): Rollback => {
-    const prev = [...get().hiddenSectionIds];
-    if (hidden) {
-      // Add to hidden list if not already there
-      if (!prev.includes(sectionId)) {
-        set({ hiddenSectionIds: [...prev, sectionId] });
-      }
-    } else {
-      // Remove from hidden list
-      set({ hiddenSectionIds: prev.filter((id) => id !== sectionId) });
-    }
-    return () => set({ hiddenSectionIds: prev });
-  },
-
-  _applyUnhideAll: (): Rollback => {
-    const prev = [...get().hiddenSectionIds];
-    set({ hiddenSectionIds: [], pinnedSectionId: null });
-    return () => set({ hiddenSectionIds: prev });
+  _applySetRenaming: (nodeId: string | null): Rollback => {
+    const prev = get().renamingNodeId;
+    set({ renamingNodeId: nodeId });
+    return () => set({ renamingNodeId: prev });
   },
 }));
 
 /**
  * Get current tree menu state (non-reactive, for use outside React).
  */
-export function getTreeMenuState(): Pick<TreeMenuState, "expandedSections" | "selectedItemId" | "pinnedSectionId" | "hiddenSectionIds"> {
-  const { expandedSections, selectedItemId, pinnedSectionId, hiddenSectionIds } = useTreeMenuStore.getState();
-  return { expandedSections, selectedItemId, pinnedSectionId, hiddenSectionIds };
+export function getTreeMenuState(): Pick<TreeMenuState, "expandedSections" | "selectedItemId" | "pinnedWorktreeId"> {
+  const { expandedSections, selectedItemId, pinnedWorktreeId } = useTreeMenuStore.getState();
+  return { expandedSections, selectedItemId, pinnedWorktreeId };
 }

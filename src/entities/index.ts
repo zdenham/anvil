@@ -85,6 +85,11 @@ export { useCommentStore } from "./comments/store";
 export { commentService } from "./comments/service";
 export type { InlineComment } from "./comments/types";
 
+// Folders
+export { useFolderStore } from "./folders/store";
+export { folderService } from "./folders/service";
+export type { FolderMetadata, CreateFolderInput } from "./folders/types";
+
 // Gateway Channels
 export { useGatewayChannelStore } from "./gateway-channels/store";
 export { gatewayChannelService } from "./gateway-channels/service";
@@ -113,10 +118,13 @@ import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store"
 import { quickActionService } from "./quick-actions/service";
 import { setupQuickActionListeners } from "./quick-actions/listeners";
 import { draftService } from "./drafts/service";
+import { terminalSessionService } from "./terminal-sessions/service";
 import { setupTerminalListeners } from "./terminal-sessions/listeners";
 import { syncManagedSkills } from "@/lib/skill-sync";
 import { setupApiHealthListeners } from "./api-health/listeners";
 import { setupCommentListeners } from "./comments/listeners";
+import { folderService } from "./folders/service";
+import { setupFolderListeners } from "./folders/listeners";
 import { pullRequestService } from "./pull-requests/service";
 import { setupPullRequestListeners } from "./pull-requests/listeners";
 import { gatewayChannelService } from "./gateway-channels/service";
@@ -157,6 +165,8 @@ export async function hydrateEntities(options: EntityInitOptions = {}): Promise<
       timed("settingsService.hydrate", () => settingsService.hydrate()),
       timed("planService.hydrate", () => planService.hydrate()),
       timed("relationService.hydrate", () => relationService.hydrate()),
+      timed("folderService.hydrate", () => folderService.hydrate()),
+      timed("terminalSessionService.hydrate", () => terminalSessionService.hydrate()),
     ]));
 
     await timed("relationService.cleanupOrphaned", () => relationService.cleanupOrphaned());
@@ -236,6 +246,7 @@ export function setupEntityListeners(options: EntityInitOptions = {}): void {
   setupTerminalListeners();
   setupApiHealthListeners();
   setupCommentListeners();
+  setupFolderListeners();
 
   // Gateway event routing + PR webhook handlers: main window only.
   // These listeners process SSE events and spawn agents — running them in

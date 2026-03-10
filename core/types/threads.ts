@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { TokenUsageSchema } from './events.js';
+import { VisualSettingsSchema } from './visual-settings.js';
 
 export type ThreadStatus = "idle" | "running" | "completed" | "error" | "paused" | "cancelled";
 
@@ -54,6 +55,9 @@ export const ThreadMetadataBaseSchema = z.object({
 
   // Permission mode for the agent (default: "implement")
   permissionMode: z.enum(["plan", "implement", "approve"]).optional().default("implement"),
+
+  /** Visual settings for sidebar tree positioning */
+  visualSettings: VisualSettingsSchema.optional(),
 });
 
 /**
@@ -81,6 +85,7 @@ export interface CreateThreadInput {
   repoId: string;                      // Required
   worktreeId: string;                  // Required
   prompt: string;
+  parentThreadId?: string;             // Parent thread ID for sub-agent threads
   git?: {
     branch: string;
   };
@@ -100,6 +105,7 @@ export interface UpdateThreadInput {
   changedFilePaths?: string[];
   name?: string;
   permissionMode?: "plan" | "implement" | "approve";
+  visualSettings?: z.infer<typeof VisualSettingsSchema>;
 }
 
 /**

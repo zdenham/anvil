@@ -141,3 +141,39 @@ export function getParentPath(relativePath: string): string | undefined {
   if (parts.length <= 1) return undefined;
   return parts.slice(0, -1).join('/');
 }
+
+/**
+ * Compute the new relativePath for a plan being moved to a new parent.
+ * Only applicable when the target is a worktree or plan (file-backed parents).
+ *
+ * @param planFilename - The plan's filename (e.g., "login.md")
+ * @param targetType - The type of the target parent ("worktree" or "plan")
+ * @param targetPlanRelativePath - The target plan's relativePath (only for plan targets)
+ */
+export function computeNewRelativePath(
+  planFilename: string,
+  targetType: "worktree" | "plan",
+  targetPlanRelativePath?: string,
+): string {
+  if (targetType === "worktree") {
+    return `plans/${planFilename}`;
+  }
+
+  if (!targetPlanRelativePath) {
+    return `plans/${planFilename}`;
+  }
+
+  // If parent plan is a folder plan (readme.md), place inside that directory
+  if (targetPlanRelativePath.toLowerCase().endsWith("/readme.md")) {
+    const parentDir = targetPlanRelativePath.substring(
+      0,
+      targetPlanRelativePath.lastIndexOf("/"),
+    );
+    return `${parentDir}/${planFilename}`;
+  }
+
+  // Regular plan parent: create subdirectory from plan name
+  // e.g., plans/auth.md → plans/auth/{planFilename}
+  const parentBase = targetPlanRelativePath.replace(/\.md$/i, "");
+  return `${parentBase}/${planFilename}`;
+}

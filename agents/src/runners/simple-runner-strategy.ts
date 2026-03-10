@@ -406,6 +406,9 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         } : {}),
         // Track parent thread for sub-agents spawned via bash
         ...(config.parentThreadId ? { parentThreadId: config.parentThreadId } : {}),
+        visualSettings: {
+          parentId: config.parentThreadId ?? worktreeId,
+        },
         turns: [
           {
             index: 0,

@@ -1,33 +1,31 @@
 // @vitest-environment node
 /**
- * use-tree-data Tests
+ * Unified Tree Builder Tests
  *
- * Tests for the tree data building logic, specifically around
- * nested plan ordering with threads.
- *
- * THESE TESTS INTENTIONALLY FAIL to verify the bug described in:
- * plans/nested-plan-ordering.md
- *
- * The bug: When sorting top-level items by createdAt, child plans (depth > 0)
- * get separated from their parent plans because the sort comparator returns 0
- * for items at different depths, leaving children stranded at the end.
- *
- * Once the fix is implemented, these tests should PASS.
+ * Tests for buildUnifiedTree() which replaces the old buildTreeFromEntities().
+ * Validates visual parent placement, sorting, orphan handling,
+ * expansion state, and synthetic item nesting.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildTreeFromEntities } from "../use-tree-data";
+import {
+  buildUnifiedTree,
+  type WorktreeInfo,
+  type TreeBuildContext,
+} from "../use-tree-data";
+import type { TreeItemNode } from "@/stores/tree-menu/types";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
+import type { TerminalSession } from "@/entities/terminal-sessions/types";
+import type { PullRequestMetadata } from "@/entities/pull-requests/types";
+import type { FolderMetadata } from "@/entities/folders/types";
 
-// Mock the relationService - plans don't have running thread relations for this test
+// ── Mocks ────────────────────────────────────────────────────────────────
+
 vi.mock("@/entities/relations/service", () => ({
-  relationService: {
-    getByPlan: vi.fn().mockReturnValue([]),
-  },
+  relationService: { getByPlan: vi.fn().mockReturnValue([]) },
 }));
 
-// Mock the pull request store - no PRs in these tests
 vi.mock("@/entities/pull-requests/store", () => ({
   usePullRequestStore: {
     getState: vi.fn().mockReturnValue({
@@ -36,14 +34,43 @@ vi.mock("@/entities/pull-requests/store", () => ({
   },
 }));
 
-// Constants for test data
-const REPO_ID = "repo-1";
-const WORKTREE_ID = "worktree-1";
-const SECTION_ID = `${REPO_ID}:${WORKTREE_ID}`;
+vi.mock("@/stores/commit-store", () => ({
+  useCommitStore: {
+    getState: vi.fn().mockReturnValue({ commitsByWorktree: {} }),
+  },
+}));
 
-// Helper to create thread metadata
+vi.mock("@/lib/logger-client", () => ({
+  logger: {
+    log: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+// ── Constants ────────────────────────────────────────────────────────────
+
+const WORKTREE_ID = "wt-1";
+const REPO_ID = "repo-1";
+const BASE_TIME = 1700000000000;
+
+// ── Factory Functions ────────────────────────────────────────────────────
+
+function createWorktreeInfo(overrides: Partial<WorktreeInfo> = {}): WorktreeInfo {
+  return {
+    worktreeId: WORKTREE_ID,
+    repoId: REPO_ID,
+    repoName: "Test Repo",
+    worktreeName: "main",
+    worktreePath: "/test/repo",
+    ...overrides,
+  };
+}
+
 function createThread(overrides: Partial<ThreadMetadata> = {}): ThreadMetadata {
-  const now = Date.now();
+  const now = BASE_TIME + 1000;
   return {
     id: crypto.randomUUID(),
     repoId: REPO_ID,
@@ -57,9 +84,8 @@ function createThread(overrides: Partial<ThreadMetadata> = {}): ThreadMetadata {
   };
 }
 
-// Helper to create plan metadata
 function createPlan(overrides: Partial<PlanMetadata> = {}): PlanMetadata {
-  const now = Date.now();
+  const now = BASE_TIME + 1000;
   return {
     id: crypto.randomUUID(),
     repoId: REPO_ID,
@@ -72,265 +98,689 @@ function createPlan(overrides: Partial<PlanMetadata> = {}): PlanMetadata {
   };
 }
 
-// Test helpers for buildTreeFromEntities
-const allRepos = [
-  {
-    repoId: REPO_ID,
-    repoName: "Test Repo",
-    worktrees: [{ worktreeId: WORKTREE_ID, name: "main", path: "/test/repo" }],
-  },
-];
-const getRepoName = () => "Test Repo";
-const getWorktreeName = () => "main";
-const getWorktreePath = () => "/test/repo";
+function createFolder(overrides: Partial<FolderMetadata> = {}): FolderMetadata {
+  const now = BASE_TIME + 1000;
+  return {
+    id: crypto.randomUUID(),
+    name: "My Folder",
+    icon: "folder",
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
 
-describe("buildTreeFromEntities", () => {
+function createTerminal(overrides: Partial<TerminalSession> = {}): TerminalSession {
+  return {
+    id: crypto.randomUUID(),
+    worktreeId: WORKTREE_ID,
+    worktreePath: "/test/repo",
+    createdAt: BASE_TIME + 1000,
+    isAlive: true,
+    isArchived: false,
+    ...overrides,
+  };
+}
+
+function createPullRequest(overrides: Partial<PullRequestMetadata> = {}): PullRequestMetadata {
+  return {
+    id: crypto.randomUUID(),
+    prNumber: 1,
+    repoId: REPO_ID,
+    worktreeId: WORKTREE_ID,
+    repoSlug: "test/repo",
+    headBranch: "feature",
+    baseBranch: "main",
+    autoAddressEnabled: false,
+    gatewayChannelId: null,
+    createdAt: BASE_TIME + 1000,
+    updatedAt: BASE_TIME + 1000,
+    isRead: true,
+    isViewed: true,
+    ...overrides,
+  } as PullRequestMetadata;
+}
+
+function defaultCtx(overrides: Partial<TreeBuildContext> = {}): TreeBuildContext {
+  return {
+    expandedSections: { [WORKTREE_ID]: true },
+    runningThreadIds: new Set(),
+    threadsWithPendingInput: new Set(),
+    ...overrides,
+  };
+}
+
+/**
+ * Helper: call buildUnifiedTree with reasonable defaults.
+ * Reduces boilerplate in each test case.
+ */
+function buildTree(opts: {
+  worktrees?: WorktreeInfo[];
+  folders?: FolderMetadata[];
+  threads?: ThreadMetadata[];
+  plans?: PlanMetadata[];
+  terminals?: TerminalSession[];
+  pullRequests?: PullRequestMetadata[];
+  expandedSections?: Record<string, boolean>;
+  runningThreadIds?: Set<string>;
+  threadsWithPendingInput?: Set<string>;
+}): TreeItemNode[] {
+  const ctx: TreeBuildContext = {
+    expandedSections: opts.expandedSections ?? { [WORKTREE_ID]: true },
+    runningThreadIds: opts.runningThreadIds ?? new Set(),
+    threadsWithPendingInput: opts.threadsWithPendingInput ?? new Set(),
+  };
+  return buildUnifiedTree(
+    opts.worktrees ?? [createWorktreeInfo()],
+    opts.folders ?? [],
+    opts.threads ?? [],
+    opts.plans ?? [],
+    opts.terminals ?? [],
+    opts.pullRequests ?? [],
+    ctx,
+  );
+}
+
+// ── Test Cases ────────────────────────────────────────────────────────────
+
+describe("buildUnifiedTree", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("nested plan ordering with threads", () => {
-    /**
-     * This test verifies the bug described in plans/nested-plan-ordering.md
-     *
-     * The bug occurs when a PARENT PLAN is NEWER than threads.
-     *
-     * Scenario:
-     * - thread-1 created at T+1000 (oldest)
-     * - thread-2 created at T+2000 (middle)
-     * - parent plan created at T+3000 (newest)
-     * - child plans created after parent
-     *
-     * INSERTION ORDER in buildSectionItems:
-     * 1. thread-1 (depth 0)
-     * 2. thread-2 (depth 0)
-     * 3. parent plan (depth 0)
-     * 4. child login (depth 1)
-     * 5. child oauth (depth 1)
-     *
-     * AFTER SORT (depth 0 items sorted by createdAt descending):
-     * The sort compares items at the SAME depth only. When a.depth !== b.depth,
-     * it returns 0, which means "keep relative order" - but this is BROKEN
-     * because sort is not guaranteed to be stable and the children get
-     * separated from their parent.
-     *
-     * EXPECTED (correct):
-     * 1. parent plan (newest depth-0, at T+3000)
-     * 2. child login (depth 1, immediately after parent)
-     * 3. child oauth (depth 1, immediately after sibling)
-     * 4. thread-2 (middle depth-0, at T+2000)
-     * 5. thread-1 (oldest depth-0, at T+1000)
-     *
-     * ACTUAL (buggy - children separated from parent):
-     * 1. parent plan (depth 0)
-     * 2. thread-2 (depth 0) <- WRONG! Thread between parent and children
-     * 3. thread-1 (depth 0)
-     * 4. child login (depth 1) <- Children are stranded at the end
-     * 5. child oauth (depth 1)
-     */
-    it("should keep child plans immediately after parent when parent is NEWER than threads", () => {
-      // Timestamps: threads are OLDER than the parent plan
-      const BASE_TIME = 1700000000000;
-      const THREAD_1_CREATED = BASE_TIME + 1000; // Oldest
-      const THREAD_2_CREATED = BASE_TIME + 2000; // Middle
-      const PARENT_PLAN_CREATED = BASE_TIME + 3000; // Newest - parent is most recent!
-
-      const parentPlanId = crypto.randomUUID();
-      const childPlan1Id = crypto.randomUUID();
-      const childPlan2Id = crypto.randomUUID();
-
-      // Parent plan is NEWEST (will be sorted to top among depth-0 items)
-      const parentPlan = createPlan({
-        id: parentPlanId,
-        relativePath: "auth/readme.md",
-        createdAt: PARENT_PLAN_CREATED,
-        updatedAt: PARENT_PLAN_CREATED,
-      });
-
-      const childPlan1 = createPlan({
-        id: childPlan1Id,
-        relativePath: "auth/login.md",
-        parentId: parentPlanId,
-        createdAt: PARENT_PLAN_CREATED + 100,
-        updatedAt: PARENT_PLAN_CREATED + 100,
-      });
-
-      const childPlan2 = createPlan({
-        id: childPlan2Id,
-        relativePath: "auth/oauth.md",
-        parentId: parentPlanId,
-        createdAt: PARENT_PLAN_CREATED + 200,
-        updatedAt: PARENT_PLAN_CREATED + 200,
-      });
-
-      // Threads are OLDER than the parent plan
-      const thread1 = createThread({
-        id: "thread-1",
-        name: "Thread 1",
-        createdAt: THREAD_1_CREATED,
-        updatedAt: THREAD_1_CREATED,
-      });
-
-      const thread2 = createThread({
-        id: "thread-2",
-        name: "Thread 2",
-        createdAt: THREAD_2_CREATED,
-        updatedAt: THREAD_2_CREATED,
-      });
-
-      const threads = [thread1, thread2];
-      const plans = [parentPlan, childPlan1, childPlan2];
-
-      // Build tree with all folders expanded
-      const expandedSections: Record<string, boolean> = {
-        [SECTION_ID]: true,
-        [`plan:${parentPlanId}`]: true,
-      };
-      const runningThreadIds = new Set<string>();
-
-      const sections = buildTreeFromEntities(
-        threads,
-        plans,
-        [],
-        [],
-        expandedSections,
-        runningThreadIds,
-        allRepos,
-        getRepoName,
-        getWorktreeName,
-        getWorktreePath,
-      );
-
-      expect(sections).toHaveLength(1);
-      const items = sections[0].items;
-
-      // Log the actual order for debugging
-      console.log(
-        "Actual item order:",
-        items.map((item) => `${item.type}:${item.title} (depth=${item.depth}, created=${item.createdAt})`)
-      );
-
-      // Find indices
-      const parentIndex = items.findIndex((item) => item.id === parentPlanId);
-      const child1Index = items.findIndex((item) => item.id === childPlan1Id);
-      const child2Index = items.findIndex((item) => item.id === childPlan2Id);
-      const thread1Index = items.findIndex((item) => item.id === "thread-1");
-      const thread2Index = items.findIndex((item) => item.id === "thread-2");
-
-      // Parent plan should be first (newest top-level item)
-      expect(parentIndex).toBe(0);
-
-      // CRITICAL: Children should IMMEDIATELY follow their parent
-      // If the bug exists, threads will appear between parent and children
-      expect(child1Index).toBe(parentIndex + 1);
-      expect(child2Index).toBe(parentIndex + 2);
-
-      // Threads should come after the parent and its children
-      expect(thread2Index).toBe(3); // Second newest depth-0
-      expect(thread1Index).toBe(4); // Oldest depth-0
-
-      // Verify no threads between parent and children
-      const itemsBetweenParentAndLastChild = items.slice(parentIndex + 1, child2Index);
-      const threadsInBetween = itemsBetweenParentAndLastChild.filter(
-        (item) => item.type === "thread"
-      );
-      expect(threadsInBetween).toHaveLength(0);
+  describe("basic structure", () => {
+    it("returns repo node at depth 0, worktree at depth 0 (flattened)", () => {
+      const items = buildTree({});
+      expect(items[0].type).toBe("repo");
+      expect(items[0].depth).toBe(0);
+      expect(items[0].id).toBe(REPO_ID);
+      const wtItem = items.find(i => i.type === "worktree");
+      expect(wtItem).toBeDefined();
+      expect(wtItem!.depth).toBe(0);
+      expect(wtItem!.id).toBe(WORKTREE_ID);
     });
 
-    /**
-     * Test for plan that comes in the MIDDLE of the sort order
-     * This exercises a different code path where the parent plan is neither
-     * first nor last among top-level items.
-     */
-    it("should keep children with parent when parent is in MIDDLE of createdAt order", () => {
-      const BASE_TIME = 1700000000000;
-      const THREAD_1_CREATED = BASE_TIME + 1000; // Oldest
-      const PARENT_PLAN_CREATED = BASE_TIME + 2000; // Middle - plan in between threads
-      const THREAD_2_CREATED = BASE_TIME + 3000; // Newest
+    it("returns worktree with just worktreeName as title", () => {
+      const items = buildTree({});
+      const wtItem = items.find(i => i.type === "worktree")!;
+      expect(wtItem.title).toBe("main");
+    });
 
-      const parentPlanId = crypto.randomUUID();
-      const childPlanId = crypto.randomUUID();
+    it("returns empty worktree with only synthetic children when expanded", () => {
+      const items = buildTree({ expandedSections: { [WORKTREE_ID]: true } });
+      // Worktree children at depth 1 (repo=0, worktree=0, children=1)
+      const childTypes = items.filter(i => i.depth === 1).map(i => i.type);
+      expect(childTypes).toContain("changes");
+    });
 
-      const parentPlan = createPlan({
-        id: parentPlanId,
-        relativePath: "auth/readme.md",
-        createdAt: PARENT_PLAN_CREATED,
-        updatedAt: PARENT_PLAN_CREATED,
+    it("collapses worktree — no children emitted", () => {
+      const thread = createThread({
+        visualSettings: { parentId: WORKTREE_ID },
       });
-
-      const childPlan = createPlan({
-        id: childPlanId,
-        relativePath: "auth/login.md",
-        parentId: parentPlanId,
-        createdAt: PARENT_PLAN_CREATED + 100,
-        updatedAt: PARENT_PLAN_CREATED + 100,
+      const items = buildTree({
+        threads: [thread],
+        expandedSections: { [WORKTREE_ID]: false },
       });
+      // repo + collapsed worktree = 2 items
+      expect(items).toHaveLength(2);
+      expect(items[0].type).toBe("repo");
+      expect(items[1].type).toBe("worktree");
+    });
+  });
 
-      const thread1 = createThread({
+  describe("visual parentId placement", () => {
+    it("places thread under worktree when visualSettings.parentId = worktreeId", () => {
+      const thread = createThread({
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        threads: [thread],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const threadItem = items.find(i => i.id === thread.id);
+      expect(threadItem).toBeDefined();
+      expect(threadItem!.depth).toBe(1); // repo=0, worktree=0, thread=1
+    });
+
+    it("places thread inside folder when visualSettings.parentId = folderId", () => {
+      const folder = createFolder({
+        id: "folder-1",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const thread = createThread({
+        visualSettings: { parentId: "folder-1" },
+      });
+      const items = buildTree({
+        folders: [folder],
+        threads: [thread],
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          "folder:folder-1": true,
+        },
+      });
+      const threadItem = items.find(i => i.id === thread.id);
+      expect(threadItem).toBeDefined();
+      expect(threadItem!.depth).toBe(2); // repo=0, worktree=0, folder=1, thread=2
+    });
+
+    it("ensureVisualSettings defaults child thread parentId to parentThreadId", () => {
+      const parentThread = createThread({
+        id: "parent-thread",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      // Child thread has parentThreadId but no visualSettings —
+      // ensureVisualSettings defaults parentId to parentThreadId
+      const childThread = createThread({
+        parentThreadId: "parent-thread",
+      });
+      const items = buildTree({
+        threads: [parentThread, childThread],
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          "thread:parent-thread": true,
+        },
+      });
+      const parentItem = items.find(i => i.id === "parent-thread");
+      expect(parentItem!.depth).toBe(1); // repo=0, worktree=0, parent=1
+      const childItem = items.find(i => i.id === childThread.id);
+      expect(childItem).toBeDefined();
+      expect(childItem!.depth).toBe(2); // repo=0, worktree=0, parent=1, child=2
+    });
+
+    it("places plan inside thread when visualSettings.parentId = threadId", () => {
+      const thread = createThread({
         id: "thread-1",
-        name: "Thread 1",
-        createdAt: THREAD_1_CREATED,
-        updatedAt: THREAD_1_CREATED,
+        visualSettings: { parentId: WORKTREE_ID },
       });
-
-      const thread2 = createThread({
-        id: "thread-2",
-        name: "Thread 2",
-        createdAt: THREAD_2_CREATED,
-        updatedAt: THREAD_2_CREATED,
+      const plan = createPlan({
+        visualSettings: { parentId: "thread-1" },
       });
+      const items = buildTree({
+        threads: [thread],
+        plans: [plan],
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          "thread:thread-1": true,
+        },
+      });
+      const planItem = items.find(i => i.id === plan.id);
+      expect(planItem).toBeDefined();
+      expect(planItem!.depth).toBe(2); // repo=0, worktree=0, thread=1, plan=2
+    });
+  });
 
-      const threads = [thread1, thread2];
-      const plans = [parentPlan, childPlan];
+  describe("folders", () => {
+    it("folder nodes appear at correct depth", () => {
+      const folder = createFolder({
+        id: "f1",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        folders: [folder],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const folderItem = items.find(i => i.id === "f1");
+      expect(folderItem).toBeDefined();
+      expect(folderItem!.type).toBe("folder");
+      expect(folderItem!.depth).toBe(1); // repo=0, worktree=0, folder=1
+    });
 
-      const expandedSections: Record<string, boolean> = {
-        [SECTION_ID]: true,
-        [`plan:${parentPlanId}`]: true,
-      };
-      const runningThreadIds = new Set<string>();
+    it("nested folders cascade depth correctly", () => {
+      const outerFolder = createFolder({
+        id: "outer",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const innerFolder = createFolder({
+        id: "inner",
+        visualSettings: { parentId: "outer" },
+      });
+      const items = buildTree({
+        folders: [outerFolder, innerFolder],
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          "folder:outer": true,
+          "folder:inner": true,
+        },
+      });
+      const inner = items.find(i => i.id === "inner");
+      expect(inner).toBeDefined();
+      expect(inner!.depth).toBe(2); // repo=0, worktree=0, outer=1, inner=2
+    });
 
-      const sections = buildTreeFromEntities(
-        threads,
-        plans,
-        [],
-        [],
-        expandedSections,
-        runningThreadIds,
-        allRepos,
-        getRepoName,
-        getWorktreeName,
-        getWorktreePath,
-      );
+    it("cross-type nesting: thread and plan inside same folder", () => {
+      const folder = createFolder({
+        id: "folder-1",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const thread = createThread({
+        visualSettings: { parentId: "folder-1" },
+      });
+      const plan = createPlan({
+        visualSettings: { parentId: "folder-1" },
+      });
+      const items = buildTree({
+        folders: [folder],
+        threads: [thread],
+        plans: [plan],
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          "folder:folder-1": true,
+        },
+      });
+      const children = items.filter(i => i.depth === 2); // repo=0, worktree=0, folder=1, children=2
+      expect(children).toHaveLength(2);
+      const types = children.map(i => i.type);
+      expect(types).toContain("thread");
+      expect(types).toContain("plan");
+    });
+  });
 
-      const items = sections[0].items;
+  describe("sorting", () => {
+    it("items without sortKey sort by createdAt descending", () => {
+      const older = createThread({
+        id: "older",
+        createdAt: BASE_TIME + 1000,
+        updatedAt: BASE_TIME + 1000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const newer = createThread({
+        id: "newer",
+        createdAt: BASE_TIME + 2000,
+        updatedAt: BASE_TIME + 2000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        threads: [older, newer],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const threadItems = items.filter(i => i.type === "thread");
+      expect(threadItems[0].id).toBe("newer");
+      expect(threadItems[1].id).toBe("older");
+    });
 
-      console.log(
-        "Actual item order (middle case):",
-        items.map((item) => `${item.type}:${item.title} (depth=${item.depth}, created=${item.createdAt})`)
-      );
+    it("items with sortKey sort lexicographically ascending", () => {
+      const itemA = createThread({
+        id: "item-a",
+        visualSettings: { parentId: WORKTREE_ID, sortKey: "a1" },
+      });
+      const itemB = createThread({
+        id: "item-b",
+        visualSettings: { parentId: WORKTREE_ID, sortKey: "a0" },
+      });
+      const items = buildTree({
+        threads: [itemA, itemB],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const threadItems = items.filter(i => i.type === "thread");
+      expect(threadItems[0].id).toBe("item-b"); // "a0" < "a1"
+      expect(threadItems[1].id).toBe("item-a");
+    });
 
-      // Expected order by createdAt descending for depth-0:
-      // 1. thread-2 (newest, T+3000)
-      // 2. parent plan (middle, T+2000)
-      // 3. child login (depth 1, immediately after parent)
-      // 4. thread-1 (oldest, T+1000)
+    it("keyed items appear before unkeyed items (mixed sort)", () => {
+      const unkeyed = createThread({
+        id: "unkeyed",
+        createdAt: BASE_TIME + 5000,
+        updatedAt: BASE_TIME + 5000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const keyed = createThread({
+        id: "keyed",
+        createdAt: BASE_TIME + 1000,
+        updatedAt: BASE_TIME + 1000,
+        visualSettings: { parentId: WORKTREE_ID, sortKey: "a0" },
+      });
+      const items = buildTree({
+        threads: [unkeyed, keyed],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const threadItems = items.filter(i => i.type === "thread");
+      // Per the actual sort: keyed items sort before unkeyed items (sortKey truthy => -1)
+      expect(threadItems[0].id).toBe("keyed");
+      expect(threadItems[1].id).toBe("unkeyed");
+    });
+  });
 
-      const parentIndex = items.findIndex((item) => item.id === parentPlanId);
-      const childIndex = items.findIndex((item) => item.id === childPlanId);
-      const thread1Index = items.findIndex((item) => item.id === "thread-1");
-      const thread2Index = items.findIndex((item) => item.id === "thread-2");
+  describe("orphan handling", () => {
+    it("item with missing parent falls back to worktree", () => {
+      const orphan = createThread({
+        id: "orphan",
+        visualSettings: { parentId: "nonexistent-parent" },
+      });
+      const items = buildTree({
+        threads: [orphan],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      // buildChildrenMap: if parentId is missing, falls back to worktreeId
+      const orphanItem = items.find(i => i.id === "orphan");
+      expect(orphanItem).toBeDefined();
+      expect(orphanItem!.depth).toBe(1); // repo=0, worktree=0, orphan=1
+    });
+  });
 
-      // thread-2 should be first (newest)
-      expect(thread2Index).toBe(0);
+  describe("synthetic items", () => {
+    it("Changes item appears as child of worktree node", () => {
+      const items = buildTree({
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const changesItem = items.find(i => i.type === "changes");
+      expect(changesItem).toBeDefined();
+      expect(changesItem!.depth).toBe(1); // repo=0, worktree=0, changes=1
+      expect(changesItem!.parentId).toBe(WORKTREE_ID);
+    });
 
-      // Parent plan should be second
-      expect(parentIndex).toBe(1);
+    it("Uncommitted and Commit items appear as children of Changes when expanded", () => {
+      const changesExpandKey = `changes:changes:${WORKTREE_ID}`;
+      const items = buildTree({
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          [changesExpandKey]: true,
+        },
+      });
+      const uncommitted = items.find(i => i.type === "uncommitted");
+      expect(uncommitted).toBeDefined();
+      expect(uncommitted!.depth).toBe(2); // repo=0, worktree=0, changes=1, uncommitted=2
+    });
+  });
 
-      // Child should IMMEDIATELY follow parent (this is the critical assertion)
-      expect(childIndex).toBe(parentIndex + 1);
+  describe("isFolder dynamic flag", () => {
+    it("folder with children has isFolder=true", () => {
+      const folder = createFolder({
+        id: "f1",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const thread = createThread({
+        visualSettings: { parentId: "f1" },
+      });
+      const items = buildTree({
+        folders: [folder],
+        threads: [thread],
+        expandedSections: { [WORKTREE_ID]: true, "folder:f1": true },
+      });
+      const folderItem = items.find(i => i.id === "f1");
+      expect(folderItem!.isFolder).toBe(true);
+    });
 
-      // thread-1 should come after the child
-      expect(thread1Index).toBe(3);
+    it("worktree node always has isFolder=true", () => {
+      const items = buildTree({});
+      const wtItem = items.find(i => i.type === "worktree");
+      expect(wtItem!.isFolder).toBe(true);
+    });
+  });
+
+  describe("expansion state", () => {
+    it("collapsed folder does not emit its children", () => {
+      const folder = createFolder({
+        id: "collapsed-folder",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const thread = createThread({
+        visualSettings: { parentId: "collapsed-folder" },
+      });
+      const items = buildTree({
+        folders: [folder],
+        threads: [thread],
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          "folder:collapsed-folder": false,
+        },
+      });
+      const threadItem = items.find(i => i.id === thread.id);
+      expect(threadItem).toBeUndefined();
+    });
+
+    it("expanded folder emits its children", () => {
+      const folder = createFolder({
+        id: "expanded-folder",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const thread = createThread({
+        visualSettings: { parentId: "expanded-folder" },
+      });
+      const items = buildTree({
+        folders: [folder],
+        threads: [thread],
+        expandedSections: {
+          [WORKTREE_ID]: true,
+          "folder:expanded-folder": true,
+        },
+      });
+      const threadItem = items.find(i => i.id === thread.id);
+      expect(threadItem).toBeDefined();
+    });
+
+    it("worktree and repo default to expanded when not in expandedSections", () => {
+      const thread = createThread({
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        threads: [thread],
+        expandedSections: {}, // No explicit expansion state
+      });
+      // Both repo and worktree default to expanded
+      const threadItem = items.find(i => i.id === thread.id);
+      expect(threadItem).toBeDefined();
+    });
+  });
+
+  describe("multiple worktrees", () => {
+    it("items from different worktrees are separated under their worktree nodes", () => {
+      const wt1 = createWorktreeInfo({ worktreeId: "wt-a", worktreeName: "main" });
+      const wt2 = createWorktreeInfo({ worktreeId: "wt-b", worktreeName: "feature" });
+      const t1 = createThread({
+        id: "t1",
+        worktreeId: "wt-a",
+        visualSettings: { parentId: "wt-a" },
+      });
+      const t2 = createThread({
+        id: "t2",
+        worktreeId: "wt-b",
+        visualSettings: { parentId: "wt-b" },
+      });
+      const items = buildTree({
+        worktrees: [wt1, wt2],
+        threads: [t1, t2],
+        expandedSections: { "wt-a": true, "wt-b": true },
+      });
+      const wtNodes = items.filter(i => i.type === "worktree");
+      expect(wtNodes).toHaveLength(2);
+
+      // Each thread should appear after its respective worktree
+      const t1Item = items.find(i => i.id === "t1");
+      const t2Item = items.find(i => i.id === "t2");
+      expect(t1Item!.worktreeId).toBe("wt-a");
+      expect(t2Item!.worktreeId).toBe("wt-b");
+    });
+  });
+
+  describe("worktreeId propagation", () => {
+    it("thread nodes have worktreeId set from entity", () => {
+      const thread = createThread({
+        worktreeId: "wt-x",
+        visualSettings: { parentId: "wt-x" },
+      });
+      const items = buildTree({
+        worktrees: [createWorktreeInfo({ worktreeId: "wt-x" })],
+        threads: [thread],
+        expandedSections: { "wt-x": true },
+      });
+      const threadItem = items.find(i => i.id === thread.id);
+      expect(threadItem!.worktreeId).toBe("wt-x");
+    });
+  });
+
+  describe("sub-agent thread badge", () => {
+    it("thread with domain parentThreadId has isSubAgent=true regardless of visual parent", () => {
+      const thread = createThread({
+        parentThreadId: "some-parent",
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        threads: [thread],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const threadItem = items.find(i => i.id === thread.id);
+      expect(threadItem!.isSubAgent).toBe(true);
+    });
+  });
+
+  describe("files node", () => {
+    it("files node appears as child of worktree", () => {
+      const items = buildTree({
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const filesItem = items.find(i => i.type === "files");
+      expect(filesItem).toBeDefined();
+      expect(filesItem!.id).toBe(`files:${WORKTREE_ID}`);
+      expect(filesItem!.depth).toBe(1); // repo=0, worktree=0, files=1
+      expect(filesItem!.repoId).toBe(REPO_ID);
+    });
+  });
+
+  describe("type-priority sorting", () => {
+    it("sorts: Files → PR → terminal → Changes → thread", () => {
+      const thread = createThread({
+        id: "thread-1",
+        createdAt: BASE_TIME + 5000,
+        updatedAt: BASE_TIME + 5000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const pr = createPullRequest({
+        id: "pr-1",
+        createdAt: BASE_TIME + 4000,
+        updatedAt: BASE_TIME + 4000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const terminal = createTerminal({
+        id: "term-1",
+        createdAt: BASE_TIME + 3000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        threads: [thread],
+        pullRequests: [pr],
+        terminals: [terminal],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      // Get direct children of worktree (depth 1: repo=0, worktree=0, children=1)
+      const children = items.filter(i => i.depth === 1);
+      const types = children.map(i => i.type);
+      expect(types).toEqual(["files", "pull-request", "terminal", "changes", "thread"]);
+    });
+
+    it("DnD-positioned items (with sortKey) override type priority", () => {
+      const thread = createThread({
+        id: "dnd-thread",
+        visualSettings: { parentId: WORKTREE_ID, sortKey: "a0" },
+      });
+      const items = buildTree({
+        threads: [thread],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const children = items.filter(i => i.depth === 1);
+      expect(children[0].id).toBe("dnd-thread");
+      expect(children[1].type).toBe("files");
+    });
+
+    it("within same tier, items sort by createdAt descending", () => {
+      const olderPr = createPullRequest({
+        id: "pr-old",
+        prNumber: 1,
+        createdAt: BASE_TIME + 1000,
+        updatedAt: BASE_TIME + 1000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const newerPr = createPullRequest({
+        id: "pr-new",
+        prNumber: 2,
+        createdAt: BASE_TIME + 2000,
+        updatedAt: BASE_TIME + 2000,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        pullRequests: [olderPr, newerPr],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      const prItems = items.filter(i => i.type === "pull-request");
+      expect(prItems[0].id).toBe("pr-new");
+      expect(prItems[1].id).toBe("pr-old");
+    });
+  });
+
+  describe("root-level folders", () => {
+    it("folder without worktreeId appears at depth 0", () => {
+      const folder = createFolder({ id: "root-folder" });
+      const items = buildTree({
+        folders: [folder],
+        expandedSections: {},
+      });
+      const folderItem = items.find(i => i.id === "root-folder");
+      expect(folderItem).toBeDefined();
+      expect(folderItem!.type).toBe("folder");
+      expect(folderItem!.depth).toBe(0);
+      expect(folderItem!.worktreeId).toBeUndefined();
+    });
+
+    it("root-level folder with children is expandable", () => {
+      const folder = createFolder({
+        id: "root-folder",
+        visualSettings: undefined,
+      });
+      const childFolder = createFolder({
+        id: "child-folder",
+        visualSettings: { parentId: "root-folder" },
+      });
+      const items = buildTree({
+        folders: [folder, childFolder],
+        expandedSections: { "folder:root-folder": true },
+      });
+      const child = items.find(i => i.id === "child-folder");
+      expect(child).toBeDefined();
+      expect(child!.depth).toBe(1);
+    });
+
+    it("worktree with visualSettings.parentId nests inside root-level folder", () => {
+      const folder = createFolder({ id: "root-folder" });
+      const wt = createWorktreeInfo({
+        worktreeId: "wt-nested",
+        visualSettings: { parentId: "root-folder" },
+      });
+      const items = buildTree({
+        worktrees: [wt],
+        folders: [folder],
+        expandedSections: { "folder:root-folder": true, "wt-nested": true },
+      });
+      const wtItem = items.find(i => i.id === "wt-nested");
+      expect(wtItem).toBeDefined();
+      expect(wtItem!.depth).toBe(1);
+      expect(wtItem!.parentId).toBe("root-folder");
+    });
+
+    it("folder without worktreeId is NOT filtered out", () => {
+      const rootFolder = createFolder({ id: "root-f" });
+      const worktreeFolder = createFolder({
+        id: "wt-f",
+        worktreeId: WORKTREE_ID,
+        visualSettings: { parentId: WORKTREE_ID },
+      });
+      const items = buildTree({
+        folders: [rootFolder, worktreeFolder],
+        expandedSections: { [WORKTREE_ID]: true },
+      });
+      expect(items.find(i => i.id === "root-f")).toBeDefined();
+      expect(items.find(i => i.id === "wt-f")).toBeDefined();
+    });
+
+    it("folder with unknown worktreeId IS filtered out", () => {
+      const orphanFolder = createFolder({
+        id: "orphan-f",
+        worktreeId: "nonexistent-wt",
+        visualSettings: { parentId: "nonexistent-wt" },
+      });
+      const items = buildTree({
+        folders: [orphanFolder],
+        expandedSections: {},
+      });
+      expect(items.find(i => i.id === "orphan-f")).toBeUndefined();
     });
   });
 });

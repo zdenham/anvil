@@ -10,10 +10,8 @@ import type { PhaseInfo } from "@/entities/plans/types";
 export const TreeMenuPersistedStateSchema = z.object({
   expandedSections: z.record(z.string(), z.boolean()),
   selectedItemId: z.string().nullable(),
-  /** ID of pinned section ("repoId:worktreeId") or null if none pinned */
-  pinnedSectionId: z.string().nullable().optional(),
-  /** Array of hidden section IDs ("repoId:worktreeId") */
-  hiddenSectionIds: z.array(z.string()).optional(),
+  /** UUID of pinned worktree node, or null if none pinned */
+  pinnedWorktreeId: z.string().nullable().optional(),
 });
 export type TreeMenuPersistedState = z.infer<typeof TreeMenuPersistedStateSchema>;
 
@@ -22,39 +20,14 @@ export type TreeMenuPersistedState = z.infer<typeof TreeMenuPersistedStateSchema
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Repo/worktree section - a single combined level in the tree.
- * Displayed as "repoName / worktreeName" with horizontal dividers.
- */
-export interface RepoWorktreeSection {
-  type: "repo-worktree";
-  /** Unique identifier: "repoId:worktreeId" */
-  id: string;
-  /** Display name of the repository */
-  repoName: string;
-  /** Display name of the worktree (branch name or "main") */
-  worktreeName: string;
-  /** UUID of the repository */
-  repoId: string;
-  /** UUID of the worktree */
-  worktreeId: string;
-  /** Absolute path to the worktree directory */
-  worktreePath: string;
-  /** Child items (threads and plans) */
-  items: TreeItemNode[];
-  /** Whether this section is expanded */
-  isExpanded: boolean;
-  /** Synthetic "Changes" folder items (changes parent + uncommitted + commits) */
-  changesItems: TreeItemNode[];
-}
-
-/**
- * Individual tree item (thread, plan, terminal, or pull request).
+ * Every node in the sidebar tree — worktrees, folders, threads, plans,
+ * terminals, PRs, and synthetic items (changes/uncommitted/commit).
  */
 export interface TreeItemNode {
-  type: "thread" | "plan" | "terminal" | "pull-request" | "changes" | "uncommitted" | "commit";
-  /** UUID of the thread, plan, terminal, or pull request */
+  type: TreeItemType;
+  /** UUID of the entity (worktree ID for worktrees, nanoid for folders, etc.) */
   id: string;
-  /** Display title (thread name or plan filename) */
+  /** Display title */
   title: string;
   /** Status for the dot indicator */
   status: StatusDotVariant;
@@ -62,28 +35,54 @@ export interface TreeItemNode {
   updatedAt: number;
   /** Creation timestamp (for sorting) */
   createdAt: number;
-  /** Parent section identifier */
-  sectionId: string;
-  /** Indentation level (0 = root) - for nested plans and sub-agent threads */
+  /** Indentation level (0 = root) */
   depth: number;
-  /** Has children - for nested plans and threads with sub-agents */
+  /** Has children in the current tree build */
   isFolder: boolean;
   /** If folder, is it expanded? */
   isExpanded: boolean;
-  /** Parent plan ID - for nested plans */
+  /** Worktree UUID this node belongs to — set on all worktree-scoped items.
+   *  Used for boundary enforcement in DnD (05a). Undefined for root-level folders. */
+  worktreeId?: string;
+
+  // ── Worktree-specific fields ──────────────────────────────────────────
+  /** Display name of the repository (worktree nodes only) */
+  repoName?: string;
+  /** Display name of the worktree branch (worktree nodes only) */
+  worktreeName?: string;
+  /** Absolute path to the worktree directory (worktree nodes only) */
+  worktreePath?: string;
+  /** UUID of the repository (worktree nodes only) */
+  repoId?: string;
+
+  // ── Folder-specific fields ────────────────────────────────────────────
+  /** Lucide icon name for folder nodes (e.g., "folder", "bug", "zap") */
+  icon?: string;
+
+  // ── Thread-specific fields ────────────────────────────────────────────
+  /** Lexicographic sort key for ordering within parent (from visualSettings.sortKey) */
+  sortKey?: string;
+
+  /** Visual parent ID (from visualSettings.parentId — used by DnD, context menus) */
   parentId?: string;
-  /** Phase tracking info - only present for plans with ## Phases section */
-  phaseInfo?: PhaseInfo;
-  /** Sub-agent indicator (for threads only) - true if thread has a parent */
+  /** Sub-agent indicator — true if thread has a domain parentThreadId */
   isSubAgent?: boolean;
-  /** Agent type (for threads only) - e.g., "Explore", "Plan", etc. */
+  /** Agent type (for threads only) — e.g., "Explore", "Plan", etc. */
   agentType?: string;
+
+  // ── Plan-specific fields ──────────────────────────────────────────────
+  /** Phase tracking info — only present for plans with ## Phases section */
+  phaseInfo?: PhaseInfo;
+
+  // ── Pull-request-specific fields ──────────────────────────────────────
   /** PR number for pull-request items */
   prNumber?: number;
-  /** Whether the PR has been viewed by the user (for new-PR indicator) */
+  /** Whether the PR has been viewed by the user */
   isViewed?: boolean;
-  /** Review status icon hint for pull-request items */
+  /** Review status icon hint */
   reviewIcon?: "approved" | "changes-requested" | "review-required" | "draft" | "merged" | "closed";
+
+  // ── Commit-specific fields ────────────────────────────────────────────
   /** Full commit hash (for "commit" type items) */
   commitHash?: string;
   /** First line of commit message (for "commit" type items) */
@@ -94,14 +93,19 @@ export interface TreeItemNode {
   commitRelativeDate?: string;
 }
 
-/** Convenience alias for the TreeItemNode.type union */
-export type TreeItemType = TreeItemNode["type"];
+/** All possible node types in the unified tree */
+export type TreeItemType =
+  | "repo"
+  | "worktree"
+  | "folder"
+  | "thread"
+  | "plan"
+  | "terminal"
+  | "pull-request"
+  | "files"
+  | "changes"
+  | "uncommitted"
+  | "commit";
 
 /** Subset of item types backed by entity stores (used by onItemSelect callbacks) */
 export type EntityItemType = "thread" | "plan" | "terminal" | "pull-request";
-
-/**
- * Discriminated union for all tree node types.
- * Covers repo/worktree sections and individual items (threads, plans, terminals, pull requests).
- */
-export type TreeNode = RepoWorktreeSection | TreeItemNode;

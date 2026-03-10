@@ -9,8 +9,8 @@ const UI_STATE_PATH = "ui/tree-menu.json";
  * Helper to get persisted state from store.
  */
 function getPersistedState(): TreeMenuPersistedState {
-  const { expandedSections, selectedItemId, pinnedSectionId, hiddenSectionIds } = useTreeMenuStore.getState();
-  return { expandedSections, selectedItemId, pinnedSectionId, hiddenSectionIds };
+  const { expandedSections, selectedItemId, pinnedWorktreeId } = useTreeMenuStore.getState();
+  return { expandedSections, selectedItemId, pinnedWorktreeId };
 }
 
 /**
@@ -29,6 +29,7 @@ export const treeMenuService = {
   /**
    * Hydrates the tree menu store from disk.
    * Should be called once at app initialization.
+   * Handles migration from old format (pinnedSectionId, hiddenSectionIds).
    */
   async hydrate(): Promise<void> {
     try {
@@ -40,14 +41,23 @@ export const treeMenuService = {
           logger.debug("[treeMenuService] Hydrated from disk");
           return;
         }
-        logger.warn("[treeMenuService] Invalid persisted state, using defaults:", result.error);
+        // Old format: clear pin, ignore hiddenSectionIds
+        logger.info("[treeMenuService] Migrating old tree-menu.json format");
+        const migrated: TreeMenuPersistedState = {
+          expandedSections: (raw as Record<string, unknown>).expandedSections as Record<string, boolean> ?? {},
+          selectedItemId: (raw as Record<string, unknown>).selectedItemId as string | null ?? null,
+          pinnedWorktreeId: null, // Clear old pin — user re-pins in one click
+        };
+        await appData.ensureDir("ui");
+        await appData.writeJson(UI_STATE_PATH, migrated);
+        useTreeMenuStore.getState().hydrate(migrated);
+        return;
       }
-      // No data or invalid - use defaults
+      // No data — defaults
       useTreeMenuStore.getState().hydrate({
         expandedSections: {},
         selectedItemId: null,
-        pinnedSectionId: null,
-        hiddenSectionIds: [],
+        pinnedWorktreeId: null,
       });
       logger.debug("[treeMenuService] No persisted state found, using defaults");
     } catch (err) {
@@ -55,21 +65,19 @@ export const treeMenuService = {
       useTreeMenuStore.getState().hydrate({
         expandedSections: {},
         selectedItemId: null,
-        pinnedSectionId: null,
-        hiddenSectionIds: [],
+        pinnedWorktreeId: null,
       });
     }
   },
 
   /**
-   * Toggles a section's expansion state.
+   * Toggles a node's expansion state.
    * Writes to disk first, then updates store.
    */
   async toggleSection(sectionId: string): Promise<void> {
     const current = useTreeMenuStore.getState().expandedSections[sectionId] ?? getDefaultExpanded(sectionId);
     const newExpanded = !current;
 
-    // Write to disk first (disk as truth)
     const newState: TreeMenuPersistedState = {
       ...getPersistedState(),
       expandedSections: {
@@ -81,7 +89,6 @@ export const treeMenuService = {
     try {
       await appData.ensureDir("ui");
       await appData.writeJson(UI_STATE_PATH, newState);
-      // Apply to store after successful disk write
       useTreeMenuStore.getState()._applySetExpanded(sectionId, newExpanded);
     } catch (err) {
       logger.error("[treeMenuService] Failed to persist toggle:", err);
@@ -90,7 +97,7 @@ export const treeMenuService = {
   },
 
   /**
-   * Expands a section.
+   * Expands a node.
    */
   async expandSection(sectionId: string): Promise<void> {
     const current = useTreeMenuStore.getState().expandedSections[sectionId] ?? getDefaultExpanded(sectionId);
@@ -115,7 +122,7 @@ export const treeMenuService = {
   },
 
   /**
-   * Collapses a section.
+   * Collapses a node.
    */
   async collapseSection(sectionId: string): Promise<void> {
     const current = useTreeMenuStore.getState().expandedSections[sectionId] ?? getDefaultExpanded(sectionId);
@@ -145,7 +152,7 @@ export const treeMenuService = {
    */
   async setSelectedItem(itemId: string | null): Promise<void> {
     const current = useTreeMenuStore.getState().selectedItemId;
-    if (current === itemId) return; // No change
+    if (current === itemId) return;
 
     const newState: TreeMenuPersistedState = {
       ...getPersistedState(),
@@ -171,19 +178,19 @@ export const treeMenuService = {
   },
 
   /**
-   * Pins a section (shows only that section).
+   * Pins a worktree (shows only that worktree's subtree).
    * Pass null to unpin.
    */
-  async pinSection(sectionId: string | null): Promise<void> {
+  async pinWorktree(worktreeId: string | null): Promise<void> {
     const newState: TreeMenuPersistedState = {
       ...getPersistedState(),
-      pinnedSectionId: sectionId,
+      pinnedWorktreeId: worktreeId,
     };
 
     try {
       await appData.ensureDir("ui");
       await appData.writeJson(UI_STATE_PATH, newState);
-      useTreeMenuStore.getState()._applySetPinned(sectionId);
+      useTreeMenuStore.getState()._applySetPinned(worktreeId);
     } catch (err) {
       logger.error("[treeMenuService] Failed to persist pin:", err);
       throw err;
@@ -191,99 +198,29 @@ export const treeMenuService = {
   },
 
   /**
-   * Toggles pin state for a section.
+   * Toggles pin state for a worktree.
    * If already pinned, unpins; otherwise pins.
    */
-  async togglePinSection(sectionId: string): Promise<void> {
-    const current = useTreeMenuStore.getState().pinnedSectionId;
-    const newPinned = current === sectionId ? null : sectionId;
-    await this.pinSection(newPinned);
+  async togglePinWorktree(worktreeId: string): Promise<void> {
+    const current = useTreeMenuStore.getState().pinnedWorktreeId;
+    const newPinned = current === worktreeId ? null : worktreeId;
+    await this.pinWorktree(newPinned);
   },
 
   /**
-   * Hides a section.
+   * Starts inline rename mode for a node.
+   * Only one node can be renaming at a time.
+   * Ephemeral UI state — not persisted to disk.
    */
-  async hideSection(sectionId: string): Promise<void> {
-    const current = useTreeMenuStore.getState().hiddenSectionIds;
-    if (current.includes(sectionId)) return; // Already hidden
-
-    // If this section is pinned, clear the pin first
-    const pinnedId = useTreeMenuStore.getState().pinnedSectionId;
-    const newPinned = pinnedId === sectionId ? null : pinnedId;
-
-    const newState: TreeMenuPersistedState = {
-      ...getPersistedState(),
-      pinnedSectionId: newPinned,
-      hiddenSectionIds: [...current, sectionId],
-    };
-
-    try {
-      await appData.ensureDir("ui");
-      await appData.writeJson(UI_STATE_PATH, newState);
-      if (newPinned !== pinnedId) {
-        useTreeMenuStore.getState()._applySetPinned(newPinned);
-      }
-      useTreeMenuStore.getState()._applySetHidden(sectionId, true);
-    } catch (err) {
-      logger.error("[treeMenuService] Failed to persist hide:", err);
-      throw err;
-    }
+  startRename(nodeId: string): void {
+    useTreeMenuStore.getState()._applySetRenaming(nodeId);
   },
 
   /**
-   * Unhides a section.
+   * Stops inline rename mode.
+   * Ephemeral UI state — not persisted to disk.
    */
-  async unhideSection(sectionId: string): Promise<void> {
-    const current = useTreeMenuStore.getState().hiddenSectionIds;
-    if (!current.includes(sectionId)) return; // Not hidden
-
-    const newState: TreeMenuPersistedState = {
-      ...getPersistedState(),
-      hiddenSectionIds: current.filter((id) => id !== sectionId),
-    };
-
-    try {
-      await appData.ensureDir("ui");
-      await appData.writeJson(UI_STATE_PATH, newState);
-      useTreeMenuStore.getState()._applySetHidden(sectionId, false);
-    } catch (err) {
-      logger.error("[treeMenuService] Failed to persist unhide:", err);
-      throw err;
-    }
-  },
-
-  /**
-   * Unhides all sections and clears pin.
-   */
-  async unhideAll(): Promise<void> {
-    const newState: TreeMenuPersistedState = {
-      ...getPersistedState(),
-      pinnedSectionId: null,
-      hiddenSectionIds: [],
-    };
-
-    try {
-      await appData.ensureDir("ui");
-      await appData.writeJson(UI_STATE_PATH, newState);
-      useTreeMenuStore.getState()._applyUnhideAll();
-    } catch (err) {
-      logger.error("[treeMenuService] Failed to persist unhide all:", err);
-      throw err;
-    }
-  },
-
-  /**
-   * Gets the count of hidden sections.
-   */
-  getHiddenCount(): number {
-    return useTreeMenuStore.getState().hiddenSectionIds.length;
-  },
-
-  /**
-   * Checks if any sections are hidden or pinned (for showing "Show all" menu item).
-   */
-  hasHiddenOrPinned(): boolean {
-    const state = useTreeMenuStore.getState();
-    return state.hiddenSectionIds.length > 0 || state.pinnedSectionId !== null;
+  stopRename(): void {
+    useTreeMenuStore.getState()._applySetRenaming(null);
   },
 };

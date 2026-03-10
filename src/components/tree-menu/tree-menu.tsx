@@ -1,219 +1,202 @@
-import { useCallback, useRef, useMemo } from "react";
+import React, { useCallback, useRef, useMemo, useEffect } from "react";
+import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
-import type { EntityItemType } from "@/stores/tree-menu/types";
-import { RepoWorktreeSection } from "./repo-worktree-section";
+import { navigationService } from "@/stores/navigation-service";
+import { useCommitStore } from "@/stores/commit-store";
+import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
+import { TreeItemRenderer } from "./tree-item-renderer";
+import { useTreeDnd } from "./use-tree-dnd";
+import { TreeDndOverlay } from "./tree-dnd-overlay";
+import { DropIndicator } from "./drop-indicator";
+import { MoveToDialog } from "./move-to-dialog";
+import { useContextMenu, ContextMenu, ContextMenuItem } from "@/components/ui/context-menu";
+import { FolderPlus } from "lucide-react";
+import { createRootFolder } from "./folder-actions";
 
 interface TreeMenuProps {
-  /**
-   * Called when an item is selected.
-   * @param itemId - The ID of the selected item
-   * @param itemType - The type of the selected item
-   * @param event - Optional mouse event for detecting Cmd+Click / middle-click
-   */
-  onItemSelect: (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request", event?: React.MouseEvent) => void;
-  /** Called when user wants to create a new thread in a worktree */
+  onItemSelect: (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => void;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  /** Called when user wants to create a new terminal in a worktree */
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
-  /** Called when user wants to create a PR for this worktree */
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  /** Called when user wants to create a new worktree in a repo */
   onNewWorktree?: (repoName: string) => void;
-  /** Called when user wants to add a new repository */
   onNewRepo?: () => void;
-  /** Called when user wants to archive a worktree */
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
-  /** Set of section IDs ("repoId:worktreeId") currently being created */
-  creatingSectionIds?: Set<string>;
-  /** Called when user pins/unpins a section */
-  onPinToggle?: (sectionId: string) => void;
-  /** Called when user hides a section */
-  onHide?: (sectionId: string) => void;
-  /** ID of currently pinned section, or null */
-  pinnedSectionId?: string | null;
-  /** Called when user opens the file browser for a worktree */
+  /** Set of worktree IDs currently being created */
+  creatingWorktreeIds?: Set<string>;
+  onPinToggle?: (worktreeId: string) => void;
+  /** ID of currently pinned worktree, or null */
+  pinnedWorktreeId?: string | null;
   onOpenFiles?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  /** Worktree ID that currently has the file browser open, or null */
   fileBrowserWorktreeId?: string | null;
   className?: string;
 }
 
 /**
  * Main tree menu container.
- * Displays repo/worktree sections with threads and plans.
- * Supports keyboard navigation: ArrowUp/Down, ArrowLeft/Right, Enter/Space, Home/End.
- * Uses ARIA tree pattern for accessibility.
+ * Iterates a flat TreeItemNode[] and dispatches each item by type
+ * to the correct component. Supports keyboard navigation.
  */
-export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr, onNewWorktree, onNewRepo, onArchiveWorktree, creatingSectionIds, onPinToggle, onHide, pinnedSectionId, onOpenFiles, fileBrowserWorktreeId, className }: TreeMenuProps) {
+export function TreeMenu({
+  onItemSelect, onNewThread, onNewTerminal, onCreatePr,
+  onNewWorktree, onNewRepo, onArchiveWorktree,
+  creatingWorktreeIds, onPinToggle, pinnedWorktreeId,
+  onOpenFiles, fileBrowserWorktreeId, className,
+}: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sections = useTreeData();
+  const items = useTreeData();
   const selectedItemId = useTreeMenuStore((state) => state.selectedItemId);
   const hydrateRepoLookup = useRepoWorktreeLookupStore((state) => state.hydrate);
 
-  // Refresh tree by re-hydrating the lookup store
-  const handleRefreshTreeMenu = useCallback(async () => {
-    await hydrateRepoLookup();
-  }, [hydrateRepoLookup]);
+  const {
+    sensors,
+    activeDrag,
+    dropTarget,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+    handleDragCancel,
+  } = useTreeDnd(items);
 
-  // Build flat list of focusable items for keyboard navigation
-  const focusableItems = useMemo(() => {
-    const items: Array<{ type: "section" | "item"; id: string; sectionId?: string; itemType?: EntityItemType }> = [];
+  // Set cursor on body during drag — use !important to override child cursor-pointer styles
+  useEffect(() => {
+    if (!activeDrag) return;
+    const cursor = dropTarget && !dropTarget.validation.valid
+      ? "not-allowed"
+      : "grabbing";
+    document.body.style.setProperty("cursor", cursor, "important");
+    return () => { document.body.style.removeProperty("cursor"); };
+  }, [activeDrag, dropTarget]);
 
-    for (const section of sections) {
-      items.push({ type: "section", id: section.id });
-      if (section.isExpanded) {
-        for (const item of section.items) {
-          items.push({
-            type: "item",
-            id: item.id,
-            sectionId: section.id,
-            itemType: item.type as EntityItemType,
-          });
+  const handleRefreshTreeMenu = useCallback(() => hydrateRepoLookup(), [hydrateRepoLookup]);
+
+  // Pre-compute direct child counts for container nodes
+  const childCountMap = useMemo(() => {
+    const counts = new Map<string, number>();
+    const parentStack: string[] = [];
+    for (const item of items) {
+      parentStack.length = item.depth;
+      if (item.depth > 0 && parentStack[item.depth - 1]) {
+        const parentId = parentStack[item.depth - 1];
+        counts.set(parentId, (counts.get(parentId) ?? 0) + 1);
+      }
+      if (item.isFolder) {
+        parentStack[item.depth] = item.id;
+      }
+    }
+    return counts;
+  }, [items]);
+
+  // Changes/Uncommitted/Commit navigation helpers
+  const handleChangesClick = useCallback(async (item: TreeItemNode) => {
+    if (!item.worktreeId) return;
+    const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
+    if (worktreeNode?.repoId) {
+      await navigationService.navigateToChanges(worktreeNode.repoId, item.worktreeId, {
+        treeItemId: item.id,
+      });
+    }
+  }, [items]);
+
+  const handleUncommittedClick = useCallback(async (item: TreeItemNode) => {
+    if (!item.worktreeId) return;
+    const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
+    if (worktreeNode?.repoId) {
+      await navigationService.navigateToChanges(worktreeNode.repoId, item.worktreeId, {
+        uncommittedOnly: true,
+        treeItemId: item.id,
+      });
+    }
+  }, [items]);
+
+  const handleCommitClick = useCallback(async (item: TreeItemNode) => {
+    if (!item.worktreeId) return;
+    const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
+    if (worktreeNode?.repoId) {
+      await navigationService.navigateToChanges(worktreeNode.repoId, item.worktreeId, {
+        commitHash: item.commitHash!,
+        treeItemId: item.id,
+      });
+    }
+  }, [items]);
+
+  // Commit fetching: trigger when Changes folder is expanded
+  useEffect(() => {
+    for (const item of items) {
+      if (item.type === "changes" && item.isExpanded && item.worktreeId) {
+        const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
+        if (worktreeNode?.worktreePath) {
+          useCommitStore.getState().fetchCommits(
+            item.worktreeId,
+            worktreeNode.worktreePath,
+            worktreeNode.worktreeName ?? "",
+          );
         }
       }
     }
+  }, [items]);
 
-    return items;
-  }, [sections]);
-
-  // Find current index in focusable items
-  const getCurrentIndex = useCallback(() => {
-    if (!selectedItemId) return -1;
-    return focusableItems.findIndex(
-      (item) => item.type === "item" && item.id === selectedItemId
-    );
-  }, [selectedItemId, focusableItems]);
-
-  // Find section containing an item
-  const findItemSection = useCallback((itemId: string) => {
-    for (const section of sections) {
-      if (section.items.some((item) => item.id === itemId)) {
-        return section;
-      }
-    }
-    return null;
-  }, [sections]);
-
-  // Handle section toggle
-  const handleToggleSection = useCallback(async (sectionId: string) => {
-    await treeMenuService.toggleSection(sectionId);
-  }, []);
-
-  // Handle item selection
   const handleItemSelect = useCallback(
-    async (itemId: string, itemType: "thread" | "plan" | "terminal" | "pull-request", event?: React.MouseEvent) => {
+    async (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => {
       await treeMenuService.setSelectedItem(itemId);
       onItemSelect(itemId, itemType, event);
     },
-    [onItemSelect]
+    [onItemSelect],
   );
+  // Right-click context menu on empty space for root-level folder creation
+  const rootContextMenu = useContextMenu();
 
-  // Handle keyboard navigation
+  const handleContainerContextMenu = useCallback((e: React.MouseEvent) => {
+    // Only trigger when right-clicking on the container itself, not on tree items
+    if ((e.target as HTMLElement).closest("[data-tree-item-id]")) return;
+    rootContextMenu.open(e);
+  }, [rootContextMenu]);
+
   const handleKeyDown = useCallback(
     async (e: React.KeyboardEvent) => {
-      const currentIndex = getCurrentIndex();
+      if (!selectedItemId) return;
+      const currentIndex = items.findIndex(i => i.id === selectedItemId);
+      if (currentIndex < 0) return;
 
       switch (e.key) {
         case "ArrowDown": {
           e.preventDefault();
-          // Find next item
-          const nextIndex = currentIndex + 1;
-          if (nextIndex < focusableItems.length) {
-            const next = focusableItems[nextIndex];
-            if (next.type === "item" && next.itemType) {
-              await treeMenuService.setSelectedItem(next.id);
-              onItemSelect(next.id, next.itemType);
-            } else if (next.type === "section") {
-              // Skip to section's first item if expanded, or next section
-              const section = sections.find((s) => s.id === next.id);
-              if (section?.isExpanded && section.items.length > 0) {
-                const firstItem = section.items[0];
-                await treeMenuService.setSelectedItem(firstItem.id);
-                onItemSelect(firstItem.id, firstItem.type as EntityItemType);
-              }
-            }
+          if (currentIndex < items.length - 1) {
+            const next = items[currentIndex + 1];
+            await treeMenuService.setSelectedItem(next.id);
           }
           break;
         }
-
         case "ArrowUp": {
           e.preventDefault();
-          // Find previous item
           if (currentIndex > 0) {
-            const prevIndex = currentIndex - 1;
-            const prev = focusableItems[prevIndex];
-            if (prev.type === "item" && prev.itemType) {
-              await treeMenuService.setSelectedItem(prev.id);
-              onItemSelect(prev.id, prev.itemType);
-            }
+            const prev = items[currentIndex - 1];
+            await treeMenuService.setSelectedItem(prev.id);
           }
           break;
         }
-
-        case "ArrowLeft": {
-          e.preventDefault();
-          // Collapse parent section or move to section header
-          if (selectedItemId) {
-            const section = findItemSection(selectedItemId);
-            if (section) {
-              await treeMenuService.collapseSection(section.id);
-            }
-          }
-          break;
-        }
-
-        case "ArrowRight": {
-          e.preventDefault();
-          // Expand section
-          if (selectedItemId) {
-            const section = findItemSection(selectedItemId);
-            if (section && !section.isExpanded) {
-              await treeMenuService.expandSection(section.id);
-            }
-          }
-          break;
-        }
-
         case "Home": {
           e.preventDefault();
-          // Go to first item
-          const firstItem = focusableItems.find((item) => item.type === "item" && item.itemType);
-          if (firstItem && firstItem.itemType) {
-            await treeMenuService.setSelectedItem(firstItem.id);
-            onItemSelect(firstItem.id, firstItem.itemType);
+          if (items.length > 0) {
+            await treeMenuService.setSelectedItem(items[0].id);
           }
           break;
         }
-
         case "End": {
           e.preventDefault();
-          // Go to last item
-          for (let i = focusableItems.length - 1; i >= 0; i--) {
-            const item = focusableItems[i];
-            if (item.type === "item" && item.itemType) {
-              await treeMenuService.setSelectedItem(item.id);
-              onItemSelect(item.id, item.itemType);
-              break;
-            }
+          if (items.length > 0) {
+            await treeMenuService.setSelectedItem(items[items.length - 1].id);
           }
-          break;
-        }
-
-        case "Enter":
-        case " ": {
-          // Selection is handled by individual items
           break;
         }
       }
     },
-    [getCurrentIndex, focusableItems, sections, selectedItemId, findItemSection, onItemSelect]
+    [selectedItemId, items],
   );
 
-  // Empty state
-  if (sections.length === 0) {
+  if (items.length === 0) {
     return (
       <div className={`flex-1 overflow-auto ${className ?? ""}`}>
         <div className="flex items-center justify-center h-32 text-surface-500 text-sm">
@@ -224,38 +207,79 @@ export function TreeMenu({ onItemSelect, onNewThread, onNewTerminal, onCreatePr,
   }
 
   return (
-    <div
-      ref={containerRef}
-      role="tree"
-      aria-label="Threads and Plans"
-      data-testid="tree-menu"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      className={`flex-1 overflow-auto focus:outline-none pl-2 ${className ?? ""}`}
-    >
-      {sections.map((section, index) => (
-        <RepoWorktreeSection
-          key={section.id}
-          section={section}
-          selectedItemId={selectedItemId}
-          onToggle={handleToggleSection}
-          onItemSelect={handleItemSelect}
-          showDivider={index > 0}
-          onNewThread={onNewThread}
-          onCreatePr={onCreatePr}
-          onNewTerminal={onNewTerminal}
-          onNewWorktree={onNewWorktree}
-          onNewRepo={onNewRepo}
-          onArchiveWorktree={onArchiveWorktree}
-          onRefresh={handleRefreshTreeMenu}
-          isCreatingWorktree={creatingSectionIds?.has(section.id) ?? false}
-          onPinToggle={onPinToggle}
-          onHide={onHide}
-          isPinned={pinnedSectionId === section.id}
-          onOpenFiles={onOpenFiles}
-          isFileBrowserOpen={fileBrowserWorktreeId === section.worktreeId}
-        />
-      ))}
-    </div>
+    <>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <div
+          ref={containerRef}
+          role="tree"
+          aria-label="Sidebar tree"
+          data-testid="tree-menu"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          onContextMenu={handleContainerContextMenu}
+          className={`flex-1 overflow-auto focus:outline-none pl-2 relative ${className ?? ""}`}
+        >
+          {items.map((item, index) => {
+            const showDivider = (item.type === "repo" || item.type === "folder") && item.depth === 0 && index > 0;
+            return (
+              <React.Fragment key={item.id}>
+                {showDivider && (
+                  <div className="border-t border-dashed border-surface-700/50 mx-2 my-1" role="separator" aria-orientation="horizontal" />
+                )}
+                <TreeItemRenderer
+                  item={item}
+                  index={index}
+                  allItems={items}
+                  childCount={childCountMap.get(item.id) ?? 0}
+                  selectedItemId={selectedItemId}
+                  onItemSelect={handleItemSelect}
+                  onChangesClick={handleChangesClick}
+                  onUncommittedClick={handleUncommittedClick}
+                  onCommitClick={handleCommitClick}
+                  onNewThread={onNewThread}
+                  onNewTerminal={onNewTerminal}
+                  onCreatePr={onCreatePr}
+                  onNewWorktree={onNewWorktree}
+                  onNewRepo={onNewRepo}
+                  onArchiveWorktree={onArchiveWorktree}
+                  onRefresh={handleRefreshTreeMenu}
+                  isCreatingWorktree={item.type === "worktree" && (creatingWorktreeIds?.has(item.id) ?? false)}
+                  onPinToggle={onPinToggle}
+                  isPinned={item.type === "worktree" && pinnedWorktreeId === item.id}
+                  onOpenFiles={onOpenFiles}
+                  isFileBrowserOpen={(item.type === "worktree" || item.type === "files") && fileBrowserWorktreeId === item.worktreeId}
+                />
+              </React.Fragment>
+            );
+          })}
+
+          {/* Drop indicator overlay (absolute positioned within scroll container) */}
+          {dropTarget && <DropIndicator dropTarget={dropTarget} />}
+        </div>
+
+        <DragOverlay dropAnimation={null}>
+          {activeDrag ? <TreeDndOverlay activeDrag={activeDrag} /> : null}
+        </DragOverlay>
+      </DndContext>
+
+      <MoveToDialog />
+
+      {/* Right-click context menu on empty space */}
+      {rootContextMenu.show && (
+        <ContextMenu position={rootContextMenu.position} onClose={rootContextMenu.close}>
+          <ContextMenuItem
+            icon={FolderPlus}
+            label="New folder"
+            onClick={() => { rootContextMenu.close(); void createRootFolder(); }}
+          />
+        </ContextMenu>
+      )}
+    </>
   );
 }

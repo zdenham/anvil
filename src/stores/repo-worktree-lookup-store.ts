@@ -2,11 +2,13 @@ import { create } from "zustand";
 import { appData } from "@/lib/app-data-store";
 import { RepositorySettingsSchema } from "@core/types/repositories.js";
 import { logger } from "@/lib/logger-client";
+import type { VisualSettings } from "@core/types/visual-settings.js";
 
 export interface WorktreeLookupInfo {
   name: string;
   path: string;
   currentBranch: string | null;
+  visualSettings?: VisualSettings;
 }
 
 interface RepoInfo {
@@ -81,6 +83,7 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
                 name: wt.name,
                 path: wt.path,
                 currentBranch: wt.currentBranch ?? null,
+                visualSettings: wt.visualSettings,
               });
             }
 

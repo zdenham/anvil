@@ -1,16 +1,16 @@
 # Dummy Test Plan
 
-A dummy plan created for testing plan hierarchy and expansion behavior.
+A dummy plan for testing plan infrastructure.
 
 ## Goal
 
-Verify that parent/child plan relationships render and expand correctly in the UI.
+Verify that plans and sub-plans work correctly.
 
 ## Phases
 
-- [ ] Implement widget component
-- [ ] Add widget sub-feature
-- [ ] Write tests
+- [ ] Set up test fixtures
+- [ ] Run validation checks
+- [ ] Clean up
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -18,4 +18,4 @@ Verify that parent/child plan relationships render and expand correctly in the U
 
 ## Sub-Plans
 
-- [Widget Sub-Feature](./widget-sub-feature.md)
+- [Validation](./validation.md) — Validation sub-plan details

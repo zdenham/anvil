@@ -796,6 +796,9 @@ export async function runAgentLoop(
               parentThreadId: context.threadId,
               parentToolUseId: toolUseId,  // Full toolu_01ABC... format
               agentType: agentType,
+              visualSettings: {
+                parentId: context.threadId,  // sub-agent → parent thread
+              },
               permissionMode: permissionEvaluator?.getModeId() ?? context.permissionModeId ?? "implement",
             };
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   GitPullRequest,
   GitPullRequestArrow,
@@ -7,12 +7,24 @@ import {
   GitMerge,
   Archive,
   Loader2,
+  ArrowRightLeft,
+  CornerLeftUp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
-import { TREE_INDENT_BASE } from "@/lib/tree-indent";
+import {
+  useContextMenu,
+  ContextMenu,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
+import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 import { pullRequestService } from "@/entities/pull-requests/service";
+import { useMoveToStore } from "./use-move-to";
+import { updateVisualSettings } from "@/lib/visual-settings";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
+import type { TreeDragData } from "./use-tree-dnd";
 
 interface PullRequestItemProps {
   item: TreeItemNode;
@@ -57,6 +69,17 @@ export function PullRequestItem({
   const [confirming, setConfirming] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const contextMenu = useContextMenu();
+
+  // ── Drag and drop ────────────────────────────────────────────────
+  const dragData: TreeDragData = useMemo(
+    () => ({ type: "tree-item", item }),
+    [item],
+  );
+  const {
+    attributes: dragAttrs, listeners: dragListeners, setNodeRef,
+    transform, transition, isDragging,
+  } = useSortable({ id: item.id, data: dragData });
 
   // Click outside to cancel confirmation
   useEffect(() => {
@@ -125,16 +148,26 @@ export function PullRequestItem({
   );
 
   return (
+    <>
     <div
+      ref={setNodeRef}
+      {...dragAttrs}
+      {...dragListeners}
       role="treeitem"
       aria-selected={isSelected}
       data-testid={`pr-item-${item.id}`}
+      data-tree-item-id={item.id}
       data-tree-item-index={itemIndex}
       tabIndex={tabIndex}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}
-      style={{ paddingLeft: `${TREE_INDENT_BASE}px` }}
+      onContextMenu={contextMenu.open}
+      style={{
+        paddingLeft: `${TREE_INDENT_BASE + item.depth * TREE_INDENT_STEP}px`,
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
       className={cn(
         "group flex items-center gap-1.5 py-0.5 pr-1 cursor-pointer",
         "text-[13px] leading-[22px]",
@@ -143,6 +176,7 @@ export function PullRequestItem({
         isSelected
           ? "bg-accent-500/20 text-surface-100"
           : "text-surface-300 hover:bg-accent-500/10",
+        isDragging && "opacity-50",
       )}
     >
       <span className="flex-shrink-0 w-3 flex items-center justify-center">
@@ -178,5 +212,31 @@ export function PullRequestItem({
         )}
       </button>
     </div>
+    {contextMenu.show && (
+      <ContextMenu position={contextMenu.position} onClose={contextMenu.close}>
+        <ContextMenuItem
+          icon={ArrowRightLeft}
+          label="Move to..."
+          onClick={() => {
+            contextMenu.close();
+            useMoveToStore.getState().openMoveDialog(item);
+          }}
+        />
+        {item.parentId && item.parentId !== item.worktreeId && (
+          <ContextMenuItem
+            icon={CornerLeftUp}
+            label="Move to root"
+            onClick={async () => {
+              contextMenu.close();
+              await updateVisualSettings("pull-request", item.id, {
+                parentId: item.worktreeId,
+                sortKey: undefined,
+              });
+            }}
+          />
+        )}
+      </ContextMenu>
+    )}
+    </>
   );
 }

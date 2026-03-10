@@ -1,7 +1,7 @@
 import { ChevronRight, GitCompare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { treeMenuService } from "@/stores/tree-menu/service";
-import { TREE_INDENT_BASE } from "@/lib/tree-indent";
+import { getTreeIndentPx } from "@/lib/tree-indent";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 
 interface ChangesItemProps {
@@ -42,10 +42,11 @@ export function ChangesItem({ item, isSelected, onNavigate }: ChangesItemProps) 
       role="treeitem"
       aria-selected={isSelected}
       aria-expanded={item.isExpanded}
+      data-tree-item-id={item.id}
       tabIndex={-1}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      style={{ paddingLeft: `${TREE_INDENT_BASE}px` }}
+      style={{ paddingLeft: `${getTreeIndentPx(item.depth)}px` }}
       className={cn(
         "flex items-center gap-1.5 w-full pr-2 py-1 text-xs",
         "hover:bg-surface-800 rounded cursor-pointer select-none",
