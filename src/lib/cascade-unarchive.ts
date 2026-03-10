@@ -32,13 +32,14 @@ export async function cascadeUnarchive(
   );
 
   // 1. Load all archived entities
-  const [archivedThreads, archivedPlans, archivedFolders, archivedPrs] =
+  const [archivedThreadsResult, archivedPlans, archivedFolders, archivedPrs] =
     await Promise.all([
       threadService.listArchived(),
       planService.listArchived(),
       folderService.listArchived(),
       pullRequestService.listArchived(),
     ]);
+  const archivedThreads = archivedThreadsResult.threads;
 
   // 2. Build a lookup: archived entity ID -> its visualSettings.parentId
   const parentMap = new Map<string, string | undefined>();

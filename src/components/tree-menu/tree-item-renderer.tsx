@@ -61,7 +61,6 @@ export function TreeItemRenderer({
           onNewRepo={onNewRepo} onArchiveWorktree={onArchiveWorktree}
           onRefresh={onRefresh} isCreatingWorktree={isCreatingWorktree}
           onPinToggle={onPinToggle} isPinned={isPinned}
-          onOpenFiles={onOpenFiles} isFileBrowserOpen={isFileBrowserOpen}
         />
       );
     case "folder":

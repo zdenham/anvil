@@ -74,7 +74,7 @@ export function WorktreeItem(props: WorktreeItemProps) {
 /** Renders the worktree header row with menus and rename logic. */
 function WorktreeHeader({
   item, isSelected, isCreatingWorktree, isPinned,
-  onItemSelect, onPinToggle, onNewThread, onNewTerminal, onCreatePr,
+  onPinToggle, onNewThread, onNewTerminal, onCreatePr,
   onNewWorktree, onNewRepo, onArchiveWorktree, onRefresh,
 }: WorktreeItemProps) {
   const [showMenu, setShowMenu] = useState(false);
