@@ -25,6 +25,11 @@ export const GLOBAL_OVERRIDES: PermissionRule[] = [
     decision: "deny",
     reason: "Safety override: cannot modify .env files. This is a global protection that cannot be bypassed in any mode.",
   },
+  {
+    toolPattern: "^EnterWorktree$",
+    decision: "deny",
+    reason: "Worktree creation is managed by Mort. Use the Bash tool with `git worktree add` if you need a worktree, or ask the user to create one from the sidebar.",
+  },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────

@@ -9,11 +9,11 @@ Two related improvements to the terminal experience:
 
 ## Phases
 
-- [ ] Add `openInBottomPane` helper to pane layout service
+- [x] Add `openInBottomPane` helper to pane layout service
 
-- [ ] Wire terminal creation to use bottom pane
+- [x] Wire terminal creation to use bottom pane
 
-- [ ] Auto-create terminal on worktree creation
+- [x] Auto-create terminal on worktree creation
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

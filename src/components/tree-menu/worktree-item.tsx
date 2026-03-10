@@ -22,7 +22,6 @@ export interface WorktreeItemProps {
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
-  onNewRepo?: () => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
   onRefresh?: () => void;
   isCreatingWorktree?: boolean;
@@ -75,7 +74,7 @@ export function WorktreeItem(props: WorktreeItemProps) {
 function WorktreeHeader({
   item, isSelected, isCreatingWorktree, isPinned,
   onPinToggle, onNewThread, onNewTerminal, onCreatePr,
-  onNewWorktree, onNewRepo, onArchiveWorktree, onRefresh,
+  onNewWorktree, onArchiveWorktree, onRefresh,
 }: WorktreeItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -206,6 +205,15 @@ function WorktreeHeader({
           ) : item.worktreeName}
         </span>
 
+        {item.isExternal && (
+          <span
+            className="ml-1 px-1 py-0.5 text-[10px] leading-none rounded bg-surface-700 text-surface-400"
+            title="This worktree was not created by Mort"
+          >
+            external
+          </span>
+        )}
+
         {isCreatingWorktree && <Loader2 size={12} className="flex-shrink-0 animate-spin text-surface-400" />}
         <span className="ml-auto" />
         {isPinned && (
@@ -217,7 +225,7 @@ function WorktreeHeader({
           menuPosition={menuPosition} buttonRef={buttonRef} menuRef={menuRef}
           isCreatingWorktree={isCreatingWorktree}
           onNewThread={onNewThread} onNewTerminal={onNewTerminal}
-          onCreatePr={onCreatePr} onNewWorktree={onNewWorktree} onNewRepo={onNewRepo}
+          onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
         />
       </div>
 
@@ -226,7 +234,7 @@ function WorktreeHeader({
         menuRef={contextMenuRef} isPinned={isPinned} onPinToggle={onPinToggle}
         onNewThread={onNewThread} onNewTerminal={onNewTerminal}
         onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
-        onNewRepo={onNewRepo} onArchiveWorktree={onArchiveWorktree}
+        onArchiveWorktree={onArchiveWorktree}
         onClose={() => setShowContextMenu(false)}
         onStartRename={() => {
           setRenameValue(item.worktreeName ?? "");

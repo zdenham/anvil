@@ -64,6 +64,12 @@ export const WorkspaceSettingsSchema = z.object({
    * Controlled by the Record button in the debug panel's Network tab.
    */
   networkDebugEnabled: z.boolean().optional(),
+
+  /**
+   * Whether to hide worktrees not created by Mort from the sidebar.
+   * Optional for backwards compatibility — defaults to false (show all).
+   */
+  hideExternalWorktrees: z.boolean().optional(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 

@@ -44,6 +44,8 @@ export const WorktreeStateSchema = z.object({
   isRenamed: z.boolean().optional(),
   /** Visual settings for sidebar tree positioning */
   visualSettings: VisualSettingsSchema.optional(),
+  /** Whether this worktree was discovered via git (not created by Mort) */
+  isExternal: z.boolean().optional(),
 });
 export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
 

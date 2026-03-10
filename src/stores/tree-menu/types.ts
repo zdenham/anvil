@@ -54,6 +54,8 @@ export interface TreeItemNode {
   worktreePath?: string;
   /** UUID of the repository (worktree nodes only) */
   repoId?: string;
+  /** Whether this worktree was discovered externally (not created by Mort) */
+  isExternal?: boolean;
 
   // ── Folder-specific fields ────────────────────────────────────────────
   /** Lucide icon name for folder nodes (e.g., "folder", "bug", "zap") */

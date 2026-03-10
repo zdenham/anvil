@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { ThreadInputSection } from "@/components/reusable/thread-input-section";
+import { GuideContent } from "@/components/content-pane/guide-content";
 import { useMRUWorktree } from "@/hooks/use-mru-worktree";
 import { createThread } from "@/lib/thread-creation-service";
 import { paneLayoutService } from "@/stores/pane-layout/service";
@@ -76,23 +77,21 @@ export function EmptyPaneContent() {
 
   return (
     <div className="flex flex-col h-full text-surface-50 relative overflow-hidden px-2.5">
-      {/* Welcome message in main area */}
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center text-surface-400">
-          <h2 className="text-xl font-medium font-mono text-surface-100">
-            Welcome to Mort
-          </h2>
-          {noRepoConfigured ? (
+      {/* Guide content or fallback message */}
+      {noRepoConfigured ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-surface-400">
+            <h2 className="text-xl font-medium font-mono text-surface-100">
+              Welcome to Mort
+            </h2>
             <p className="text-base mt-2">
               Add a repository to get started
             </p>
-          ) : (
-            <p className="text-base mt-2">
-              Type a message below to get started
-            </p>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <GuideContent />
+      )}
 
       {/* Input section pinned to bottom */}
       <ThreadInputSection

@@ -1063,6 +1063,22 @@ export async function runAgentLoop(
               }
             }
 
+            // Detect git worktree creation via Bash — trigger worktree sync
+            if (input.tool_name === "Bash") {
+              const toolInput = input.tool_input as { command?: string };
+              const command = toolInput.command ?? "";
+
+              if (/git\s+worktree\s+add\b/.test(command)) {
+                if (context.repoId) {
+                  emitEvent(EventName.WORKTREE_SYNCED, {
+                    repoId: context.repoId,
+                  }, "PostToolUse:git-worktree-add");
+
+                  logger.info(`[PostToolUse] Detected git worktree add command, triggering sync`);
+                }
+              }
+            }
+
             // Handle Task tool completion: mark thread completed, add response to state.json
             // For background tasks (run_in_background: true), the tool result is an
             // async_launched marker — the task hasn't finished yet. Skip premature completion;
@@ -1361,6 +1377,7 @@ export async function runAgentLoop(
             append: systemPrompt,
           },
           tools: agentConfig.tools,
+          disallowedTools: ["EnterWorktree"],
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           includePartialMessages: true,

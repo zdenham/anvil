@@ -25,7 +25,6 @@ export interface TreeItemRendererProps {
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
-  onNewRepo?: () => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
   onRefresh?: () => void;
   isCreatingWorktree?: boolean;
@@ -42,7 +41,7 @@ export interface TreeItemRendererProps {
 export function TreeItemRenderer({
   item, index, allItems, childCount, selectedItemId, onItemSelect,
   onChangesClick, onUncommittedClick, onCommitClick,
-  onNewThread, onNewTerminal, onCreatePr, onNewWorktree, onNewRepo,
+  onNewThread, onNewTerminal, onCreatePr, onNewWorktree,
   onArchiveWorktree, onRefresh, isCreatingWorktree,
   onPinToggle, isPinned, onOpenFiles, isFileBrowserOpen,
 }: TreeItemRendererProps) {
@@ -58,7 +57,7 @@ export function TreeItemRenderer({
           itemIndex={index} allItems={allItems} onItemSelect={onItemSelect}
           onNewThread={onNewThread} onNewTerminal={onNewTerminal}
           onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
-          onNewRepo={onNewRepo} onArchiveWorktree={onArchiveWorktree}
+          onArchiveWorktree={onArchiveWorktree}
           onRefresh={onRefresh} isCreatingWorktree={isCreatingWorktree}
           onPinToggle={onPinToggle} isPinned={isPinned}
         />
@@ -84,13 +83,18 @@ export function TreeItemRenderer({
           itemIndex={index} allItems={allItems}
         />
       );
-    case "terminal":
+    case "terminal": {
+      const siblingTerminals = allItems.filter(
+        i => i.type === "terminal" && i.worktreeId === item.worktreeId
+      );
       return (
         <TerminalItem
           item={item} isSelected={isSelected} onSelect={onItemSelect}
           itemIndex={index}
+          isLastInWorktree={siblingTerminals.length <= 1}
         />
       );
+    }
     case "pull-request":
       return (
         <PullRequestItem

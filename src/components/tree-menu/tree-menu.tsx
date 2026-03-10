@@ -22,7 +22,6 @@ interface TreeMenuProps {
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
-  onNewRepo?: () => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
   /** Set of worktree IDs currently being created */
   creatingWorktreeIds?: Set<string>;
@@ -41,7 +40,7 @@ interface TreeMenuProps {
  */
 export function TreeMenu({
   onItemSelect, onNewThread, onNewTerminal, onCreatePr,
-  onNewWorktree, onNewRepo, onArchiveWorktree,
+  onNewWorktree, onArchiveWorktree,
   creatingWorktreeIds, onPinToggle, pinnedWorktreeId,
   onOpenFiles, fileBrowserWorktreeId, className,
 }: TreeMenuProps) {
@@ -246,7 +245,6 @@ export function TreeMenu({
                   onNewTerminal={onNewTerminal}
                   onCreatePr={onCreatePr}
                   onNewWorktree={onNewWorktree}
-                  onNewRepo={onNewRepo}
                   onArchiveWorktree={onArchiveWorktree}
                   onRefresh={handleRefreshTreeMenu}
                   isCreatingWorktree={item.type === "worktree" && (creatingWorktreeIds?.has(item.id) ?? false)}

@@ -258,6 +258,12 @@ export const fsCommands = {
     invoke<void>("fs_write_file", { path, contents }),
 
   /**
+   * Write binary content (base64-encoded) to a file (creates parent directories if needed).
+   */
+  writeBinaryFile: (path: string, base64Data: string) =>
+    invoke<void>("fs_write_binary", { path, base64Data }),
+
+  /**
    * Get the mort repository directory for a repo (~/.mort/repositories/{repo-name}).
    */
   getRepoDir: (repoName: string) =>

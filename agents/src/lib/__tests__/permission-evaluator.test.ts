@@ -278,5 +278,60 @@ describe("PermissionEvaluator", () => {
       expect(envRule).toBeDefined();
       expect(envRule!.decision).toBe("deny");
     });
+
+    it("contains EnterWorktree override", () => {
+      const worktreeRule = GLOBAL_OVERRIDES.find((r) =>
+        r.toolPattern === "^EnterWorktree$",
+      );
+      expect(worktreeRule).toBeDefined();
+      expect(worktreeRule!.decision).toBe("deny");
+    });
+  });
+
+  // ── EnterWorktree Denial ───────────────────────────────────────
+
+  describe("EnterWorktree denial", () => {
+    it("EnterWorktree is denied in implement mode", () => {
+      const evaluator = new PermissionEvaluator(
+        makeConfig({ mode: IMPLEMENT_MODE }),
+      );
+      const result = evaluator.evaluate("EnterWorktree", {});
+      expect(result.decision).toBe("deny");
+      expect(result.reason).toContain("Worktree creation is managed by Mort");
+    });
+
+    it("EnterWorktree is denied in plan mode", () => {
+      const evaluator = new PermissionEvaluator(makeConfig());
+      const result = evaluator.evaluate("EnterWorktree", {});
+      expect(result.decision).toBe("deny");
+      expect(result.reason).toContain("Worktree creation is managed by Mort");
+    });
+
+    it("EnterWorktree is denied in approve mode", () => {
+      const evaluator = new PermissionEvaluator(
+        makeConfig({ mode: APPROVE_MODE }),
+      );
+      const result = evaluator.evaluate("EnterWorktree", {});
+      expect(result.decision).toBe("deny");
+      expect(result.reason).toContain("Worktree creation is managed by Mort");
+    });
+
+    it("EnterWorktree denial overrides custom allow rules", () => {
+      const evaluator = new PermissionEvaluator(
+        makeConfig({
+          mode: IMPLEMENT_MODE,
+          overrides: [
+            {
+              toolPattern: "^EnterWorktree$",
+              decision: "allow",
+              reason: "Custom allow",
+            },
+          ],
+        }),
+      );
+      // Global override fires first, custom allow never reached
+      const result = evaluator.evaluate("EnterWorktree", {});
+      expect(result.decision).toBe("deny");
+    });
   });
 });

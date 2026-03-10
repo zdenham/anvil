@@ -42,11 +42,11 @@ export function RepoItem({ item }: RepoItemProps) {
 
       <button
         type="button"
-        className="ml-auto flex-shrink-0 w-3 h-3 flex items-center justify-center rounded hover:bg-surface-700 text-surface-500"
+        className="ml-auto flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-surface-700 text-surface-500"
         onClick={(e) => { e.stopPropagation(); treeMenuService.toggleSection(item.id); }}
         aria-label={item.isExpanded ? "Collapse repo" : "Expand repo"}
       >
-        {item.isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        {item.isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       </button>
     </div>
   );

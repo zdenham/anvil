@@ -17,9 +17,14 @@ export interface NavigateOptions {
   newTab?: boolean;
   /** Auto-focus the input (for threads). */
   autoFocus?: boolean;
+  /** Open in a bottom split pane (used for terminals). */
+  bottomPane?: boolean;
 }
 
 function openOrFind(view: ContentPaneView, options?: NavigateOptions): Promise<void> {
+  if (options?.bottomPane) {
+    return paneLayoutService.openInBottomPane(view).then(() => undefined);
+  }
   if (options?.newTab) {
     return paneLayoutService.openTab(view).then(() => undefined);
   }

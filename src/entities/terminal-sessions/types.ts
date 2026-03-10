@@ -21,6 +21,8 @@ export const TerminalSessionSchema = z.object({
   worktreePath: z.string(),
   /** Last executed command (for sidebar display) */
   lastCommand: z.string().optional(),
+  /** User-assigned label (overrides lastCommand in sidebar) */
+  label: z.string().optional(),
   /** When the terminal was created */
   createdAt: z.number(),
   /** Whether the PTY process is still running */

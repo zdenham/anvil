@@ -23,6 +23,7 @@ interface SettingsActions {
   getPermissionMode: () => PermissionMode;
   getPermissionDisplayMode: () => PermissionDisplayMode;
   getQuickActionsCollapsed: () => boolean;
+  getHideExternalWorktrees: () => boolean;
 
   /** Optimistic apply methods - return rollback functions for use with optimistic() */
   _applyUpdate: (settings: WorkspaceSettings) => Rollback;
@@ -58,6 +59,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
     getPermissionMode: () => get().workspace.permissionMode ?? "allow-all",
     getPermissionDisplayMode: () => get().workspace.permissionDisplayMode ?? "modal",
     getQuickActionsCollapsed: () => get().workspace.quickActionsCollapsed ?? false,
+    getHideExternalWorktrees: () => get().workspace.hideExternalWorktrees ?? false,
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Optimistic Apply Methods

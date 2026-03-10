@@ -3,7 +3,7 @@ import { logger } from "@/lib/logger-client";
 import type { ContentPaneView } from "@/components/content-pane/types";
 import { usePaneLayoutStore, getActiveGroup, getActiveTab } from "./store";
 import { PaneLayoutPersistedStateSchema, type PaneLayoutPersistedState } from "./types";
-import { removeLeafFromTree } from "./split-tree";
+import { removeLeafFromTree, findGroupPath } from "./split-tree";
 import { createDefaultState, createGroup, createTab, MAX_TABS_PER_GROUP } from "./defaults";
 
 const UI_STATE_PATH = "ui/pane-layout.json";
@@ -201,6 +201,33 @@ export const paneLayoutService = {
   async updateSplitSizes(path: number[], sizes: number[]): Promise<void> {
     usePaneLayoutStore.getState()._applyUpdateSplitSizes(path, sizes);
     await persistState();
+  },
+
+  async openInBottomPane(view: ContentPaneView): Promise<string> {
+    const { root, activeGroupId } = usePaneLayoutStore.getState();
+
+    // If root is already a vertical split, reuse the last child leaf as the bottom group
+    if (root.type === "split" && root.direction === "vertical") {
+      const lastChild = root.children[root.children.length - 1];
+      if (lastChild.type === "leaf") {
+        const tabId = await this.openTab(view, lastChild.groupId);
+        usePaneLayoutStore.getState()._applySetActiveGroup(lastChild.groupId);
+        return tabId;
+      }
+    }
+
+    // Otherwise, split the active group vertically to create a bottom pane
+    const newGroupId = await this.splitGroup(activeGroupId, "vertical", view);
+
+    // Adjust sizes to 65/35 (main on top, terminal on bottom)
+    const newRoot = usePaneLayoutStore.getState().root;
+    const groupPath = findGroupPath(newRoot, newGroupId);
+    if (groupPath && groupPath.length > 0) {
+      const parentPath = groupPath.slice(0, -1);
+      await this.updateSplitSizes(parentPath, [65, 35]);
+    }
+
+    return newGroupId;
   },
 
   async findOrOpenTab(

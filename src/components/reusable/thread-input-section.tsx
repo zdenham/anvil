@@ -18,6 +18,7 @@ import { ThreadInputStatusBar } from "./thread-input-status-bar";
 import { AttachmentPreviewStrip } from "./attachment-preview-strip";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useInputStore } from "@/stores/input-store";
+import { extractImagePaths } from "@/lib/image-paths";
 import type { PermissionModeId } from "@core/types/permissions.js";
 
 export interface ThreadInputSectionProps {
@@ -54,16 +55,32 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
     ref
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const attachments = useInputStore((s) => s.attachments);
-    const addAttachments = useInputStore((s) => s.addAttachments);
-    const removeAttachment = useInputStore((s) => s.removeAttachment);
+    const content = useInputStore((s) => s.content);
+    const appendContent = useInputStore((s) => s.appendContent);
+    const setContent = useInputStore((s) => s.setContent);
 
     const handleFileDrop = useCallback(
       (paths: string[]) => {
         if (paths.length === 0) return;
-        addAttachments(paths);
+        const prefix = content.trim() ? "\n" : "";
+        appendContent(prefix + paths.join("\n"));
       },
-      [addAttachments],
+      [appendContent, content],
+    );
+
+    const imagePaths = extractImagePaths(content);
+
+    const handleRemoveImagePath = useCallback(
+      (path: string) => {
+        const newContent = content
+          .replace(path, "")
+          .split("\n")
+          .map((line) => line.replace(/ {2,}/g, " ").trim())
+          .filter(Boolean)
+          .join("\n");
+        setContent(newContent);
+      },
+      [content, setContent],
     );
 
     const isDragging = useFileDrop(containerRef, handleFileDrop);
@@ -73,7 +90,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
         ref={containerRef}
         className="flex-shrink-0 w-full max-w-[900px] mx-auto mt-1 pb-1"
       >
-        <AttachmentPreviewStrip attachments={attachments} onRemove={removeAttachment} />
+        <AttachmentPreviewStrip attachments={imagePaths} onRemove={handleRemoveImagePath} />
 
         <ThreadInput
           ref={ref}

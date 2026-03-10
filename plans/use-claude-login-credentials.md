@@ -1,18 +1,20 @@
-# Use Claude Login Credentials (BYOL — Bring Your Own Login)
+# Use Claude Login Credentials
 
-Allow Mort users to authenticate using their existing `claude login` credentials instead of requiring a separate API key.
+Allow Mort users to authenticate using their existing `claude login` credentials instead of requiring a separate API key. Scoped to Claude Code OAuth credentials only — BYOK API key is handled separately.
 
-## Research Summary
+## How It Works
 
-### How Conductor Does It
+The Claude Agent SDK's `query()` spawns Claude Code CLI as a subprocess. That subprocess resolves credentials in this order:
 
-Conductor's approach is simple:
-1. **Bundles its own Claude Code CLI** at `~/Library/Application Support/com.conductor.app/bin`
-2. The Claude Agent SDK's `query()` function **spawns Claude Code CLI as a subprocess**
-3. That subprocess reads OAuth credentials from the **macOS Keychain** (service: `Claude Code-credentials`)
-4. No custom auth code needed — the bundled CLI handles it natively
+1. `ANTHROPIC_API_KEY` env var → API key auth
+2. `CLAUDE_CODE_OAUTH_TOKEN` env var → OAuth token
+3. macOS Keychain / `~/.claude/.credentials.json` → credentials stored by `claude login`
 
-The keychain entry (written by `claude login`) contains:
+**Key insight:** If we simply don't pass `ANTHROPIC_API_KEY` to the agent subprocess, the CLI falls back to keychain credentials automatically. The core change is making the API key optional in the agent spawn path.
+
+### Credential Storage
+
+`claude login` stores credentials in the macOS Keychain under service `Claude Code-credentials`:
 ```json
 {
   "claudeAiOauth": {
@@ -24,122 +26,211 @@ The keychain entry (written by `claude login`) contains:
 }
 ```
 
-Alternatively, the `CLAUDE_CODE_OAUTH_TOKEN` env var can be set (it overrides keychain). Users can generate a long-lived token via `claude setup-token`.
+## Current Auth Flow (What Changes)
 
-### Critical Policy Problem
+**`src/lib/agent-service.ts`** — two spawn functions (`startSimpleAgent`, `resumeSimpleAgent`):
+```ts
+// Lines 714-721 and 878-885: Currently REQUIRES an API key
+const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
+if (!apiKey) throw new Error("Anthropic API key not configured");
 
-**Anthropic explicitly prohibits this as of January/February 2026.**
+// Lines 741-742 and 913-914: Passes it to subprocess env
+const envVars = { ANTHROPIC_API_KEY: apiKey, ... };
+```
 
-From their [legal docs](https://code.claude.com/docs/en/legal-and-compliance):
-> "Using OAuth tokens obtained through Claude Free, Pro, or Max accounts in any other product, tool, or service — including the Agent SDK — is not permitted and constitutes a violation of the Consumer Terms of Service."
+**`src/entities/settings/store.ts`** — `isConfigured()` currently requires both repo AND apiKey:
+```ts
+isConfigured: () => {
+  const { repository, anthropicApiKey } = get().workspace;
+  return repository !== null && anthropicApiKey !== null;
+}
+```
 
-Key facts:
-- Enforcement began January 2026 with server-side blocks on third-party harnesses
-- Multiple apps (OpenCode, Clawdbot, etc.) were [forced to remove Claude subscription auth](https://www.theregister.com/2026/02/20/anthropic_clarifies_ban_third_party_claude_access/)
-- Anthropic engineer Thariq Shihipar confirmed this is deliberate: third-party harnesses "generate unusual traffic patterns without any of the usual telemetry"
-- The SDK itself is allowed, but **only with API keys**, not subscription OAuth tokens
+**`agents/src/runners/shared.ts:1343`** — `query()` passes `process.env` through to the CLI:
+```ts
+env: { ...process.env, CLAUDECODE: undefined, ... }
+```
 
-Conductor appears to still work because:
-- They bundle their own Claude Code CLI (so it looks like a normal Claude Code session)
-- Anthropic may not yet be detecting/blocking this pattern
-- Or they may have a partner arrangement (unconfirmed)
-
-**Risk: If we do the same, Anthropic could block Mort users at any time, or take action against us.**
-
-### What's Actually Allowed
-
-1. **API keys** from console.anthropic.com (pay-as-you-go) — always allowed
-2. **Claude for Teams/Enterprise** credentials — allowed
-3. **Cloud providers** (Bedrock, Vertex, Foundry) — allowed
-4. **`apiKeyHelper`** — a Claude Code setting that runs a shell script to return an API key dynamically
-
-## Recommended Approach
-
-Given the policy landscape, I recommend a **tiered approach** rather than just copying Conductor:
-
-### Option A: Safe — API Key Only (Current BYOK Plan)
-
-The existing `plans/bring-your-own-api-key.md` plan already covers this. Users paste their API key into settings. Zero risk.
-
-### Option B: Medium Risk — Detect & Offer Claude Login Credentials
-
-Read the user's existing Claude Code credentials from the keychain and offer to use them. This is technically what Conductor does. It works today but violates Anthropic's stated policy.
-
-### Option C: Safest + Best UX — Hybrid Auth with Fallback
-
-Support multiple auth methods with clear user communication:
-
-1. **Primary: API key** (settings UI from BYOK plan)
-2. **Secondary: Detect Claude Code login** and let users opt-in with a warning about Anthropic's policy
-3. **Future: Cloud provider support** (Bedrock/Vertex env vars)
+**Naming services** (`simple-runner-strategy.ts:553, 609`) — make direct Anthropic API calls using `process.env.ANTHROPIC_API_KEY`. When it's missing, they already gracefully skip.
 
 ## Phases
 
-- [ ] Implement BYOK API key UI (execute existing `bring-your-own-api-key.md` plan)
-- [ ] Add Claude login credential detection
-- [ ] Add auth method selector UI
-- [ ] Add cloud provider env var support
+- [ ] Add auth method to settings schema and store
+- [ ] Update agent spawn to support no-API-key mode
+- [ ] Add Claude login detection (keychain probe)
+- [ ] Add auth method UI in settings
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
-## Phase 1: Implement BYOK API Key UI
+## Phase 1: Add Auth Method to Settings Schema
 
-Execute the existing `plans/bring-your-own-api-key.md` plan. This is the safe, policy-compliant baseline.
+**`src/entities/settings/types.ts`**
 
-## Phase 2: Add Claude Login Credential Detection
-
-**New file:** `agents/src/lib/claude-credential-reader.ts`
-
-Detect whether the user has Claude Code credentials available:
+Add an `authMethod` field to `WorkspaceSettingsSchema`:
 
 ```ts
-// On macOS: read from keychain
-// security find-generic-password -s "Claude Code-credentials" -w
-// On Linux: use libsecret / secret-tool
-// Fallback: check ~/.claude/.credentials.json
-
-// Also check for CLAUDE_CODE_OAUTH_TOKEN env var
+authMethod: z.enum(["api-key", "claude-login", "default"]).optional(),
 ```
 
-**File:** `src/lib/agent-service.ts`
+- `"api-key"` — use `anthropicApiKey` from settings (BYOK, handled separately)
+- `"claude-login"` — don't pass API key, let CLI use keychain credentials
+- `"default"` / `undefined` — current behavior (use built-in key from env)
 
-When spawning agent subprocesses, if no API key is configured, check for Claude login credentials and pass `CLAUDE_CODE_OAUTH_TOKEN` as an env var to the subprocess.
+**`src/entities/settings/store.ts`**
 
-Auth resolution order:
-1. User-provided API key (from settings)
-2. `CLAUDE_CODE_OAUTH_TOKEN` env var (if user opted in)
-3. Detected keychain credentials (if user opted in)
-4. Built-in default key (current fallback)
+Update `isConfigured()` to allow Claude Login auth without an API key:
 
-## Phase 3: Add Auth Method Selector UI
+```ts
+isConfigured: () => {
+  const { repository, anthropicApiKey, authMethod } = get().workspace;
+  if (repository === null) return false;
+  if (authMethod === "claude-login") return true;  // No API key needed
+  return anthropicApiKey !== null;
+}
+```
 
-**File:** `src/components/main-window/settings/auth-settings.tsx`
+Add a selector:
+```ts
+getAuthMethod: () => get().workspace.authMethod ?? "default",
+```
 
-Replace the simple API key input with an auth method selector:
+## Phase 2: Update Agent Spawn to Support No-API-Key Mode
 
-- **API Key** — paste your key from console.anthropic.com
-- **Claude Login** — use credentials from `claude login` (detected automatically, show warning about Anthropic policy)
-- **Default** — use Mort's built-in key
+**`src/lib/agent-service.ts`** — both `startSimpleAgent` (~line 714) and `resumeSimpleAgent` (~line 878):
 
-Show detection status: "Claude Code login detected" / "Not logged in — run `claude login` in terminal"
+Replace the hard requirement for an API key:
 
-## Phase 4: Cloud Provider Support
+```ts
+const settings = settingsService.get();
+const authMethod = settings.authMethod ?? "default";
 
-Support Bedrock/Vertex/Foundry via environment variables:
-- Detect `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY`
-- Pass through to agent subprocess env
-- Show status in auth settings UI
+const envVars: Record<string, string> = {
+  NODE_PATH: nodeModulesPath,
+  MORT_DATA_DIR: mortDir,
+  PATH: shellPath,
+};
+
+if (authMethod === "claude-login") {
+  // Don't pass ANTHROPIC_API_KEY — CLI will use keychain credentials
+  // Naming services will gracefully skip (existing behavior when no key)
+} else {
+  const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("Anthropic API key not configured");
+  }
+  envVars.ANTHROPIC_API_KEY = apiKey;
+}
+```
+
+**Note on env inheritance:** The Rust `spawn_agent` (dispatch_agent.rs:62) uses `.envs(&env)` which extends the parent environment. In production (desktop app), `ANTHROPIC_API_KEY` won't be in the parent env, so not passing it in the dict is sufficient. For dev (where `.env` sets it), we should explicitly pass an empty value to override:
+
+```ts
+if (authMethod === "claude-login") {
+  envVars.ANTHROPIC_API_KEY = "";  // Explicitly clear to override any inherited env
+}
+```
+
+Actually — empty string may still be treated as "set". Better approach: the Rust side should support an env var removal convention, OR we ensure `query()` in `shared.ts` handles this. Since `shared.ts:1343` already spreads `process.env` into the `query()` env option, we can add:
+
+```ts
+// In shared.ts query() env construction:
+env: {
+  ...process.env,
+  CLAUDECODE: undefined,
+  // If no ANTHROPIC_API_KEY in env, let CLI use keychain
+  ...(process.env.ANTHROPIC_API_KEY === "" && { ANTHROPIC_API_KEY: undefined }),
+}
+```
+
+## Phase 3: Add Claude Login Detection
+
+We need a way to detect whether the user has Claude Code credentials, so the UI can show status.
+
+**New file: `src/lib/claude-login-detector.ts`** (~50 lines)
+
+```ts
+import { Command } from "@tauri-apps/plugin-shell";
+
+export interface ClaudeLoginStatus {
+  detected: boolean;
+  /** Which method was found */
+  source?: "keychain" | "env-var" | "credentials-file";
+}
+
+export async function detectClaudeLogin(): Promise<ClaudeLoginStatus> {
+  // 1. Check CLAUDE_CODE_OAUTH_TOKEN env var
+  // (unlikely in desktop app, but check anyway)
+
+  // 2. macOS Keychain probe
+  try {
+    const cmd = Command.create("security", [
+      "find-generic-password",
+      "-s", "Claude Code-credentials",
+      "-w"
+    ]);
+    const output = await cmd.execute();
+    if (output.code === 0 && output.stdout.trim().length > 0) {
+      return { detected: true, source: "keychain" };
+    }
+  } catch {
+    // Keychain access failed or not on macOS
+  }
+
+  // 3. Fallback: check ~/.claude/.credentials.json
+  // (Use Tauri fs plugin to check file existence)
+
+  return { detected: false };
+}
+```
+
+**Note:** This does NOT extract or store the token — it just checks existence. The actual auth happens inside the Claude Code CLI subprocess which has native keychain access.
+
+## Phase 4: Add Auth Method UI
+
+**New file: `src/components/main-window/settings/auth-settings.tsx`** (~80 lines)
+
+A settings section that shows:
+
+```
+Authentication
+┌─────────────────────────────────────────┐
+│ ○ Default (Mort built-in key)           │
+│ ○ Claude Login  ✓ Detected              │
+│ ○ API Key       [handled by BYOK plan]  │
+└─────────────────────────────────────────┘
+
+Claude Login uses credentials from `claude login`.
+Run this in your terminal if not detected.
+```
+
+- Radio group for auth method selection
+- Detection status shown inline (calls `detectClaudeLogin()` on mount)
+- "Not detected" shows helper text: "Run `claude login` in your terminal"
+- Selecting "Claude Login" saves `authMethod: "claude-login"` to settings
+- Selecting "Default" saves `authMethod: "default"` (or removes the field)
+- "API Key" option defers to the BYOK plan's UI
+
+**Integration point:** Wire this into the existing settings page layout (likely `repository-settings.tsx` or a new tab/section adjacent to it).
 
 ---
 
-## Decision Needed
+## Files Changed Summary
 
-**Which option do you want to pursue?**
+| File | Change |
+|------|--------|
+| `src/entities/settings/types.ts` | Add `authMethod` field to schema |
+| `src/entities/settings/store.ts` | Update `isConfigured()`, add `getAuthMethod()` |
+| `src/lib/agent-service.ts` | Make API key optional when `authMethod === "claude-login"` |
+| `agents/src/runners/shared.ts` | Handle empty `ANTHROPIC_API_KEY` in `query()` env |
+| `src/lib/claude-login-detector.ts` | **New** — keychain probe for detection UI |
+| `src/components/main-window/settings/auth-settings.tsx` | **New** — auth method selector UI |
+| `src/entities/settings/settings.test.ts` | Tests for new auth method behavior |
 
-- **Just Option A** (BYOK plan only) — safest, already planned
-- **Option B** (detect Claude login like Conductor) — works today, policy risk
-- **Option C** (hybrid with all methods) — most complete, phases 1+2+3+4 above
+## Edge Cases
 
-The technical implementation is straightforward regardless. The main question is how much policy risk you're comfortable with.
+- **No credentials anywhere:** Error message on thread start: "No authentication configured. Run `claude login` or add an API key in settings."
+- **Expired OAuth token:** The CLI handles refresh automatically using the stored refresh token.
+- **Dev environment:** `.env` sets `ANTHROPIC_API_KEY` which is inherited by agent subprocess. When `authMethod === "claude-login"`, we explicitly clear it so the CLI uses keychain instead.
+- **Thread/worktree naming:** These make direct API calls (not through SDK). With Claude Login, `ANTHROPIC_API_KEY` won't be in env, so naming is skipped gracefully (existing fallback behavior). This is acceptable — naming is cosmetic.

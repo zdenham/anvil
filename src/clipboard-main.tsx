@@ -5,6 +5,7 @@ import { ClipboardManager } from "./components/clipboard/clipboard-manager";
 import { WorkspaceSettingsProvider } from "./contexts";
 import { initWebErrorCapture } from "./lib/web-error-capture";
 import { setupIncomingBridge, setupOutgoingBridge } from "./lib/event-bridge";
+import { connectWs } from "@/lib/invoke";
 import { eventBus } from "./entities";
 import { logger, setLogSource } from "./lib/logger-client";
 
@@ -15,6 +16,11 @@ setLogSource("clipboard");
 initWebErrorCapture("clipboard");
 
 logger.log("[clipboard-main] Module loading...");
+
+// Connect WebSocket transport early (non-blocking)
+connectWs().catch(() => {
+  // WS connection failure is non-fatal — Tauri IPC is the fallback
+});
 
 // NOTE: We no longer manually clean up bridge listeners on window close.
 // Tauri automatically cleans up event listeners when a window is destroyed.

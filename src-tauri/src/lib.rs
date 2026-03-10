@@ -905,6 +905,7 @@ pub fn run() {
             clipboard::hide_clipboard_manager,
             clipboard::get_clipboard_history,
             clipboard::get_clipboard_content,
+            filesystem::fs_write_binary,
             filesystem::fs_write_file,
             filesystem::fs_read_file,
             filesystem::fs_mkdir,

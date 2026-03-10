@@ -16,6 +16,8 @@ pub struct WorktreeState {
     pub current_branch: Option<String>,
     #[serde(default)]
     pub is_renamed: bool,
+    #[serde(default)]
+    pub is_external: bool,
 }
 
 /// Create a new named worktree.
@@ -99,6 +101,7 @@ pub async fn worktree_create(repo_name: String, name: String) -> Result<Worktree
         last_accessed_at: Some(now),
         current_branch: None,
         is_renamed: false,
+        is_external: false,
     };
 
     // Update settings
@@ -349,7 +352,8 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
                 .unwrap_or_else(|| format!("worktree-{}", existing_worktrees.len() + 1));
 
             // Special case: if this is the source path, name it "main"
-            let final_name = if git_wt.path == source_path {
+            let is_source = git_wt.path == source_path;
+            let final_name = if is_source {
                 "main".to_string()
             } else {
                 name
@@ -363,6 +367,7 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
                 last_accessed_at: Some(now),
                 current_branch: git_wt.branch.clone(),
                 is_renamed: false,
+                is_external: !is_source,
             });
         }
     }

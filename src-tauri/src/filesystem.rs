@@ -18,6 +18,23 @@ pub struct DirEntry {
     pub is_file: bool,
 }
 
+/// Writes binary content (base64-encoded) to a file, creating parent directories if needed
+#[tauri::command]
+pub fn fs_write_binary(path: String, base64_data: String) -> Result<(), String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&base64_data)
+        .map_err(|e| format!("Invalid base64: {}", e))?;
+
+    let path = Path::new(&path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create parent directories: {}", e))?;
+    }
+
+    fs::write(path, bytes).map_err(|e| format!("Failed to write binary file: {}", e))
+}
+
 /// Writes text content to a file, creating parent directories if needed
 #[tauri::command]
 pub fn fs_write_file(path: String, contents: String) -> Result<(), String> {

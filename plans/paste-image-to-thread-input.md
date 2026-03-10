@@ -28,10 +28,12 @@ Add `fs_write_binary` command to the Rust backend (or a more specific `fs_save_c
 - Register it in the Tauri command list
 - Add to `invoke.ts` so the frontend can call it
 
-**`src/lib/tauri-commands.ts`**
+`src/lib/tauri-commands.ts`
+
 - Add `writeBinaryFile: (path: string, base64: string) => invoke<void>("fs_write_binary", { path, base64 })` to `fsCommands`
 
-**`src/hooks/use-image-paste.ts`** (new)
+`src/hooks/use-image-paste.ts` (new)
+
 - Hook that attaches a `paste` event listener to a ref'd element
 - On paste: check `clipboardData.items` for `image/*` types
 - Read the image as a blob, convert to base64
@@ -39,12 +41,14 @@ Add `fs_write_binary` command to the Rust backend (or a more specific `fs_save_c
 - Call `fsCommands.writeBinaryFile(tempPath, base64Data)`
 - Call the provided `onPaste(tempPath)` callback
 
-**`src/components/reusable/thread-input.tsx`**
+`src/components/reusable/thread-input.tsx`
+
 - Import and use `useImagePaste` hook
 - Wire it to the textarea ref
 - On paste callback: call `addAttachments([tempPath])` from input store
 
-**`src/lib/invoke.ts`**
+`src/lib/invoke.ts`
+
 - No changes needed — `invoke` routes non-native commands through WS/Tauri automatically
 
 ### Edge Cases
@@ -56,12 +60,16 @@ Add `fs_write_binary` command to the Rust backend (or a more specific `fs_save_c
 
 ## Phases
 
-- [ ] Add `fs_write_binary` Tauri command (Rust backend)
-- [ ] Add `writeBinaryFile` to `fsCommands` and ensure `~/.mort/tmp` directory setup
-- [ ] Create `use-image-paste` hook
-- [ ] Wire paste hook into `thread-input.tsx`
-- [ ] Add tests for the paste hook and integration
+- [x] Add `fs_write_binary` Tauri command (Rust backend)
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+- [x] Add `writeBinaryFile` to `fsCommands` and ensure `~/.mort/tmp` directory setup
+
+- [x] Create `use-image-paste` hook
+
+- [x] Wire paste hook into `thread-input.tsx`
+
+- [x] Add tests for the paste hook and integration
+
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---

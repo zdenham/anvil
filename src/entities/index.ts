@@ -181,6 +181,22 @@ export async function hydrateEntities(options: EntityInitOptions = {}): Promise<
     });
 
     await timed("repoWorktreeLookup.hydrate", () => useRepoWorktreeLookupStore.getState().hydrate());
+
+    // Terminal cleanup + ensure: must run after both terminal sessions and worktree lookup hydrate
+    await timed("terminalService.cleanupStale", () => terminalSessionService.cleanupStaleTerminals());
+    await timed("terminalService.ensureTerminals", async () => {
+      const lookupStore = useRepoWorktreeLookupStore.getState();
+      const worktrees: Array<{ worktreeId: string; worktreePath: string }> = [];
+      for (const [, repo] of lookupStore.repos) {
+        for (const [wtId, wtInfo] of repo.worktrees) {
+          if (wtInfo.path) {
+            worktrees.push({ worktreeId: wtId, worktreePath: wtInfo.path });
+          }
+        }
+      }
+      await terminalSessionService.ensureTerminalsForWorktrees(worktrees);
+    });
+
     await timed("treeMenuService.hydrate", () => treeMenuService.hydrate());
     await timed("quickActionService.hydrate", () => quickActionService.hydrate());
 

@@ -1,122 +1,156 @@
-# Parse Agent Worktree Creation
+# Intercept Agent Worktree Creation
 
 ## Problem
 
-When an agent uses the `EnterWorktree` tool (Claude Code's built-in worktree tool), Mort doesn't know about it until a manual `worktree_sync` occurs. This causes the sidebar to show stale data, and users may create duplicate worktrees because the agent-created one isn't visible yet.
+Agents can create worktrees in two ways that bypass Mort's control:
+1. **`EnterWorktree` tool** — Claude Code's built-in tool creates worktrees under `.claude/worktrees/`. Mort has zero visibility.
+2. **`git worktree add` via Bash** — Agent runs raw git commands. Same visibility problem.
 
-**Current state of PR detection (for reference):** PRs are NOT detected by parsing tool calls. PR creation is detected via GitHub webhooks (`pull_request.opened`) delivered through gateway channels. The `handlePullRequestEvent` in `pr-lifecycle-handler.ts` processes webhook payloads to auto-create PR entities. This is a fundamentally different mechanism from what we need here.
+We want Mort to **own** worktree creation. The agent should never create worktrees on its own — it should request that Mort create one, or at minimum Mort should discover what was created and sync its state.
 
-## How Agent Worktrees Work Today
+## Strategy: Two Layers of Defense
 
-1. **Mort-managed worktrees** (`worktree_create` Tauri command): Mort creates the worktree, writes to `settings.json`, and the sidebar hydrates from it. This path works.
+### Layer 1: Block `EnterWorktree` tool (prevent)
 
-2. **Agent-created worktrees** (`EnterWorktree` tool): Claude Code creates a git worktree under `.claude/worktrees/` in the repo. Mort has **zero visibility** into this — no event is emitted, no settings.json update, no sidebar refresh. The worktree only appears after a `worktree_sync` call (which scans `git worktree list`).
+Use the SDK's `disallowedTools` option to remove `EnterWorktree` from the agent's available tools entirely. This is the cleanest approach — the model won't even know the tool exists.
 
-3. **Worktree naming flow**: The `SimpleRunnerStrategy` already handles worktree renaming after first message — it writes to `settings.json` on disk and emits `WORKTREE_NAME_GENERATED`. But this only works for worktrees Mort already knows about.
+**Additionally**, add a global override rule in the `PermissionEvaluator` as a belt-and-suspenders safety net. If `disallowedTools` is ever removed or misconfigured, the permission system will still deny it.
 
-## Approach
+### Layer 2: Detect `git worktree add` via Bash PostToolUse (detect + sync)
 
-Intercept the `EnterWorktree` tool call in the agent's **PostToolUse hook** (in `shared.ts`). When we detect that `EnterWorktree` was used successfully, parse the tool response to extract the worktree path, then trigger a `worktree_sync` + emit an event so the sidebar refreshes.
+We can't block `git worktree add` in Bash without also blocking legitimate git commands. Instead, detect it **after** execution in PostToolUse and trigger a `worktree_sync` so Mort discovers the new worktree.
 
-This mirrors the existing PostToolUse patterns for:
-
-- File change tracking (`FILE_MODIFYING_TOOLS` detection)
-- Plan detection (`isPlanPath` + `PLAN_DETECTED` event)
-- Sub-agent thread completion (`Task`/`Agent` tool handling)
+Also add system prompt guidance telling the agent not to create worktrees directly, so it avoids the pattern in the first place.
 
 ## Phases
 
-- [ ] Research: Verify `EnterWorktree` tool response format from Claude Code SDK
+- [x] Block `EnterWorktree` via SDK `disallowedTools` and permission evaluator override
+- [x] Add system prompt guidance telling agent not to create worktrees
+- [x] Add `WORKTREE_SYNCED` event to core event types and bridge
+- [x] Add PostToolUse hook to detect `git worktree add` in Bash commands and emit sync event
+- [x] Add frontend listener for `WORKTREE_SYNCED` to re-hydrate sidebar
+- [x] Add tests for both the `EnterWorktree` denial and Bash worktree detection
 
-- [ ] Add `WORKTREE_SYNCED` event to core event types
-
-- [ ] Add PostToolUse hook logic in `shared.ts` to detect `EnterWorktree` completion
-
-- [ ] Parse worktree path from tool response and call `worktree_sync` via events
-
-- [ ] Add frontend listener for `WORKTREE_SYNCED` to re-hydrate sidebar
-
-- [ ] Add tests for the PostToolUse hook worktree detection logic
-
-- [ ] Integration test: verify sidebar updates after agent `EnterWorktree`
-
-&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
+<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
 ## Design
 
-### 1. PostToolUse Hook (agents/src/runners/shared.ts)
+### 1. Block `EnterWorktree` via `disallowedTools` (agents/src/runners/shared.ts)
 
-In the existing PostToolUse hook, add a check after the file-modifying tools block:
+The SDK's `query()` accepts `disallowedTools: string[]` which removes tools from the model's context entirely. Add it to the `query()` call alongside the existing `tools` config:
 
 ```typescript
-// Detect EnterWorktree tool — trigger worktree sync so sidebar updates
-if (input.tool_name === "EnterWorktree") {
-  const response = typeof input.tool_response === "string"
-    ? input.tool_response
-    : JSON.stringify(input.tool_response);
+// In the query() call (~line 1363):
+tools: agentConfig.tools,
+disallowedTools: ["EnterWorktree", "EnterWorktree"],
+```
 
-  // EnterWorktree response contains the worktree path
-  // Parse it and emit event for frontend to sync
-  try {
-    const parsed = JSON.parse(response);
-    const worktreePath = parsed?.path ?? parsed?.worktree_path;
+Note: `EnterWorktree` is the SDK tool name. We list it to ensure the agent never sees it. The `EnterWorktree` tool creates worktrees under `.claude/worktrees/` which Mort doesn't manage.
 
-    if (worktreePath && context.repoId) {
-      emitEvent(EventName.WORKTREE_SYNCED, {
-        repoId: context.repoId,
-        worktreePath,
-      }, "PostToolUse:enter-worktree");
+### 2. Permission Evaluator Safety Net (agents/src/lib/permission-evaluator.ts)
 
-      logger.info(`[PostToolUse] Detected EnterWorktree: ${worktreePath}`);
-    }
-  } catch {
-    // Response may not be JSON — still emit a generic sync event
+Add to `GLOBAL_OVERRIDES` as a belt-and-suspenders measure:
+
+```typescript
+export const GLOBAL_OVERRIDES: PermissionRule[] = [
+  // ... existing overrides ...
+  {
+    toolPattern: "^EnterWorktree$",
+    decision: "deny",
+    reason: "Worktree creation is managed by Mort. Use the Bash tool with `git worktree add` if you need a worktree, or ask the user to create one from the sidebar.",
+  },
+];
+```
+
+This fires if `disallowedTools` is ever bypassed or misconfigured. The deny reason also guides the agent toward the Bash fallback (which we detect in Layer 2).
+
+### 3. System Prompt Guidance (agents/src/agent-types/simple.ts or shared-prompts.ts)
+
+Add a section to the appended system prompt:
+
+```markdown
+## Worktree Policy
+
+Do NOT use the `EnterWorktree` tool — it is disabled. Mort manages worktree creation.
+If your task requires a new worktree, inform the user and they will create one from the sidebar.
+If you absolutely must create a worktree, use `git worktree add` via the Bash tool.
+```
+
+This goes in the agent's appended prompt so it's part of every conversation. Placement: in `shared-prompts.ts` or directly in the `simple.ts` agent config's `appendedPrompt`.
+
+### 4. PostToolUse: Detect `git worktree add` in Bash (agents/src/runners/shared.ts)
+
+In the existing PostToolUse hook, after the file-modifying tools block, add Bash command inspection:
+
+```typescript
+// Detect git worktree creation via Bash — trigger worktree sync
+if (input.tool_name === "Bash") {
+  const toolInput = input.tool_input as { command?: string };
+  const command = toolInput.command ?? "";
+
+  // Match: git worktree add <path> [<branch>]
+  // Also matches: git worktree add -b <branch> <path>
+  if (/git\s+worktree\s+add\b/.test(command)) {
     if (context.repoId) {
       emitEvent(EventName.WORKTREE_SYNCED, {
         repoId: context.repoId,
-      }, "PostToolUse:enter-worktree");
+      }, "PostToolUse:git-worktree-add");
+
+      logger.info(`[PostToolUse] Detected git worktree add command, triggering sync`);
     }
   }
 }
 ```
 
-### 2. New Event (core/types/events.ts)
+This pattern matches the existing PostToolUse approach (file tracking, plan detection). We inspect `tool_input.command` (the Bash command string) rather than parsing the response. The regex is simple and intentionally broad — any `git worktree add` invocation triggers a sync.
+
+### 5. New Event: `WORKTREE_SYNCED` (core/types/events.ts)
 
 ```typescript
-WORKTREE_SYNCED: "worktree:synced",
+// In EventName enum:
+WORKTREE_SYNCED = "worktree:synced",
 
 // In EventPayloads:
 [EventName.WORKTREE_SYNCED]: {
   repoId: string;
-  worktreePath?: string;
 };
 ```
 
-Add to `BRIDGED_EVENTS` in `event-bridge.ts`.
+Add to `BRIDGED_EVENTS` in `src/lib/event-bridge.ts` so it crosses the agent→frontend boundary.
 
-### 3. Frontend Listener (src/entities/worktrees/listeners.ts)
+### 6. Frontend Listener (src/entities/worktrees/listeners.ts)
 
 ```typescript
-eventBus.on(EventName.WORKTREE_SYNCED, async ({ repoId }: EventPayloads[typeof EventName.WORKTREE_SYNCED]) => {
-  // Find repo name from repoId, call worktreeService.sync(repoName)
-  // Then re-hydrate the lookup store
+eventBus.on(EventName.WORKTREE_SYNCED, async ({ repoId }) => {
+  // Call worktree_sync Tauri command to discover new worktrees on disk
+  // Then re-hydrate the lookup store so sidebar updates
   await useRepoWorktreeLookupStore.getState().hydrate();
 });
 ```
 
-### 4. Key Files to Modify
+### 7. Key Files to Modify
 
 | File | Change |
 | --- | --- |
+| `agents/src/runners/shared.ts` | Add `disallowedTools: ["EnterWorktree"]` to `query()` call |
+| `agents/src/lib/permission-evaluator.ts` | Add `EnterWorktree` deny to `GLOBAL_OVERRIDES` |
+| `agents/src/agent-types/shared-prompts.ts` | Add worktree policy section to system prompt |
+| `agents/src/runners/shared.ts` | PostToolUse hook: detect `git worktree add` in Bash |
 | `core/types/events.ts` | Add `WORKTREE_SYNCED` event |
 | `src/lib/event-bridge.ts` | Add to `BRIDGED_EVENTS` |
-| `agents/src/runners/shared.ts` | PostToolUse hook: detect `EnterWorktree` |
 | `src/entities/worktrees/listeners.ts` | Listen for `WORKTREE_SYNCED`, call sync + hydrate |
 
-### 5. Open Questions
+### 8. Why Not Block `git worktree add` in Bash?
 
-- **EnterWorktree response format**: Need to verify what the Claude Code SDK returns from `EnterWorktree`. The tool response may be a plain string, JSON with a `path` field, or something else. Phase 1 addresses this.
-- **Race condition**: The agent's `EnterWorktree` creates a git worktree that Mort doesn't know about. Between creation and our `worktree_sync`, another agent could also try to create a worktree. The `worktree_sync` is idempotent so this is safe — it just discovers what's on disk.
-- **Should we also update the thread's worktreeId?**: If an agent enters a new worktree mid-conversation, the thread metadata still points to the old worktreeId. This is a separate concern and out of scope for this plan.
+We could add a permission rule to deny Bash commands matching `git worktree add`, but this is fragile:
+- The agent could use `git -C /some/path worktree add` (different flag ordering)
+- The command could be in a shell script or piped
+- Blocking legitimate git operations is risky
+
+Instead, we **detect and sync** — the worktree gets created, Mort discovers it immediately, and the sidebar reflects reality. The system prompt guidance reduces the frequency of this path.
+
+### 9. `EnterWorktree` via Sub-Agents
+
+Sub-agents spawned by the manager agent inherit the same `query()` config. The `disallowedTools` and `GLOBAL_OVERRIDES` apply to all agents in the tree. No special handling needed for sub-agents.

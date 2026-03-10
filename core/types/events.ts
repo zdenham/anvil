@@ -70,6 +70,7 @@ export const EventName = {
   WORKTREE_ALLOCATED: "worktree:allocated",
   WORKTREE_RELEASED: "worktree:released",
   WORKTREE_NAME_GENERATED: "worktree:name:generated",
+  WORKTREE_SYNCED: "worktree:synced",
 
   // Repository
   REPOSITORY_CREATED: "repository:created",
@@ -204,6 +205,11 @@ export interface EventPayloads {
     worktreeId: string;
     repoId: string;
     name: string;
+  };
+
+  // Worktree sync (agent detected git worktree add)
+  [EventName.WORKTREE_SYNCED]: {
+    repoId: string;
   };
 
   // Repository events
@@ -469,6 +475,7 @@ export const EventNameSchema = z.enum([
   EventName.WORKTREE_ALLOCATED,
   EventName.WORKTREE_RELEASED,
   EventName.WORKTREE_NAME_GENERATED,
+  EventName.WORKTREE_SYNCED,
   EventName.REPOSITORY_CREATED,
   EventName.REPOSITORY_UPDATED,
   EventName.REPOSITORY_DELETED,

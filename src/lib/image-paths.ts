@@ -1,23 +1,28 @@
-import { getFileCategory } from "./file-categories";
+/**
+ * Regex to find absolute image paths in text.
+ * Matches /path/to/file.ext where ext is a known image extension,
+ * preceded by whitespace or start of line, followed by whitespace or end of string.
+ * Uses lazy quantifier to match the shortest path ending in an image extension.
+ */
+const IMAGE_PATH_RE = /(?<=^|\s)(\/[^\n]*?\.(?:png|jpe?g|gif|webp|bmp|ico|svg))(?=\s|$)/gim;
 
-function isImagePath(path: string): boolean {
-  const category = getFileCategory(path);
-  return category === "image" || category === "svg";
-}
-
-/** Extract absolute image paths from text content (one per line). */
+/** Extract absolute image paths from text content. */
 export function extractImagePaths(content: string): string[] {
-  return content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("/") && isImagePath(line));
+  const regex = new RegExp(IMAGE_PATH_RE.source, IMAGE_PATH_RE.flags);
+  const paths: string[] = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    paths.push(match[1]);
+  }
+  return paths;
 }
 
-/** Strip image path lines from text content, returning remaining text. */
+/** Strip image paths from text content, returning remaining text. */
 export function stripImagePaths(content: string): string {
   return content
+    .replace(new RegExp(IMAGE_PATH_RE.source, IMAGE_PATH_RE.flags), "")
     .split("\n")
-    .filter((line) => !(line.trim().startsWith("/") && isImagePath(line.trim())))
-    .join("\n")
-    .trim();
+    .map((line) => line.replace(/ {2,}/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
 }

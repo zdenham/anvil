@@ -18,13 +18,14 @@ Revert to the original "path in content" approach: on file drop, append the path
 
 ### Changes
 
-**`src/components/reusable/thread-input-section.tsx`**
+`src/components/reusable/thread-input-section.tsx`
 
 - Change `handleFileDrop` to call `appendContent` instead of `addAttachments`:
+
   ```ts
   const appendContent = useInputStore((s) => s.appendContent);
   const content = useInputStore((s) => s.content);
-
+  
   const handleFileDrop = useCallback((paths: string[]) => {
     if (paths.length === 0) return;
     const prefix = content.trim() ? "\n" : "";
@@ -32,32 +33,35 @@ Revert to the original "path in content" approach: on file drop, append the path
   }, [appendContent, content]);
   ```
 - Change `AttachmentPreviewStrip` to derive from content instead of `attachments`:
+
   ```tsx
   const imagePaths = extractImagePaths(content);
   <AttachmentPreviewStrip attachments={imagePaths} onRemove={handleRemoveImagePath} />
   ```
 - Add `handleRemoveImagePath` that strips the path line from content using store's `setContent` + a filter
 
-**`src/components/reusable/thread-input.tsx`**
+`src/components/reusable/thread-input.tsx`
 
 - Remove `attachments` and `clearAttachments` from the submit handler
 - Submit just sends `value.trim()` — the paths are already in the content
 - Remove the `attachments.length > 0` checks from submit/enter key conditions, replace with just checking `value.trim()`
 
-**`src/components/reusable/attachment-preview-strip.tsx`**
+`src/components/reusable/attachment-preview-strip.tsx`
 
 - No structural changes needed — it already takes `attachments: string[]` and `onRemove`
 
-**`src/stores/input-store.tsx`**
+`src/stores/input-store.tsx`
 
 - Keep the `attachments` state for now (other consumers may use it), but the thread input flow no longer uses it for file drops
 
 ## Phases
 
-- [ ] Update thread-input-section to append paths to content and derive previews from content
-- [ ] Update thread-input submit to stop using separate attachments state
-- [ ] Verify onRemove strips the path line from content
+- [x] Update thread-input-section to append paths to content and derive previews from content
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+- [x] Update thread-input submit to stop using separate attachments state
+
+- [x] Verify onRemove strips the path line from content
+
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---

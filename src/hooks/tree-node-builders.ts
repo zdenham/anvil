@@ -75,6 +75,7 @@ export function worktreeToNode(wt: WorktreeInfo): TreeItemNode {
     worktreeName: wt.worktreeName,
     worktreePath: wt.worktreePath,
     repoId: wt.repoId,
+    isExternal: wt.isExternal,
   };
 }
 
@@ -146,7 +147,7 @@ export function terminalToNode(terminal: TerminalSession): TreeItemNode {
   return {
     type: "terminal",
     id: terminal.id,
-    title: terminal.lastCommand ?? terminal.worktreePath.split("/").pop() ?? "terminal",
+    title: terminal.label ?? terminal.lastCommand ?? terminal.worktreePath.split("/").pop() ?? "terminal",
     status: terminal.isAlive ? "read" : "unread",
     updatedAt: terminal.createdAt,
     createdAt: terminal.createdAt,

@@ -4,11 +4,11 @@ Move the "New repository" action from the per-section `+` dropdown (and context 
 
 ## Phases
 
-- [ ] Wire `onNewRepo` through `TreePanelHeader` → `MenuDropdown`
+- [x] Wire `onNewRepo` through `TreePanelHeader` → `MenuDropdown`
 
-- [ ] Remove `onNewRepo` from `RepoWorktreeSection` and `TreeMenu`
+- [x] Remove `onNewRepo` from `RepoWorktreeSection` and `TreeMenu`
 
-- [ ] Clean up unused code
+- [x] Clean up unused code
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

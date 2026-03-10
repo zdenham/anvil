@@ -323,6 +323,15 @@ export function MainWindowLayout() {
     } else if (itemType === "plan") {
       await navigationService.navigateToPlan(itemId, { newTab });
     } else if (itemType === "terminal") {
+      // Revive dead terminal before navigating (spawns new PTY transparently)
+      const session = terminalSessionService.get(itemId);
+      if (session && !session.isAlive && !session.isArchived) {
+        try {
+          await terminalSessionService.revive(itemId);
+        } catch (err) {
+          logger.warn("[MainWindowLayout] Failed to revive terminal (non-fatal):", err);
+        }
+      }
       await navigationService.navigateToTerminal(itemId, { newTab });
     } else if (itemType === "pull-request") {
       await navigationService.navigateToPullRequest(itemId, { newTab });
@@ -371,9 +380,7 @@ export function MainWindowLayout() {
   const handleNewTerminal = useCallback(async (worktreeId: string, worktreePath: string) => {
     try {
       const session = await terminalSessionService.create(worktreeId, worktreePath);
-
-      // Navigate to terminal pane
-      await navigationService.navigateToView({ type: "terminal", terminalId: session.id });
+      await navigationService.navigateToTerminal(session.id, { bottomPane: true });
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to create terminal:`, err);
     }
@@ -475,25 +482,35 @@ export function MainWindowLayout() {
 
       await treeMenuService.hydrate();
 
+      // Sync worktrees to get the real worktree data (shared between terminal + setup thread)
+      const syncedWorktrees = await worktreeService.sync(repoName);
+      const newWorktree = syncedWorktrees.find(w => w.name === worktreeName);
+
+      // Auto-create terminal in bottom pane for the new worktree
+      if (newWorktree) {
+        try {
+          const session = await terminalSessionService.create(newWorktree.id, newWorktree.path);
+          await navigationService.navigateToTerminal(session.id, { bottomPane: true });
+        } catch (termErr) {
+          logger.warn(`[MainWindowLayout] Failed to auto-create terminal for worktree (non-fatal):`, termErr);
+        }
+      }
+
       // Auto-run setup thread if repo has a worktreeSetupPrompt
       try {
         const slug = slugify(repoName);
         const settings = await loadSettings(slug);
-        if (settings.worktreeSetupPrompt) {
-          const syncedWorktrees = await worktreeService.sync(repoName);
-          const newWorktree = syncedWorktrees.find(w => w.name === worktreeName);
-          if (newWorktree) {
-            logger.info(`[MainWindowLayout] Auto-creating setup thread for worktree "${worktreeName}"`);
-            await createThread({
-              prompt: settings.worktreeSetupPrompt,
-              repoId: settings.id,
-              worktreeId: newWorktree.id,
-              worktreePath: newWorktree.path,
-              permissionMode: "implement",
-              skipNaming: true,
-            });
-            logger.info(`[MainWindowLayout] Setup thread created for worktree "${worktreeName}"`);
-          }
+        if (settings.worktreeSetupPrompt && newWorktree) {
+          logger.info(`[MainWindowLayout] Auto-creating setup thread for worktree "${worktreeName}"`);
+          await createThread({
+            prompt: settings.worktreeSetupPrompt,
+            repoId: settings.id,
+            worktreeId: newWorktree.id,
+            worktreePath: newWorktree.path,
+            permissionMode: "implement",
+            skipNaming: true,
+          });
+          logger.info(`[MainWindowLayout] Setup thread created for worktree "${worktreeName}"`);
         }
       } catch (setupErr) {
         logger.warn(`[MainWindowLayout] Failed to create setup thread (non-fatal):`, setupErr);
@@ -736,6 +753,7 @@ export function MainWindowLayout() {
             <TreePanelHeader
               onSettingsClick={handleSettingsClick}
               onArchiveClick={handleArchiveClick}
+              onNewRepo={handleNewRepo}
               onUnhideAll={handleUnhideAll}
               hasHiddenOrPinned={pinnedWorktreeId !== null}
             />
@@ -745,7 +763,6 @@ export function MainWindowLayout() {
               onCreatePr={handleCreatePrCallback}
               onNewTerminal={handleNewTerminal}
               onNewWorktree={handleNewWorktree}
-              onNewRepo={handleNewRepo}
               onArchiveWorktree={handleArchiveWorktree}
               creatingWorktreeIds={creatingWorktreeIds}
               onPinToggle={handlePinToggle}

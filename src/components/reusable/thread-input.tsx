@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
+import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Square } from "lucide-react";
 import { TriggerSearchInput, type TriggerStateInfo } from "./trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { CursorBoundary } from "@/lib/cursor-boundary";
 import { usePromptHistory } from "@/hooks/use-prompt-history";
 import { useInputStore } from "@/stores/input-store";
+import { useImagePaste } from "@/hooks/use-image-paste";
 import { usePaneGroupMaybe } from "@/components/split-layout/pane-group-context";
 import { cn } from "@/lib/utils";
 
@@ -42,10 +43,17 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   const paneGroup = usePaneGroupMaybe();
   const value = useInputStore((s) => s.content);
   const setStoreContent = useInputStore((s) => s.setContent);
-  const attachments = useInputStore((s) => s.attachments);
-  const clearAttachments = useInputStore((s) => s.clearAttachments);
   const [triggerState, setTriggerState] = useState<TriggerStateInfo | null>(null);
   const inputRef = useRef<TriggerSearchInputRef>(null);
+  const addAttachments = useInputStore((s) => s.addAttachments);
+
+  // Track the underlying textarea element for the paste hook
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    textareaRef.current = inputRef.current?.getElement() ?? null;
+  });
+
+  useImagePaste(textareaRef, (path) => addAttachments([path]));
 
   const { handleHistoryNavigation, resetHistory, isInHistoryMode } = usePromptHistory({
     onQueryChange: (query: string) => {
@@ -72,14 +80,12 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
   const handleSubmit = useCallback(() => {
     const text = value.trim();
-    if ((text || attachments.length > 0) && !disabled) {
-      const parts = [...attachments, text].filter(Boolean);
-      onSubmit(parts.join("\n"));
+    if (text && !disabled) {
+      onSubmit(text);
       setStoreContent("");
-      clearAttachments();
       resetHistory();
     }
-  }, [value, attachments, disabled, onSubmit, resetHistory, setStoreContent, clearAttachments]);
+  }, [value, disabled, onSubmit, resetHistory, setStoreContent]);
 
 
   const handleKeyDown = useCallback(
@@ -93,7 +99,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
       // Enter submits (unless Shift is held for newline, or trigger dropdown is active)
       // Only consume Enter if there's content to submit - otherwise let it propagate to quick actions
-      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && (value.trim() || attachments.length > 0)) {
+      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && value.trim()) {
         e.preventDefault();
         e.stopPropagation();
         handleSubmit();

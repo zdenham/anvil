@@ -2769,10 +2769,11 @@ dependencies = [
 
 [[package]]
 name = "mort"
-version = "0.0.62"
+version = "0.0.64"
 dependencies = [
  "arboard",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "core-foundation 0.10.1",

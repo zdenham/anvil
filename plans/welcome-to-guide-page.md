@@ -65,11 +65,11 @@ Mention how to cycle between modes using the mode selector in the input bar.
 
 ## Phases
 
-- [ ] Create guide content component with all sections
+- [x] Create guide content component with all sections
 
-- [ ] Replace welcome text in `EmptyPaneContent` with the guide component
+- [x] Replace welcome text in `EmptyPaneContent` with the guide component
 
-- [ ] Style the guide to be scrollable, with muted/subtle presentation that doesn't compete with the input
+- [x] Style the guide to be scrollable, with muted/subtle presentation that doesn't compete with the input
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

@@ -86,6 +86,12 @@ Implement the validation logic defined in plans/user-auth.md phase 2.
 After completing the phase, update the plan file to mark phase 2 complete with [x].
 \`\`\``;
 
+export const WORKTREE_POLICY = `## Worktree Policy
+
+Do NOT use the \`EnterWorktree\` tool — it is disabled. Mort manages worktree creation.
+If your task requires a new worktree, inform the user and they will create one from the sidebar.
+If you absolutely must create a worktree, use \`git worktree add\` via the Bash tool.`;
+
 /**
  * Helper to compose prompt sections with proper spacing.
  */

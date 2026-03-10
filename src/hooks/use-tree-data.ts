@@ -13,6 +13,7 @@ import { usePullRequestStore } from "@/entities/pull-requests/store";
 import { useFolderStore } from "@/entities/folders/store";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { useSettingsStore } from "@/entities/settings/store";
 import { useCommitStore } from "@/stores/commit-store";
 import type { TreeItemNode, TreeItemType } from "@/stores/tree-menu/types";
 import type { ThreadMetadata } from "@/entities/threads/types";
@@ -44,6 +45,7 @@ export interface WorktreeInfo {
   worktreeName: string;
   worktreePath: string;
   visualSettings?: { parentId?: string; sortKey?: string };
+  isExternal: boolean;
 }
 
 export interface TreeBuildContext {
@@ -63,8 +65,8 @@ const ROOT = "__ROOT__";
 const TYPE_SORT_PRIORITY: Partial<Record<TreeItemType, number>> = {
   files: 0,
   "pull-request": 1,
-  terminal: 1,
   changes: 2,
+  terminal: 3,
 };
 
 function typePriority(node: TreeItemNode): number {
@@ -289,6 +291,7 @@ export function useTreeData(): TreeItemNode[] {
   const commitsByWorktree = useCommitStore((state) => state.commitsByWorktree);
   const pinnedWorktreeId = useTreeMenuStore((state) => state.pinnedWorktreeId);
   const repos = useRepoWorktreeLookupStore((state) => state.repos);
+  const hideExternal = useSettingsStore((s) => s.workspace.hideExternalWorktrees ?? false);
 
   // Derived: worktree info list
   const worktrees = useMemo((): WorktreeInfo[] => {
@@ -302,6 +305,7 @@ export function useTreeData(): TreeItemNode[] {
           worktreeName: wtInfo.name,
           worktreePath: wtInfo.path,
           visualSettings: wtInfo.visualSettings,
+          isExternal: wtInfo.isExternal,
         });
       }
     }
@@ -331,8 +335,12 @@ export function useTreeData(): TreeItemNode[] {
       threadsWithPendingInput,
     };
 
+    const filteredWorktrees = hideExternal
+      ? worktrees.filter((wt) => !wt.isExternal)
+      : worktrees;
+
     const allNodes = buildUnifiedTree(
-      worktrees, folders, threads, plans, terminals, pullRequests, ctx,
+      filteredWorktrees, folders, threads, plans, terminals, pullRequests, ctx,
     );
 
     // Pin filtering: show only the pinned worktree's subtree
@@ -346,7 +354,7 @@ export function useTreeData(): TreeItemNode[] {
   }, [
     threads, plans, terminals, pullRequests, prDetails, folders,
     expandedSections, commitsByWorktree, runningThreadIds, worktrees,
-    pinnedWorktreeId, threadsWithPendingInput,
+    pinnedWorktreeId, threadsWithPendingInput, hideExternal,
   ]);
 }
 

@@ -2,7 +2,6 @@ import { createPortal } from "react-dom";
 import {
   Plus,
   MessageSquarePlus,
-  FolderGit2,
   FolderPlus,
   GitBranch,
   GitPullRequest,
@@ -36,15 +35,14 @@ interface PlusMenuProps {
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
-  onNewRepo?: () => void;
 }
 
 export function PlusMenu({
   item, showMenu, setShowMenu, menuPosition,
   buttonRef, menuRef, isCreatingWorktree,
-  onNewThread, onNewTerminal, onCreatePr, onNewWorktree, onNewRepo,
+  onNewThread, onNewTerminal, onCreatePr, onNewWorktree,
 }: PlusMenuProps) {
-  if (!onNewThread && !onNewWorktree && !onNewRepo) return null;
+  if (!onNewThread && !onNewWorktree) return null;
 
   const handlePlusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -84,7 +82,6 @@ export function PlusMenu({
           <PlusMenuItem icon={Terminal} label={`New terminal in ${item.worktreeName}`} hint="⌘T" show={!!onNewTerminal} onClick={() => { close(); onNewTerminal?.(item.worktreeId ?? item.id, item.worktreePath!); }} />
           <PlusMenuItem icon={GitPullRequest} label="Create pull request" show={!!onCreatePr} onClick={() => { close(); onCreatePr?.(item.repoId!, item.worktreeId ?? item.id, item.worktreePath!); }} />
           <PlusMenuItem icon={GitBranch} label={`New worktree in ${item.repoName}`} show={!!onNewWorktree} onClick={() => { close(); onNewWorktree?.(item.repoName!); }} />
-          <PlusMenuItem icon={FolderGit2} label="New repository" show={!!onNewRepo} onClick={() => { close(); onNewRepo?.(); }} />
         </div>,
         document.body,
       )}
@@ -130,7 +127,6 @@ interface WorktreeContextMenuProps {
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
-  onNewRepo?: () => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
   onClose: () => void;
   onStartRename: () => void;
@@ -139,7 +135,7 @@ interface WorktreeContextMenuProps {
 export function WorktreeContextMenu({
   item, show, position, menuRef, isPinned,
   onPinToggle, onNewThread, onNewTerminal, onCreatePr,
-  onNewWorktree, onNewRepo, onArchiveWorktree,
+  onNewWorktree, onArchiveWorktree,
   onClose, onStartRename,
 }: WorktreeContextMenuProps) {
   if (!show) return null;
@@ -181,7 +177,6 @@ export function WorktreeContextMenu({
       {onNewTerminal && <CtxItem icon={Terminal} label="New terminal" hint="⌘T" onClick={() => { close(); onNewTerminal(wId, item.worktreePath!); }} />}
       {onCreatePr && <CtxItem icon={GitPullRequest} label="Create pull request" onClick={() => { close(); onCreatePr(item.repoId!, wId, item.worktreePath!); }} />}
       {onNewWorktree && <CtxItem icon={GitBranch} label="New worktree" onClick={() => { close(); onNewWorktree(item.repoName!); }} />}
-      {onNewRepo && <CtxItem icon={FolderGit2} label="New repository" onClick={() => { close(); onNewRepo(); }} />}
 
       <div className="h-px bg-surface-700 my-1" />
       <CtxItem
@@ -193,7 +188,7 @@ export function WorktreeContextMenu({
         }}
       />
 
-      {isNonMain && (onNewThread || onNewWorktree || onNewRepo) && <div className="h-px bg-surface-700 my-1" />}
+      {isNonMain && (onNewThread || onNewWorktree) && <div className="h-px bg-surface-700 my-1" />}
       {isNonMain && <CtxItem icon={Pencil} label="Rename worktree" onClick={() => { onStartRename(); }} />}
       {onArchiveWorktree && isNonMain && (
         <CtxItem icon={Archive} label="Archive worktree" onClick={() => { close(); onArchiveWorktree(item.repoName!, wId, item.worktreeName!); }} />

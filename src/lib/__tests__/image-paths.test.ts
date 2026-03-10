@@ -36,14 +36,26 @@ describe("extractImagePaths", () => {
     expect(extractImagePaths(content)).toEqual(["/tmp/cat.gif", "/tmp/dog.webp"]);
   });
 
-  it("does not match image path with trailing text on same line", () => {
-    // This is the core reason attachments must be stored separately from text:
-    // typing after a path (even with a space) breaks the match.
-    expect(extractImagePaths("/Users/zac/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png hey")).toEqual([]);
+  it("extracts image path with trailing text on same line", () => {
+    expect(extractImagePaths("/Users/zac/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png hey")).toEqual([
+      "/Users/zac/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png",
+    ]);
+  });
+
+  it("extracts image path with leading text on same line", () => {
+    expect(extractImagePaths("check this /tmp/photo.png")).toEqual(["/tmp/photo.png"]);
+  });
+
+  it("extracts image path surrounded by text", () => {
+    expect(extractImagePaths("before /tmp/photo.png after")).toEqual(["/tmp/photo.png"]);
   });
 
   it("does not match image path with text appended without space", () => {
     expect(extractImagePaths("/Users/me/photo.pnghello")).toEqual([]);
+  });
+
+  it("does not match path embedded in a word", () => {
+    expect(extractImagePaths("word/Users/me/photo.png")).toEqual([]);
   });
 });
 
@@ -69,5 +81,13 @@ describe("stripImagePaths", () => {
   it("strips image paths from mixed content", () => {
     const content = "Check this\n/tmp/cat.png\nCool!";
     expect(stripImagePaths(content)).toBe("Check this\nCool!");
+  });
+
+  it("strips inline image path and keeps surrounding text", () => {
+    expect(stripImagePaths("/tmp/photo.png hey there")).toBe("hey there");
+  });
+
+  it("strips inline image path from middle of text", () => {
+    expect(stripImagePaths("before /tmp/photo.png after")).toBe("before after");
   });
 });

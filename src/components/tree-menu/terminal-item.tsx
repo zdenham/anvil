@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Archive, Loader2, Terminal, ArrowRightLeft, CornerLeftUp } from "lucide-react";
+import { Archive, Loader2, Terminal, ArrowRightLeft, CornerLeftUp, Pencil } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,9 @@ import {
 } from "@/components/ui/context-menu";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { terminalSessionService } from "@/entities/terminal-sessions";
+import { useTreeMenuStore } from "@/stores/tree-menu/store";
+import { treeMenuService } from "@/stores/tree-menu/service";
+import { useInlineRename } from "./use-inline-rename";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 import { useMoveToStore } from "./use-move-to";
 import { updateVisualSettings } from "@/lib/visual-settings";
@@ -31,6 +34,8 @@ interface TerminalItemProps {
   tabIndex?: number;
   /** Index in the flat list for keyboard navigation */
   itemIndex?: number;
+  /** When true, this is the only terminal in its worktree — archive is disabled */
+  isLastInWorktree?: boolean;
 }
 
 /**
@@ -44,11 +49,25 @@ export function TerminalItem({
   onSelect,
   tabIndex = -1,
   itemIndex = 0,
+  isLastInWorktree = false,
 }: TerminalItemProps) {
   const [confirming, setConfirming] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const contextMenu = useContextMenu();
+
+  // ── Inline rename ─────────────────────────────────────────────────
+  const renamingNodeId = useTreeMenuStore((s) => s.renamingNodeId);
+  const rename = useInlineRename({
+    currentName: item.title,
+    onRename: async (newName) => {
+      terminalSessionService.setLabel(item.id, newName);
+    },
+  });
+
+  useEffect(() => {
+    if (renamingNodeId === item.id && !rename.isRenaming) rename.startRename();
+  }, [renamingNodeId === item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Drag and drop ────────────────────────────────────────────────
   const dragData: TreeDragData = useMemo(
@@ -110,7 +129,13 @@ export function TerminalItem({
     }
   };
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    rename.startRename();
+  }, [rename]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "F2") { e.preventDefault(); rename.startRename(); return; }
     switch (e.key) {
       case "Enter":
       case " ":
@@ -118,7 +143,7 @@ export function TerminalItem({
         onSelect(item.id, "terminal");
         break;
     }
-  }, [item.id, onSelect]);
+  }, [item.id, onSelect, rename]);
 
   // Calculate indentation based on depth using shared constants
   const indentPx = TREE_INDENT_BASE + (item.depth * TREE_INDENT_STEP);
@@ -161,42 +186,66 @@ export function TerminalItem({
           isAlive ? "text-surface-400" : "text-surface-500"
         )} />
       </span>
-      <span
-        className={cn("truncate flex-1", getTextColorClass(isAlive, isSelected))}
-        title={item.title}
-      >
-        {item.title}
-      </span>
+      {rename.isRenaming ? (
+        <input
+          ref={rename.inputRef}
+          type="text"
+          value={rename.renameValue}
+          onChange={rename.handleChange}
+          onBlur={rename.handleBlur}
+          onKeyDown={rename.handleKeyDown}
+          className="bg-transparent border-b border-zinc-500 outline-none px-0 py-0 text-inherit font-inherit w-full min-w-[60px]"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span
+          className={cn("truncate flex-1", getTextColorClass(isAlive, isSelected))}
+          title={item.title}
+          onDoubleClick={handleDoubleClick}
+        >
+          {item.title}
+        </span>
+      )}
       {/* Exited indicator */}
       {!isAlive && (
         <span className="text-[10px] text-surface-500 font-mono">(exited)</span>
       )}
-      {/* Archive button - fixed height to prevent layout shift */}
-      <button
-        ref={buttonRef}
-        className={cn(
-          "h-[12px] flex items-center justify-center transition-colors flex-shrink-0",
-          isArchiving
-            ? "text-surface-500"
-            : confirming
-              ? "opacity-100 text-surface-300 text-[11px] font-medium"
-              : "opacity-0 group-hover:opacity-100 text-surface-500 hover:text-surface-300"
-        )}
-        onClick={handleArchiveClick}
-        aria-label={confirming ? "Confirm archive" : "Archive terminal"}
-        disabled={isArchiving}
-      >
-        {isArchiving ? (
-          <Loader2 size={12} className="animate-spin" />
-        ) : confirming ? (
-          "confirm"
-        ) : (
-          <Archive size={12} />
-        )}
-      </button>
+      {/* Archive button - hidden when this is the last terminal in the worktree */}
+      {!isLastInWorktree && (
+        <button
+          ref={buttonRef}
+          className={cn(
+            "h-[12px] flex items-center justify-center transition-colors flex-shrink-0",
+            isArchiving
+              ? "text-surface-500"
+              : confirming
+                ? "opacity-100 text-surface-300 text-[11px] font-medium"
+                : "opacity-0 group-hover:opacity-100 text-surface-500 hover:text-surface-300"
+          )}
+          onClick={handleArchiveClick}
+          aria-label={confirming ? "Confirm archive" : "Archive terminal"}
+          disabled={isArchiving}
+        >
+          {isArchiving ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : confirming ? (
+            "confirm"
+          ) : (
+            <Archive size={12} />
+          )}
+        </button>
+      )}
     </div>
     {contextMenu.show && (
       <ContextMenu position={contextMenu.position} onClose={contextMenu.close}>
+        <ContextMenuItem
+          icon={Pencil}
+          label="Rename"
+          onClick={() => {
+            contextMenu.close();
+            treeMenuService.startRename(item.id);
+          }}
+        />
         <ContextMenuItem
           icon={ArrowRightLeft}
           label="Move to..."

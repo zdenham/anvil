@@ -13,11 +13,21 @@ export function setupWorktreeListeners(): void {
   eventBus.on(EventName.WORKTREE_NAME_GENERATED, async ({ worktreeId, repoId, name }: EventPayloads[typeof EventName.WORKTREE_NAME_GENERATED]) => {
     logger.info(`[WorktreeListener] Received worktree:name:generated event for "${worktreeId}" -> "${name}" in repo "${repoId}"`);
     try {
-      // Refresh the UI by re-hydrating the lookup store from disk
       await useRepoWorktreeLookupStore.getState().hydrate();
       logger.info(`[WorktreeListener] UI refreshed for worktree "${worktreeId}" renamed to "${name}"`);
     } catch (error) {
       logger.error(`[WorktreeListener] Failed to refresh UI after worktree rename:`, error);
+    }
+  });
+
+  // Worktree synced - agent detected `git worktree add` via Bash, re-hydrate sidebar
+  eventBus.on(EventName.WORKTREE_SYNCED, async ({ repoId }: EventPayloads[typeof EventName.WORKTREE_SYNCED]) => {
+    logger.info(`[WorktreeListener] Received worktree:synced event for repo "${repoId}", re-hydrating sidebar`);
+    try {
+      await useRepoWorktreeLookupStore.getState().hydrate();
+      logger.info(`[WorktreeListener] Sidebar re-hydrated after worktree sync for repo "${repoId}"`);
+    } catch (error) {
+      logger.error(`[WorktreeListener] Failed to re-hydrate sidebar after worktree sync:`, error);
     }
   });
 }

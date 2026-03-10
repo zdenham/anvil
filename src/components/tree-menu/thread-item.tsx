@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Archive, Loader2, ChevronRight, Copy, CircleDot, ArrowRightLeft, CornerLeftUp } from "lucide-react";
+import { Archive, Loader2, ChevronRight, Copy, CircleDot, ArrowRightLeft, CornerLeftUp, Pencil } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,9 @@ import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
 import { ItemPreviewTooltip } from "./item-preview-tooltip";
 import { threadService } from "@/entities/threads/service";
 import { useThreadStore } from "@/entities/threads/store";
+import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { treeMenuService } from "@/stores/tree-menu/service";
+import { useInlineRename } from "./use-inline-rename";
 import { TREE_INDENT_BASE, TREE_INDENT_STEP } from "@/lib/tree-indent";
 import { useMoveToStore } from "./use-move-to";
 import { updateVisualSettings } from "@/lib/visual-settings";
@@ -79,6 +81,19 @@ export function ThreadItem({
   const [isArchiving, setIsArchiving] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const contextMenu = useContextMenu();
+
+  // ── Inline rename ─────────────────────────────────────────────────
+  const renamingNodeId = useTreeMenuStore((s) => s.renamingNodeId);
+  const rename = useInlineRename({
+    currentName: item.title,
+    onRename: async (newName) => {
+      await threadService.update(item.id, { name: newName });
+    },
+  });
+
+  useEffect(() => {
+    if (renamingNodeId === item.id && !rename.isRenaming) rename.startRename();
+  }, [renamingNodeId === item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Drag and drop ────────────────────────────────────────────────
   const dragData: TreeDragData = useMemo(
@@ -149,7 +164,13 @@ export function ThreadItem({
     await treeMenuService.toggleSection(`thread:${item.id}`);
   }, [item.id]);
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    rename.startRename();
+  }, [rename]);
+
   const handleKeyDown = useCallback(async (e: React.KeyboardEvent) => {
+    if (e.key === "F2") { e.preventDefault(); rename.startRename(); return; }
     switch (e.key) {
       case "Enter":
       case " ":
@@ -281,12 +302,26 @@ export function ThreadItem({
             <StatusDot variant={item.status} />
           </span>
         )}
-        <span
-          className={cn("truncate flex-1", getTextColorClass(item.status, isSelected))}
-          title={item.title}
-        >
-          {item.title}
-        </span>
+        {rename.isRenaming ? (
+          <input
+            ref={rename.inputRef}
+            type="text"
+            value={rename.renameValue}
+            onChange={rename.handleChange}
+            onBlur={rename.handleBlur}
+            onKeyDown={rename.handleKeyDown}
+            className="bg-transparent border-b border-zinc-500 outline-none px-0 py-0 text-inherit font-inherit w-full min-w-[60px]"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span
+            className={cn("truncate flex-1", getTextColorClass(item.status, isSelected))}
+            title={item.title}
+            onDoubleClick={handleDoubleClick}
+          >
+            {item.title}
+          </span>
+        )}
         {/* Archive button - fixed height to prevent layout shift */}
         <button
           ref={buttonRef}
@@ -314,6 +349,14 @@ export function ThreadItem({
     </ItemPreviewTooltip>
     {contextMenu.show && (
       <ContextMenu position={contextMenu.position} onClose={contextMenu.close}>
+        <ContextMenuItem
+          icon={Pencil}
+          label="Rename"
+          onClick={() => {
+            contextMenu.close();
+            treeMenuService.startRename(item.id);
+          }}
+        />
         <ContextMenuItem
           icon={CircleDot}
           label="Mark Unread"

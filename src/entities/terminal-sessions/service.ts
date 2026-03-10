@@ -6,6 +6,7 @@ import { invoke } from "@/lib/invoke";
 import { appData } from "@/lib/app-data-store";
 import { useTerminalSessionStore } from "./store";
 import { TerminalSessionSchema, type TerminalSession } from "./types";
+import { clearOutputBuffer } from "./output-buffer";
 import { logger } from "@/lib/logger-client";
 import { eventBus } from "@/entities/events";
 import { EventName } from "@core/types/events.js";
@@ -183,6 +184,15 @@ class TerminalSessionService {
   }
 
   /**
+   * Sets a user-assigned label for a terminal (overrides lastCommand in sidebar).
+   */
+  setLabel(id: string, label: string): void {
+    useTerminalSessionStore.getState().updateSession(id, { label });
+    // Fire-and-forget disk write — same pattern as updateLastCommand
+    this.persistMetadata(id);
+  }
+
+  /**
    * Updates the last command for a terminal (for sidebar display).
    */
   updateLastCommand(id: string, command: string): void {
@@ -200,6 +210,111 @@ class TerminalSessionService {
     this.ptyIds.delete(id);
     // Persist so exited state survives restart
     this.persistMetadata(id);
+  }
+
+  /**
+   * Revives a dead terminal by spawning a new PTY and re-associating it.
+   * Clears the old output buffer so the user gets a fresh shell.
+   */
+  async revive(id: string, cols = 80, rows = 24): Promise<void> {
+    const session = this.get(id);
+    if (!session) throw new Error(`Terminal not found: ${id}`);
+    if (session.isAlive) return;
+
+    logger.info("[TerminalService] Reviving terminal", { terminalId: id });
+
+    // Clear old output so the new shell starts clean
+    clearOutputBuffer(id);
+
+    const numericId = await invoke<number>("spawn_terminal", {
+      cols,
+      rows,
+      cwd: session.worktreePath,
+    });
+
+    this.registerPtyId(id, numericId);
+
+    useTerminalSessionStore.getState().updateSession(id, {
+      isAlive: true,
+      ptyId: numericId,
+    });
+
+    await this.persistMetadata(id);
+    logger.info("[TerminalService] Terminal revived", { terminalId: id, ptyId: numericId });
+  }
+
+  /**
+   * Creates a placeholder terminal (no PTY spawned) for lazy activation.
+   * The terminal shows in the sidebar and gets a live PTY on first click via revive().
+   */
+  async createPlaceholder(worktreeId: string, worktreePath: string): Promise<TerminalSession> {
+    const id = crypto.randomUUID();
+    const session: TerminalSession = {
+      id,
+      ptyId: null,
+      worktreeId,
+      worktreePath,
+      createdAt: Date.now(),
+      isAlive: false,
+      isArchived: false,
+      visualSettings: { parentId: worktreeId },
+    };
+
+    useTerminalSessionStore.getState().addSession(session);
+
+    const dirPath = `${TERMINAL_SESSIONS_DIR}/${id}`;
+    await appData.ensureDir(dirPath);
+    await appData.writeJson(`${dirPath}/metadata.json`, session);
+
+    logger.info("[TerminalService] Placeholder terminal created", { terminalId: id, worktreeId });
+    return session;
+  }
+
+  /**
+   * Ensures each worktree has at least one terminal.
+   * Creates lazy placeholders for worktrees with zero terminals.
+   */
+  async ensureTerminalsForWorktrees(
+    worktrees: Array<{ worktreeId: string; worktreePath: string }>
+  ): Promise<void> {
+    for (const wt of worktrees) {
+      const existing = this.getByWorktree(wt.worktreeId);
+      if (existing.length === 0) {
+        await this.createPlaceholder(wt.worktreeId, wt.worktreePath);
+      }
+    }
+  }
+
+  /**
+   * Archives stale dead terminals on hydration.
+   * If a worktree has more than one terminal and all are dead, keeps only the newest.
+   */
+  async cleanupStaleTerminals(): Promise<void> {
+    const sessions = this.getAll();
+    const byWorktree = new Map<string, TerminalSession[]>();
+    for (const s of sessions) {
+      const list = byWorktree.get(s.worktreeId) ?? [];
+      list.push(s);
+      byWorktree.set(s.worktreeId, list);
+    }
+
+    for (const [, terminals] of byWorktree) {
+      if (terminals.length > 1 && terminals.every(t => !t.isAlive)) {
+        const sorted = [...terminals].sort((a, b) => b.createdAt - a.createdAt);
+        for (const stale of sorted.slice(1)) {
+          await this.archive(stale.id);
+        }
+      }
+    }
+  }
+
+  /**
+   * Returns true if the given terminal is the last one in its worktree.
+   */
+  isLastInWorktree(id: string): boolean {
+    const session = this.get(id);
+    if (!session) return false;
+    return this.getByWorktree(session.worktreeId).length <= 1;
   }
 
   /**
