@@ -382,6 +382,9 @@ export interface AgentLoopOptions {
   questionGate?: import("../lib/question-gate.js").QuestionGate;
   /** Proxy config for network debug — injected only into SDK query() env, not subprocess env */
   proxyConfig?: { port: number; certPath: string };
+  /** Mutable ref populated by runAgentLoop with the REPL cancel function.
+   *  The runner reads this on abort to cancel REPL children before hub disconnect. */
+  replCancelRef?: { current: (() => void) | null };
 }
 
 /**
@@ -556,22 +559,27 @@ export async function runAgentLoop(
       },
       // REPL hook — intercepts mort-repl Bash calls for programmatic agent orchestration
       // Must be before comment resolution and permission hooks
-      {
-        matcher: "Bash" as const,
-        hooks: [
-          createReplHook({
-            context: {
-              threadId: context.threadId,
-              repoId: context.repoId,
-              worktreeId: context.worktreeId,
-              workingDir: context.workingDir,
-              permissionModeId: context.permissionModeId,
-              mortDir: config.mortDir,
-            },
-            emitEvent,
-          }),
-        ],
-      },
+      (() => {
+        const replHook = createReplHook({
+          context: {
+            threadId: context.threadId,
+            repoId: context.repoId,
+            worktreeId: context.worktreeId,
+            workingDir: context.workingDir,
+            permissionModeId: context.permissionModeId,
+            mortDir: config.mortDir,
+          },
+          emitEvent,
+        });
+        // Expose cancel function so runner can call it on abort before hub disconnect
+        if (options.replCancelRef) {
+          options.replCancelRef.current = replHook.cancelAll;
+        }
+        return {
+          matcher: "Bash" as const,
+          hooks: [replHook.hook],
+        };
+      })(),
       // Comment resolution hook — intercepts mort-resolve-comment Bash calls
       // Must be before the catch-all permission hook so it gets first look at Bash calls
       {
@@ -1063,6 +1071,22 @@ export async function runAgentLoop(
               }
             }
 
+            // Context short-circuit: nudge agent to save progress when context is high
+            if (config.contextShortCircuit) {
+              const utilization = handler.getUtilization();
+              if (utilization !== null && utilization >= config.contextShortCircuit.limitPercent) {
+                logger.info(
+                  `[PostToolUse] Context short-circuit: ${utilization.toFixed(1)}% >= ${config.contextShortCircuit.limitPercent}%, nudging agent`
+                );
+                return {
+                  hookSpecificOutput: {
+                    hookEventName: "PostToolUse" as const,
+                    additionalContext: config.contextShortCircuit.message,
+                  },
+                };
+              }
+            }
+
             // Detect git worktree creation via Bash — trigger worktree sync
             if (input.tool_name === "Bash") {
               const toolInput = input.tool_input as { command?: string };
@@ -1456,7 +1480,8 @@ export async function runAgentLoop(
 
   // Process messages with dedicated handler
   // Pass mortDir for sub-agent message routing, drainManager for analytics
-  const handler = new MessageHandler(config.mortDir, accumulator, drainManager);
+  // Default context window (200k) allows getUtilization() to work before the result message arrives
+  const handler = new MessageHandler(config.mortDir, accumulator, drainManager, 200_000);
 
   let loopError: string | undefined;
   try {

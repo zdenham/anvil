@@ -9,6 +9,7 @@ import { useHeartbeatStore, startHeartbeatMonitor, stopHeartbeatMonitor } from "
 import { handleStaleness, setupRecoveryCleanupListeners } from "@/lib/state-recovery.js";
 import { settingsService } from "../settings/service.js";
 import { isAgentRunning, sendToAgent } from "@/lib/agent-service.js";
+import { treeMenuService } from "@/stores/tree-menu/service.js";
 
 /**
  * Clears chain state for a thread (e.g. on deactivation or panel hide).
@@ -85,9 +86,17 @@ export function setupThreadListeners(): () => void {
     }
   };
 
-  const handleCreated = async ({ threadId }: EventPayloads[typeof EventName.THREAD_CREATED]) => {
+  const handleCreated = async ({ threadId, source }: EventPayloads[typeof EventName.THREAD_CREATED]) => {
     try {
       await threadService.refreshById(threadId);
+
+      // Auto-expand parent when REPL spawns a child
+      if (source === "mort-repl:child-spawn") {
+        const thread = threadService.get(threadId);
+        if (thread?.parentThreadId) {
+          await treeMenuService.expandSection(`thread:${thread.parentThreadId}`);
+        }
+      }
     } catch (e) {
       logger.error(`[ThreadListener] Failed to refresh created thread ${threadId}:`, e);
     }
@@ -111,8 +120,21 @@ export function setupThreadListeners(): () => void {
     try {
       await threadService.refreshById(threadId);
 
-      // Mark thread as unread when it transitions to running status
       const thread = threadService.get(threadId);
+
+      // Cascade: when parent is cancelled, optimistically cancel running children in store.
+      // The agent already wrote cancelled status to disk (metadata.json) — this just
+      // updates the in-memory store so the UI reflects the change immediately.
+      if (thread?.status === "cancelled") {
+        const store = useThreadStore.getState();
+        const runningChildren = store._threadsArray
+          .filter(t => t.parentThreadId === threadId && t.status === "running");
+        for (const child of runningChildren) {
+          store._applyOptimistic({ ...child, status: "cancelled" });
+        }
+      }
+
+      // Mark thread as unread when it transitions to running status
       if (thread?.status === "running") {
         await useThreadStore.getState().markThreadAsUnread(threadId);
         logger.info(`[ThreadListener] Marked thread ${threadId} as unread (status: running)`);

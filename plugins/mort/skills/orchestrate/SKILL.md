@@ -20,18 +20,25 @@ MORT_REPL
 
 ## API Reference
 
-### `mort.spawn(options)` — Spawn a child agent
+### `mort.spawn({ prompt, contextShortCircuit? })` — Spawn a child agent
 
 Spawns a new agent process and waits for it to complete. Returns the child's last assistant message as a string.
 
 ```javascript
-const result = await mort.spawn({
-  prompt: "Fix the failing auth tests",   // required — the task prompt
-  agentType: "general-purpose",           // optional, default: "general-purpose"
-  cwd: "/path/to/dir",                    // optional, default: parent's cwd
-  permissionMode: "bypassPermissions",    // optional, default: parent's mode
-});
+const result = await mort.spawn({ prompt: "Fix the failing auth tests" });
 // result is a string — the child's last assistant message content
+```
+
+**Optional:** `contextShortCircuit` nudges the child to save progress when context pressure gets high:
+
+```javascript
+await mort.spawn({
+  prompt: "Implement the auth module",
+  contextShortCircuit: {
+    limitPercent: 80,
+    message: "You are running low on context. Save progress to plans/auth-progress.md, then stop.",
+  },
+});
 ```
 
 ### `mort.log(message)` — Log a message
@@ -70,9 +77,7 @@ MORT_REPL
 mort-repl <<'MORT_REPL'
 const analysis = await mort.spawn({ prompt: "Analyze test failures and list them" });
 
-const fix = await mort.spawn({
-  prompt: `Fix these issues:\n${analysis}`,
-});
+const fix = await mort.spawn({ prompt: `Fix these issues:\n${analysis}` });
 
 return fix;
 MORT_REPL
@@ -99,3 +104,4 @@ MORT_REPL
 - `mort.spawn()` blocks until the child completes — use `Promise.all` for parallelism.
 - Results over 50KB are truncated. The child's threadId is logged for full output.
 - TypeScript type annotations are supported (stripped at runtime via `ts.transpileModule`).
+- **Keep REPL code minimal.** REPL scripts should be thin orchestration glue — primarily `mort.spawn()` calls with `Promise.all`. Avoid writing business logic, file parsing, or complex algorithms in REPL code. If you need to read files, reason about data, or edit files, do that as the agent using your normal tools (Read/Edit/Write), not programmatically in the REPL.

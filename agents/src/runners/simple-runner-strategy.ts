@@ -235,6 +235,13 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         case "--message-id":
           config.messageId = args[++i];
           break;
+        case "--context-short-circuit":
+          try {
+            config.contextShortCircuit = JSON.parse(args[++i]);
+          } catch {
+            throw new Error("Invalid JSON for --context-short-circuit");
+          }
+          break;
         // Ignore deprecated arguments for backwards compatibility
         case "--worktree-renamed":
           // Deprecated: now read from disk instead of CLI arg

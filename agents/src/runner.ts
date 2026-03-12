@@ -158,6 +158,8 @@ async function main(): Promise<void> {
 
   // Create abort controller for cancellation support
   const abortController = new AbortController();
+  // Mutable ref — populated by runAgentLoop with the REPL cancel function
+  const replCancelRef: { current: (() => void) | null } = { current: null };
   // Create message stream for queued messages (will be passed to runAgentLoop)
   const messageStream = new SocketMessageStream();
   // Set event emitter for ack events (emits via socket or stdout fallback)
@@ -247,10 +249,6 @@ async function main(): Promise<void> {
           }
           break;
         }
-        case "cancel":
-          logger.info("[runner] Received cancel message from Tauri, aborting...");
-          abortController.abort();
-          break;
         default:
           logger.warn(`[runner] Unhandled message type: ${(msg as { type: string }).type}`);
           break;
@@ -389,6 +387,7 @@ async function main(): Promise<void> {
       permissionGate,
       questionGate,
       proxyConfig,
+      replCancelRef,
     });
 
     // Safety timeout: if cleanup or process.exit hangs, force exit.
@@ -415,6 +414,10 @@ async function main(): Promise<void> {
     if (isAbort) {
       // Graceful cancellation
       logger.info("[runner] Agent cancelled - handling AbortError");
+
+      // Cancel REPL children BEFORE hub disconnect so events reach the frontend
+      replCancelRef.current?.();
+
       await cancelled();
       logger.info("[runner] Called cancelled(), now running cleanup...");
 

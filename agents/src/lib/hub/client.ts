@@ -82,6 +82,7 @@ export class HubClient extends EventEmitter {
     this.send({
       type: "register",
       ...(this.parentId && { parentId: this.parentId }),
+      pid: process.pid,
     });
   }
 

@@ -30,7 +30,8 @@
     "lint": "eslint src core",
     "lint:fix": "eslint src core --fix",
     "release:internal": "./scripts/internal-build.sh",
-    "postinstall": "cp -r node_modules/material-icon-theme/icons public/material-icons"
+    "postinstall": "cp -r node_modules/material-icon-theme/icons public/material-icons",
+    "setup": "./scripts/setup-worktree.sh"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.53",

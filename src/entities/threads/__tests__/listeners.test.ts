@@ -44,9 +44,16 @@ vi.mock("../service", () => ({
   },
 }));
 
+vi.mock("@/stores/tree-menu/service", () => ({
+  treeMenuService: {
+    expandSection: vi.fn(),
+  },
+}));
+
 // Import after mocks are set up
 import { useThreadStore } from "../store";
 import { threadService } from "../service";
+import { treeMenuService } from "@/stores/tree-menu/service";
 import { eventBus } from "@/entities/events";
 import { setupThreadListeners } from "../listeners";
 import { EventName } from "@core/types/events.js";
@@ -312,6 +319,67 @@ describe("setupThreadListeners", () => {
       expect(updatedThread.cumulativeUsage).toBeDefined();
       expect(updatedThread.cumulativeUsage?.inputTokens).toBe(1000);
       expect(threadService.refreshById).not.toHaveBeenCalled();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REPL child auto-expand tests
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("REPL child auto-expand", () => {
+    it("expands parent sidebar item when REPL child is spawned", async () => {
+      const childId = "child-thread";
+      const parentId = "parent-thread";
+
+      vi.mocked(threadService.get).mockReturnValue(
+        createThreadMetadata({ id: childId, parentThreadId: parentId }),
+      );
+
+      triggerEvent(EventName.THREAD_CREATED, {
+        threadId: childId,
+        repoId: "repo-1",
+        worktreeId: "wt-1",
+        source: "mort-repl:child-spawn",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(threadService.refreshById).toHaveBeenCalledWith(childId);
+      expect(treeMenuService.expandSection).toHaveBeenCalledWith(`thread:${parentId}`);
+    });
+
+    it("does not expand when source is not mort-repl:child-spawn", async () => {
+      const childId = "child-thread-2";
+
+      triggerEvent(EventName.THREAD_CREATED, {
+        threadId: childId,
+        repoId: "repo-1",
+        worktreeId: "wt-1",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(threadService.refreshById).toHaveBeenCalledWith(childId);
+      expect(treeMenuService.expandSection).not.toHaveBeenCalled();
+    });
+
+    it("does not expand when thread has no parentThreadId", async () => {
+      const childId = "orphan-thread";
+
+      vi.mocked(threadService.get).mockReturnValue(
+        createThreadMetadata({ id: childId }),
+      );
+
+      triggerEvent(EventName.THREAD_CREATED, {
+        threadId: childId,
+        repoId: "repo-1",
+        worktreeId: "wt-1",
+        source: "mort-repl:child-spawn",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(treeMenuService.expandSection).not.toHaveBeenCalled();
     });
   });
 

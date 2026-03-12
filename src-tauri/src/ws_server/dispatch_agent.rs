@@ -65,6 +65,17 @@ async fn spawn_agent(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
+    // Give each agent its own process group so kill(-pid, SIGTERM)
+    // takes out the entire tree (children, grandchildren, etc.)
+    #[cfg(unix)]
+    unsafe {
+        use nix::unistd::{setpgid, Pid};
+        cmd.pre_exec(|| {
+            setpgid(Pid::from_raw(0), Pid::from_raw(0))
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        });
+    }
+
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("failed to spawn agent: {}", e))?;
@@ -207,7 +218,7 @@ async fn cancel_agent(
     };
 
     tracing::info!(thread_id = %thread_id, pid = pid, "cancel_agent: sending SIGTERM");
-    crate::process_commands::send_signal(pid, crate::process_commands::SignalKind::Term)?;
+    crate::process_commands::send_signal_or_group(pid, crate::process_commands::SignalKind::Term)?;
 
     // Race: process exits (event-driven via Notify) vs 5s timeout
     let graceful = tokio::select! {
@@ -216,8 +227,8 @@ async fn cancel_agent(
     };
 
     if !graceful {
-        tracing::warn!(thread_id = %thread_id, pid = pid, "cancel_agent: SIGTERM timed out, sending SIGKILL");
-        let _ = crate::process_commands::send_signal(pid, crate::process_commands::SignalKind::Kill);
+        tracing::warn!(thread_id = %thread_id, pid = pid, "cancel_agent: SIGTERM timed out, escalating to SIGKILL");
+        let _ = crate::process_commands::send_signal_or_group(pid, crate::process_commands::SignalKind::Kill);
     } else {
         tracing::info!(thread_id = %thread_id, pid = pid, "cancel_agent: process exited gracefully");
     }

@@ -151,9 +151,7 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
         "mort-repl is a special Bash command prefix that executes TypeScript code with a `mort` SDK.\n" +
         "Call the Bash tool with the following command exactly:\n\n" +
         "mort-repl <<'MORT_REPL'\n" +
-        "const result = await mort.spawn({\n" +
-        "  prompt: 'Reply with exactly the word PINEAPPLE and nothing else.',\n" +
-        "});\n" +
+        "const result = await mort.spawn({ prompt: 'Reply with exactly the word PINEAPPLE and nothing else.' });\n" +
         "return result;\n" +
         "MORT_REPL\n\n" +
         "Then report the result you see.",

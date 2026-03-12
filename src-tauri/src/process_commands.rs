@@ -28,8 +28,10 @@ pub async fn agent_cancel(
         return Ok(false);
     };
 
+    // Try group kill first (works for process group leaders spawned via dispatch_agent).
+    // Falls back to single-PID kill for children that don't lead their own group.
     tracing::info!(thread_id = %thread_id, pid = pid, "cancel_agent: sending SIGTERM");
-    send_signal(pid, SignalKind::Term)?;
+    send_signal_or_group(pid, SignalKind::Term)?;
 
     // Race: process exits (event-driven via Notify) vs 5s timeout
     let graceful = tokio::select! {
@@ -38,8 +40,8 @@ pub async fn agent_cancel(
     };
 
     if !graceful {
-        tracing::warn!(thread_id = %thread_id, pid = pid, "cancel_agent: SIGTERM timed out, sending SIGKILL");
-        let _ = send_signal(pid, SignalKind::Kill);
+        tracing::warn!(thread_id = %thread_id, pid = pid, "cancel_agent: SIGTERM timed out, escalating to SIGKILL");
+        let _ = send_signal_or_group(pid, SignalKind::Kill);
     } else {
         tracing::info!(thread_id = %thread_id, pid = pid, "cancel_agent: process exited gracefully");
     }
@@ -47,6 +49,7 @@ pub async fn agent_cancel(
     Ok(true)
 }
 
+#[derive(Clone, Copy)]
 pub enum SignalKind {
     Term,
     Kill,
@@ -100,5 +103,58 @@ pub fn send_signal(pid: u32, signal: SignalKind) -> Result<bool, String> {
                 Err(format!("taskkill failed: {}", stderr))
             }
         }
+    }
+}
+
+/// Try group kill first; fall back to single-PID kill if no such process group.
+/// This handles both process group leaders (spawned by dispatch_agent with setpgid)
+/// and child agents (that inherit the parent's group).
+pub fn send_signal_or_group(pid: u32, signal: SignalKind) -> Result<bool, String> {
+    match send_signal_to_group(pid, signal) {
+        Ok(true) => Ok(true),
+        // Group not found (ESRCH) — try single PID (child that doesn't lead a group)
+        Ok(false) => send_signal(pid, signal),
+        Err(e) => Err(e),
+    }
+}
+
+/// Send a signal to the entire process group led by `pid`.
+/// On Unix, this uses kill(-pid, sig) to target all processes in the group.
+pub fn send_signal_to_group(pid: u32, signal: SignalKind) -> Result<bool, String> {
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{kill, Signal};
+        use nix::unistd::Pid;
+
+        let sig = match signal {
+            SignalKind::Term => Signal::SIGTERM,
+            SignalKind::Kill => Signal::SIGKILL,
+        };
+
+        match kill(Pid::from_raw(-(pid as i32)), sig) {
+            Ok(_) => {
+                tracing::info!(pid = %pid, signal = ?sig, "Sent signal to process group");
+                Ok(true)
+            }
+            Err(nix::errno::Errno::ESRCH) => {
+                tracing::warn!(pid = %pid, "Process group not found (already exited)");
+                Ok(false)
+            }
+            Err(e) => {
+                tracing::error!(pid = %pid, error = %e, "Failed to send signal to group");
+                Err(format!("Failed to send group signal: {}", e))
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        // taskkill /T kills the process tree
+        let output = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .output()
+            .map_err(|e| format!("Failed to run taskkill: {}", e))?;
+
+        Ok(output.status.success())
     }
 }

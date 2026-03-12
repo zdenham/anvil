@@ -32,8 +32,8 @@ use crate::terminal::TerminalState;
 
 use types::WsRequest;
 
-// Re-export for use by process_commands and lib.rs
-pub use dispatch_agent::AgentProcessMap;
+// Re-export for use by process_commands, agent_hub, and lib.rs
+pub use dispatch_agent::{AgentProcess, AgentProcessMap};
 
 /// Create a new agent process map (re-exported for `lib.rs`).
 pub fn new_agent_process_map() -> AgentProcessMap {

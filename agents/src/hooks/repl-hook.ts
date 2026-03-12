@@ -17,11 +17,17 @@ interface ReplHookDeps {
  * Creates a PreToolUse hook that intercepts `mort-repl` Bash calls.
  * Extracts code, executes it with the mort SDK, and returns the result
  * as a deny reason (same pattern as comment-resolution-hook).
+ *
+ * Returns both the hook function and a `cancelAll` for parent cancellation cleanup.
  */
-export function createReplHook(deps: ReplHookDeps) {
+export function createReplHook(deps: ReplHookDeps): {
+  hook: (hookInput: unknown) => Promise<unknown>;
+  cancelAll: () => void;
+} {
   const runner = new MortReplRunner();
+  const activeSpawners = new Set<ChildSpawner>();
 
-  return async (hookInput: unknown) => {
+  const hook = async (hookInput: unknown) => {
     const input = hookInput as PreToolUseHookInput;
     const command = (input.tool_input as Record<string, unknown>)
       .command as string;
@@ -38,6 +44,7 @@ export function createReplHook(deps: ReplHookDeps) {
       emitEvent: deps.emitEvent,
       parentToolUseId: input.tool_use_id,
     });
+    activeSpawners.add(spawner);
 
     const sdk = new MortReplSdk(spawner, deps.context);
 
@@ -61,6 +68,17 @@ export function createReplHook(deps: ReplHookDeps) {
       // kill all still-running children before propagating
       spawner.killAll();
       throw err;
+    } finally {
+      activeSpawners.delete(spawner);
     }
   };
+
+  const cancelAll = () => {
+    for (const spawner of activeSpawners) {
+      spawner.cancelAll();
+    }
+    activeSpawners.clear();
+  };
+
+  return { hook, cancelAll };
 }

@@ -11,7 +11,7 @@ const QUOTED_PATTERN = /mort-repl\s+["']([\s\S]*?)["']/;
  * SDK interface compatible with both the stub and real MortReplSdk.
  */
 export interface MortSdk {
-  spawn: (opts: unknown) => Promise<string>;
+  spawn: (prompt: string) => Promise<string>;
   log: (msg: string) => void;
   context: Readonly<ReplContext>;
   logs: string[];

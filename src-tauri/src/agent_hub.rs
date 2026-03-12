@@ -15,6 +15,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::ws_server::{AgentProcess, AgentProcessMap};
 use crate::ws_server::push::EventBroadcaster;
 
 /// Message structure for socket communication between agents and the hub.
@@ -120,11 +121,13 @@ pub struct AgentHub {
     diagnostic_config: DiagnosticConfigState,
     /// Optional WS broadcaster for dual-emit to browser clients
     ws_broadcaster: Arc<RwLock<Option<EventBroadcaster>>>,
+    /// Shared agent process map for PID-based cancellation
+    agent_processes: AgentProcessMap,
 }
 
 impl AgentHub {
     /// Creates a new AgentHub with the specified socket path.
-    pub fn new(socket_path: String) -> Self {
+    pub fn new(socket_path: String, agent_processes: AgentProcessMap) -> Self {
         let config = DiagnosticLoggingConfig::from_env();
         tracing::info!(
             pipeline = config.pipeline,
@@ -141,6 +144,7 @@ impl AgentHub {
             shutdown: Arc::new(RwLock::new(false)),
             diagnostic_config: Arc::new(Mutex::new(config)),
             ws_broadcaster: Arc::new(RwLock::new(None)),
+            agent_processes,
         }
     }
 
@@ -193,6 +197,7 @@ impl AgentHub {
         let shutdown = self.shutdown.clone();
         let diagnostic_config = self.diagnostic_config.clone();
         let ws_broadcaster = self.ws_broadcaster.clone();
+        let agent_processes = self.agent_processes.clone();
 
         // Spawn listener thread
         thread::spawn(move || {
@@ -213,6 +218,7 @@ impl AgentHub {
                         let hierarchy = hierarchy.clone();
                         let diag_config = diagnostic_config.clone();
                         let ws_bc = ws_broadcaster.clone();
+                        let agent_procs = agent_processes.clone();
 
                         // Spawn handler thread for this connection
                         thread::spawn(move || {
@@ -222,6 +228,7 @@ impl AgentHub {
                                 hierarchy,
                                 diag_config,
                                 ws_bc,
+                                agent_procs,
                             );
                         });
                     }
@@ -284,6 +291,7 @@ impl AgentHub {
         hierarchy: Arc<RwLock<HashMap<String, Option<String>>>>,
         diagnostic_config: DiagnosticConfigState,
         ws_broadcaster: Arc<RwLock<Option<EventBroadcaster>>>,
+        agent_processes: AgentProcessMap,
     ) {
         // CRITICAL: Set stream to blocking mode.
         // Accepted sockets inherit non-blocking from the listener, which causes
@@ -420,6 +428,24 @@ impl AgentHub {
                             hierarchy_guard.insert(msg_thread_id.clone(), msg_parent_id);
                         }
 
+                        // Register PID in AgentProcessMap for cancellation support.
+                        // Agents spawned via dispatch_agent already have entries; this
+                        // covers child agents spawned by ChildSpawner that aren't in the map.
+                        if let Some(pid) = raw_msg.get("pid").and_then(|v| v.as_u64()) {
+                            let mut map = agent_processes.blocking_lock();
+                            if !map.contains_key(&msg_thread_id) {
+                                map.insert(msg_thread_id.clone(), AgentProcess {
+                                    pid: pid as u32,
+                                    exited: Arc::new(tokio::sync::Notify::new()),
+                                });
+                                tracing::info!(
+                                    thread_id = %msg_thread_id,
+                                    pid = pid,
+                                    "Agent PID registered via hub"
+                                );
+                            }
+                        }
+
                         continue;
                     }
 
@@ -521,6 +547,11 @@ impl AgentHub {
             if let Ok(mut hierarchy_guard) = hierarchy.write() {
                 hierarchy_guard.remove(&id);
             }
+            // Notify cancel waiters and remove from process map
+            let mut map = agent_processes.blocking_lock();
+            if let Some(entry) = map.remove(&id) {
+                entry.exited.notify_waiters();
+            }
         }
     }
 
@@ -601,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_agent_hub_new() {
-        let hub = AgentHub::new("/tmp/test-hub.sock".to_string());
+        let hub = AgentHub::new("/tmp/test-hub.sock".to_string(), crate::ws_server::new_agent_process_map());
         assert_eq!(hub.socket_path(), "/tmp/test-hub.sock");
     }
 
@@ -652,7 +683,7 @@ mod tests {
         std::fs::write(socket_path, "").unwrap();
         assert!(std::path::Path::new(socket_path).exists());
 
-        let hub = AgentHub::new(socket_path.to_string());
+        let hub = AgentHub::new(socket_path.to_string(), crate::ws_server::new_agent_process_map());
         let result = hub.cleanup_stale_socket();
 
         assert!(result.is_ok());
@@ -661,13 +692,13 @@ mod tests {
 
     #[test]
     fn test_list_connected_agents_empty() {
-        let hub = AgentHub::new("/tmp/test-list-agents.sock".to_string());
+        let hub = AgentHub::new("/tmp/test-list-agents.sock".to_string(), crate::ws_server::new_agent_process_map());
         assert!(hub.list_connected_agents().is_empty());
     }
 
     #[test]
     fn test_send_to_nonexistent_agent() {
-        let hub = AgentHub::new("/tmp/test-send-nonexistent.sock".to_string());
+        let hub = AgentHub::new("/tmp/test-send-nonexistent.sock".to_string(), crate::ws_server::new_agent_process_map());
         let result = hub.send_to_agent("nonexistent-thread", "test message");
         assert!(result.is_err());
         assert!(result

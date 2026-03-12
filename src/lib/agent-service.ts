@@ -340,13 +340,6 @@ export async function sendPermissionResponseSocket(
   logger.info(`[agent-service] Sent permission response via socket:`, { threadId, requestId, decision });
 }
 
-/**
- * Sends a cancel signal to an agent via the socket.
- */
-export async function cancelAgentSocket(threadId: string): Promise<void> {
-  await sendToAgent(threadId, { type: "cancel" });
-  logger.info(`[agent-service] Sent cancel via socket to agent ${threadId}`);
-}
 
 /**
  * Sends a queued message to an agent via the socket.

@@ -57,8 +57,8 @@ export class MessageHandler {
   /** Context pressure thresholds already crossed (emit once per threshold) */
   private crossedThresholds = new Set<number>();
 
-  /** Cumulative input tokens across all turns (for context pressure) */
-  private cumulativeInputTokens = 0;
+  /** Latest turn's total input tokens (= current context usage, not cumulative) */
+  private latestInputTokens = 0;
 
   /** Context window size (populated from result message) */
   private contextWindow: number | null = null;
@@ -69,11 +69,14 @@ export class MessageHandler {
    * @param mortDir - Optional path to mort directory for sub-agent state routing
    * @param accumulator - Optional stream accumulator for live streaming display
    * @param drainManager - Optional drain manager for analytics event emission
+   * @param defaultContextWindow - Optional default context window size so getUtilization()
+   *   returns a value during the agent loop before the result message arrives
    */
-  constructor(mortDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager) {
+  constructor(mortDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager, defaultContextWindow?: number) {
     this.mortDir = mortDir ?? null;
     this.accumulator = accumulator ?? null;
     this.drainManager = drainManager ?? null;
+    if (defaultContextWindow) this.contextWindow = defaultContextWindow;
   }
 
   /**
@@ -177,8 +180,12 @@ export class MessageHandler {
           textBlockCount: this.countBlocks(msg, "text"),
         }, "MessageHandler:api-call");
 
-        // Track cumulative input tokens for context pressure
-        this.cumulativeInputTokens += totalInput;
+        // Track latest turn's total context tokens for utilization checks.
+        // Each turn's input_tokens + cache_creation + cache_read already represents
+        // the full conversation context (history is re-sent every turn), so we use
+        // the latest value — NOT a running sum — for getUtilization().
+        const totalContextTokens = totalInput + cacheCreation + cacheRead;
+        this.latestInputTokens = totalContextTokens;
         this.checkContextPressure();
       }
     }
@@ -395,12 +402,18 @@ export class MessageHandler {
     return msg.message.content.filter((b) => b.type === blockType).length;
   }
 
+  /** Returns context utilization as 0-100 percentage, or null if context window unknown */
+  getUtilization(): number | null {
+    if (!this.contextWindow || this.contextWindow <= 0) return null;
+    return (this.latestInputTokens / this.contextWindow) * 100;
+  }
+
   /** Check if context pressure thresholds have been crossed and emit events */
   private checkContextPressure(): void {
     if (!this.drainManager || !this.contextWindow || this.contextWindow <= 0) return;
 
     const thresholds = [50, 75, 90, 95];
-    const utilization = (this.cumulativeInputTokens / this.contextWindow) * 100;
+    const utilization = (this.latestInputTokens / this.contextWindow) * 100;
 
     for (const threshold of thresholds) {
       if (utilization >= threshold && !this.crossedThresholds.has(threshold)) {
@@ -408,7 +421,7 @@ export class MessageHandler {
         this.drainManager.emit(DrainEventName.CONTEXT_PRESSURE, {
           utilization,
           threshold,
-          inputTokens: this.cumulativeInputTokens,
+          inputTokens: this.latestInputTokens,
           contextWindow: this.contextWindow,
           turnIndex: this.turnIndex,
         }, "MessageHandler:context-pressure");

@@ -1,6 +1,6 @@
 import { logger } from "../logger.js";
 import type { ChildSpawner } from "./child-spawner.js";
-import type { ReplContext, SpawnOptions } from "./types.js";
+import type { ReplContext, ContextShortCircuit } from "./types.js";
 
 /**
  * SDK object injected into mort-repl user code as `mort`.
@@ -23,11 +23,14 @@ export class MortReplSdk {
    * Spawn a child agent process and return its last assistant message.
    * Blocks until the child completes.
    */
-  async spawn(options: SpawnOptions): Promise<string> {
-    if (!options.prompt) {
+  async spawn(options: { prompt: string; contextShortCircuit?: ContextShortCircuit }): Promise<string> {
+    if (!options?.prompt) {
       throw new Error("mort.spawn() requires a prompt");
     }
-    return this.spawner.spawn(options);
+    return this.spawner.spawn({
+      prompt: options.prompt,
+      contextShortCircuit: options.contextShortCircuit,
+    });
   }
 
   /** Log a message (captured in REPL result and sent to agent logger). */

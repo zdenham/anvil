@@ -30,6 +30,11 @@ export interface RunnerConfig {
   skipNaming?: boolean;
   /** Frontend-generated message ID for the user prompt (ensures ID consistency across INIT) */
   messageId?: string;
+  /** Context short-circuit: nudge agent to save progress when context pressure is high */
+  contextShortCircuit?: {
+    limitPercent: number;
+    message: string;
+  };
 }
 
 /**

@@ -26,7 +26,7 @@ export class ChildSpawner {
   private context: ReplContext;
   private emitEvent: ChildSpawnerDeps["emitEvent"];
   private parentToolUseId: string;
-  private activePids = new Set<number>();
+  private activeChildren = new Map<number, { threadId: string; threadPath: string }>();
 
   constructor(deps: ChildSpawnerDeps) {
     this.context = deps.context;
@@ -36,7 +36,7 @@ export class ChildSpawner {
     // Register cleanup on process exit -- piggybacks on runner's SIGTERM/SIGINT
     // handlers which call process.exit(), triggering this listener
     process.on("exit", () => {
-      for (const pid of this.activePids) {
+      for (const pid of this.activeChildren.keys()) {
         try {
           process.kill(pid, "SIGTERM");
         } catch {
@@ -48,14 +48,51 @@ export class ChildSpawner {
 
   /** Kill all currently-active children (used on REPL code error) */
   killAll(): void {
-    for (const pid of this.activePids) {
+    for (const pid of this.activeChildren.keys()) {
       try {
         process.kill(pid, "SIGTERM");
       } catch {
         /* already exited */
       }
     }
-    this.activePids.clear();
+    this.activeChildren.clear();
+  }
+
+  /**
+   * Persist cancelled status and emit events for all active children.
+   * Called during parent cancellation BEFORE hub disconnect so events reach the frontend.
+   * No explicit SIGTERM needed — children inherit the process group signal from the OS.
+   */
+  cancelAll(): void {
+    for (const [_, { threadId, threadPath }] of this.activeChildren) {
+      // Write cancelled status to disk (source of truth for next app refresh)
+      try {
+        const metadataPath = join(threadPath, "metadata.json");
+        if (existsSync(metadataPath)) {
+          const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+          metadata.status = "cancelled";
+          metadata.updatedAt = Date.now();
+          writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+        }
+      } catch (err) {
+        logger.warn(`[mort-repl] Failed to write cancelled status for ${threadId}: ${err}`);
+      }
+
+      // Emit events so frontend updates immediately
+      this.emitEvent(
+        EventName.THREAD_STATUS_CHANGED,
+        { threadId, status: "cancelled" },
+        "mort-repl:child-cancel",
+      );
+      this.emitEvent(
+        EventName.AGENT_COMPLETED,
+        { threadId, exitCode: 130 },
+        "mort-repl:child-cancel",
+      );
+
+      logger.info(`[mort-repl] Cancelled child ${threadId}`);
+    }
+    this.activeChildren.clear();
   }
 
   /** Spawn a child agent process and return its last assistant message text. */
@@ -70,10 +107,10 @@ export class ChildSpawner {
     const child = this.spawnProcess(childThreadId, options);
 
     if (child.pid) {
-      this.activePids.add(child.pid);
+      this.activeChildren.set(child.pid, { threadId: childThreadId, threadPath: childThreadPath });
     }
 
-    return this.waitForResult(child, childThreadId, childThreadPath);
+    return this.waitForResult(child, childThreadId, childThreadPath, options.timeoutMs);
   }
 
   /** Create metadata.json and state.json on disk for the child thread. */
@@ -83,8 +120,8 @@ export class ChildSpawner {
     options: SpawnOptions,
   ): void {
     const now = Date.now();
-    const agentType = options.agentType ?? "general-purpose";
-    const permissionMode = options.permissionMode ?? this.context.permissionModeId;
+    const agentType = "general-purpose";
+    const permissionMode = this.context.permissionModeId;
 
     const childMetadata = {
       id: childThreadId,
@@ -100,6 +137,9 @@ export class ChildSpawner {
       parentToolUseId: this.parentToolUseId,
       agentType,
       permissionMode,
+      visualSettings: {
+        parentId: this.context.threadId,
+      },
     };
 
     mkdirSync(childThreadPath, { recursive: true });
@@ -111,7 +151,7 @@ export class ChildSpawner {
     const initialState = {
       messages: [{ role: "user", content: [{ type: "text", text: options.prompt }] }],
       fileChanges: [],
-      workingDirectory: options.cwd ?? this.context.workingDir,
+      workingDirectory: this.context.workingDir,
       status: "running",
       timestamp: now,
       toolStates: {},
@@ -130,6 +170,7 @@ export class ChildSpawner {
         threadId: childThreadId,
         repoId: this.context.repoId,
         worktreeId: this.context.worktreeId,
+        source: "mort-repl:child-spawn",
       },
       "mort-repl:child-spawn",
     );
@@ -168,25 +209,30 @@ export class ChildSpawner {
     childThreadId: string,
     options: SpawnOptions,
   ): ReturnType<typeof spawnProcess> {
-    const permissionMode = options.permissionMode ?? this.context.permissionModeId;
-
     // Use tsx when runnerPath is a .ts file (e.g. test context via tsx)
     const executable = runnerPath.endsWith(".ts") ? "tsx" : "node";
 
+    const args = [
+      runnerPath,
+      "--thread-id", childThreadId,
+      "--parent-id", this.context.threadId,
+      "--repo-id", this.context.repoId,
+      "--worktree-id", this.context.worktreeId,
+      "--cwd", this.context.workingDir,
+      "--prompt", options.prompt,
+      "--mort-dir", this.context.mortDir,
+      "--parent-thread-id", this.context.threadId,
+      "--permission-mode", this.context.permissionModeId,
+      "--skip-naming",
+    ];
+
+    if (options.contextShortCircuit) {
+      args.push("--context-short-circuit", JSON.stringify(options.contextShortCircuit));
+    }
+
     return spawnProcess(
       executable,
-      [
-        runnerPath,
-        "--thread-id", childThreadId,
-        "--repo-id", this.context.repoId,
-        "--worktree-id", this.context.worktreeId,
-        "--cwd", options.cwd ?? this.context.workingDir,
-        "--prompt", options.prompt,
-        "--mort-dir", this.context.mortDir,
-        "--parent-id", this.context.threadId,
-        "--permission-mode", permissionMode,
-        "--skip-naming",
-      ],
+      args,
       {
         stdio: "pipe",
         env: { ...process.env },
@@ -200,23 +246,48 @@ export class ChildSpawner {
     child: ReturnType<typeof spawnProcess>,
     childThreadId: string,
     childThreadPath: string,
+    timeoutMs: number = 600_000,
   ): Promise<string> {
     const startTime = Date.now();
 
     const exitCode = await new Promise<number>((resolve) => {
-      child.on("exit", (code) => resolve(code ?? 1));
+      const timer = setTimeout(() => {
+        logger.warn(`[mort-repl] Child ${childThreadId} timed out after ${timeoutMs}ms, killing`);
+        try { process.kill(child.pid!, "SIGTERM"); } catch { /* already exited */ }
+        setTimeout(() => {
+          try { process.kill(child.pid!, "SIGKILL"); } catch { /* already exited */ }
+        }, 5000);
+      }, timeoutMs);
+
+      child.on("exit", (code) => { clearTimeout(timer); resolve(code ?? 1); });
       child.on("error", (err) => {
+        clearTimeout(timer);
         logger.error(`[mort-repl] Child process error: ${err}`);
         resolve(1);
       });
     });
 
     if (child.pid) {
-      this.activePids.delete(child.pid);
+      this.activeChildren.delete(child.pid);
     }
 
     const durationMs = Date.now() - startTime;
     const resultText = this.readChildResult(childThreadPath, childThreadId);
+
+    // Determine final status from exit code
+    const status = exitCode === 130 ? "cancelled" : exitCode === 0 ? "completed" : "error";
+
+    // Emit events from parent process (child's events may be lost on socket close)
+    this.emitEvent(
+      EventName.THREAD_STATUS_CHANGED,
+      { threadId: childThreadId, status },
+      "mort-repl:child-complete",
+    );
+    this.emitEvent(
+      EventName.AGENT_COMPLETED,
+      { threadId: childThreadId, exitCode },
+      "mort-repl:child-complete",
+    );
 
     logger.info(
       `[mort-repl] Child ${childThreadId} exited with code ${exitCode} in ${durationMs}ms`,

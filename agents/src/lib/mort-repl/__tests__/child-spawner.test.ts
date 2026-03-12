@@ -123,7 +123,7 @@ describe("ChildSpawner", () => {
       expect(state.messages[0].content[0].text).toBe("do something");
     });
 
-    it("uses custom agentType when provided", async () => {
+    it("sets visualSettings.parentId to parent thread ID", async () => {
       const child = createMockChild();
       mockSpawn.mockReturnValue(child);
       mockExistsSync.mockReturnValue(false);
@@ -134,16 +134,17 @@ describe("ChildSpawner", () => {
         parentToolUseId: "tool-use-abc",
       });
 
-      const promise = spawner.spawn({
-        prompt: "test",
-        agentType: "researcher",
-      });
+      const promise = spawner.spawn({ prompt: "nested child" });
       child.emit("exit", 0);
       await promise;
 
-      const metadata = JSON.parse(mockWriteFileSync.mock.calls[0][1]);
-      expect(metadata.agentType).toBe("researcher");
+      const metadataContent = mockWriteFileSync.mock.calls[0][1];
+      const metadata = JSON.parse(metadataContent);
+      expect(metadata.visualSettings).toEqual({
+        parentId: "parent-thread-id",
+      });
     });
+
   });
 
   // ── Event emission ─────────────────────────────────────────
@@ -170,6 +171,7 @@ describe("ChildSpawner", () => {
           threadId: "child-uuid-1234",
           repoId: "test-repo-id",
           worktreeId: "test-worktree-id",
+          source: "mort-repl:child-spawn",
         },
         "mort-repl:child-spawn",
       );
@@ -199,12 +201,13 @@ describe("ChildSpawner", () => {
         [
           "/fake/runner.js",
           "--thread-id", "child-uuid-1234",
+          "--parent-id", "parent-thread-id",
           "--repo-id", "test-repo-id",
           "--worktree-id", "test-worktree-id",
           "--cwd", "/test/dir",
           "--prompt", "run tests",
           "--mort-dir", "/test/.mort",
-          "--parent-id", "parent-thread-id",
+          "--parent-thread-id", "parent-thread-id",
           "--permission-mode", "implement",
           "--skip-naming",
         ],
@@ -215,7 +218,7 @@ describe("ChildSpawner", () => {
       );
     });
 
-    it("uses custom cwd and permissionMode when provided", async () => {
+    it("uses parent context for cwd and permissionMode", async () => {
       const child = createMockChild();
       mockSpawn.mockReturnValue(child);
       mockExistsSync.mockReturnValue(false);
@@ -226,20 +229,64 @@ describe("ChildSpawner", () => {
         parentToolUseId: "tool-use-222",
       });
 
-      const promise = spawner.spawn({
-        prompt: "custom",
-        cwd: "/custom/dir",
-        permissionMode: "plan",
-      });
+      const promise = spawner.spawn({ prompt: "test" });
       child.emit("exit", 0);
       await promise;
 
       const args = mockSpawn.mock.calls[0][1] as string[];
       const cwdIndex = args.indexOf("--cwd");
-      expect(args[cwdIndex + 1]).toBe("/custom/dir");
+      expect(args[cwdIndex + 1]).toBe("/test/dir");
 
       const modeIndex = args.indexOf("--permission-mode");
-      expect(args[modeIndex + 1]).toBe("plan");
+      expect(args[modeIndex + 1]).toBe("implement");
+    });
+  });
+
+  // ── Context short-circuit CLI arg ──────────────────────────
+
+  describe("contextShortCircuit CLI arg", () => {
+    it("passes --context-short-circuit when option is provided", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(false);
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-csc",
+      });
+
+      const shortCircuit = { limitPercent: 80, message: "Save your progress" };
+      const promise = spawner.spawn({
+        prompt: "long task",
+        contextShortCircuit: shortCircuit,
+      });
+      child.emit("exit", 0);
+      await promise;
+
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      const cscIndex = args.indexOf("--context-short-circuit");
+      expect(cscIndex).toBeGreaterThan(-1);
+      expect(JSON.parse(args[cscIndex + 1])).toEqual(shortCircuit);
+    });
+
+    it("omits --context-short-circuit when option is not provided", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(false);
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-no-csc",
+      });
+
+      const promise = spawner.spawn({ prompt: "short task" });
+      child.emit("exit", 0);
+      await promise;
+
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      expect(args).not.toContain("--context-short-circuit");
     });
   });
 
@@ -373,6 +420,86 @@ describe("ChildSpawner", () => {
     });
   });
 
+  // ── Completion events ────────────────────────────────────────
+
+  describe("completion events", () => {
+    it("emits THREAD_STATUS_CHANGED and AGENT_COMPLETED after child exits", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(false);
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-evt",
+      });
+
+      const promise = spawner.spawn({ prompt: "completion test" });
+      child.emit("exit", 0);
+      await promise;
+
+      expect(emitEvent).toHaveBeenCalledWith(
+        "thread:status-changed",
+        { threadId: "child-uuid-1234", status: "completed" },
+        "mort-repl:child-complete",
+      );
+      expect(emitEvent).toHaveBeenCalledWith(
+        "agent:completed",
+        { threadId: "child-uuid-1234", exitCode: 0 },
+        "mort-repl:child-complete",
+      );
+    });
+
+    it("emits error status when child exits with non-zero code", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(false);
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-err",
+      });
+
+      const promise = spawner.spawn({ prompt: "failing child" });
+      child.emit("exit", 1);
+      await promise;
+
+      expect(emitEvent).toHaveBeenCalledWith(
+        "thread:status-changed",
+        { threadId: "child-uuid-1234", status: "error" },
+        "mort-repl:child-complete",
+      );
+      expect(emitEvent).toHaveBeenCalledWith(
+        "agent:completed",
+        { threadId: "child-uuid-1234", exitCode: 1 },
+        "mort-repl:child-complete",
+      );
+    });
+
+    it("emits cancelled status when child exits with code 130", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(false);
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-cancel",
+      });
+
+      const promise = spawner.spawn({ prompt: "cancelled child" });
+      child.emit("exit", 130);
+      await promise;
+
+      expect(emitEvent).toHaveBeenCalledWith(
+        "thread:status-changed",
+        { threadId: "child-uuid-1234", status: "cancelled" },
+        "mort-repl:child-complete",
+      );
+    });
+  });
+
   // ── killAll() ──────────────────────────────────────────────
 
   describe("killAll", () => {
@@ -402,6 +529,110 @@ describe("ChildSpawner", () => {
       await promise;
 
       killSpy.mockRestore();
+    });
+  });
+
+  // ── cancelAll() ─────────────────────────────────────────────
+
+  describe("cancelAll", () => {
+    it("writes cancelled status to metadata.json and emits events for active children", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(
+        JSON.stringify({ id: "child-uuid-1234", status: "running", updatedAt: 1000 }),
+      );
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-cancel-all",
+      });
+
+      // Start spawn but don't resolve — child is "active"
+      const promise = spawner.spawn({ prompt: "cancel test" });
+
+      // Cancel while child is still running
+      spawner.cancelAll();
+
+      // Verify metadata.json was written with cancelled status
+      const metadataWriteCall = mockWriteFileSync.mock.calls.find(
+        (call: unknown[]) => (call[0] as string).endsWith("metadata.json") && (call[1] as string).includes('"cancelled"'),
+      );
+      expect(metadataWriteCall).toBeDefined();
+      const writtenMetadata = JSON.parse(metadataWriteCall![1] as string);
+      expect(writtenMetadata.status).toBe("cancelled");
+
+      // Verify events emitted
+      expect(emitEvent).toHaveBeenCalledWith(
+        "thread:status-changed",
+        { threadId: "child-uuid-1234", status: "cancelled" },
+        "mort-repl:child-cancel",
+      );
+      expect(emitEvent).toHaveBeenCalledWith(
+        "agent:completed",
+        { threadId: "child-uuid-1234", exitCode: 130 },
+        "mort-repl:child-cancel",
+      );
+
+      // Clean up the pending promise
+      child.emit("exit", 130);
+      await promise;
+    });
+
+    it("clears activeChildren map after cancelAll", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(false);
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-clear",
+      });
+
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+      const promise = spawner.spawn({ prompt: "clear test" });
+
+      spawner.cancelAll();
+
+      // Calling killAll after cancelAll should not try to kill anything
+      // (activeChildren was cleared)
+      spawner.killAll();
+      // killSpy should not have been called by killAll (cancelAll already cleared the map)
+      expect(killSpy).not.toHaveBeenCalled();
+
+      child.emit("exit", 130);
+      await promise;
+      killSpy.mockRestore();
+    });
+
+    it("does not throw when metadata.json does not exist", async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+      mockExistsSync.mockReturnValue(false);
+
+      const spawner = new ChildSpawner({
+        context: mockContext,
+        emitEvent,
+        parentToolUseId: "tool-use-no-meta",
+      });
+
+      const promise = spawner.spawn({ prompt: "no metadata test" });
+
+      // Should not throw even though metadata.json doesn't exist
+      expect(() => spawner.cancelAll()).not.toThrow();
+
+      // Events should still be emitted (frontend update is independent of disk)
+      expect(emitEvent).toHaveBeenCalledWith(
+        "thread:status-changed",
+        { threadId: "child-uuid-1234", status: "cancelled" },
+        "mort-repl:child-cancel",
+      );
+
+      child.emit("exit", 130);
+      await promise;
     });
   });
 

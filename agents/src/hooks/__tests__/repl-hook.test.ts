@@ -17,13 +17,15 @@ vi.mock("../../lib/mort-repl/repl-runner.js", () => {
 });
 
 const mockKillAll = vi.fn();
-const mockSpawnerInstances: Array<{ killAll: ReturnType<typeof vi.fn> }> = [];
+const mockCancelAll = vi.fn();
+const mockSpawnerInstances: Array<{ killAll: ReturnType<typeof vi.fn>; cancelAll: ReturnType<typeof vi.fn> }> = [];
 
 vi.mock("../../lib/mort-repl/child-spawner.js", () => {
   const MockSpawner = vi.fn(function (this: Record<string, unknown>) {
     this.killAll = mockKillAll;
+    this.cancelAll = mockCancelAll;
     this.spawn = vi.fn();
-    mockSpawnerInstances.push(this as { killAll: ReturnType<typeof vi.fn> });
+    mockSpawnerInstances.push(this as { killAll: ReturnType<typeof vi.fn>; cancelAll: ReturnType<typeof vi.fn> });
   });
   return { ChildSpawner: MockSpawner };
 });
@@ -72,7 +74,7 @@ describe("createReplHook", () => {
     it("returns continue for non-mort-repl commands", async () => {
       mockExtractCode.mockReturnValue(null);
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -84,7 +86,7 @@ describe("createReplHook", () => {
     it("does not call execute for non-matching commands", async () => {
       mockExtractCode.mockReturnValue(null);
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -108,7 +110,7 @@ describe("createReplHook", () => {
       mockExecute.mockResolvedValue(replResult);
       mockFormatResult.mockReturnValue("mort-repl result:\n42");
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -135,7 +137,7 @@ describe("createReplHook", () => {
       });
       mockFormatResult.mockReturnValue("mort-repl result:\n42");
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -160,7 +162,7 @@ describe("createReplHook", () => {
       });
       mockFormatResult.mockReturnValue("mort-repl error:\noops");
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -184,7 +186,7 @@ describe("createReplHook", () => {
       });
       mockFormatResult.mockReturnValue("mort-repl result:\n1");
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -207,7 +209,7 @@ describe("createReplHook", () => {
       });
       mockFormatResult.mockReturnValue("mort-repl result:\nundefined");
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -235,7 +237,7 @@ describe("createReplHook", () => {
       });
       mockFormatResult.mockReturnValue("mort-repl result:\n1");
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -257,7 +259,7 @@ describe("createReplHook", () => {
       mockExtractCode.mockReturnValue("bad code");
       mockExecute.mockRejectedValue(new Error("execution failed"));
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
@@ -279,7 +281,7 @@ describe("createReplHook", () => {
       });
       mockFormatResult.mockReturnValue("mort-repl result:\n1");
 
-      const hook = createReplHook({
+      const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });

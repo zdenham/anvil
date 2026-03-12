@@ -743,7 +743,10 @@ pub fn run() {
         .join("agent-hub.sock")
         .to_string_lossy()
         .to_string();
-    let agent_hub = Arc::new(AgentHub::new(socket_path));
+    // Shared agent process map — Rust-side PID tracking for reliable cancellation.
+    // Created first so it can be shared with both AgentHub and WsState.
+    let agent_processes = ws_server::new_agent_process_map();
+    let agent_hub = Arc::new(AgentHub::new(socket_path, agent_processes.clone()));
 
     // Create shared state for both Tauri and WS server
     let lock_manager = Arc::new(mort_commands::LockManager::new());
@@ -757,8 +760,6 @@ pub fn run() {
     agent_hub.set_ws_broadcaster(broadcaster.clone());
     // Clone for Tauri managed state so any module with AppHandle can broadcast
     let managed_broadcaster = broadcaster.clone();
-    // Shared agent process map — Rust-side PID tracking for reliable cancellation
-    let agent_processes = ws_server::new_agent_process_map();
     let ws_state = Arc::new(ws_server::WsState {
         lock_manager: lock_manager.clone(),
         terminal_state: terminal_state.clone(),
