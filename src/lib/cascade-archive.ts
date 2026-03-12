@@ -69,7 +69,7 @@ export function getVisualDescendants(
         case "pull-request":
           result.pullRequests.push(child.id);
           break;
-        // "changes", "uncommitted", "commit" are synthetic — skip
+        // "changes" is synthetic — skip
       }
 
       if (CONTAINER_TYPES.has(child.type)) {

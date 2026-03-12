@@ -136,9 +136,9 @@ export function ResizablePanelVertical({
         {/* Visual indicator - thin line */}
         <div
           className={`
-            absolute left-0 right-0 h-[2px] top-1/2 -translate-y-1/2
+            absolute left-0 right-0 h-px top-1/2 -translate-y-1/2
             transition-colors
-            ${isDragging ? "bg-accent-500/50" : "hover:bg-accent-500/30"}
+            ${isDragging ? "bg-accent-500/50" : "bg-surface-700 hover:bg-accent-500/30"}
           `}
         />
       </div>

@@ -20,7 +20,7 @@
  * - Horizontal resizing (width)
  * - Min/max width constraints
  * - Drag handle with visual indicator
- * - Persist width to ~/.mort/ui/layout.json with Zod validation
+ * - Persist width via layoutService (backed by ~/.mort/ui/layout.json)
  * - Snap-to-close behavior when dragged below threshold
  */
 
@@ -31,18 +31,8 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { z } from "zod";
-import { appData } from "@/lib/app-data-store";
-
-/**
- * Schema for ~/.mort/ui/layout.json
- * Per Zod at Boundaries pattern - validate all disk reads.
- */
-export const LayoutStateSchema = z.object({
-  panelWidths: z.record(z.string(), z.number()),
-});
-
-export type LayoutState = z.infer<typeof LayoutStateSchema>;
+import { useLayoutStore } from "@/stores/layout/store";
+import { layoutService } from "@/stores/layout/service";
 
 export interface ResizablePanelProps {
   /** Which side the resize handle appears on */
@@ -64,8 +54,6 @@ export interface ResizablePanelProps {
   /** Optional className for the container */
   className?: string;
 }
-
-const LAYOUT_PATH = "ui/layout.json";
 
 function getInitialWidth(defaultWidth: number | "1/3", minWidth: number): number {
   if (defaultWidth === "1/3") {
@@ -91,46 +79,15 @@ export function ResizablePanel({
   children,
   className,
 }: ResizablePanelProps) {
-  const [width, setWidth] = useState(() => getInitialWidth(defaultWidth, minWidth));
+  // Read from already-hydrated store — no flash
+  const persistedWidth = useLayoutStore((s) => s.panelWidths[persistKey]);
+  const [width, setWidth] = useState(() =>
+    persistedWidth ?? getInitialWidth(defaultWidth, minWidth)
+  );
   const [isDragging, setIsDragging] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragStartX = useRef<number>(0);
   const dragStartWidth = useRef<number>(0);
-
-  // Load persisted width on mount with Zod validation
-  useEffect(() => {
-    async function loadWidth() {
-      try {
-        const raw = await appData.readJson(LAYOUT_PATH);
-        const result = LayoutStateSchema.safeParse(raw);
-        if (result.success && result.data.panelWidths[persistKey]) {
-          setWidth(result.data.panelWidths[persistKey]);
-        }
-        // If validation fails, use defaultWidth (already set in useState)
-      } catch {
-        // Silently use default on error
-      }
-    }
-    loadWidth();
-  }, [persistKey, defaultWidth]);
-
-  // Persist width changes (debounced via drag end)
-  const persistWidth = useCallback(
-    async (newWidth: number) => {
-      try {
-        const raw = await appData.readJson(LAYOUT_PATH);
-        const result = LayoutStateSchema.safeParse(raw);
-        const layout: LayoutState = result.success
-          ? result.data
-          : { panelWidths: {} };
-        layout.panelWidths[persistKey] = newWidth;
-        await appData.writeJson(LAYOUT_PATH, layout);
-      } catch {
-        // Silently fail on persist error
-      }
-    },
-    [persistKey]
-  );
 
   const handleDrag = useCallback(
     (e: MouseEvent) => {
@@ -166,8 +123,8 @@ export function ResizablePanel({
     setIsDragging(false);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
-    persistWidth(width);
-  }, [width, persistWidth]);
+    layoutService.setPanelWidth(persistKey, width);
+  }, [width, persistKey]);
 
   const handleDragStart = useCallback(
     (e: React.MouseEvent) => {

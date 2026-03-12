@@ -35,8 +35,8 @@ export { MortLogo } from "./mort-logo";
 export { BuildModeIndicator } from "./BuildModeIndicator";
 
 // Resizable panel
-export { ResizablePanel, LayoutStateSchema } from "./resizable-panel";
-export type { ResizablePanelProps, LayoutState } from "./resizable-panel";
+export { ResizablePanel } from "./resizable-panel";
+export type { ResizablePanelProps } from "./resizable-panel";
 
 // Context menu
 export {

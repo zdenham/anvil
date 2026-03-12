@@ -1,55 +1,87 @@
 import { useState, useCallback } from "react";
 
-export type RightPanelState =
-  | { type: "none" }
-  | { type: "file-browser"; rootPath: string; repoId: string; worktreeId: string }
-  | { type: "search" };
+export type RightPanelTab = "search" | "files" | "changelog";
+
+export interface RightPanelState {
+  isOpen: boolean;
+  activeTab: RightPanelTab;
+  /** Explicit worktree override from tree menu "Files" button. Cleared when tab switches away. */
+  filesWorktreeOverride: { repoId: string; worktreeId: string; rootPath: string } | null;
+}
 
 export interface UseRightPanelReturn {
   state: RightPanelState;
+  /** Toggle panel open/close. Remembers last active tab. */
+  toggle: () => void;
+  /** Open panel to a specific tab */
+  openTab: (tab: RightPanelTab) => void;
+  /** Open Files tab with explicit worktree (from tree menu) */
   openFileBrowser: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  /** Open Search tab (Cmd+Shift+F) */
   openSearch: () => void;
+  /** Close the panel */
   close: () => void;
-  /** For tree menu highlight */
-  fileBrowserWorktreeId: string | null;
+  /** Active tab for external consumers */
+  activeTab: RightPanelTab;
+  /** Whether panel is open */
+  isOpen: boolean;
 }
 
+const DEFAULT_STATE: RightPanelState = {
+  isOpen: false,
+  activeTab: "files",
+  filesWorktreeOverride: null,
+};
+
 export function useRightPanel(): UseRightPanelReturn {
-  const [state, setState] = useState<RightPanelState>({ type: "none" });
+  const [state, setState] = useState<RightPanelState>(DEFAULT_STATE);
+
+  const toggle = useCallback(() => {
+    setState((prev) => ({ ...prev, isOpen: !prev.isOpen }));
+  }, []);
+
+  const openTab = useCallback((tab: RightPanelTab) => {
+    setState((prev) => ({
+      ...prev,
+      isOpen: true,
+      activeTab: tab,
+      filesWorktreeOverride: tab === "files" ? prev.filesWorktreeOverride : null,
+    }));
+  }, []);
 
   const openFileBrowser = useCallback(
     (repoId: string, worktreeId: string, worktreePath: string) => {
-      setState((prev) => {
-        // Toggle: if already open for this worktree, close it
-        if (prev.type === "file-browser" && prev.worktreeId === worktreeId) {
-          return { type: "none" };
-        }
-        return { type: "file-browser", rootPath: worktreePath, repoId, worktreeId };
-      });
+      setState((prev) => ({
+        ...prev,
+        isOpen: true,
+        activeTab: "files",
+        filesWorktreeOverride: { repoId, worktreeId, rootPath: worktreePath },
+      }));
     },
-    []
+    [],
   );
 
   const openSearch = useCallback(() => {
-    setState((prev) => {
-      // If already showing search, do nothing (re-focus handled by component)
-      if (prev.type === "search") return prev;
-      return { type: "search" };
-    });
+    setState((prev) => ({
+      ...prev,
+      isOpen: true,
+      activeTab: "search",
+      filesWorktreeOverride: prev.activeTab === "files" ? prev.filesWorktreeOverride : null,
+    }));
   }, []);
 
   const close = useCallback(() => {
-    setState({ type: "none" });
+    setState((prev) => ({ ...prev, isOpen: false }));
   }, []);
-
-  const fileBrowserWorktreeId =
-    state.type === "file-browser" ? state.worktreeId : null;
 
   return {
     state,
+    toggle,
+    openTab,
     openFileBrowser,
     openSearch,
     close,
-    fileBrowserWorktreeId,
+    activeTab: state.activeTab,
+    isOpen: state.isOpen,
   };
 }

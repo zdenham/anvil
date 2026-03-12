@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { FolderGit2, Plus } from "lucide-react";
 import { ThreadInputSection } from "@/components/reusable/thread-input-section";
 import { GuideContent } from "@/components/content-pane/guide-content";
 import { useMRUWorktree } from "@/hooks/use-mru-worktree";
@@ -8,6 +10,11 @@ import { useDraftSync, clearCurrentDraft } from "@/hooks/useDraftSync";
 import { useInputStore } from "@/stores/input-store";
 import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions.js";
 import { logger } from "@/lib/logger-client";
+import { repoService } from "@/entities/repositories";
+import { worktreeService } from "@/entities/worktrees";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { treeMenuService } from "@/stores/tree-menu/service";
+import { createNewProjectAndHydrate } from "@/lib/project-creation-service";
 
 /**
  * EmptyPaneContent
@@ -72,6 +79,42 @@ export function EmptyPaneContent() {
     [repoId, worktreeId, workingDirectory, clearContent, permissionMode]
   );
 
+  const handleImportProject = useCallback(async () => {
+    try {
+      const selectedPath = await open({
+        directory: true,
+        multiple: false,
+        title: "Select Project Folder",
+      });
+
+      if (selectedPath && typeof selectedPath === "string") {
+        const validation = await repoService.validateNewRepository(selectedPath);
+        if (!validation.valid) {
+          logger.error("[EmptyPaneContent] Invalid repository:", validation.error);
+          return;
+        }
+
+        await repoService.createFromFolder(selectedPath);
+        await repoService.hydrate();
+
+        const repos = repoService.getAll();
+        await Promise.all(repos.map((repo) => worktreeService.sync(repo.name)));
+        await useRepoWorktreeLookupStore.getState().hydrate();
+        await treeMenuService.hydrate();
+      }
+    } catch (error) {
+      logger.error("[EmptyPaneContent] Failed to import project:", error);
+    }
+  }, []);
+
+  const handleCreateProject = useCallback(async () => {
+    try {
+      await createNewProjectAndHydrate();
+    } catch (error) {
+      logger.error("[EmptyPaneContent] Failed to create project:", error);
+    }
+  }, []);
+
   // Show message if no repositories configured
   const noRepoConfigured = !isLoading && !mruWorktree;
 
@@ -84,9 +127,27 @@ export function EmptyPaneContent() {
             <h2 className="text-xl font-medium font-mono text-surface-100">
               Welcome to Mort
             </h2>
-            <p className="text-base mt-2">
+            <p className="text-base mt-2 mb-5">
               Add a project to get started
             </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleImportProject}
+                className="flex flex-col items-center gap-2 p-4 rounded-lg border border-surface-600 hover:border-surface-400 hover:bg-surface-800/50 transition-colors"
+              >
+                <FolderGit2 size={20} className="text-surface-300" />
+                <span className="text-sm font-medium text-surface-200">Import existing</span>
+                <span className="text-xs text-surface-400">Open a git repository</span>
+              </button>
+              <button
+                onClick={handleCreateProject}
+                className="flex flex-col items-center gap-2 p-4 rounded-lg border border-surface-600 hover:border-surface-400 hover:bg-surface-800/50 transition-colors"
+              >
+                <Plus size={20} className="text-surface-300" />
+                <span className="text-sm font-medium text-surface-200">Create new project</span>
+                <span className="text-xs text-surface-400">Start from scratch</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : (

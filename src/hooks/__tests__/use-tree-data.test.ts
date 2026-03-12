@@ -468,17 +468,16 @@ describe("buildUnifiedTree", () => {
       expect(changesItem!.parentId).toBe(WORKTREE_ID);
     });
 
-    it("Uncommitted and Commit items appear as children of Changes when expanded", () => {
-      const changesExpandKey = `changes:changes:${WORKTREE_ID}`;
+    it("Changes is a flat leaf node with no children", () => {
       const items = buildTree({
-        expandedSections: {
-          [WORKTREE_ID]: true,
-          [changesExpandKey]: true,
-        },
+        expandedSections: { [WORKTREE_ID]: true },
       });
-      const uncommitted = items.find(i => i.type === "uncommitted");
-      expect(uncommitted).toBeDefined();
-      expect(uncommitted!.depth).toBe(2); // repo=0, worktree=0, changes=1, uncommitted=2
+      const changes = items.find(i => i.type === "changes");
+      expect(changes).toBeDefined();
+      expect(changes!.isFolder).toBe(false);
+      // No uncommitted or commit children should exist
+      const childTypes = items.filter(i => i.parentId === changes!.id);
+      expect(childTypes).toHaveLength(0);
     });
   });
 
@@ -624,20 +623,21 @@ describe("buildUnifiedTree", () => {
   });
 
   describe("files node", () => {
-    it("files node appears as child of worktree", () => {
+    it("Files leaf node exists as child of worktree", () => {
       const items = buildTree({
         expandedSections: { [WORKTREE_ID]: true },
       });
       const filesItem = items.find(i => i.type === "files");
       expect(filesItem).toBeDefined();
       expect(filesItem!.id).toBe(`files:${WORKTREE_ID}`);
-      expect(filesItem!.depth).toBe(1); // repo=0, worktree=0, files=1
-      expect(filesItem!.repoId).toBe(REPO_ID);
+      expect(filesItem!.title).toBe("Files");
+      expect(filesItem!.isFolder).toBe(false);
+      expect(filesItem!.worktreeId).toBe(WORKTREE_ID);
     });
   });
 
   describe("type-priority sorting", () => {
-    it("sorts: Files → PR → Changes → terminal → thread", () => {
+    it("sorts: PR → Changes → terminal → files → thread", () => {
       const thread = createThread({
         id: "thread-1",
         createdAt: BASE_TIME + 5000,
@@ -664,7 +664,7 @@ describe("buildUnifiedTree", () => {
       // Get direct children of worktree (depth 1: repo=0, worktree=0, children=1)
       const children = items.filter(i => i.depth === 1);
       const types = children.map(i => i.type);
-      expect(types).toEqual(["files", "pull-request", "changes", "terminal", "thread"]);
+      expect(types).toEqual(["pull-request", "changes", "terminal", "files", "thread"]);
     });
 
     it("DnD-positioned thread (with sortKey) stays below operational items", () => {
@@ -678,8 +678,7 @@ describe("buildUnifiedTree", () => {
       });
       const children = items.filter(i => i.depth === 1);
       const types = children.map(i => i.type);
-      // Files and Changes (operational) must appear before thread regardless of sortKey
-      expect(types.indexOf("files")).toBeLessThan(types.indexOf("thread"));
+      // Changes (operational) must appear before thread regardless of sortKey
       expect(types.indexOf("changes")).toBeLessThan(types.indexOf("thread"));
     });
 

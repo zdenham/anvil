@@ -5,7 +5,6 @@ import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { navigationService } from "@/stores/navigation-service";
-import { useCommitStore } from "@/stores/commit-store";
 import type { TreeItemNode, EntityItemType } from "@/stores/tree-menu/types";
 import { TreeItemRenderer } from "./tree-item-renderer";
 import { useTreeDnd } from "./use-tree-dnd";
@@ -18,6 +17,7 @@ import { createRootFolder } from "./folder-actions";
 
 interface TreeMenuProps {
   onItemSelect: (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => void;
+  onFilesClick?: (item: TreeItemNode) => void;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
@@ -28,8 +28,6 @@ interface TreeMenuProps {
   onPinToggle?: (worktreeId: string) => void;
   /** ID of currently pinned worktree, or null */
   pinnedWorktreeId?: string | null;
-  onOpenFiles?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  fileBrowserWorktreeId?: string | null;
   className?: string;
 }
 
@@ -39,10 +37,9 @@ interface TreeMenuProps {
  * to the correct component. Supports keyboard navigation.
  */
 export function TreeMenu({
-  onItemSelect, onNewThread, onNewTerminal, onCreatePr,
+  onItemSelect, onFilesClick, onNewThread, onNewTerminal, onCreatePr,
   onNewWorktree, onArchiveWorktree,
-  creatingWorktreeIds, onPinToggle, pinnedWorktreeId,
-  onOpenFiles, fileBrowserWorktreeId, className,
+  creatingWorktreeIds, onPinToggle, pinnedWorktreeId, className,
 }: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const items = useTreeData();
@@ -88,7 +85,7 @@ export function TreeMenu({
     return counts;
   }, [items]);
 
-  // Changes/Uncommitted/Commit navigation helpers
+  // Changes navigation handler
   const handleChangesClick = useCallback(async (item: TreeItemNode) => {
     if (!item.worktreeId) return;
     const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
@@ -99,43 +96,10 @@ export function TreeMenu({
     }
   }, [items]);
 
-  const handleUncommittedClick = useCallback(async (item: TreeItemNode) => {
-    if (!item.worktreeId) return;
-    const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
-    if (worktreeNode?.repoId) {
-      await navigationService.navigateToChanges(worktreeNode.repoId, item.worktreeId, {
-        uncommittedOnly: true,
-        treeItemId: item.id,
-      });
-    }
-  }, [items]);
-
-  const handleCommitClick = useCallback(async (item: TreeItemNode) => {
-    if (!item.worktreeId) return;
-    const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
-    if (worktreeNode?.repoId) {
-      await navigationService.navigateToChanges(worktreeNode.repoId, item.worktreeId, {
-        commitHash: item.commitHash!,
-        treeItemId: item.id,
-      });
-    }
-  }, [items]);
-
-  // Commit fetching: trigger when Changes folder is expanded
-  useEffect(() => {
-    for (const item of items) {
-      if (item.type === "changes" && item.isExpanded && item.worktreeId) {
-        const worktreeNode = items.find(i => i.type === "worktree" && i.id === item.worktreeId);
-        if (worktreeNode?.worktreePath) {
-          useCommitStore.getState().fetchCommits(
-            item.worktreeId,
-            worktreeNode.worktreePath,
-            worktreeNode.worktreeName ?? "",
-          );
-        }
-      }
-    }
-  }, [items]);
+  // Files navigation handler — opens the right panel Files tab
+  const handleFilesClick = useCallback((item: TreeItemNode) => {
+    onFilesClick?.(item);
+  }, [onFilesClick]);
 
   const handleItemSelect = useCallback(
     async (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => {
@@ -239,8 +203,7 @@ export function TreeMenu({
                   selectedItemId={selectedItemId}
                   onItemSelect={handleItemSelect}
                   onChangesClick={handleChangesClick}
-                  onUncommittedClick={handleUncommittedClick}
-                  onCommitClick={handleCommitClick}
+                  onFilesClick={handleFilesClick}
                   onNewThread={onNewThread}
                   onNewTerminal={onNewTerminal}
                   onCreatePr={onCreatePr}
@@ -250,8 +213,6 @@ export function TreeMenu({
                   isCreatingWorktree={item.type === "worktree" && (creatingWorktreeIds?.has(item.id) ?? false)}
                   onPinToggle={onPinToggle}
                   isPinned={item.type === "worktree" && pinnedWorktreeId === item.id}
-                  onOpenFiles={onOpenFiles}
-                  isFileBrowserOpen={(item.type === "worktree" || item.type === "files") && fileBrowserWorktreeId === item.worktreeId}
                 />
               </React.Fragment>
             );

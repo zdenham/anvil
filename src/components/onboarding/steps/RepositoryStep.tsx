@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { FolderGit2, Plus } from "lucide-react";
 import { Button } from "../../reusable/Button";
 import { repoService } from "@/entities/repositories";
+import { createNewProject } from "@/lib/project-creation-service";
 
 interface RepositoryStepProps {
   selectedRepository: string | null;
@@ -30,12 +32,8 @@ export const RepositoryStep = ({
         title: "Select a project folder",
       });
 
-      if (!selectedPath) {
-        // User cancelled the dialog
-        return;
-      }
+      if (!selectedPath) return;
 
-      // Validate that it's a git repository
       const validation = await repoService.validateNewRepository(selectedPath);
       if (!validation.valid) {
         setError(validation.error ?? "Invalid project folder");
@@ -44,9 +42,23 @@ export const RepositoryStep = ({
 
       onRepositorySelected(selectedPath);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to select project"
-      );
+      setError(err instanceof Error ? err.message : "Failed to select project");
+    } finally {
+      setIsSelecting(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    setIsSelecting(true);
+    setError(null);
+
+    try {
+      const projectPath = await createNewProject();
+      if (projectPath) {
+        onRepositorySelected(projectPath);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setIsSelecting(false);
     }
@@ -90,11 +102,25 @@ export const RepositoryStep = ({
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="text-surface-400">No project selected</div>
-              <Button variant="light" onClick={handleBrowse} disabled={isSelecting}>
-                {isSelecting ? "Selecting..." : "Browse for Project"}
-              </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleBrowse}
+                disabled={isSelecting}
+                className="flex flex-col items-center gap-2 p-4 rounded-lg border border-surface-600 hover:border-surface-400 hover:bg-surface-800/50 transition-colors text-center disabled:opacity-50"
+              >
+                <FolderGit2 size={20} className="text-surface-300" />
+                <span className="text-sm font-medium text-surface-200">Import existing</span>
+                <span className="text-xs text-surface-400">Open a git repository</span>
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={isSelecting}
+                className="flex flex-col items-center gap-2 p-4 rounded-lg border border-surface-600 hover:border-surface-400 hover:bg-surface-800/50 transition-colors text-center disabled:opacity-50"
+              >
+                <Plus size={20} className="text-surface-300" />
+                <span className="text-sm font-medium text-surface-200">Create new project</span>
+                <span className="text-xs text-surface-400">Start from scratch</span>
+              </button>
             </div>
           )}
         </div>
@@ -104,7 +130,6 @@ export const RepositoryStep = ({
             {error}
           </div>
         )}
-
       </div>
     </div>
   );

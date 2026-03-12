@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useRightPanel } from "./use-right-panel";
 
@@ -7,157 +7,91 @@ describe("useRightPanel", () => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    // Clean up any remaining event listeners
-  });
-
-  it("starts with none state", () => {
+  it("starts closed with files tab as default", () => {
     const { result } = renderHook(() => useRightPanel());
 
-    expect(result.current.state).toEqual({ type: "none" });
-    expect(result.current.fileBrowserWorktreeId).toBeNull();
+    expect(result.current.isOpen).toBe(false);
+    expect(result.current.activeTab).toBe("files");
+    expect(result.current.state.filesWorktreeOverride).toBeNull();
   });
 
-  it("opens file browser for a worktree", () => {
+  it("toggle opens and closes the panel", () => {
+    const { result } = renderHook(() => useRightPanel());
+
+    act(() => { result.current.toggle(); });
+    expect(result.current.isOpen).toBe(true);
+
+    act(() => { result.current.toggle(); });
+    expect(result.current.isOpen).toBe(false);
+  });
+
+  it("toggle preserves active tab across close/open", () => {
+    const { result } = renderHook(() => useRightPanel());
+
+    act(() => { result.current.openSearch(); });
+    expect(result.current.activeTab).toBe("search");
+
+    act(() => { result.current.close(); });
+    expect(result.current.isOpen).toBe(false);
+    expect(result.current.activeTab).toBe("search");
+
+    act(() => { result.current.toggle(); });
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.activeTab).toBe("search");
+  });
+
+  it("openTab switches tab and opens panel", () => {
+    const { result } = renderHook(() => useRightPanel());
+
+    act(() => { result.current.openTab("changelog"); });
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.activeTab).toBe("changelog");
+  });
+
+  it("openFileBrowser sets files tab with worktree override", () => {
     const { result } = renderHook(() => useRightPanel());
 
     act(() => {
       result.current.openFileBrowser("repo-1", "wt-1", "/path/to/worktree");
     });
 
-    expect(result.current.state).toEqual({
-      type: "file-browser",
-      rootPath: "/path/to/worktree",
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.activeTab).toBe("files");
+    expect(result.current.state.filesWorktreeOverride).toEqual({
       repoId: "repo-1",
       worktreeId: "wt-1",
-    });
-    expect(result.current.fileBrowserWorktreeId).toBe("wt-1");
-  });
-
-  it("toggles off when clicking same worktree", () => {
-    const { result } = renderHook(() => useRightPanel());
-
-    // Open
-    act(() => {
-      result.current.openFileBrowser("repo-1", "wt-1", "/path/to/worktree");
-    });
-    expect(result.current.state.type).toBe("file-browser");
-
-    // Toggle off by clicking same worktree
-    act(() => {
-      result.current.openFileBrowser("repo-1", "wt-1", "/path/to/worktree");
-    });
-    expect(result.current.state).toEqual({ type: "none" });
-    expect(result.current.fileBrowserWorktreeId).toBeNull();
-  });
-
-  it("switches worktrees when clicking different worktree", () => {
-    const { result } = renderHook(() => useRightPanel());
-
-    // Open for worktree 1
-    act(() => {
-      result.current.openFileBrowser("repo-1", "wt-1", "/path/to/wt1");
-    });
-    expect(result.current.fileBrowserWorktreeId).toBe("wt-1");
-
-    // Switch to worktree 2
-    act(() => {
-      result.current.openFileBrowser("repo-1", "wt-2", "/path/to/wt2");
-    });
-    expect(result.current.state).toEqual({
-      type: "file-browser",
-      rootPath: "/path/to/wt2",
-      repoId: "repo-1",
-      worktreeId: "wt-2",
-    });
-    expect(result.current.fileBrowserWorktreeId).toBe("wt-2");
-  });
-
-  it("closes via close()", () => {
-    const { result } = renderHook(() => useRightPanel());
-
-    act(() => {
-      result.current.openFileBrowser("repo-1", "wt-1", "/path/to/worktree");
-    });
-    expect(result.current.state.type).toBe("file-browser");
-
-    act(() => {
-      result.current.close();
-    });
-    expect(result.current.state).toEqual({ type: "none" });
-  });
-
-  it("opens search panel", () => {
-    const { result } = renderHook(() => useRightPanel());
-
-    act(() => {
-      result.current.openSearch();
-    });
-
-    expect(result.current.state).toEqual({ type: "search" });
-    expect(result.current.fileBrowserWorktreeId).toBeNull();
-  });
-
-  it("does not change state when search is already open", () => {
-    const { result } = renderHook(() => useRightPanel());
-
-    act(() => {
-      result.current.openSearch();
-    });
-    const firstState = result.current.state;
-
-    act(() => {
-      result.current.openSearch();
-    });
-    // Same reference — setState returned prev
-    expect(result.current.state).toBe(firstState);
-  });
-
-  it("openSearch closes file browser", () => {
-    const { result } = renderHook(() => useRightPanel());
-
-    act(() => {
-      result.current.openFileBrowser("repo-1", "wt-1", "/path/to/worktree");
-    });
-    expect(result.current.state.type).toBe("file-browser");
-
-    act(() => {
-      result.current.openSearch();
-    });
-    expect(result.current.state).toEqual({ type: "search" });
-    expect(result.current.fileBrowserWorktreeId).toBeNull();
-  });
-
-  it("openFileBrowser closes search panel", () => {
-    const { result } = renderHook(() => useRightPanel());
-
-    act(() => {
-      result.current.openSearch();
-    });
-    expect(result.current.state.type).toBe("search");
-
-    act(() => {
-      result.current.openFileBrowser("repo-1", "wt-1", "/path/to/worktree");
-    });
-    expect(result.current.state).toEqual({
-      type: "file-browser",
       rootPath: "/path/to/worktree",
-      repoId: "repo-1",
-      worktreeId: "wt-1",
     });
   });
 
-  it("close works from search state", () => {
+  it("openSearch opens panel on search tab", () => {
+    const { result } = renderHook(() => useRightPanel());
+
+    act(() => { result.current.openSearch(); });
+
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.activeTab).toBe("search");
+  });
+
+  it("switching away from files tab clears worktree override", () => {
     const { result } = renderHook(() => useRightPanel());
 
     act(() => {
-      result.current.openSearch();
+      result.current.openFileBrowser("repo-1", "wt-1", "/path/to/worktree");
     });
-    expect(result.current.state.type).toBe("search");
+    expect(result.current.state.filesWorktreeOverride).not.toBeNull();
 
-    act(() => {
-      result.current.close();
-    });
-    expect(result.current.state).toEqual({ type: "none" });
+    act(() => { result.current.openTab("search"); });
+    expect(result.current.state.filesWorktreeOverride).toBeNull();
+  });
+
+  it("close preserves active tab but sets isOpen to false", () => {
+    const { result } = renderHook(() => useRightPanel());
+
+    act(() => { result.current.openTab("changelog"); });
+    act(() => { result.current.close(); });
+
+    expect(result.current.isOpen).toBe(false);
+    expect(result.current.activeTab).toBe("changelog");
   });
 });

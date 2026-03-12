@@ -12,8 +12,30 @@ import { updateRangeDiffCache } from "./changes-diff-cache";
 
 export const MAX_DISPLAYED_FILES = 300;
 
-/** Cache for immutable single-commit diffs */
-const commitDiffCache = new Map<string, { raw: string; parsed: ParsedDiff }>();
+/** Cache for immutable single-commit diffs (includes file contents after first fetch) */
+const commitDiffCache = new Map<string, {
+  raw: string;
+  parsed: ParsedDiff;
+  fileContents?: Record<string, FileContentEntry>;
+}>();
+
+/** Get cached file contents for a commit (if previously fetched) */
+export function getCachedCommitFileContents(
+  commitHash: string,
+): Record<string, FileContentEntry> | undefined {
+  return commitDiffCache.get(commitHash)?.fileContents;
+}
+
+/** Store file contents in the commit diff cache */
+function cacheCommitFileContents(
+  commitHash: string,
+  fileContents: Record<string, FileContentEntry>,
+): void {
+  const entry = commitDiffCache.get(commitHash);
+  if (entry) {
+    entry.fileContents = fileContents;
+  }
+}
 
 // ─── Merge base resolution ──────────────────────────────────────────────────
 
@@ -210,6 +232,12 @@ export async function fetchFileContents(params: {
   uncommittedOnly?: boolean;
 }): Promise<Record<string, FileContentEntry>> {
   const { worktreePath, files, mergeBase, commitHash, uncommittedOnly } = params;
+
+  // Commit mode: use bulk cat-file --batch (2 subprocesses instead of 2*N)
+  if (commitHash) {
+    return fetchCommitFileContentsBulk(worktreePath, files, commitHash);
+  }
+
   const result: Record<string, FileContentEntry> = {};
 
   const fetches = files.map(async (file) => {
@@ -219,9 +247,7 @@ export async function fetchFileContents(params: {
     const entry: FileContentEntry = {};
 
     try {
-      if (commitHash) {
-        await fetchCommitFileContent(worktreePath, filePath, file.type, commitHash, entry);
-      } else if (uncommittedOnly) {
+      if (uncommittedOnly) {
         await fetchUncommittedFileContent(worktreePath, filePath, file.type, entry);
       } else if (mergeBase) {
         await fetchRangeFileContent(worktreePath, filePath, file.type, mergeBase, entry);
@@ -237,16 +263,86 @@ export async function fetchFileContents(params: {
   return result;
 }
 
-async function fetchCommitFileContent(
-  cwd: string, filePath: string, type: ParsedDiffFile["type"],
-  commitHash: string, entry: FileContentEntry,
-): Promise<void> {
-  const [oldContent, newContent] = await Promise.all([
-    type !== "added" ? safeShowFile(cwd, filePath, `${commitHash}~1`) : undefined,
-    type !== "deleted" ? safeShowFile(cwd, filePath, commitHash) : undefined,
-  ]);
-  entry.oldContent = oldContent;
-  entry.newContent = newContent;
+/**
+ * Bulk-fetch file contents for a commit using git cat-file --batch.
+ * Returns a record keyed by file path with old/new content.
+ */
+async function fetchCommitFileContentsBulk(
+  cwd: string,
+  files: ParsedDiffFile[],
+  commitHash: string,
+): Promise<Record<string, FileContentEntry>> {
+  const result: Record<string, FileContentEntry> = {};
+  const filePaths: string[] = [];
+  const oldRefs: string[] = [];
+  const newRefs: string[] = [];
+
+  for (const file of files) {
+    const path = file.newPath ?? file.oldPath;
+    if (!path) continue;
+    filePaths.push(path);
+    oldRefs.push(file.type !== "added" ? `${commitHash}~1:${path}` : "");
+    newRefs.push(file.type !== "deleted" ? `${commitHash}:${path}` : "");
+  }
+
+  // Build a single refs array, filtering empties, and track index mapping
+  const allRefs: string[] = [];
+  const oldIndices: number[] = []; // index into allRefs for each file's old ref (-1 if skipped)
+  const newIndices: number[] = [];
+
+  for (let i = 0; i < filePaths.length; i++) {
+    if (oldRefs[i]) {
+      oldIndices.push(allRefs.length);
+      allRefs.push(oldRefs[i]);
+    } else {
+      oldIndices.push(-1);
+    }
+  }
+  for (let i = 0; i < filePaths.length; i++) {
+    if (newRefs[i]) {
+      newIndices.push(allRefs.length);
+      allRefs.push(newRefs[i]);
+    } else {
+      newIndices.push(-1);
+    }
+  }
+
+  if (allRefs.length === 0) return result;
+
+  try {
+    const batchResults = await gitCommands.catFileBatch(cwd, allRefs);
+
+    for (let i = 0; i < filePaths.length; i++) {
+      const entry: FileContentEntry = {};
+      if (oldIndices[i] >= 0) {
+        entry.oldContent = batchResults[oldIndices[i]] ?? undefined;
+      }
+      if (newIndices[i] >= 0) {
+        entry.newContent = batchResults[newIndices[i]] ?? undefined;
+      }
+      result[filePaths[i]] = entry;
+    }
+  } catch (err) {
+    logger.warn("[fetchCommitFileContentsBulk] batch failed, falling back to per-file:", err);
+    // Fallback to per-file fetching
+    const fetches = files.map(async (file) => {
+      const filePath = file.newPath ?? file.oldPath;
+      if (!filePath) return;
+      const entry: FileContentEntry = {};
+      const [oldContent, newContent] = await Promise.all([
+        file.type !== "added" ? safeShowFile(cwd, filePath, `${commitHash}~1`) : undefined,
+        file.type !== "deleted" ? safeShowFile(cwd, filePath, commitHash) : undefined,
+      ]);
+      entry.oldContent = oldContent;
+      entry.newContent = newContent;
+      result[filePath] = entry;
+    });
+    await Promise.all(fetches);
+  }
+
+  // Store in commit diff cache for instant repeat views
+  cacheCommitFileContents(commitHash, result);
+  return result;
 }
 
 async function fetchUncommittedFileContent(

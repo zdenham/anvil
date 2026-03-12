@@ -7,8 +7,6 @@ import { PlanItem } from "./plan-item";
 import { TerminalItem } from "./terminal-item";
 import { PullRequestItem } from "./pull-request-item";
 import { ChangesItem } from "./changes-item";
-import { UncommittedItem } from "./uncommitted-item";
-import { CommitItem } from "./commit-item";
 import { FilesItem } from "./files-item";
 
 export interface TreeItemRendererProps {
@@ -19,8 +17,7 @@ export interface TreeItemRendererProps {
   selectedItemId: string | null;
   onItemSelect: (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => void;
   onChangesClick: (item: TreeItemNode) => void;
-  onUncommittedClick: (item: TreeItemNode) => void;
-  onCommitClick: (item: TreeItemNode) => void;
+  onFilesClick: (item: TreeItemNode) => void;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
@@ -30,8 +27,6 @@ export interface TreeItemRendererProps {
   isCreatingWorktree?: boolean;
   onPinToggle?: (worktreeId: string) => void;
   isPinned?: boolean;
-  onOpenFiles?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  isFileBrowserOpen?: boolean;
 }
 
 /**
@@ -40,10 +35,10 @@ export interface TreeItemRendererProps {
  */
 export function TreeItemRenderer({
   item, index, allItems, childCount, selectedItemId, onItemSelect,
-  onChangesClick, onUncommittedClick, onCommitClick,
+  onChangesClick, onFilesClick,
   onNewThread, onNewTerminal, onCreatePr, onNewWorktree,
   onArchiveWorktree, onRefresh, isCreatingWorktree,
-  onPinToggle, isPinned, onOpenFiles, isFileBrowserOpen,
+  onPinToggle, isPinned,
 }: TreeItemRendererProps) {
   const isSelected = selectedItemId === item.id;
 
@@ -102,17 +97,6 @@ export function TreeItemRenderer({
           itemIndex={index}
         />
       );
-    case "files":
-      return item.repoId && item.worktreeId && onOpenFiles ? (
-        <FilesItem
-          repoId={item.repoId}
-          worktreeId={item.worktreeId}
-          worktreePath={item.worktreePath ?? ""}
-          isActive={isFileBrowserOpen ?? false}
-          onOpenFiles={onOpenFiles}
-          depth={item.depth}
-        />
-      ) : null;
     case "changes":
       return (
         <ChangesItem
@@ -120,18 +104,11 @@ export function TreeItemRenderer({
           onNavigate={() => onChangesClick(item)}
         />
       );
-    case "uncommitted":
+    case "files":
       return (
-        <UncommittedItem
+        <FilesItem
           item={item} isSelected={isSelected}
-          onNavigate={() => onUncommittedClick(item)}
-        />
-      );
-    case "commit":
-      return (
-        <CommitItem
-          item={item} isSelected={isSelected}
-          onNavigate={() => onCommitClick(item)}
+          onNavigate={() => onFilesClick(item)}
         />
       );
     default:

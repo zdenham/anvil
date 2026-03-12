@@ -81,8 +81,6 @@ describe("canCrossWorktreeBoundary", () => {
       "folder",
       "worktree",
       "changes",
-      "uncommitted",
-      "commit",
     ];
     for (const type of types) {
       expect(canCrossWorktreeBoundary(type)).toBe(false);
@@ -232,8 +230,6 @@ describe("getDropPosition", () => {
         "terminal",
         "pull-request",
         "changes",
-        "uncommitted",
-        "commit",
       ];
       for (const type of leafTypes) {
         const pos = getDropPosition(120, rect, type);
@@ -278,22 +274,6 @@ describe("validateDrop", () => {
 
     it("cannot drag a changes item", () => {
       const dragged = createNode({ type: "changes", id: "changes:wt-1" });
-      const target = createNode({ type: "folder", isFolder: true });
-      const { nodeMap, parentMap } = makeMaps([]);
-      const result = validateDrop(dragged, target, "inside", nodeMap, parentMap);
-      expect(result.valid).toBe(false);
-    });
-
-    it("cannot drag an uncommitted item", () => {
-      const dragged = createNode({ type: "uncommitted" });
-      const target = createNode({ type: "folder", isFolder: true });
-      const { nodeMap, parentMap } = makeMaps([]);
-      const result = validateDrop(dragged, target, "inside", nodeMap, parentMap);
-      expect(result.valid).toBe(false);
-    });
-
-    it("cannot drag a commit item", () => {
-      const dragged = createNode({ type: "commit" });
       const target = createNode({ type: "folder", isFolder: true });
       const { nodeMap, parentMap } = makeMaps([]);
       const result = validateDrop(dragged, target, "inside", nodeMap, parentMap);

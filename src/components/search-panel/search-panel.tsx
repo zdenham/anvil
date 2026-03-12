@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { VirtualizedResults } from "./virtualized-results";
 import { useSearch } from "./use-search";
-import { SearchHeader, SearchInput, FileScope, FilterFields, SummaryBar, useWorktreeOptions } from "./search-controls";
+import { SearchInput, FileScope, FilterFields, SummaryBar, useWorktreeOptions } from "./search-controls";
 import { useSearchState } from "@/stores/search-state";
 import { useThreadStore } from "@/entities/threads/store";
 import type { GrepMatch } from "@/lib/tauri-commands";
@@ -133,7 +133,6 @@ export function SearchPanel({ onClose, onNavigateToFile, onNavigateToThread }: S
 
   return (
     <div data-testid="search-panel" className="flex flex-col h-full">
-      <SearchHeader onClose={onClose} />
       <SearchInput
         ref={inputRef}
         value={search.query}

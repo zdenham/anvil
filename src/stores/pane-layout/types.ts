@@ -50,12 +50,26 @@ export type SplitNode =
     };
 
 /**
+ * Schema for the terminal bottom panel state.
+ * The terminal panel has its own split tree, mirroring the content zone.
+ */
+export const TerminalPanelStateSchema = z.object({
+  root: SplitNodeSchema,
+  height: z.number(),
+  isOpen: z.boolean(),
+  isMaximized: z.boolean(),
+});
+
+export type TerminalPanelState = z.infer<typeof TerminalPanelStateSchema>;
+
+/**
  * Schema for the full persisted pane layout state.
  */
 export const PaneLayoutPersistedStateSchema = z.object({
   root: SplitNodeSchema,
   groups: z.record(z.string(), PaneGroupSchema),
   activeGroupId: z.string(),
+  terminalPanel: TerminalPanelStateSchema.optional(),
 });
 
 export type PaneLayoutPersistedState = z.infer<typeof PaneLayoutPersistedStateSchema>;

@@ -3,6 +3,7 @@
 ## Problem
 
 The onboarding flow currently has 4 mandatory steps:
+
 1. Welcome
 2. Permissions (accessibility + documents access)
 3. Spotlight (disable macOS Spotlight shortcut)
@@ -19,11 +20,13 @@ Steps 2 and 3 create friction for new users. The accessibility permission and Sp
 
 ## Phases
 
-- [ ] Simplify onboarding flow to Welcome → Repository → Complete
-- [ ] Remove the post-onboarding accessibility gate from App.tsx
-- [ ] Add Spotlight and Accessibility settings sections to Settings page
+- [x] Simplify onboarding flow to Welcome → Repository → Complete
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+- [x] Remove the post-onboarding accessibility gate from App.tsx
+
+- [x] Add Spotlight and Accessibility settings sections to Settings page
+
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -44,6 +47,7 @@ Steps 2 and 3 create friction for new users. The accessibility permission and Sp
 - Update `getButtonText` — no more "It's disabled" variant
 
 **Files to potentially delete or mark unused:**
+
 - `src/components/onboarding/steps/SpotlightStep.tsx` — no longer used in onboarding (but its logic moves to Settings)
 - `src/components/onboarding/steps/PermissionsStep.tsx` — same
 
@@ -68,11 +72,13 @@ Currently after onboarding, `App.tsx` checks accessibility permission and shows 
 Add two new settings sections:
 
 1. **SpotlightSettings** — new file `src/components/main-window/settings/spotlight-settings.tsx`
+
    - Shows current hotkey
    - "Disable macOS Spotlight shortcut" button (reuse logic from `SpotlightStep`)
    - "Change hotkey" option (reuse `HotkeyRecorder`)
 
 2. **PermissionsSettings** — new file `src/components/main-window/settings/permissions-settings.tsx`
+
    - Shows accessibility permission status (granted/not granted)
    - "Grant Accessibility Access" button if not granted
    - Shows documents access status
@@ -83,7 +89,7 @@ Add both to `SettingsPage` render, between `HotkeySettings` and `SkillsSettings`
 ## Key files
 
 | File | Role |
-|------|------|
+| --- | --- |
 | `src/components/onboarding/OnboardingFlow.tsx` | Main onboarding flow (simplify) |
 | `src/components/onboarding/steps/SpotlightStep.tsx` | Spotlight disable UI (move to settings) |
 | `src/components/onboarding/steps/PermissionsStep.tsx` | Permissions UI (move to settings) |

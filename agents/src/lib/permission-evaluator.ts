@@ -30,6 +30,11 @@ export const GLOBAL_OVERRIDES: PermissionRule[] = [
     decision: "deny",
     reason: "Worktree creation is managed by Mort. Use the Bash tool with `git worktree add` if you need a worktree, or ask the user to create one from the sidebar.",
   },
+  {
+    toolPattern: "^(Mcp|ListMcpResources|ReadMcpResource|SubscribeMcpResource|UnsubscribeMcpResource|SubscribePolling|UnsubscribePolling)$",
+    decision: "deny",
+    reason: "MCP is not supported. Do not attempt to use MCP tools.",
+  },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────

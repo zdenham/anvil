@@ -5,6 +5,5 @@ export { FolderItem } from "./folder-item";
 export { ThreadItem } from "./thread-item";
 export { PlanItem } from "./plan-item";
 export { ChangesItem } from "./changes-item";
-export { UncommittedItem } from "./uncommitted-item";
-export { CommitItem } from "./commit-item";
+export { FilesItem } from "./files-item";
 export { useTreeKeyboardNav, useTreeItemKeyboardNav } from "./use-tree-keyboard-nav";

@@ -7,12 +7,12 @@ const CONTAINER_TYPES: Set<TreeItemType> = new Set([
 
 /** Types that are synthetic and cannot be dragged or dropped onto. */
 const SYNTHETIC_TYPES: Set<TreeItemType> = new Set([
-  "repo", "changes", "uncommitted", "commit",
+  "repo", "changes",
 ]);
 
 /** Types that are leaf-only and cannot accept drops "inside". */
 const LEAF_TYPES: Set<TreeItemType> = new Set([
-  "terminal", "pull-request", "changes", "uncommitted", "commit",
+  "terminal", "pull-request", "changes",
 ]);
 
 export type DropPosition = "above" | "inside" | "below";

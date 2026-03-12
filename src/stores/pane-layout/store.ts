@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import type { Rollback } from "@/lib/optimistic";
 import { type ContentPaneView, type ViewCategory, getViewCategory } from "@/components/content-pane/types";
-import type { PaneLayoutPersistedState, PaneGroup, TabItem } from "./types";
-import { splitLeafNode, getNodeAtPath, replaceNodeAtPath, collapseSplitAtPath } from "./split-tree";
+import type { PaneLayoutPersistedState, PaneGroup, TabItem, TerminalPanelState } from "./types";
+import { splitLeafNode, getNodeAtPath, replaceNodeAtPath, collapseSplitAtPath, findGroupPath } from "./split-tree";
 import { createGroup } from "./defaults";
 
 interface PaneLayoutState extends PaneLayoutPersistedState {
@@ -27,6 +27,23 @@ interface PaneLayoutState extends PaneLayoutPersistedState {
     sourceGroupId: string,
     tabId: string,
   ) => { newGroupId: string; rollback: Rollback };
+  _applySetTerminalPanelOpen: (isOpen: boolean) => Rollback;
+  _applySetTerminalPanelHeight: (height: number) => Rollback;
+  _applySetTerminalPanelMaximized: (isMaximized: boolean) => Rollback;
+  _applySetTerminalPanelRoot: (root: import("./types").SplitNode) => Rollback;
+  _applyTerminalSplitGroup: (
+    groupId: string,
+    dir: "horizontal" | "vertical",
+    newGroup: PaneGroup,
+    initialSizes?: [number, number],
+  ) => Rollback;
+  _applyTerminalSplitAndMoveTab: (
+    targetGroupId: string,
+    direction: "horizontal" | "vertical",
+    sourceGroupId: string,
+    tabId: string,
+  ) => { newGroupId: string; rollback: Rollback };
+  _applyTerminalUpdateSplitSizes: (path: number[], sizes: number[]) => Rollback;
 }
 
 function updateGroup(s: PaneLayoutState, groupId: string, patch: Partial<PaneGroup>): Partial<PaneLayoutState> {
@@ -138,9 +155,15 @@ export const usePaneLayoutStore = create<PaneLayoutState>((set, get) => ({
     const prev = get().activeGroupId;
     const prevMap = { ...get().lastActiveGroupByCategory };
     set((s) => {
+      // Terminal panel groups should not participate in category-aware tab routing
+      const isTerminalPanelGroup = s.terminalPanel
+        ? findGroupPath(s.terminalPanel.root, groupId) !== null
+        : false;
       const group = s.groups[groupId];
       const activeTab = group?.tabs.find((t) => t.id === group.activeTabId);
-      const category = activeTab ? getViewCategory(activeTab.view.type) : null;
+      const category = !isTerminalPanelGroup && activeTab
+        ? getViewCategory(activeTab.view.type)
+        : null;
       return {
         activeGroupId: groupId,
         lastActiveGroupByCategory: category
@@ -231,7 +254,110 @@ export const usePaneLayoutStore = create<PaneLayoutState>((set, get) => ({
       rollback: () => set({ root: prevRoot, groups: prevGroups }),
     };
   },
+
+  _applySetTerminalPanelOpen: (isOpen) => {
+    const prev = get().terminalPanel;
+    set((s) => ({
+      terminalPanel: { ...ensureTerminalPanel(s.terminalPanel), isOpen },
+    }));
+    return () => set({ terminalPanel: prev });
+  },
+
+  _applySetTerminalPanelHeight: (height) => {
+    const prev = get().terminalPanel;
+    set((s) => ({
+      terminalPanel: { ...ensureTerminalPanel(s.terminalPanel), height },
+    }));
+    return () => set({ terminalPanel: prev });
+  },
+
+  _applySetTerminalPanelMaximized: (isMaximized) => {
+    const prev = get().terminalPanel;
+    set((s) => ({
+      terminalPanel: { ...ensureTerminalPanel(s.terminalPanel), isMaximized },
+    }));
+    return () => set({ terminalPanel: prev });
+  },
+
+  _applySetTerminalPanelRoot: (root) => {
+    const prev = get().terminalPanel;
+    set((s) => ({
+      terminalPanel: { ...ensureTerminalPanel(s.terminalPanel), root },
+    }));
+    return () => set({ terminalPanel: prev });
+  },
+
+  _applyTerminalSplitGroup: (groupId, direction, newGroup, initialSizes?) => {
+    const prev = get().terminalPanel;
+    const prevGroups = get().groups;
+    set((s) => {
+      const tp = ensureTerminalPanel(s.terminalPanel);
+      return {
+        terminalPanel: { ...tp, root: splitLeafNode(tp.root, groupId, direction, newGroup.id, initialSizes) },
+        groups: { ...s.groups, [newGroup.id]: newGroup },
+      };
+    });
+    return () => set({ terminalPanel: prev, groups: prevGroups });
+  },
+
+  _applyTerminalSplitAndMoveTab: (targetGroupId, direction, sourceGroupId, tabId) => {
+    const prevTerminal = get().terminalPanel;
+    const prevGroups = get().groups;
+
+    const sourceGroup = prevGroups[sourceGroupId];
+    const tab = sourceGroup?.tabs.find((t) => t.id === tabId);
+    if (!sourceGroup || !tab) return { newGroupId: "", rollback: () => {} };
+
+    const newGroup = createGroup(tab);
+
+    set((s) => {
+      const src = s.groups[sourceGroupId];
+      if (!src) return s;
+      const currentTp = ensureTerminalPanel(s.terminalPanel);
+
+      const srcTabs = src.tabs.filter((t) => t.id !== tabId);
+      const srcActive = src.activeTabId === tabId
+        ? (srcTabs[0]?.id ?? "")
+        : src.activeTabId;
+
+      return {
+        terminalPanel: { ...currentTp, root: splitLeafNode(currentTp.root, targetGroupId, direction, newGroup.id) },
+        groups: {
+          ...s.groups,
+          [sourceGroupId]: { ...src, tabs: srcTabs, activeTabId: srcActive },
+          [newGroup.id]: newGroup,
+        },
+      };
+    });
+
+    return {
+      newGroupId: newGroup.id,
+      rollback: () => set({ terminalPanel: prevTerminal, groups: prevGroups }),
+    };
+  },
+
+  _applyTerminalUpdateSplitSizes: (path, sizes) => {
+    const prev = get().terminalPanel;
+    set((s) => {
+      const tp = ensureTerminalPanel(s.terminalPanel);
+      const node = getNodeAtPath(tp.root, path);
+      if (!node || node.type !== "split") return s;
+      return { terminalPanel: { ...tp, root: replaceNodeAtPath(tp.root, path, { ...node, sizes }) } };
+    });
+    return () => set({ terminalPanel: prev });
+  },
 }));
+
+const DEFAULT_TERMINAL_PANEL: TerminalPanelState = {
+  root: { type: "leaf", groupId: "" },
+  height: 300,
+  isOpen: false,
+  isMaximized: false,
+};
+
+function ensureTerminalPanel(panel: TerminalPanelState | undefined): TerminalPanelState {
+  return panel ?? { ...DEFAULT_TERMINAL_PANEL };
+}
 
 // Non-reactive selectors
 

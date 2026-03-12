@@ -11,13 +11,13 @@ Currently, users can only "import" an existing git repository (via folder picker
 
 ## Phases
 
-- [ ] Add "Create New Project" to onboarding RepositoryStep
+- [x] Add "Create New Project" to onboarding RepositoryStep
 
-- [ ] Add "Create New Project" to the main-window `...` menu dropdown
+- [x] Add "Create New Project" to the main-window `...` menu dropdown
 
-- [ ] Add a persistent "+ New Project" button at the bottom of the tree panel sidebar
+- [x] Add a persistent "+ New Project" button at the bottom of the tree panel sidebar
 
-- [ ] Implement the "create project" flow (folder picker for location + name input → `git init`)
+- [x] Implement the "create project" flow (folder picker for location + name input → `git init`)
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

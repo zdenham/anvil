@@ -1,6 +1,7 @@
 use crate::shell;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::io::{BufRead, BufReader, Read as IoRead, Write as IoWrite};
 use std::path::Path;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -287,6 +288,30 @@ pub async fn git_get_branch_commit(repo_path: String, branch: String) -> Result<
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// Initialize a new git repository at the given path.
+/// Creates the directory (and parents) if it doesn't exist, then runs `git init`.
+#[tauri::command]
+pub async fn git_init(path: String) -> Result<(), String> {
+    // Create directory if needed
+    std::fs::create_dir_all(&path)
+        .map_err(|e| format!("Failed to create directory: {}", e))?;
+
+    let output = shell::command("git")
+        .args(["init"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to git init: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(())
 }
 
 /// Create a new git branch from a base branch
@@ -1009,6 +1034,103 @@ pub async fn git_show_file(
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bulk file content fetching
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Fetch multiple file contents in a single `git cat-file --batch` call.
+/// Each ref is an object identifier like "abc123:src/foo.ts" or "abc123~1:src/bar.ts".
+/// Returns a Vec of Option<String> — None for missing/binary objects, Some(content) for found text.
+#[tauri::command]
+pub async fn git_cat_file_batch(
+    cwd: String,
+    refs: Vec<String>,
+) -> Result<Vec<Option<String>>, String> {
+    if refs.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let mut child = shell::command("git")
+        .args(["cat-file", "--batch"])
+        .current_dir(&cwd)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn git cat-file --batch: {}", e))?;
+
+    // Write all refs to stdin, then close it
+    {
+        let stdin = child.stdin.as_mut()
+            .ok_or("Failed to open stdin for git cat-file")?;
+        for r in &refs {
+            stdin.write_all(r.as_bytes())
+                .map_err(|e| format!("Failed to write to git cat-file stdin: {}", e))?;
+            stdin.write_all(b"\n")
+                .map_err(|e| format!("Failed to write newline to git cat-file stdin: {}", e))?;
+        }
+    }
+    // stdin is dropped here, closing the pipe
+
+    let stdout = child.stdout.take()
+        .ok_or("Failed to capture git cat-file stdout")?;
+    let mut reader = BufReader::new(stdout);
+    let mut results: Vec<Option<String>> = Vec::with_capacity(refs.len());
+
+    for _ in 0..refs.len() {
+        let mut header = String::new();
+        let bytes_read = reader.read_line(&mut header)
+            .map_err(|e| format!("Failed to read cat-file header: {}", e))?;
+
+        if bytes_read == 0 {
+            // EOF — remaining refs produce None
+            results.push(None);
+            continue;
+        }
+
+        let header = header.trim_end();
+
+        // Missing object: "<ref> missing"
+        if header.ends_with(" missing") {
+            results.push(None);
+            continue;
+        }
+
+        // Expected format: "<sha> <type> <size>"
+        let parts: Vec<&str> = header.rsplitn(2, ' ').collect();
+        if parts.len() < 2 {
+            results.push(None);
+            continue;
+        }
+
+        let size: usize = parts[0].parse().unwrap_or(0);
+
+        // Read exactly `size` bytes of content + trailing newline
+        let mut content_buf = vec![0u8; size];
+        reader.read_exact(&mut content_buf)
+            .map_err(|e| format!("Failed to read cat-file content ({} bytes): {}", size, e))?;
+
+        // Consume the trailing newline
+        let mut newline = [0u8; 1];
+        let _ = reader.read_exact(&mut newline);
+
+        // Convert to string, skip binary (non-UTF-8) content
+        match String::from_utf8(content_buf) {
+            Ok(s) => results.push(Some(s)),
+            Err(_) => results.push(None),
+        }
+    }
+
+    let status = child.wait()
+        .map_err(|e| format!("Failed to wait for git cat-file: {}", e))?;
+
+    if !status.success() {
+        tracing::warn!("git cat-file --batch exited with non-zero status");
+    }
+
+    Ok(results)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

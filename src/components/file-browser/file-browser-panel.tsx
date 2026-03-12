@@ -4,7 +4,6 @@ import { navigationService } from "@/stores/navigation-service";
 import { logger } from "@/lib/logger-client";
 import { useChangesViewStore } from "@/stores/changes-view-store";
 import { useFileTree, type FileTreeState } from "./use-file-tree";
-import { FileBrowserHeader } from "./file-browser-header";
 import { FileTreeNode, type CreatingEntry } from "./file-tree-node";
 import { InlineCreationInput } from "./inline-creation-input";
 import { FileBrowserError } from "./file-browser-error";
@@ -20,6 +19,8 @@ export interface FileBrowserPanelProps {
   worktreeId: string;
   /** Called when panel should close */
   onClose: () => void;
+  /** Register the refresh callback for the unified sub-header */
+  onRegisterRefresh?: (refresh: () => void) => void;
 }
 
 export function FileBrowserPanel({
@@ -27,12 +28,18 @@ export function FileBrowserPanel({
   repoId,
   worktreeId,
   onClose,
+  onRegisterRefresh,
 }: FileBrowserPanelProps) {
   const tree = useFileTree(rootPath, worktreeId);
   const panelRef = useRef<HTMLDivElement>(null);
   const [creatingEntry, setCreatingEntry] = useState<CreatingEntry>(null);
   const creatingEntryRef = useRef(creatingEntry);
   creatingEntryRef.current = creatingEntry;
+
+  // Register refresh callback for the unified sub-header
+  useEffect(() => {
+    onRegisterRefresh?.(tree.refreshAll);
+  }, [onRegisterRefresh, tree.refreshAll]);
 
   // Changes view state from cross-component store
   const activeWorktreeId = useChangesViewStore((s) => s.activeWorktreeId);
@@ -178,11 +185,6 @@ export function FileBrowserPanel({
 
   return (
     <div ref={panelRef} className="flex flex-col h-full" tabIndex={-1}>
-      <FileBrowserHeader
-        rootPath={rootPath}
-        onRefresh={tree.refreshAll}
-        onClose={onClose}
-      />
       <div className="overflow-y-auto flex-1 py-1">
         {creatingEntry?.parentPath === rootPath && (
           <InlineCreationInput

@@ -3,14 +3,16 @@ import { logger } from "@/lib/logger-client";
 import { type ContentPaneView, getViewCategory } from "@/components/content-pane/types";
 import { usePaneLayoutStore, getActiveGroup, getActiveTab } from "./store";
 import { PaneLayoutPersistedStateSchema, type PaneLayoutPersistedState } from "./types";
-import { removeLeafFromTree } from "./split-tree";
+import { removeLeafFromTree, findGroupPath, collectGroupIds } from "./split-tree";
 import { createDefaultState, createGroup, createTab, MAX_TABS_PER_GROUP } from "./defaults";
+import { migrateTerminalTabsFromSplitTree, migrateRawTerminalPanel } from "./migrations";
+import { createTerminalPanelMethods } from "./terminal-panel-service";
 
 const UI_STATE_PATH = "ui/pane-layout.json";
 
 function getPersistedState(): PaneLayoutPersistedState {
-  const { root, groups, activeGroupId } = usePaneLayoutStore.getState();
-  return { root, groups, activeGroupId };
+  const { root, groups, activeGroupId, terminalPanel } = usePaneLayoutStore.getState();
+  return { root, groups, activeGroupId, terminalPanel };
 }
 
 /** Strip ephemeral fields (autoFocus) before persisting. */
@@ -37,14 +39,30 @@ async function persistState(): Promise<void> {
   await appData.writeJson(UI_STATE_PATH, state);
 }
 
+/** Checks if a group belongs to the terminal panel's split tree. */
+function isTerminalPanelGroup(groupId: string): boolean {
+  const { terminalPanel } = usePaneLayoutStore.getState();
+  if (!terminalPanel) return false;
+  return findGroupPath(terminalPanel.root, groupId) !== null;
+}
+
+/** Returns all group IDs in the terminal panel's split tree. */
+function getTerminalGroupIds(): Set<string> {
+  const { terminalPanel } = usePaneLayoutStore.getState();
+  if (!terminalPanel) return new Set();
+  return new Set(collectGroupIds(terminalPanel.root));
+}
+
 export const paneLayoutService = {
   async hydrate(): Promise<void> {
     try {
       const raw = await appData.readJson(UI_STATE_PATH);
       if (raw) {
-        const result = PaneLayoutPersistedStateSchema.safeParse(raw);
+        const migrated = migrateRawTerminalPanel(raw);
+        const result = PaneLayoutPersistedStateSchema.safeParse(migrated);
         if (result.success) {
-          usePaneLayoutStore.getState().hydrate(result.data);
+          const migrated = migrateTerminalTabsFromSplitTree(result.data);
+          usePaneLayoutStore.getState().hydrate(migrated);
           logger.debug("[paneLayoutService] Hydrated from disk");
           return;
         }
@@ -63,8 +81,25 @@ export const paneLayoutService = {
 
   async openTab(view: ContentPaneView, groupId?: string): Promise<string> {
     const store = usePaneLayoutStore.getState();
-    const targetGroupId = groupId ?? store.activeGroupId;
-    const group = store.groups[targetGroupId];
+    let targetGroupId = groupId ?? store.activeGroupId;
+
+    // Safety net: never route non-terminal content into the terminal panel group
+    if (isTerminalPanelGroup(targetGroupId) && view.type !== "terminal") {
+      const terminalIds = getTerminalGroupIds();
+      const contentGroupIds = Object.keys(store.groups)
+        .filter((id) => !terminalIds.has(id));
+      if (contentGroupIds.length > 0) {
+        targetGroupId = contentGroupIds[0];
+      } else {
+        // No content groups exist — reset to defaults (preserving terminal panel)
+        const defaults = createDefaultState();
+        store.hydrate({ ...defaults, terminalPanel: store.terminalPanel });
+        targetGroupId = defaults.activeGroupId;
+      }
+      usePaneLayoutStore.getState()._applySetActiveGroup(targetGroupId);
+    }
+
+    const group = usePaneLayoutStore.getState().groups[targetGroupId];
     if (!group) throw new Error(`Group ${targetGroupId} not found`);
 
     // Enforce max tabs: close leftmost if at cap
@@ -81,11 +116,20 @@ export const paneLayoutService = {
 
   async closeTab(groupId: string, tabId: string): Promise<void> {
     const store = usePaneLayoutStore.getState();
+
+    // Delegate to terminal-specific close if this tab is in a terminal panel group
+    if (isTerminalPanelGroup(groupId)) {
+      await this.closeTerminalTab(groupId, tabId);
+      return;
+    }
+
     const group = store.groups[groupId];
     if (!group) return;
 
-    const groupCount = Object.keys(store.groups).length;
-    const isLastTabInLastGroup = group.tabs.length === 1 && groupCount <= 1;
+    const terminalIds = getTerminalGroupIds();
+    const contentGroupCount = Object.keys(store.groups)
+      .filter((id) => !terminalIds.has(id)).length;
+    const isLastTabInLastGroup = group.tabs.length === 1 && contentGroupCount <= 1;
 
     if (isLastTabInLastGroup) {
       store._applySetTabView(groupId, tabId, { type: "empty" });
@@ -107,12 +151,43 @@ export const paneLayoutService = {
    *  This reset path is a fallback for edge cases like split cleanup. */
   async _removeEmptyGroup(groupId: string): Promise<void> {
     const store = usePaneLayoutStore.getState();
-    const groupCount = Object.keys(store.groups).length;
 
-    if (groupCount <= 1) {
-      // Fallback: last group reset (closeTab normally handles this via empty-view transition)
+    // Terminal panel group — collapse terminal tree or hide panel
+    if (isTerminalPanelGroup(groupId)) {
+      const terminalRoot = store.terminalPanel!.root;
+      const terminalGroupCount = collectGroupIds(terminalRoot).length;
+
+      if (terminalGroupCount <= 1) {
+        store._applySetTerminalPanelOpen(false);
+        return;
+      }
+
+      store._applyRemoveGroup(groupId);
+      const newTerminalRoot = removeLeafFromTree(terminalRoot, groupId);
+      if (newTerminalRoot) {
+        usePaneLayoutStore.getState()._applySetTerminalPanelRoot(newTerminalRoot);
+      } else {
+        usePaneLayoutStore.getState()._applySetTerminalPanelOpen(false);
+      }
+
+      // If removed group was active, switch to another terminal group
+      if (store.activeGroupId === groupId) {
+        const remaining = collectGroupIds(usePaneLayoutStore.getState().terminalPanel!.root);
+        if (remaining.length > 0) {
+          usePaneLayoutStore.getState()._applySetActiveGroup(remaining[0]);
+        }
+      }
+      return;
+    }
+
+    // Content tree group
+    const terminalIds = getTerminalGroupIds();
+    const contentGroupCount = Object.keys(store.groups)
+      .filter((id) => !terminalIds.has(id)).length;
+
+    if (contentGroupCount <= 1) {
       const defaults = createDefaultState();
-      store.hydrate(defaults);
+      store.hydrate({ ...defaults, terminalPanel: store.terminalPanel });
       return;
     }
 
@@ -122,9 +197,11 @@ export const paneLayoutService = {
       usePaneLayoutStore.setState({ root: newRoot });
     }
 
-    // If removed group was active, switch to first remaining
+    // If removed group was active, switch to first remaining content group
     if (store.activeGroupId === groupId) {
-      const remaining = Object.keys(usePaneLayoutStore.getState().groups);
+      const termIds = getTerminalGroupIds();
+      const remaining = Object.keys(usePaneLayoutStore.getState().groups)
+        .filter((id) => !termIds.has(id));
       if (remaining.length > 0) {
         usePaneLayoutStore.getState()._applySetActiveGroup(remaining[0]);
       }
@@ -186,7 +263,6 @@ export const paneLayoutService = {
     if (!newGroupId) return "";
     usePaneLayoutStore.getState()._applySetActiveGroup(newGroupId);
 
-    // Clean up empty source group
     const fromGroup = usePaneLayoutStore.getState().groups[sourceGroupId];
     if (fromGroup && fromGroup.tabs.length === 0) {
       await this._removeEmptyGroup(sourceGroupId);
@@ -204,44 +280,38 @@ export const paneLayoutService = {
     await persistState();
   },
 
-  async openInBottomPane(view: ContentPaneView): Promise<string> {
-    // Check if a matching tab already exists in any group — just activate it
-    const { groups } = usePaneLayoutStore.getState();
-    for (const group of Object.values(groups)) {
-      const match = group.tabs.find((t) => viewsMatch(t.view, view));
-      if (match) {
-        usePaneLayoutStore.getState()._applySetActiveGroup(group.id);
-        usePaneLayoutStore.getState()._applySetActiveTab(group.id, match.id);
-        await persistState();
-        return match.id;
-      }
+  async updateTerminalSplitSizes(path: number[], sizes: number[]): Promise<void> {
+    usePaneLayoutStore.getState()._applyTerminalUpdateSplitSizes(path, sizes);
+    await persistState();
+  },
+
+  async splitAndMoveTerminalTab(
+    targetGroupId: string,
+    direction: "horizontal" | "vertical",
+    sourceGroupId: string,
+    tabId: string,
+  ): Promise<string> {
+    const { newGroupId } = usePaneLayoutStore
+      .getState()
+      ._applyTerminalSplitAndMoveTab(targetGroupId, direction, sourceGroupId, tabId);
+    if (!newGroupId) return "";
+    usePaneLayoutStore.getState()._applySetActiveGroup(newGroupId);
+
+    const fromGroup = usePaneLayoutStore.getState().groups[sourceGroupId];
+    if (fromGroup && fromGroup.tabs.length === 0) {
+      await this._removeEmptyGroup(sourceGroupId);
     }
 
-    const { root, activeGroupId } = usePaneLayoutStore.getState();
-
-    // If root is already a vertical split, reuse the last child leaf as the bottom group
-    if (root.type === "split" && root.direction === "vertical") {
-      const lastChild = root.children[root.children.length - 1];
-      if (lastChild.type === "leaf") {
-        const tabId = await this.openTab(view, lastChild.groupId);
-        usePaneLayoutStore.getState()._applySetActiveGroup(lastChild.groupId);
-        return tabId;
-      }
-    }
-
-    // Otherwise, split the active group vertically to create a bottom pane
-    const newGroupId = await this.splitGroup(activeGroupId, "vertical", view, [65, 35]);
-
+    await persistState();
+    logger.debug(
+      `[paneLayoutService] Terminal split-and-move tab ${tabId} from ${sourceGroupId} to new group ${newGroupId} (${direction})`,
+    );
     return newGroupId;
   },
 
-  async findOrOpenTab(
-    view: ContentPaneView,
-    options?: { newTab?: boolean },
-  ): Promise<void> {
+  async findOrOpenTab(view: ContentPaneView, options?: { newTab?: boolean }): Promise<void> {
     const { groups, activeGroupId } = usePaneLayoutStore.getState();
 
-    // Search all groups for a matching tab
     for (const group of Object.values(groups)) {
       const match = group.tabs.find((t) => viewsMatch(t.view, view));
       if (match) {
@@ -254,11 +324,9 @@ export const paneLayoutService = {
       }
     }
 
-    // Not found: open new tab or replace active
     if (options?.newTab) {
       await this.openTab(view);
     } else {
-      // Category-aware replacement: find the best group to replace in
       const category = getViewCategory(view.type);
       const { lastActiveGroupByCategory } = usePaneLayoutStore.getState();
       const preferredGroupId = lastActiveGroupByCategory[category];
@@ -274,9 +342,19 @@ export const paneLayoutService = {
         }
       }
 
-      await this.setActiveTabView(view);
+      // Safety net: if active group is a terminal panel group, route through openTab
+      // which has its own guard to create/find a content group
+      const current = usePaneLayoutStore.getState();
+      if (isTerminalPanelGroup(current.activeGroupId)) {
+        await this.openTab(view);
+      } else {
+        await this.setActiveTabView(view);
+      }
     }
   },
+
+  // Terminal panel methods (delegated to terminal-panel-service)
+  ...createTerminalPanelMethods(persistState),
 
   getActiveGroup,
   getActiveTab,
@@ -297,6 +375,6 @@ function viewsMatch(a: ContentPaneView, b: ContentPaneView): boolean {
         a.worktreeId === b.worktreeId &&
         a.commitHash === b.commitHash &&
         a.uncommittedOnly === b.uncommittedOnly;
-    default: return true; // empty, settings, logs, archive — match by type alone
+    default: return true; // empty, settings, logs, archive -- match by type alone
   }
 }

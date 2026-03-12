@@ -12,7 +12,7 @@ import {
   type CreateRepositoryInput,
   type UpdateRepositoryInput,
 } from "./types";
-import { repoCommands } from "@/lib/tauri-commands";
+import { repoCommands, gitCommands } from "@/lib/tauri-commands";
 import { z } from "zod";
 
 // Schema for legacy metadata.json format
@@ -342,6 +342,40 @@ export const repoService = {
     useRepoStore.getState()._applyCreate(repo);
     eventBus.emit(EventName.REPOSITORY_CREATED, { name: repo.name });
     return repo;
+  },
+
+  /**
+   * Creates a brand new project: mkdir + git init + register.
+   * @param parentDir - The parent directory where the project folder will be created
+   * @param projectName - The name of the new project (used as folder name)
+   */
+  async createProject(parentDir: string, projectName: string): Promise<Repository> {
+    const projectPath = `${parentDir}/${projectName}`;
+    logger.log(`[repo:createProject] Creating new project at: ${projectPath}`);
+
+    // Check the parent directory exists
+    if (!(await appData.absolutePathExists(parentDir))) {
+      throw new Error(`Parent directory does not exist: ${parentDir}`);
+    }
+
+    // Check project path doesn't already exist
+    if (await appData.absolutePathExists(projectPath)) {
+      throw new Error(`A folder named "${projectName}" already exists in ${parentDir}`);
+    }
+
+    // Check for duplicate name/slug in our repo registry
+    const slug = slugify(projectName);
+    const repoDir = `${REPOS_DIR}/${slug}`;
+    if (await appData.exists(repoDir)) {
+      throw new Error(`A project named "${projectName}" is already registered`);
+    }
+
+    // Create directory and initialize git
+    await gitCommands.init(projectPath);
+    logger.log(`[repo:createProject] git init complete at: ${projectPath}`);
+
+    // Register the new project using createFromFolder
+    return this.createFromFolder(projectPath);
   },
 
   /**

@@ -1,56 +1,48 @@
-import { FolderOpen } from "lucide-react";
+import { FolderTree } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTreeIndentPx } from "@/lib/tree-indent";
+import type { TreeItemNode } from "@/stores/tree-menu/types";
 
 interface FilesItemProps {
-  repoId: string;
-  worktreeId: string;
-  worktreePath: string;
-  isActive: boolean;
-  onOpenFiles: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  /** Indentation depth (defaults to 0) */
-  depth?: number;
+  item: TreeItemNode;
+  isSelected: boolean;
+  onNavigate: () => void;
 }
 
 /**
- * "Files" entry pinned at the top of a worktree section.
- * Opens the file browser panel. Highlights in accent color when active.
- *
- * Per decisions: click or Enter opens file browser; selection alone does not.
- * TODO: Integrate into focusableItems for full keyboard nav
+ * "Files" leaf entry in the tree menu.
+ * Clicking opens the right panel's Files tab for the parent worktree.
  */
-export function FilesItem({ repoId, worktreeId, worktreePath, isActive, onOpenFiles, depth }: FilesItemProps) {
-  const handleClick = () => {
-    onOpenFiles(repoId, worktreeId, worktreePath);
-  };
-
+export function FilesItem({ item, isSelected, onNavigate }: FilesItemProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onOpenFiles(repoId, worktreeId, worktreePath);
+      onNavigate();
     }
   };
 
   return (
-    <button
-      type="button"
+    <div
       role="treeitem"
+      aria-selected={isSelected}
+      data-tree-item-id={item.id}
       tabIndex={-1}
-      onClick={handleClick}
+      onClick={onNavigate}
       onKeyDown={handleKeyDown}
-      style={{ paddingLeft: `${getTreeIndentPx(depth ?? 0)}px` }}
+      style={{ paddingLeft: `${getTreeIndentPx(item.depth)}px` }}
       className={cn(
         "flex items-center gap-1.5 w-full pr-2 py-1 text-xs",
         "hover:bg-surface-800 rounded cursor-pointer select-none",
-        isActive
-          ? "text-accent-400"
-          : "text-surface-400 hover:text-surface-200"
+        "transition-colors duration-75",
+        isSelected
+          ? "bg-accent-500/20 text-surface-100"
+          : "text-surface-400 hover:text-surface-200",
       )}
     >
       <span className="flex-shrink-0 w-3 flex items-center justify-center">
-        <FolderOpen size={11} />
+        <FolderTree size={11} />
       </span>
-      <span>Files</span>
-    </button>
+      <span className="truncate">Files</span>
+    </div>
   );
 }

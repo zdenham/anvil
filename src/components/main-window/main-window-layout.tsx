@@ -20,13 +20,15 @@ import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { BottomGutter } from "@/components/ui/bottom-gutter";
 import { TreeMenu, TreePanelHeader } from "@/components/tree-menu";
+import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { SplitLayoutContainer } from "@/components/split-layout";
+import { TerminalPanelLayout } from "@/components/terminal-panel/terminal-panel-layout";
 import { CommandPalette } from "@/components/command-palette";
 import { MainWindowProvider } from "./main-window-context";
 import { DebugPanel } from "@/components/debug-panel";
 import { ResizablePanelVertical } from "@/components/ui/resizable-panel-vertical";
 import { useDebugPanelStore, debugPanelService } from "@/stores/debug-panel";
-import { paneLayoutService, setupPaneLayoutListeners, closeTabsByWorktree } from "@/stores/pane-layout";
+import { usePaneLayoutStore, paneLayoutService, setupPaneLayoutListeners, closeTabsByWorktree } from "@/stores/pane-layout";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { navigationService } from "@/stores/navigation-service";
 import { layoutService } from "@/stores/layout/service";
@@ -36,6 +38,7 @@ import { repoService } from "@/entities/repositories";
 import { worktreeService } from "@/entities/worktrees";
 import { logger } from "@/lib/logger-client";
 import { generateUniqueWorktreeName } from "@/lib/random-name";
+import { createNewProjectAndHydrate } from "@/lib/project-creation-service";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { terminalSessionService } from "@/entities/terminal-sessions";
 import { createThread } from "@/lib/thread-creation-service";
@@ -45,8 +48,8 @@ import { useTabSelectionSync } from "@/hooks/use-tab-selection-sync";
 import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useRightPanel } from "@/hooks/use-right-panel";
-import { FileBrowserPanel } from "@/components/file-browser/file-browser-panel";
-import { SearchPanel } from "@/components/search-panel";
+import { useActiveWorktreeContext } from "@/hooks/use-active-worktree-context";
+import { RightPanelContainer } from "@/components/right-panel/right-panel-container";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
 import { pullRequestService } from "@/entities/pull-requests";
@@ -66,7 +69,6 @@ const VALID_NAV_TARGETS: NavTarget[] = ["settings", "logs"];
 
 export function MainWindowLayout() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const lastRightPanelRef = useRef<import("@/hooks/use-right-panel").RightPanelState | null>(null);
 
   // Sync sidebar tree selection when the active tab changes (tab clicks, not just navigation)
   useTabSelectionSync();
@@ -74,10 +76,12 @@ export function MainWindowLayout() {
   useQuickActionHotkeys();
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Right Panel (file browser / search)
+  // Right Panel (tabbed: search / files / changelog)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const rightPanel = useRightPanel();
+  const activeWorktreeContext = useActiveWorktreeContext();
+  const terminalPanelOpen = usePaneLayoutStore((s) => s.terminalPanel?.isOpen ?? false);
 
   // Track whether listeners have been initialized (prevents duplicate registration)
   const listenersInitialized = useRef(false);
@@ -139,6 +143,44 @@ export function MainWindowLayout() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Toggle terminal panel (shared between Ctrl+` and titlebar button)
+  const handleToggleTerminalPanel = useCallback(async () => {
+    const result = paneLayoutService.toggleTerminalPanel();
+    if (result === "needs-terminal") {
+      // No terminals exist - create one
+      const allItems = treeItemsRef.current;
+      const worktrees = allItems.filter(i => i.type === "worktree");
+      if (worktrees.length === 0) {
+        logger.warn("[MainWindowLayout] Toggle terminal: No worktrees available");
+        return;
+      }
+      const mostRecent = worktrees[0];
+      const worktreeId = mostRecent.worktreeId ?? mostRecent.id;
+      const worktreePath = mostRecent.worktreePath;
+      if (!worktreePath) return;
+
+      try {
+        const session = await terminalSessionService.create(worktreeId, worktreePath);
+        await navigationService.navigateToTerminal(session.id);
+      } catch (err) {
+        logger.error("[MainWindowLayout] Toggle terminal: Failed to create terminal:", err);
+      }
+    }
+  }, []);
+
+  // Listen for Ctrl+` to toggle terminal panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "`") {
+        e.preventDefault();
+        handleToggleTerminalPanel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleToggleTerminalPanel]);
 
   // Listen for Command+W / Ctrl+W to close active tab
   useEffect(() => {
@@ -332,7 +374,7 @@ export function MainWindowLayout() {
           logger.warn("[MainWindowLayout] Failed to revive terminal (non-fatal):", err);
         }
       }
-      await navigationService.navigateToTerminal(itemId, { bottomPane: true });
+      await navigationService.navigateToTerminal(itemId);
     } else if (itemType === "pull-request") {
       await navigationService.navigateToPullRequest(itemId, { newTab });
     }
@@ -380,7 +422,7 @@ export function MainWindowLayout() {
   const handleNewTerminal = useCallback(async (worktreeId: string, worktreePath: string) => {
     try {
       const session = await terminalSessionService.create(worktreeId, worktreePath);
-      await navigationService.navigateToTerminal(session.id, { bottomPane: true });
+      await navigationService.navigateToTerminal(session.id);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to create terminal:`, err);
     }
@@ -490,7 +532,7 @@ export function MainWindowLayout() {
       if (newWorktree) {
         try {
           const session = await terminalSessionService.create(newWorktree.id, newWorktree.path);
-          await navigationService.navigateToTerminal(session.id, { bottomPane: true });
+          await navigationService.navigateToTerminal(session.id);
         } catch (termErr) {
           logger.warn(`[MainWindowLayout] Failed to auto-create terminal for worktree (non-fatal):`, termErr);
         }
@@ -560,6 +602,18 @@ export function MainWindowLayout() {
       }
     } catch (error) {
       logger.error(`[MainWindowLayout] Failed to add repository:`, error);
+    }
+  }, []);
+
+  const handleCreateProject = useCallback(async () => {
+    logger.info(`[MainWindowLayout] Create project requested`);
+    try {
+      const projectPath = await createNewProjectAndHydrate();
+      if (projectPath) {
+        logger.info(`[MainWindowLayout] Created new project at ${projectPath}`);
+      }
+    } catch (error) {
+      logger.error(`[MainWindowLayout] Failed to create project:`, error);
     }
   }, []);
 
@@ -671,6 +725,24 @@ export function MainWindowLayout() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Files Tree Item Handler (opens right panel Files tab)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleFilesClick = useCallback((item: TreeItemNode) => {
+    if (!item.worktreeId) return;
+    const worktreeNode = treeItems.find(
+      (i) => i.type === "worktree" && i.id === item.worktreeId,
+    );
+    if (worktreeNode?.repoId && worktreeNode.worktreePath) {
+      rightPanel.openFileBrowser(
+        worktreeNode.repoId,
+        item.worktreeId,
+        worktreeNode.worktreePath,
+      );
+    }
+  }, [treeItems, rightPanel]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Search Navigation Handlers
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -724,21 +796,11 @@ export function MainWindowLayout() {
       <div data-testid="main-layout" className="flex flex-col h-full bg-surface-900">
         <WindowTitlebar
           leftPanelOpen={leftPanelOpen}
-          rightPanelOpen={rightPanel.state.type !== "none"}
+          rightPanelOpen={rightPanel.isOpen}
+          terminalPanelOpen={terminalPanelOpen}
           onToggleLeftPanel={() => setLeftPanelOpen((v) => !v)}
-          onToggleRightPanel={() => {
-            if (rightPanel.state.type !== "none") {
-              lastRightPanelRef.current = rightPanel.state;
-              rightPanel.close();
-            } else if (lastRightPanelRef.current) {
-              const prev = lastRightPanelRef.current;
-              if (prev.type === "file-browser") {
-                rightPanel.openFileBrowser(prev.repoId, prev.worktreeId, prev.rootPath);
-              } else if (prev.type === "search") {
-                rightPanel.openSearch();
-              }
-            }
-          }}
+          onToggleRightPanel={rightPanel.toggle}
+          onToggleTerminalPanel={handleToggleTerminalPanel}
         />
         {/* Main horizontal layout */}
         <div className="flex flex-1 min-h-0">
@@ -754,11 +816,13 @@ export function MainWindowLayout() {
               onSettingsClick={handleSettingsClick}
               onArchiveClick={handleArchiveClick}
               onNewRepo={handleNewRepo}
+              onCreateProject={handleCreateProject}
               onUnhideAll={handleUnhideAll}
               hasHiddenOrPinned={pinnedWorktreeId !== null}
             />
             <TreeMenu
               onItemSelect={handleItemSelect}
+              onFilesClick={handleFilesClick}
               onNewThread={handleNewThread}
               onCreatePr={handleCreatePrCallback}
               onNewTerminal={handleNewTerminal}
@@ -767,17 +831,24 @@ export function MainWindowLayout() {
               creatingWorktreeIds={creatingWorktreeIds}
               onPinToggle={handlePinToggle}
               pinnedWorktreeId={pinnedWorktreeId}
-              onOpenFiles={rightPanel.openFileBrowser}
-              fileBrowserWorktreeId={rightPanel.fileBrowserWorktreeId}
               className="flex-1 min-h-0"
             />
+            <button
+              onClick={handleCreateProject}
+              className="flex items-center gap-1.5 px-3 py-1.5 mx-2 mb-2 text-xs text-surface-400 hover:text-surface-200 hover:bg-surface-800 rounded transition-colors"
+            >
+              <span className="text-surface-500">+</span>
+              New Project
+            </button>
           </ResizablePanel>}
 
-          {/* Center Panel: Split Layout */}
-          <SplitLayoutContainer />
+          {/* Center Panel: Split Layout + Terminal Panel */}
+          <TerminalPanelLayout>
+            <SplitLayoutContainer />
+          </TerminalPanelLayout>
 
-          {/* Right Panel: File Browser or Search */}
-          {rightPanel.state.type === "file-browser" && (
+          {/* Right Panel: Tabbed (Search / Files / Changelog) */}
+          {rightPanel.isOpen && (
             <ResizablePanel
               position="right"
               minWidth={180}
@@ -788,28 +859,12 @@ export function MainWindowLayout() {
               onClose={rightPanel.close}
               className="bg-surface-950"
             >
-              <FileBrowserPanel
-                key={rightPanel.state.worktreeId}
-                rootPath={rightPanel.state.rootPath}
-                repoId={rightPanel.state.repoId}
-                worktreeId={rightPanel.state.worktreeId}
+              <RightPanelContainer
+                activeTab={rightPanel.activeTab}
+                onTabChange={rightPanel.openTab}
                 onClose={rightPanel.close}
-              />
-            </ResizablePanel>
-          )}
-          {rightPanel.state.type === "search" && (
-            <ResizablePanel
-              position="right"
-              minWidth={180}
-              maxWidth={Math.floor(window.innerWidth * 0.5)}
-              defaultWidth={250}
-              persistKey="right-panel-width"
-              closeThreshold={120}
-              onClose={rightPanel.close}
-              className="bg-surface-950"
-            >
-              <SearchPanel
-                onClose={rightPanel.close}
+                filesContext={activeWorktreeContext}
+                filesWorktreeOverride={rightPanel.state.filesWorktreeOverride}
                 onNavigateToFile={handleSearchNavigateToFile}
                 onNavigateToThread={handleSearchNavigateToThread}
               />

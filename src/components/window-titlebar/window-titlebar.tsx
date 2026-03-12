@@ -6,7 +6,7 @@
  */
 
 import { useCallback } from "react";
-import { PanelLeft, PanelRight } from "lucide-react";
+import { PanelLeft, PanelRight, PanelBottom } from "lucide-react";
 import { usePaneLayoutStore } from "@/stores/pane-layout";
 import { useTabTooltip } from "@/components/split-layout/use-tab-tooltip";
 import { cn } from "@/lib/utils";
@@ -15,8 +15,10 @@ import type { ContentPaneView } from "@/components/content-pane/types";
 interface WindowTitlebarProps {
   leftPanelOpen: boolean;
   rightPanelOpen: boolean;
+  terminalPanelOpen: boolean;
   onToggleLeftPanel: () => void;
   onToggleRightPanel: () => void;
+  onToggleTerminalPanel: () => void;
 }
 
 const EMPTY_VIEW: ContentPaneView = { type: "empty" };
@@ -40,8 +42,10 @@ function formatBreadcrumb(tooltip: string): string {
 export function WindowTitlebar({
   leftPanelOpen,
   rightPanelOpen,
+  terminalPanelOpen,
   onToggleLeftPanel,
   onToggleRightPanel,
+  onToggleTerminalPanel,
 }: WindowTitlebarProps) {
   const activeView = useActiveTabView();
   const tooltip = useTabTooltip(activeView);
@@ -74,6 +78,17 @@ export function WindowTitlebar({
           )}
         >
           <PanelLeft size={12} />
+        </button>
+        <button
+          onClick={onToggleTerminalPanel}
+          className={cn(
+            "flex items-center justify-center w-5 h-5 rounded transition-colors",
+            terminalPanelOpen
+              ? "text-surface-600 hover:text-surface-400"
+              : "text-surface-700 hover:text-surface-500",
+          )}
+        >
+          <PanelBottom size={12} />
         </button>
         <button
           onClick={onToggleRightPanel}

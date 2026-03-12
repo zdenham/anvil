@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { logger } from "@/lib/logger-client";
 import { gitCommands } from "@/lib/tauri-commands";
-import { fetchRawDiff, processParsedDiff, fetchFileContents, backgroundFetchOrigin } from "./changes-diff-fetcher";
+import { fetchRawDiff, processParsedDiff, fetchFileContents, backgroundFetchOrigin, getCachedCommitFileContents } from "./changes-diff-fetcher";
 import { getCachedRangeDiff, invalidateRangeDiffCache, updateCachedFileContents } from "./changes-diff-cache";
 import type { FileContentEntry } from "./changes-diff-fetcher";
 import type { ParsedDiff, ParsedDiffFile } from "@/lib/diff-parser";
@@ -165,6 +165,15 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
     if (processed.files.length === 0 || !worktreePath) {
       setFileContents({});
       return;
+    }
+
+    // Check commit cache first — skip fetch entirely on cache hit
+    if (commitHash) {
+      const cached = getCachedCommitFileContents(commitHash);
+      if (cached && Object.keys(cached).length > 0) {
+        setFileContents(cached);
+        return;
+      }
     }
 
     fetchFileContents({

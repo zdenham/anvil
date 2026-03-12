@@ -927,6 +927,7 @@ pub fn run() {
             git_commands::git_fetch,
             git_commands::git_get_default_branch,
             git_commands::git_get_branch_commit,
+            git_commands::git_init,
             git_commands::git_create_branch,
             git_commands::git_checkout_branch,
             git_commands::git_checkout_commit,
@@ -947,6 +948,7 @@ pub fn run() {
             git_commands::git_get_merge_base,
             git_commands::git_get_remote_branch_commit,
             git_commands::git_show_file,
+            git_commands::git_cat_file_batch,
             git_commands::git_grep,
             git_commands::git_rm,
             // Search commands

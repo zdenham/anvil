@@ -12,6 +12,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { paneLayoutService } from "@/stores/pane-layout/service";
+import { useSplitTreeScope } from "./split-tree-scope";
 import type { SplitResizeHandleProps } from "./types";
 
 /** Minimum percentage each child can occupy. */
@@ -23,6 +24,7 @@ export function SplitResizeHandle({
   index,
   sizes,
 }: SplitResizeHandleProps) {
+  const scope = useSplitTreeScope();
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStartPos = useRef(0);
@@ -30,11 +32,19 @@ export function SplitResizeHandle({
 
   const isHorizontal = direction === "horizontal";
 
+  const updateSizes = useCallback((p: number[], s: number[]) => {
+    if (scope === "terminal") {
+      paneLayoutService.updateTerminalSplitSizes(p, s);
+    } else {
+      paneLayoutService.updateSplitSizes(p, s);
+    }
+  }, [scope]);
+
   const handleDoubleClick = useCallback(() => {
     const equalSize = 100 / sizes.length;
     const equalSizes = sizes.map(() => equalSize);
-    paneLayoutService.updateSplitSizes(path, equalSizes);
-  }, [path, sizes]);
+    updateSizes(path, equalSizes);
+  }, [path, sizes, updateSizes]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -87,9 +97,9 @@ export function SplitResizeHandle({
       newSizes[rightIdx] = newRight;
 
       // Optimistic update directly to store (no persist until drag end)
-      paneLayoutService.updateSplitSizes(path, newSizes);
+      updateSizes(path, newSizes);
     },
-    [isHorizontal, index, path],
+    [isHorizontal, index, path, updateSizes],
   );
 
   const handleMouseUp = useCallback(() => {

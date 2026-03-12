@@ -38,6 +38,11 @@ pub async fn dispatch(
                 crate::git_commands::git_get_branch_commit(repo_path, branch).await?;
             Ok(serde_json::to_value(result).unwrap())
         }
+        "git_init" => {
+            let path: String = extract_arg(&args, "path")?;
+            crate::git_commands::git_init(path).await?;
+            Ok(serde_json::Value::Null)
+        }
         "git_create_branch" => {
             let repo_path: String = extract_arg(&args, "repoPath")?;
             let branch_name: String = extract_arg(&args, "branchName")?;

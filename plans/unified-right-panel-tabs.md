@@ -10,11 +10,11 @@ Replace the current right panel (file browser OR search, opened ad-hoc) with a u
 
 ## Design
 
-The right panel becomes a persistent tabbed container with three tabs:
+The right panel becomes a persistent container with a VS Code-style icon tab bar at the top — icons only, no text labels. Hovering shows a tooltip with the tab name.
 
 ```
 ┌─────────────────────────────────┐
-│ [Search] [Files] [Changelog]    │
+│  🔍  📁  📜         (icons)    │
 ├─────────────────────────────────┤
 │                                 │
 │    (active tab content)         │
@@ -22,8 +22,30 @@ The right panel becomes a persistent tabbed container with three tabs:
 └─────────────────────────────────┘
 ```
 
+The icon bar uses lucide-react icons displayed horizontally at the top of the panel:
+
+| Tab | Icon | Lucide Component | Tooltip |
+| --- | --- | --- | --- |
+| Search | Magnifying glass | `Search` | "Search" |
+| Files | Folder tree | `FolderTree` | "Files" |
+| Changelog | Git commit graph | `GitCommitVertical` | "Changelog" |
+
+**Icon styling** (matches existing codebase patterns — see titlebar and tree panel header):
+
+- Size: `14` (slightly larger than the 12px titlebar icons since these are primary navigation)
+
+- Inactive: `text-surface-500 hover:text-surface-200 hover:bg-surface-800`
+
+- Active: `text-accent-400` with a 2px bottom border (`border-b-2 border-accent-400`) or a subtle background highlight (`bg-surface-800`)
+
+- Container: horizontal row, `gap-1`, `px-2 py-1.5`, `border-b border-surface-700` (same border style as `FileBrowserHeader`)
+
+- Each icon wrapped in `<Tooltip>` (reuse existing `Tooltip` component from `@/components/ui/tooltip`)
+
 - **Search** — Existing `SearchPanel` content (Cmd+Shift+F focuses this tab)
+
 - **Files** — Existing `FileBrowserPanel` content, showing worktree files. Derived from `useActiveWorktreeContext` (current tab's worktree, fallback to MRU)
+
 - **Changelog** — New commit history list for the active worktree. Clicking a commit opens its diff in the main content pane (same as the existing commit-item behavior)
 
 ### Behavior
@@ -58,25 +80,26 @@ Reuses the existing `useCommitStore` / `useGitCommits` infrastructure. Shows:
 - Clicking "Changes" still navigates to the full worktree diff view (unchanged)
 - Remove `files` tree item type — file browsing is now always via the right panel
 
+## Sub-Plans (Parallel Execution)
+
+Three independent tracks that can execute in parallel, plus one sequential integration step:
+
+| Track | Sub-Plan | Can Run In Parallel |
+| --- | --- | --- |
+| A | [01-right-panel-container.md](./unified-right-panel-tabs/01-right-panel-container.md) | Yes |
+| B | [02-changelog-panel.md](./unified-right-panel-tabs/02-changelog-panel.md) | Yes |
+| C | [03-tree-menu-cleanup.md](./unified-right-panel-tabs/03-tree-menu-cleanup.md) | Yes |
+| D | [04-integration.md](./unified-right-panel-tabs/04-integration.md) | After A+B+C |
+
 ## Phases
 
-- [ ] Create `RightPanelContainer` component with tab bar (Search/Files/Changelog) and tab switching
+- [x] Track A: Right panel container + hook + layout ([01-right-panel-container.md](http://01-right-panel-container.md))
 
-- [ ] Refactor `useRightPanel` hook to manage tab state (activeTab, open/close, worktree override for Files)
+- [x] Track B: Changelog panel component ([02-changelog-panel.md](http://02-changelog-panel.md))
 
-- [ ] Wire up `PanelRight` button in `WindowTitlebar` to always toggle (never disabled)
+- [x] Track C: Tree menu cleanup ([03-tree-menu-cleanup.md](http://03-tree-menu-cleanup.md))
 
-- [ ] Integrate `useActiveWorktreeContext` into Files tab for automatic worktree resolution
-
-- [ ] Build `ChangelogPanel` component using `useCommitStore` / `useGitCommits`
-
-- [ ] Update `MainWindowLayout` to render the single `RightPanelContainer` instead of conditional file-browser/search
-
-- [ ] Remove commit/uncommitted children from the tree menu (flatten "Changes" to a leaf node)
-
-- [ ] Remove `files` tree item type from tree menu (file browsing moves exclusively to right panel)
-
-- [ ] Update keyboard shortcuts: Cmd+Shift+F opens panel + focuses Search tab
+- [x] Track D: Integration wiring — titlebar, keyboard shortcuts, final layout swap ([04-integration.md](http://04-integration.md))
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
@@ -97,6 +120,8 @@ Reuses the existing `useCommitStore` / `useGitCommits` infrastructure. Shows:
 | Git commits hook | `src/hooks/use-git-commits.ts` |
 | Tree menu types | `src/stores/tree-menu/types.ts` |
 | Tree item renderer | `src/components/tree-menu/tree-item-renderer.tsx` |
+| Tree node builders | `src/hooks/tree-node-builders.ts` |
+| Tree data hook | `src/hooks/use-tree-data.ts` |
 | Changes item | `src/components/tree-menu/changes-item.tsx` |
 | Commit item | `src/components/tree-menu/commit-item.tsx` |
 | Files item | `src/components/tree-menu/files-item.tsx` |
@@ -107,5 +132,5 @@ Reuses the existing `useCommitStore` / `useGitCommits` infrastructure. Shows:
 | File | Purpose |
 | --- | --- |
 | `src/components/right-panel/right-panel-container.tsx` | Tabbed container with tab bar + content switching |
-| `src/components/right-panel/right-panel-tab-bar.tsx` | Tab bar component (Search / Files / Changelog) |
+| `src/components/right-panel/right-panel-tab-bar.tsx` | VS Code-style icon bar (Search / Files / Changelog icons with tooltips) |
 | `src/components/right-panel/changelog-panel.tsx` | Commit history list for active worktree |

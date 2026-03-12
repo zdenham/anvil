@@ -63,7 +63,7 @@ export const PaneLayoutPersistedStateSchema = z.object({
 });
 ```
 
-The terminal panel's group lives in `groups` alongside all other groups but is **not referenced in `root`** (it's outside the split tree). The existing `_applyOpenTab`, `_applyCloseTab`, etc. all work on it because it's a regular group.
+The terminal panel's group lives in `groups` alongside all other groups but is **not referenced in** `root` (it's outside the split tree). The existing `_applyOpenTab`, `_applyCloseTab`, etc. all work on it because it's a regular group.
 
 **New store actions** (added to existing `usePaneLayoutStore`):
 
@@ -104,6 +104,7 @@ It renders:
 3. Terminal `PaneGroup` — renders the dedicated group using the existing `PaneGroup` component (or `TabBar` + `ContentPane` directly), fixed pixel height from store, hidden when panel is closed
 
 The `PaneGroup` component already composes `TabBar` + `ContentPane` and handles active tab rendering. We can either:
+
 - Reuse `PaneGroup` directly (simplest — disable DnD overlay via a prop or context)
 - Compose `TabBar` + `ContentPane` inline (slightly more control over the "+" button behavior)
 
@@ -136,14 +137,17 @@ The "+" button in `TabBar` already creates terminals when the active tab is a te
 ### Maximize/Restore Behavior
 
 When maximized:
+
 - Content zone gets `display: none`
 - Terminal panel fills available height
 - Store sets `isMaximized: true`
 
 Auto-restore triggers:
+
 - Any navigation to a content view (`navigateToThread`, `navigateToPlan`, etc.) checks `isMaximized` and calls `restoreTerminalPanel()` first
 
 Manual restore:
+
 - Double-click the resize handle
 - Drag the handle back down
 - A small restore icon in the terminal tab bar area
@@ -161,7 +165,7 @@ Manual restore:
 ## Summary of Changes
 
 | Area | Change |
-|------|--------|
+| --- | --- |
 | `stores/pane-layout/types.ts` | Add `terminalPanel` to persisted state schema |
 | `stores/pane-layout/store.ts` | Add 4 terminal panel actions, guard `_applySetActiveGroup` to track terminal group |
 | `stores/pane-layout/service.ts` | Add `openTerminal`, `closeTerminalTab`, `toggleTerminalPanel`, `maximize/restore`. Remove `openInBottomPane`. Migration in `hydrate()` |
@@ -173,14 +177,19 @@ Manual restore:
 
 ## Phases
 
-- [ ] Extend pane layout types and store: add `terminalPanel` to persisted state, add terminal panel actions to store
-- [ ] Extend pane layout service: add `openTerminal`, `closeTerminalTab`, `toggleTerminalPanel`, `maximize/restore`. Add migration to strip terminal tabs from split tree groups on hydrate
-- [ ] Build `TerminalPanelLayout` component with resize handle and maximize/restore logic, rendering the dedicated `PaneGroup`
-- [ ] Rewire navigation: `navigateToTerminal` → `openTerminal`, remove `openInBottomPane` and `bottomPane` option
-- [ ] Wire Ctrl+\`, Cmd+T, sidebar terminal click, and new-worktree auto-terminal to terminal panel
-- [ ] Add auto-restore behavior when navigating to content while terminal is maximized
+- [x] Extend pane layout types and store: add `terminalPanel` to persisted state, add terminal panel actions to store
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+- [x] Extend pane layout service: add `openTerminal`, `closeTerminalTab`, `toggleTerminalPanel`, `maximize/restore`. Add migration to strip terminal tabs from split tree groups on hydrate
+
+- [x] Build `TerminalPanelLayout` component with resize handle and maximize/restore logic, rendering the dedicated `PaneGroup`
+
+- [x] Rewire navigation: `navigateToTerminal` → `openTerminal`, remove `openInBottomPane` and `bottomPane` option
+
+- [x] Wire Ctrl+\`, Cmd+T, sidebar terminal click, and new-worktree auto-terminal to terminal panel
+
+- [x] Add auto-restore behavior when navigating to content while terminal is maximized
+
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -188,7 +197,7 @@ Manual restore:
 
 - **No terminals open**: Terminal panel is hidden. Ctrl+\`, Cmd+T, or sidebar click opens it.
 - **All terminals closed**: Panel auto-hides when last tab is closed.
-- **Terminal session dies**: Keep the tab (shows "[Process exited]"), user can close it manually or revive it.
+- **Terminal session dies**: Keep the tab (shows "\[Process exited\]"), user can close it manually or revive it.
 - **Existing layouts with terminal tabs in split tree**: Migration on hydrate strips them. Terminals reappear in the terminal panel when user opens them.
 - **Window resize**: Terminal panel height is pixel-based and clamped to min/max (like `ResizablePanelVertical`).
 - **Multiple worktrees**: "+" button in terminal panel uses the same worktree resolution logic as current Cmd+T.

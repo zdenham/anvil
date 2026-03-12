@@ -21,7 +21,7 @@ export type TreeMenuPersistedState = z.infer<typeof TreeMenuPersistedStateSchema
 
 /**
  * Every node in the sidebar tree — worktrees, folders, threads, plans,
- * terminals, PRs, and synthetic items (changes/uncommitted/commit).
+ * terminals, PRs, and the synthetic changes item.
  */
 export interface TreeItemNode {
   type: TreeItemType;
@@ -84,15 +84,6 @@ export interface TreeItemNode {
   /** Review status icon hint */
   reviewIcon?: "approved" | "changes-requested" | "review-required" | "draft" | "merged" | "closed";
 
-  // ── Commit-specific fields ────────────────────────────────────────────
-  /** Full commit hash (for "commit" type items) */
-  commitHash?: string;
-  /** First line of commit message (for "commit" type items) */
-  commitMessage?: string;
-  /** Author name (for "commit" type items) */
-  commitAuthor?: string;
-  /** Relative date string like "3 days ago" (for "commit" type items) */
-  commitRelativeDate?: string;
 }
 
 /** All possible node types in the unified tree */
@@ -104,10 +95,8 @@ export type TreeItemType =
   | "plan"
   | "terminal"
   | "pull-request"
-  | "files"
   | "changes"
-  | "uncommitted"
-  | "commit";
+  | "files";
 
 /** Subset of item types backed by entity stores (used by onItemSelect callbacks) */
 export type EntityItemType = "thread" | "plan" | "terminal" | "pull-request";

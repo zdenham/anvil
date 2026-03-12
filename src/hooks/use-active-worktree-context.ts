@@ -36,23 +36,20 @@ export function useActiveWorktreeContext(): ActiveWorktreeContext {
     return tab?.view ?? null;
   });
 
-  const threadContext = useThreadStore((s) => {
-    if (activeView?.type !== "thread") return null;
-    const t = s.threads[activeView.threadId];
-    return t ? { repoId: t.repoId, worktreeId: t.worktreeId } : null;
-  });
+  // Return store entities directly (stable references) — creating new object
+  // literals in selectors triggers useSyncExternalStore's "getSnapshot should
+  // be cached" warning because each call produces a fresh reference.
+  const thread = useThreadStore((s) =>
+    activeView?.type === "thread" ? s.threads[activeView.threadId] ?? null : null,
+  );
 
-  const planContext = usePlanStore((s) => {
-    if (activeView?.type !== "plan") return null;
-    const p = s.plans[activeView.planId];
-    return p ? { repoId: p.repoId, worktreeId: p.worktreeId } : null;
-  });
+  const plan = usePlanStore((s) =>
+    activeView?.type === "plan" ? s.plans[activeView.planId] ?? null : null,
+  );
 
-  const terminalContext = useTerminalSessionStore((s) => {
-    if (activeView?.type !== "terminal") return null;
-    const t = s.sessions[activeView.terminalId];
-    return t ? { worktreeId: t.worktreeId, worktreePath: t.worktreePath } : null;
-  });
+  const terminal = useTerminalSessionStore((s) =>
+    activeView?.type === "terminal" ? s.sessions[activeView.terminalId] ?? null : null,
+  );
 
   // Derive repoId/worktreeId from the active view
   let repoId: string | null = null;
@@ -60,12 +57,12 @@ export function useActiveWorktreeContext(): ActiveWorktreeContext {
 
   switch (activeView?.type) {
     case "thread":
-      repoId = threadContext?.repoId ?? null;
-      worktreeId = threadContext?.worktreeId ?? null;
+      repoId = thread?.repoId ?? null;
+      worktreeId = thread?.worktreeId ?? null;
       break;
     case "plan":
-      repoId = planContext?.repoId ?? null;
-      worktreeId = planContext?.worktreeId ?? null;
+      repoId = plan?.repoId ?? null;
+      worktreeId = plan?.worktreeId ?? null;
       break;
     case "file":
       repoId = activeView.repoId ?? null;
@@ -76,7 +73,7 @@ export function useActiveWorktreeContext(): ActiveWorktreeContext {
       worktreeId = activeView.worktreeId;
       break;
     case "terminal": {
-      worktreeId = terminalContext?.worktreeId ?? null;
+      worktreeId = terminal?.worktreeId ?? null;
       // Terminal sessions don't store repoId — find it from the lookup store
       if (worktreeId) {
         const { repos } = useRepoWorktreeLookupStore.getState();
@@ -100,8 +97,8 @@ export function useActiveWorktreeContext(): ActiveWorktreeContext {
   }
 
   // Terminal sessions carry worktreePath directly — use as fallback
-  if (activeView?.type === "terminal" && terminalContext?.worktreePath) {
-    return { workingDirectory: terminalContext.worktreePath, repoId, worktreeId };
+  if (activeView?.type === "terminal" && terminal?.worktreePath) {
+    return { workingDirectory: terminal.worktreePath, repoId, worktreeId };
   }
 
   // Fall back to MRU worktree

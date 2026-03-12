@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { getCurrentWindow, LogicalSize } from "@/lib/browser-stubs";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
-import { PermissionsPrompt } from "./components/PermissionsPrompt";
 import { MainWindowLayout } from "./components/main-window/main-window-layout";
 import { hydrateEntities, setupEntityListeners } from "./entities";
 import { isOnboarded, completeOnboarding } from "./lib/hotkey-service";
-import { spotlightShortcutCommands } from "./lib/tauri-commands";
 import { initializeTriggers } from "./lib/triggers";
 import { bootstrapMortDirectory } from "./lib/mort-bootstrap";
 import { initAgentMessageListener, cleanupAgentMessageListener } from "./lib/agent-service";
@@ -17,7 +15,6 @@ initializeTriggers();
 type AppState =
   | { status: "loading" }
   | { status: "onboarding" }
-  | { status: "permissions-prompt" }
   | { status: "ready" };
 
 function App() {
@@ -38,30 +35,14 @@ function App() {
         return;
       }
 
-      // Check accessibility permission for onboarded users
-      const tAccess = performance.now();
-      const hasAccessibility = await spotlightShortcutCommands
-        .checkAccessibilityPermission()
-        .catch((err) => {
-          logger.error("[App] Accessibility check failed:", err);
-          return false;
-        });
-      logger.info(`[startup] checkAccessibilityPermission: ${(performance.now() - tAccess).toFixed(0)}ms`);
-
-      if (!hasAccessibility) {
-        setAppState({ status: "permissions-prompt" });
-      } else {
-        setAppState({ status: "ready" });
-      }
-      logger.info(`[startup] checkInitialState total: ${(performance.now() - t0).toFixed(0)}ms (→ ${hasAccessibility ? "ready" : "permissions-prompt"})`);
+      setAppState({ status: "ready" });
+      logger.info(`[startup] checkInitialState total: ${(performance.now() - t0).toFixed(0)}ms (→ ready)`);
     }
 
     checkInitialState().catch((err) => logger.error("[startup] checkInitialState failed:", err));
   }, []);
 
   // IMPORTANT: Bootstrap only runs when status is 'ready'
-  // This ensures permissions prompt is shown BEFORE any bootstrap attempt
-  // (no entity hydration, no listeners, no window resize until after permissions)
   useEffect(() => {
     if (appState.status !== "ready") return;
 
@@ -111,10 +92,6 @@ function App() {
     setAppState({ status: "ready" });
   };
 
-  const handlePermissionsComplete = () => {
-    setAppState({ status: "ready" });
-  };
-
   // Render based on state
   switch (appState.status) {
     case "loading":
@@ -122,9 +99,6 @@ function App() {
 
     case "onboarding":
       return <OnboardingFlow onComplete={handleOnboardingComplete} />;
-
-    case "permissions-prompt":
-      return <PermissionsPrompt onComplete={handlePermissionsComplete} />;
 
     case "ready":
       return isHydrated ? <MainWindowLayout /> : <LoadingScreen />;

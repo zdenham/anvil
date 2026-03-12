@@ -15,7 +15,6 @@ import { useFolderStore } from "@/entities/folders/store";
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { useSettingsStore } from "@/entities/settings/store";
-import { useCommitStore } from "@/stores/commit-store";
 import type { TreeItemNode, TreeItemType } from "@/stores/tree-menu/types";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
@@ -30,8 +29,8 @@ import {
   planToNode,
   terminalToNode,
   prToNode,
+  buildChangesNode,
   buildFilesNode,
-  buildChangesNodes,
 } from "./tree-node-builders";
 import { ensureVisualSettings, persistVisualSettings } from "@/lib/visual-settings";
 
@@ -64,10 +63,10 @@ const ROOT = "__ROOT__";
 /** Type-based sort priority — lower number sorts first within a parent.
  *  Always applied as the first sort dimension; sortKey only orders within a tier. */
 const TYPE_SORT_PRIORITY: Partial<Record<TreeItemType, number>> = {
-  files: 0,
   "pull-request": 1,
   changes: 2,
   terminal: 3,
+  files: 4,
 };
 
 function typePriority(node: TreeItemNode): number {
@@ -205,10 +204,10 @@ export function buildUnifiedTree(
     allNodes.push(prToNode(pr));
   }
 
-  // Step 1b: Add synthetic Files + Changes/Uncommitted/Commit per worktree
+  // Step 1b: Add synthetic Changes + Files nodes per worktree
   for (const wt of worktrees) {
-    allNodes.push(buildFilesNode(wt.worktreeId, wt.repoId, wt.worktreePath));
-    allNodes.push(...buildChangesNodes(wt.worktreeId));
+    allNodes.push(buildChangesNode(wt.worktreeId));
+    allNodes.push(buildFilesNode(wt.worktreeId));
   }
 
   // Step 2: Build children map (extracted into reusable utility)
@@ -291,7 +290,6 @@ export function useTreeData(): TreeItemNode[] {
   const prDetails = usePullRequestStore((state) => state.prDetails);
   const folders = useFolderStore((state) => state._foldersArray);
   const expandedSections = useTreeMenuStore((state) => state.expandedSections);
-  const commitsByWorktree = useCommitStore((state) => state.commitsByWorktree);
   const pinnedWorktreeId = useTreeMenuStore((state) => state.pinnedWorktreeId);
   const repos = useRepoWorktreeLookupStore((state) => state.repos);
   const hideExternal = useSettingsStore((s) => s.workspace.hideExternalWorktrees ?? false);
@@ -360,7 +358,7 @@ export function useTreeData(): TreeItemNode[] {
     return allNodes;
   }, [
     threads, plans, terminals, pullRequests, prDetails, folders,
-    expandedSections, commitsByWorktree, runningThreadIds, worktrees,
+    expandedSections, runningThreadIds, worktrees,
     pinnedWorktreeId, threadsWithPendingInput, hideExternal,
   ]);
 }

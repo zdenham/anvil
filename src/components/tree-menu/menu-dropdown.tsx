@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Archive, Cog, Ellipsis, Eye, FolderGit2 } from "lucide-react";
+import { Archive, Cog, Ellipsis, Eye, FolderGit2, Plus } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 
@@ -7,6 +7,7 @@ interface MenuDropdownProps {
   onSettingsClick: () => void;
   onArchiveClick: () => void;
   onNewRepo?: () => void;
+  onCreateProject?: () => void;
   /** Called when user clicks "Show all workspaces" */
   onUnhideAll?: () => void;
   /** Whether any workspaces are hidden or pinned (shows "Show all" option) */
@@ -20,7 +21,7 @@ interface MenuItem {
   onClick: () => void;
 }
 
-export function MenuDropdown({ onSettingsClick, onArchiveClick, onNewRepo, onUnhideAll, hasHiddenOrPinned }: MenuDropdownProps) {
+export function MenuDropdown({ onSettingsClick, onArchiveClick, onNewRepo, onCreateProject, onUnhideAll, hasHiddenOrPinned }: MenuDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -35,8 +36,11 @@ export function MenuDropdown({ onSettingsClick, onArchiveClick, onNewRepo, onUnh
       : []),
     { id: "settings", label: "Settings", icon: <Cog size={11} />, onClick: onSettingsClick },
     { id: "archive", label: "Archive", icon: <Archive size={11} />, onClick: onArchiveClick },
+    ...(onCreateProject
+      ? [{ id: "create-project", label: "Create project", icon: <Plus size={11} />, onClick: onCreateProject }]
+      : []),
     ...(onNewRepo
-      ? [{ id: "new-repo", label: "New project", icon: <FolderGit2 size={11} />, onClick: onNewRepo }]
+      ? [{ id: "import-project", label: "Import project", icon: <FolderGit2 size={11} />, onClick: onNewRepo }]
       : []),
   ];
 

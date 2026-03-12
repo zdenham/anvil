@@ -3,7 +3,6 @@
  * One function per entity type, consumed by buildUnifiedTree().
  */
 import { usePullRequestStore } from "@/entities/pull-requests/store";
-import { useCommitStore } from "@/stores/commit-store";
 import { relationService } from "@/entities/relations/service";
 import { getThreadStatusVariant, getPlanStatusVariant } from "@/utils/thread-colors";
 import { derivePrStatusDot } from "@/utils/pr-status";
@@ -181,7 +180,25 @@ export function prToNode(pr: PullRequestMetadata): TreeItemNode {
   };
 }
 
-export function buildFilesNode(worktreeId: string, repoId: string, worktreePath: string): TreeItemNode {
+/** Build a flat Changes leaf node for a worktree. */
+export function buildChangesNode(worktreeId: string): TreeItemNode {
+  return {
+    type: "changes",
+    id: `changes:${worktreeId}`,
+    title: "Changes",
+    status: "read",
+    updatedAt: 0,
+    createdAt: 0,
+    depth: 0,
+    isFolder: false,
+    isExpanded: false,
+    worktreeId,
+    parentId: worktreeId,
+  };
+}
+
+/** Build a flat Files leaf node for a worktree. */
+export function buildFilesNode(worktreeId: string): TreeItemNode {
   return {
     type: "files",
     id: `files:${worktreeId}`,
@@ -194,70 +211,5 @@ export function buildFilesNode(worktreeId: string, repoId: string, worktreePath:
     isExpanded: false,
     worktreeId,
     parentId: worktreeId,
-    repoId,
-    worktreePath,
   };
-}
-
-/**
- * Build synthetic Changes, Uncommitted, and Commit nodes for a worktree.
- * Changes node is always a child of the worktree node.
- */
-export function buildChangesNodes(worktreeId: string): TreeItemNode[] {
-  const nodes: TreeItemNode[] = [];
-  const changesItemId = `changes:${worktreeId}`;
-
-  nodes.push({
-    type: "changes",
-    id: changesItemId,
-    title: "Changes",
-    status: "read",
-    updatedAt: 0,
-    createdAt: 0,
-    depth: 0,
-    isFolder: true,
-    isExpanded: false,
-    worktreeId,
-    parentId: worktreeId,
-  });
-
-  // Uncommitted changes child
-  nodes.push({
-    type: "uncommitted",
-    id: `uncommitted:${worktreeId}`,
-    title: "Uncommitted",
-    status: "read",
-    updatedAt: 0,
-    createdAt: 0,
-    depth: 0,
-    isFolder: false,
-    isExpanded: false,
-    worktreeId,
-    parentId: changesItemId,
-  });
-
-  // Commit children from store
-  const { commitsByWorktree } = useCommitStore.getState();
-  const commits = commitsByWorktree[worktreeId] ?? [];
-  for (const commit of commits.slice(0, 5)) {
-    nodes.push({
-      type: "commit",
-      id: `commit:${worktreeId}:${commit.hash}`,
-      title: commit.message,
-      status: "read",
-      updatedAt: 0,
-      createdAt: 0,
-      depth: 0,
-      isFolder: false,
-      isExpanded: false,
-      worktreeId,
-      parentId: changesItemId,
-      commitHash: commit.hash,
-      commitMessage: commit.message,
-      commitAuthor: commit.author,
-      commitRelativeDate: commit.relativeDate,
-    });
-  }
-
-  return nodes;
 }

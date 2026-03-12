@@ -3,6 +3,8 @@
  *
  * Provides sensors, active drag state, edge zone detection via onDragMove,
  * and event handlers for the single DndContext wrapping SplitLayoutContainer.
+ *
+ * Parameterized by scope ("content" | "terminal") to target the correct split tree.
  */
 
 import { useState, useCallback, useRef } from "react";
@@ -22,7 +24,9 @@ import {
   usePaneLayoutStore,
   canSplitHorizontal,
   canSplitVertical,
+  collectGroupIds,
 } from "@/stores/pane-layout";
+import type { SplitNode } from "@/stores/pane-layout";
 import type { ContentPaneView } from "@/components/content-pane/types";
 import type { EdgeZone } from "./drop-zone-overlay";
 
@@ -52,20 +56,33 @@ const EDGE_FRACTION = 0.3;
 /** Minimum pixel threshold so small panels stay usable. */
 const MIN_EDGE_PX = 30;
 
+/** Resolves the split tree root for the given scope. */
+function getTreeRoot(scope: "content" | "terminal"): SplitNode | null {
+  const state = usePaneLayoutStore.getState();
+  if (scope === "terminal") return state.terminalPanel?.root ?? null;
+  return state.root;
+}
+
 /**
  * Detect which edge zone (if any) the cursor is over.
  *
- * Checks all pane groups by querying the DOM for their bounding rects.
+ * Checks groups within the scoped tree by querying the DOM for their bounding rects.
  * Returns null if the cursor is inside the tab bar or not on any edge.
  */
 function detectEdgeZoneAtPoint(
   clientX: number,
   clientY: number,
   sourceGroupId: string,
+  scope: "content" | "terminal",
 ): ActiveEdgeZone | null {
-  const { root, groups } = usePaneLayoutStore.getState();
+  const treeRoot = getTreeRoot(scope);
+  if (!treeRoot) return null;
 
-  for (const groupId of Object.keys(groups)) {
+  const { groups } = usePaneLayoutStore.getState();
+  const scopeGroupIds = collectGroupIds(treeRoot);
+
+  for (const groupId of scopeGroupIds) {
+    if (!groups[groupId]) continue;
     const el = document.querySelector(`[data-testid="pane-group-${groupId}"]`);
     if (!el) continue;
 
@@ -90,8 +107,8 @@ function detectEdgeZoneAtPoint(
       : rect.top + 32;
     if (clientY < tabBarBottom) return null;
 
-    const canH = canSplitHorizontal(root, groupId);
-    const canV = canSplitVertical(root, groupId);
+    const canH = canSplitHorizontal(treeRoot, groupId);
+    const canV = canSplitVertical(treeRoot, groupId);
 
     const relX = clientX - rect.left;
     const contentTop = tabBarBottom - rect.top;
@@ -117,7 +134,28 @@ function detectEdgeZoneAtPoint(
   return null;
 }
 
-export function useTabDnd() {
+/** Calls the correct split-and-move service method based on scope. */
+async function splitAndMoveForScope(
+  scope: "content" | "terminal",
+  targetGroupId: string,
+  direction: "horizontal" | "vertical",
+  sourceGroupId: string,
+  tabId: string,
+): Promise<void> {
+  if (scope === "terminal") {
+    await paneLayoutService.splitAndMoveTerminalTab(targetGroupId, direction, sourceGroupId, tabId);
+  } else {
+    await paneLayoutService.splitAndMoveTab(targetGroupId, direction, sourceGroupId, tabId);
+  }
+}
+
+interface UseTabDndOptions {
+  scope?: "content" | "terminal";
+}
+
+export function useTabDnd(options: UseTabDndOptions = {}) {
+  const scope = options.scope ?? "content";
+
   const [activeDrag, setActiveDrag] = useState<ActiveDragState | null>(null);
   const [activeEdgeZone, setActiveEdgeZone] = useState<ActiveEdgeZone | null>(
     null,
@@ -153,13 +191,13 @@ export function useTabDnd() {
     const clientX = activatorEvent.clientX + event.delta.x;
     const clientY = activatorEvent.clientY + event.delta.y;
 
-    const result = detectEdgeZoneAtPoint(clientX, clientY, drag.sourceGroupId);
+    const result = detectEdgeZoneAtPoint(clientX, clientY, drag.sourceGroupId, scope);
     setActiveEdgeZone((prev) => {
       if (prev?.groupId === result?.groupId && prev?.zone === result?.zone)
         return prev;
       return result;
     });
-  }, []);
+  }, [scope]);
 
   const handleDragOver = useCallback((_event: DragOverEvent) => {
     // Tracked by SortableContext; no custom logic needed
@@ -193,6 +231,7 @@ export function useTabDnd() {
       finalX,
       finalY,
       drag.sourceGroupId,
+      scope,
     );
     if (edgeResult) {
       const { groupId: targetGroupId, zone } = edgeResult;
@@ -203,12 +242,7 @@ export function useTabDnd() {
         `[useTabDnd] Edge drop: tab ${drag.tabId} on ${zone} of group ${targetGroupId}`,
       );
 
-      await paneLayoutService.splitAndMoveTab(
-        targetGroupId,
-        direction,
-        drag.sourceGroupId,
-        drag.tabId,
-      );
+      await splitAndMoveForScope(scope, targetGroupId, direction, drag.sourceGroupId, drag.tabId);
       return;
     }
 
@@ -246,7 +280,7 @@ export function useTabDnd() {
         overData.tabId,
       );
     }
-  }, []);
+  }, [scope]);
 
   /**
    * Handle an edge-zone drop (drag-to-split).
@@ -268,18 +302,13 @@ export function useTabDnd() {
         `[useTabDnd] Edge drop: tab ${tabId} on ${zone} of group ${targetGroupId}`,
       );
 
-      await paneLayoutService.splitAndMoveTab(
-        targetGroupId,
-        direction,
-        sourceGroupId,
-        tabId,
-      );
+      await splitAndMoveForScope(scope, targetGroupId, direction, sourceGroupId, tabId);
 
       setActiveDrag(null);
       setActiveEdgeZone(null);
       activeDragRef.current = null;
     },
-    [],
+    [scope],
   );
 
   return {

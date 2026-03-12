@@ -75,7 +75,7 @@ export const ChangesDiffContent = forwardRef<
   }, []);
 
   return (
-    <div data-testid="changes-diff-content" className="h-full">
+    <div data-testid="changes-diff-content" className="h-full min-w-0 overflow-hidden">
       <div ref={scrollerRef} style={{ height: "100%", overflow: "auto" }}>
         <div style={{ paddingTop: paddingBefore, paddingBottom: paddingAfter }}>
           {items.map((item) => {

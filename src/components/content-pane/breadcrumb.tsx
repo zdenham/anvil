@@ -22,8 +22,7 @@ export function Breadcrumb({
   itemLabel,
   onCategoryClick,
 }: BreadcrumbProps) {
-  // Don't show "main" worktree in breadcrumb - it's redundant
-  const showWorktree = worktreeName && worktreeName !== "main";
+  const showWorktree = !!worktreeName;
 
   return (
     <div data-testid="breadcrumb" className="flex items-center gap-1.5 text-xs min-w-0">

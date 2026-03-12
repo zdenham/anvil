@@ -2,7 +2,7 @@
  * useTabTooltip — builds a breadcrumb-style tooltip string for tab hover.
  *
  * Format: "repoName / worktreeName / category / itemLabel"
- * Skips worktreeName if it's "main".
+ * Includes worktreeName in the path.
  */
 
 import { useThreadStore } from "@/entities/threads/store";
@@ -78,7 +78,7 @@ export function useTabTooltip(view: ContentPaneView): string {
   const parts: string[] = [];
 
   if (repoName) parts.push(repoName);
-  if (worktreeName && worktreeName !== "main") parts.push(worktreeName);
+  if (worktreeName) parts.push(worktreeName);
   parts.push(category);
   parts.push(label);
 

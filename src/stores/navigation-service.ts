@@ -9,22 +9,26 @@
  */
 
 import { paneLayoutService } from "./pane-layout/service";
+import { usePaneLayoutStore } from "./pane-layout/store";
 import { treeMenuService } from "./tree-menu/service";
 import type { ContentPaneView } from "@/components/content-pane/types";
+
+/** Auto-restore terminal panel when navigating to content while maximized. */
+function autoRestoreTerminalPanel(): void {
+  const panel = usePaneLayoutStore.getState().terminalPanel;
+  if (panel?.isMaximized) {
+    paneLayoutService.restoreTerminalPanel();
+  }
+}
 
 export interface NavigateOptions {
   /** When true, always opens a new tab instead of reusing an existing one. */
   newTab?: boolean;
   /** Auto-focus the input (for threads). */
   autoFocus?: boolean;
-  /** Open in a bottom split pane (used for terminals). */
-  bottomPane?: boolean;
 }
 
 function openOrFind(view: ContentPaneView, options?: NavigateOptions): Promise<void> {
-  if (options?.bottomPane) {
-    return paneLayoutService.openInBottomPane(view).then(() => undefined);
-  }
   if (options?.newTab) {
     return paneLayoutService.openTab(view).then(() => undefined);
   }
@@ -36,6 +40,7 @@ export const navigationService = {
    * Navigate to a thread - updates both pane layout AND tree selection.
    */
   async navigateToThread(threadId: string, options?: NavigateOptions): Promise<void> {
+    autoRestoreTerminalPanel();
     await treeMenuService.setSelectedItem(threadId);
     const view: ContentPaneView = {
       type: "thread",
@@ -49,6 +54,7 @@ export const navigationService = {
    * Navigate to a plan - updates both pane layout AND tree selection.
    */
   async navigateToPlan(planId: string, options?: NavigateOptions): Promise<void> {
+    autoRestoreTerminalPanel();
     await treeMenuService.setSelectedItem(planId);
     await openOrFind({ type: "plan", planId }, options);
   },
@@ -61,22 +67,26 @@ export const navigationService = {
     context?: { repoId?: string; worktreeId?: string; lineNumber?: number },
     options?: NavigateOptions,
   ): Promise<void> {
+    autoRestoreTerminalPanel();
     await treeMenuService.setSelectedItem(null);
     await openOrFind({ type: "file", filePath, ...context }, options);
   },
 
   /**
-   * Navigate to a terminal - updates both pane layout AND tree selection.
+   * Navigate to a terminal - opens in the dedicated terminal panel.
+   * The newTab option is unused since terminals always open in the terminal
+   * panel, which handles tab deduplication internally.
    */
-  async navigateToTerminal(terminalId: string, options?: NavigateOptions): Promise<void> {
+  async navigateToTerminal(terminalId: string, _options?: NavigateOptions): Promise<void> {
     await treeMenuService.setSelectedItem(terminalId);
-    await openOrFind({ type: "terminal", terminalId }, options);
+    await paneLayoutService.openTerminal(terminalId);
   },
 
   /**
    * Navigate to a pull request - updates both pane layout AND tree selection.
    */
   async navigateToPullRequest(prId: string, options?: NavigateOptions): Promise<void> {
+    autoRestoreTerminalPanel();
     await treeMenuService.setSelectedItem(prId);
     await openOrFind({ type: "pull-request", prId }, options);
   },
@@ -90,6 +100,7 @@ export const navigationService = {
     /** Tree item ID to select */
     treeItemId?: string;
   } & NavigateOptions): Promise<void> {
+    autoRestoreTerminalPanel();
     const { treeItemId, newTab, ...viewOptions } = options ?? {};
     await treeMenuService.setSelectedItem(treeItemId ?? null);
     const view: ContentPaneView = { type: "changes", repoId, worktreeId, ...viewOptions };
@@ -115,10 +126,12 @@ export const navigationService = {
     } else if (view.type === "pull-request") {
       await this.navigateToPullRequest(view.prId, options);
     } else if (view.type === "changes") {
+      autoRestoreTerminalPanel();
       await treeMenuService.setSelectedItem(null);
       await openOrFind(view, options);
     } else {
       // For settings, logs, archive, empty - clear tree selection
+      autoRestoreTerminalPanel();
       await treeMenuService.setSelectedItem(null);
       await openOrFind(view, options);
     }

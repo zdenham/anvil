@@ -64,6 +64,13 @@ export interface ThreadSearchResponse {
 
 export const gitCommands = {
   /**
+   * Initialize a new git repository at the given path.
+   * Creates the directory (and parents) if it doesn't exist.
+   */
+  init: (path: string) =>
+    invoke<void>("git_init", { path }),
+
+  /**
    * Get the current branch name for a worktree.
    * Returns null for detached HEAD.
    */
@@ -234,6 +241,14 @@ export const gitCommands = {
    */
   fetch: (repoPath: string, remote?: string) =>
     invoke<void>("git_fetch", { repoPath, remote }),
+
+  /**
+   * Fetch multiple file contents in a single git cat-file --batch call.
+   * Each ref is an object identifier like "abc123:src/foo.ts".
+   * Returns null for missing/binary objects, string content for found text files.
+   */
+  catFileBatch: (cwd: string, refs: string[]) =>
+    invoke<(string | null)[]>("git_cat_file_batch", { cwd, refs }),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
