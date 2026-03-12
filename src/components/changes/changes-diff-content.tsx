@@ -8,6 +8,7 @@
 import {
   useRef,
   useState,
+  useEffect,
   forwardRef,
   useImperativeHandle,
   useCallback,
@@ -62,6 +63,8 @@ export const ChangesDiffContent = forwardRef<
     [scrollToIndex],
   );
 
+  const pendingCollapseRef = useRef<number | null>(null);
+
   const toggleCollapsed = useCallback((index: number) => {
     setCollapsedFiles((prev) => {
       const next = new Set(prev);
@@ -69,10 +72,37 @@ export const ChangesDiffContent = forwardRef<
         next.delete(index);
       } else {
         next.add(index);
+        pendingCollapseRef.current = index;
       }
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    const index = pendingCollapseRef.current;
+    if (index === null) return;
+    pendingCollapseRef.current = null;
+
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const el = scroller.querySelector<HTMLElement>(`[data-index="${index}"]`);
+    if (!el) return;
+
+    // Only scroll if the card's top was above the viewport (sticky header engaged)
+    const scrollerTop = scroller.getBoundingClientRect().top;
+    const elTop = el.getBoundingClientRect().top;
+    if (elTop >= scrollerTop) return;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const elTop = el.getBoundingClientRect().top;
+        const scrollerTop = scroller.getBoundingClientRect().top;
+        const offset = elTop - scrollerTop;
+        scroller.scrollTop += offset;
+      });
+    });
+  }, [collapsedFiles]);
 
   return (
     <div data-testid="changes-diff-content" className="h-full min-w-0 overflow-hidden">
