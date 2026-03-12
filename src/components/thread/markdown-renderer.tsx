@@ -1,6 +1,9 @@
 import { memo, useMemo, useRef, type MutableRefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkAlert from "remark-github-blockquote-alert";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "./code-block";
@@ -208,16 +211,20 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     ),
   }), [resolvedWorkingDirectory, onFileClick]);
 
-  // Pre-process content to auto-link bare file paths in text
-  // When streaming, append a cursor character inline so it renders inside the last paragraph
+  // Pre-process content: strip HTML comments, auto-link file paths, add streaming cursor
   const processedContent = useMemo(() => {
-    const linked = resolvedWorkingDirectory ? autoLinkFilePaths(content) : content;
+    const stripped = content.replace(/<!--[\s\S]*?-->/g, "");
+    const linked = resolvedWorkingDirectory ? autoLinkFilePaths(stripped) : stripped;
     return isStreaming ? linked + " ●" : linked;
   }, [content, resolvedWorkingDirectory, isStreaming]);
 
   return (
     <div className={cn("prose prose-invert prose-sm prose-p:leading-relaxed max-w-none", className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkAlert]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        components={components}
+      >
         {processedContent}
       </ReactMarkdown>
     </div>

@@ -151,6 +151,32 @@ pub struct WorktreeInfo {
     pub is_bare: bool,
 }
 
+/// Get the current branch name for a worktree.
+/// Returns null for detached HEAD.
+#[tauri::command]
+pub async fn git_get_current_branch(worktree_path: String) -> Result<Option<String>, String> {
+    let output = shell::command("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(&worktree_path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to get current branch: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // git rev-parse --abbrev-ref HEAD returns "HEAD" for detached HEAD
+    if branch == "HEAD" {
+        Ok(None)
+    } else {
+        Ok(Some(branch))
+    }
+}
+
 /// Fetch from a remote to update refs
 #[tauri::command]
 pub async fn git_fetch(repo_path: String, remote: Option<String>) -> Result<(), String> {

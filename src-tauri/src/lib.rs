@@ -922,6 +922,7 @@ pub fn run() {
             filesystem::fs_grep,
             filesystem::fs_bulk_read,
             // Git commands
+            git_commands::git_get_current_branch,
             git_commands::git_fetch,
             git_commands::git_get_default_branch,
             git_commands::git_get_branch_commit,

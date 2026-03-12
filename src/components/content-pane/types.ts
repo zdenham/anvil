@@ -101,6 +101,19 @@ export interface ChangesContentProps {
 /**
  * Props for the ContentPaneHeader component.
  */
+/**
+ * View categories for category-aware tab placement.
+ * Terminals get their own category; everything else is "content".
+ */
+export type ViewCategory = "terminal" | "content";
+
+export function getViewCategory(type: ContentPaneView["type"]): ViewCategory {
+  return type === "terminal" ? "terminal" : "content";
+}
+
+/**
+ * Props for the ContentPaneHeader component.
+ */
 export interface ContentPaneHeaderProps {
   view: ContentPaneView;
   /** For thread views: current tab */

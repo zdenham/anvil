@@ -11,8 +11,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { logger } from "@/lib/logger-client";
+import { gitCommands } from "@/lib/tauri-commands";
 import { fetchRawDiff, processParsedDiff, fetchFileContents, backgroundFetchOrigin } from "./changes-diff-fetcher";
-import { getCachedRangeDiff, updateCachedFileContents } from "./changes-diff-cache";
+import { getCachedRangeDiff, invalidateRangeDiffCache, updateCachedFileContents } from "./changes-diff-cache";
 import type { FileContentEntry } from "./changes-diff-fetcher";
 import type { ParsedDiff, ParsedDiffFile } from "@/lib/diff-parser";
 
@@ -52,9 +53,11 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
   const [fileContents, setFileContents] = useState<Record<string, FileContentEntry>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [freshBranch, setFreshBranch] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const generationRef = useRef(0);
   const contentGenRef = useRef(0);
+  const previousBranchRef = useRef<string | null>(null);
 
   const refresh = useCallback(() => setRefreshCounter((c) => c + 1), []);
 
@@ -69,7 +72,23 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
         return;
       }
 
+      // Phase 1: Query git for the real current branch
+      let liveBranch: string | null = currentBranch;
+      try {
+        liveBranch = await gitCommands.getCurrentBranch(worktreePath);
+      } catch {
+        logger.warn("[useChangesData] Failed to get current branch from git, using store value");
+      }
+      if (generationRef.current !== gen) return;
+      setFreshBranch(liveBranch);
+
       const isRangeMode = !commitHash && !uncommittedOnly;
+
+      // Phase 2: Invalidate cache if branch changed
+      if (liveBranch !== previousBranchRef.current && previousBranchRef.current !== null) {
+        invalidateRangeDiffCache(worktreePath);
+      }
+      previousBranchRef.current = liveBranch;
 
       // Stale-while-revalidate: show cached range diff immediately (no spinner)
       const cached = isRangeMode ? getCachedRangeDiff(worktreePath) : undefined;
@@ -90,7 +109,7 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
         const result = await fetchRawDiff({
           worktreePath,
           defaultBranch,
-          currentBranch,
+          currentBranch: liveBranch,
           uncommittedOnly,
           commitHash,
         });
@@ -106,7 +125,7 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
           backgroundFetchOrigin({
             worktreePath,
             defaultBranch,
-            currentBranch,
+            currentBranch: liveBranch,
             previousMergeBase: result.mergeBase,
           }).then((bgResult) => {
             if (generationRef.current !== gen) return;
@@ -116,6 +135,11 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
               setMergeBase(bgResult.result.mergeBase);
             }
           });
+        }
+
+        // Phase 3: Sync store if stale (fire-and-forget)
+        if (liveBranch !== currentBranch) {
+          useRepoWorktreeLookupStore.getState().hydrate().catch(() => {});
         }
       } catch (err) {
         if (generationRef.current !== gen) return;
@@ -171,7 +195,7 @@ export function useChangesData(options: UseChangesDataOptions): UseChangesDataRe
     loading,
     error,
     refresh,
-    branchName: currentBranch,
+    branchName: freshBranch ?? currentBranch,
     mergeBase,
     defaultBranch,
     worktreePath,

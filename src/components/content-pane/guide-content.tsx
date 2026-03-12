@@ -6,7 +6,8 @@
  */
 export function GuideContent() {
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-8 max-w-2xl mx-auto w-full">
+    <div className="flex-1 overflow-y-auto">
+      <div className="px-6 py-8 max-w-2xl mx-auto w-full">
       {/* Getting Started */}
       <section className="mb-8">
         <h2 className="text-lg font-medium font-mono text-surface-100 mb-3">
@@ -112,6 +113,7 @@ export function GuideContent() {
           <li>Quick actions appear in the bottom gutter bar</li>
         </ul>
       </section>
+      </div>
     </div>
   );
 }

@@ -6,16 +6,18 @@
  */
 
 import { useCallback, useMemo } from "react";
+import { useDndContext } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { X, Pause } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
 import { useFileDirtyStore } from "@/stores/file-dirty-store";
-import { paneLayoutService } from "@/stores/pane-layout";
+import { paneLayoutService, usePaneLayoutStore } from "@/stores/pane-layout";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui";
 import { useTabLabel } from "./use-tab-label";
 import { useTabTooltip } from "./use-tab-tooltip";
+import { useDndBridge } from "./dnd-context-bridge";
 import type { TabItem as TabItemType } from "@/stores/pane-layout/types";
 import type { ContentPaneView } from "@/components/content-pane/types";
 import type { TabDragData } from "./use-tab-dnd";
@@ -59,6 +61,8 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
   const tooltip = useTabTooltip(tab.view);
   const status = useTabStatus(tab.view);
   const isFileDirty = useFileDirty(tab.view);
+  const { active, over } = useDndContext();
+  const { activeEdgeZone } = useDndBridge();
 
   const dragData: TabDragData = useMemo(
     () => ({ type: "tab", tabId: tab.id, groupId, view: tab.view }),
@@ -78,6 +82,22 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
+  // Determine drop indicator side when this tab is the hover target
+  const dropIndicatorSide = useMemo((): "left" | "right" | null => {
+    if (!active || over?.id !== tab.id || active.id === tab.id || activeEdgeZone)
+      return null;
+    const activeData = active.data.current as TabDragData | undefined;
+    if (activeData?.type !== "tab") return null;
+    if (activeData.groupId === groupId) {
+      const group = usePaneLayoutStore.getState().groups[groupId];
+      if (!group) return null;
+      const activeIdx = group.tabs.findIndex((t) => t.id === activeData.tabId);
+      const overIdx = group.tabs.findIndex((t) => t.id === tab.id);
+      return activeIdx < overIdx ? "right" : "left";
+    }
+    return "left";
+  }, [active, over, tab.id, groupId, activeEdgeZone]);
 
   const handleClick = useCallback(() => {
     paneLayoutService.setActiveTab(groupId, tab.id);
@@ -120,6 +140,14 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
           isDragging && "opacity-50",
         )}
       >
+        {dropIndicatorSide && (
+          <div
+            className={cn(
+              "absolute top-1 bottom-1 w-0.5 rounded-full bg-accent-500 z-10",
+              dropIndicatorSide === "left" ? "-left-px" : "-right-px",
+            )}
+          />
+        )}
         <StatusDot status={status} />
         <span className="flex-1 truncate text-left">{label}</span>
         <span

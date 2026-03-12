@@ -90,6 +90,14 @@ describe("splitLeafNode", () => {
     }
   });
 
+  it("uses custom initialSizes when provided", () => {
+    const result = splitLeafNode(leaf("g1"), "g1", "vertical", "g2", [65, 35]);
+    expect(result.type).toBe("split");
+    if (result.type === "split") {
+      expect(result.sizes).toEqual([65, 35]);
+    }
+  });
+
   it("throws for non-existent group", () => {
     expect(() => splitLeafNode(leaf("g1"), "missing", "horizontal", "g2")).toThrow();
   });

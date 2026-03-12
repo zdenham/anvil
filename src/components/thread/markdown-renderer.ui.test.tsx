@@ -200,6 +200,149 @@ Here's a random one: src/components/thread/thinking-block.tsx`;
   });
 
   // ============================================================================
+  // HTML Comment Stripping Tests
+  // ============================================================================
+
+  describe("HTML Comment Stripping", () => {
+    it("strips single-line HTML comments", () => {
+      const content = `## Summary\n\nSome text here.\n\n<!-- CURSOR_SUMMARY -->`;
+      render(<MarkdownRenderer content={content} />);
+
+      expect(screen.getByText("Some text here.")).toBeInTheDocument();
+      expect(screen.queryByText(/CURSOR_SUMMARY/)).not.toBeInTheDocument();
+    });
+
+    it("strips multi-line HTML comments", () => {
+      const content = `Before\n\n<!-- LOCATIONS START\nfile.ts#L158-L163\nLOCATIONS END -->\n\nAfter`;
+      render(<MarkdownRenderer content={content} />);
+
+      expect(screen.getByText("Before")).toBeInTheDocument();
+      expect(screen.getByText("After")).toBeInTheDocument();
+      expect(screen.queryByText(/LOCATIONS/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/file\.ts/)).not.toBeInTheDocument();
+    });
+
+    it("preserves content between separate comments", () => {
+      const content = `<!-- DESCRIPTION START -->\nVisible description.\n<!-- DESCRIPTION END -->`;
+      render(<MarkdownRenderer content={content} />);
+
+      expect(screen.getByText("Visible description.")).toBeInTheDocument();
+      expect(screen.queryByText(/DESCRIPTION START/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/DESCRIPTION END/)).not.toBeInTheDocument();
+    });
+
+    it("handles full Bugbot review comment format", () => {
+      const content = [
+        "### Bug Title",
+        "",
+        "**Medium Severity**",
+        "",
+        "<!-- DESCRIPTION START -->",
+        "The function may produce incorrect results.",
+        "<!-- DESCRIPTION END -->",
+        "",
+        "<!-- BUGBOT_BUG_ID: 550e8400-e29b-41d4-a716-446655440000 -->",
+        "",
+        "<!-- LOCATIONS START",
+        "file.ts#L158-L163",
+        "LOCATIONS END -->",
+      ].join("\n");
+
+      render(<MarkdownRenderer content={content} />);
+
+      expect(screen.getByText("Bug Title")).toBeInTheDocument();
+      expect(screen.getByText(/Medium Severity/)).toBeInTheDocument();
+      expect(screen.getByText(/incorrect results/)).toBeInTheDocument();
+      expect(screen.queryByText(/BUGBOT_BUG_ID/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/LOCATIONS/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/DESCRIPTION START/)).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================================================================
+  // GitHub Admonition Tests
+  // ============================================================================
+
+  describe("GitHub Admonitions", () => {
+    it("renders NOTE admonition without literal [!NOTE] text", () => {
+      const content = `> [!NOTE]\n> This is an important note.`;
+      const { container } = render(<MarkdownRenderer content={content} />);
+
+      expect(screen.queryByText("[!NOTE]")).not.toBeInTheDocument();
+      expect(screen.getByText(/important note/)).toBeInTheDocument();
+      expect(container.querySelector(".markdown-alert-note")).toBeInTheDocument();
+    });
+
+    it("renders WARNING admonition", () => {
+      const content = `> [!WARNING]\n> Be careful with this change.`;
+      const { container } = render(<MarkdownRenderer content={content} />);
+
+      expect(screen.queryByText("[!WARNING]")).not.toBeInTheDocument();
+      expect(screen.getByText(/Be careful/)).toBeInTheDocument();
+      expect(container.querySelector(".markdown-alert-warning")).toBeInTheDocument();
+    });
+
+    it("renders full Bugbot PR body format", () => {
+      const content = [
+        "## Summary",
+        "",
+        "Fixed the payment calculation.",
+        "",
+        "<!-- CURSOR_SUMMARY -->",
+        "---",
+        "> [!NOTE]",
+        "> **Medium Risk**",
+        "> Changes expected-credit computation.",
+        "<!-- /CURSOR_SUMMARY -->",
+      ].join("\n");
+
+      const { container } = render(<MarkdownRenderer content={content} />);
+
+      expect(screen.getByText("Summary")).toBeInTheDocument();
+      expect(screen.getByText(/Fixed the payment/)).toBeInTheDocument();
+      expect(screen.queryByText(/CURSOR_SUMMARY/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Medium Risk/)).toBeInTheDocument();
+      expect(container.querySelector(".markdown-alert-note")).toBeInTheDocument();
+    });
+  });
+
+  // ============================================================================
+  // Raw HTML Rendering Tests
+  // ============================================================================
+
+  describe("Raw HTML Rendering", () => {
+    it("renders <sup> tags as superscript", () => {
+      const content = `Written by Cursor<sup>beta</sup>`;
+      const { container } = render(<MarkdownRenderer content={content} />);
+
+      const sup = container.querySelector("sup");
+      expect(sup).toBeInTheDocument();
+      expect(sup?.textContent).toBe("beta");
+    });
+
+    it("sanitizes script tags", () => {
+      const content = `Hello<script>alert('xss')</script>World`;
+      render(<MarkdownRenderer content={content} />);
+
+      expect(screen.getByText(/Hello/)).toBeInTheDocument();
+      expect(screen.getByText(/World/)).toBeInTheDocument();
+      // Script content should not be in the document at all
+      expect(screen.queryByText(/alert/)).not.toBeInTheDocument();
+    });
+
+    it("sanitizes onclick attributes", () => {
+      const content = `<button onclick="alert('xss')">Click me</button>`;
+      const { container } = render(<MarkdownRenderer content={content} />);
+
+      // The onclick attribute should be stripped by rehype-sanitize
+      const button = container.querySelector("button");
+      if (button) {
+        expect(button.getAttribute("onclick")).toBeNull();
+      }
+    });
+  });
+
+  // ============================================================================
   // Props Tests
   // ============================================================================
 

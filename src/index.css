@@ -484,6 +484,77 @@ textarea {
   @apply border-t border-dashed border-surface-700 my-3;
 }
 
+/* GitHub-style markdown alert/admonition callouts (dark theme) */
+.markdown-alert {
+  --color-accent-emphasis: #1f6feb;
+  --color-accent-fg: #58a6ff;
+  --color-danger-emphasis: #da3633;
+  --color-danger-fg: #f85149;
+  --color-attention-emphasis: #9e6a03;
+  --color-attention-fg: #d29922;
+  --color-done-emphasis: #8957e5;
+  --color-done-fg: #a371f7;
+  --color-success-emphasis: #238636;
+  --color-success-fg: #3fb950;
+
+  border-left: .25em solid var(--color-accent-emphasis);
+  color: inherit;
+  margin-bottom: 12px;
+  padding: 0.5rem 1em;
+}
+
+.markdown-alert > :last-child {
+  margin-bottom: 0 !important;
+}
+
+.markdown-alert .markdown-alert-title {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.markdown-alert .markdown-alert-title svg.octicon {
+  margin-right: 8px !important;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-accent-emphasis);
+}
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-accent-fg);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-success-emphasis);
+}
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-success-fg);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-done-emphasis);
+}
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-done-fg);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-attention-emphasis);
+}
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-attention-fg);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-danger-emphasis);
+}
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-danger-fg);
+}
+
 /* Find-in-page highlight styles (CSS Custom Highlight API) */
 ::highlight(search-results) {
   background-color: rgba(251, 191, 36, 0.4); /* amber-400 */

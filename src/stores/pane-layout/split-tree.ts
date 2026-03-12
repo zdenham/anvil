@@ -62,6 +62,7 @@ export function splitLeafNode(
   groupId: string,
   direction: "horizontal" | "vertical",
   newGroupId: string,
+  initialSizes: [number, number] = [50, 50],
 ): SplitNode {
   const path = findGroupPath(root, groupId);
   if (path === null) {
@@ -75,7 +76,7 @@ export function splitLeafNode(
       { type: "leaf", groupId },
       { type: "leaf", groupId: newGroupId },
     ],
-    sizes: [50, 50],
+    sizes: initialSizes,
   };
 
   return replaceNodeAtPath(root, path, newSplit);

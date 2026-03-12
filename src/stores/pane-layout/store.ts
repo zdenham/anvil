@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import type { Rollback } from "@/lib/optimistic";
-import type { ContentPaneView } from "@/components/content-pane/types";
+import { type ContentPaneView, type ViewCategory, getViewCategory } from "@/components/content-pane/types";
 import type { PaneLayoutPersistedState, PaneGroup, TabItem } from "./types";
 import { splitLeafNode, getNodeAtPath, replaceNodeAtPath, collapseSplitAtPath } from "./split-tree";
 import { createGroup } from "./defaults";
 
 interface PaneLayoutState extends PaneLayoutPersistedState {
   _hydrated: boolean;
+  lastActiveGroupByCategory: Record<ViewCategory, string | null>;
   hydrate: (state: PaneLayoutPersistedState) => void;
   _applyOpenTab: (groupId: string, tab: TabItem, makeActive?: boolean) => Rollback;
   _applyCloseTab: (groupId: string, tabId: string) => Rollback;
@@ -17,7 +18,7 @@ interface PaneLayoutState extends PaneLayoutPersistedState {
   _applySetActiveGroup: (groupId: string) => Rollback;
   _applyCreateGroup: (group: PaneGroup) => Rollback;
   _applyRemoveGroup: (groupId: string) => Rollback;
-  _applySplitGroup: (groupId: string, dir: "horizontal" | "vertical", newGroup: PaneGroup) => Rollback;
+  _applySplitGroup: (groupId: string, dir: "horizontal" | "vertical", newGroup: PaneGroup, initialSizes?: [number, number]) => Rollback;
   _applyUpdateSplitSizes: (path: number[], sizes: number[]) => Rollback;
   _applyCollapseSplit: (path: number[]) => Rollback;
   _applySplitAndMoveTab: (
@@ -39,6 +40,7 @@ export const usePaneLayoutStore = create<PaneLayoutState>((set, get) => ({
   groups: {},
   activeGroupId: "",
   _hydrated: false,
+  lastActiveGroupByCategory: { terminal: null, content: null },
 
   hydrate: (state) => set({ ...state, _hydrated: true }),
 
@@ -134,8 +136,19 @@ export const usePaneLayoutStore = create<PaneLayoutState>((set, get) => ({
 
   _applySetActiveGroup: (groupId) => {
     const prev = get().activeGroupId;
-    set({ activeGroupId: groupId });
-    return () => set({ activeGroupId: prev });
+    const prevMap = { ...get().lastActiveGroupByCategory };
+    set((s) => {
+      const group = s.groups[groupId];
+      const activeTab = group?.tabs.find((t) => t.id === group.activeTabId);
+      const category = activeTab ? getViewCategory(activeTab.view.type) : null;
+      return {
+        activeGroupId: groupId,
+        lastActiveGroupByCategory: category
+          ? { ...s.lastActiveGroupByCategory, [category]: groupId }
+          : s.lastActiveGroupByCategory,
+      };
+    });
+    return () => set({ activeGroupId: prev, lastActiveGroupByCategory: prevMap });
   },
 
   _applyCreateGroup: (group) => {
@@ -145,15 +158,24 @@ export const usePaneLayoutStore = create<PaneLayoutState>((set, get) => ({
 
   _applyRemoveGroup: (groupId) => {
     const prev = get().groups[groupId];
-    set((s) => { const { [groupId]: _, ...rest } = s.groups; return { groups: rest }; });
-    return () => { if (prev) set((s) => ({ groups: { ...s.groups, [groupId]: prev } })); };
+    const prevMap = { ...get().lastActiveGroupByCategory };
+    set((s) => {
+      const { [groupId]: _, ...rest } = s.groups;
+      const newMap = { ...s.lastActiveGroupByCategory };
+      if (newMap.terminal === groupId) newMap.terminal = null;
+      if (newMap.content === groupId) newMap.content = null;
+      return { groups: rest, lastActiveGroupByCategory: newMap };
+    });
+    return () => {
+      if (prev) set((s) => ({ groups: { ...s.groups, [groupId]: prev }, lastActiveGroupByCategory: prevMap }));
+    };
   },
 
-  _applySplitGroup: (groupId, direction, newGroup) => {
+  _applySplitGroup: (groupId, direction, newGroup, initialSizes?) => {
     const prevRoot = get().root;
     const prevGroups = get().groups;
     set((s) => ({
-      root: splitLeafNode(s.root, groupId, direction, newGroup.id),
+      root: splitLeafNode(s.root, groupId, direction, newGroup.id, initialSizes),
       groups: { ...s.groups, [newGroup.id]: newGroup },
     }));
     return () => set({ root: prevRoot, groups: prevGroups });

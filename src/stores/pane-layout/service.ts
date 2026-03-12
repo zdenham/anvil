@@ -1,9 +1,9 @@
 import { appData } from "@/lib/app-data-store";
 import { logger } from "@/lib/logger-client";
-import type { ContentPaneView } from "@/components/content-pane/types";
+import { type ContentPaneView, getViewCategory } from "@/components/content-pane/types";
 import { usePaneLayoutStore, getActiveGroup, getActiveTab } from "./store";
 import { PaneLayoutPersistedStateSchema, type PaneLayoutPersistedState } from "./types";
-import { removeLeafFromTree, findGroupPath } from "./split-tree";
+import { removeLeafFromTree } from "./split-tree";
 import { createDefaultState, createGroup, createTab, MAX_TABS_PER_GROUP } from "./defaults";
 
 const UI_STATE_PATH = "ui/pane-layout.json";
@@ -163,10 +163,11 @@ export const paneLayoutService = {
     groupId: string,
     direction: "horizontal" | "vertical",
     view?: ContentPaneView,
+    initialSizes?: [number, number],
   ): Promise<string> {
     const tab = createTab(view ?? { type: "empty" });
     const newGroup = createGroup(tab);
-    usePaneLayoutStore.getState()._applySplitGroup(groupId, direction, newGroup);
+    usePaneLayoutStore.getState()._applySplitGroup(groupId, direction, newGroup, initialSizes);
     usePaneLayoutStore.getState()._applySetActiveGroup(newGroup.id);
     await persistState();
     logger.debug(`[paneLayoutService] Split group ${groupId} ${direction}, new group ${newGroup.id}`);
@@ -229,15 +230,7 @@ export const paneLayoutService = {
     }
 
     // Otherwise, split the active group vertically to create a bottom pane
-    const newGroupId = await this.splitGroup(activeGroupId, "vertical", view);
-
-    // Adjust sizes to 65/35 (main on top, terminal on bottom)
-    const newRoot = usePaneLayoutStore.getState().root;
-    const groupPath = findGroupPath(newRoot, newGroupId);
-    if (groupPath && groupPath.length > 0) {
-      const parentPath = groupPath.slice(0, -1);
-      await this.updateSplitSizes(parentPath, [65, 35]);
-    }
+    const newGroupId = await this.splitGroup(activeGroupId, "vertical", view, [65, 35]);
 
     return newGroupId;
   },
@@ -265,6 +258,22 @@ export const paneLayoutService = {
     if (options?.newTab) {
       await this.openTab(view);
     } else {
+      // Category-aware replacement: find the best group to replace in
+      const category = getViewCategory(view.type);
+      const { lastActiveGroupByCategory } = usePaneLayoutStore.getState();
+      const preferredGroupId = lastActiveGroupByCategory[category];
+      const preferredGroup = preferredGroupId ? groups[preferredGroupId] : null;
+
+      if (preferredGroup) {
+        const activeTab = preferredGroup.tabs.find((t) => t.id === preferredGroup.activeTabId);
+        if (activeTab && getViewCategory(activeTab.view.type) === category) {
+          usePaneLayoutStore.getState()._applySetTabView(preferredGroup.id, activeTab.id, view);
+          usePaneLayoutStore.getState()._applySetActiveGroup(preferredGroup.id);
+          await persistState();
+          return;
+        }
+      }
+
       await this.setActiveTabView(view);
     }
   },

@@ -64,6 +64,13 @@ export interface ThreadSearchResponse {
 
 export const gitCommands = {
   /**
+   * Get the current branch name for a worktree.
+   * Returns null for detached HEAD.
+   */
+  getCurrentBranch: (worktreePath: string) =>
+    invoke<string | null>("git_get_current_branch", { worktreePath }),
+
+  /**
    * Detect the repository's default branch.
    * Uses multiple strategies: origin/HEAD, git config, common names, current branch.
    */
