@@ -29,7 +29,7 @@ export function useGitCommits(
   workingDirectory: string
 ): UseGitCommitsResult {
   const [commits, setCommits] = useState<GitCommit[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!branchName && !!workingDirectory);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCommits = useCallback(async () => {

@@ -8,7 +8,7 @@
  * Each pane has a UUID and manages its own state independently.
  */
 
-import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useThreadStore } from "@/entities/threads/store";
 // ContentPaneHeader commented out — breadcrumb info moved to tab tooltip
 // import { ContentPaneHeader } from "./content-pane-header";
@@ -32,7 +32,7 @@ import { FloatingAddressButton } from "@/components/diff-viewer/floating-address
 import { logger } from "@/lib/logger-client";
 import type { ContentPaneProps, ContentPaneView } from "./types";
 
-const ChangesView = lazy(() => import("../changes/changes-view"));
+import ChangesView from "../changes/changes-view";
 
 export function ContentPane({
   paneId: _paneId,
@@ -220,14 +220,12 @@ export function ContentPane({
           <PullRequestContent prId={view.prId} onPopOut={onPopOut} />
         )}
         {view.type === "changes" && (
-          <Suspense fallback={<div className="flex items-center justify-center h-full text-surface-400 text-sm">Loading...</div>}>
-            <ChangesView
-              repoId={view.repoId}
-              worktreeId={view.worktreeId}
-              uncommittedOnly={view.uncommittedOnly}
-              commitHash={view.commitHash}
-            />
-          </Suspense>
+          <ChangesView
+            repoId={view.repoId}
+            worktreeId={view.worktreeId}
+            uncommittedOnly={view.uncommittedOnly}
+            commitHash={view.commitHash}
+          />
         )}
       </div>
     </div>

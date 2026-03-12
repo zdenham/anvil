@@ -114,15 +114,15 @@ export function RightPanelContainer({
         onWorktreeChange={handleWorktreeChange}
         onRefresh={activeTab === "files" ? fileBrowserRefresh : null}
       />
-      <div className="flex-1 min-h-0 flex flex-col">
-        {activeTab === "search" && (
-          <SearchPanel
-            onClose={onClose}
-            onNavigateToFile={onNavigateToFile}
-            onNavigateToThread={onNavigateToThread}
-          />
-        )}
-        {activeTab === "files" && finalRepoId && finalWorktreeId && finalRootPath ? (
+      <div className={activeTab === "search" ? "flex-1 min-h-0 flex flex-col" : "hidden"}>
+        <SearchPanel
+          onClose={onClose}
+          onNavigateToFile={onNavigateToFile}
+          onNavigateToThread={onNavigateToThread}
+        />
+      </div>
+      <div className={activeTab === "files" ? "flex-1 min-h-0 flex flex-col" : "hidden"}>
+        {finalRepoId && finalWorktreeId && finalRootPath ? (
           <FileBrowserPanel
             key={finalWorktreeId}
             rootPath={finalRootPath}
@@ -131,18 +131,18 @@ export function RightPanelContainer({
             onClose={onClose}
             onRegisterRefresh={handleRegisterRefresh}
           />
-        ) : activeTab === "files" ? (
+        ) : (
           <div className="flex items-center justify-center h-32 text-surface-500 text-sm">
             No worktree selected
           </div>
-        ) : null}
-        {activeTab === "changelog" && (
-          <ChangelogPanel
-            repoId={finalRepoId}
-            worktreeId={finalWorktreeId}
-            workingDirectory={finalRootPath}
-          />
         )}
+      </div>
+      <div className={activeTab === "changelog" ? "flex-1 min-h-0 flex flex-col" : "hidden"}>
+        <ChangelogPanel
+          repoId={finalRepoId}
+          worktreeId={finalWorktreeId}
+          workingDirectory={finalRootPath}
+        />
       </div>
     </div>
   );

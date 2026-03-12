@@ -63,10 +63,10 @@ const ROOT = "__ROOT__";
 /** Type-based sort priority — lower number sorts first within a parent.
  *  Always applied as the first sort dimension; sortKey only orders within a tier. */
 const TYPE_SORT_PRIORITY: Partial<Record<TreeItemType, number>> = {
-  "pull-request": 1,
-  changes: 2,
+  files: 1,
+  "pull-request": 2,
   terminal: 3,
-  files: 4,
+  changes: 4,
 };
 
 function typePriority(node: TreeItemNode): number {

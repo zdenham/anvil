@@ -41,6 +41,7 @@ Instead of conditional rendering that unmounts inactive tabs, render all three t
 This is the single biggest improvement — it makes all tab switching instant after first load for Changelog, Files, AND Search. The file tree retains its expanded state, search retains its results, changelog retains its commit list.
 
 Considerations:
+
 - Search panel: may need to not auto-focus input when hidden. Check that keyboard shortcuts don't fire into hidden tabs.
 - File browser: file watcher listeners stay alive (this is fine — they're lightweight and keep data fresh).
 - FileBrowserPanel has a `key={finalWorktreeId}` — when worktree changes it'll still remount correctly.
@@ -51,6 +52,7 @@ Considerations:
 **File**: `src/components/right-panel/changelog-panel.tsx`, `src/hooks/use-git-commits.ts`
 
 Two changes:
+
 1. Fix `useState(false)` → `useState(!!branchName && !!workingDirectory)` in `useGitCommits` so loading skeleton shows immediately instead of "No commits".
 2. Populate `commit-store.ts` when `useGitCommits` fetches — and on mount, read from the store first as stale-while-revalidate. This way, second load of changelog tab (even if it did unmount) has cached data to show instantly while refetching in background.
 
@@ -77,12 +79,15 @@ Remove the `<Suspense>` wrapper and clean up unused `lazy`/`Suspense` imports.
 
 ## Phases
 
-- [ ] Keep all right panel tabs mounted (CSS hidden instead of conditional unmount)
-- [ ] Fix useGitCommits initial loading state (`useState(false)` → `useState(true)` with guard)
-- [ ] Remove ChangesView lazy loading and Suspense wrapper
-- [ ] Verify no regressions (keyboard shortcuts, auto-focus, file watchers, tab switching)
+- [x] Keep all right panel tabs mounted (CSS hidden instead of conditional unmount)
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+- [x] Fix useGitCommits initial loading state (`useState(false)` → `useState(true)` with guard)
+
+- [x] Remove ChangesView lazy loading and Suspense wrapper
+
+- [x] Verify no regressions (keyboard shortcuts, auto-focus, file watchers, tab switching)
+
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 

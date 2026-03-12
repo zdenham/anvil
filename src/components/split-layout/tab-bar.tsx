@@ -78,7 +78,7 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
     <div
       ref={setDroppableRef}
       data-testid={`tab-bar-${groupId}`}
-      className="flex items-center bg-surface-950 overflow-x-auto scrollbar-none py-1 px-1 gap-0.5"
+      className="flex items-center bg-surface-900 overflow-x-auto scrollbar-none py-1 px-1 gap-0.5"
     >
       <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
         {tabs.map((tab) => (
