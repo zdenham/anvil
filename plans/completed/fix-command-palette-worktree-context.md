@@ -13,9 +13,9 @@ This means the command palette will keep searching files from whichever worktree
 
 ### Root Cause Chain
 
-1. **`CommandPalette` (line 29)**: `const { workingDirectory, repoId, worktreeId } = useMRUWorktree()`
-2. **`useMRUWorktree` (line 98)**: sorts by `b.worktree.lastAccessedAt - a.worktree.lastAccessedAt`
-3. **`lastAccessedAt` only updated via**: `worktreeService.touch()` → `invoke("worktree_touch")` (Rust backend)
+1. `CommandPalette` **(line 29)**: `const { workingDirectory, repoId, worktreeId } = useMRUWorktree()`
+2. `useMRUWorktree` **(line 98)**: sorts by `b.worktree.lastAccessedAt - a.worktree.lastAccessedAt`
+3. `lastAccessedAt` **only updated via**: `worktreeService.touch()` → `invoke("worktree_touch")` (Rust backend)
 4. **Only call site**: `thread-creation-service.ts:127` — fire-and-forget during thread creation
 
 ### Secondary Issue
@@ -29,7 +29,9 @@ The command palette also has no visible indicator of which worktree it's searchi
 Replace the `useMRUWorktree()` call in the command palette with a new approach that derives the worktree from the **currently active tab**:
 
 1. **Read the active tab's view** from `usePaneLayoutStore` (active group → active tab → view)
+
 2. **Derive worktree context from the view**:
+
    - `thread` view → look up thread's `repoId`/`worktreeId` from thread store
    - `plan` view → look up plan's `repoId`/`worktreeId` from plan store
    - `file` view → already has `repoId`/`worktreeId` on the view object
@@ -37,12 +39,13 @@ Replace the `useMRUWorktree()` call in the command palette with a new approach t
    - `terminal` view → look up terminal's `worktreeId` from terminal session store
    - `empty`/`settings`/`logs`/`archive`/`pull-request` → fall back to MRU worktree
 
-3. **Create a `useActiveWorktreeContext()` hook** that encapsulates this logic:
+3. **Create a** `useActiveWorktreeContext()` **hook** that encapsulates this logic:
+
    - Returns `{ workingDirectory, repoId, worktreeId }` (same shape as MRU hook's output)
    - Uses `useRepoWorktreeLookupStore` to resolve worktree path from `(repoId, worktreeId)`
    - Falls back to `useMRUWorktree()` when the active tab has no worktree context
 
-4. **Update `CommandPalette`** to use `useActiveWorktreeContext()` instead of `useMRUWorktree()`
+4. **Update** `CommandPalette` to use `useActiveWorktreeContext()` instead of `useMRUWorktree()`
 
 This also fixes `EmptyPaneContent`, which uses `useMRUWorktree()` for thread creation — though there it makes more sense since there's no active context.
 
@@ -75,20 +78,24 @@ The user mentioned wanting a more explicit worktree switcher in the "bottom prev
 
 ## Phases
 
-- [ ] Create `useActiveWorktreeContext` hook that derives worktree from active tab
-- [ ] Update `CommandPalette` to use the new hook instead of `useMRUWorktree`
-- [ ] Add worktree touch on tab navigation (fix MRU staleness)
-- [ ] Add worktree context indicator to command palette UI
-- [ ] Add worktree switcher to command palette preview footer (Option A)
+- [x] Create `useActiveWorktreeContext` hook that derives worktree from active tab
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+- [x] Update `CommandPalette` to use the new hook instead of `useMRUWorktree`
+
+- [x] Add worktree touch on tab navigation (fix MRU staleness)
+
+- [x] Add worktree context indicator to command palette UI
+
+- [x] Add worktree switcher to command palette preview footer (Option A)
+
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
 ## Files to Modify
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `src/hooks/use-active-worktree-context.ts` | **NEW** — hook deriving worktree from active pane tab |
 | `src/components/command-palette/command-palette.tsx` | Replace `useMRUWorktree()` with `useActiveWorktreeContext()`, add worktree indicator |
 | `src/stores/pane-layout/listeners.ts` | Add worktree touch on active tab change |

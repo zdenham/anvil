@@ -244,7 +244,7 @@ export async function getRepoMergeSettings(
 }
 
 /**
- * Merge a PR using the given method. Deletes the remote head branch after merge.
+ * Merge a PR using the given method.
  */
 export async function mergePr(
   cwd: string,
@@ -252,7 +252,7 @@ export async function mergePr(
   method: MergeMethod,
 ): Promise<void> {
   await execGh(
-    ["pr", "merge", String(prNumber), `--${method}`, "--delete-branch"],
+    ["pr", "merge", String(prNumber), `--${method}`],
     cwd,
   );
 }

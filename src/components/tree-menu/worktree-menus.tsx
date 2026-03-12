@@ -67,7 +67,7 @@ export function PlusMenu({
         onDoubleClick={handlePlusDoubleClick}
         disabled={isCreatingWorktree}
         className="flex items-center justify-center w-5 h-5 rounded text-surface-400 hover:text-surface-200 hover:bg-surface-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label="Add new thread, worktree, or repository (double-click for new thread)"
+        aria-label="Add new thread, workspace, or project (double-click for new thread)"
       >
         {isCreatingWorktree ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
       </button>
@@ -81,7 +81,7 @@ export function PlusMenu({
           <PlusMenuItem icon={MessageSquarePlus} label={`New thread in ${item.worktreeName}`} hint="dbl-click" show={!!onNewThread} onClick={() => { close(); onNewThread?.(item.repoId!, item.worktreeId ?? item.id, item.worktreePath!); }} />
           <PlusMenuItem icon={Terminal} label={`New terminal in ${item.worktreeName}`} hint="⌘T" show={!!onNewTerminal} onClick={() => { close(); onNewTerminal?.(item.worktreeId ?? item.id, item.worktreePath!); }} />
           <PlusMenuItem icon={GitPullRequest} label="Create pull request" show={!!onCreatePr} onClick={() => { close(); onCreatePr?.(item.repoId!, item.worktreeId ?? item.id, item.worktreePath!); }} />
-          <PlusMenuItem icon={GitBranch} label={`New worktree in ${item.repoName}`} show={!!onNewWorktree} onClick={() => { close(); onNewWorktree?.(item.repoName!); }} />
+          <PlusMenuItem icon={GitBranch} label={`New workspace in ${item.repoName}`} show={!!onNewWorktree} onClick={() => { close(); onNewWorktree?.(item.repoName!); }} />
         </div>,
         document.body,
       )}
@@ -176,7 +176,7 @@ export function WorktreeContextMenu({
       {onNewThread && <CtxItem icon={MessageSquarePlus} label="New thread" onClick={() => { close(); onNewThread(item.repoId!, wId, item.worktreePath!); }} />}
       {onNewTerminal && <CtxItem icon={Terminal} label="New terminal" hint="⌘T" onClick={() => { close(); onNewTerminal(wId, item.worktreePath!); }} />}
       {onCreatePr && <CtxItem icon={GitPullRequest} label="Create pull request" onClick={() => { close(); onCreatePr(item.repoId!, wId, item.worktreePath!); }} />}
-      {onNewWorktree && <CtxItem icon={GitBranch} label="New worktree" onClick={() => { close(); onNewWorktree(item.repoName!); }} />}
+      {onNewWorktree && <CtxItem icon={GitBranch} label="New workspace" onClick={() => { close(); onNewWorktree(item.repoName!); }} />}
 
       <div className="h-px bg-surface-700 my-1" />
       <CtxItem
@@ -189,9 +189,9 @@ export function WorktreeContextMenu({
       />
 
       {isNonMain && (onNewThread || onNewWorktree) && <div className="h-px bg-surface-700 my-1" />}
-      {isNonMain && <CtxItem icon={Pencil} label="Rename worktree" onClick={() => { onStartRename(); }} />}
+      {isNonMain && <CtxItem icon={Pencil} label="Rename workspace" onClick={() => { onStartRename(); }} />}
       {onArchiveWorktree && isNonMain && (
-        <CtxItem icon={Archive} label="Archive worktree" onClick={() => { close(); onArchiveWorktree(item.repoName!, wId, item.worktreeName!); }} />
+        <CtxItem icon={Archive} label="Archive workspace" onClick={() => { close(); onArchiveWorktree(item.repoName!, wId, item.worktreeName!); }} />
       )}
     </div>,
     document.body,

@@ -78,7 +78,7 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
     <div
       ref={setDroppableRef}
       data-testid={`tab-bar-${groupId}`}
-      className="flex items-stretch bg-surface-900 overflow-x-auto scrollbar-none"
+      className="flex items-center bg-surface-950 overflow-x-auto scrollbar-none py-1 px-1 gap-0.5"
     >
       <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
         {tabs.map((tab) => (
@@ -93,13 +93,12 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
       <button
         data-testid={`tab-new-${groupId}`}
         onClick={handleNewTab}
-        className="flex items-center justify-center w-7 flex-shrink-0 border-b border-surface-700 text-surface-400 hover:text-surface-200 hover:bg-surface-700 transition-colors"
+        className="flex items-center justify-center w-7 h-7 flex-shrink-0 rounded-md text-surface-400 hover:text-surface-200 hover:bg-surface-800/50 transition-colors"
         aria-label="New tab"
       >
         <Plus size={12} />
       </button>
-      {/* Spacer carries the bottom border across remaining width */}
-      <div className="flex-1 border-b border-surface-700" />
+      <div className="flex-1" />
     </div>
   );
 }

@@ -54,11 +54,11 @@ LOCATIONS END -->
 
 ## Phases
 
-- [ ] Strip HTML comments and add GitHub admonition support to MarkdownRenderer
+- [x] Strip HTML comments and add GitHub admonition support to MarkdownRenderer
 
-- [ ] Add tests using real GitHub comment format fixtures
+- [x] Add tests using real GitHub comment format fixtures
 
-- [ ] Handle raw HTML rendering (rehype-raw + sanitize)
+- [x] Handle raw HTML rendering (rehype-raw + sanitize)
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

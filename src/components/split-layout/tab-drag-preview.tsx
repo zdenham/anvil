@@ -18,7 +18,7 @@ export function TabDragPreview({ activeDrag }: TabDragPreviewProps) {
   return (
     <div
       data-testid="tab-drag-preview"
-      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-surface-700/90 text-surface-100 rounded shadow-lg border border-surface-600 max-w-[160px] backdrop-blur-sm"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-surface-800 text-surface-200 rounded-md shadow-lg max-w-[200px] backdrop-blur-sm"
     >
       <span className="truncate">{label}</span>
     </div>

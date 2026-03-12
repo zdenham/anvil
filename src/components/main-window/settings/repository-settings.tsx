@@ -77,7 +77,7 @@ export function RepositorySettings() {
     const selectedPath = await open({
       directory: true,
       multiple: false,
-      title: "Locate Repository Folder",
+      title: "Locate Project Folder",
     });
 
     if (selectedPath && typeof selectedPath === "string") {
@@ -88,7 +88,7 @@ export function RepositorySettings() {
         return;
       }
       if (!validation.is_git_repo) {
-        setLocateError("This folder is not a git repository. Please select a folder with git tracking.");
+        setLocateError("This folder is not a git repository. Please select a git-tracked project folder.");
         return;
       }
 
@@ -140,8 +140,8 @@ export function RepositorySettings() {
 
   return (
     <SettingsSection
-      title="Repositories"
-      description="Connected code repositories"
+      title="Projects"
+      description="Connected code projects"
     >
       <div data-testid="repository-settings" className="space-y-2">
         {repositories.map((repo) => {
@@ -199,9 +199,9 @@ export function RepositorySettings() {
                       {status.worktreeCount > 0 && (
                         <span
                           className="px-1.5 py-0.5 bg-surface-700 rounded text-surface-400"
-                          title={`${status.worktreeCount} worktree${status.worktreeCount !== 1 ? "s" : ""}`}
+                          title={`${status.worktreeCount} workspace${status.worktreeCount !== 1 ? "s" : ""}`}
                         >
-                          {status.worktreeCount} worktree{status.worktreeCount !== 1 ? "s" : ""}
+                          {status.worktreeCount} workspace{status.worktreeCount !== 1 ? "s" : ""}
                         </span>
                       )}
                       {status.activeThreads > 0 && (
@@ -217,7 +217,7 @@ export function RepositorySettings() {
                   <button
                     onClick={() => handleToggleSetupPrompt(repo.name)}
                     className="text-surface-400 hover:text-surface-200 flex items-center gap-1 flex-shrink-0"
-                    title="Configure worktree setup prompt"
+                    title="Configure workspace setup prompt"
                   >
                     <Terminal size={12} />
                     <span>Setup</span>
@@ -229,18 +229,18 @@ export function RepositorySettings() {
               {editingSetupPrompt === repo.name && (
                 <div className="flex flex-col gap-1.5 pt-1 border-t border-surface-700/50">
                   <label className="text-xs text-surface-400">
-                    Worktree setup prompt
+                    Workspace setup prompt
                   </label>
                   <textarea
                     className="w-full bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-xs text-surface-200 placeholder-surface-600 resize-y min-h-[60px] focus:outline-none focus:border-accent-500"
-                    placeholder="e.g., Copy .env from the main worktree, run npm install, run db:migrate..."
+                    placeholder="e.g., Copy .env from the main workspace, run npm install, run db:migrate..."
                     value={setupPromptValue}
                     onChange={(e) => setSetupPromptValue(e.target.value)}
                     onBlur={() => handleSaveSetupPrompt(repo.name)}
                     rows={3}
                   />
                   <p className="text-[11px] text-surface-600">
-                    Runs automatically when a new worktree is created. Leave blank to disable.
+                    Runs automatically when a new workspace is created. Leave blank to disable.
                   </p>
                 </div>
               )}
@@ -248,7 +248,7 @@ export function RepositorySettings() {
           );
         })}
         {repositories.length === 0 && (
-          <p className="text-sm text-surface-500 py-2">No repositories connected. Use the + button in the side panel to add one.</p>
+          <p className="text-sm text-surface-500 py-2">No projects connected. Use the + button in the side panel to add one.</p>
         )}
         {locateError && (
           <div className="py-2 px-3 bg-red-900/20 border border-red-800 rounded text-red-400 text-sm">

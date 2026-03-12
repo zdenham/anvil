@@ -75,11 +75,11 @@ export function GuideContent() {
         <div className="space-y-2 text-sm">
           <ConceptRow
             name="Threads"
-            description="Conversations with Claude Code agents that run in your repo"
+            description="Conversations with Claude Code agents that run in your project"
           />
           <ConceptRow
-            name="Worktrees"
-            description="Isolated git branches for parallel work without conflicts"
+            name="Workspaces"
+            description="Isolated branches for parallel work without conflicts"
           />
           <ConceptRow
             name="Plans"
@@ -87,7 +87,7 @@ export function GuideContent() {
           />
           <ConceptRow
             name="Terminals"
-            description="Integrated terminal sessions tied to worktrees"
+            description="Integrated terminal sessions tied to workspaces"
           />
           <ConceptRow
             name="Quick Actions"

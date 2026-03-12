@@ -85,7 +85,7 @@ export function EmptyPaneContent() {
               Welcome to Mort
             </h2>
             <p className="text-base mt-2">
-              Add a repository to get started
+              Add a project to get started
             </p>
           </div>
         </div>
@@ -100,7 +100,7 @@ export function EmptyPaneContent() {
         contextType="empty"
         autoFocus
         disabled={noRepoConfigured}
-        placeholder={noRepoConfigured ? "Add a repository to get started" : undefined}
+        placeholder={noRepoConfigured ? "Add a project to get started" : undefined}
         permissionMode={permissionMode}
         onCycleMode={handleCycleMode}
       />

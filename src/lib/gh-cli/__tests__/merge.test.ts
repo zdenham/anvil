@@ -83,7 +83,7 @@ describe("mergePr", () => {
     await mergePr("/repo", 42, "squash");
 
     expect(mockExecGh).toHaveBeenCalledWith(
-      ["pr", "merge", "42", "--squash", "--delete-branch"],
+      ["pr", "merge", "42", "--squash"],
       "/repo",
     );
   });
@@ -92,7 +92,7 @@ describe("mergePr", () => {
     await mergePr("/repo", 42, "merge");
 
     expect(mockExecGh).toHaveBeenCalledWith(
-      ["pr", "merge", "42", "--merge", "--delete-branch"],
+      ["pr", "merge", "42", "--merge"],
       "/repo",
     );
   });
@@ -101,7 +101,7 @@ describe("mergePr", () => {
     await mergePr("/repo", 42, "rebase");
 
     expect(mockExecGh).toHaveBeenCalledWith(
-      ["pr", "merge", "42", "--rebase", "--delete-branch"],
+      ["pr", "merge", "42", "--rebase"],
       "/repo",
     );
   });

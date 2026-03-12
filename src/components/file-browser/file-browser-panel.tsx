@@ -149,6 +149,18 @@ export function FileBrowserPanel({
     setCreatingEntry(null);
   }, [creatingEntry, repoId, worktreeId]);
 
+  const handleDelete = useCallback(async (entry: DirEntry) => {
+    try {
+      if (entry.isDirectory) {
+        await fsClient.removeAll(entry.path);
+      } else {
+        await fsClient.remove(entry.path);
+      }
+    } catch (err) {
+      logger.error("[FileBrowserPanel] Failed to delete:", err);
+    }
+  }, []);
+
   const handleCancelCreate = useCallback(() => {
     setCreatingEntry(null);
   }, []);
@@ -193,6 +205,7 @@ export function FileBrowserPanel({
             tree={filteredTree}
             rootPath={rootPath}
             onFileClick={handleFileClick}
+            onDelete={handleDelete}
             creatingEntry={creatingEntry}
             onStartCreate={handleStartCreate}
             onConfirmCreate={handleConfirmCreate}

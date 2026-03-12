@@ -32,7 +32,7 @@ function useActiveTabView(): ContentPaneView {
   );
 }
 
-/** Convert "repo / worktree / threads / name" → "repo › worktree › threads › name" */
+/** Convert "project / workspace / threads / name" → "project › workspace › threads › name" */
 function formatBreadcrumb(tooltip: string): string {
   return tooltip.replace(/ \/ /g, " › ");
 }

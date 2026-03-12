@@ -44,7 +44,7 @@ export function RepoItem({ item }: RepoItemProps) {
         type="button"
         className="ml-auto flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-surface-700 text-surface-500"
         onClick={(e) => { e.stopPropagation(); treeMenuService.toggleSection(item.id); }}
-        aria-label={item.isExpanded ? "Collapse repo" : "Expand repo"}
+        aria-label={item.isExpanded ? "Collapse project" : "Expand project"}
       >
         {item.isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       </button>

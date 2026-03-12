@@ -537,7 +537,7 @@ export function MainWindowLayout() {
       const selectedPath = await open({
         directory: true,
         multiple: false,
-        title: "Select Repository Folder",
+        title: "Select Project Folder",
       });
 
       if (selectedPath && typeof selectedPath === "string") {
@@ -600,11 +600,11 @@ export function MainWindowLayout() {
     if (threadCount > 0) parts.push(`${threadCount} thread${threadCount === 1 ? "" : "s"}`);
     if (planCount > 0) parts.push(`${planCount} plan${planCount === 1 ? "" : "s"}`);
     const message = parts.length > 0
-      ? `Archive worktree "${worktreeName}" and its ${parts.join(" and ")}?`
-      : `Archive worktree "${worktreeName}"?`;
+      ? `Archive workspace "${worktreeName}" and its ${parts.join(" and ")}?`
+      : `Archive workspace "${worktreeName}"?`;
 
     const confirmed = await confirm(message, {
-      title: "Archive Worktree",
+      title: "Archive workspace",
       kind: "warning",
     });
 

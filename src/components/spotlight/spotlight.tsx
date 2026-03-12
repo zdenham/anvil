@@ -42,7 +42,7 @@ type ThreadCreationError =
 function formatThreadCreationError(error: ThreadCreationError): string {
   switch (error.type) {
     case "no_repositories":
-      return "No repositories configured. Please add a repository first.";
+      return "No projects configured. Please add a project first.";
     case "no_versions":
       return `No versions available for repository: ${error.repoName}`;
     case "agent_failed":
@@ -114,7 +114,7 @@ export class SpotlightController {
       }
 
       // Add "Open Repository" action if query partially matches
-      if (this.partialMatch(query, "Open Repository")) {
+      if (this.partialMatch(query, "Import Project")) {
         const openRepoData: OpenRepoResult = { action: "open-repo" };
         results.push({
           type: "action",
@@ -279,7 +279,7 @@ export class SpotlightController {
       const selectedPath = await open({
         directory: true,
         multiple: false,
-        title: "Select a repository folder",
+        title: "Select a project folder",
       });
 
       if (!selectedPath) {
@@ -289,7 +289,7 @@ export class SpotlightController {
       await repoService.createFromFolder(selectedPath);
       return true;
     } catch (error) {
-      logger.error("Failed to open repository:", error);
+      logger.error("Failed to open project:", error);
       return false;
     }
   }
@@ -557,7 +557,7 @@ export const Spotlight = () => {
 
         if (repos.length === 0) {
           logger.error(
-            "No repositories available. Please add a repository first."
+            "No projects available. Please add a project first."
           );
           return;
         }

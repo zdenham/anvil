@@ -33,8 +33,6 @@ export function PrMergeSection({ prId, repoSlug, state, isDraft }: PrMergeSectio
   const [isMerging, setIsMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (state !== "OPEN" || isDraft) return null;
-
   // Fetch allowed methods on mount
   useEffect(() => {
     pullRequestService.fetchMergeSettings(prId);
@@ -46,6 +44,8 @@ export function PrMergeSection({ prId, repoSlug, state, isDraft }: PrMergeSectio
       setMethod(mergeSettings.defaultMethod);
     }
   }, [mergeSettings, method]);
+
+  if (state !== "OPEN" || isDraft) return null;
 
   const selectedMethod = method ?? mergeSettings?.defaultMethod ?? "squash";
   const allowedMethods = mergeSettings?.allowedMethods ?? [];

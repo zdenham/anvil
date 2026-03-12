@@ -99,7 +99,7 @@ function getResultIcon(icon: string | undefined) {
 const EMPTY_STATES = {
   noQuery: "Type to search",
   noResults: "No results found",
-  noRootPath: "No repository selected",
+  noRootPath: "No project selected",
   error: "Search error",
 };
 

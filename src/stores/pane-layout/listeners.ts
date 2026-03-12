@@ -4,10 +4,18 @@
  * Handles archive events to close tabs showing archived content
  * across all groups. If closing tabs leaves a group empty,
  * the group is removed and the split tree collapses.
+ *
+ * Also handles worktree touch on active tab changes to keep MRU data fresh.
  */
 
 import { EventName, type EventPayloads } from "@core/types/events.js";
 import { eventBus } from "@/entities/events";
+import { worktreeService } from "@/entities/worktrees";
+import { useThreadStore } from "@/entities/threads/store";
+import { usePlanStore } from "@/entities/plans/store";
+import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import type { ContentPaneView } from "@/components/content-pane/types";
 import { paneLayoutService } from "./service";
 import { usePaneLayoutStore } from "./store";
 import { logger } from "@/lib/logger-client";
@@ -100,5 +108,96 @@ export function setupPaneLayoutListeners(): void {
     },
   );
 
+  // Touch worktree on active tab changes to keep MRU data fresh
+  setupWorktreeTouchListener();
+
   logger.debug("[PaneLayoutListener] Pane layout listeners initialized");
+}
+
+/**
+ * Resolve repoName and worktreePath from a view.
+ * Returns null for views without worktree context.
+ */
+function resolveWorktreeFromView(
+  view: ContentPaneView,
+): { repoName: string; worktreePath: string; worktreeId: string } | null {
+  let repoId: string | null = null;
+  let worktreeId: string | null = null;
+
+  switch (view.type) {
+    case "thread": {
+      const t = useThreadStore.getState().threads[view.threadId];
+      if (!t) return null;
+      repoId = t.repoId;
+      worktreeId = t.worktreeId;
+      break;
+    }
+    case "plan": {
+      const p = usePlanStore.getState().plans[view.planId];
+      if (!p) return null;
+      repoId = p.repoId;
+      worktreeId = p.worktreeId;
+      break;
+    }
+    case "file":
+      if (!view.repoId || !view.worktreeId) return null;
+      repoId = view.repoId;
+      worktreeId = view.worktreeId;
+      break;
+    case "changes":
+      repoId = view.repoId;
+      worktreeId = view.worktreeId;
+      break;
+    case "terminal": {
+      const session = useTerminalSessionStore.getState().sessions[view.terminalId];
+      if (!session) return null;
+      worktreeId = session.worktreeId;
+      // Find repoId from worktreeId
+      const { repos } = useRepoWorktreeLookupStore.getState();
+      for (const [rid, repo] of repos) {
+        if (repo.worktrees.has(worktreeId)) {
+          repoId = rid;
+          break;
+        }
+      }
+      break;
+    }
+    default:
+      return null;
+  }
+
+  if (!repoId || !worktreeId) return null;
+
+  const lookup = useRepoWorktreeLookupStore.getState();
+  const repoName = lookup.getRepoName(repoId);
+  const worktreePath = lookup.getWorktreePath(repoId, worktreeId);
+  if (!worktreePath || repoName === "Unknown") return null;
+
+  return { repoName, worktreePath, worktreeId };
+}
+
+/**
+ * Subscribe to active tab changes and touch the worktree when it changes.
+ * Fire-and-forget to avoid blocking tab switches.
+ */
+function setupWorktreeTouchListener(): void {
+  let lastWorktreeId: string | null = null;
+
+  usePaneLayoutStore.subscribe((state) => {
+    const group = state.groups[state.activeGroupId];
+    if (!group) return;
+    const tab = group.tabs.find((t) => t.id === group.activeTabId);
+    if (!tab) return;
+
+    const resolved = resolveWorktreeFromView(tab.view);
+    if (!resolved) return;
+
+    // Only touch when worktree actually changes
+    if (resolved.worktreeId === lastWorktreeId) return;
+    lastWorktreeId = resolved.worktreeId;
+
+    worktreeService.touch(resolved.repoName, resolved.worktreePath).catch((e) => {
+      logger.warn("[PaneLayoutListener] Failed to touch worktree:", e);
+    });
+  });
 }

@@ -27,7 +27,7 @@ export const RepositoryStep = ({
       const selectedPath = await open({
         directory: true,
         multiple: false,
-        title: "Select a repository folder",
+        title: "Select a project folder",
       });
 
       if (!selectedPath) {
@@ -38,14 +38,14 @@ export const RepositoryStep = ({
       // Validate that it's a git repository
       const validation = await repoService.validateNewRepository(selectedPath);
       if (!validation.valid) {
-        setError(validation.error ?? "Invalid repository");
+        setError(validation.error ?? "Invalid project folder");
         return;
       }
 
       onRepositorySelected(selectedPath);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to select repository"
+        err instanceof Error ? err.message : "Failed to select project"
       );
     } finally {
       setIsSelecting(false);
@@ -55,7 +55,7 @@ export const RepositoryStep = ({
   return (
     <div data-testid="onboarding-step-repository" className="space-y-4">
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-surface-100 font-mono">Select Your Repository</h2>
+        <h2 className="text-2xl font-bold text-surface-100 font-mono">Select Your Project</h2>
         <p className="text-surface-300">
           mort will write code to this directory
         </p>
@@ -67,7 +67,7 @@ export const RepositoryStep = ({
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <div className="text-sm text-surface-400">
-                  {existingRepoName ? "Existing Repository:" : "Selected Repository:"}
+                  {existingRepoName ? "Existing Project:" : "Selected Project:"}
                 </div>
                 {existingRepoName && (
                   <span className="text-xs bg-accent-500/20 text-accent-400 px-2 py-0.5 rounded">
@@ -91,9 +91,9 @@ export const RepositoryStep = ({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="text-surface-400">No repository selected</div>
+              <div className="text-surface-400">No project selected</div>
               <Button variant="light" onClick={handleBrowse} disabled={isSelecting}>
-                {isSelecting ? "Selecting..." : "Browse for Repository"}
+                {isSelecting ? "Selecting..." : "Browse for Project"}
               </Button>
             </div>
           )}

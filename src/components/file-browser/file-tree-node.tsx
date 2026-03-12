@@ -1,4 +1,5 @@
-import { ChevronRight, ChevronDown, Loader2, Copy, FileText, Folder, ExternalLink, FilePlus, FolderPlus } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, ChevronDown, Loader2, Copy, FileText, Folder, ExternalLink, FilePlus, FolderPlus, Trash2 } from "lucide-react";
 import { Command } from "@tauri-apps/plugin-shell";
 import type { DirEntry } from "@/lib/filesystem-client";
 import { useChangesViewStore } from "@/stores/changes-view-store";
@@ -8,6 +9,7 @@ import { getTreeIndentPx } from "@/lib/tree-indent";
 import {
   ContextMenu,
   ContextMenuItem,
+  ContextMenuItemDanger,
   ContextMenuDivider,
   useContextMenu,
 } from "@/components/ui/context-menu";
@@ -31,10 +33,11 @@ interface FileTreeNodeProps extends CreationProps {
   tree: FileTreeState;
   rootPath: string;
   onFileClick: (entry: DirEntry) => void;
+  onDelete: (entry: DirEntry) => void;
 }
 
 export function FileTreeNode({
-  entries, depth, tree, rootPath, onFileClick,
+  entries, depth, tree, rootPath, onFileClick, onDelete,
   creatingEntry, onStartCreate, onConfirmCreate, onCancelCreate,
 }: FileTreeNodeProps) {
   return (
@@ -47,6 +50,7 @@ export function FileTreeNode({
           tree={tree}
           rootPath={rootPath}
           onFileClick={onFileClick}
+          onDelete={onDelete}
           creatingEntry={creatingEntry}
           onStartCreate={onStartCreate}
           onConfirmCreate={onConfirmCreate}
@@ -62,13 +66,16 @@ export function FileTreeNode({
 // ---------------------------------------------------------------------------
 
 function EntryContextMenu({
-  entry, rootPath, menu, onStartCreate,
+  entry, rootPath, menu, onStartCreate, onDelete,
 }: {
   entry: DirEntry;
   rootPath: string;
   menu: ReturnType<typeof useContextMenu>;
   onStartCreate: (parentPath: string, type: "file" | "directory") => void;
+  onDelete: (entry: DirEntry) => void;
 }) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   if (!menu.show) return null;
 
   const relativePath = entry.path.startsWith(rootPath)
@@ -79,24 +86,47 @@ function EntryContextMenu({
     ? entry.path
     : entry.path.substring(0, entry.path.lastIndexOf("/"));
 
+  const handleClose = () => {
+    setConfirmingDelete(false);
+    menu.close();
+  };
+
+  if (confirmingDelete) {
+    return (
+      <ContextMenu position={menu.position} onClose={handleClose}>
+        <div className="px-2.5 py-1 text-[11px] text-surface-400">
+          Delete this folder and all contents?
+        </div>
+        <ContextMenuItemDanger icon={Trash2} label="Confirm delete" onClick={() => { onDelete(entry); handleClose(); }} />
+        <ContextMenuItem icon={ChevronRight} label="Cancel" onClick={() => setConfirmingDelete(false)} />
+      </ContextMenu>
+    );
+  }
+
   return (
-    <ContextMenu position={menu.position} onClose={menu.close}>
-      <ContextMenuItem icon={Copy} label="Copy relative path" onClick={() => { navigator.clipboard.writeText(relativePath); menu.close(); }} />
-      <ContextMenuItem icon={Copy} label="Copy absolute path" onClick={() => { navigator.clipboard.writeText(entry.path); menu.close(); }} />
-      <ContextMenuItem icon={entry.isDirectory ? Folder : FileText} label="Copy name" onClick={() => { navigator.clipboard.writeText(entry.name); menu.close(); }} />
+    <ContextMenu position={menu.position} onClose={handleClose}>
+      <ContextMenuItem icon={Copy} label="Copy relative path" onClick={() => { navigator.clipboard.writeText(relativePath); handleClose(); }} />
+      <ContextMenuItem icon={Copy} label="Copy absolute path" onClick={() => { navigator.clipboard.writeText(entry.path); handleClose(); }} />
+      <ContextMenuItem icon={entry.isDirectory ? Folder : FileText} label="Copy name" onClick={() => { navigator.clipboard.writeText(entry.name); handleClose(); }} />
       <ContextMenuDivider />
-      <ContextMenuItem icon={FilePlus} label="New File…" onClick={() => { menu.close(); onStartCreate(targetPath, "file"); }} />
-      <ContextMenuItem icon={FolderPlus} label="New Folder…" onClick={() => { menu.close(); onStartCreate(targetPath, "directory"); }} />
+      <ContextMenuItem icon={FilePlus} label="New File…" onClick={() => { handleClose(); onStartCreate(targetPath, "file"); }} />
+      <ContextMenuItem icon={FolderPlus} label="New Folder…" onClick={() => { handleClose(); onStartCreate(targetPath, "directory"); }} />
       <ContextMenuDivider />
       <ContextMenuItem
         icon={ExternalLink}
         label="Open in Cursor"
         onClick={async () => {
-          menu.close();
+          handleClose();
           const cmd = Command.create("open", ["-a", "Cursor", entry.path]);
           await cmd.execute();
         }}
       />
+      <ContextMenuDivider />
+      {entry.isDirectory ? (
+        <ContextMenuItemDanger icon={Trash2} label="Delete" onClick={() => setConfirmingDelete(true)} />
+      ) : (
+        <ContextMenuItemDanger icon={Trash2} label="Delete" onClick={() => { onDelete(entry); handleClose(); }} />
+      )}
     </ContextMenu>
   );
 }
@@ -111,10 +141,11 @@ interface FileTreeEntryProps extends CreationProps {
   tree: FileTreeState;
   rootPath: string;
   onFileClick: (entry: DirEntry) => void;
+  onDelete: (entry: DirEntry) => void;
 }
 
 function FileTreeEntry({
-  entry, depth, tree, rootPath, onFileClick,
+  entry, depth, tree, rootPath, onFileClick, onDelete,
   creatingEntry, onStartCreate, onConfirmCreate, onCancelCreate,
 }: FileTreeEntryProps) {
   const isExpanded = tree.expandedPaths.has(entry.path);
@@ -126,7 +157,7 @@ function FileTreeEntry({
     return (
       <FolderEntry
         entry={entry} depth={depth} isExpanded={isExpanded} isLoading={isLoading}
-        tree={tree} rootPath={rootPath} onFileClick={onFileClick} children={children}
+        tree={tree} rootPath={rootPath} onFileClick={onFileClick} onDelete={onDelete} children={children}
         creatingEntry={creatingEntry} onStartCreate={onStartCreate}
         onConfirmCreate={onConfirmCreate} onCancelCreate={onCancelCreate}
       />
@@ -146,7 +177,7 @@ function FileTreeEntry({
         <span className="truncate flex-1 text-left">{entry.name}</span>
         <DiffStats entryPath={entry.path} rootPath={rootPath} />
       </button>
-      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} onStartCreate={onStartCreate} />
+      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} onStartCreate={onStartCreate} onDelete={onDelete} />
     </>
   );
 }
@@ -185,11 +216,12 @@ interface FolderEntryProps extends CreationProps {
   tree: FileTreeState;
   rootPath: string;
   onFileClick: (entry: DirEntry) => void;
+  onDelete: (entry: DirEntry) => void;
   children: DirEntry[] | undefined;
 }
 
 function FolderEntry({
-  entry, depth, isExpanded, isLoading, tree, rootPath, onFileClick, children,
+  entry, depth, isExpanded, isLoading, tree, rootPath, onFileClick, onDelete, children,
   creatingEntry, onStartCreate, onConfirmCreate, onCancelCreate,
 }: FolderEntryProps) {
   const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
@@ -211,7 +243,7 @@ function FolderEntry({
         )}
         <span className="truncate">{entry.name}</span>
       </button>
-      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} onStartCreate={onStartCreate} />
+      <EntryContextMenu entry={entry} rootPath={rootPath} menu={menu} onStartCreate={onStartCreate} onDelete={onDelete} />
 
       {isExpanded && (
         <>
@@ -226,7 +258,7 @@ function FolderEntry({
           {children && (
             <FileTreeNode
               entries={children} depth={depth + 1} tree={tree}
-              rootPath={rootPath} onFileClick={onFileClick}
+              rootPath={rootPath} onFileClick={onFileClick} onDelete={onDelete}
               creatingEntry={creatingEntry} onStartCreate={onStartCreate}
               onConfirmCreate={onConfirmCreate} onCancelCreate={onCancelCreate}
             />

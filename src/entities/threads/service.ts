@@ -743,7 +743,7 @@ export const threadService = {
 
     // Get all descendant threads for cascaded archival (existing domain logic)
     const descendantIds = this.getDescendantThreadIds(threadId);
-    const allThreadIds = [threadId, ...descendantIds];
+    const allThreadIds = [...descendantIds.reverse(), threadId];
 
     logger.info(`[threadService.archive] Archiving thread ${threadId} with ${descendantIds.length} descendants`);
 

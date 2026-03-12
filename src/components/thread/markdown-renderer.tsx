@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkAlert from "remark-github-blockquote-alert";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "./code-block";
@@ -11,6 +11,23 @@ import { InlineCode } from "./inline-code";
 import { navigationService } from "@/stores/navigation-service";
 import { logger } from "@/lib/logger-client";
 import { looksLikeFilePath, resolvePath, autoLinkFilePaths } from "./file-path-utils";
+
+/** Extend default sanitize schema to allow CSS classes from remark-github-blockquote-alert */
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    div: [
+      ...(defaultSchema.attributes?.div ?? []),
+      ["className", "markdown-alert", "markdown-alert-note", "markdown-alert-warning",
+        "markdown-alert-tip", "markdown-alert-important", "markdown-alert-caution"],
+    ],
+    p: [
+      ...(defaultSchema.attributes?.p ?? []),
+      ["className", "markdown-alert-title"],
+    ],
+  },
+};
 
 interface MarkdownRendererProps {
   content: string;
@@ -222,7 +239,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     <div className={cn("prose prose-invert prose-sm prose-p:leading-relaxed max-w-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkAlert]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
         components={components}
       >
         {processedContent}

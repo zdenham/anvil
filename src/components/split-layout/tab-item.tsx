@@ -132,11 +132,10 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
         onClick={handleClick}
         onAuxClick={handleAuxClick}
         className={cn(
-          "group relative flex items-center gap-1.5 px-2.5 pt-[10px] pb-[10px] w-[160px] flex-shrink-0 text-xs font-medium transition-[color] duration-150",
-          "border-r border-surface-700",
+          "group relative flex items-center gap-1.5 px-2.5 py-1.5 max-w-[200px] flex-shrink-0 text-xs font-medium transition-colors duration-150 rounded-md",
           isActive
-            ? "bg-surface-900 text-surface-300 border-b border-b-surface-900"
-            : "bg-surface-900 text-surface-400 hover:text-surface-200 border-b border-b-surface-700",
+            ? "bg-surface-800 text-surface-200"
+            : "text-surface-500 hover:bg-surface-800/50 hover:text-surface-300",
           isDragging && "opacity-50",
         )}
       >

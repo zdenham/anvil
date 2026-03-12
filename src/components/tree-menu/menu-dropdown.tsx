@@ -36,7 +36,7 @@ export function MenuDropdown({ onSettingsClick, onArchiveClick, onNewRepo, onUnh
     { id: "settings", label: "Settings", icon: <Cog size={11} />, onClick: onSettingsClick },
     { id: "archive", label: "Archive", icon: <Archive size={11} />, onClick: onArchiveClick },
     ...(onNewRepo
-      ? [{ id: "new-repo", label: "New repository", icon: <FolderGit2 size={11} />, onClick: onNewRepo }]
+      ? [{ id: "new-repo", label: "New project", icon: <FolderGit2 size={11} />, onClick: onNewRepo }]
       : []),
   ];
 

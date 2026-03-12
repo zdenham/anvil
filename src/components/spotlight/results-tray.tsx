@@ -107,9 +107,9 @@ const getResultDisplay = (
       } else if (repoWorktrees.length === 0) {
         // Distinguish between no repos configured vs no worktrees available
         if (repoCount === 0) {
-          subtitle = "No repositories configured - add one in Settings";
+          subtitle = "No projects configured - add one in Settings";
         } else {
-          subtitle = "No worktrees available - create one in Worktrees tab";
+          subtitle = "No workspaces available - create one first";
         }
       }
     }
@@ -156,8 +156,8 @@ const getResultDisplay = (
     }
     return {
       icon: <span className="text-3xl">📁</span>,
-      title: "Open Repository",
-      subtitle: "Import a local folder as a repository",
+      title: "Import Project",
+      subtitle: "Import a local folder as a project",
     };
   }
 

@@ -9,7 +9,8 @@ import {
 } from "@/lib/preview-content";
 import { navigationService } from "@/stores/navigation-service";
 import { getFileSearchService } from "@/lib/triggers/file-search-service";
-import { useMRUWorktree } from "@/hooks/use-mru-worktree";
+import { useActiveWorktreeContext } from "@/hooks/use-active-worktree-context";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { CommandPaletteItem } from "./command-palette-item";
 
 interface CommandPaletteProps {
@@ -17,16 +18,65 @@ interface CommandPaletteProps {
   onClose: () => void;
 }
 
+/** Flat worktree entry for the switcher. */
+interface WorktreeOption {
+  repoId: string;
+  worktreeId: string;
+  name: string;
+  path: string;
+}
+
+/** Build a flat list of all worktrees from the lookup store. */
+function getAllWorktreeOptions(repos: Map<string, { name: string; worktrees: Map<string, { name: string; path: string }> }>): WorktreeOption[] {
+  const options: WorktreeOption[] = [];
+  for (const [repoId, repo] of repos) {
+    for (const [worktreeId, wt] of repo.worktrees) {
+      if (wt.path) {
+        options.push({ repoId, worktreeId, name: wt.name, path: wt.path });
+      }
+    }
+  }
+  return options;
+}
+
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mouseMovedSinceOpen, setMouseMovedSinceOpen] = useState(false);
   const [fileItems, setFileItems] = useState<PreviewableItem[]>([]);
+  const [worktreeOverrideId, setWorktreeOverrideId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Get MRU worktree for file search context
-  const { workingDirectory, repoId, worktreeId } = useMRUWorktree();
+  // Derive worktree context from active tab (falls back to MRU)
+  const activeCtx = useActiveWorktreeContext();
+
+  // All worktrees for the switcher (select stable store ref, derive in memo)
+  const repos = useRepoWorktreeLookupStore((s) => s.repos);
+  const worktreeOptions = useMemo(() => getAllWorktreeOptions(repos), [repos]);
+
+  // Apply override if set, otherwise use active context
+  const overrideOption = worktreeOverrideId
+    ? worktreeOptions.find((w) => w.worktreeId === worktreeOverrideId) ?? null
+    : null;
+
+  const workingDirectory = overrideOption?.path ?? activeCtx.workingDirectory;
+  const repoId = overrideOption?.repoId ?? activeCtx.repoId;
+  const worktreeId = overrideOption?.worktreeId ?? activeCtx.worktreeId;
+  const worktreeName = overrideOption?.name
+    ?? worktreeOptions.find((w) => w.worktreeId === activeCtx.worktreeId)?.name
+    ?? null;
+
+  // Cycle to next worktree
+  const cycleWorktree = useCallback(() => {
+    if (worktreeOptions.length <= 1) return;
+    const currentId = worktreeOverrideId ?? activeCtx.worktreeId;
+    const currentIdx = worktreeOptions.findIndex((w) => w.worktreeId === currentId);
+    const nextIdx = (currentIdx + 1) % worktreeOptions.length;
+    setWorktreeOverrideId(worktreeOptions[nextIdx].worktreeId);
+    setFileItems([]);
+    setSelectedIndex(0);
+  }, [worktreeOptions, worktreeOverrideId, activeCtx.worktreeId]);
 
   // Get all threads and plans
   const threads = useThreadStore((s) => s._threadsArray);
@@ -100,6 +150,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     setSelectedIndex(0);
     setMouseMovedSinceOpen(false);
     setFileItems([]);
+    setWorktreeOverrideId(null);
     setTimeout(() => inputRef.current?.focus(), 0);
 
     if (workingDirectory) {
@@ -265,23 +316,28 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       >
         {/* Search input */}
         <div className="p-3 border-b border-surface-700">
-          <input
-            ref={inputRef}
-            type="text"
-            data-testid="command-palette-input"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelectedIndex(0);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Search threads, plans, and files..."
-            className="w-full bg-transparent text-surface-200 placeholder-surface-500 outline-none text-sm"
-            autoFocus
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              data-testid="command-palette-input"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelectedIndex(0);
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Search threads, plans, and files..."
+              className="flex-1 bg-transparent text-surface-200 placeholder-surface-500 outline-none text-sm"
+              autoFocus
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+            {worktreeName && (
+              <span className="text-surface-500 text-xs shrink-0">{worktreeName}</span>
+            )}
+          </div>
         </div>
 
         {/* Results list */}
@@ -323,6 +379,20 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             </>
           ) : (
             <div className="text-sm text-surface-500">No item selected</div>
+          )}
+
+          {/* Worktree switcher */}
+          {worktreeOptions.length > 1 && worktreeName && (
+            <div className="mt-2 pt-2 border-t border-surface-800 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={cycleWorktree}
+                className="text-xs text-surface-400 hover:text-surface-200 transition-colors cursor-pointer"
+              >
+                {worktreeName}
+              </button>
+              <span className="text-xs text-surface-600">Click to switch worktree</span>
+            </div>
           )}
         </div>
       </div>

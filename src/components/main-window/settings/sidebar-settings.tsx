@@ -14,9 +14,9 @@ export function SidebarSettings() {
     >
       <label className="flex items-center justify-between cursor-pointer">
         <div>
-          <div className="text-sm text-surface-200">Hide external worktrees</div>
+          <div className="text-sm text-surface-200">Hide external workspaces</div>
           <div className="text-xs text-surface-500">
-            Hide worktrees not created by Mort from the sidebar
+            Hide workspaces not created by Mort from the sidebar
           </div>
         </div>
         <input

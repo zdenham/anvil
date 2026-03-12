@@ -202,8 +202,8 @@ export async function cascadeArchive(
     }
   }
 
-  // 3. Threads — pass skipVisualCascade to prevent infinite recursion
-  for (const id of descendants.threads) {
+  // 3. Threads — deepest first (matching folder convention)
+  for (const id of descendants.threads.reverse()) {
     try {
       await threadService.archive(id, originInstanceId, {
         skipVisualCascade: true,
@@ -213,8 +213,8 @@ export async function cascadeArchive(
     }
   }
 
-  // 4. Plans — pass skipVisualCascade to prevent infinite recursion
-  for (const id of descendants.plans) {
+  // 4. Plans — deepest first (matching folder convention)
+  for (const id of descendants.plans.reverse()) {
     try {
       await planService.archive(id, originInstanceId, {
         skipVisualCascade: true,
