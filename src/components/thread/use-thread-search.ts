@@ -415,11 +415,12 @@ export function useThreadSearch(
   const clear = useCallback(() => {
     queryRef.current = "";
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    clearHighlights();
     setQuery("");
     setMatchCount(0);
     setCurrentMatch(0);
     matchesRef.current = [];
-  }, []);
+  }, [clearHighlights]);
 
   const setQueryAndNavigate = useCallback((q: string, matchIdx: number, snippet?: string) => {
     initialNavRef.current = matchIdx;

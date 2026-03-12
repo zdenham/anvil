@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" fill="currentColor">
+  <!-- Horn (top left) -->
+  <path d="M15 35 Q5 35 5 28 Q5 20 15 18 L35 18 L35 35 Z" />
+  <!-- Top face -->
+  <rect x="35" y="18" width="55" height="17" rx="2" />
+  <!-- Waist -->
+  <path d="M40 35 L40 55 L80 55 L80 35 Z" />
+  <!-- Base -->
+  <path d="M20 55 L20 70 Q20 75 25 75 L95 75 Q100 75 100 70 L100 55 Z" />
+  <!-- Base foot -->
+  <rect x="15" y="75" width="90" height="8" rx="3" />
+</svg>

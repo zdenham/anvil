@@ -6,7 +6,7 @@
  * TREE_INDENT_BASE: left padding for depth-0 items (breathing room from edge).
  * TREE_INDENT_STEP: additional padding per nesting level.
  */
-export const TREE_INDENT_BASE = 4; // px
+export const TREE_INDENT_BASE = 8; // px
 export const TREE_INDENT_STEP = 8; // px per depth level
 
 /** Compute paddingLeft in pixels for a given tree depth. */

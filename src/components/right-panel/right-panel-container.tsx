@@ -61,15 +61,9 @@ export function RightPanelContainer({
     (newWorktreeId: string) => {
       const opt = worktreeOptions.find((o) => o.id === newWorktreeId);
       if (!opt) return;
-      // Update worktree override via tab change -- re-open files tab with new context
-      onTabChange("files");
-      // The filesWorktreeOverride is managed by the parent (MainWindowLayout),
-      // but since we pass onTabChange which calls openTab, and we need to also
-      // set the override, we dispatch a worktree change through openFileBrowser.
-      // For now, we store a local override that takes priority.
       setLocalWorktreeOverride({ repoId: opt.repoId, worktreeId: opt.id, rootPath: opt.path });
     },
-    [worktreeOptions, onTabChange],
+    [worktreeOptions],
   );
 
   // Local worktree override from sub-header dropdown (cleared on tab change)

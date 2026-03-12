@@ -211,11 +211,12 @@ export function useContentSearch(
   const clear = useCallback(() => {
     queryRef.current = "";
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    clearHighlights();
     setQuery("");
     setMatchCount(0);
     setCurrentMatch(0);
     rangesRef.current = [];
-  }, []);
+  }, [clearHighlights]);
 
   return { query, setQuery, setQueryAndNavigate, matchCount, currentMatch, goToNext, goToPrevious, clear };
 }

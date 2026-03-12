@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80" fill="currentColor">
+  <!-- Sleek horn -->
+  <path d="M5 25 Q0 22 5 18 L30 15 L30 28 Z" />
+  <!-- Top surface - slightly angled -->
+  <path d="M30 15 L88 15 Q92 15 92 19 L92 28 L30 28 Z" />
+  <!-- Column -->
+  <rect x="40" y="28" width="28" height="20" />
+  <!-- Base plate -->
+  <path d="M15 48 L93 48 L98 55 Q98 62 93 62 L15 62 Q10 62 10 55 Z" />
+</svg>

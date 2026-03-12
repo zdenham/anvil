@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80" fill="currentColor">
+  <!-- Rounded horn -->
+  <path d="M10 30 Q0 28 0 22 Q0 14 12 12 Q18 10 28 12 L28 30 Z" />
+  <!-- Broad top face -->
+  <rect x="28" y="12" width="60" height="18" rx="3" />
+  <!-- Tapered waist -->
+  <path d="M38 30 L38 48 Q38 50 40 50 L68 50 Q70 50 70 48 L70 30 Z" />
+  <!-- Heavy base with curves -->
+  <path d="M18 50 L90 50 Q95 50 95 55 L95 62 Q95 67 90 67 L18 67 Q13 67 13 62 L13 55 Q13 50 18 50 Z" />
+</svg>

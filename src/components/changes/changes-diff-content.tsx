@@ -48,8 +48,8 @@ export const ChangesDiffContent = forwardRef<
   const { items, paddingBefore, paddingAfter, scrollToIndex, measureItem } = useVirtualList({
     count: files.length,
     getScrollElement,
-    estimateHeight: 200,
-    overscan: 400,
+    estimateHeight: 1000,
+    overscan: 2400,
   });
 
   useImperativeHandle(
