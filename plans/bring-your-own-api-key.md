@@ -76,3 +76,4 @@ In the `ApiKeySettings` component, after the user saves a key:
 - Add/update test for `getApiKey` returning null when no custom key set
 
 No new test file needed for the UI component — it's a simple form with existing patterns.
+
