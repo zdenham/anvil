@@ -32,7 +32,7 @@ for (let i = 1; i <= 100; i++) {
   const result = await mort.spawn({
     prompt: `/breadcrumb ${DIR} ${i}`,
     contextShortCircuit: {
-      limitPercent: 75,
+      limitPercent: 50,
       message: "Your context is running low. Stop new work and save your progress now.",
     },
   });
