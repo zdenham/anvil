@@ -7,6 +7,7 @@
 
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
+import { useTerminalSessionStore } from "@/entities/terminal-sessions";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { useShallow } from "zustand/react/shallow";
 import { useTabLabel } from "./use-tab-label";
@@ -36,6 +37,15 @@ function useViewIds(view: ContentPaneView): ViewIds {
     }),
   );
 
+  const terminalWorktreeId = useTerminalSessionStore((s) => {
+    if (view.type !== "terminal") return undefined;
+    return s.sessions[view.terminalId]?.worktreeId;
+  });
+
+  const terminalRepoId = useRepoWorktreeLookupStore((s) =>
+    terminalWorktreeId ? s.getRepoIdByWorktreeId(terminalWorktreeId) : undefined
+  );
+
   switch (view.type) {
     case "thread":
       return {
@@ -57,6 +67,13 @@ function useViewIds(view: ContentPaneView): ViewIds {
         worktreeId: view.worktreeId,
         category: "changes",
         itemLabel: "",
+      };
+    case "terminal":
+      return {
+        repoId: terminalRepoId,
+        worktreeId: terminalWorktreeId,
+        category: "terminal",
+        itemLabel: "", // filled by useTabLabel
       };
     default:
       return { repoId: undefined, worktreeId: undefined, category: view.type, itemLabel: "" };

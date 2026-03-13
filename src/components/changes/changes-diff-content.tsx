@@ -72,37 +72,43 @@ export const ChangesDiffContent = forwardRef<
         next.delete(index);
       } else {
         next.add(index);
-        pendingCollapseRef.current = index;
+        // Only snap-scroll if the card's header is currently sticky (above viewport top)
+        const scroller = scrollerRef.current;
+        const card = scroller?.querySelector(`[data-index="${index}"]`) as HTMLElement | null;
+        if (card && scroller) {
+          const cardTop = card.getBoundingClientRect().top;
+          const scrollerTop = scroller.getBoundingClientRect().top;
+          if (cardTop <= scrollerTop) {
+            pendingCollapseRef.current = index;
+          }
+        }
       }
       return next;
     });
   }, []);
 
+  // After collapsing a sticky card, snap it flush with the viewport top
   useEffect(() => {
     const index = pendingCollapseRef.current;
     if (index === null) return;
     pendingCollapseRef.current = null;
 
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-
-    const el = scroller.querySelector<HTMLElement>(`[data-index="${index}"]`);
-    if (!el) return;
-
-    // Only scroll if the card's top was above the viewport (sticky header engaged)
-    const scrollerTop = scroller.getBoundingClientRect().top;
-    const elTop = el.getBoundingClientRect().top;
-    if (elTop >= scrollerTop) return;
-
+    // Double RAF: frame 1 lets ResizeObserver fire, frame 2 lets virtual list correction apply
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const elTop = el.getBoundingClientRect().top;
-        const scrollerTop = scroller.getBoundingClientRect().top;
-        const offset = elTop - scrollerTop;
-        scroller.scrollTop += offset;
+        const scroller = scrollerRef.current;
+        const wrapper = scroller?.querySelector(`[data-index="${index}"]`);
+        const card = wrapper?.firstElementChild?.firstElementChild as HTMLElement | null;
+        if (card && scroller) {
+          const cardRect = card.getBoundingClientRect();
+          const scrollerRect = scroller.getBoundingClientRect();
+          scroller.scrollTop += cardRect.top - scrollerRect.top;
+        } else {
+          scrollToIndex({ index, align: "start", behavior: "instant" });
+        }
       });
     });
-  }, [collapsedFiles]);
+  }, [collapsedFiles, scrollToIndex]);
 
   return (
     <div data-testid="changes-diff-content" className="h-full min-w-0 overflow-hidden">

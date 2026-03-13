@@ -122,9 +122,11 @@ function TerminalPanelResizable({
       onHeightChange={onHeightChange}
       onDragEnd={onDragEnd}
       minHeight={MIN_HEIGHT}
+      maxHeight={Math.floor(window.innerHeight * 0.95)}
       closeThreshold={CLOSE_THRESHOLD}
       onClose={onClose}
       className={isMaximized ? "flex-1" : ""}
+      fillContainer={isMaximized}
     >
       <TerminalPanelContent terminalRoot={terminalRoot} />
     </ResizablePanelVertical>

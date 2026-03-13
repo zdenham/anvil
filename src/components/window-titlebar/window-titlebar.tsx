@@ -71,10 +71,8 @@ export function WindowTitlebar({
         <button
           onClick={onToggleLeftPanel}
           className={cn(
-            "flex items-center justify-center w-5 h-5 rounded transition-colors",
-            leftPanelOpen
-              ? "text-surface-600 hover:text-surface-400"
-              : "text-surface-700 hover:text-surface-500",
+            "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
+            leftPanelOpen && "bg-surface-800",
           )}
         >
           <PanelLeft size={12} />
@@ -82,10 +80,8 @@ export function WindowTitlebar({
         <button
           onClick={onToggleTerminalPanel}
           className={cn(
-            "flex items-center justify-center w-5 h-5 rounded transition-colors",
-            terminalPanelOpen
-              ? "text-surface-600 hover:text-surface-400"
-              : "text-surface-700 hover:text-surface-500",
+            "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
+            terminalPanelOpen && "bg-surface-800",
           )}
         >
           <PanelBottom size={12} />
@@ -93,10 +89,8 @@ export function WindowTitlebar({
         <button
           onClick={onToggleRightPanel}
           className={cn(
-            "flex items-center justify-center w-5 h-5 rounded transition-colors",
-            rightPanelOpen
-              ? "text-surface-600 hover:text-surface-400"
-              : "text-surface-700 hover:text-surface-500",
+            "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
+            rightPanelOpen && "bg-surface-800",
           )}
         >
           <PanelRight size={12} />

@@ -423,8 +423,14 @@ function TerminalHeader({
 }) {
   const session = useTerminalSession(terminalId);
 
-  // Get the directory name from the full path
-  const dirName = session?.worktreePath?.split("/").pop() ?? "terminal";
+  // Resolve repo from worktreeId
+  const repoId = useRepoWorktreeLookupStore((s) =>
+    session?.worktreeId ? s.getRepoIdByWorktreeId(session.worktreeId) : undefined
+  );
+  const { repoName, worktreeName } = useBreadcrumbContext(repoId, session?.worktreeId);
+
+  // Terminal label: custom label > last command > directory name
+  const itemLabel = session?.label ?? session?.lastCommand ?? session?.worktreePath?.split("/").pop() ?? "terminal";
 
   // Archive (kill) the terminal
   const handleArchive = useCallback(async () => {
@@ -433,14 +439,17 @@ function TerminalHeader({
   }, [terminalId, onClose]);
 
   return (
-    <div data-testid="content-pane-header" className="flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
+    <div data-testid="content-pane-header" className="@container flex items-center gap-2.5 px-3 py-2 border-b border-surface-700">
       {/* Terminal icon */}
       <Terminal size={14} className="text-surface-400" />
 
-      {/* Label */}
-      <span className="text-surface-200 text-xs truncate">
-        {session?.lastCommand ?? dirName}
-      </span>
+      <Breadcrumb
+        repoName={repoName}
+        worktreeName={worktreeName}
+        category="terminal"
+        itemLabel={itemLabel}
+        onCategoryClick={onClose}
+      />
 
       {/* Status indicator */}
       {session && !session.isAlive && (

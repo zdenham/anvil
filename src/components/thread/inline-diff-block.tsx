@@ -182,7 +182,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   return (
     <div
       data-testid={testId}
-      className="rounded-lg border border-surface-700"
+      className="rounded-lg border border-surface-700 overflow-clip"
       role="region"
       aria-label={`Changes to ${fileName}`}
     >
@@ -378,7 +378,6 @@ function DiffContentWithComments({
           <div key={`line-${item.lineIndex}`}>
             <AnnotatedLineRow
               line={item.line}
-              onLineClick={handleCommentClick}
               hasComments={lineComments.length > 0}
             />
             {activeCommentLine === key && (

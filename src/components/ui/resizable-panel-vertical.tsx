@@ -43,6 +43,8 @@ export interface ResizablePanelVerticalProps {
   children: ReactNode;
   /** Optional className for the container */
   className?: string;
+  /** When true, height is controlled by flex layout instead of inline style */
+  fillContainer?: boolean;
 }
 
 function getMaxHeight(): number {
@@ -60,6 +62,7 @@ export function ResizablePanelVertical({
   onClose,
   children,
   className,
+  fillContainer,
 }: ResizablePanelVerticalProps) {
   const [isDragging, setIsDragging] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -95,7 +98,7 @@ export function ResizablePanelVertical({
     (e: React.MouseEvent) => {
       e.preventDefault();
       dragStartY.current = e.clientY;
-      dragStartHeight.current = height;
+      dragStartHeight.current = panelRef.current?.offsetHeight ?? height;
       setIsDragging(true);
       document.body.style.cursor = "ns-resize";
       document.body.style.userSelect = "none";
@@ -122,7 +125,7 @@ export function ResizablePanelVertical({
     <div
       ref={panelRef}
       className={`relative flex-shrink-0 ${className ?? ""}`}
-      style={{ height }}
+      style={fillContainer ? undefined : { height }}
     >
       {/* Drag handle - top edge */}
       <div

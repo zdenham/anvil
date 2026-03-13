@@ -135,6 +135,7 @@ export function WriteToolBlock({
             onToggle={() => setDiffOutputExpanded(!isDiffOutputExpanded)}
             isLongContent={isLongDiff}
             maxCollapsedHeight={MAX_COLLAPSED_HEIGHT}
+            className="border-0"
           >
             <InlineDiffBlock
               filePath={diffData.filePath}

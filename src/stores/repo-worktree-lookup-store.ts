@@ -44,6 +44,9 @@ interface RepoWorktreeLookupState {
   /** Find repoId by repo name. Returns undefined if not found. */
   getRepoIdByName: (repoName: string) => string | undefined;
 
+  /** Find repoId by worktreeId. Returns undefined if not found. */
+  getRepoIdByWorktreeId: (worktreeId: string) => string | undefined;
+
   /** Insert a placeholder worktree before the backend creates it */
   addOptimisticWorktree: (repoId: string, tempWorktreeId: string, name: string) => void;
 
@@ -134,6 +137,13 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
   getRepoIdByName: (repoName: string): string | undefined => {
     for (const [repoId, info] of get().repos) {
       if (info.name === repoName) return repoId;
+    }
+    return undefined;
+  },
+
+  getRepoIdByWorktreeId: (worktreeId: string): string | undefined => {
+    for (const [repoId, repo] of get().repos) {
+      if (repo.worktrees.has(worktreeId)) return repoId;
     }
     return undefined;
   },
