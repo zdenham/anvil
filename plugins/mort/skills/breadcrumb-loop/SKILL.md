@@ -37,10 +37,17 @@ for (let i = 1; i <= 100; i++) {
     },
   });
 
-  if (result.includes("BREADCRUMB_COMPLETE")) {
+  if (/^BREADCRUMB_COMPLETE$/m.test(result)) {
     mort.log("Task completed!");
     break;
   }
 }
 MORT_REPL
 ```
+
+## After the Loop
+
+Breadcrumb agents commit their work directly to the branch. When the loop finishes:
+
+1. Run `git log --oneline` to see what the breadcrumb agents committed
+2. Read the latest `*-progress.md` file in the breadcrumb directory for a summary

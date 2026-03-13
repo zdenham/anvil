@@ -60,3 +60,5 @@ Your breadcrumb should capture what you did and what remains. Keep it factual an
 **Only** include `BREADCRUMB_COMPLETE` in your final message if you have **100% confidence** the overall goal is fully met — all acceptance criteria satisfied, tests passing, no loose ends.
 
 If there is *any* remaining work, *any* untested edge case, *any* uncertainty — do NOT signal completion. Another agent will pick up where you left off. It's always better to run one extra iteration than to prematurely stop.
+
+**CRITICAL**: The string `BREADCRUMB_COMPLETE` is detected mechanically in your response. Never write it unless you are signaling true completion. Do not reference, negate, or discuss it (e.g., don't write "not signaling BREADCRUMB\_COMPLETE") — just omit it entirely if you're not done.
