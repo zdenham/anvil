@@ -7,7 +7,7 @@
 export function GuideContent() {
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="px-6 py-8 max-w-[900px] mx-auto w-full">
+      <div className="px-4 py-8 max-w-[900px] mx-auto w-full">
       {/* Getting Started */}
       <section className="mb-8">
         <h2 className="text-lg font-medium font-mono text-surface-100 mb-3">
@@ -17,6 +17,32 @@ export function GuideContent() {
           Mort orchestrates parallel Claude Code agents from your desktop.
           Use the Spotlight bar (<Kbd>⌘ Space</Kbd>) for quick access from anywhere.
         </p>
+      </section>
+
+      <Divider />
+
+      {/* Orchestration Skills */}
+      <section className="mb-8">
+        <h2 className="text-lg font-medium font-mono text-surface-100 mb-3">
+          Orchestration Skills
+        </h2>
+        <p className="text-sm text-surface-400 mb-3 leading-relaxed">
+          Use these slash commands to coordinate multi-agent work.
+        </p>
+        <div className="space-y-2 text-sm">
+          <ConceptRow
+            name="/decompose"
+            description="Break a complex task into sub-plans with dependency ordering, then execute them in parallel waves. Best for large features and multi-file refactors."
+          />
+          <ConceptRow
+            name="/breadcrumb-loop"
+            description="Run a task that exceeds a single context window. Sequential agents pick up where the last left off via progress files. Best for large migrations and sweeping changes."
+          />
+          <ConceptRow
+            name="/orchestrate"
+            description="Programmatically spawn and coordinate agents with mort-repl. Write JS/TS to control parallelism, sequencing, and conditional logic."
+          />
+        </div>
       </section>
 
       <Divider />

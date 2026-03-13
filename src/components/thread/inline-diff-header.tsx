@@ -28,8 +28,6 @@ interface InlineDiffHeaderProps {
   isFileCollapsed?: boolean;
   /** Callback to toggle file collapse */
   onToggleFileCollapse?: () => void;
-  /** Whether the header is currently stuck (scrolled past its natural position) */
-  isSticky?: boolean;
   /** Additional CSS classes for the root element */
   className?: string;
 }
@@ -48,7 +46,6 @@ export const InlineDiffHeader = memo(function InlineDiffHeader({
   onCollapseAll,
   isFileCollapsed,
   onToggleFileCollapse,
-  isSticky,
   className,
 }: InlineDiffHeaderProps) {
   // Extract just the filename for compact display

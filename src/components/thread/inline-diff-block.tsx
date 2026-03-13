@@ -348,10 +348,6 @@ function DiffContentWithComments({
     return map;
   }, [comments]);
 
-  const handleCommentClick = useCallback((key: string) => {
-    setActiveCommentLine((prev) => (prev === key ? null : key));
-  }, []);
-
   return (
     <div className="bg-surface-900/50 overflow-x-auto rounded-b-lg">
       {renderItems.map((item) => {
