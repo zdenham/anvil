@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { parseDiff } from "@/lib/diff-parser";
 import { sanitizeTestId } from "@/lib/utils/index";
 import { AnnotatedLineRow } from "../diff-viewer/annotated-line-row";
@@ -141,7 +141,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
   const [isDiffExpanded, setIsDiffExpanded] = useState(!shouldStartCollapsed);
 
   // Sticky detection for removing rounded corners when stuck
-  const [sentinelRef, isSticky] = useIsSticky();
+  const [sentinelRef] = useIsSticky();
 
   // File-level collapse — use controlled props when provided, else internal state
   const [internalFileCollapsed, setInternalFileCollapsed] = useState(false);
@@ -200,7 +200,7 @@ export const InlineDiffBlock = memo(function InlineDiffBlock({
         allExpanded={collapsedRegions.expanded.size === collapsedRegions.regions.length}
         onExpandAll={collapsedRegions.expandAll}
         onCollapseAll={collapsedRegions.collapseAll}
-        isSticky={isSticky}
+
       />
 
       {/* Diff content -- hidden when file is collapsed */}
