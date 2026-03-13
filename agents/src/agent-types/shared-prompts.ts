@@ -61,6 +61,8 @@ Define phases within a dedicated \`## Phases\` section (required for detection).
 
 **Phases MUST be:** implementable in this session, within scope, concrete and verifiable.
 
+**Every phase must be something the agent can implement AND verify itself.** No manual testing, human approval, or external action steps.
+
 **Phases MUST NOT include:** deployment, manual testing, human approval steps, or vague future work.
 
 **Good phases:**

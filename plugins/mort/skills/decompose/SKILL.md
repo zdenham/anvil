@@ -86,11 +86,13 @@ Read the dependency table you just wrote. Determine which tasks can run in paral
 1. **Identify waves** — tasks with no unmet dependencies form the next wave. You can figure this out by reading the table; do NOT write graph-sorting code in the REPL.
 2. **Execute one wave at a time** — write a minimal `mort-repl` script that spawns the wave's tasks in parallel:
 
+> **The slash command must be the first thing in the prompt.** Claude Code only auto-expands skills into `<command-name>` tags when the `/command` appears at the start of the message. If buried mid-sentence, the agent must make an extra Skill tool call to load the skill content.
+
 ```bash
 mort-repl <<'MORT_REPL'
 const results = await Promise.all([
-  mort.spawn({ prompt: "Use /mort:decompose to execute: plans/my-task/01-setup-database.md" }),
-  mort.spawn({ prompt: "Use /mort:decompose to execute: plans/my-task/02-auth-module.md" }),
+  mort.spawn({ prompt: "/mort:decompose plans/my-task/01-setup-database.md" }),
+  mort.spawn({ prompt: "/mort:decompose plans/my-task/02-auth-module.md" }),
 ]);
 return results.map((r, i) => `Task ${i + 1}: ${r.slice(0, 200)}`).join("\n");
 MORT_REPL

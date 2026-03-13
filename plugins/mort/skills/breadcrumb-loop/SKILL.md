@@ -29,6 +29,8 @@ const DIR = "plans/breadcrumbs/<task-slug>";
 for (let i = 1; i <= 100; i++) {
   mort.log(`Iteration ${i}`);
 
+  // The slash command must lead the prompt — Claude Code only auto-expands
+  // skills into <command-name> tags when /command is at the start of the message.
   const result = await mort.spawn({
     prompt: `/mort:breadcrumb ${DIR} ${i}`,
     contextShortCircuit: {
