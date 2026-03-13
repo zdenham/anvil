@@ -6,7 +6,7 @@ user-invocable: true
 
 # Breadcrumb Loop
 
-Run a long-running task that spans multiple agent contexts. Each agent picks up where the last left off via the `/breadcrumb` skill.
+Run a long-running task that spans multiple agent contexts. Each agent picks up where the last left off via the `/mort:breadcrumb` skill.
 
 ## Instructions
 
@@ -30,7 +30,7 @@ for (let i = 1; i <= 100; i++) {
   mort.log(`Iteration ${i}`);
 
   const result = await mort.spawn({
-    prompt: `/breadcrumb ${DIR} ${i}`,
+    prompt: `/mort:breadcrumb ${DIR} ${i}`,
     contextShortCircuit: {
       limitPercent: 50,
       message: "Your context is running low. Stop new work and save your progress now.",

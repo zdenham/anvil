@@ -89,8 +89,8 @@ Read the dependency table you just wrote. Determine which tasks can run in paral
 ```bash
 mort-repl <<'MORT_REPL'
 const results = await Promise.all([
-  mort.spawn({ prompt: "Use /decompose to execute: plans/my-task/01-setup-database.md" }),
-  mort.spawn({ prompt: "Use /decompose to execute: plans/my-task/02-auth-module.md" }),
+  mort.spawn({ prompt: "Use /mort:decompose to execute: plans/my-task/01-setup-database.md" }),
+  mort.spawn({ prompt: "Use /mort:decompose to execute: plans/my-task/02-auth-module.md" }),
 ]);
 return results.map((r, i) => `Task ${i + 1}: ${r.slice(0, 200)}`).join("\n");
 MORT_REPL

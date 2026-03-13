@@ -6,98 +6,200 @@ Make terminal names unique and auto-name them after the first command run.
 
 All terminals for the same worktree display the same name (directory name fallback), making them indistinguishable. The `updateLastCommand()` method exists in the service but is never called from anywhere.
 
+## Command Detection: Shell Integration vs Keystroke Tracking
+
+PTYs have no command lifecycle hooks — they're just byte pipes. But shells do. The previous plan proposed keystroke tracking (buffering input, detecting Enter), which is essentially a keylogger that:
+
+- Breaks on tab completion, history navigation, multiline commands
+- Can't tell what actually executed vs what was typed and cancelled
+- Has bad optics as a "keylogger"
+
+**The proven alternative is shell integration** — the same technique used by VS Code, iTerm2, and Warp. The shell itself tells us what command ran via escape sequences emitted through the PTY output stream.
+
+### How shell integration works
+
+1. **At PTY spawn**, Mort sets `ZDOTDIR` to a temp directory containing a tiny `.zshenv`
+2. That `.zshenv` restores the original `ZDOTDIR` (so the user's normal config loads), then adds a `preexec` hook
+3. The `preexec` hook runs before every command and emits a custom OSC escape sequence: `\e]7727;cmd;<command_text>\a`
+4. **In the frontend**, xterm.js parses the OSC via `terminal.parser.registerOscHandler(7727, ...)` and calls `updateLastCommand()`
+
+The preexec hook is \~3 lines of zsh. It uses `preexec_functions` (an array), so it doesn't override user hooks.
+
+### Why OSC 7727?
+
+Private-use number to avoid conflicts with iTerm2 (1337), VS Code (633), and standard OSC sequences.
+
+### Shell support
+
+- **zsh** (macOS default): ZDOTDIR injection. Covered in this plan.
+- **bash**: `--rcfile` injection. Follow-up.
+- **fish**: `--init-command` injection. Follow-up.
+- **Unsupported shells**: Terminal works normally, just no command names — falls back to auto-generated label.
+
+## Naming Priority
+
+Three tiers, from highest to lowest:
+
+| Priority | Source | Example | When set |
+| --- | --- | --- | --- |
+| 1\. User override | `label` via sidebar rename | "My Server" | User calls `setLabel()` |
+| 2\. Last command | `lastCommand` via shell integration | "npm run dev" | Shell preexec hook fires |
+| 3\. Auto-generated | `worktree-name N` | "mortician 1" | Terminal created |
+
+**Key rule**: User overrides always win. Once the user renames a terminal, commands no longer change the display name. This is tracked via `isUserLabel: true` on the session.
+
 ## Phases
 
-- [ ] Add command tracking to detect commands from user input
+- [ ] Create zsh shell integration script and write it to `~/.mort/shell-integration/`
 
-- [ ] Wire command tracker into terminal content component
+- [ ] Inject ZDOTDIR override at PTY spawn in Rust
 
-- [ ] Generate unique fallback names for terminals without commands
+- [ ] Parse OSC 7727 in xterm.js and wire to `updateLastCommand()`
 
-&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
+- [ ] Add `isUserLabel` field and apply unified display priority across all three display locations
+
+- [ ] Auto-generate fallback labels (`worktree-name N`) in `create()` and `createPlaceholder()`
+
+<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
 ## Design
 
-### Phase 1: Command tracker (`src/entities/terminal-sessions/command-tracker.ts`)
+### Phase 1: Shell integration script
 
-A lightweight class that tracks user keystrokes per terminal to detect command execution.
+**Location**: Written to `~/.mort/shell-integration/zsh/.zshenv` by the terminal service on first use.
 
-**How it works:**
+```zsh
+# Mort shell integration for zsh
+# Restores original ZDOTDIR so user config loads normally,
+# then adds a minimal preexec hook for command tracking.
 
-- Accumulates characters typed by the user into a line buffer per terminal
-- On Enter (`\r`), extracts the buffered text as the command, trims whitespace, and calls `terminalSessionService.updateLastCommand(id, command)` if non-empty
-- Handles: backspace (`\x7f` → delete last char), Ctrl+C (`\x03` → clear buffer), Ctrl+U (`\x15` → clear buffer)
-- Ignores escape sequences (anything starting with `\x1b`) — these are arrow keys, tab completion results, etc.
-- Resets buffer after Enter
+# 1. Restore original ZDOTDIR
+if [[ -n "$MORT_ORIGINAL_ZDOTDIR" ]]; then
+  ZDOTDIR="$MORT_ORIGINAL_ZDOTDIR"
+  unset MORT_ORIGINAL_ZDOTDIR
+else
+  unset ZDOTDIR
+fi
 
-**API:**
+# 2. Source the user's real .zshenv (if it exists)
+[[ -f "${ZDOTDIR:-$HOME}/.zshenv" ]] && source "${ZDOTDIR:-$HOME}/.zshenv"
 
-```ts
-class CommandTracker {
-  /** Feed raw user input data for a terminal */
-  handleInput(terminalId: string, data: string): void
-  /** Clear tracking state for a terminal */
-  clear(terminalId: string): void
+# 3. Add preexec hook — emits OSC 7727 with the command text
+__mort_preexec() { printf '\e]7727;cmd;%s\a' "$1"; }
+preexec_functions+=(__mort_preexec)
+```
+
+**Why** `.zshenv`**?** It's the first file zsh reads for any shell type (login, interactive, script). By the time `.zshrc` loads, ZDOTDIR is already restored and our hook is registered.
+
+**Implementation**: New file `src/entities/terminal-sessions/shell-integration.ts` with a function `ensureShellIntegration()` that writes the script to `~/.mort/shell-integration/zsh/.zshenv` if it doesn't exist (or if the content has changed). Called lazily from `create()`.
+
+### Phase 2: ZDOTDIR injection at PTY spawn
+
+**File**: `src-tauri/src/terminal.rs` — `spawn_terminal_inner()`
+
+Add env vars before spawning:
+
+```rust
+// Shell integration: redirect zsh's ZDOTDIR so our .zshenv loads first
+if shell.ends_with("zsh") {
+    let original_zdotdir = std::env::var("ZDOTDIR").unwrap_or_default();
+    cmd.env("MORT_ORIGINAL_ZDOTDIR", &original_zdotdir);
+    // ~/.mort/shell-integration/zsh/ contains our .zshenv
+    let integration_dir = paths::mort_data_dir().join("shell-integration/zsh");
+    cmd.env("ZDOTDIR", integration_dir.to_str().unwrap_or_default());
 }
-
-export const commandTracker = new CommandTracker();
 ```
 
-**Limitations accepted:** Tab completion and shell history navigation won't be captured accurately. This is fine — the common case (user types a command and presses Enter) will work. The name updates on every command via `lastCommand`, so stale names self-correct quickly.
+The `paths::mort_data_dir()` function already resolves `~/.mort`. Just need to construct the path.
 
-### Phase 2: Wire into terminal content (`src/components/content-pane/terminal-content.tsx`)
+### Phase 3: Parse OSC 7727 in frontend
 
-In `handleInput`, add a call to `commandTracker.handleInput(terminalId, data)` alongside the existing PTY write. This is a one-line addition inside the existing callback.
+**File**: `src/components/content-pane/terminal-content.tsx`
 
-Also call `commandTracker.clear(terminalId)` in the cleanup function.
-
-### Phase 3: Unique fallback names and consistent display
-
-When no `label` and no `lastCommand` exist, terminals currently all show the same directory name. Fix this with auto-generated labels and unified display priority.
-
-**Auto-label format:** `worktree-name N` — e.g. `mortician 1`, `mortician 2`. Uses the worktree directory basename, matching the existing fallback but adding a disambiguating index.
-
-**Service changes** (`src/entities/terminal-sessions/service.ts`):
-
-- In `create()` and `createPlaceholder()`, auto-generate `label` as `"dirname N"` where `dirname = worktreePath.split("/").pop()` and `N = existingCountForWorktree + 1`. This persists to disk.
-
-**Unified display priority** — all three locations should use the same logic:
-
-```
-label (user-set) → lastCommand → auto-label → "Terminal"
-```
-
-The key distinction: a **user-set label** (via `setLabel()`) takes priority over everything including `lastCommand`. The auto-generated label is a fallback that `lastCommand` *does* override. To implement this, add a boolean `isAutoLabel` field to the session. When `label` is set by `create()`/`createPlaceholder()`, set `isAutoLabel: true`. When set by `setLabel()` (user action), set `isAutoLabel: false`.
-
-Display logic becomes:
+After `terminal.open(containerRef.current)`, register the OSC handler:
 
 ```ts
-const effectiveLabel = (session.label && !session.isAutoLabel) ? session.label : null;
-return effectiveLabel ?? session.lastCommand ?? session.label ?? "Terminal";
+// Shell integration: parse command names from OSC 7727
+terminal.parser.registerOscHandler(7727, (data) => {
+  if (data.startsWith("cmd;")) {
+    const command = data.slice(4).trim();
+    if (command) {
+      terminalSessionService.updateLastCommand(terminalId, command);
+    }
+  }
+  return true; // handled
+});
 ```
 
-- User-set label → always wins
-- `lastCommand` → overrides auto-label
-- Auto-label (`mortician [1]`) → fallback when no command yet
-- `"Terminal"` → last resort
+This is a one-liner addition to the existing xterm.js setup. `registerOscHandler` is part of xterm.js's public API (`allowProposedApi: true` is already set).
 
-**All three display locations must use the same unified priority:**
+### Phase 4: `isUserLabel` field and unified display priority
 
-- **Tabs** (`use-tab-label.ts`): Currently line 60 skips `label` entirely (`session.lastCommand ?? dirname`). Update to use the unified display priority above.
-- **Sidebar** (`tree-node-builders.ts`): Already has `label ?? lastCommand ?? dirname` — update to use the `isAutoLabel`-aware logic.
-- **Header** (`content-pane-header.tsx`): Same — update to use `isAutoLabel`-aware logic.
+**Types** (`src/entities/terminal-sessions/types.ts`):
 
-**Net result:** A brand new terminal shows `mortician 1` in the tab, sidebar, and header. After the first command (e.g., `npm run dev`), all three locations show `npm run dev`. If the user explicitly renames it to "My Server", that name sticks everywhere regardless of commands run.
+Add to `TerminalSessionSchema`:
+
+```ts
+isUserLabel: z.boolean().optional(),
+```
+
+**Service** (`src/entities/terminal-sessions/service.ts`):
+
+- `setLabel()`: Set `isUserLabel: true` alongside the label
+- `create()` / `createPlaceholder()`: When setting auto-label, set `isUserLabel: false` (or leave undefined)
+
+**Display logic** — a pure function used by all three locations:
+
+```ts
+function getTerminalDisplayName(session: TerminalSession): string {
+  // 1. User override always wins
+  if (session.label && session.isUserLabel) return session.label;
+  // 2. Last command from shell integration
+  if (session.lastCommand) return session.lastCommand;
+  // 3. Auto-generated fallback
+  return session.label ?? "Terminal";
+}
+```
+
+**Three locations to update:**
+
+1. **Tabs** (`src/components/split-layout/use-tab-label.ts` line 60): Currently `session.lastCommand ?? session.worktreePath.split("/").pop()`. Replace with `getTerminalDisplayName(session)`.
+
+2. **Sidebar** (`src/hooks/tree-node-builders.ts` line 149): Currently `terminal.label ?? terminal.lastCommand ?? terminal.worktreePath.split("/").pop()`. Replace with `getTerminalDisplayName(terminal)`.
+
+3. **Header** (`src/components/content-pane/content-pane-header.tsx` line 433): Currently `session?.label ?? session?.lastCommand ?? ...`. Replace with `getTerminalDisplayName(session)`.
+
+Extract `getTerminalDisplayName()` into `src/entities/terminal-sessions/display-name.ts` so all three locations import the same function.
+
+### Phase 5: Auto-generated fallback labels
+
+**Service** (`src/entities/terminal-sessions/service.ts`):
+
+In `create()` and `createPlaceholder()`, generate `label` as `"dirname N"`:
+
+```ts
+const dirname = worktreePath.split("/").pop() ?? "terminal";
+const existing = this.getByWorktree(worktreeId);
+const n = existing.length + 1;
+const label = `${dirname} ${n}`;
+```
+
+Set `isUserLabel: false` (or omit — undefined is treated as false).
+
+**Net result**: New terminal shows `mortician 1`. After `npm run dev`, shows `npm run dev`. User renames to "My Server" — stays "My Server" regardless of commands.
 
 ## Files Changed
 
 | File | Change |
 | --- | --- |
-| `src/entities/terminal-sessions/command-tracker.ts` | New — command detection from user input |
-| `src/components/content-pane/terminal-content.tsx` | Wire `commandTracker.handleInput()` into `handleInput` callback |
-| `src/entities/terminal-sessions/service.ts` | Auto-generate `label` with `isAutoLabel: true` in `create()` and `createPlaceholder()` |
-| `src/components/split-layout/use-tab-label.ts` | Use unified display priority (currently skips `label`) |
-| `src/components/content-pane/content-pane-header.tsx` | Use `isAutoLabel`-aware display priority |
-| `src/entities/terminal-sessions/tree-node-builders.ts` | Use `isAutoLabel`-aware display priority |
+| `src/entities/terminal-sessions/shell-integration.ts` | New — writes zsh integration script to `~/.mort/shell-integration/` |
+| `src-tauri/src/terminal.rs` | Set `ZDOTDIR` + `MORT_ORIGINAL_ZDOTDIR` env vars for zsh |
+| `src/components/content-pane/terminal-content.tsx` | Register OSC 7727 handler to capture commands |
+| `src/entities/terminal-sessions/types.ts` | Add `isUserLabel` boolean field |
+| `src/entities/terminal-sessions/service.ts` | Auto-generate labels, set `isUserLabel` in `setLabel()` |
+| `src/entities/terminal-sessions/display-name.ts` | New — `getTerminalDisplayName()` shared display logic |
+| `src/components/split-layout/use-tab-label.ts` | Use `getTerminalDisplayName()` |
+| `src/hooks/tree-node-builders.ts` | Use `getTerminalDisplayName()` |
+| `src/components/content-pane/content-pane-header.tsx` | Use `getTerminalDisplayName()` |

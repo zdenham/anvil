@@ -45,10 +45,10 @@ class SkillTriggerHandler implements TriggerHandler {
 
     return skills.map((skill) => ({
       id: skill.slug,
-      label: `/${skill.slug}`,
+      label: skill.source === 'mort' ? `/mort:${skill.slug}` : `/${skill.slug}`,
       description: skill.description || "",
       icon: SOURCE_ICONS[skill.source], // Lucide icon name from shared constants
-      insertText: `/${skill.slug} `,
+      insertText: skill.source === 'mort' ? `/mort:${skill.slug} ` : `/${skill.slug} `,
       secondaryLabel: SOURCE_LABELS[skill.source], // Display label from shared constants
     }));
   }
