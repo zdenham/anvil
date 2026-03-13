@@ -183,6 +183,18 @@ export function TerminalContent({
 
     // OSC 52 clipboard integration
     terminal.loadAddon(new ClipboardAddon());
+
+    // Shell integration: parse command names from OSC 7727
+    terminal.parser.registerOscHandler(7727, (data) => {
+      if (data.startsWith("cmd;")) {
+        const command = data.slice(4).trim();
+        if (command) {
+          terminalSessionService.updateLastCommand(terminalId, command);
+        }
+      }
+      return true;
+    });
+
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 

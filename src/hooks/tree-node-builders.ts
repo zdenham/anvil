@@ -10,6 +10,7 @@ import type { TreeItemNode } from "@/stores/tree-menu/types";
 import type { ThreadMetadata } from "@/entities/threads/types";
 import type { PlanMetadata } from "@/entities/plans/types";
 import type { TerminalSession } from "@/entities/terminal-sessions/types";
+import { getTerminalDisplayName } from "@/entities/terminal-sessions/display-name";
 import type { PullRequestMetadata } from "@/entities/pull-requests/types";
 import type { PullRequestDetails } from "@/entities/pull-requests/types";
 import type { FolderMetadata } from "@/entities/folders/types";
@@ -146,7 +147,7 @@ export function terminalToNode(terminal: TerminalSession): TreeItemNode {
   return {
     type: "terminal",
     id: terminal.id,
-    title: terminal.label ?? terminal.lastCommand ?? terminal.worktreePath.split("/").pop() ?? "terminal",
+    title: getTerminalDisplayName(terminal),
     status: terminal.isAlive ? "read" : "unread",
     updatedAt: terminal.createdAt,
     createdAt: terminal.createdAt,

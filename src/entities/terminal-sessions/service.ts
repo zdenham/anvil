@@ -7,6 +7,7 @@ import { appData } from "@/lib/app-data-store";
 import { useTerminalSessionStore } from "./store";
 import { TerminalSessionSchema, type TerminalSession } from "./types";
 import { clearOutputBuffer } from "./output-buffer";
+import { ensureShellIntegration } from "./shell-integration";
 import { logger } from "@/lib/logger-client";
 import { eventBus } from "@/entities/events";
 import { EventName } from "@core/types/events.js";
@@ -68,6 +69,16 @@ class TerminalSessionService {
   }
 
   /**
+   * Generates a unique auto-label like "dirname 1", "dirname 2", etc.
+   */
+  private generateAutoLabel(worktreeId: string, worktreePath: string): string {
+    const dirname = worktreePath.split("/").pop() ?? "terminal";
+    const existing = this.getByWorktree(worktreeId);
+    const n = existing.length + 1;
+    return `${dirname} ${n}`;
+  }
+
+  /**
    * Creates a new terminal session.
    * Generates a UUID, spawns the PTY, persists metadata to disk.
    */
@@ -84,6 +95,9 @@ class TerminalSessionService {
       rows,
     });
 
+    // Ensure shell integration script exists before spawning
+    await ensureShellIntegration();
+
     try {
       // Spawn the PTY in Rust
       const numericId = await invoke<number>("spawn_terminal", {
@@ -93,6 +107,7 @@ class TerminalSessionService {
       });
 
       const id = crypto.randomUUID();
+      const label = this.generateAutoLabel(worktreeId, worktreePath);
 
       const session: TerminalSession = {
         id,
@@ -100,6 +115,7 @@ class TerminalSessionService {
         worktreeId,
         worktreePath,
         lastCommand: undefined,
+        label,
         createdAt: Date.now(),
         isAlive: true,
         isArchived: false,
@@ -187,7 +203,7 @@ class TerminalSessionService {
    * Sets a user-assigned label for a terminal (overrides lastCommand in sidebar).
    */
   setLabel(id: string, label: string): void {
-    useTerminalSessionStore.getState().updateSession(id, { label });
+    useTerminalSessionStore.getState().updateSession(id, { label, isUserLabel: true });
     // Fire-and-forget disk write — same pattern as updateLastCommand
     this.persistMetadata(id);
   }
@@ -249,11 +265,13 @@ class TerminalSessionService {
    */
   async createPlaceholder(worktreeId: string, worktreePath: string): Promise<TerminalSession> {
     const id = crypto.randomUUID();
+    const label = this.generateAutoLabel(worktreeId, worktreePath);
     const session: TerminalSession = {
       id,
       ptyId: null,
       worktreeId,
       worktreePath,
+      label,
       createdAt: Date.now(),
       isAlive: false,
       isArchived: false,

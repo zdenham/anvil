@@ -96,6 +96,14 @@ pub fn spawn_terminal_inner(
     }
     cmd.env("PATH", paths::shell_path());
 
+    // Shell integration: redirect zsh's ZDOTDIR so our .zshenv loads first
+    if shell.ends_with("zsh") {
+        let original_zdotdir = std::env::var("ZDOTDIR").unwrap_or_default();
+        cmd.env("MORT_ORIGINAL_ZDOTDIR", &original_zdotdir);
+        let integration_dir = paths::data_dir().join("shell-integration/zsh");
+        cmd.env("ZDOTDIR", integration_dir.to_str().unwrap_or_default());
+    }
+
     let child = pair
         .slave
         .spawn_command(cmd)

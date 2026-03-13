@@ -28,6 +28,7 @@ import {
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSession, terminalSessionService } from "@/entities/terminal-sessions";
+import { getTerminalDisplayName } from "@/entities/terminal-sessions/display-name";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
@@ -429,8 +430,8 @@ function TerminalHeader({
   );
   const { repoName, worktreeName } = useBreadcrumbContext(repoId, session?.worktreeId);
 
-  // Terminal label: custom label > last command > directory name
-  const itemLabel = session?.label ?? session?.lastCommand ?? session?.worktreePath?.split("/").pop() ?? "terminal";
+  // Terminal label: unified display name (user label > lastCommand > auto label)
+  const itemLabel = session ? getTerminalDisplayName(session) : "terminal";
 
   // Archive (kill) the terminal
   const handleArchive = useCallback(async () => {

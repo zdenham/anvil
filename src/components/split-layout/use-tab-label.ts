@@ -11,6 +11,7 @@ import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
 import { usePullRequestStore } from "@/entities/pull-requests/store";
 import type { ContentPaneView } from "@/components/content-pane/types";
+import { getTerminalDisplayName } from "@/entities/terminal-sessions/display-name";
 
 /** Derive plan title identical to sidebar logic (readme.md -> parent dir name). */
 function getPlanTitle(relativePath: string): string {
@@ -50,14 +51,14 @@ export function useTabLabel(view: ContentPaneView): string {
     ),
   );
 
-  // Terminal label: lastCommand or dir name
+  // Terminal label: unified display name (user label > lastCommand > auto label)
   const terminalLabel = useTerminalSessionStore(
     useCallback(
       (s) => {
         if (view.type !== "terminal") return null;
         const session = s.sessions[view.terminalId];
         if (!session) return null;
-        return session.lastCommand ?? session.worktreePath.split("/").pop() ?? "Terminal";
+        return getTerminalDisplayName(session);
       },
       [view],
     ),

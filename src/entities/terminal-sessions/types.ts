@@ -23,6 +23,8 @@ export const TerminalSessionSchema = z.object({
   lastCommand: z.string().optional(),
   /** User-assigned label (overrides lastCommand in sidebar) */
   label: z.string().optional(),
+  /** Whether the label was set by the user (true) vs auto-generated (false/undefined) */
+  isUserLabel: z.boolean().optional(),
   /** When the terminal was created */
   createdAt: z.number(),
   /** Whether the PTY process is still running */
