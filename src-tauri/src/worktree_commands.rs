@@ -7,6 +7,15 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct VisualSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_key: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct WorktreeState {
     pub id: String,
     pub path: String,
@@ -18,6 +27,8 @@ pub struct WorktreeState {
     pub is_renamed: bool,
     #[serde(default)]
     pub is_external: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visual_settings: Option<VisualSettings>,
 }
 
 /// Create a new named worktree.
@@ -102,6 +113,7 @@ pub async fn worktree_create(repo_name: String, name: String) -> Result<Worktree
         current_branch: None,
         is_renamed: false,
         is_external: false,
+        visual_settings: None,
     };
 
     // Update settings
@@ -368,6 +380,7 @@ pub async fn worktree_sync(repo_name: String, mark_new_as_external: Option<bool>
                 current_branch: git_wt.branch.clone(),
                 is_renamed: false,
                 is_external: if is_source { false } else { mark_new_as_external.unwrap_or(true) },
+                visual_settings: None,
             });
         }
     }

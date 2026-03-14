@@ -21,20 +21,61 @@ interface ReplHookDeps {
  * Returns both the hook function and a `cancelAll` for parent cancellation cleanup.
  */
 export function createReplHook(deps: ReplHookDeps): {
-  hook: (hookInput: unknown) => Promise<unknown>;
+  hook: (
+    hookInput: unknown,
+    toolUseId?: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<unknown>;
   cancelAll: () => void;
 } {
   const runner = new MortReplRunner();
   const activeSpawners = new Set<ChildSpawner>();
 
-  const hook = async (hookInput: unknown) => {
+  const hook = async (
+    hookInput: unknown,
+    _toolUseId?: string,
+    options?: { signal?: AbortSignal },
+  ) => {
     const input = hookInput as PreToolUseHookInput;
-    const command = (input.tool_input as Record<string, unknown>)
-      .command as string;
+    const toolInput = input.tool_input as Record<string, unknown>;
+    const command = toolInput.command as string;
+
+    // mort-repl must run in foreground — block background attempts
+    if (toolInput.run_in_background === true) {
+      const code = runner.extractCode(command);
+      if (code !== null) {
+        return {
+          reason: [
+            "[System: mort-repl MUST run in the foreground. Re-invoke this exact",
+            "same mort-repl command without run_in_background (or with",
+            "run_in_background: false). The repl handles its own long-running",
+            "execution internally — you do not need to background it.]",
+          ].join(" "),
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse" as const,
+            permissionDecision: "deny" as const,
+            permissionDecisionReason: "mort-repl must run in foreground",
+          },
+        };
+      }
+    }
 
     const code = runner.extractCode(command);
     if (code === null) {
       return { continue: true };
+    }
+
+    // If the SDK already aborted this hook (e.g. stale timeout), bail early
+    if (options?.signal?.aborted) {
+      return {
+        reason:
+          "[System: mort-repl hook was aborted before execution started. Retry the command.]",
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse" as const,
+          permissionDecision: "deny" as const,
+          permissionDecisionReason: "hook aborted before execution",
+        },
+      };
     }
 
     // Create a ChildSpawner and SDK per execution, using the tool_use_id

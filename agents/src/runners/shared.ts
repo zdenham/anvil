@@ -577,6 +577,7 @@ export async function runAgentLoop(
         }
         return {
           matcher: "Bash" as const,
+          timeout: 86400, // 24 hours — repl scripts can spawn many sub-agents
           hooks: [replHook.hook],
         };
       })(),

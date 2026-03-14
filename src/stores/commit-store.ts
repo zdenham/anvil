@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@/lib/invoke";
 import { z } from "zod";
 import { logger } from "@/lib/logger-client";
+import { toast } from "@/lib/toast";
 import { GitCommitSchema, type GitCommit } from "@/hooks/use-git-commits";
 
 const GitCommitArraySchema = z.array(GitCommitSchema);
@@ -48,10 +49,23 @@ export const useCommitStore = create<CommitStoreState>((set) => ({
           workingDirectory: worktreePath,
           limit: COMMIT_LIMIT,
         });
-        const commits = GitCommitArraySchema.parse(rawResult);
+        const parsed = GitCommitArraySchema.safeParse(rawResult);
+        if (!parsed.success) {
+          logger.error("[commit-store] Failed to parse commits", {
+            error: parsed.error.message,
+            rawPreview: JSON.stringify(rawResult).slice(0, 200),
+            worktreeId,
+            branchName,
+          });
+          toast.error("Failed to load commits — received corrupted data");
+          set((state) => ({
+            loadingByWorktree: { ...state.loadingByWorktree, [worktreeId]: false },
+          }));
+          return;
+        }
 
         set((state) => ({
-          commitsByWorktree: { ...state.commitsByWorktree, [worktreeId]: commits },
+          commitsByWorktree: { ...state.commitsByWorktree, [worktreeId]: parsed.data },
           loadingByWorktree: { ...state.loadingByWorktree, [worktreeId]: false },
         }));
       } catch (err) {

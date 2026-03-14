@@ -52,11 +52,15 @@ const mockContext: ReplContext = {
   mortDir: "/test/.mort",
 };
 
-function makeHookInput(command: string, toolUseId = "tool-use-abc") {
+function makeHookInput(
+  command: string,
+  toolUseId = "tool-use-abc",
+  extra: Record<string, unknown> = {},
+) {
   return {
     tool_name: "Bash",
     tool_use_id: toolUseId,
-    tool_input: { command },
+    tool_input: { command, ...extra },
   };
 }
 
@@ -249,6 +253,122 @@ describe("createReplHook", () => {
         emitEvent: mockEmitEvent,
         parentToolUseId: "specific-tool-use-id",
       });
+    });
+  });
+
+  // ── run_in_background guard ──────────────────────────────
+
+  describe("run_in_background guard", () => {
+    it("denies mort-repl with run_in_background: true", async () => {
+      mockExtractCode.mockReturnValue("return 42");
+
+      const { hook } = createReplHook({
+        context: mockContext,
+        emitEvent: mockEmitEvent,
+      });
+
+      const result = (await hook(
+        makeHookInput('mort-repl "return 42"', "tool-use-abc", {
+          run_in_background: true,
+        }),
+      )) as { reason: string; hookSpecificOutput: Record<string, unknown> };
+
+      expect(result.reason).toContain("MUST run in the foreground");
+      expect(result.hookSpecificOutput.permissionDecision).toBe("deny");
+      expect(mockExecute).not.toHaveBeenCalled();
+    });
+
+    it("passes through non-mort-repl commands even with run_in_background", async () => {
+      mockExtractCode.mockReturnValue(null);
+
+      const { hook } = createReplHook({
+        context: mockContext,
+        emitEvent: mockEmitEvent,
+      });
+
+      const result = await hook(
+        makeHookInput("ls -la", "tool-use-abc", {
+          run_in_background: true,
+        }),
+      );
+
+      expect(result).toEqual({ continue: true });
+    });
+  });
+
+  // ── AbortSignal handling ────────────────────────────────────
+
+  describe("AbortSignal handling", () => {
+    it("denies immediately if signal is already aborted", async () => {
+      mockExtractCode.mockReturnValue("return 42");
+
+      const { hook } = createReplHook({
+        context: mockContext,
+        emitEvent: mockEmitEvent,
+      });
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const result = (await hook(
+        makeHookInput('mort-repl "return 42"'),
+        "tool-use-abc",
+        { signal: controller.signal },
+      )) as { reason: string; hookSpecificOutput: Record<string, unknown> };
+
+      expect(result.reason).toContain("aborted before execution");
+      expect(result.hookSpecificOutput.permissionDecision).toBe("deny");
+      expect(mockExecute).not.toHaveBeenCalled();
+    });
+
+    it("executes normally when signal is not aborted", async () => {
+      mockExtractCode.mockReturnValue("return 42");
+      mockExecute.mockResolvedValue({
+        success: true,
+        value: 42,
+        logs: [],
+        durationMs: 5,
+      });
+      mockFormatResult.mockReturnValue("mort-repl result:\n42");
+
+      const { hook } = createReplHook({
+        context: mockContext,
+        emitEvent: mockEmitEvent,
+      });
+
+      const controller = new AbortController();
+
+      const result = (await hook(
+        makeHookInput('mort-repl "return 42"'),
+        "tool-use-abc",
+        { signal: controller.signal },
+      )) as { reason: string };
+
+      expect(result.reason).toContain("mort-repl result:");
+      expect(mockExecute).toHaveBeenCalled();
+    });
+
+    it("executes normally when no signal is provided", async () => {
+      mockExtractCode.mockReturnValue("return 1");
+      mockExecute.mockResolvedValue({
+        success: true,
+        value: 1,
+        logs: [],
+        durationMs: 0,
+      });
+      mockFormatResult.mockReturnValue("mort-repl result:\n1");
+
+      const { hook } = createReplHook({
+        context: mockContext,
+        emitEvent: mockEmitEvent,
+      });
+
+      const result = (await hook(
+        makeHookInput('mort-repl "return 1"'),
+      )) as { reason: string };
+
+      expect(result.reason).toContain("mort-repl result:");
+      expect(mockExecute).toHaveBeenCalled();
     });
   });
 

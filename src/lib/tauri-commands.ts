@@ -12,6 +12,8 @@
  */
 
 import { invoke } from "@/lib/invoke";
+import { logger } from "@/lib/logger-client";
+import { toast } from "@/lib/toast";
 import { z } from "zod";
 import type { ThreadStatus, ThreadMetadata } from "@/entities/threads/types";
 
@@ -145,7 +147,17 @@ export const gitCommands = {
    */
   listWorktrees: async (repoPath: string): Promise<WorktreeInfo[]> => {
     const raw = await invoke<unknown>("git_list_worktrees", { repoPath });
-    return z.array(WorktreeInfoSchema).parse(raw);
+    const result = z.array(WorktreeInfoSchema).safeParse(raw);
+    if (!result.success) {
+      logger.error("[tauri-commands] Failed to parse worktree list", {
+        error: result.error.message,
+        rawPreview: JSON.stringify(raw).slice(0, 200),
+        repoPath,
+      });
+      toast.error("Failed to list worktrees — received corrupted data");
+      return [];
+    }
+    return result.data;
   },
 
   /**

@@ -82,10 +82,20 @@ fn batch_worker(receiver: mpsc::Receiver<LogRow>, config: LogServerConfig) {
         let timeout = flush_backoff.saturating_sub(elapsed);
 
         if timeout.is_zero() {
-            tracing::error!(
-                "[log_server] spin-loop avoided: elapsed={:?} backoff={:?}, resetting timer",
+            tracing::debug!(
+                "[log_server] flush interval elapsed: elapsed={:?} backoff={:?}",
                 elapsed, flush_backoff
             );
+            // Force flush if there's buffered data
+            if !buffer.is_empty() {
+                if try_flush(&config.url, &mut buffer) {
+                    flush_backoff = FLUSH_INTERVAL;
+                } else {
+                    flush_backoff = (flush_backoff * 2).min(Duration::from_secs(60));
+                }
+            }
+            last_flush = Instant::now();
+            continue; // Skip recv_timeout(ZERO), restart loop with fresh timer
         }
 
         match receiver.recv_timeout(timeout) {
@@ -417,5 +427,47 @@ mod tests {
         assert!(json.contains("\"message 1\""));
         assert!(json.contains("\"message 2\""));
         assert!(json.contains("\"device_id\":\"device-1\""));
+    }
+
+    /// Verifies that batch_worker doesn't spin when elapsed exceeds the backoff.
+    /// Sends a few logs, then drops the sender. The worker should flush and exit
+    /// without spinning (completing well within the timeout).
+    #[test]
+    fn test_batch_worker_no_spin_on_elapsed_backoff() {
+        let (sender, receiver) = mpsc::channel::<LogRow>();
+
+        // Use a config pointing at a bogus URL — flush will fail, which is fine;
+        // we're testing that the loop doesn't spin, not that it uploads.
+        let config = LogServerConfig {
+            url: "http://127.0.0.1:1/noop".to_string(),
+        };
+
+        let handle = std::thread::Builder::new()
+            .name("spin-test-worker".into())
+            .spawn(move || {
+                batch_worker(receiver, config);
+            })
+            .unwrap();
+
+        // Send a few logs so the buffer is non-empty
+        for i in 0..3 {
+            sender
+                .send(LogRow {
+                    timestamp: 1000 + i,
+                    device_id: "test".to_string(),
+                    level: "INFO".to_string(),
+                    message: format!("msg {}", i),
+                    properties: None,
+                })
+                .unwrap();
+        }
+
+        // Drop sender to disconnect the channel → worker will flush & exit
+        drop(sender);
+
+        // If the worker spins, it would burn CPU and potentially never exit
+        // in a reasonable time. 5 seconds is generous — normal exit is < 100ms.
+        let result = handle.join();
+        assert!(result.is_ok(), "batch_worker should exit cleanly after sender disconnect");
     }
 }

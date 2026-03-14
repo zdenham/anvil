@@ -1,4 +1,6 @@
 import { invoke } from "@/lib/invoke";
+import { logger } from "@/lib/logger-client";
+import { toast } from "@/lib/toast";
 import { z } from "zod";
 import { PathsInfoSchema, type PathsInfo } from "./types/paths";
 
@@ -38,7 +40,16 @@ export class FilesystemClient {
    */
   async getPathsInfo(): Promise<PathsInfo> {
     const raw = await invoke<unknown>("get_paths_info");
-    return PathsInfoSchema.parse(raw);
+    const result = PathsInfoSchema.safeParse(raw);
+    if (!result.success) {
+      logger.error("[filesystem-client] Failed to parse paths info", {
+        error: result.error.message,
+        rawPreview: JSON.stringify(raw).slice(0, 200),
+      });
+      toast.error("Failed to load application paths — data may be corrupted");
+      throw new Error("Failed to parse paths info from backend");
+    }
+    return result.data;
   }
 
   /**
@@ -113,7 +124,17 @@ export class FilesystemClient {
    */
   async listDir(path: string): Promise<DirEntry[]> {
     const raw = await invoke<unknown>("fs_list_dir", { path });
-    return z.array(DirEntrySchema).parse(raw);
+    const result = z.array(DirEntrySchema).safeParse(raw);
+    if (!result.success) {
+      logger.error("[filesystem-client] Failed to parse dir listing", {
+        error: result.error.message,
+        rawPreview: JSON.stringify(raw).slice(0, 200),
+        path,
+      });
+      toast.error("Failed to read directory — received corrupted data");
+      return [];
+    }
+    return result.data;
   }
 
   /**
@@ -168,7 +189,19 @@ export class FilesystemClient {
    */
   async grep(dir: string, pattern: string, fileGlob: string): Promise<GrepMatch[]> {
     const raw = await invoke<unknown>("fs_grep", { dir, pattern, fileGlob });
-    return z.array(GrepMatchSchema).parse(raw);
+    const result = z.array(GrepMatchSchema).safeParse(raw);
+    if (!result.success) {
+      logger.error("[filesystem-client] Failed to parse grep results", {
+        error: result.error.message,
+        rawPreview: JSON.stringify(raw).slice(0, 200),
+        dir,
+        pattern,
+        fileGlob,
+      });
+      toast.error("Failed to search files — received corrupted data");
+      return [];
+    }
+    return result.data;
   }
 
   /**
