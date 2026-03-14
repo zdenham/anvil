@@ -16,13 +16,13 @@ The current "no NSToolbar" setup isn't intentional — it's just Tauri's default
 
 - [x] Add NSToolbar to the main window (Rust)
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
 ## Phase 1: Add NSToolbar to the main window
 
-**File: `src-tauri/src/lib.rs`**
+**File:** `src-tauri/src/lib.rs`
 
 Create a new function `attach_toolbar(window)` following the same pattern as `enable_fullscreen_button` (lines 54-82):
 
@@ -33,6 +33,7 @@ Create a new function `attach_toolbar(window)` following the same pattern as `en
 5. Attach via `setToolbar:`
 
 Call `attach_toolbar(&window)` right after `enable_fullscreen_button(&window)` in **both** code paths:
+
 - Initial window setup (`lib.rs:~1152`)
 - Window recreation in `show_main_window` (`lib.rs:~365`)
 

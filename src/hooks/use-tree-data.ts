@@ -33,6 +33,7 @@ import {
   buildFilesNode,
 } from "./tree-node-builders";
 import { ensureVisualSettings, persistVisualSettings } from "@/lib/visual-settings";
+import { logger } from "@/lib/logger-client";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Public interfaces consumed by tree-node-builders and external callers
@@ -230,6 +231,14 @@ export function buildUnifiedTree(
 
       // 3. Both without sortKey: newest first
       return b.createdAt - a.createdAt;
+    });
+  }
+
+  // DEBUG: Log root-level children after sort
+  const rootChildren = childrenMap.get(ROOT);
+  if (rootChildren) {
+    logger.debug("[dnd:tree] root children after sort", {
+      items: rootChildren.map(c => ({ id: c.id, type: c.type, title: c.title, sortKey: c.sortKey, createdAt: c.createdAt })),
     });
   }
 

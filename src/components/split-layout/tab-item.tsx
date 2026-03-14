@@ -11,16 +11,14 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { X, Pause } from "lucide-react";
 import { useThreadStore } from "@/entities/threads/store";
-import { terminalSessionService } from "@/entities/terminal-sessions";
 import { useFileDirtyStore } from "@/stores/file-dirty-store";
 import { paneLayoutService, usePaneLayoutStore } from "@/stores/pane-layout";
-import { logger } from "@/lib/logger-client";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui";
 import { useTabLabel } from "./use-tab-label";
 import { useTabTooltip } from "./use-tab-tooltip";
 import { useDndBridge } from "./dnd-context-bridge";
-import type { TabItem as TabItemType } from "@/stores/pane-layout/types";
+import type { TabItem as TabItemType } from "@core/types/pane-layout.js";
 import type { ContentPaneView } from "@/components/content-pane/types";
 import type { TabDragData } from "./use-tab-dnd";
 
@@ -101,20 +99,9 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
     return "left";
   }, [active, over, tab.id, groupId, activeEdgeZone]);
 
-  const handleClick = useCallback(async () => {
-    // Revive dead terminal when clicking its tab
-    if (tab.view.type === "terminal") {
-      const session = terminalSessionService.get(tab.view.terminalId);
-      if (session && !session.isAlive && !session.isArchived) {
-        try {
-          await terminalSessionService.revive(tab.view.terminalId);
-        } catch (err) {
-          logger.warn("[TabItem] Failed to revive terminal (non-fatal):", err);
-        }
-      }
-    }
+  const handleClick = useCallback(() => {
     paneLayoutService.setActiveTab(groupId, tab.id);
-  }, [groupId, tab.id, tab.view]);
+  }, [groupId, tab.id]);
 
   const handleClose = useCallback(
     (e: React.MouseEvent) => {

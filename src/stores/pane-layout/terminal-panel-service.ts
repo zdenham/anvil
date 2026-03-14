@@ -1,7 +1,7 @@
 import { logger } from "@/lib/logger-client";
 import { usePaneLayoutStore } from "./store";
 import { collectGroupIds, removeLeafFromTree } from "./split-tree";
-import type { PaneGroup, TerminalPanelState } from "./types";
+import type { PaneGroup, TerminalPanelState } from "@core/types/pane-layout.js";
 import { createGroup, createTab, MAX_TABS_PER_GROUP } from "./defaults";
 
 /**

@@ -204,8 +204,6 @@ export function FolderItem({
           </span>
         )}
 
-        {/* Child count badge */}
-        <span className="text-xs text-surface-500 font-normal">{childCount}</span>
       </div>
 
       {/* Context menu */}

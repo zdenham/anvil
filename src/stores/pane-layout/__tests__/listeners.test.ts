@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { usePaneLayoutStore } from "../store";
-import type { PaneLayoutPersistedState } from "../types";
+import type { PaneLayoutPersistedState } from "@core/types/pane-layout.js";
 
 // Mock appData (disk operations)
 vi.mock("@/lib/app-data-store", () => ({

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { canSplitHorizontal, canSplitVertical } from "../constraints";
-import type { SplitNode } from "../types";
+import type { SplitNode } from "@core/types/pane-layout.js";
 
 const leaf = (groupId: string): SplitNode => ({ type: "leaf", groupId });
 const split = (

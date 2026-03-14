@@ -307,6 +307,23 @@ export function TerminalContent({
     };
   }, [terminalId, handleInput, handleResize, initialBuffer]);
 
+  // Auto-revive dead terminals when this component is displayed.
+  // Covers: mount with dead terminal, terminal dies while viewed, any navigation path.
+  const session = useTerminalSessionStore(
+    useCallback((s) => s.sessions[terminalId], [terminalId])
+  );
+
+  useEffect(() => {
+    if (session && !session.isAlive && !session.isArchived) {
+      terminalSessionService.revive(terminalId).then(() => {
+        // Sync PTY dimensions — the mount-time resize skips dead terminals
+        handleResize(true);
+      }).catch((err) => {
+        logger.warn("[TerminalContent] Failed to revive terminal (non-fatal):", err);
+      });
+    }
+  }, [session?.isAlive, session?.isArchived, terminalId, handleResize]);
+
   // Focus terminal when container is clicked
   const handleClick = useCallback(() => {
     terminalRef.current?.focus();

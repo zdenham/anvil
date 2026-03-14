@@ -5,7 +5,7 @@ import {
   TabItemSchema,
   PaneGroupSchema,
   PaneLayoutPersistedStateSchema,
-} from "../types";
+} from "@core/types/pane-layout.js";
 
 describe("Zod schemas", () => {
   describe("TabItemSchema", () => {

@@ -106,12 +106,17 @@ export function getOutputBuffer(id: string): string {
   return buffers.get(id) || "";
 }
 
-/** Delete a terminal's output buffer and decoder. */
+/** Clear a terminal's output buffer and decoder (preserves live output listeners). */
 export function clearOutputBuffer(id: string): void {
   buffers.delete(id);
   newlineCounts.delete(id);
-  outputListeners.delete(id);
   decoders.delete(id);
+}
+
+/** Full cleanup: clear buffer AND remove all output listeners. */
+export function destroyOutputBuffer(id: string): void {
+  clearOutputBuffer(id);
+  outputListeners.delete(id);
 }
 
 /** Read-only access to all buffers (for memory diagnostics). */

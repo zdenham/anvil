@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import type { Rollback } from "@/lib/optimistic";
 import { type ContentPaneView, type ViewCategory, getViewCategory } from "@/components/content-pane/types";
-import type { PaneLayoutPersistedState, PaneGroup, TabItem, TerminalPanelState } from "./types";
+import type { PaneLayoutPersistedState, PaneGroup, TabItem, TerminalPanelState, SplitNode } from "@core/types/pane-layout.js";
+import { extractVisibleThreadIds } from "@core/lib/pane-layout.js";
 import { splitLeafNode, getNodeAtPath, replaceNodeAtPath, collapseSplitAtPath, findGroupPath } from "./split-tree";
 import { createGroup } from "./defaults";
 
@@ -30,7 +31,7 @@ interface PaneLayoutState extends PaneLayoutPersistedState {
   _applySetTerminalPanelOpen: (isOpen: boolean) => Rollback;
   _applySetTerminalPanelHeight: (height: number) => Rollback;
   _applySetTerminalPanelMaximized: (isMaximized: boolean) => Rollback;
-  _applySetTerminalPanelRoot: (root: import("./types").SplitNode) => Rollback;
+  _applySetTerminalPanelRoot: (root: SplitNode) => Rollback;
   _applyTerminalSplitGroup: (
     groupId: string,
     dir: "horizontal" | "vertical",
@@ -373,11 +374,6 @@ export function getActiveTab(): TabItem | null {
 }
 
 export function getVisibleThreadIds(): string[] {
-  const { groups } = usePaneLayoutStore.getState();
-  const ids: string[] = [];
-  for (const group of Object.values(groups)) {
-    const activeTab = group.tabs.find((t) => t.id === group.activeTabId);
-    if (activeTab?.view.type === "thread") ids.push(activeTab.view.threadId);
-  }
-  return ids;
+  const state = usePaneLayoutStore.getState();
+  return [...extractVisibleThreadIds(state)];
 }

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { TerminalSession } from "./types";
 import type { Rollback } from "@/lib/optimistic";
-import { clearOutputBuffer } from "./output-buffer";
+import { destroyOutputBuffer } from "./output-buffer";
 
 interface TerminalSessionStoreState {
   /** All terminal sessions keyed by ID */
@@ -84,7 +84,7 @@ export const useTerminalSessionStore = create<
 
   removeSession: (id) => {
     // Clean up output buffer (outside Zustand — no subscriber overhead)
-    clearOutputBuffer(id);
+    destroyOutputBuffer(id);
 
     set((state) => {
       const existing = state.sessions[id];
@@ -183,7 +183,7 @@ export const useTerminalSessionStore = create<
     const prev = get().sessions[id];
     if (!prev) return () => {};
 
-    clearOutputBuffer(id);
+    destroyOutputBuffer(id);
     set((state) => {
       const { [id]: _, ...rest } = state.sessions;
       return {

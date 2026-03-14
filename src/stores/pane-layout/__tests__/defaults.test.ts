@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { createDefaultState, createGroup, createTab, MAX_TABS_PER_GROUP } from "../defaults";
-import { PaneLayoutPersistedStateSchema } from "../types";
+import { PaneLayoutPersistedStateSchema } from "@core/types/pane-layout.js";
 
 describe("createDefaultState", () => {
   it("creates a valid state with one group and one tab", () => {

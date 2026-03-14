@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@/test/helpers";
 import { DndContext } from "@dnd-kit/core";
 import { TabBar } from "./tab-bar";
-import type { TabItem } from "@/stores/pane-layout/types";
+import type { TabItem } from "@core/types/pane-layout.js";
 
 const {
   mockOpenTab,

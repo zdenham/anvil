@@ -2,74 +2,123 @@
 
 ## Summary
 
-Add a `budgetCapUsd` field to thread metadata and enforce it in the mort-repl spawn path. Before spawning a child agent, walk up the ancestor chain (via `parentThreadId`) and check whether any ancestor with a `budgetCapUsd` has already exceeded its budget — computed by summing `totalCostUsd` across that ancestor's descendant tree. If over budget, refuse to spawn.
+Ensure cost tracking is accurate and bubbles up from children to parents, then add a simple `budgetCapUsd` gate. Today each thread tracks its **own** `totalCostUsd` in `state.json → metrics` after completion, but this cost never propagates to `metadata.json` and never rolls up to parent threads. The fix is:
 
-## Context
+1. Propagate each thread's own cost to its `metadata.json` on completion
+2. On child completion, add the child's cost to the parent's cumulative cost in metadata
+3. Walk ancestors on spawn to check if any have a `budgetCapUsd` that's been exceeded
 
-### What exists today
+## Context — What exists today
 
-- **Thread metadata** (`~/.mort/threads/{id}/metadata.json`) already stores `parentThreadId`, `cumulativeUsage`, and per-turn `costUsd`.
-- `ResultMetrics` (`core/types/events.ts:379`) includes `totalCostUsd` — written to `state.json` on agent completion via the `COMPLETE` reducer action.
-- `child-spawner.ts` is the sole spawn path for mort-repl child agents. It creates metadata on disk, emits events, then spawns a runner subprocess.
-- `mort-sdk.ts` exposes `mort.spawn()` which delegates to `ChildSpawner.spawn()`.
+| Field | Location | Tracks | When Written |
+| --- | --- | --- | --- |
+| `cumulativeUsage` (tokens) | `metadata.json` + `state.json` | Token counts for this thread only | Live, after each API call |
+| `metrics.totalCostUsd` | `state.json` only | This thread's own USD cost | Once, on SDK result message |
+| `turns[n].costUsd` | `metadata.json` | Per-turn USD cost | `completeTurn()` — **defined but never called** |
 
-### Cost tracking gap
+### Gaps
 
-`totalCostUsd` is available in `state.json` under `metrics.totalCostUsd` after a thread completes (written by `complete()` in `output.ts` via the `MessageHandler` result handler). Each child runner process writes its own `state.json`, so completed children have accurate USD cost.
+1. **`totalCostUsd` never reaches `metadata.json`** — The SDK writes `metrics.totalCostUsd` to `state.json` via the COMPLETE reducer, but `metadata.json` has no `totalCostUsd` field. Budget checks need metadata-only reads (state.json is large).
 
-**However**, there are two gaps:
+2. **No cumulative USD cost** — There is no field that represents "this thread + all its descendants" cost. `cumulativeUsage` is cumulative _tokens_ for a single thread, not a tree-wide USD sum.
 
-1. **Running threads** have no `totalCostUsd` on disk yet — only `cumulativeUsage` (token counts) in both `state.json` and `metadata.json`. Converting tokens to USD requires pricing knowledge we don't currently embed.
-2. **mort-repl children never propagate cost to metadata**. The `ChildSpawner.waitForResult()` reads the last assistant message but ignores `metrics.totalCostUsd`. Compare with the SDK Task tool path (`shared.ts:1277`) which emits `costUsd` in the `AGENT_COMPLETED` event.
+3. **mort-repl children don't emit `costUsd`** — `child-spawner.ts:287-289` emits AGENT_COMPLETED without `costUsd`. The child's `state.json` has the cost, but the parent never reads it.
 
-**Decision**:
+4. **SDK Task children emit `costUsd` but nobody consumes it** — `shared.ts:1278` emits `costUsd` in AGENT_COMPLETED, but `handleAgentCompleted` in `listeners.ts:165` destructures only `{ threadId, exitCode }`.
 
-- For **completed** threads: read `metadata.json → totalCostUsd` (propagated from `state.json` after completion — see Phase 2).
-- For **running** threads: fall back to `0`. The budget check is conservative — it only counts cost from threads that have completed. This is acceptable as a soft cap since most cost comes from completed child agents.
-- **New in this plan**: After `waitForResult()` completes, read the child's `state.json → metrics.totalCostUsd` and write it to the child's `metadata.json` as `totalCostUsd`. This makes cost data available via lightweight metadata reads during budget checks.
+5. **`completeTurn()` is never called** — `threadService.completeTurn()` exists and would write `costUsd` to turn metadata, but nothing calls it.
 
 ## Phases
 
-- [ ] Add `budgetCapUsd` and `totalCostUsd` to thread metadata schema
-- [ ] Propagate child cost to metadata after mort-repl child completion
-- [ ] Implement `isOverBudget` utility that walks the ancestor graph
-- [ ] Integrate budget check into `ChildSpawner.spawn()`
+- [ ] Propagate own `totalCostUsd` to `metadata.json` on thread completion
+- [ ] Roll up child cost to parent `metadata.json` on child completion
+- [ ] Add `budgetCapUsd` field and ancestor-walk budget check
+- [ ] Integrate budget gate into `ChildSpawner.spawn()`
 - [ ] Add `budgetCapUsd` to spawn options and `mort` SDK
-- [ ] Write tests for budget enforcement logic
+- [ ] Tests
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
-## Phase 1: Add `budgetCapUsd` and `totalCostUsd` to thread metadata
+## Phase 1: Propagate own `totalCostUsd` to `metadata.json`
+
+When a thread completes, its `state.json` has `metrics.totalCostUsd` but `metadata.json` does not. Fix this so budget checks can read metadata only.
+
+### 1a. Add fields to `ThreadMetadataBaseSchema`
 
 **File**: `core/types/threads.ts`
 
-Add to `ThreadMetadataBaseSchema`:
-
 ```ts
-budgetCapUsd: z.number().positive().optional(),
-totalCostUsd: z.number().optional(),
+// After cumulativeUsage field:
+totalCostUsd: z.number().optional(),       // This thread's own USD cost (from SDK result)
+cumulativeCostUsd: z.number().optional(),   // This thread + all descendants' cost
+budgetCapUsd: z.number().positive().optional(), // Budget cap (only on budget root threads)
 ```
 
-- `budgetCapUsd` — only threads that are budget roots will have it set. Descendants inherit via ancestor walk.
-- `totalCostUsd` — written to metadata after a thread completes. Mirrors `state.json → metrics.totalCostUsd` for cheap reads.
+- `totalCostUsd` — written once when thread completes (Phase 1b)
+- `cumulativeCostUsd` — updated when children complete (Phase 2)
+- `budgetCapUsd` — set by caller when spawning a budget-capped subtree (Phase 5)
 
-## Phase 2: Propagate child cost to metadata
+### 1b. Write `totalCostUsd` to metadata on completion
 
-**File**: `agents/src/lib/mort-repl/child-spawner.ts`
+**File**: `agents/src/output.ts` — in `complete()` function
 
-Currently `waitForResult()` reads `state.json` only for the last assistant message. After the child exits, also read `metrics.totalCostUsd` from the child's `state.json` and write it to the child's `metadata.json`:
+After writing state.json (which already happens), also read-modify-write `metadata.json` to add `totalCostUsd`:
 
 ```ts
-// In waitForResult(), after reading resultText:
-const childCostUsd = this.readChildCost(childThreadPath);
-if (childCostUsd !== undefined) {
-  this.writeCostToMetadata(childThreadPath, childCostUsd);
+export async function complete(metrics: ResultMetrics): Promise<void> {
+  dispatch({ type: "COMPLETE", payload: { metrics } });
+  await writeToDisk();
+
+  // NEW: Propagate totalCostUsd to metadata.json for cheap budget reads
+  if (metrics.totalCostUsd !== undefined) {
+    await writeCostToMetadata(metadataPath, metrics.totalCostUsd);
+  }
+}
+
+async function writeCostToMetadata(mdPath: string, costUsd: number): Promise<void> {
+  try {
+    if (!existsSync(mdPath)) return;
+    const raw = readFileSync(mdPath, "utf-8");
+    const metadata = JSON.parse(raw);
+    metadata.totalCostUsd = costUsd;
+    metadata.updatedAt = Date.now();
+    writeFileSync(mdPath, JSON.stringify(metadata, null, 2));
+  } catch (err) {
+    logger.warn(`[output] Failed to write cost to metadata: ${err}`);
+  }
 }
 ```
 
-New private methods:
+This handles the common case: every thread that completes normally gets `totalCostUsd` in its metadata.
+
+## Phase 2: Roll up child cost to parent on child completion
+
+When a child completes, add its `totalCostUsd` to the parent's `cumulativeCostUsd`. This bubbles costs upward so any ancestor can see the total spend of its subtree.
+
+### 2a. mort-repl path: `child-spawner.ts`
+
+In `waitForResult()`, after the child exits:
+
+```ts
+// After reading resultText:
+const childCostUsd = this.readChildCost(childThreadPath);
+
+// Emit costUsd in AGENT_COMPLETED (currently missing)
+this.emitEvent(EventName.AGENT_COMPLETED, {
+  threadId: childThreadId,
+  exitCode,
+  costUsd: childCostUsd,  // NEW
+}, "mort-repl:child-complete");
+
+// Roll up cost to parent metadata
+if (childCostUsd !== undefined) {
+  this.rollUpCostToParent(childCostUsd);
+}
+```
+
+New private methods on `ChildSpawner`:
 
 ```ts
 private readChildCost(childThreadPath: string): number | undefined {
@@ -81,90 +130,165 @@ private readChildCost(childThreadPath: string): number | undefined {
   } catch { return undefined; }
 }
 
-private writeCostToMetadata(childThreadPath: string, costUsd: number): void {
-  const metadataPath = join(childThreadPath, "metadata.json");
-  if (!existsSync(metadataPath)) return;
+/** Add child's cost to parent's cumulativeCostUsd in metadata. */
+private rollUpCostToParent(childCostUsd: number): void {
+  const parentMetadataPath = join(
+    this.context.mortDir, "threads", this.context.threadId, "metadata.json"
+  );
   try {
-    const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
-    metadata.totalCostUsd = costUsd;
+    if (!existsSync(parentMetadataPath)) return;
+    const metadata = JSON.parse(readFileSync(parentMetadataPath, "utf-8"));
+    metadata.cumulativeCostUsd = (metadata.cumulativeCostUsd ?? 0) + childCostUsd;
     metadata.updatedAt = Date.now();
-    writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+    writeFileSync(parentMetadataPath, JSON.stringify(metadata, null, 2));
   } catch (err) {
-    logger.warn(`[mort-repl] Failed to write cost to metadata: ${err}`);
+    logger.warn(`[mort-repl] Failed to roll up cost to parent: ${err}`);
   }
 }
 ```
 
-This ensures that after any mort-repl child completes, its `metadata.json` has `totalCostUsd` — making budget calculations cheap (metadata-only reads).
+### 2b. SDK Task tool path: `shared.ts`
 
-Also emit `costUsd` in the existing `AGENT_COMPLETED` event (currently missing from the mort-repl path):
+The SDK Task tool already emits `costUsd` in AGENT_COMPLETED (`shared.ts:1278`). Add the same roll-up there. After the existing event emission:
 
 ```ts
-this.emitEvent(EventName.AGENT_COMPLETED, {
-  threadId: childThreadId,
-  exitCode,
-  costUsd: childCostUsd,  // NEW
-}, "mort-repl:child-complete");
+// Roll up child cost to parent metadata
+if (taskResponse.total_cost_usd) {
+  rollUpCostToParent(mortDir, parentThreadId, taskResponse.total_cost_usd);
+}
 ```
 
-## Phase 3: Implement `isOverBudget`
+Extract the roll-up logic into a shared utility (or inline it — it's just a metadata read-modify-write).
 
-**New file**: `agents/src/lib/mort-repl/budget.ts` (~100 lines)
+### 2c. Transitive roll-up
+
+When a grandchild completes, its cost rolls up to its direct parent. When that parent later completes, its `totalCostUsd` (own cost) should roll up to the grandparent. But `cumulativeCostUsd` on the parent already includes the grandchild's cost, so we also need to roll up `cumulativeCostUsd` when a thread completes.
+
+In `output.ts:complete()`, after writing `totalCostUsd` to metadata, also propagate this thread's cumulative cost upward:
+
+```ts
+// In complete(), after writeCostToMetadata:
+// Also roll up cumulative cost to parent if this thread has a parent
+const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+if (metadata.parentThreadId) {
+  const ownCost = metrics.totalCostUsd ?? 0;
+  const childrenCost = metadata.cumulativeCostUsd ?? 0;
+  const totalTreeCost = ownCost + childrenCost;
+  rollUpCostToAncestor(mortDir, metadata.parentThreadId, totalTreeCost);
+}
+```
+
+Wait — this would double-count because child costs were already rolled up when the child completed. The simpler model:
+
+**`cumulativeCostUsd` tracks only direct children's costs that have been rolled up.** The total tree cost for a thread is `totalCostUsd + cumulativeCostUsd`. When checking budget, sum `totalCostUsd + cumulativeCostUsd` for the budget root thread only.
+
+This means:
+- Child completes → child's `(totalCostUsd + cumulativeCostUsd)` rolls up to parent's `cumulativeCostUsd`
+- The parent's `cumulativeCostUsd` thus includes the entire descendant tree's cost
+- Budget check: `budgetRoot.totalCostUsd + budgetRoot.cumulativeCostUsd >= budgetRoot.budgetCapUsd`
+
+This avoids scanning all threads. The roll-up is incremental — each completion adds to the direct parent, which already accumulated its own children.
+
+**Revised roll-up logic**: When a child completes, add `child.totalCostUsd + child.cumulativeCostUsd` (the child's entire subtree cost) to `parent.cumulativeCostUsd`.
+
+For mort-repl children, read the child's metadata after Phase 1b writes `totalCostUsd`:
+
+```ts
+private rollUpCostToParent(childThreadPath: string): void {
+  try {
+    // Read child's full tree cost
+    const childMeta = JSON.parse(readFileSync(join(childThreadPath, "metadata.json"), "utf-8"));
+    const childTreeCost = (childMeta.totalCostUsd ?? 0) + (childMeta.cumulativeCostUsd ?? 0);
+    if (childTreeCost <= 0) return;
+
+    // Add to parent's cumulativeCostUsd
+    const parentPath = join(this.context.mortDir, "threads", this.context.threadId, "metadata.json");
+    if (!existsSync(parentPath)) return;
+    const parentMeta = JSON.parse(readFileSync(parentPath, "utf-8"));
+    parentMeta.cumulativeCostUsd = (parentMeta.cumulativeCostUsd ?? 0) + childTreeCost;
+    parentMeta.updatedAt = Date.now();
+    writeFileSync(parentPath, JSON.stringify(parentMeta, null, 2));
+  } catch (err) {
+    logger.warn(`[mort-repl] Failed to roll up cost to parent: ${err}`);
+  }
+}
+```
+
+### Timing note
+
+For mort-repl: Phase 1b writes `totalCostUsd` inside the child's own process (via `complete()` in `output.ts`). The parent process waits for child exit in `waitForResult()`, then reads the child's state.json. By the time the parent reads, the child has already written both `state.json` and `metadata.json`. So the ordering is safe.
+
+For SDK Task: The SDK gives us `taskResponse.total_cost_usd` directly, so we don't need to read state.json.
+
+## Phase 3: Add `budgetCapUsd` and ancestor-walk check
+
+**New file**: `agents/src/lib/mort-repl/budget.ts`
+
+With incremental roll-up from Phase 2, budget checking becomes trivial — no tree scan needed:
 
 ```ts
 export interface BudgetCheckResult {
   overBudget: boolean;
-  /** The ancestor thread ID that owns the budget cap */
   budgetThreadId?: string;
-  /** The cap in USD */
   capUsd?: number;
-  /** Total spent by the budget thread's entire descendant tree */
   spentUsd?: number;
 }
 
-export function isOverBudget(
-  threadId: string,
-  mortDir: string,
-): BudgetCheckResult
+/**
+ * Walk up the ancestor chain from threadId. If any ancestor has budgetCapUsd,
+ * check if its total spend (own + descendants) exceeds the cap.
+ */
+export function isOverBudget(threadId: string, mortDir: string): BudgetCheckResult {
+  const visited = new Set<string>();
+  let currentId: string | undefined = threadId;
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const metadataPath = join(mortDir, "threads", currentId, "metadata.json");
+
+    let metadata: Record<string, unknown>;
+    try {
+      metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+    } catch {
+      break; // Missing or corrupt metadata — stop walking
+    }
+
+    const capUsd = metadata.budgetCapUsd as number | undefined;
+    if (capUsd !== undefined && capUsd > 0) {
+      const ownCost = (metadata.totalCostUsd as number) ?? 0;
+      const childrenCost = (metadata.cumulativeCostUsd as number) ?? 0;
+      const spentUsd = ownCost + childrenCost;
+
+      if (spentUsd >= capUsd) {
+        return { overBudget: true, budgetThreadId: currentId, capUsd, spentUsd };
+      }
+      // Found a budget cap that's not exceeded — stop here
+      // (nearest budget root wins; don't keep walking to grandparent budgets)
+      return { overBudget: false, budgetThreadId: currentId, capUsd, spentUsd };
+    }
+
+    currentId = metadata.parentThreadId as string | undefined;
+  }
+
+  return { overBudget: false };
+}
 ```
 
-### Algorithm
-
-1. **Walk up ancestors**: Starting from `threadId`, follow `parentThreadId` links in each `metadata.json` until we find a thread with `budgetCapUsd` set (or reach the root with no budget).
-2. **If no ancestor has a budget**: Return `{ overBudget: false }`.
-3. **If ancestor has budget**: Collect the total cost for that ancestor's subtree:
-   - Scan all `~/.mort/threads/*/metadata.json` once to build a `parentThreadId → childIds[]` map.
-   - BFS/DFS from the budget ancestor to collect all descendant thread IDs.
-   - For each thread in the subtree (including the budget ancestor itself): read `metadata.json → totalCostUsd` (set by Phase 2 for mort-repl children, or `0` if still running).
-   - Sum all costs.
-4. **Compare**: If `spentUsd >= capUsd`, return `{ overBudget: true, budgetThreadId, capUsd, spentUsd }`.
-
-### Cost source for each thread
-
-For budget checks, read **only** from `metadata.json`:
-
-1. `metadata.json → totalCostUsd` (written by Phase 2 after completion)
-2. Fall back to `0` if not present (thread still running or just started)
-
-We avoid reading `state.json` during budget checks to keep them fast. The tradeoff is that in-flight thread costs aren't counted, but this is acceptable for a soft cap.
-
-This is O(n) in total threads, but `n` is small (hundreds at most on disk). Keep it simple — no caching.
-
-**Important**: `totalCostUsd` represents a single thread's own API cost (not its children). So we must sum across the whole tree — the budget thread + all its descendants.
+This is O(depth) — just walk up parent pointers, read one metadata.json per ancestor. No tree scan.
 
 ## Phase 4: Integrate into `ChildSpawner.spawn()`
 
 **File**: `agents/src/lib/mort-repl/child-spawner.ts`
 
-At the top of `spawn()`, before creating the child thread on disk:
+At the top of `spawn()`, before creating the child thread:
 
 ```ts
 async spawn(options: SpawnOptions): Promise<string> {
-  // Budget gate: check if any ancestor is over budget
+  // Budget gate
   const budgetCheck = isOverBudget(this.context.threadId, this.context.mortDir);
   if (budgetCheck.overBudget) {
     throw new Error(
-      `Budget exceeded: ancestor thread ${budgetCheck.budgetThreadId} ` +
+      `Budget exceeded: thread ${budgetCheck.budgetThreadId} ` +
       `has spent $${budgetCheck.spentUsd?.toFixed(2)} of ` +
       `$${budgetCheck.capUsd?.toFixed(2)} budget cap`
     );
@@ -175,44 +299,21 @@ async spawn(options: SpawnOptions): Promise<string> {
 }
 ```
 
-The thrown error propagates to the mort-repl script as a `mort.spawn()` rejection, which surfaces in the `ReplResult.error` field. No special handling needed — the existing error path already captures this.
+The thrown error propagates as a `mort.spawn()` rejection, surfacing in `ReplResult.error`.
 
-## Phase 5: Add `budgetCapUsd` to spawn options and `mort` SDK
+## Phase 5: Add `budgetCapUsd` to spawn options and mort SDK
 
-### 5a. `mort.spawn()` options
+### 5a. SpawnOptions
 
-**File**: `agents/src/lib/mort-repl/types.ts`
-
-Add to `SpawnOptions`:
+**File**: `agents/src/lib/mort-repl/types.ts` — add to `SpawnOptions`:
 
 ```ts
 budgetCapUsd?: number;
 ```
 
-**File**: `agents/src/lib/mort-repl/mort-sdk.ts`
+### 5b. Write to child metadata
 
-Update `spawn()` to pass through:
-
-```ts
-async spawn(options: {
-  prompt: string;
-  contextShortCircuit?: ContextShortCircuit;
-  budgetCapUsd?: number;
-}): Promise<string> {
-  if (!options?.prompt) throw new Error("mort.spawn() requires a prompt");
-  return this.spawner.spawn({
-    prompt: options.prompt,
-    contextShortCircuit: options.contextShortCircuit,
-    budgetCapUsd: options.budgetCapUsd,
-  });
-}
-```
-
-### 5b. Write `budgetCapUsd` to child metadata
-
-**File**: `agents/src/lib/mort-repl/child-spawner.ts`
-
-In `createThreadOnDisk()`, if `options.budgetCapUsd` is set, write it to the child's `metadata.json`:
+**File**: `agents/src/lib/mort-repl/child-spawner.ts` — in `createThreadOnDisk()`:
 
 ```ts
 const childMetadata = {
@@ -221,27 +322,19 @@ const childMetadata = {
 };
 ```
 
-This makes the child thread a new budget root. Its descendants will find this cap when walking up the ancestor chain.
+### 5c. mort SDK passthrough
 
-### 5c. `mort.setBudgetCap()` for self-budgeting
+**File**: `agents/src/lib/mort-repl/mort-sdk.ts`
 
-Allow the orchestrating agent to set a budget for its own thread:
+Pass `budgetCapUsd` through in `spawn()` options.
+
+### 5d. `mort.setBudgetCap()` for self-budgeting
 
 ```ts
 mort.setBudgetCap(5.00); // $5 cap for this thread's subtree
 ```
 
-**File**: `agents/src/lib/mort-repl/mort-sdk.ts` — add method:
-
-```ts
-async setBudgetCap(usd: number): Promise<void> {
-  const metadataPath = join(this._context.mortDir, "threads", this._context.threadId, "metadata.json");
-  const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
-  metadata.budgetCapUsd = usd;
-  metadata.updatedAt = Date.now();
-  writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-}
-```
+Writes `budgetCapUsd` to the current thread's `metadata.json`.
 
 ## Phase 6: Tests
 
@@ -249,39 +342,43 @@ async setBudgetCap(usd: number): Promise<void> {
 
 ### Unit tests for `isOverBudget`:
 
-1. **No budget set anywhere** → returns `{ overBudget: false }`
-2. **Parent has budget, under limit** → returns `{ overBudget: false }`
-3. **Parent has budget, over limit** → returns `{ overBudget: true, ... }`
-4. **Grandparent has budget** (intermediate parent has none) → correctly walks up
-5. **Multiple descendants** → sums costs across entire subtree
-6. **Running thread** (no `totalCostUsd`) → treated as $0 cost
-7. **Budget exactly at cap** → over budget (>= check)
-8. **Circular parentThreadId guard** → terminates without infinite loop
+1. No budget set → `{ overBudget: false }`
+2. Parent has budget, under limit → `{ overBudget: false }`
+3. Parent has budget, over limit → `{ overBudget: true, ... }`
+4. Grandparent has budget (intermediate has none) → walks up correctly
+5. Exactly at cap → over budget (>= check)
+6. Circular `parentThreadId` → terminates via visited set
 
-### Integration test in `child-spawner.test.ts`:
+### Unit tests for cost roll-up:
 
-9. **Spawn rejected when over budget** → `spawn()` throws with descriptive error
-10. **Child cost propagated to metadata after completion** → `metadata.json` has `totalCostUsd`
+7. Child completion writes `totalCostUsd` to child's `metadata.json`
+8. Child completion adds to parent's `cumulativeCostUsd`
+9. Grandchild cost bubbles through (child's `cumulativeCostUsd` included in roll-up)
 
-### Test setup
+### Integration:
 
-Use `tmp` dirs with mock `metadata.json` files — same pattern as existing `child-spawner.test.ts`.
+10. `spawn()` throws when budget exceeded
+11. `spawn()` succeeds when under budget
+
+Use `tmp` dirs with mock `metadata.json` files — same pattern as existing tests.
 
 ## File Change Summary
 
 | File | Change |
 | --- | --- |
-| `core/types/threads.ts` | Add `budgetCapUsd` and `totalCostUsd` to `ThreadMetadataBaseSchema` |
-| `agents/src/lib/mort-repl/budget.ts` | **New** — `isOverBudget()` function |
-| `agents/src/lib/mort-repl/child-spawner.ts` | Budget gate before spawn + cost propagation after child exit |
+| `core/types/threads.ts` | Add `totalCostUsd`, `cumulativeCostUsd`, `budgetCapUsd` to schema |
+| `agents/src/output.ts` | Write `totalCostUsd` to metadata.json on completion |
+| `agents/src/lib/mort-repl/child-spawner.ts` | Read child cost + roll up to parent + budget gate + `budgetCapUsd` passthrough |
+| `agents/src/runners/shared.ts` | Roll up SDK Task child cost to parent metadata |
+| `agents/src/lib/mort-repl/budget.ts` | **New** — `isOverBudget()` ancestor walk |
 | `agents/src/lib/mort-repl/types.ts` | Add `budgetCapUsd` to `SpawnOptions` |
 | `agents/src/lib/mort-repl/mort-sdk.ts` | Pass through `budgetCapUsd`, add `setBudgetCap()` |
-| `agents/src/lib/mort-repl/__tests__/budget.test.ts` | **New** — unit + integration tests |
+| `agents/src/lib/mort-repl/__tests__/budget.test.ts` | **New** — tests |
 
 ## Edge Cases
 
-- **Circular `parentThreadId`**: Guard with a visited set to avoid infinite loops.
-- **Missing metadata files**: Thread dir exists but metadata is corrupted/missing — skip with warning log.
-- **Race condition**: Thread completes between budget check and spawn — acceptable, budget is a soft cap.
-- **No cost data yet**: A just-spawned thread with no completed turns has $0 cost — correct behavior.
-- **Multiple budget caps in ancestry**: The first (nearest) ancestor with `budgetCapUsd` wins. If a grandparent also has a budget, it's checked independently when the grandparent's children spawn.
+- **Circular `parentThreadId`**: Guarded with visited set in ancestor walk.
+- **Missing metadata**: Skip with warning — don't block spawning.
+- **Race condition**: Thread completes between budget check and spawn — acceptable soft cap.
+- **In-flight threads**: Their cost is $0 until completion — budget is conservative (under-counts).
+- **Multiple budget caps in ancestry**: Nearest ancestor wins (first cap found stops the walk).

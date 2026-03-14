@@ -60,7 +60,7 @@ Three tiers, from highest to lowest:
 
 - [ ] Auto-generate fallback labels (`worktree-name N`) in `create()` and `createPlaceholder()`
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 

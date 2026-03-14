@@ -1,4 +1,5 @@
 import type { VisualSettings } from "@core/types/visual-settings.js";
+import { logger } from "@/lib/logger-client";
 
 export type VisualEntityType = "thread" | "plan" | "pull-request" | "terminal" | "folder" | "worktree";
 
@@ -74,6 +75,8 @@ export async function updateVisualSettings(
   entityId: string,
   patch: Partial<VisualSettings>,
 ): Promise<void> {
+  logger.debug("[dnd:persist] updateVisualSettings", { entityType, entityId, patch });
+
   switch (entityType) {
     case "thread": {
       const { threadService } = await import("@/entities/threads/service");

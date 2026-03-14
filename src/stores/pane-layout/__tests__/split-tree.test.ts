@@ -9,7 +9,7 @@ import {
   removeLeafFromTree,
   collectGroupIds,
 } from "../split-tree";
-import type { SplitNode } from "../types";
+import type { SplitNode } from "@core/types/pane-layout.js";
 
 const leaf = (groupId: string): SplitNode => ({ type: "leaf", groupId });
 const split = (

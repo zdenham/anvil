@@ -23,6 +23,8 @@ class TerminalSessionService {
   private readonly encoder = new TextEncoder();
   /** Maps terminal UUID -> numeric PTY ID for Rust IPC */
   private readonly ptyIds = new Map<string, number>();
+  /** Guards against concurrent revive calls for the same terminal */
+  private readonly revivingIds = new Set<string>();
 
   private getPtyId(id: string): number {
     const ptyId = this.ptyIds.get(id);
@@ -235,28 +237,33 @@ class TerminalSessionService {
   async revive(id: string, cols = 80, rows = 24): Promise<void> {
     const session = this.get(id);
     if (!session) throw new Error(`Terminal not found: ${id}`);
-    if (session.isAlive) return;
+    if (session.isAlive || this.revivingIds.has(id)) return;
 
-    logger.info("[TerminalService] Reviving terminal", { terminalId: id });
+    this.revivingIds.add(id);
+    try {
+      logger.info("[TerminalService] Reviving terminal", { terminalId: id });
 
-    // Clear old output so the new shell starts clean
-    clearOutputBuffer(id);
+      // Clear old output so the new shell starts clean (preserves live listeners)
+      clearOutputBuffer(id);
 
-    const numericId = await invoke<number>("spawn_terminal", {
-      cols,
-      rows,
-      cwd: session.worktreePath,
-    });
+      const numericId = await invoke<number>("spawn_terminal", {
+        cols,
+        rows,
+        cwd: session.worktreePath,
+      });
 
-    this.registerPtyId(id, numericId);
+      this.registerPtyId(id, numericId);
 
-    useTerminalSessionStore.getState().updateSession(id, {
-      isAlive: true,
-      ptyId: numericId,
-    });
+      useTerminalSessionStore.getState().updateSession(id, {
+        isAlive: true,
+        ptyId: numericId,
+      });
 
-    await this.persistMetadata(id);
-    logger.info("[TerminalService] Terminal revived", { terminalId: id, ptyId: numericId });
+      await this.persistMetadata(id);
+      logger.info("[TerminalService] Terminal revived", { terminalId: id, ptyId: numericId });
+    } finally {
+      this.revivingIds.delete(id);
+    }
   }
 
   /**

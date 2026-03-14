@@ -189,12 +189,8 @@ export function TreeMenu({
           className={`flex-1 overflow-auto focus:outline-none pl-2 relative ${className ?? ""}`}
         >
           {items.map((item, index) => {
-            const showDivider = (item.type === "repo" || item.type === "folder") && item.depth === 0 && index > 0;
             return (
               <React.Fragment key={item.id}>
-                {showDivider && (
-                  <div className="border-t border-dashed border-surface-700/50 mx-2 my-1" role="separator" aria-orientation="horizontal" />
-                )}
                 <TreeItemRenderer
                   item={item}
                   index={index}

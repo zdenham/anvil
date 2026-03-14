@@ -149,6 +149,73 @@ export const EventName = {
 export type EventNameType = (typeof EventName)[keyof typeof EventName];
 
 // ============================================================================
+// Event Classification — Visibility-Aware Filtering
+// ============================================================================
+
+/**
+ * Lifecycle events always emit to all WS clients regardless of which thread
+ * the user is viewing. These are events that affect the sidebar tree
+ * (thread list, status dots, plan/PR/terminal/folder nodes, etc.).
+ *
+ * Everything NOT in this set is a "display" event — only emitted for threads
+ * the user is actively viewing. This is the safe default: new event types
+ * are display-gated unless explicitly added here.
+ */
+export const LIFECYCLE_EVENTS: ReadonlySet<string> = new Set([
+  // Thread tree nodes
+  EventName.THREAD_OPTIMISTIC_CREATED,
+  EventName.THREAD_CREATED,
+  EventName.THREAD_UPDATED,
+  EventName.THREAD_STATUS_CHANGED,
+  EventName.THREAD_ARCHIVED,
+  EventName.THREAD_NAME_GENERATED,
+
+  // Pending input (yellow dot) — drives threadsWithPendingInput
+  EventName.PERMISSION_REQUEST,
+  EventName.QUESTION_REQUEST,
+
+  // Plan tree nodes
+  EventName.PLAN_DETECTED,
+  EventName.PLAN_CREATED,
+  EventName.PLAN_UPDATED,
+  EventName.PLAN_ARCHIVED,
+
+  // PR tree nodes
+  EventName.PR_DETECTED,
+  EventName.PR_CREATED,
+  EventName.PR_UPDATED,
+  EventName.PR_ARCHIVED,
+
+  // Terminal tree nodes
+  EventName.TERMINAL_CREATED,
+  EventName.TERMINAL_UPDATED,
+  EventName.TERMINAL_ARCHIVED,
+
+  // Folder tree nodes
+  EventName.FOLDER_CREATED,
+  EventName.FOLDER_UPDATED,
+  EventName.FOLDER_DELETED,
+  EventName.FOLDER_ARCHIVED,
+
+  // Worktree/repo grouping
+  EventName.WORKTREE_ALLOCATED,
+  EventName.WORKTREE_RELEASED,
+  EventName.WORKTREE_NAME_GENERATED,
+  EventName.WORKTREE_SYNCED,
+  EventName.REPOSITORY_CREATED,
+  EventName.REPOSITORY_UPDATED,
+  EventName.REPOSITORY_DELETED,
+
+  // Sidebar relationships
+  EventName.RELATION_CREATED,
+  EventName.RELATION_UPDATED,
+
+  // Global state
+  EventName.SETTINGS_UPDATED,
+  EventName.API_DEGRADED,
+]);
+
+// ============================================================================
 // Event Payloads
 // ============================================================================
 

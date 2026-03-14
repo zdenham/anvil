@@ -15,7 +15,7 @@ import { terminalSessionService } from "@/entities/terminal-sessions";
 import { useMRUWorktree } from "@/hooks/use-mru-worktree";
 import { logger } from "@/lib/logger-client";
 import { TabItem } from "./tab-item";
-import type { TabItem as TabItemType } from "@/stores/pane-layout/types";
+import type { TabItem as TabItemType } from "@core/types/pane-layout.js";
 
 interface TabBarProps {
   groupId: string;

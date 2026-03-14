@@ -1,4 +1,4 @@
-import type { PaneLayoutPersistedState, PaneGroup, TabItem } from "./types";
+import type { PaneLayoutPersistedState, PaneGroup, TabItem } from "@core/types/pane-layout.js";
 
 /**
  * Creates a fresh default state with a single empty tab in a single group.

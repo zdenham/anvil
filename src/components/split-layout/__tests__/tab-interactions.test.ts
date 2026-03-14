@@ -10,7 +10,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from "vitest";
 import { usePaneLayoutStore } from "@/stores/pane-layout/store";
-import type { PaneGroup, TabItem, PaneLayoutPersistedState } from "@/stores/pane-layout/types";
+import type { PaneGroup, TabItem, PaneLayoutPersistedState } from "@core/types/pane-layout.js";
 
 function makeTab(id: string, view: TabItem["view"] = { type: "empty" }): TabItem {
   return { id, view };

@@ -1,4 +1,4 @@
-import type { SplitNode } from "./types";
+import type { SplitNode } from "@core/types/pane-layout.js";
 import { findGroupPath, getNodeAtPath } from "./split-tree";
 
 /** Maximum number of children in a horizontal split. */

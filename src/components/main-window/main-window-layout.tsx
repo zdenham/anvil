@@ -365,15 +365,6 @@ export function MainWindowLayout() {
     } else if (itemType === "plan") {
       await navigationService.navigateToPlan(itemId, { newTab });
     } else if (itemType === "terminal") {
-      // Revive dead terminal before navigating (spawns new PTY transparently)
-      const session = terminalSessionService.get(itemId);
-      if (session && !session.isAlive && !session.isArchived) {
-        try {
-          await terminalSessionService.revive(itemId);
-        } catch (err) {
-          logger.warn("[MainWindowLayout] Failed to revive terminal (non-fatal):", err);
-        }
-      }
       await navigationService.navigateToTerminal(itemId);
     } else if (itemType === "pull-request") {
       await navigationService.navigateToPullRequest(itemId, { newTab });

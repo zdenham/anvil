@@ -2,7 +2,7 @@
  * Component-level types for split layout rendering.
  */
 
-import type { SplitNode } from "@/stores/pane-layout/types";
+import type { SplitNode } from "@core/types/pane-layout.js";
 
 /** Props for the recursive split node renderer. */
 export interface SplitNodeRendererProps {

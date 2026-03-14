@@ -1,4 +1,4 @@
-import type { PaneLayoutPersistedState } from "./types";
+import type { PaneLayoutPersistedState } from "@core/types/pane-layout.js";
 import { removeLeafFromTree, collectGroupIds } from "./split-tree";
 import { createDefaultState } from "./defaults";
 

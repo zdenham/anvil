@@ -1,4 +1,4 @@
-import type { SplitNode } from "./types";
+import type { SplitNode } from "@core/types/pane-layout.js";
 
 /**
  * Finds the index path from root to the leaf containing the given groupId.

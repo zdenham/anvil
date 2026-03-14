@@ -5,6 +5,7 @@ import type { PipelineStamp } from "@core/types/pipeline.js";
 import type { DiagnosticLoggingConfig } from "@core/types/diagnostic-logging.js";
 import { HubConnection } from "./connection.js";
 import { HeartbeatEmitter } from "./heartbeat.js";
+import { VisibilityWatcher } from "./visibility-watcher.js";
 import { withRetry, type RetryOptions, DEFAULT_RETRY_OPTIONS } from "./retry.js";
 import { parseDiagnosticConfig } from "./diagnostic-config.js";
 import type { SocketMessage } from "./types.js";
@@ -19,6 +20,7 @@ export class HubClient extends EventEmitter {
   private connection: HubConnection;
   private socketPath: string;
   private heartbeat: HeartbeatEmitter;
+  private visibilityWatcher: VisibilityWatcher;
   private diagnosticConfig: DiagnosticLoggingConfig;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -29,6 +31,7 @@ export class HubClient extends EventEmitter {
   private totalSent = 0;
   private totalWriteFailures = 0;
   private totalBackpressureEvents = 0;
+  private totalEventsGated = 0;
   private maxQueueDepth = 0;
 
   /** Current high-level connection state. */
@@ -43,6 +46,7 @@ export class HubClient extends EventEmitter {
     this.connection = new HubConnection();
     this.diagnosticConfig = parseDiagnosticConfig();
     this.heartbeat = new HeartbeatEmitter((msg) => this.send(msg));
+    this.visibilityWatcher = new VisibilityWatcher();
     this.wireConnectionEvents();
   }
 
@@ -74,6 +78,8 @@ export class HubClient extends EventEmitter {
   }
 
   async connect(options: Partial<RetryOptions> = {}): Promise<void> {
+    this.visibilityWatcher.start();
+
     const retryOptions = { ...DEFAULT_RETRY_OPTIONS, ...options };
     await withRetry(() => this.connection.connect(this.socketPath), retryOptions);
     this.connectionState = "connected";
@@ -211,6 +217,10 @@ export class HubClient extends EventEmitter {
   }
 
   sendEvent(name: string, payload: unknown, source?: string): void {
+    if (!this.visibilityWatcher.shouldSendEvent(name, this.threadId)) {
+      this.totalEventsGated++;
+      return;
+    }
     this.send({ type: "event", name, payload, ...(source && { source }) });
   }
 
@@ -269,7 +279,8 @@ export class HubClient extends EventEmitter {
       `[hub] session summary: totalSent=${this.totalSent}, ` +
       `writeFailures=${this.totalWriteFailures}, ` +
       `backpressureEvents=${this.totalBackpressureEvents}, ` +
-      `maxQueueDepth=${this.maxQueueDepth}`
+      `maxQueueDepth=${this.maxQueueDepth}, ` +
+      `eventsGated=${this.totalEventsGated}`
     );
   }
 
@@ -277,6 +288,7 @@ export class HubClient extends EventEmitter {
 
   disconnect(): void {
     this.heartbeat.stop();
+    this.visibilityWatcher.stop();
     this.stopStatsTimer();
     this.connection.destroy();
     this.connectionState = "disconnected";
@@ -284,6 +296,7 @@ export class HubClient extends EventEmitter {
 
   async gracefulDisconnect(): Promise<void> {
     this.heartbeat.stop();
+    this.visibilityWatcher.stop();
     this.stopStatsTimer();
     this.connectionState = "disconnected";
     await this.connection.gracefulClose();

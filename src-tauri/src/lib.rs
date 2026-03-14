@@ -81,41 +81,6 @@ fn enable_fullscreen_button(_window: &tauri::WebviewWindow) {
     // No-op on non-macOS platforms
 }
 
-/// Attaches an empty NSToolbar so macOS uses the proper fullscreen reveal animation
-/// (delayed, with system status items) instead of the minimal grey strip.
-#[cfg(target_os = "macos")]
-fn attach_toolbar(window: &tauri::WebviewWindow) {
-    use raw_window_handle::HasWindowHandle;
-
-    if let Ok(handle) = window.window_handle() {
-        if let raw_window_handle::RawWindowHandle::AppKit(appkit_handle) = handle.as_raw() {
-            use objc2::rc::Retained;
-            use objc2::{MainThreadMarker, MainThreadOnly};
-            use objc2_app_kit::{NSView, NSToolbar, NSWindowToolbarStyle, NSWindowTitleVisibility};
-            use objc2_foundation::NSString;
-
-            let ns_view: Retained<NSView> =
-                unsafe { Retained::retain(appkit_handle.ns_view.as_ptr().cast()) }
-                    .expect("Failed to retain NSView");
-
-            if let Some(ns_window) = ns_view.window() {
-                // Safety: this runs on the main thread (Tauri setup / window creation)
-                let mtm = unsafe { MainThreadMarker::new_unchecked() };
-                let identifier = NSString::from_str("mort-main-toolbar");
-                let toolbar = NSToolbar::initWithIdentifier(NSToolbar::alloc(mtm), &identifier);
-                ns_window.setToolbar(Some(&toolbar));
-                ns_window.setToolbarStyle(NSWindowToolbarStyle::Unified);
-                ns_window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
-            }
-        }
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn attach_toolbar(_window: &tauri::WebviewWindow) {
-    // No-op on non-macOS platforms
-}
-
 /// Run TypeScript migrations by spawning Node.js process.
 /// Returns Ok(()) on success, Err on failure (but failures should not block app startup).
 fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
@@ -396,9 +361,8 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
             e.to_string()
         })?;
 
-        // Enable macOS fullscreen button and toolbar for the recreated window
+        // Enable macOS fullscreen button for the recreated window
         enable_fullscreen_button(&window);
-        attach_toolbar(&window);
 
         window.show().map_err(|e| {
             tracing::error!(error = %e, "Failed to show recreated main window");
@@ -1184,10 +1148,9 @@ pub fn run() {
                 .map(|v| !v.is_empty())
                 .unwrap_or(false);
 
-            // Enable macOS fullscreen button and toolbar for the main window
+            // Enable macOS fullscreen button for the main window
             if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                 enable_fullscreen_button(&window);
-                attach_toolbar(&window);
             }
 
             if onboarded {

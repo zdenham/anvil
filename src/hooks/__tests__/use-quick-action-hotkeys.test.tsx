@@ -4,7 +4,7 @@ import { useQuickActionHotkeys } from '../use-quick-action-hotkeys.js';
 import { useQuickActionsStore } from '@/entities/quick-actions/store.js';
 import { usePaneLayoutStore } from '@/stores/pane-layout/store.js';
 import { useModalStore } from '@/stores/modal-store.js';
-import type { PaneLayoutPersistedState } from '@/stores/pane-layout/types.js';
+import type { PaneLayoutPersistedState } from '@core/types/pane-layout.js';
 
 // Mock the executor hook
 const executeMock = vi.fn();

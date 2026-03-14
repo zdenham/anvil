@@ -12,7 +12,7 @@ import { usePaneLayoutStore } from "@/stores/pane-layout/store";
 import { SplitLayoutContainer } from "./split-layout-container";
 import { SplitNodeRenderer } from "./split-node-renderer";
 import { DndBridgeProvider } from "./dnd-context-bridge";
-import type { SplitNode, PaneGroup } from "@/stores/pane-layout/types";
+import type { SplitNode, PaneGroup } from "@core/types/pane-layout.js";
 import type { ReactNode } from "react";
 
 // Suppress logger output during tests

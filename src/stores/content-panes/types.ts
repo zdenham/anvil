@@ -1,27 +1,14 @@
 import { z } from "zod";
 import type { ContentPaneView } from "@/components/content-pane/types";
+import { ContentPaneViewSchema } from "@core/types/pane-layout.js";
+
+// Re-export for consumers that imported from here
+export { ContentPaneViewSchema };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Zod Schemas for Disk Persistence
 // Location: ~/.mort/ui/content-panes.json
 // ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Schema for ContentPaneView (discriminated union).
- * Validates view types stored on disk.
- */
-export const ContentPaneViewSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("empty") }),
-  z.object({ type: z.literal("thread"), threadId: z.string(), autoFocus: z.boolean().optional() }),
-  z.object({ type: z.literal("plan"), planId: z.string() }),
-  z.object({ type: z.literal("settings") }),
-  z.object({ type: z.literal("logs") }),
-  z.object({ type: z.literal("archive") }),
-  z.object({ type: z.literal("terminal"), terminalId: z.string() }),
-  z.object({ type: z.literal("file"), filePath: z.string(), repoId: z.string().optional(), worktreeId: z.string().optional() }),
-  z.object({ type: z.literal("pull-request"), prId: z.string() }),
-  z.object({ type: z.literal("changes"), repoId: z.string(), worktreeId: z.string(), uncommittedOnly: z.boolean().optional(), commitHash: z.string().optional() }),
-]);
 
 /**
  * Schema for a single content pane.

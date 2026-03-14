@@ -2,7 +2,7 @@ import { appData } from "@/lib/app-data-store";
 import { logger } from "@/lib/logger-client";
 import { type ContentPaneView, getViewCategory } from "@/components/content-pane/types";
 import { usePaneLayoutStore, getActiveGroup, getActiveTab } from "./store";
-import { PaneLayoutPersistedStateSchema, type PaneLayoutPersistedState } from "./types";
+import { PaneLayoutPersistedStateSchema, type PaneLayoutPersistedState } from "@core/types/pane-layout.js";
 import { removeLeafFromTree, findGroupPath, collectGroupIds } from "./split-tree";
 import { createDefaultState, createGroup, createTab, MAX_TABS_PER_GROUP } from "./defaults";
 import { migrateTerminalTabsFromSplitTree, migrateRawTerminalPanel } from "./migrations";
