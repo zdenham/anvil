@@ -19,7 +19,7 @@ These are non-negotiable. The project is not complete until every item is verifi
 **FR1: Node.js sidecar handles ALL WebSocket communication**
 - Standalone Node.js process (express + ws) replaces the Rust/axum WS server
 - Same protocol: `{id, cmd, args}` → `{id, result/error}`, push events, relay events
-- All ~97 data commands implemented (fs, git, terminal, agent, search, etc.)
+- All ~91 data commands implemented (fs, git, terminal, agent, search, etc.)
 - Both Tauri webview and web browsers connect to this server
 
 **FR2: Web build compiles and runs without Tauri packages at runtime**
@@ -99,7 +99,7 @@ These are non-negotiable. The project is not complete until every item is verifi
 ┌──────────────────────────────────┐
 │ Node.js Sidecar                  │
 │ (express+ws, port 9600)          │
-│ ~97 data commands, agent hub,    │
+│ ~89 data commands, agent hub,    │
 │ file serving, terminal PTY       │
 └──────────┬───────────────────────┘
            │ WS (same protocol for both clients)
@@ -133,22 +133,23 @@ These are non-negotiable. The project is not complete until every item is verifi
 
 ### What Already Works for Web
 
-`isTauri()` runtime gating, `NATIVE_DEFAULTS` for 64 native commands, `browser-stubs.ts`, all data commands over WebSocket, events over WebSocket, `convertFileSrc()` HTTP fallback.
+`isTauri()` runtime gating, `NATIVE_DEFAULTS` for 41 native commands, `browser-stubs.ts`, all data commands over WebSocket, events over WebSocket, `convertFileSrc()` HTTP fallback.
 
 ### What Blocks a Web Build Today
 
 1. **35 files** import `@tauri-apps/*` — build fails without these modules
 2. **10 files** use `plugin-shell` directly (`Command.create`) — needs WS alternative
-3. **7 files** use `plugin-dialog` — needs web fallback
-4. **No sidecar exists** — Rust WS is the only backend
-5. **AgentHub uses Unix socket** — no WS transport
-6. **No web entry point** — only multi-page Tauri build
+3. **6 files** use `plugin-dialog` — needs web fallback (+ 1 test setup)
+4. **2 files** use `plugin-http` (`fetch`) — gateway-channels SSE service
+5. **No sidecar exists** — Rust WS is the only backend
+6. **AgentHub uses Unix socket** — no WS transport
+7. **No web entry point** — only multi-page Tauri build
 
 ---
 
 ## What Moves to the Sidecar vs Stays in Tauri
 
-### Sidecar (~97 commands)
+### Sidecar (~89 commands, +2 new shell commands = ~91)
 
 | Category | Count | Node.js Approach |
 | --- | --- | --- |
@@ -172,9 +173,9 @@ These are non-negotiable. The project is not complete until every item is verifi
 | Shell exec (NEW) | 2 | `child_process` — replaces `plugin-shell` |
 | HTTP file serving | — | Express route (see B1) |
 
-### Stays in Tauri Only (~48 commands)
+### Stays in Tauri Only (~41 commands)
 
-Window/panel mgmt (16), spotlight (3), clipboard (4), accessibility (7), hotkeys (5), app search (3), tray/menu (2), onboarding (2), error panel (2), profiling (4). Already return `NATIVE_DEFAULTS` when `isTauri()` is false.
+Window/panel mgmt (13), spotlight (3), clipboard (5), accessibility (5), hotkeys (5), app search (3), onboarding (2), error panel (3), app lifecycle (2). Already return `NATIVE_DEFAULTS` when `isTauri()` is false.
 
 ---
 
@@ -182,15 +183,15 @@ Window/panel mgmt (16), spotlight (3), clipboard (4), accessibility (7), hotkeys
 
 ### A1. Tauri Module Shims
 
-Vite `resolve.alias` in web config points `@tauri-apps/*` to shim modules (~10 shims: core, window, event, path, app, plugin-shell, plugin-dialog, plugin-opener, plugin-http, plugin-global-shortcut). Each exports no-ops/stubs matching the Tauri API surface.
+Vite `resolve.alias` in web config points `@tauri-apps/*` to shim modules (~10 shims: core, window, event, path, app, plugin-shell, plugin-dialog, plugin-opener, plugin-http, plugin-global-shortcut). Each exports no-ops/stubs matching the Tauri API surface. Note: `plugin-http` shim must provide a working `fetch` wrapper (gateway-channels SSE depends on it).
 
 ### A2. Replace `plugin-shell` with WS Commands
 
-7 files using `Command.create()` → `invoke("shell_exec"|"shell_spawn", ...)`. Some (spotlight, file browser reveal) can be gated with `isTauri()`.
+10 files using `Command.create()` → `invoke("shell_exec"|"shell_spawn", ...)`. Some (spotlight, file browser reveal) can be gated with `isTauri()`. Includes 3 gh-cli files (`client.ts`, `executor.ts`, `webhooks.ts`), plus `quick-action-executor.ts`, `quick-actions-build.ts`, `pr-actions.ts`, `node-detection.ts`, `worktree-menus.tsx`, `spotlight.tsx`, `file-tree-node.tsx`.
 
 ### A3. Handle `plugin-dialog`
 
-4 files — gate behind `isTauri()`, show web-native file picker or text input fallback.
+6 production files — gate behind `isTauri()`, show web-native file picker or text input fallback. Files: `main-window-layout.tsx`, `project-creation-service.ts`, `spotlight.tsx`, `RepositoryStep.tsx`, `repository-settings.tsx`, `empty-pane-content.tsx`.
 
 ### A4. Web Build Entry Point
 
@@ -202,13 +203,13 @@ Vite `resolve.alias` in web config points `@tauri-apps/*` to shim modules (~10 s
 
 ### B1. Foundation
 
-New `sidecar/` pnpm workspace, **100% TypeScript** (`strict: true` in tsconfig, no `.js` source files). Structure: `server.ts` (entry), `ws-handler.ts`, `dispatch.ts` (prefix-based router), `push.ts` (event broadcaster), `static.ts` (web build + `/files`), plus `dispatch/` and `managers/` subdirectories. Shared `types/` package defines command request/response types used by both the sidecar and the frontend.
+New `sidecar/` pnpm workspace, **100% TypeScript** (`strict: true` in tsconfig, no `.js` source files). Structure: `server.ts` (entry), `ws-handler.ts`, `dispatch.ts` (prefix-based router), `push.ts` (event broadcaster), `static.ts` (web build + `/files`), plus `dispatch/` and `managers/` subdirectories. Command request/response types shared between the sidecar and the frontend live in the existing `core/types/` package (not a new package).
 
 WS protocol identical to current Rust server (which it replaces): `{id, cmd, args}` → `{id, result/error}`, push `{event, payload}`, relay `{relay, event, payload}`.
 
 **`/files` HTTP endpoint:** Serves project files from disk for the frontend (file previews, image rendering, diff content). Route: `GET /files?path=<absolute-path>`. In Tauri mode the webview can also use the Tauri asset protocol for same-origin file access, but `/files` is the universal path both modes share. Content-type is inferred from extension. Access is scoped to the project root.
 
-### B2. Port Commands (97 total, 75 stateless, 22 stateful)
+### B2. Port Commands (89 current + 2 new shell = ~91 total)
 
 **Wave 1 — Stateless (75 commands).** Pure request→response, no session state. Direct translations from Rust.
 - Filesystem (20): `fs_read_file`, `fs_write_file`, `fs_exists`, `fs_list_dir`, `fs_mkdir`, `fs_remove`, `fs_remove_dir_all`, `fs_move`, `fs_copy_file`, `fs_copy_directory`, `fs_is_git_repo`, `fs_git_worktree_add`, `fs_git_worktree_remove`, `fs_grep`, `fs_write_binary`, `fs_bulk_read`, `fs_get_repo_dir`, `fs_get_repo_source_path`, `fs_get_home_dir`, `fs_list_dir_names`
@@ -221,7 +222,7 @@ WS protocol identical to current Rust server (which it replaces): `{id, cmd, arg
 - Config/identity (3): `get_paths_info`, `get_agent_types`, `get_github_handle`
 - Repository (2): `validate_repository`, `remove_repository_data`
 - Process (3): `kill_process`, `get_process_memory`, `write_memory_snapshot`
-- Misc (5): `lock_acquire_repo`, `lock_release_repo`, `run_internal_update`, `update_diagnostic_config`, and shell commands from B3
+- Misc (6): `lock_acquire_repo`, `lock_release_repo`, `run_internal_update`, `update_diagnostic_config`, `get_agent_socket_path`, and shell commands from B3
 
 **Wave 2 — Stateful (13 commands).** Require session pools, streaming, or push events.
 - Terminal (6): `spawn_terminal`, `write_terminal`, `resize_terminal`, `kill_terminal`, `kill_terminals_by_cwd`, `list_terminals` — node-pty session pool, output streams via broadcaster
@@ -237,7 +238,7 @@ WS protocol identical to current Rust server (which it replaces): `{id, cmd, arg
 
 ### B4. Port Selection
 
-CLI `--port` flag > `MORT_SIDECAR_PORT` env var > default `9600`. Write `~/.mort/sidecar-{projectHash}.port` on startup, delete on clean shutdown. Web client derives WS URL from `window.location`. Agents get `MORT_AGENT_HUB_WS_URL` in env. Multi-instance / dynamic port discovery is deferred.
+CLI `--port` flag > `MORT_WS_PORT` env var (already used by Vite config, Rust server, and `browser-stubs.ts`) > default `9600`. Write `~/.mort/sidecar-{projectHash}.port` on startup, delete on clean shutdown. Web client derives WS URL from `window.location`. Agents get `MORT_AGENT_HUB_WS_URL` in env. Multi-instance / dynamic port discovery is deferred.
 
 ---
 
@@ -289,4 +290,4 @@ Run full verification matrix (see FR1–FR8 above). Additionally test: sidecar r
 
 ## Scale
 
-~97 WS commands (75 stateless, 22 stateful), ~10 shims, ~10 files for plugin-shell migration, ~5 for plugin-dialog, 1 new workspace (`sidecar/`), 1 new Vite config.
+~91 WS commands (89 existing + 2 new shell), ~10 shims, ~10 files for plugin-shell migration, ~6 for plugin-dialog, 1 new workspace (`sidecar/`), 1 new Vite config.
