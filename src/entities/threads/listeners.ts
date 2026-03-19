@@ -56,8 +56,8 @@ function syncUsageFromState(threadId: string, store: ReturnType<typeof useThread
  *
  * All pending messages are treated as undelivered — the 2-turn deferred ack
  * is the only reliable confirmation, and it didn't arrive before exit.
- * Messages were never appended to state.json (they live exclusively in the
- * queued store until ACK), so no scrub step is needed.
+ * Messages may have been written to state.json by the agent's message stream
+ * (for crash-recovery durability), so we scrub them before resending.
  */
 async function reconcilePendingMessages(threadId: string): Promise<void> {
   const pendingMessages = useQueuedMessagesStore.getState().drainThread(threadId);
@@ -77,11 +77,19 @@ async function reconcilePendingMessages(threadId: string): Promise<void> {
     return;
   }
 
-  // Send first message as new turn; rest will be queued once agent runs
+  // Scrub unconfirmed messages from state.json before resending.
+  // The agent writes queued messages to disk (message-stream.ts:72) for durability,
+  // but reconciliation treats them as undelivered. Leaving the old copy would cause
+  // the resent message to appear twice (old ID + new turn).
+  const scrubIds = new Set(pendingMessages.map((m) => m.id));
+  await threadService.scrubMessagesFromState(threadId, scrubIds);
+
+  // Send first message as new turn, passing the original messageId so the
+  // thread reducer's ID-based dedup can catch any remaining duplicates.
   const first = pendingMessages[0];
   try {
     logger.info(`[ThreadListener] Auto-resending message as new turn for ${threadId}`);
-    await resumeSimpleAgent(threadId, first.content, workingDirectory);
+    await resumeSimpleAgent(threadId, first.content, workingDirectory, first.id);
   } catch (err) {
     logger.error(`[ThreadListener] Failed to resend queued message for ${threadId}:`, err);
   }

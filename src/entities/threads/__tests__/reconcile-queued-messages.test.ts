@@ -5,11 +5,11 @@
  * Tests that pending queued messages are correctly reconciled when
  * an agent process exits (AGENT_COMPLETED event).
  *
- * With the pinned message flow, queued messages are never appended to
- * state.json — they live exclusively in the queued store until ACK.
- * On exit, pending messages are drained and resent as a new turn.
+ * Queued messages may be written to state.json by the agent's message stream
+ * for crash-recovery durability. On exit, reconciliation scrubs the old copy
+ * from state.json and resends with the original messageId.
  *
- * - All pending messages → drained + resent as new turn (no scrub needed)
+ * - All pending messages → scrubbed from state.json + resent with original messageId
  * - drainThread is atomic (second call returns empty)
  * - No pending messages → no-op
  */
@@ -53,6 +53,7 @@ vi.mock("../service", () => ({
     loadThreadState: vi.fn(),
     setStatus: vi.fn(),
     markCancelled: vi.fn(),
+    scrubMessagesFromState: vi.fn(),
   },
 }));
 
@@ -194,11 +195,17 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
 
     // Message should be drained (removed from store)
     expect(useQueuedMessagesStore.getState().isMessagePending(messageId)).toBe(false);
-    // Should resend as new turn (no scrub needed — message was never in state.json)
+    // Should scrub from state.json
+    expect(threadService.scrubMessagesFromState).toHaveBeenCalledWith(
+      threadId,
+      new Set([messageId]),
+    );
+    // Should resend with original messageId
     expect(mockResumeSimpleAgent).toHaveBeenCalledWith(
       threadId,
       "Hello",
       "/projects/test",
+      messageId,
     );
   });
 
@@ -233,11 +240,17 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
 
     // Message should be removed from store
     expect(useQueuedMessagesStore.getState().isMessagePending(messageId)).toBe(false);
-    // Should resend as new turn (no scrub needed)
+    // Should scrub from state.json
+    expect(threadService.scrubMessagesFromState).toHaveBeenCalledWith(
+      threadId,
+      new Set([messageId]),
+    );
+    // Should resend with original messageId
     expect(mockResumeSimpleAgent).toHaveBeenCalledWith(
       threadId,
       "Lost message",
       "/projects/test",
+      messageId,
     );
   });
 
@@ -277,11 +290,60 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
     // All messages should be drained
     expect(useQueuedMessagesStore.getState().getMessagesForThread(threadId)).toHaveLength(0);
 
-    // Should resend first message by timestamp order (msg-1)
+    // Should scrub all pending messages from state.json
+    expect(threadService.scrubMessagesFromState).toHaveBeenCalledWith(
+      threadId,
+      new Set(["msg-2", "msg-1", "msg-3"]),
+    );
+    // Should resend first message by timestamp order (msg-1) with original messageId
     expect(mockResumeSimpleAgent).toHaveBeenCalledWith(
       threadId,
       "First",
       "/projects/test",
+      "msg-1",
+    );
+  });
+
+  it("scrubs message from state.json and passes messageId when resending", async () => {
+    const threadId = "thread-scrub";
+    const messageId = "msg-in-state";
+    const thread = createThreadMetadata({ id: threadId });
+
+    // Message was written to state.json by agent AND is still pending in queued store
+    useQueuedMessagesStore.getState().addMessage(threadId, messageId, "Unacked msg");
+
+    useThreadStore.setState({
+      ...useThreadStore.getState(),
+      activeThreadId: threadId,
+      threadStates: {
+        [threadId]: {
+          messages: [{ id: messageId, role: "user", content: "Unacked msg" }],
+          fileChanges: [],
+          workingDirectory: "/projects/test",
+          status: "completed",
+          timestamp: Date.now(),
+          toolStates: {},
+        },
+      },
+    });
+
+    vi.mocked(threadService.get).mockReturnValue(thread);
+
+    triggerEvent(EventName.AGENT_COMPLETED, { threadId, exitCode: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // Should scrub from state.json
+    expect(threadService.scrubMessagesFromState).toHaveBeenCalledWith(
+      threadId,
+      new Set([messageId]),
+    );
+
+    // Should resend with original messageId (4th arg)
+    expect(mockResumeSimpleAgent).toHaveBeenCalledWith(
+      threadId,
+      "Unacked msg",
+      "/projects/test",
+      messageId,
     );
   });
 
