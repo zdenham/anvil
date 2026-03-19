@@ -86,15 +86,18 @@ export const AssistantMessage = memo(function AssistantMessage({
                     />
                   );
 
-                case "tool_use":
+                case "tool_use": {
+                  const toolName = (block as ContentBlock & { name: string }).name;
+                  if (toolName === "ExitPlanMode") return null;
                   return (
                     <ToolBlockRouter
                       key={(block as ContentBlock & { id: string }).id}
                       toolUseId={(block as ContentBlock & { id: string }).id}
-                      toolName={(block as ContentBlock & { name: string }).name}
+                      toolName={toolName}
                       toolInput={(block as ContentBlock & { input: unknown }).input as Record<string, unknown>}
                     />
                   );
+                }
 
                 case "server_tool_use":
                   return (

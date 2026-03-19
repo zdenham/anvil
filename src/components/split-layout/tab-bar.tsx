@@ -10,9 +10,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { Plus } from "lucide-react";
 import { paneLayoutService } from "@/stores/pane-layout";
-import { threadService } from "@/entities/threads/service";
 import { terminalSessionService } from "@/entities/terminal-sessions";
-import { useMRUWorktree } from "@/hooks/use-mru-worktree";
 import { logger } from "@/lib/logger-client";
 import { TabItem } from "./tab-item";
 import type { TabItem as TabItemType } from "@core/types/pane-layout.js";
@@ -25,8 +23,6 @@ interface TabBarProps {
 
 export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
   const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs]);
-  const { repoId, worktreeId } = useMRUWorktree();
-
   // Make the tab bar itself a drop target so tabs can be dragged to empty areas
   const { setNodeRef: setDroppableRef } = useDroppable({
     id: `tab-bar-drop-${groupId}`,
@@ -55,24 +51,8 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
       }
     }
 
-    if (!repoId || !worktreeId) {
-      logger.warn("[TabBar] No MRU worktree available, opening empty tab");
-      paneLayoutService.openTab({ type: "empty" }, groupId);
-      return;
-    }
-
-    const threadId = crypto.randomUUID();
-    await threadService.create({
-      id: threadId,
-      repoId,
-      worktreeId,
-      prompt: "",
-    });
-    paneLayoutService.openTab(
-      { type: "thread", threadId, autoFocus: true },
-      groupId,
-    );
-  }, [groupId, tabs, activeTabId, repoId, worktreeId]);
+    paneLayoutService.openTab({ type: "empty" }, groupId);
+  }, [groupId, tabs, activeTabId]);
 
   return (
     <div

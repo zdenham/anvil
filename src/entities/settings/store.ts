@@ -59,7 +59,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
     getPermissionMode: () => get().workspace.permissionMode ?? "allow-all",
     getPermissionDisplayMode: () => get().workspace.permissionDisplayMode ?? "modal",
     getQuickActionsCollapsed: () => get().workspace.quickActionsCollapsed ?? false,
-    getHideExternalWorktrees: () => get().workspace.hideExternalWorktrees ?? false,
+    getHideExternalWorktrees: () => get().workspace.hideExternalWorktrees ?? true,
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Optimistic Apply Methods

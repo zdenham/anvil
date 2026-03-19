@@ -11,7 +11,7 @@
  * - Binary/missing files: error message
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { convertFileSrc } from "@/lib/browser-stubs";
 import { FilesystemClient } from "@/lib/filesystem-client";
 import { getLanguageFromPath } from "@/lib/language-detection";
@@ -20,6 +20,7 @@ import { CodeMirrorEditor } from "./code-mirror-editor";
 import { TiptapEditor } from "./tiptap-editor";
 import { MediaPreview } from "./media-preview";
 import { useFileDirtyStore } from "@/stores/file-dirty-store";
+import { paneLayoutService } from "@/stores/pane-layout";
 import { logger } from "@/lib/logger-client";
 
 const filesystemClient = new FilesystemClient();
@@ -50,8 +51,14 @@ export function FileContent({ filePath, lineNumber }: FileContentProps) {
   const isDirty = savedContent !== currentContent;
 
   // Sync dirty state to global store for tab indicator
+  const wasDirtyRef = useRef(false);
   useEffect(() => {
     setDirty(filePath, isDirty);
+    // Auto-pin ephemeral tab on first edit
+    if (isDirty && !wasDirtyRef.current) {
+      paneLayoutService.pinActiveTabIfEphemeral();
+    }
+    wasDirtyRef.current = isDirty;
     return () => setDirty(filePath, false);
   }, [filePath, isDirty, setDirty]);
 

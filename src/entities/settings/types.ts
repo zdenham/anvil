@@ -67,7 +67,7 @@ export const WorkspaceSettingsSchema = z.object({
 
   /**
    * Whether to hide worktrees not created by Mort from the sidebar.
-   * Optional for backwards compatibility — defaults to false (show all).
+   * Optional for backwards compatibility — defaults to true (hide external).
    */
   hideExternalWorktrees: z.boolean().optional(),
 });

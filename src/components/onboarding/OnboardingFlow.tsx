@@ -154,6 +154,12 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
   return (
     <div data-testid="onboarding-flow" className="min-h-screen w-full bg-surface-900 p-6">
+      {/* Draggable title bar region for window movement */}
+      <div
+        data-tauri-drag-region
+        className="fixed top-0 left-0 right-0 h-8 z-20"
+      />
+
       {/* Header with progress */}
       <div className="flex justify-between items-center mb-8">
         <div className="text-sm text-surface-400">

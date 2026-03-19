@@ -173,6 +173,13 @@ export function useTabDnd(options: UseTabDndOptions = {}) {
     const data = event.active.data.current as TabDragData | undefined;
     if (!data || data.type !== "tab") return;
 
+    // Pin ephemeral tab when dragging starts
+    const group = usePaneLayoutStore.getState().groups[data.groupId];
+    const tab = group?.tabs.find((t) => t.id === data.tabId);
+    if (tab?.ephemeral) {
+      paneLayoutService.pinTab(data.groupId, data.tabId);
+    }
+
     edgeDropHandledRef.current = false;
     const drag: ActiveDragState = {
       tabId: data.tabId,

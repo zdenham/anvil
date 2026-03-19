@@ -301,7 +301,7 @@ export function useTreeData(): TreeItemNode[] {
   const expandedSections = useTreeMenuStore((state) => state.expandedSections);
   const pinnedWorktreeId = useTreeMenuStore((state) => state.pinnedWorktreeId);
   const repos = useRepoWorktreeLookupStore((state) => state.repos);
-  const hideExternal = useSettingsStore((s) => s.workspace.hideExternalWorktrees ?? false);
+  const hideExternal = useSettingsStore((s) => s.workspace.hideExternalWorktrees ?? true);
 
   // Derived: worktree info list
   const worktrees = useMemo((): WorktreeInfo[] => {

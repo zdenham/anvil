@@ -27,7 +27,7 @@ function actionMatchesContext(action: QuickActionMetadata, context: QuickActionC
 }
 
 /**
- * Registers app-local hotkeys for quick actions (Cmd+0-9).
+ * Registers app-local hotkeys for quick actions (Cmd+1-9).
  * Hotkeys only trigger when:
  * - App window is focused
  * - User is on a main view (thread, plan, or empty) - NOT settings or logs
@@ -48,9 +48,9 @@ export function useQuickActionHotkeys() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle Cmd+0-9
+      // Only handle Cmd+1-9 (Cmd+0 is reserved for zoom reset)
       if (!e.metaKey) return;
-      if (!/^[0-9]$/.test(e.key)) return;
+      if (!/^[1-9]$/.test(e.key)) return;
 
       // Don't trigger if already executing (DD #18)
       if (isExecuting) return;

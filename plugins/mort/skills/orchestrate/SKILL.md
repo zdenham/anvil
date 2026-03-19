@@ -97,6 +97,7 @@ MORT_REPL
 
 ## Notes
 
+- **Do NOT use `run_in_background: true`** when invoking `mort-repl`. The REPL manages long-running execution internally. Always run in the foreground.
 - The result of your code is returned as the Bash tool output. Use `return` to send data back.
 - `mort.spawn()` returns a **string** — the child's last assistant message content.
 - Spawned agents appear in the sidebar immediately and stream output in real-time.

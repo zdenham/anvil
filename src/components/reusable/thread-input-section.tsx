@@ -43,7 +43,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
     {
       onSubmit,
       workingDirectory,
-      contextType: _contextType,
+      contextType,
       disabled = false,
       placeholder,
       autoFocus,
@@ -100,6 +100,7 @@ export const ThreadInputSection = forwardRef<ThreadInputRef, ThreadInputSectionP
           placeholder={placeholder}
           autoFocus={autoFocus}
           className={isDragging ? "ring-2 ring-accent-500" : undefined}
+          contextType={contextType}
           onCycleMode={onCycleMode}
           onCancel={onCancel}
         />

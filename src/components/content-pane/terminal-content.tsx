@@ -247,6 +247,10 @@ export function TerminalContent({
       // Let Cmd+C, Cmd+V, etc. pass through to the webview
       if (isMeta) return false;
 
+      // Terminal consumes this key — stop the DOM event from bubbling to
+      // document-level listeners (e.g. Escape closing panels, exiting fullscreen).
+      event.stopPropagation();
+
       return true;
     });
 

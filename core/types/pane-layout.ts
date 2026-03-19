@@ -28,6 +28,7 @@ export const ContentPaneViewSchema = z.discriminatedUnion("type", [
 export const TabItemSchema = z.object({
   id: z.string(),
   view: ContentPaneViewSchema,
+  ephemeral: z.boolean().optional(),
 });
 
 export type TabItem = z.infer<typeof TabItemSchema>;

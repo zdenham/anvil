@@ -34,8 +34,8 @@ export function createGroup(tab: TabItem): PaneGroup {
 /**
  * Creates a new tab with the given view.
  */
-export function createTab(view: TabItem["view"]): TabItem {
-  return { id: crypto.randomUUID(), view };
+export function createTab(view: TabItem["view"], options?: { ephemeral?: boolean }): TabItem {
+  return { id: crypto.randomUUID(), view, ...(options?.ephemeral ? { ephemeral: true } : {}) };
 }
 
 /** Maximum number of tabs per group. */

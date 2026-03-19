@@ -23,6 +23,8 @@ pub struct AppConfig {
     pub migration_version: u32,
     #[serde(default)]
     pub github_handle: Option<String>,
+    #[serde(default = "default_zoom_level")]
+    pub zoom_level: f64,
 }
 
 fn generate_device_id() -> String {
@@ -38,6 +40,7 @@ impl Default for AppConfig {
             onboarded: false,
             migration_version: 0,
             github_handle: None,
+            zoom_level: default_zoom_level(),
         }
     }
 }
@@ -48,6 +51,10 @@ fn default_spotlight_hotkey() -> String {
 
 fn default_clipboard_hotkey() -> String {
     build_info::DEFAULT_CLIPBOARD_HOTKEY.to_string()
+}
+
+fn default_zoom_level() -> f64 {
+    1.0
 }
 
 /// Initializes the config module (paths must be initialized first)
@@ -216,6 +223,18 @@ pub fn get_github_handle() -> Option<String> {
 pub fn set_github_handle(handle: &str) -> Result<(), String> {
     let mut config = load_config();
     config.github_handle = Some(handle.to_string());
+    save_config(&config)
+}
+
+/// Gets the saved zoom level
+pub fn get_zoom_level() -> f64 {
+    load_config().zoom_level
+}
+
+/// Saves the zoom level to config
+pub fn set_zoom_level(level: f64) -> Result<(), String> {
+    let mut config = load_config();
+    config.zoom_level = level;
     save_config(&config)
 }
 

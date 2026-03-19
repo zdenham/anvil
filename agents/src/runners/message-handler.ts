@@ -684,18 +684,20 @@ export class MessageHandler {
           );
         }
 
-        // Append user message to state so child thread has proper
-        // [user, assistant, user, assistant, ...] conversation structure
-        const userMsg = {
-          role: "user" as const,
-          content: msg.message.content,
-          id: nanoid(),
-        };
-        state.messages.push(userMsg);
-        hub?.sendActionForThread(childThreadId, {
-          type: "APPEND_USER_MESSAGE",
-          payload: { id: userMsg.id, content: userMsg.content },
-        });
+        // Only append tool-result user messages. The initial prompt is already
+        // in state from the PreToolUse hook — appending it again causes duplicates.
+        if (toolUseId) {
+          const userMsg = {
+            role: "user" as const,
+            content: msg.message.content,
+            id: nanoid(),
+          };
+          state.messages.push(userMsg);
+          hub?.sendActionForThread(childThreadId, {
+            type: "APPEND_USER_MESSAGE",
+            payload: { id: userMsg.id, content: userMsg.content },
+          });
+        }
 
         await this.emitChildThreadState(childThreadId, state);
         return true;

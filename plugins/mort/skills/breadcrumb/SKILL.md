@@ -12,7 +12,7 @@ Pick up a long-running task, make as much progress as possible, then save your s
 
 `$ARGUMENTS` contains: `<breadcrumb-directory> <iteration-number>`
 
-Example: `/breadcrumb plans/my-task 3`
+Example: `/breadcrumb plans/my-task-breadcrumb-log 3`
 
 - **breadcrumb-directory**: path to the directory containing `readme.md` and `NNN-progress.md` files
 - **iteration-number**: your iteration (used for naming your breadcrumb file)

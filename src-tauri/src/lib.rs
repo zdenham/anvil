@@ -364,6 +364,12 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
         // Enable macOS fullscreen button for the recreated window
         enable_fullscreen_button(&window);
 
+        // Apply saved zoom level
+        let zoom = config::get_zoom_level();
+        if (zoom - 1.0).abs() > f64::EPSILON {
+            let _ = window.set_zoom(zoom);
+        }
+
         window.show().map_err(|e| {
             tracing::error!(error = %e, "Failed to show recreated main window");
             e.to_string()
@@ -528,6 +534,59 @@ fn is_any_panel_visible(app: AppHandle) -> bool {
 #[tauri::command]
 fn close_control_panel_window(app: AppHandle, instance_id: String) -> Result<(), String> {
     panels::close_control_panel_window(app, instance_id)
+}
+
+// ─── Zoom ────────────────────────────────────────────────────────────────────
+
+const ZOOM_LEVELS: &[f64] = &[0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
+
+fn apply_zoom_to_all_windows(app: &AppHandle, level: f64) {
+    // Main window
+    if let Some(w) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        let _ = w.set_zoom(level);
+    }
+    // Standalone control panel windows
+    for (instance_id, _) in panels::list_control_panel_windows() {
+        let label = format!("control-panel-window-{}", instance_id);
+        if let Some(w) = app.get_webview_window(&label) {
+            let _ = w.set_zoom(level);
+        }
+    }
+}
+
+fn zoom_step(app: &AppHandle, direction: i32) -> Result<f64, String> {
+    let current = config::get_zoom_level();
+    let idx = ZOOM_LEVELS
+        .iter()
+        .position(|&z| (z - current).abs() < 0.01)
+        .unwrap_or(5); // default to 1.0 index
+    let new_idx = (idx as i32 + direction).clamp(0, ZOOM_LEVELS.len() as i32 - 1) as usize;
+    let new_level = ZOOM_LEVELS[new_idx];
+    config::set_zoom_level(new_level)?;
+    apply_zoom_to_all_windows(app, new_level);
+    Ok(new_level)
+}
+
+#[tauri::command]
+fn zoom_in(app: AppHandle) -> Result<f64, String> {
+    zoom_step(&app, 1)
+}
+
+#[tauri::command]
+fn zoom_out(app: AppHandle) -> Result<f64, String> {
+    zoom_step(&app, -1)
+}
+
+#[tauri::command]
+fn zoom_reset(app: AppHandle) -> Result<f64, String> {
+    config::set_zoom_level(1.0)?;
+    apply_zoom_to_all_windows(&app, 1.0);
+    Ok(1.0)
+}
+
+#[tauri::command]
+fn get_zoom_level() -> f64 {
+    config::get_zoom_level()
 }
 
 /// Restarts the application (dev mode only - for manual refresh)
@@ -852,6 +911,17 @@ pub fn run() {
                 }
             }
 
+            // Handle zoom menu items
+            match menu_id {
+                "zoom_in" => { let _ = zoom_step(app, 1); }
+                "zoom_out" => { let _ = zoom_step(app, -1); }
+                "zoom_reset" => {
+                    let _ = config::set_zoom_level(1.0);
+                    apply_zoom_to_all_windows(app, 1.0);
+                }
+                _ => {}
+            }
+
             // Handle window menu items
             if menu_id == "close_all_panel_windows" {
                 // Close all standalone control panel windows
@@ -898,6 +968,10 @@ pub fn run() {
             get_pending_control_panel,
             is_any_panel_visible,
             close_control_panel_window,
+            zoom_in,
+            zoom_out,
+            zoom_reset,
+            get_zoom_level,
             restart_app,
             app_search::search_applications,
             app_search::open_application,
@@ -1151,6 +1225,11 @@ pub fn run() {
             // Enable macOS fullscreen button for the main window
             if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                 enable_fullscreen_button(&window);
+                // Apply saved zoom level
+                let zoom = config::get_zoom_level();
+                if (zoom - 1.0).abs() > f64::EPSILON {
+                    let _ = window.set_zoom(zoom);
+                }
             }
 
             if onboarded {
@@ -1162,7 +1241,9 @@ pub fn run() {
                 // Show main window with the new layout (unless skipped for dev)
                 if !skip_main_window {
                     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                        let _ = app.handle().set_activation_policy(ActivationPolicy::Regular);
                         let _ = window.show();
+                        let _ = window.set_focus();
                     }
                 }
             } else {
@@ -1174,6 +1255,7 @@ pub fn run() {
 
                     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                         let _ = window.show();
+                        let _ = window.set_focus();
                     }
                 }
                 // Only register clipboard hotkey (spotlight hotkey will be set during onboarding)

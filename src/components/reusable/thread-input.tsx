@@ -7,6 +7,7 @@ import { usePromptHistory } from "@/hooks/use-prompt-history";
 import { useInputStore } from "@/stores/input-store";
 import { writeImageToTempFile, MAX_IMAGE_SIZE_BYTES } from "@/lib/image-paste";
 import { usePaneGroupMaybe } from "@/components/split-layout/pane-group-context";
+import { paneLayoutService } from "@/stores/pane-layout";
 import { logger } from "@/lib/logger-client";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,8 @@ interface ThreadInputProps {
   placeholder?: string;
   autoFocus?: boolean;
   className?: string;
+  /** Context type — controls contextual UI like the implement button for plans */
+  contextType?: "empty" | "thread" | "plan";
   /** Called when Shift+Tab is pressed to cycle permission mode */
   onCycleMode?: () => void;
   /** Called when cancel button is clicked (shown when agent is running) */
@@ -36,6 +39,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
   placeholder,
   autoFocus,
   className: extraClassName,
+  contextType,
   onCycleMode,
   onCancel,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -104,6 +108,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
   const handleFocus = useCallback(() => {
     paneGroup?.activate();
+    paneLayoutService.pinActiveTabIfEphemeral();
   }, [paneGroup]);
 
   const handleSubmit = useCallback(() => {
@@ -114,6 +119,12 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       resetHistory();
     }
   }, [content, disabled, onSubmit, resetHistory, setStoreContent]);
+
+  const handleImplementPlan = useCallback(() => {
+    if (!disabled) {
+      onSubmit("implement this plan");
+    }
+  }, [disabled, onSubmit]);
 
 
   const handleKeyDown = useCallback(
@@ -243,6 +254,15 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
             title="Cancel agent"
           >
             <Square size={8} className="fill-current" />
+          </button>
+        )}
+        {!onCancel && contextType === "plan" && !content.trim() && (
+          <button
+            onClick={handleImplementPlan}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-surface-400 hover:text-surface-200 transition-colors px-2 py-0.5 rounded border border-surface-600 hover:border-surface-500"
+            aria-label="Implement this plan"
+          >
+            implement
           </button>
         )}
       </div>

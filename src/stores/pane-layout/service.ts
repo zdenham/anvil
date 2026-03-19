@@ -1,6 +1,6 @@
 import { appData } from "@/lib/app-data-store";
 import { logger } from "@/lib/logger-client";
-import { type ContentPaneView, getViewCategory } from "@/components/content-pane/types";
+import type { ContentPaneView } from "@/components/content-pane/types";
 import { usePaneLayoutStore, getActiveGroup, getActiveTab } from "./store";
 import { PaneLayoutPersistedStateSchema, type PaneLayoutPersistedState } from "@core/types/pane-layout.js";
 import { removeLeafFromTree, findGroupPath, collectGroupIds } from "./split-tree";
@@ -53,6 +53,21 @@ function getTerminalGroupIds(): Set<string> {
   return new Set(collectGroupIds(terminalPanel.root));
 }
 
+/** Ensure at most one ephemeral tab per group (fix corruption from older versions). */
+function sanitizeEphemeralTabs(state: PaneLayoutPersistedState): void {
+  for (const group of Object.values(state.groups)) {
+    let foundEphemeral = false;
+    for (let i = group.tabs.length - 1; i >= 0; i--) {
+      if (group.tabs[i].ephemeral) {
+        if (foundEphemeral) {
+          group.tabs[i] = { ...group.tabs[i], ephemeral: undefined };
+        }
+        foundEphemeral = true;
+      }
+    }
+  }
+}
+
 export const paneLayoutService = {
   async hydrate(): Promise<void> {
     try {
@@ -62,6 +77,7 @@ export const paneLayoutService = {
         const result = PaneLayoutPersistedStateSchema.safeParse(migrated);
         if (result.success) {
           const migrated = migrateTerminalTabsFromSplitTree(result.data);
+          sanitizeEphemeralTabs(migrated);
           usePaneLayoutStore.getState().hydrate(migrated);
           logger.debug("[paneLayoutService] Hydrated from disk");
           return;
@@ -309,9 +325,69 @@ export const paneLayoutService = {
     return newGroupId;
   },
 
+  async pinTab(groupId: string, tabId: string): Promise<void> {
+    const group = usePaneLayoutStore.getState().groups[groupId];
+    const tab = group?.tabs.find((t) => t.id === tabId);
+    if (!tab?.ephemeral) return; // already pinned or not found
+    usePaneLayoutStore.getState()._applyPinTab(groupId, tabId);
+    await persistState();
+  },
+
+  async pinActiveTabIfEphemeral(): Promise<void> {
+    const group = getActiveGroup();
+    const tab = getActiveTab();
+    if (group && tab?.ephemeral) {
+      await this.pinTab(group.id, tab.id);
+    }
+  },
+
+  async openEphemeralTab(view: ContentPaneView, groupId?: string): Promise<string> {
+    const store = usePaneLayoutStore.getState();
+    const targetGroupId = groupId ?? store.activeGroupId;
+
+    // If the view already exists as a pinned tab anywhere, just activate it
+    for (const group of Object.values(store.groups)) {
+      const match = group.tabs.find((t) => viewsMatch(t.view, view) && !t.ephemeral);
+      if (match) {
+        if (group.id !== targetGroupId) {
+          usePaneLayoutStore.getState()._applySetActiveGroup(group.id);
+        }
+        usePaneLayoutStore.getState()._applySetActiveTab(group.id, match.id);
+        await persistState();
+        return match.id;
+      }
+    }
+
+    const group = usePaneLayoutStore.getState().groups[targetGroupId];
+    if (!group) throw new Error(`Group ${targetGroupId} not found`);
+
+    // Find existing ephemeral tab in this group
+    const existingEphemeral = group.tabs.find((t) => t.ephemeral);
+    if (existingEphemeral) {
+      // Replace its view and activate
+      usePaneLayoutStore.getState()._applySetTabView(targetGroupId, existingEphemeral.id, view);
+      usePaneLayoutStore.getState()._applySetActiveTab(targetGroupId, existingEphemeral.id);
+      if (targetGroupId !== store.activeGroupId) {
+        usePaneLayoutStore.getState()._applySetActiveGroup(targetGroupId);
+      }
+      await persistState();
+      return existingEphemeral.id;
+    }
+
+    // No ephemeral tab — create a new one
+    if (group.tabs.length >= MAX_TABS_PER_GROUP) {
+      await this.closeTab(targetGroupId, group.tabs[0].id);
+    }
+    const tab = createTab(view, { ephemeral: true });
+    usePaneLayoutStore.getState()._applyOpenTab(targetGroupId, tab);
+    await persistState();
+    return tab.id;
+  },
+
   async findOrOpenTab(view: ContentPaneView, options?: { newTab?: boolean }): Promise<void> {
     const { groups, activeGroupId } = usePaneLayoutStore.getState();
 
+    // Check for existing tab with matching view (pinned or ephemeral)
     for (const group of Object.values(groups)) {
       const match = group.tabs.find((t) => viewsMatch(t.view, view));
       if (match) {
@@ -327,28 +403,12 @@ export const paneLayoutService = {
     if (options?.newTab) {
       await this.openTab(view);
     } else {
-      const category = getViewCategory(view.type);
-      const { lastActiveGroupByCategory } = usePaneLayoutStore.getState();
-      const preferredGroupId = lastActiveGroupByCategory[category];
-      const preferredGroup = preferredGroupId ? groups[preferredGroupId] : null;
-
-      if (preferredGroup) {
-        const activeTab = preferredGroup.tabs.find((t) => t.id === preferredGroup.activeTabId);
-        if (activeTab && getViewCategory(activeTab.view.type) === category) {
-          usePaneLayoutStore.getState()._applySetTabView(preferredGroup.id, activeTab.id, view);
-          usePaneLayoutStore.getState()._applySetActiveGroup(preferredGroup.id);
-          await persistState();
-          return;
-        }
-      }
-
       // Safety net: if active group is a terminal panel group, route through openTab
-      // which has its own guard to create/find a content group
       const current = usePaneLayoutStore.getState();
       if (isTerminalPanelGroup(current.activeGroupId)) {
         await this.openTab(view);
       } else {
-        await this.setActiveTabView(view);
+        await this.openEphemeralTab(view);
       }
     }
   },

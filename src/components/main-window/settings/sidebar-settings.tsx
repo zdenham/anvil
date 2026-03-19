@@ -4,7 +4,7 @@ import { settingsService } from "@/entities/settings/service";
 
 export function SidebarSettings() {
   const hideExternal = useSettingsStore(
-    (s) => s.workspace.hideExternalWorktrees ?? false,
+    (s) => s.workspace.hideExternalWorktrees ?? true,
   );
 
   return (

@@ -13,6 +13,7 @@ interface PaneLayoutState extends PaneLayoutPersistedState {
   _applyOpenTab: (groupId: string, tab: TabItem, makeActive?: boolean) => Rollback;
   _applyCloseTab: (groupId: string, tabId: string) => Rollback;
   _applySetActiveTab: (groupId: string, tabId: string) => Rollback;
+  _applyPinTab: (groupId: string, tabId: string) => Rollback;
   _applySetTabView: (groupId: string, tabId: string, view: ContentPaneView) => Rollback;
   _applyMoveTab: (from: string, tabId: string, to: string, index: number) => Rollback;
   _applyReorderTabs: (groupId: string, tabIds: string[]) => Rollback;
@@ -98,6 +99,24 @@ export const usePaneLayoutStore = create<PaneLayoutState>((set, get) => ({
     const prev = get().groups[groupId]?.activeTabId;
     set((s) => updateGroup(s, groupId, { activeTabId: tabId }));
     return () => { if (prev !== undefined) set((s) => updateGroup(s, groupId, { activeTabId: prev })); };
+  },
+
+  _applyPinTab: (groupId, tabId) => {
+    const prevTab = get().groups[groupId]?.tabs.find((t) => t.id === tabId);
+    set((s) => {
+      const g = s.groups[groupId];
+      if (!g) return s;
+      return updateGroup(s, groupId, {
+        tabs: g.tabs.map((t) => (t.id === tabId ? { ...t, ephemeral: undefined } : t)),
+      });
+    });
+    return () => {
+      if (prevTab) set((s) => {
+        const g = s.groups[groupId];
+        if (!g) return s;
+        return updateGroup(s, groupId, { tabs: g.tabs.map((t) => (t.id === tabId ? prevTab : t)) });
+      });
+    };
   },
 
   _applySetTabView: (groupId, tabId, view) => {
