@@ -232,15 +232,16 @@ export class MessageHandler {
             .map(block => block.text)
             .join("\n");
 
-      // Emit acknowledgement event BEFORE appending (so UI gets it first)
-      // msg.uuid carries the queued message ID from socket message stream
-      // Emit via socket or stdout fallback
+      // Write to disk BEFORE emitting ack — ensures state.json contains
+      // the message before the frontend receives confirmation.
+      await appendUserMessage(msg.uuid ?? nanoid(), content);
+
+      // Emit acknowledgement event after disk write succeeds.
+      // msg.uuid carries the queued message ID from socket message stream.
       if (msg.uuid) {
         emitEvent("queued-message:ack", { messageId: msg.uuid }, "MessageHandler:queued-ack");
         logger.info(`[MessageHandler] Emitted ack for queued message: ${msg.uuid}`);
       }
-
-      await appendUserMessage(msg.uuid ?? nanoid(), content);
       logger.info("[MessageHandler] Processed queued user message");
       return true;
     }

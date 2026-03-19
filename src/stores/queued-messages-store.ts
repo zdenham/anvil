@@ -16,6 +16,9 @@ interface QueuedMessagesState {
   // Actions
   addMessage: (threadId: string, id: string, content: string) => void;
   confirmMessage: (messageId: string) => void;
+  removeMessage: (messageId: string) => void;
+  /** Atomically removes and returns all pending messages for a thread (prevents double-processing). */
+  drainThread: (threadId: string) => QueuedMessage[];
 
   // Selectors (as methods for use in components)
   getMessagesForThread: (threadId: string) => QueuedMessage[];
@@ -40,6 +43,36 @@ export const useQueuedMessagesStore = create<QueuedMessagesState>((set, get) => 
       const { [messageId]: _, ...rest } = state.messages;
       return { messages: rest };
     });
+  },
+
+  removeMessage: (messageId) => {
+    set((state) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [messageId]: _, ...rest } = state.messages;
+      return { messages: rest };
+    });
+  },
+
+  drainThread: (threadId) => {
+    const { messages } = get();
+    const drained = Object.values(messages)
+      .filter((m) => m.threadId === threadId)
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (drained.length === 0) return [];
+
+    // Atomically remove all drained messages
+    set((state) => {
+      const remaining: Record<string, QueuedMessage> = {};
+      for (const [id, msg] of Object.entries(state.messages)) {
+        if (msg.threadId !== threadId) {
+          remaining[id] = msg;
+        }
+      }
+      return { messages: remaining };
+    });
+
+    return drained;
   },
 
   getMessagesForThread: (threadId) => {

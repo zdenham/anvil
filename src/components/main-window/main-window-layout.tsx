@@ -33,6 +33,7 @@ import { treeMenuService } from "@/stores/tree-menu/service";
 import { navigationService } from "@/stores/navigation-service";
 import { layoutService } from "@/stores/layout/service";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import { threadService } from "@/entities/threads/service";
 import { repoService } from "@/entities/repositories";
 import { worktreeService } from "@/entities/worktrees";
@@ -148,16 +149,14 @@ export function MainWindowLayout() {
   const handleToggleTerminalPanel = useCallback(async () => {
     const result = paneLayoutService.toggleTerminalPanel();
     if (result === "needs-terminal") {
-      // No terminals exist - create one
-      const allItems = treeItemsRef.current;
-      const worktrees = allItems.filter(i => i.type === "worktree");
-      if (worktrees.length === 0) {
+      // No terminals exist - create one using MRU worktree
+      const mru = useMRUWorktreeStore.getState().getMRUWorktree();
+      if (!mru) {
         logger.warn("[MainWindowLayout] Toggle terminal: No worktrees available");
         return;
       }
-      const mostRecent = worktrees[0];
-      const worktreeId = mostRecent.worktreeId ?? mostRecent.id;
-      const worktreePath = mostRecent.worktreePath;
+      const worktreeId = mru.worktreeId;
+      const worktreePath = useRepoWorktreeLookupStore.getState().getWorktreePath(mru.repoId, mru.worktreeId);
       if (!worktreePath) return;
 
       try {
@@ -237,19 +236,17 @@ export function MainWindowLayout() {
           }
         }
 
-        // 2. Fallback to most recent worktree
+        // 2. Fallback to most recently used worktree (from MRU store)
         if (!repoId || !worktreeId) {
-          const allItems = treeItemsRef.current;
-          const worktrees = allItems.filter(i => i.type === "worktree");
-          if (worktrees.length === 0) {
+          const mru = useMRUWorktreeStore.getState().getMRUWorktree();
+          if (!mru) {
             logger.warn("[MainWindowLayout] Command+N: No worktrees available");
             return;
           }
-          const mostRecent = worktrees[0];
-          repoId = mostRecent.repoId!;
-          worktreeId = mostRecent.worktreeId ?? mostRecent.id;
-          worktreeName = mostRecent.worktreeName;
-          logger.info(`[MainWindowLayout] Command+N: Creating new thread in most recent worktree "${worktreeName}"`);
+          repoId = mru.repoId;
+          worktreeId = mru.worktreeId;
+          worktreeName = useRepoWorktreeLookupStore.getState().getWorktreeName(mru.repoId, mru.worktreeId);
+          logger.info(`[MainWindowLayout] Command+N: Creating new thread in MRU worktree "${worktreeName}"`);
         }
 
         try {
@@ -455,17 +452,15 @@ export function MainWindowLayout() {
           }
         }
 
-        // 2. Fallback to most recent worktree
+        // 2. Fallback to most recently used worktree (from MRU store)
         if (!worktreeId || !worktreePath) {
-          const allItems = treeItemsRef.current;
-          const worktrees = allItems.filter(i => i.type === "worktree");
-          if (worktrees.length === 0) {
+          const mru = useMRUWorktreeStore.getState().getMRUWorktree();
+          if (!mru) {
             logger.warn("[MainWindowLayout] Command+T: No worktrees available");
             return;
           }
-          const mostRecent = worktrees[0];
-          worktreeId = mostRecent.worktreeId ?? mostRecent.id;
-          worktreePath = mostRecent.worktreePath;
+          worktreeId = mru.worktreeId;
+          worktreePath = useRepoWorktreeLookupStore.getState().getWorktreePath(mru.repoId, mru.worktreeId);
         }
 
         await handleNewTerminal(worktreeId, worktreePath!);

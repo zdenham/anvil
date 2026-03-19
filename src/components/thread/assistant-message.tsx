@@ -88,7 +88,7 @@ export const AssistantMessage = memo(function AssistantMessage({
 
                 case "tool_use": {
                   const toolName = (block as ContentBlock & { name: string }).name;
-                  if (toolName === "ExitPlanMode") return null;
+                  if (toolName === "ExitPlanMode" || toolName === "EnterPlanMode") return null;
                   return (
                     <ToolBlockRouter
                       key={(block as ContentBlock & { id: string }).id}

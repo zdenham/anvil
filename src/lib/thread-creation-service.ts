@@ -15,11 +15,10 @@
  */
 
 import { threadService, eventBus } from "@/entities";
-import { worktreeService } from "@/entities/worktrees";
 import { EventName } from "@core/types/events.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
+import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import { spawnSimpleAgent } from "./agent-service";
-import { loadSettings } from "./app-data-store";
 import { logger } from "./logger-client";
 
 export interface CreateThreadOptions {
@@ -36,16 +35,6 @@ export interface CreateThreadOptions {
 export interface CreateThreadResult {
   threadId: string;
   taskId: string;
-}
-
-/**
- * Slugifies a repository name for use in paths.
- */
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 /**
@@ -111,34 +100,7 @@ export async function createThread(
   // PHASE 2: Touch worktree to update lastAccessedAt (non-blocking)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // We need the repo name to touch the worktree - look it up from settings
-  // This is fire-and-forget, doesn't block thread creation
-  (async () => {
-    try {
-      // Find repo name by iterating through known repos
-      // This is a bit awkward but necessary since we only have the UUID
-      const { repoService } = await import("@/entities/repositories");
-      const repos = repoService.getAll();
-      for (const repo of repos) {
-        const slug = slugify(repo.name);
-        try {
-          const settings = await loadSettings(slug);
-          if (settings.id === repoId) {
-            await worktreeService.touch(repo.name, worktreePath);
-            logger.debug("[thread-creation-service] Touched worktree", {
-              repoName: repo.name,
-              worktreePath,
-            });
-            break;
-          }
-        } catch {
-          // Skip repos that fail to load settings
-        }
-      }
-    } catch (err) {
-      logger.warn("[thread-creation-service] Failed to touch worktree (non-fatal)", err);
-    }
-  })();
+  useMRUWorktreeStore.getState().touchMRU(worktreeId);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 3: Spawn Agent - Non-blocking, runs in background

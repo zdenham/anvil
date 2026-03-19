@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { convertFileSrc } from "@/lib/browser-stubs";
 import { extractImagePaths, stripImagePaths } from "@/lib/image-paths";
 import type { Turn } from "@/lib/utils/turn-grouping";
 import { getUserTurnPrompt } from "@/lib/utils/turn-grouping";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
+import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
+
+const MIN_PENDING_DISPLAY_MS = 800;
 
 interface UserMessageProps {
   /** The user turn containing the message */
@@ -17,6 +20,31 @@ interface UserMessageProps {
  */
 export function UserMessage({ turn }: UserMessageProps) {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const storePending = useQueuedMessagesStore((s) => s.isMessagePending(turn.messageId));
+  const [showPending, setShowPending] = useState(false);
+  const pendingSinceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (storePending && !pendingSinceRef.current) {
+      pendingSinceRef.current = Date.now();
+      setShowPending(true);
+    }
+    if (!storePending && pendingSinceRef.current) {
+      const elapsed = Date.now() - pendingSinceRef.current;
+      const remaining = MIN_PENDING_DISPLAY_MS - elapsed;
+      if (remaining > 0) {
+        const timer = setTimeout(() => {
+          setShowPending(false);
+          pendingSinceRef.current = null;
+        }, remaining);
+        return () => clearTimeout(timer);
+      }
+      setShowPending(false);
+      pendingSinceRef.current = null;
+    }
+  }, [storePending]);
+
+  const isPending = showPending;
   const content = getUserTurnPrompt(turn);
   if (!content) return null;
 
@@ -60,7 +88,10 @@ export function UserMessage({ turn }: UserMessageProps) {
               "shadow-sm",
             )}
           >
-            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{textContent}</p>
+            <p className={cn(
+              "whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+              isPending && "italic opacity-80",
+            )}>{textContent}</p>
           </div>
         )}
       </div>

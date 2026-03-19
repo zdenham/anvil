@@ -23,9 +23,10 @@ import { CalculatorService } from "../../lib/calculator-service";
 import { TriggerSearchInput, type TriggerStateInfo } from "../reusable/trigger-search-input";
 import type { TriggerSearchInputRef } from "@/lib/triggers/types";
 import { repoService, type Repository, eventBus } from "../../entities";
-import { worktreeService } from "../../entities/worktrees";
-import type { RepoWorktree } from "@core/types/repositories";
+import type { RepoWorktree, WorktreeState } from "@core/types/repositories";
 import { PERMISSION_MODE_CYCLE, type PermissionModeId } from "@core/types/permissions";
+import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { openControlPanel, showMainWindow, showMainWindowWithView } from "../../lib/hotkey-service";
 import { logger } from "../../lib/logger-client";
 import { savePromptToHistory, saveDraftToHistory } from "../../lib/prompt-history-helpers";
@@ -751,46 +752,33 @@ export const Spotlight = () => {
       });
   }, []);
 
-  // Load worktrees from ALL repositories and sort by MRU
-  const loadWorktrees = useCallback(async () => {
-    const controller = controllerRef.current;
-    const repos = controller.getRepositories();
+  /** Read MRU worktrees from the centralized store (synchronous, no disk I/O) */
+  const loadWorktrees = useCallback(() => {
+    const mruStore = useMRUWorktreeStore.getState();
+    const lookupStore = useRepoWorktreeLookupStore.getState();
+    const mruWorktrees = mruStore.getMRUWorktrees();
 
-    if (repos.length === 0) {
-      setState((prev) => ({
-        ...prev,
-        repoWorktrees: [],
-        selectedWorktreeIndex: 0,
-      }));
-      return;
-    }
-
-    const allRepoWorktrees: RepoWorktree[] = [];
-
-    for (const repo of repos) {
-      try {
-        const worktrees = await worktreeService.sync(repo.name);
-        for (const wt of worktrees) {
-          allRepoWorktrees.push({
-            repoName: repo.name,
-            repoId: repo.name, // Using name as ID for now, will need settings lookup for UUID
-            worktree: wt,
-          });
-        }
-      } catch (err) {
-        logger.error(`[Spotlight] Failed to load worktrees for ${repo.name}:`, err);
-      }
-    }
-
-    // Sort by MRU across ALL repos
-    allRepoWorktrees.sort((a, b) =>
-      (b.worktree.lastAccessedAt ?? 0) - (a.worktree.lastAccessedAt ?? 0)
-    );
+    const allRepoWorktrees: RepoWorktree[] = mruWorktrees
+      .map(({ repoId, worktreeId }) => {
+        const wt = lookupStore.repos.get(repoId)?.worktrees.get(worktreeId);
+        if (!wt?.path) return null;
+        return {
+          repoName: lookupStore.getRepoName(repoId),
+          repoId,
+          worktree: {
+            id: worktreeId,
+            path: wt.path,
+            name: wt.name,
+            lastAccessedAt: wt.lastAccessedAt,
+          } as WorktreeState,
+        };
+      })
+      .filter((rw): rw is RepoWorktree => rw !== null);
 
     setState((prev) => ({
       ...prev,
       repoWorktrees: allRepoWorktrees,
-      selectedWorktreeIndex: 0, // Reset to first (most recent)
+      selectedWorktreeIndex: 0,
     }));
   }, []);
 

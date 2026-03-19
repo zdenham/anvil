@@ -77,22 +77,16 @@ export class SocketMessageStream {
         if (msg === null) break;
         logger.info(`[SocketMessageStream] Processing queued message: ${msg.id}`);
 
-        // Emit ack event when we yield the message to the SDK.
-        // Note: The SDK does NOT return injected user messages back to the stream,
-        // so we emit the ack here at yield time instead of waiting for the SDK.
-        if (this.eventEmitter) {
-          this.eventEmitter("queued-message:ack", { messageId: msg.id });
-          logger.info(`[SocketMessageStream] Emitted ack for queued message: ${msg.id}`);
-        }
-
-        // Append the user message to thread state.
-        // Note: The SDK does NOT return injected user messages, so we must append manually.
+        // Append the user message to thread state BEFORE emitting ack.
+        // This ensures the message is durably on disk before the frontend
+        // receives confirmation — if the ack arrives, the message is in state.json.
         if (this.appendUserMessage) {
           await this.appendUserMessage(msg.id, msg.content);
           logger.info(`[SocketMessageStream] Appended user message to state`);
         }
 
-        // Yield the message to the SDK for processing
+        // Note: ack is NOT emitted here. It's deferred to createWrappedStream()
+        // which fires the ack when the SDK actually consumes the message (calls .next()).
         yield this.formatUserMessage(msg.content, false, msg.id);
       }
     } finally {
@@ -157,6 +151,20 @@ export class SocketMessageStream {
   }
 
   /**
+   * Returns the stream wrapped so acks fire on SDK consumption, not on yield.
+   * Use this instead of createStream() when feeding into the SDK's query().
+   */
+  createWrappedStream(initialPrompt: string): AsyncGenerator<SDKUserMessage> {
+    const inner = this.createStream(initialPrompt);
+    return withAckOnConsume(inner, (messageId) => {
+      if (this.eventEmitter) {
+        this.eventEmitter("queued-message:ack", { messageId });
+        logger.info(`[SocketMessageStream] Emitted ack for queued message: ${messageId}`);
+      }
+    });
+  }
+
+  /**
    * Format a message as an SDKUserMessage.
    */
   private formatUserMessage(content: string, isSynthetic: boolean, uuid?: UUID): SDKUserMessage {
@@ -170,6 +178,59 @@ export class SocketMessageStream {
       ...(uuid && { uuid }),
     };
   }
+}
+
+/**
+ * Wraps an async generator to defer ack emission until the SDK
+ * actually consumes each yielded message (by calling .next() again).
+ *
+ * JS async generator contract: execution after a `yield` only resumes
+ * when the consumer calls `.next()`. So when we enter `.next()` for
+ * message N+1, we know message N was consumed.
+ */
+export function withAckOnConsume(
+  inner: AsyncGenerator<SDKUserMessage>,
+  emitAck: (messageId: string) => void,
+): AsyncGenerator<SDKUserMessage> {
+  let pendingAckId: string | null = null;
+
+  const wrapper: AsyncGenerator<SDKUserMessage> = {
+    async next(...args: [] | [unknown]) {
+      // SDK is pulling next message → it consumed the previous one
+      if (pendingAckId) {
+        emitAck(pendingAckId);
+        pendingAckId = null;
+      }
+
+      const result = await inner.next(...args);
+
+      if (!result.done && result.value.uuid) {
+        pendingAckId = result.value.uuid;
+      }
+
+      return result;
+    },
+
+    async return(value?: unknown) {
+      // Ack the last message if SDK consumed it before closing
+      if (pendingAckId) {
+        emitAck(pendingAckId);
+        pendingAckId = null;
+      }
+      return inner.return(value);
+    },
+
+    async throw(err?: unknown) {
+      pendingAckId = null; // Don't ack on error
+      return inner.throw(err);
+    },
+
+    [Symbol.asyncIterator]() {
+      return wrapper;
+    },
+  };
+
+  return wrapper;
 }
 
 /**

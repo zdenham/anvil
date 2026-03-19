@@ -12,11 +12,13 @@ Instead of trying to prevent the race (graceful disconnect, nacks, timeouts), **
 
 ## Phases
 
-- [ ] Phase 1: Ensure disk write happens before ack emission
+- [x] Phase 1: Ensure disk write happens before ack emission
 
-- [ ] Phase 2: Reconcile pending queued messages on agent exit
+- [x] Phase 2: Visual indicator for queued messages in thread view
 
-- [ ] Phase 3: Add tests for the reconciliation logic
+- [x] Phase 3: Reconcile pending queued messages on `AGENT_COMPLETED` event
+
+- [x] Phase 4: Add tests for the reconciliation logic
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
@@ -40,11 +42,35 @@ Currently ack fires before `appendUserMessage()` writes to disk. Swap the order 
 
 This makes state.json the reliable source of truth: ack received → message is on disk. No ack → check disk to see if it made it anyway.
 
-## Phase 2: Reconcile pending queued messages on agent exit
+## Phase 2: Visual indicator for queued messages in thread view
+
+**Files:** `src/components/thread/user-message.tsx` (or equivalent), `src/stores/queued-messages-store.ts`
+
+Currently queued messages only appear in a separate banner (`queued-messages-banner.tsx`) with an amber pulse dot. The actual message content in the thread view has no visual distinction — the user can't tell which message is still pending delivery. Add inline visual treatment so queued messages are clearly distinguishable.
+
+**Visual treatment:**
+
+1. **Italicize** the message text while it's in queued/pending state
+2. **Add a "Queued" badge/chip** — small, muted label next to or below the message (e.g., amber text, similar to the banner's pulse indicator style)
+3. **Remove the visual treatment** once the message is confirmed (ack received) or reconciled
+
+**Implementation:**
+
+1. In the user message component, check `useQueuedMessagesStore.getState().isMessagePending(messageId)` to determine if this message is still queued
+2. Conditionally apply `italic` text style and render a small "Queued" indicator
+3. The indicator should automatically disappear when `confirmMessage()` removes the message from the store (reactive via Zustand subscription)
+
+**Design notes:**
+
+- Keep it subtle — italic + small badge, not a full overlay or blocking state
+- No spinner/loading — this isn't a network request, it's a queue position
+- The existing banner can remain as a summary; the inline indicator gives per-message clarity
+
+## Phase 3: Reconcile pending queued messages on `AGENT_COMPLETED` event
 
 **Files:** `src/entities/threads/listeners.ts`, `src/stores/queued-messages-store.ts`, `src/lib/agent-service.ts`
 
-When the agent exits, check if any pending queued messages were actually processed (on disk) or lost (need resend).
+When the agent exits (via `AGENT_COMPLETED` event), check if any pending queued messages were actually processed (on disk) or lost (need resend). This hooks into the existing `handleAgentCompleted` handler in `listeners.ts:165`.
 
 **Changes in** `listeners.ts` **(**`handleAgentCompleted`**, around line 165):**
 
@@ -73,21 +99,25 @@ When the agent exits, check if any pending queued messages were actually process
 
 **UI consideration:** When auto-resending, the user's message just appears naturally in the new turn. No toast needed — from the user's perspective, their message was delivered (just to a new turn instead of the ending one).
 
-## Phase 3: Add tests for the reconciliation logic
+## Phase 4: Add tests for the reconciliation logic
 
 **Files:** `src/entities/threads/__tests__/reconcile-queued-messages.test.ts` (new), `agents/src/lib/hub/__tests__/message-stream.test.ts` (existing)
 
 1. **Agent-side ordering test:** Verify that `appendUserMessage` is called before ack emission in message-stream.ts
-2. **Frontend reconciliation tests:**
+2. **Queued message visual indicator tests:**
+   - Pending message renders with italic text and "Queued" badge
+   - Confirmed message renders normally (no italic, no badge)
+3. **Frontend reconciliation tests:**
    - Pending message found in state.json → confirmed, not resent
    - Pending message NOT in state.json → removed from store, resent as new message
    - Multiple pending messages → processed in timestamp order
    - `drainThread()` is atomic — second call returns empty
    - No pending messages → no-op (doesn't crash)
-3. **Integration test:** Full lifecycle — queued message pushed just before agent exit → reconciliation fires → message resent as new turn
+4. **Integration test:** Full lifecycle — queued message pushed just before agent exit → reconciliation fires → message resent as new turn
 
 ## Risk Assessment
 
 - **Phase 1** is low-risk — reorders two existing calls, no new code paths
-- **Phase 2** is low-risk — purely additive recovery logic on an existing lifecycle event, with atomic drain preventing double-processing
-- **Phase 3** is no-risk — test-only
+- **Phase 2** is low-risk — purely additive UI styling, no behavior changes
+- **Phase 3** is low-risk — purely additive recovery logic on an existing lifecycle event (`AGENT_COMPLETED`), with atomic drain preventing double-processing
+- **Phase 4** is no-risk — test-only

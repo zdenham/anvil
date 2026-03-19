@@ -10,11 +10,10 @@
 
 import { EventName, type EventPayloads } from "@core/types/events.js";
 import { eventBus } from "@/entities/events";
-import { worktreeService } from "@/entities/worktrees";
 import { useThreadStore } from "@/entities/threads/store";
 import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
-import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import type { ContentPaneView } from "@/components/content-pane/types";
 import { paneLayoutService } from "./service";
 import { usePaneLayoutStore } from "./store";
@@ -115,65 +114,30 @@ export function setupPaneLayoutListeners(): void {
 }
 
 /**
- * Resolve repoName and worktreePath from a view.
+ * Resolve worktreeId from a view.
  * Returns null for views without worktree context.
  */
-function resolveWorktreeFromView(
-  view: ContentPaneView,
-): { repoName: string; worktreePath: string; worktreeId: string } | null {
-  let repoId: string | null = null;
-  let worktreeId: string | null = null;
-
+function resolveWorktreeIdFromView(view: ContentPaneView): string | null {
   switch (view.type) {
     case "thread": {
       const t = useThreadStore.getState().threads[view.threadId];
-      if (!t) return null;
-      repoId = t.repoId;
-      worktreeId = t.worktreeId;
-      break;
+      return t?.worktreeId ?? null;
     }
     case "plan": {
       const p = usePlanStore.getState().plans[view.planId];
-      if (!p) return null;
-      repoId = p.repoId;
-      worktreeId = p.worktreeId;
-      break;
+      return p?.worktreeId ?? null;
     }
     case "file":
-      if (!view.repoId || !view.worktreeId) return null;
-      repoId = view.repoId;
-      worktreeId = view.worktreeId;
-      break;
+      return view.worktreeId ?? null;
     case "changes":
-      repoId = view.repoId;
-      worktreeId = view.worktreeId;
-      break;
+      return view.worktreeId ?? null;
     case "terminal": {
       const session = useTerminalSessionStore.getState().sessions[view.terminalId];
-      if (!session) return null;
-      worktreeId = session.worktreeId;
-      // Find repoId from worktreeId
-      const { repos } = useRepoWorktreeLookupStore.getState();
-      for (const [rid, repo] of repos) {
-        if (repo.worktrees.has(worktreeId)) {
-          repoId = rid;
-          break;
-        }
-      }
-      break;
+      return session?.worktreeId ?? null;
     }
     default:
       return null;
   }
-
-  if (!repoId || !worktreeId) return null;
-
-  const lookup = useRepoWorktreeLookupStore.getState();
-  const repoName = lookup.getRepoName(repoId);
-  const worktreePath = lookup.getWorktreePath(repoId, worktreeId);
-  if (!worktreePath || repoName === "Unknown") return null;
-
-  return { repoName, worktreePath, worktreeId };
 }
 
 /**
@@ -189,15 +153,13 @@ function setupWorktreeTouchListener(): void {
     const tab = group.tabs.find((t) => t.id === group.activeTabId);
     if (!tab) return;
 
-    const resolved = resolveWorktreeFromView(tab.view);
-    if (!resolved) return;
+    const worktreeId = resolveWorktreeIdFromView(tab.view);
+    if (!worktreeId) return;
 
     // Only touch when worktree actually changes
-    if (resolved.worktreeId === lastWorktreeId) return;
-    lastWorktreeId = resolved.worktreeId;
+    if (worktreeId === lastWorktreeId) return;
+    lastWorktreeId = worktreeId;
 
-    worktreeService.touch(resolved.repoName, resolved.worktreePath).catch((e) => {
-      logger.warn("[PaneLayoutListener] Failed to touch worktree:", e);
-    });
+    useMRUWorktreeStore.getState().touchMRU(worktreeId);
   });
 }

@@ -208,6 +208,9 @@ export function TabItem({ tab, groupId, isActive }: TabItemProps) {
               onKeyDown={handleKeyDown}
               onClick={(e) => e.stopPropagation()}
               onDoubleClick={(e) => e.stopPropagation()}
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="flex-1 min-w-[40px] max-w-[180px] bg-transparent border-b border-accent-500 text-xs font-medium text-surface-200 outline-none"
             />
           ) : (

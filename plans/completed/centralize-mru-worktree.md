@@ -61,23 +61,23 @@ interface MRUWorktreeState {
 
 ## Phases
 
-- [ ] Create `src/stores/mru-worktree-store.ts` with MRU state, `hydrate()`, `touchMRU()`, and getters
+- [x] Create `src/stores/mru-worktree-store.ts` with MRU state, `hydrate()`, `touchMRU()`, and getters
 
-- [ ] Wire hydration: call `useMRUWorktreeStore.hydrate()` after lookup store hydration completes
+- [x] Wire hydration: call `useMRUWorktreeStore.hydrate()` after lookup store hydration completes
 
-- [ ] Rewrite `useMRUWorktree` hook as thin selector over `useMRUWorktreeStore`
+- [x] Rewrite `useMRUWorktree` hook as thin selector over `useMRUWorktreeStore`
 
-- [ ] Migrate Spotlight to use the new hook instead of duplicated fetch+sort logic
+- [x] Migrate Spotlight to use the new hook instead of duplicated fetch+sort logic
 
-- [ ] Fix Command+N to use `useMRUWorktreeStore.getState().getMRUWorktree()` instead of tree sort order
+- [x] Fix Command+N to use `useMRUWorktreeStore.getState().getMRUWorktree()` instead of tree sort order
 
-- [ ] Update `useActiveWorktreeContext` to use new hook (should be minimal change)
+- [x] Update `useActiveWorktreeContext` to use new hook (should be minimal change)
 
-- [ ] Wire `touchMRU()` into the two existing touch sites (tab switch listener + thread creation)
+- [x] Wire `touchMRU()` into the two existing touch sites (tab switch listener + thread creation)
 
-- [ ] Remove dead code from old `useMRUWorktree` hook
+- [x] Remove dead code from old `useMRUWorktree` hook
 
-- [ ] Verify Search Panel and Command Palette behavior (may intentionally not use MRU — no changes expected)
+- [x] Verify Search Panel and Command Palette behavior (may intentionally not use MRU — no changes expected)
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

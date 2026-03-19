@@ -115,6 +115,7 @@ import { setupTreeMenuListeners } from "@/stores/tree-menu/listeners";
 import { setupWorktreeListeners } from "./worktrees/listeners";
 import { treeMenuService } from "@/stores/tree-menu/service";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import { quickActionService } from "./quick-actions/service";
 import { setupQuickActionListeners } from "./quick-actions/listeners";
 import { draftService } from "./drafts/service";
@@ -181,6 +182,7 @@ export async function hydrateEntities(options: EntityInitOptions = {}): Promise<
     });
 
     await timed("repoWorktreeLookup.hydrate", () => useRepoWorktreeLookupStore.getState().hydrate());
+    timed("mruWorktreeStore.hydrate", async () => useMRUWorktreeStore.getState().hydrate());
 
     // Terminal cleanup + ensure: must run after both terminal sessions and worktree lookup hydrate
     await timed("terminalService.cleanupStale", () => terminalSessionService.cleanupStaleTerminals());

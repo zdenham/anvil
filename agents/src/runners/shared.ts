@@ -1376,7 +1376,7 @@ export async function runAgentLoop(
   let prompt: string | AsyncGenerator<import("@anthropic-ai/claude-agent-sdk").SDKUserMessage>;
   if (options.messageStream) {
     // Create async iterable from the message stream for SDK consumption
-    prompt = options.messageStream.createStream(config.prompt);
+    prompt = options.messageStream.createWrappedStream(config.prompt);
     logger.info("[runAgentLoop] Using message stream for queued message support");
   } else {
     prompt = config.prompt;

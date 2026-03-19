@@ -8,8 +8,13 @@ import { logger } from "@/lib/logger-client.js";
 import { useHeartbeatStore, startHeartbeatMonitor, stopHeartbeatMonitor } from "@/stores/heartbeat-store.js";
 import { handleStaleness, setupRecoveryCleanupListeners } from "@/lib/state-recovery.js";
 import { settingsService } from "../settings/service.js";
-import { isAgentRunning, sendToAgent } from "@/lib/agent-service.js";
+import { isAgentRunning, sendToAgent, resumeSimpleAgent } from "@/lib/agent-service.js";
 import { treeMenuService } from "@/stores/tree-menu/service.js";
+import { useQueuedMessagesStore } from "@/stores/queued-messages-store.js";
+import { useRepoStore } from "../repositories/store.js";
+import { loadSettings } from "@/lib/app-data-store.js";
+import { deriveWorkingDirectory } from "./utils.js";
+import type { ThreadMetadata } from "./types.js";
 
 /**
  * Clears chain state for a thread (e.g. on deactivation or panel hide).
@@ -44,6 +49,81 @@ function syncUsageFromState(threadId: string, store: ReturnType<typeof useThread
       updatedAt: Date.now(),
     });
   }
+}
+
+/**
+ * Reconcile pending queued messages after an agent exits.
+ *
+ * Checks state.json for each pending message:
+ * - Found on disk → ack was lost in transit, confirm the message
+ * - Not found → message was never processed, resend as a new turn
+ */
+async function reconcilePendingMessages(threadId: string): Promise<void> {
+  const pendingMessages = useQueuedMessagesStore.getState().drainThread(threadId);
+  if (pendingMessages.length === 0) return;
+
+  logger.info(`[ThreadListener] Reconciling ${pendingMessages.length} pending queued message(s) for ${threadId}`);
+
+  // Get thread state messages from the store (loaded by loadThreadState above)
+  const threadState = useThreadStore.getState().threadStates[threadId];
+  const stateMessageIds = new Set(
+    (threadState?.messages ?? []).map((m) => m.id)
+  );
+
+  const toResend: Array<{ content: string }> = [];
+
+  for (const msg of pendingMessages) {
+    if (stateMessageIds.has(msg.id)) {
+      // Message made it to disk — ack was just lost in transit
+      logger.info(`[ThreadListener] Queued message ${msg.id} found in state.json, confirming`);
+    } else {
+      // Message never reached disk — needs resend as a new turn
+      logger.info(`[ThreadListener] Queued message ${msg.id} NOT in state.json, will resend`);
+      toResend.push({ content: msg.content });
+    }
+  }
+
+  // Resend unprocessed messages as new turns (in original order)
+  if (toResend.length > 0) {
+    const thread = threadService.get(threadId) as ThreadMetadata | undefined;
+    if (!thread) {
+      logger.warn(`[ThreadListener] Cannot resend messages for ${threadId}: thread not found`);
+      return;
+    }
+
+    const workingDirectory = await resolveWorkingDirectoryForThread(thread);
+    if (!workingDirectory) {
+      logger.warn(`[ThreadListener] Cannot resend messages for ${threadId}: no working directory`);
+      return;
+    }
+
+    // Send the first message to start a new agent turn.
+    // Subsequent messages will be queued once the agent is running.
+    const first = toResend[0];
+    try {
+      logger.info(`[ThreadListener] Auto-resending message as new turn for ${threadId}`);
+      await resumeSimpleAgent(threadId, first.content, workingDirectory);
+    } catch (err) {
+      logger.error(`[ThreadListener] Failed to resend queued message for ${threadId}:`, err);
+    }
+  }
+}
+
+/** Resolve working directory for a thread from repo settings (non-hook). */
+async function resolveWorkingDirectoryForThread(thread: ThreadMetadata): Promise<string | null> {
+  const repoNames = useRepoStore.getState().getRepositoryNames();
+  for (const name of repoNames) {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    try {
+      const settings = await loadSettings(slug);
+      if (settings.id === thread.repoId) {
+        return deriveWorkingDirectory(thread, settings);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 /**
@@ -183,6 +263,9 @@ export function setupThreadListeners(): () => void {
       if (isVisible) {
         await threadService.loadThreadState(threadId);
       }
+
+      // Reconcile any pending queued messages that may have been lost
+      await reconcilePendingMessages(threadId);
 
       const thread = threadService.get(threadId);
       if (thread?.parentThreadId) {

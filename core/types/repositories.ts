@@ -43,7 +43,7 @@ export const WorktreeStateSchema = z.object({
   /** Whether this worktree has been renamed from its initial animal name */
   isRenamed: z.boolean().optional(),
   /** Visual settings for sidebar tree positioning */
-  visualSettings: VisualSettingsSchema.optional(),
+  visualSettings: VisualSettingsSchema.nullish(),
   /** Whether this worktree was discovered via git (not created by Mort) */
   isExternal: z.boolean().optional(),
 });

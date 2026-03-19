@@ -137,6 +137,82 @@ describe('Queued Messages Store', () => {
     });
   });
 
+  describe('removeMessage', () => {
+    it('removes the specified message', () => {
+      const store = useQueuedMessagesStore.getState();
+      store.addMessage('thread-A', 'msg-1', 'First');
+      store.addMessage('thread-A', 'msg-2', 'Second');
+
+      store.removeMessage('msg-1');
+
+      expect(store.isMessagePending('msg-1')).toBe(false);
+      expect(store.isMessagePending('msg-2')).toBe(true);
+    });
+
+    it('handles removing non-existent message gracefully', () => {
+      const store = useQueuedMessagesStore.getState();
+      expect(() => store.removeMessage('non-existent')).not.toThrow();
+    });
+  });
+
+  describe('drainThread', () => {
+    it('returns all pending messages for a thread sorted by timestamp', () => {
+      useQueuedMessagesStore.setState({
+        messages: {
+          'msg-3': { id: 'msg-3', threadId: 'thread-A', content: 'Third', timestamp: 3000 },
+          'msg-1': { id: 'msg-1', threadId: 'thread-A', content: 'First', timestamp: 1000 },
+          'msg-2': { id: 'msg-2', threadId: 'thread-A', content: 'Second', timestamp: 2000 },
+        }
+      });
+
+      const store = useQueuedMessagesStore.getState();
+      const drained = store.drainThread('thread-A');
+
+      expect(drained).toHaveLength(3);
+      expect(drained.map(m => m.content)).toEqual(['First', 'Second', 'Third']);
+    });
+
+    it('atomically removes drained messages from store', () => {
+      const store = useQueuedMessagesStore.getState();
+      store.addMessage('thread-A', 'msg-1', 'A1');
+      store.addMessage('thread-B', 'msg-2', 'B1');
+
+      store.drainThread('thread-A');
+
+      expect(store.isMessagePending('msg-1')).toBe(false);
+      expect(store.isMessagePending('msg-2')).toBe(true);
+    });
+
+    it('second call returns empty array (atomic drain)', () => {
+      const store = useQueuedMessagesStore.getState();
+      store.addMessage('thread-A', 'msg-1', 'Hello');
+
+      const first = store.drainThread('thread-A');
+      const second = store.drainThread('thread-A');
+
+      expect(first).toHaveLength(1);
+      expect(second).toHaveLength(0);
+    });
+
+    it('returns empty array for thread with no messages', () => {
+      const store = useQueuedMessagesStore.getState();
+      const drained = store.drainThread('empty-thread');
+      expect(drained).toEqual([]);
+    });
+
+    it('does not affect messages from other threads', () => {
+      const store = useQueuedMessagesStore.getState();
+      store.addMessage('thread-A', 'msg-a', 'A');
+      store.addMessage('thread-B', 'msg-b', 'B');
+      store.addMessage('thread-C', 'msg-c', 'C');
+
+      store.drainThread('thread-A');
+
+      expect(store.getMessagesForThread('thread-B')).toHaveLength(1);
+      expect(store.getMessagesForThread('thread-C')).toHaveLength(1);
+    });
+  });
+
   describe('thread isolation', () => {
     it('confirming messages from one thread does not affect others', () => {
       const store = useQueuedMessagesStore.getState();

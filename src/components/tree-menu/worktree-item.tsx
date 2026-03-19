@@ -199,6 +199,9 @@ function WorktreeHeader({
               onChange={(e) => setRenameValue(e.target.value)}
               onBlur={handleRenameSubmit}
               onKeyDown={handleRenameKeyDown}
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="bg-transparent border-b border-zinc-500 outline-none px-0 py-0 text-inherit font-inherit w-24"
               onClick={(e) => e.stopPropagation()}
             />

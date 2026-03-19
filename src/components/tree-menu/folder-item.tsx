@@ -192,6 +192,9 @@ export function FolderItem({
             onChange={rename.handleChange}
             onBlur={rename.handleBlur}
             onKeyDown={rename.handleKeyDown}
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             className="bg-transparent border-b border-zinc-500 outline-none px-0 py-0 text-inherit font-inherit w-full min-w-[60px]"
             onClick={(e) => e.stopPropagation()}
           />

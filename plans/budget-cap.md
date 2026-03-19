@@ -18,26 +18,31 @@ Ensure cost tracking is accurate and bubbles up from children to parents, then a
 
 ### Gaps
 
-1. **`totalCostUsd` never reaches `metadata.json`** — The SDK writes `metrics.totalCostUsd` to `state.json` via the COMPLETE reducer, but `metadata.json` has no `totalCostUsd` field. Budget checks need metadata-only reads (state.json is large).
+1. `totalCostUsd` **never reaches** `metadata.json` — The SDK writes `metrics.totalCostUsd` to `state.json` via the COMPLETE reducer, but `metadata.json` has no `totalCostUsd` field. Budget checks need metadata-only reads (state.json is large).
 
-2. **No cumulative USD cost** — There is no field that represents "this thread + all its descendants" cost. `cumulativeUsage` is cumulative _tokens_ for a single thread, not a tree-wide USD sum.
+2. **No cumulative USD cost** — There is no field that represents "this thread + all its descendants" cost. `cumulativeUsage` is cumulative *tokens* for a single thread, not a tree-wide USD sum.
 
-3. **mort-repl children don't emit `costUsd`** — `child-spawner.ts:287-289` emits AGENT_COMPLETED without `costUsd`. The child's `state.json` has the cost, but the parent never reads it.
+3. **mort-repl children don't emit** `costUsd` — `child-spawner.ts:287-289` emits AGENT_COMPLETED without `costUsd`. The child's `state.json` has the cost, but the parent never reads it.
 
-4. **SDK Task children emit `costUsd` but nobody consumes it** — `shared.ts:1278` emits `costUsd` in AGENT_COMPLETED, but `handleAgentCompleted` in `listeners.ts:165` destructures only `{ threadId, exitCode }`.
+4. **SDK Task children emit** `costUsd` **but nobody consumes it** — `shared.ts:1278` emits `costUsd` in AGENT_COMPLETED, but `handleAgentCompleted` in `listeners.ts:165` destructures only `{ threadId, exitCode }`.
 
-5. **`completeTurn()` is never called** — `threadService.completeTurn()` exists and would write `costUsd` to turn metadata, but nothing calls it.
+5. `completeTurn()` **is never called** — `threadService.completeTurn()` exists and would write `costUsd` to turn metadata, but nothing calls it.
 
 ## Phases
 
 - [ ] Propagate own `totalCostUsd` to `metadata.json` on thread completion
+
 - [ ] Roll up child cost to parent `metadata.json` on child completion
+
 - [ ] Add `budgetCapUsd` field and ancestor-walk budget check
+
 - [ ] Integrate budget gate into `ChildSpawner.spawn()`
+
 - [ ] Add `budgetCapUsd` to spawn options and `mort` SDK
+
 - [ ] Tests
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -180,9 +185,10 @@ if (metadata.parentThreadId) {
 
 Wait — this would double-count because child costs were already rolled up when the child completed. The simpler model:
 
-**`cumulativeCostUsd` tracks only direct children's costs that have been rolled up.** The total tree cost for a thread is `totalCostUsd + cumulativeCostUsd`. When checking budget, sum `totalCostUsd + cumulativeCostUsd` for the budget root thread only.
+`cumulativeCostUsd` **tracks only direct children's costs that have been rolled up.** The total tree cost for a thread is `totalCostUsd + cumulativeCostUsd`. When checking budget, sum `totalCostUsd + cumulativeCostUsd` for the budget root thread only.
 
 This means:
+
 - Child completes → child's `(totalCostUsd + cumulativeCostUsd)` rolls up to parent's `cumulativeCostUsd`
 - The parent's `cumulativeCostUsd` thus includes the entire descendant tree's cost
 - Budget check: `budgetRoot.totalCostUsd + budgetRoot.cumulativeCostUsd >= budgetRoot.budgetCapUsd`
@@ -346,7 +352,7 @@ Writes `budgetCapUsd` to the current thread's `metadata.json`.
 2. Parent has budget, under limit → `{ overBudget: false }`
 3. Parent has budget, over limit → `{ overBudget: true, ... }`
 4. Grandparent has budget (intermediate has none) → walks up correctly
-5. Exactly at cap → over budget (>= check)
+5. Exactly at cap → over budget (&gt;= check)
 6. Circular `parentThreadId` → terminates via visited set
 
 ### Unit tests for cost roll-up:
@@ -377,7 +383,7 @@ Use `tmp` dirs with mock `metadata.json` files — same pattern as existing test
 
 ## Edge Cases
 
-- **Circular `parentThreadId`**: Guarded with visited set in ancestor walk.
+- **Circular** `parentThreadId`: Guarded with visited set in ancestor walk.
 - **Missing metadata**: Skip with warning — don't block spawning.
 - **Race condition**: Thread completes between budget check and spawn — acceptable soft cap.
 - **In-flight threads**: Their cost is $0 until completion — budget is conservative (under-counts).
