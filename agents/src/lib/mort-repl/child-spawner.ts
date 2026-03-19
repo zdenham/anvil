@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { runnerPath } from "../../runner.js";
 import { EventName } from "@core/types/events.js";
 import { generateThreadName } from "../../services/thread-naming-service.js";
+import { isOverBudget, rollUpCostToParent } from "./budget.js";
 import { logger } from "../logger.js";
 import type { ReplContext, SpawnOptions } from "./types.js";
 
@@ -97,6 +98,15 @@ export class ChildSpawner {
 
   /** Spawn a child agent process and return its last assistant message text. */
   async spawn(options: SpawnOptions): Promise<string> {
+    const budgetCheck = isOverBudget(this.context.threadId, this.context.mortDir);
+    if (budgetCheck.overBudget) {
+      throw new Error(
+        `Budget exceeded: thread ${budgetCheck.budgetThreadId} ` +
+        `has spent $${budgetCheck.spentUsd?.toFixed(2)} of ` +
+        `$${budgetCheck.capUsd?.toFixed(2)} budget cap`
+      );
+    }
+
     const childThreadId = crypto.randomUUID();
     const childThreadPath = join(this.context.mortDir, "threads", childThreadId);
 
@@ -137,6 +147,7 @@ export class ChildSpawner {
       parentToolUseId: this.parentToolUseId,
       agentType,
       permissionMode,
+      ...(options.budgetCapUsd ? { budgetCapUsd: options.budgetCapUsd } : {}),
       visualSettings: {
         parentId: this.context.threadId,
       },
@@ -283,17 +294,50 @@ export class ChildSpawner {
       { threadId: childThreadId, status },
       "mort-repl:child-complete",
     );
+    // Read child's cost from metadata (written by child's complete() in output.ts)
+    const childCostUsd = this.readChildCostFromMetadata(childThreadPath);
+
     this.emitEvent(
       EventName.AGENT_COMPLETED,
-      { threadId: childThreadId, exitCode },
+      { threadId: childThreadId, exitCode, costUsd: childCostUsd },
       "mort-repl:child-complete",
     );
+
+    // Roll up child's tree cost to parent metadata
+    this.rollUpChildCost(childThreadPath);
 
     logger.info(
       `[mort-repl] Child ${childThreadId} exited with code ${exitCode} in ${durationMs}ms`,
     );
 
     return resultText;
+  }
+
+  /** Read the child's totalCostUsd from its metadata.json. */
+  private readChildCostFromMetadata(childThreadPath: string): number | undefined {
+    try {
+      const metadataPath = join(childThreadPath, "metadata.json");
+      if (!existsSync(metadataPath)) return undefined;
+      const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+      return metadata.totalCostUsd;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Roll up the child's total tree cost to the parent's cumulativeCostUsd. */
+  private rollUpChildCost(childThreadPath: string): void {
+    try {
+      const metadataPath = join(childThreadPath, "metadata.json");
+      if (!existsSync(metadataPath)) return;
+      const childMeta = JSON.parse(readFileSync(metadataPath, "utf-8"));
+      const childTreeCost = (childMeta.totalCostUsd ?? 0) + (childMeta.cumulativeCostUsd ?? 0);
+      if (childTreeCost <= 0) return;
+
+      rollUpCostToParent(this.context.mortDir, this.context.threadId, childTreeCost);
+    } catch (err) {
+      logger.warn(`[mort-repl] Failed to roll up child cost: ${err}`);
+    }
   }
 
   /** Read the last assistant message text from a child thread's state.json. */

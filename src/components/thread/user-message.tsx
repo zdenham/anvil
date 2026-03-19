@@ -83,14 +83,15 @@ export function UserMessage({ turn }: UserMessageProps) {
         {textContent && (
           <div
             className={cn(
-              "px-4 py-3 rounded-2xl",
-              "bg-accent-600 text-accent-900",
-              "shadow-sm",
+              "px-4 py-3 rounded-2xl transition-[opacity,background-color,border-color,box-shadow] duration-200 ease-out",
+              isPending
+                ? "bg-accent-600/90 text-accent-900 opacity-70"
+                : "bg-accent-600 text-accent-900 shadow-sm",
             )}
           >
             <p className={cn(
               "whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
-              isPending && "italic opacity-80",
+              isPending && "italic",
             )}>{textContent}</p>
           </div>
         )}

@@ -1,9 +1,7 @@
 import { randomUUID, type UUID } from "crypto";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { logger } from "../logger.js";
-
-// Event emitter callback type - avoids circular dependency with shared.ts
-type EventEmitter = (name: string, payload: Record<string, unknown>) => void;
+import type { QueuedAckManager } from "./queued-ack-manager.js";
 
 // Callback to append user message to state
 type AppendUserMessage = (id: string, content: string) => Promise<void>;
@@ -23,20 +21,11 @@ export class SocketMessageStream {
   private resolveNext: ((msg: { id: UUID; content: string } | null) => void) | null = null;
   private closed = false;
   private sessionId: string;
-  private eventEmitter: EventEmitter | null = null;
   private appendUserMessage: AppendUserMessage | null = null;
 
   constructor() {
     // Pre-generate session ID (will be updated when SDK provides one)
     this.sessionId = randomUUID();
-  }
-
-  /**
-   * Set the event emitter callback.
-   * This is used to emit queued-message:ack events when messages are yielded.
-   */
-  setEventEmitter(emitter: EventEmitter): void {
-    this.eventEmitter = emitter;
   }
 
   /**
@@ -85,8 +74,7 @@ export class SocketMessageStream {
           logger.info(`[SocketMessageStream] Appended user message to state`);
         }
 
-        // Note: ack is NOT emitted here. It's deferred to createWrappedStream()
-        // which fires the ack when the SDK actually consumes the message (calls .next()).
+        // Ack is deferred to MessageHandler after 2 assistant turns.
         yield this.formatUserMessage(msg.content, false, msg.id);
       }
     } finally {
@@ -151,16 +139,16 @@ export class SocketMessageStream {
   }
 
   /**
-   * Returns the stream wrapped so acks fire on SDK consumption, not on yield.
-   * Use this instead of createStream() when feeding into the SDK's query().
+   * Returns the stream wrapped so consumed messages are registered
+   * with the ack manager for deferred ack after 2 assistant turns.
    */
-  createWrappedStream(initialPrompt: string): AsyncGenerator<SDKUserMessage> {
+  createWrappedStream(
+    initialPrompt: string,
+    ackManager: QueuedAckManager,
+  ): AsyncGenerator<SDKUserMessage> {
     const inner = this.createStream(initialPrompt);
     return withAckOnConsume(inner, (messageId) => {
-      if (this.eventEmitter) {
-        this.eventEmitter("queued-message:ack", { messageId });
-        logger.info(`[SocketMessageStream] Emitted ack for queued message: ${messageId}`);
-      }
+      ackManager.register(messageId);
     });
   }
 
@@ -180,54 +168,46 @@ export class SocketMessageStream {
   }
 }
 
+
 /**
- * Wraps an async generator to defer ack emission until the SDK
- * actually consumes each yielded message (by calling .next() again).
- *
- * JS async generator contract: execution after a `yield` only resumes
- * when the consumer calls `.next()`. So when we enter `.next()` for
- * message N+1, we know message N was consumed.
+ * Wraps an async generator so that when the SDK calls .next(),
+ * the previously yielded message's ID is registered as consumed.
  */
-export function withAckOnConsume(
+function withAckOnConsume(
   inner: AsyncGenerator<SDKUserMessage>,
-  emitAck: (messageId: string) => void,
+  onConsumed: (messageId: string) => void,
 ): AsyncGenerator<SDKUserMessage> {
-  let pendingAckId: string | null = null;
+  let pendingId: string | null = null;
 
   const wrapper: AsyncGenerator<SDKUserMessage> = {
     async next(...args: [] | [unknown]) {
-      // SDK is pulling next message → it consumed the previous one
-      if (pendingAckId) {
-        emitAck(pendingAckId);
-        pendingAckId = null;
+      // SDK calling .next() proves it consumed the previous yield
+      if (pendingId) {
+        onConsumed(pendingId);
+        pendingId = null;
       }
-
       const result = await inner.next(...args);
-
       if (!result.done && result.value.uuid) {
-        pendingAckId = result.value.uuid;
+        pendingId = result.value.uuid;
       }
-
       return result;
     },
 
     async return(value?: unknown) {
-      // Ack the last message if SDK consumed it before closing
-      if (pendingAckId) {
-        emitAck(pendingAckId);
-        pendingAckId = null;
+      // Generator closing — register last consumed message
+      if (pendingId) {
+        onConsumed(pendingId);
+        pendingId = null;
       }
       return inner.return(value);
     },
 
     async throw(err?: unknown) {
-      pendingAckId = null; // Don't ack on error
+      pendingId = null; // Don't register on error
       return inner.throw(err);
     },
 
-    [Symbol.asyncIterator]() {
-      return wrapper;
-    },
+    [Symbol.asyncIterator]() { return wrapper; },
   };
 
   return wrapper;

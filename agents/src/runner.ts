@@ -14,13 +14,12 @@ import {
   runAgentLoop,
   setupSignalHandlers,
   emitLog,
-  emitEvent,
   propagateModeToChildren,
   type PriorState,
 } from "./runners/shared.js";
 import type { OrchestrationContext } from "./runners/types.js";
 import { getAgentConfig } from "./agent-types/index.js";
-import { cancelled, setHubClient, appendUserMessage, emitState } from "./output.js";
+import { cancelled, setHubClient, appendUserMessageLocal, emitState } from "./output.js";
 import { DiagnosticLoggingConfigSchema } from "@core/types/diagnostic-logging.js";
 import { logger } from "./lib/logger.js";
 import { HubClient, type TauriToAgentMessage } from "./lib/hub/index.js";
@@ -162,10 +161,8 @@ async function main(): Promise<void> {
   const replCancelRef: { current: (() => void) | null } = { current: null };
   // Create message stream for queued messages (will be passed to runAgentLoop)
   const messageStream = new SocketMessageStream();
-  // Set event emitter for ack events (emits via socket or stdout fallback)
-  messageStream.setEventEmitter(emitEvent);
   // Set callback to append user messages to state (SDK doesn't return injected messages)
-  messageStream.setAppendUserMessage(appendUserMessage);
+  messageStream.setAppendUserMessage(appendUserMessageLocal);
 
   // Create permission gate for async approval flow
   const permissionGate = new PermissionGate();

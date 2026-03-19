@@ -1,31 +1,33 @@
 /**
  * ScrollCoordinator — single source of truth for auto-scroll decisions.
  *
- * Replaces the two competing effects in useVirtualList:
- * - followCountChange (count increase → smooth scroll)
- * - followOutput subscriber (height change → auto scroll)
- *
- * Key property: multiple signals in the same frame → single scrollTo call.
- * Last behavior wins (onItemAdded "smooth" vs onContentGrew "auto").
+ * Uses a custom exponential-decay animation loop instead of browser
+ * smooth scroll. Browser `scrollTo({ behavior: "smooth" })` gets
+ * cancelled and restarted on every content change during streaming,
+ * causing visible jumpiness. This animation loop simply retargets
+ * to the new scrollHeight each frame, producing fluid motion.
  */
 
 export interface ScrollCoordinatorOptions {
   onStickyChange?: (sticky: boolean) => void;
   /** Distance from bottom to count as "near bottom" for re-engage */
   reengageThreshold?: number;
+  /** Fraction of remaining gap closed per frame (0–1). Higher = snappier. Default 0.22 */
+  lerpFactor?: number;
 }
 
 export class ScrollCoordinator {
   private _sticky = true;
-  private _rafId: number | null = null;
-  private _pendingBehavior: ScrollBehavior | null = null;
+  private _animationId: number | null = null;
   private _scrollElement: HTMLElement | null = null;
   private _reengageThreshold: number;
+  private _lerpFactor: number;
   private _onStickyChange?: (sticky: boolean) => void;
 
   constructor(options: ScrollCoordinatorOptions = {}) {
     this._onStickyChange = options.onStickyChange;
     this._reengageThreshold = options.reengageThreshold ?? 20;
+    this._lerpFactor = options.lerpFactor ?? 0.22;
   }
 
   get isSticky(): boolean {
@@ -38,21 +40,19 @@ export class ScrollCoordinator {
 
   detach(): void {
     this._scrollElement = null;
-    this._cancelPending();
+    this._stopAnimation();
   }
 
-  /** Content height increased (ResizeObserver / height measurement).
-   *  Use "smooth" so streaming text flows fluidly instead of snapping. */
+  /** Content height increased — ensure animation is chasing the new bottom. */
   onContentGrew(): void {
     if (!this._sticky) return;
-    this._schedule("smooth");
+    this._ensureAnimating();
   }
 
-  /** New item added (count increased).
-   *  Use "smooth" for a polished transition when new blocks appear. */
+  /** New item added — ensure animation is chasing the new bottom. */
   onItemAdded(): void {
     if (!this._sticky) return;
-    this._schedule("smooth");
+    this._ensureAnimating();
   }
 
   /** User explicitly scrolled up (wheel or scrollbar drag). */
@@ -77,30 +77,37 @@ export class ScrollCoordinator {
   private _setSticky(value: boolean): void {
     if (this._sticky === value) return;
     this._sticky = value;
+    if (!value) this._stopAnimation();
     this._onStickyChange?.(value);
   }
 
-  private _schedule(behavior: ScrollBehavior): void {
-    this._pendingBehavior = behavior;
-    if (this._rafId !== null) return;
-    this._rafId = requestAnimationFrame(() => {
-      this._rafId = null;
-      const b = this._pendingBehavior;
-      this._pendingBehavior = null;
-      if (!b || !this._scrollElement) return;
-      const el = this._scrollElement;
-      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (gap > 1) {
-        el.scrollTo({ top: el.scrollHeight, behavior: b });
-      }
-    });
+  private _ensureAnimating(): void {
+    if (this._animationId !== null) return;
+    this._animationId = requestAnimationFrame(this._tick);
   }
 
-  private _cancelPending(): void {
-    if (this._rafId !== null) {
-      cancelAnimationFrame(this._rafId);
-      this._rafId = null;
+  private _tick = (): void => {
+    const el = this._scrollElement;
+    if (!el || !this._sticky) {
+      this._animationId = null;
+      return;
     }
-    this._pendingBehavior = null;
+
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (gap <= 0.5) {
+      this._animationId = null;
+      return;
+    }
+
+    el.scrollTop += Math.ceil(gap * this._lerpFactor);
+
+    this._animationId = requestAnimationFrame(this._tick);
+  };
+
+  private _stopAnimation(): void {
+    if (this._animationId !== null) {
+      cancelAnimationFrame(this._animationId);
+      this._animationId = null;
+    }
   }
 }

@@ -186,6 +186,25 @@ export async function appendUserMessage(id: string, content: string): Promise<vo
 }
 
 /**
+ * Append a user message to local state and disk only (no socket emission).
+ * Used for queued messages where the frontend manages visibility via the
+ * queued store + ACK flow rather than thread_action replay.
+ */
+export async function appendUserMessageLocal(id: string, content: string): Promise<void> {
+  state = threadReducer(state, { type: "APPEND_USER_MESSAGE", payload: { content, id } });
+  await writeToDisk();
+}
+
+/**
+ * Move a message to the end of the messages array (dispatch + disk write).
+ * Used by QueuedAckManager to reposition queued messages after ACK.
+ */
+export async function moveMessageToEnd(id: string): Promise<void> {
+  dispatch({ type: "MOVE_MESSAGE_TO_END", payload: { id } });
+  await writeToDisk();
+}
+
+/**
  * Append an assistant message with a stable UUID and anthropicId for reducer matching.
  */
 export async function appendAssistantMessage(message: StoredMessage): Promise<void> {
@@ -230,10 +249,12 @@ export async function updateFileChange(change: FileChange, workingDirectory?: st
 
 /**
  * Mark the thread as complete with metrics.
+ * Writes totalCostUsd to metadata.json so cost lives exclusively in metadata.
  */
 export async function complete(metrics: ResultMetrics): Promise<void> {
   dispatch({ type: "COMPLETE", payload: { metrics } });
   await writeToDisk();
+  await writeCostToMetadata(metadataPath, metrics.totalCostUsd);
 }
 
 /**
@@ -314,6 +335,36 @@ export async function writeUsageToMetadata(
     }
   } catch (err) {
     logger.warn(`[output] Failed to write usage to metadata: ${err}`);
+  }
+}
+
+/**
+ * Write totalCostUsd to metadata.json on thread completion.
+ * Cost lives exclusively in metadata — state.json strips it via the reducer.
+ */
+async function writeCostToMetadata(
+  mdPath: string,
+  costUsd: number | undefined,
+): Promise<void> {
+  if (costUsd === undefined) return;
+  try {
+    if (!existsSync(mdPath)) return;
+    const raw = readFileSync(mdPath, "utf-8");
+    const metadata = JSON.parse(raw);
+    metadata.totalCostUsd = costUsd;
+    metadata.updatedAt = Date.now();
+
+    if (threadWriter) {
+      try {
+        await threadWriter.writeMetadata(metadata);
+      } catch {
+        writeFileSync(mdPath, JSON.stringify(metadata, null, 2));
+      }
+    } else {
+      writeFileSync(mdPath, JSON.stringify(metadata, null, 2));
+    }
+  } catch (err) {
+    logger.warn(`[output] Failed to write cost to metadata: ${err}`);
   }
 }
 

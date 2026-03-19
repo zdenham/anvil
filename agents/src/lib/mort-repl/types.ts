@@ -27,4 +27,6 @@ export interface SpawnOptions {
   contextShortCircuit?: ContextShortCircuit;
   /** Wall-clock timeout in ms. Default 600_000 (10 min). SIGTERM then SIGKILL after 5s. */
   timeoutMs?: number;
+  /** Budget cap in USD for the child thread's subtree. */
+  budgetCapUsd?: number;
 }

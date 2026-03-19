@@ -9,6 +9,7 @@
 import { ArrowRight, GitBranch } from "lucide-react";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 import { useContextAwareNavigation } from "@/hooks/use-context-aware-navigation";
+import { useToolDuration } from "@/hooks/use-tool-duration";
 import type { ThreadStatus } from "@/entities/threads/types";
 
 interface SubAgentReferenceBlockProps {
@@ -17,6 +18,8 @@ interface SubAgentReferenceBlockProps {
   name: string;
   status: ThreadStatus;
   toolCallCount: number;
+  /** Parent thread ID where the tool_use lives — needed for duration timer. */
+  threadId?: string;
 }
 
 /**
@@ -24,12 +27,15 @@ interface SubAgentReferenceBlockProps {
  * Replaces the full TaskToolBlock when a child thread exists.
  */
 export function SubAgentReferenceBlock({
+  toolUseId,
   childThreadId,
   name,
   status,
   toolCallCount,
+  threadId,
 }: SubAgentReferenceBlockProps) {
   const { navigateToThread } = useContextAwareNavigation();
+  const duration = useToolDuration(threadId ?? "", toolUseId);
   const isRunning = status === "running";
 
   const handleClick = async () => {
@@ -66,8 +72,13 @@ export function SubAgentReferenceBlock({
             {isRunning ? "Running sub-agent" : "Sub-agent"}
           </ShimmerText>
 
-          {/* Right side: tool count and open button */}
+          {/* Right side: duration, tool count, and open button */}
           <span className="flex items-center gap-2 shrink-0 ml-auto">
+            {duration && (
+              <span className="text-xs text-zinc-500 font-mono tabular-nums">
+                {duration}
+              </span>
+            )}
             {toolCallCount > 0 && (
               <span className="text-xs text-zinc-500">
                 {toolCallCount} tool {toolCallCount === 1 ? "call" : "calls"}

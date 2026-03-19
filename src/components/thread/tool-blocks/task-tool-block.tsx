@@ -8,6 +8,7 @@ import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
 import { SubAgentReferenceBlock } from "./sub-agent-reference-block";
+import { useToolDuration } from "@/hooks/use-tool-duration";
 import { GitBranch } from "lucide-react";
 import type { ToolBlockProps } from "./index";
 
@@ -104,6 +105,7 @@ export function TaskToolBlock({
   threadId,
 }: ToolBlockProps) {
   const { status, result, isError } = useToolState(threadId, id);
+  const duration = useToolDuration(threadId, id);
 
   // Check if this Task created a sub-agent thread
   const childThread = useThreadStore((state) =>
@@ -149,6 +151,7 @@ export function TaskToolBlock({
         name={childThread.name ?? "Sub-agent"}
         status={childThread.status}
         toolCallCount={toolCallCount}
+        threadId={threadId}
       />
     );
   }
@@ -184,8 +187,13 @@ export function TaskToolBlock({
             {isRunning ? "Running sub-agent" : "Sub-agent"}
           </ShimmerText>
 
-          {/* Right side: error indicator */}
+          {/* Right side: duration and error indicator */}
           <span className="flex items-center gap-2 shrink-0 ml-auto">
+            {duration && (
+              <span className="text-xs text-zinc-500 font-mono tabular-nums">
+                {duration}
+              </span>
+            )}
             {isError && !isRunning && <StatusIcon isSuccess={false} />}
           </span>
         </div>

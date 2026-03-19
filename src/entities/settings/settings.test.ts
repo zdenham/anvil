@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { useSettingsStore } from "./store";
 import { settingsService } from "./service";
@@ -143,7 +142,15 @@ describe("Settings Store", () => {
       expect(useSettingsStore.getState().getApiKey()).toBe("my-key");
     });
 
-    it("isConfigured returns true when both values are set", () => {
+    it("isConfigured returns true when repository is set (regardless of API key)", () => {
+      useSettingsStore.setState({
+        workspace: { repository: "/repo", anthropicApiKey: null, workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal" },
+      });
+
+      expect(useSettingsStore.getState().isConfigured()).toBe(true);
+    });
+
+    it("isConfigured returns true when both repository and API key are set", () => {
       useSettingsStore.setState({
         workspace: { repository: "/repo", anthropicApiKey: "key", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal" },
       });
@@ -159,12 +166,12 @@ describe("Settings Store", () => {
       expect(useSettingsStore.getState().isConfigured()).toBe(false);
     });
 
-    it("isConfigured returns false when apiKey is null", () => {
+    it("getApiKey returns null when no custom key is set", () => {
       useSettingsStore.setState({
         workspace: { repository: "/repo", anthropicApiKey: null, workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal" },
       });
 
-      expect(useSettingsStore.getState().isConfigured()).toBe(false);
+      expect(useSettingsStore.getState().getApiKey()).toBeNull();
     });
   });
 });

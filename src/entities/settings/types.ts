@@ -24,6 +24,14 @@ export const WorkspaceSettingsSchema = z.object({
   anthropicApiKey: z.string().nullable(),
 
   /**
+   * Authentication method for agent processes.
+   * "api-key" — use anthropicApiKey from settings (BYOK)
+   * "claude-login" — don't pass API key, let CLI use keychain credentials
+   * "default" / undefined — current behavior (use built-in key from env)
+   */
+  authMethod: z.enum(["api-key", "claude-login", "default"]).optional(),
+
+  /**
    * Workflow mode for handling completed threads.
    * "solo" - Rebase onto local main and fast-forward merge (for solo devs)
    * "team" - Rebase onto origin/main and create a PR (for teams)
@@ -70,6 +78,18 @@ export const WorkspaceSettingsSchema = z.object({
    * Optional for backwards compatibility — defaults to true (hide external).
    */
   hideExternalWorktrees: z.boolean().optional(),
+
+  /**
+   * Path to a .env file whose variables are injected into agent processes.
+   * Optional — defaults to `{mortDir}/.env` in the UI when not set.
+   */
+  envFilePath: z.string().optional(),
+
+  /**
+   * Whether the custom env file is active. When false, the file is ignored even if a path is set.
+   * Optional — defaults to false (disabled).
+   */
+  envFileEnabled: z.boolean().optional(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 

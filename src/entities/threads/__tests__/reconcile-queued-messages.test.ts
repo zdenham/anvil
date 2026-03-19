@@ -5,8 +5,11 @@
  * Tests that pending queued messages are correctly reconciled when
  * an agent process exits (AGENT_COMPLETED event).
  *
- * - Messages found in state.json → confirmed (ack was lost)
- * - Messages NOT in state.json → resent as new turn
+ * With the pinned message flow, queued messages are never appended to
+ * state.json — they live exclusively in the queued store until ACK.
+ * On exit, pending messages are drained and resent as a new turn.
+ *
+ * - All pending messages → drained + resent as new turn (no scrub needed)
  * - drainThread is atomic (second call returns empty)
  * - No pending messages → no-op
  */
@@ -160,21 +163,21 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
     expect(mockResumeSimpleAgent).not.toHaveBeenCalled();
   });
 
-  it("confirms message found in state.json (ack was lost)", async () => {
-    const threadId = "thread-ack-lost";
-    const messageId = "msg-found-in-state";
+  it("drains and resends pending message as new turn", async () => {
+    const threadId = "thread-in-state";
+    const messageId = "msg-pending";
+    const thread = createThreadMetadata({ id: threadId });
 
     // Add pending queued message
     useQueuedMessagesStore.getState().addMessage(threadId, messageId, "Hello");
     expect(useQueuedMessagesStore.getState().isMessagePending(messageId)).toBe(true);
 
-    // Set up thread state with the message already on disk
     useThreadStore.setState({
       ...useThreadStore.getState(),
       activeThreadId: threadId,
       threadStates: {
         [threadId]: {
-          messages: [{ id: messageId, role: "user", content: "Hello" }],
+          messages: [],
           fileChanges: [],
           workingDirectory: "/projects/test",
           status: "completed",
@@ -184,16 +187,22 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
       },
     });
 
+    vi.mocked(threadService.get).mockReturnValue(thread);
+
     triggerEvent(EventName.AGENT_COMPLETED, { threadId, exitCode: 0 });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    // Message should be drained (removed from store) — confirmed
+    // Message should be drained (removed from store)
     expect(useQueuedMessagesStore.getState().isMessagePending(messageId)).toBe(false);
-    // Should NOT resend since it was found in state.json
-    expect(mockResumeSimpleAgent).not.toHaveBeenCalled();
+    // Should resend as new turn (no scrub needed — message was never in state.json)
+    expect(mockResumeSimpleAgent).toHaveBeenCalledWith(
+      threadId,
+      "Hello",
+      "/projects/test",
+    );
   });
 
-  it("resends message NOT found in state.json as new turn", async () => {
+  it("resends message not in state.json as new turn", async () => {
     const threadId = "thread-lost-msg";
     const messageId = "msg-not-in-state";
     const thread = createThreadMetadata({ id: threadId });
@@ -224,7 +233,7 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
 
     // Message should be removed from store
     expect(useQueuedMessagesStore.getState().isMessagePending(messageId)).toBe(false);
-    // Should resend as new turn
+    // Should resend as new turn (no scrub needed)
     expect(mockResumeSimpleAgent).toHaveBeenCalledWith(
       threadId,
       "Lost message",
@@ -232,7 +241,7 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
     );
   });
 
-  it("processes multiple pending messages in timestamp order", async () => {
+  it("resends first message in timestamp order when multiple are pending", async () => {
     const threadId = "thread-multi";
     const thread = createThreadMetadata({ id: threadId });
 
@@ -245,7 +254,6 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
       },
     });
 
-    // msg-1 is in state.json (processed), msg-2 and msg-3 are not
     useThreadStore.setState({
       ...useThreadStore.getState(),
       activeThreadId: threadId,
@@ -269,10 +277,10 @@ describe("reconcile queued messages on AGENT_COMPLETED", () => {
     // All messages should be drained
     expect(useQueuedMessagesStore.getState().getMessagesForThread(threadId)).toHaveLength(0);
 
-    // Should resend first unprocessed message (msg-2, the earliest not in state)
+    // Should resend first message by timestamp order (msg-1)
     expect(mockResumeSimpleAgent).toHaveBeenCalledWith(
       threadId,
-      "Second",
+      "First",
       "/projects/test",
     );
   });

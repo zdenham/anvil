@@ -26,9 +26,9 @@ If the ack never fires (agent crash, exit before consumption), the frontend neve
 
 - [x] Fix visual indicator minimum display duration (already done)
 
-- [ ] Implement generator wrapper to defer ack until SDK consumption
+- [x] Implement generator wrapper to defer ack until SDK consumption
 
-- [ ] Update tests
+- [x] Update tests
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

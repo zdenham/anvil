@@ -1,23 +1,30 @@
 # Bring Your Own API Key
 
-Allow users to optionally provide their own Anthropic API key instead of using the hardcoded default.
+Allow users to optionally provide their own Anthropic API key. The hardcoded `VITE_ANTHROPIC_API_KEY` is always the fallback — if a user doesn't provide a key, everything works exactly as it does today using the built-in key.
+
+## Key Resolution Order
+
+1. **User-provided key** (`settings.anthropicApiKey`) — used if set
+2. **Built-in key** (`VITE_ANTHROPIC_API_KEY`) — automatic fallback, always available
+
+This is already implemented in `agent-service.ts` (lines 716, 880): `settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY`
 
 ## Current State
 
-- `VITE_ANTHROPIC_API_KEY` is baked into the build (hardcoded key)
+- `VITE_ANTHROPIC_API_KEY` is baked into the build (hardcoded key, serves as default fallback)
 - `settings.anthropicApiKey` already exists in `WorkspaceSettings` (nullable string), persisted to `settings.json`
-- `agent-service.ts` already resolves the key as: `settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY` (lines 716, 880)
+- The fallback logic already works in `agent-service.ts` — user key takes priority, built-in key is used when no user key is set
 - No UI exists for users to enter/manage their key
-- `isConfigured()` currently requires `anthropicApiKey !== null` — but this is unused outside tests
+- `isConfigured()` currently requires `anthropicApiKey !== null` — but this is wrong since the built-in key means the app is always configured once a repo is set
 
-**The backend plumbing already works.** The main work is adding a settings UI and fixing `isConfigured` so it doesn't require a user key when the built-in key exists.
+**The backend plumbing already works.** The main work is adding a settings UI and fixing `isConfigured` so it doesn't require a user key when the built-in key exists as a fallback.
 
 ## Phases
 
-- [ ] Fix `isConfigured()` to not require user API key
-- [ ] Add API Key settings UI component
-- [ ] Add key validation feedback
-- [ ] Update tests
+- [x] Fix `isConfigured()` to not require user API key
+- [x] Add API Key settings UI component
+- [x] Add key validation feedback
+- [x] Update tests
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
@@ -46,8 +53,8 @@ Create an `ApiKeySettings` component following the existing `SettingsSection` pa
 
 - Password-type input field for the API key (masked by default, toggle to reveal)
 - "Save" button that calls `settingsService.set("anthropicApiKey", value)`
-- "Clear" button to remove custom key and revert to default (`settingsService.set("anthropicApiKey", null)`)
-- Label indicating whether user is on custom key or built-in default
+- "Clear" button to remove custom key and fall back to the built-in key (`settingsService.set("anthropicApiKey", null)`)
+- Label indicating whether user is on custom key or built-in default (e.g., "Using built-in key" / "Using custom key")
 - The key should be shown as masked (`sk-ant-...XXXX`) when saved, full input when editing
 
 **File:** `src/components/main-window/settings-page.tsx`

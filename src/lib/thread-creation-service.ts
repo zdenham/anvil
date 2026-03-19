@@ -20,6 +20,7 @@ import type { PermissionModeId } from "@core/types/permissions.js";
 import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import { spawnSimpleAgent } from "./agent-service";
 import { logger } from "./logger-client";
+import { toast } from "./toast";
 
 export interface CreateThreadOptions {
   prompt: string;
@@ -128,12 +129,13 @@ export async function createThread(
       });
     })
     .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
       logger.error("[thread-creation-service] Failed to spawn agent", {
         threadId,
-        error: err instanceof Error ? err.message : String(err),
+        error: message,
       });
-      // Note: The optimistic thread will remain in the store with "running" status
-      // until the next disk refresh replaces it or it times out
+      toast.error(message, { duration: 6000 });
+      threadService.markError(threadId);
     });
 
   logger.info("[thread-creation-service] Thread created", {

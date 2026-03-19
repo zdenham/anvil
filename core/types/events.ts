@@ -93,8 +93,9 @@ export const EventName = {
   QUESTION_REQUEST: "question:request",
   QUESTION_RESPONSE: "question:response",
 
-  // Queued message acknowledgement
+  // Queued message acknowledgement / rejection
   QUEUED_MESSAGE_ACK: "queued-message:ack",
+  QUEUED_MESSAGE_NACK: "queued-message:nack",
 
   // Terminal lifecycle
   TERMINAL_CREATED: "terminal:created",
@@ -340,8 +341,12 @@ export interface EventPayloads {
     answers: Record<string, string>;
   };
 
-  // Queued message acknowledgement
+  // Queued message acknowledgement / rejection
   [EventName.QUEUED_MESSAGE_ACK]: {
+    threadId: string;
+    messageId: string;
+  };
+  [EventName.QUEUED_MESSAGE_NACK]: {
     threadId: string;
     messageId: string;
   };
@@ -445,7 +450,7 @@ export type TokenUsage = z.infer<typeof TokenUsageSchema>;
  */
 export const ResultMetricsSchema = z.object({
   durationApiMs: z.number(),
-  totalCostUsd: z.number(),
+  totalCostUsd: z.number().optional(),
   numTurns: z.number(),
   lastCallUsage: TokenUsageSchema.optional(),
   contextWindow: z.number().optional(),
@@ -459,7 +464,9 @@ export const ToolExecutionStateSchema = z.object({
   status: z.enum(["running", "complete", "error"]),
   result: z.string().optional(),
   isError: z.boolean().optional(),
-  toolName: z.string().optional(), // Track which tool was used
+  toolName: z.string().optional(),
+  startedAt: z.number().optional(),
+  completedAt: z.number().optional(),
 });
 export type ToolExecutionState = z.infer<typeof ToolExecutionStateSchema>;
 
@@ -564,6 +571,7 @@ export const EventNameSchema = z.enum([
   EventName.QUESTION_REQUEST,
   EventName.QUESTION_RESPONSE,
   EventName.QUEUED_MESSAGE_ACK,
+  EventName.QUEUED_MESSAGE_NACK,
   EventName.TERMINAL_CREATED,
   EventName.TERMINAL_UPDATED,
   EventName.TERMINAL_ARCHIVED,

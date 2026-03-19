@@ -6,6 +6,8 @@ import { AboutSettings } from "./settings/about-settings";
 import { SkillsSettings } from "./settings/skills-settings";
 import { SpotlightSettings } from "./settings/spotlight-settings";
 import { PermissionsSettings } from "./settings/permissions-settings";
+import { AuthSettings } from "./settings/auth-settings";
+import { EnvFileSettings } from "./settings/env-file-settings";
 
 export function SettingsPage() {
   return (
@@ -20,6 +22,8 @@ export function SettingsPage() {
         */}
         <SkillsSettings />
         <SidebarSettings />
+        <AuthSettings />
+        <EnvFileSettings />
         <RepositorySettings />
         <AboutSettings />
       </div>

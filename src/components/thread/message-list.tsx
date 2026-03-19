@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { TurnRenderer } from "./turn-renderer";
 import { WorkingIndicator } from "./working-indicator";
 import { useThreadContext } from "./thread-context";
+import { useQueuedMessagesForThread } from "@/stores/queued-messages-store";
 
 interface MessageListProps {
   /** Turns to render */
@@ -30,6 +31,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
 }, ref) {
   const { threadId } = useThreadContext();
   const isRunning = useIsThreadRunning(threadId);
+  const pendingMessages = useQueuedMessagesForThread(threadId);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
   useScrolling(scrollerRef);
@@ -120,6 +122,17 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
         })}
         <div style={{ height: paddingAfter + 30 }} />
         </div>
+
+        {/* Pinned pending messages — sticky to viewport bottom */}
+        {pendingMessages.length > 0 && (
+          <div style={{ position: "sticky", bottom: 0, zIndex: 10, pointerEvents: "none" }}>
+            {pendingMessages.map((msg) => (
+              <div key={msg.id} className="px-4 py-2 w-full max-w-[900px] mx-auto pointer-events-auto">
+                <PinnedUserMessage content={msg.content} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Scroll to bottom button */}
@@ -147,3 +160,17 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     </div>
   );
 });
+
+/** Lightweight ghost-styled bubble for pending queued messages. */
+function PinnedUserMessage({ content }: { content: string }) {
+  return (
+    <article role="article" aria-label="Pending message" className="flex justify-end my-3">
+      <div className="max-w-[80%] flex flex-col items-end gap-1 overflow-hidden">
+        <div className="px-4 py-3 rounded-2xl bg-accent-600/90 text-accent-900">
+          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] italic">{content}</p>
+        </div>
+        <span className="text-xs text-surface-400 mr-2">queued</span>
+      </div>
+    </article>
+  );
+}

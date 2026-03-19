@@ -53,6 +53,11 @@ export const ThreadMetadataBaseSchema = z.object({
   lastCallUsage: TokenUsageSchema.optional(),
   cumulativeUsage: TokenUsageSchema.optional(),
 
+  // Cost tracking (written on completion, used for budget caps)
+  totalCostUsd: z.number().optional(),           // This thread's own USD cost (written on completion)
+  cumulativeCostUsd: z.number().optional(),       // All descendants' cost (rolled up on child completion)
+  budgetCapUsd: z.number().positive().optional(), // Budget cap (only on budget root threads)
+
   // Permission mode for the agent (default: "implement")
   permissionMode: z.enum(["plan", "implement", "approve"]).optional().default("implement"),
 

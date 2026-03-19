@@ -88,7 +88,7 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
                 name: wt.name,
                 path: wt.path,
                 currentBranch: wt.currentBranch ?? null,
-                visualSettings: wt.visualSettings,
+                visualSettings: wt.visualSettings ?? undefined,
                 isExternal: wt.isExternal ?? false,
                 lastAccessedAt: wt.lastAccessedAt ?? null,
               });

@@ -1,6 +1,6 @@
 import { transform } from "sucrase";
 import { logger } from "../logger.js";
-import type { ReplContext, ReplResult } from "./types.js";
+import type { ReplContext, ReplResult, ContextShortCircuit } from "./types.js";
 
 const MAX_RESULT_SIZE = 50 * 1024;
 
@@ -11,7 +11,8 @@ const QUOTED_PATTERN = /mort-repl\s+["']([\s\S]*?)["']/;
  * SDK interface compatible with both the stub and real MortReplSdk.
  */
 export interface MortSdk {
-  spawn: (prompt: string) => Promise<string>;
+  spawn: (options: { prompt: string; contextShortCircuit?: ContextShortCircuit; budgetCapUsd?: number }) => Promise<string>;
+  setBudgetCap: (usd: number) => void;
   log: (msg: string) => void;
   context: Readonly<ReplContext>;
   logs: string[];
@@ -22,6 +23,9 @@ function createStubSdk(context: ReplContext): MortSdk {
   return {
     spawn: async () => {
       throw new Error("mort.spawn() not available — use /orchestrate skill first");
+    },
+    setBudgetCap: () => {
+      throw new Error("mort.setBudgetCap() not available — use /orchestrate skill first");
     },
     log: (msg: string) => {
       logs.push(msg);

@@ -18,8 +18,10 @@ const fs = new FilesystemClient();
 const isDev = import.meta.env.DEV;
 import { logger } from "./logger-client";
 import { useQueuedMessagesStore } from "@/stores/queued-messages-store";
+import { useThreadStore } from "@/entities/threads/store";
 import { useEventDebuggerStore } from "@/stores/event-debugger-store";
 import { handleNetworkMessage } from "@/stores/network-debugger";
+import { parseEnvFile } from "./parse-env-file";
 
 // Cache the shell PATH to avoid repeated Tauri calls
 let cachedShellPath: string | null = null;
@@ -263,15 +265,42 @@ function routeAgentEvent(threadId: string, eventName: string, payload: unknown):
       eventBus.emit(eventName as any, payload as any);
       break;
 
-    case EventName.QUEUED_MESSAGE_ACK:
-      // Handle queued message acknowledgement
+    case EventName.QUEUED_MESSAGE_ACK: {
+      // Handle queued message acknowledgement — append to thread at natural position
       const ackPayload = payload as { messageId: string };
-      useQueuedMessagesStore.getState().confirmMessage(ackPayload.messageId);
+      const queuedStore = useQueuedMessagesStore.getState();
+      const msg = queuedStore.messages[ackPayload.messageId];
+
+      if (msg) {
+        // Append to thread at current position (natural ACK slot)
+        useThreadStore.getState().dispatch(msg.threadId, {
+          type: "THREAD_ACTION",
+          action: { type: "APPEND_USER_MESSAGE", payload: { content: msg.content, id: msg.id } },
+        });
+
+        // Remove from queued store (pinned copy will unmount)
+        queuedStore.confirmMessage(ackPayload.messageId);
+      }
+
       eventBus.emit(EventName.QUEUED_MESSAGE_ACK, {
         threadId,
         messageId: ackPayload.messageId,
       });
       break;
+    }
+
+    case EventName.QUEUED_MESSAGE_NACK: {
+      // Agent exited before 2-turn confirmation threshold.
+      // Message stays pending in the store — reconciliation on AGENT_COMPLETED
+      // will drain and resend it as a new turn.
+      const nackPayload = payload as { messageId: string };
+      logger.info(`[agent-service] Queued message nack: ${nackPayload.messageId} for thread ${threadId}`);
+      eventBus.emit(EventName.QUEUED_MESSAGE_NACK, {
+        threadId,
+        messageId: nackPayload.messageId,
+      });
+      break;
+    }
 
     default:
       // For unknown events, emit them generically (allows extension)
@@ -393,6 +422,25 @@ async function getShellPath(): Promise<string> {
     logger.info(`[agent] Captured shell PATH: ${cachedShellPath}`);
   }
   return cachedShellPath;
+}
+
+/**
+ * Loads environment variables from the user-configured .env file.
+ * Returns an empty object if env file is disabled, missing, or unreadable.
+ */
+async function loadEnvFileVars(): Promise<Record<string, string>> {
+  const { envFileEnabled, envFilePath } = useSettingsStore.getState().workspace;
+  if (!envFileEnabled || !envFilePath) return {};
+
+  try {
+    const content = await fs.readFile(envFilePath);
+    const vars = parseEnvFile(content);
+    logger.info(`[agent-service] Loaded ${Object.keys(vars).length} vars from env file: ${envFilePath}`);
+    return vars;
+  } catch (err) {
+    logger.warn(`[agent-service] Failed to read env file ${envFilePath}:`, err);
+    return {};
+  }
 }
 
 /**
@@ -706,13 +754,38 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     });
   }
 
-  // Get API key from settings or env
+  // Resolve auth method and API key
   const settings = settingsService.get();
-  const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
+  const authMethod = settings.authMethod ?? "default";
 
-  if (!apiKey) {
-    logger.error("[agent-service] No Anthropic API key configured");
-    throw new Error("Anthropic API key not configured");
+  const envVars: Record<string, string> = {
+    NODE_PATH: nodeModulesPath,
+    MORT_DATA_DIR: mortDir,
+    PATH: shellPath,
+  };
+
+  // Merge .env file vars (before explicit overrides so settings take precedence)
+  const envFileVars = await loadEnvFileVars();
+  Object.assign(envVars, envFileVars);
+
+  if (authMethod === "claude-login") {
+    // Don't pass ANTHROPIC_API_KEY — CLI will use keychain credentials.
+    // Explicitly set empty to override any inherited env (dev mode .env).
+    envVars.ANTHROPIC_API_KEY = "";
+  } else if (authMethod === "api-key") {
+    if (!settings.anthropicApiKey) {
+      logger.error("[agent-service] Auth method is 'api-key' but no custom API key configured");
+      throw new Error("Custom API key selected but not configured. Set your API key in Settings → Authentication.");
+    }
+    envVars.ANTHROPIC_API_KEY = settings.anthropicApiKey;
+  } else {
+    // "default" — use only the built-in Mort key, never fall back to BYOK
+    const builtInKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined;
+    if (!builtInKey) {
+      logger.error("[agent-service] No built-in Anthropic API key available");
+      throw new Error("Built-in API key not available. Try using a custom API key in Settings → Authentication.");
+    }
+    envVars.ANTHROPIC_API_KEY = builtInKey;
   }
 
   // Command args for simple agent - matches SimpleRunnerStrategy.parseArgs()
@@ -733,12 +806,6 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
   const diagnosticEnv = diagnosticConfig ? JSON.stringify(diagnosticConfig) : undefined;
 
-  const envVars: Record<string, string> = {
-    ANTHROPIC_API_KEY: apiKey,
-    NODE_PATH: nodeModulesPath,
-    MORT_DATA_DIR: mortDir,
-    PATH: shellPath,
-  };
   if (diagnosticEnv) {
     envVars.MORT_DIAGNOSTIC_LOGGING = diagnosticEnv;
   }
@@ -870,13 +937,36 @@ export async function resumeSimpleAgent(
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
   const shellPath = await getShellPath();
 
-  // Get API key from settings or env
+  // Resolve auth method and API key
   const settings = settingsService.get();
-  const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
+  const authMethod = settings.authMethod ?? "default";
 
-  if (!apiKey) {
-    logger.error("[agent-service] resumeSimpleAgent: No API key configured");
-    throw new Error("Anthropic API key not configured");
+  const resumeEnvVars: Record<string, string> = {
+    NODE_PATH: nodeModulesPath,
+    MORT_DATA_DIR: mortDir,
+    PATH: shellPath,
+  };
+
+  // Merge .env file vars (before explicit overrides so settings take precedence)
+  const resumeEnvFileVars = await loadEnvFileVars();
+  Object.assign(resumeEnvVars, resumeEnvFileVars);
+
+  if (authMethod === "claude-login") {
+    resumeEnvVars.ANTHROPIC_API_KEY = "";
+  } else if (authMethod === "api-key") {
+    if (!settings.anthropicApiKey) {
+      logger.error("[agent-service] resumeSimpleAgent: Auth method is 'api-key' but no custom API key configured");
+      throw new Error("Custom API key selected but not configured. Set your API key in Settings → Authentication.");
+    }
+    resumeEnvVars.ANTHROPIC_API_KEY = settings.anthropicApiKey;
+  } else {
+    // "default" — use only the built-in Mort key, never fall back to BYOK
+    const builtInKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined;
+    if (!builtInKey) {
+      logger.error("[agent-service] resumeSimpleAgent: No built-in API key available");
+      throw new Error("Built-in API key not available. Try using a custom API key in Settings → Authentication.");
+    }
+    resumeEnvVars.ANTHROPIC_API_KEY = builtInKey;
   }
 
   // State path: threads/{threadId}/state.json
@@ -905,12 +995,6 @@ export async function resumeSimpleAgent(
 
   // Build diagnostic logging env var from current settings
   const resumeDiagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
-  const resumeEnvVars: Record<string, string> = {
-    ANTHROPIC_API_KEY: apiKey,
-    NODE_PATH: nodeModulesPath,
-    MORT_DATA_DIR: mortDir,
-    PATH: shellPath,
-  };
   if (resumeDiagnosticConfig) {
     resumeEnvVars.MORT_DIAGNOSTIC_LOGGING = JSON.stringify(resumeDiagnosticConfig);
   }

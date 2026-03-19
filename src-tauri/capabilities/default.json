@@ -89,6 +89,11 @@
           "name": "git",
           "cmd": "git",
           "args": true
+        },
+        {
+          "name": "security",
+          "cmd": "security",
+          "args": true
         }
       ]
     },

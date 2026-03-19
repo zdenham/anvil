@@ -13,7 +13,6 @@ import { nanoid } from "nanoid";
 import { StreamAccumulator } from "../lib/stream-accumulator.js";
 import {
   appendAssistantMessage,
-  appendUserMessage,
   markToolRunning,
   markToolComplete,
   complete,
@@ -24,6 +23,7 @@ import {
 } from "../output.js";
 import { logger } from "../lib/logger.js";
 import { getChildThreadId, emitEvent } from "./shared.js";
+import type { QueuedAckManager } from "../lib/hub/queued-ack-manager.js";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { EventName, type ThreadState } from "@core/types/events.js";
@@ -54,6 +54,9 @@ export class MessageHandler {
   /** Turn counter incremented on each assistant message with usage */
   private turnIndex = 0;
 
+  /** Manages deferred ack lifecycle for queued messages */
+  private ackManager: QueuedAckManager | undefined;
+
   /** Context pressure thresholds already crossed (emit once per threshold) */
   private crossedThresholds = new Set<number>();
 
@@ -71,12 +74,14 @@ export class MessageHandler {
    * @param drainManager - Optional drain manager for analytics event emission
    * @param defaultContextWindow - Optional default context window size so getUtilization()
    *   returns a value during the agent loop before the result message arrives
+   * @param ackManager - Optional queued ack manager for deferred ack lifecycle
    */
-  constructor(mortDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager, defaultContextWindow?: number) {
+  constructor(mortDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager, defaultContextWindow?: number, ackManager?: QueuedAckManager) {
     this.mortDir = mortDir ?? null;
     this.accumulator = accumulator ?? null;
     this.drainManager = drainManager ?? null;
     if (defaultContextWindow) this.contextWindow = defaultContextWindow;
+    this.ackManager = ackManager;
   }
 
   /**
@@ -161,6 +166,8 @@ export class MessageHandler {
         cacheReadTokens: usage.cache_read_input_tokens ?? 0,
       });
 
+      const currentTurn = this.turnIndex++;
+
       // Emit api:call drain event
       if (this.drainManager) {
         const cacheCreation = usage.cache_creation_input_tokens ?? 0;
@@ -168,7 +175,7 @@ export class MessageHandler {
         const totalInput = usage.input_tokens;
 
         this.drainManager.emit(DrainEventName.API_CALL, {
-          turnIndex: this.turnIndex++,
+          turnIndex: currentTurn,
           inputTokens: totalInput,
           outputTokens: usage.output_tokens,
           cacheCreationTokens: cacheCreation,
@@ -188,6 +195,9 @@ export class MessageHandler {
         this.latestInputTokens = totalContextTokens;
         this.checkContextPressure();
       }
+
+      // Notify ack manager of assistant turn for deferred ack counting
+      await this.ackManager?.onAssistantTurn();
     }
 
     // Cast content type - BetaContentBlock[] is structurally compatible with ContentBlockParam[]
@@ -220,38 +230,17 @@ export class MessageHandler {
       return true;
     }
 
-    // Queued user message (not synthetic, not tool result)
-    // isSynthetic is explicitly set to false for queued messages from stdin stream.
-    // The initial prompt has isSynthetic: true, so it won't be appended here
-    // (runAgentLoop already calls appendUserMessage for it).
-    if (msg.isSynthetic === false) {
-      const content = typeof msg.message.content === "string"
-        ? msg.message.content
-        : (msg.message.content as Array<{ type: string; text?: string }>)
-            .filter((block): block is { type: "text"; text: string } => block.type === "text")
-            .map(block => block.text)
-            .join("\n");
-
-      // Write to disk BEFORE emitting ack — ensures state.json contains
-      // the message before the frontend receives confirmation.
-      await appendUserMessage(msg.uuid ?? nanoid(), content);
-
-      // Emit acknowledgement event after disk write succeeds.
-      // msg.uuid carries the queued message ID from socket message stream.
-      if (msg.uuid) {
-        emitEvent("queued-message:ack", { messageId: msg.uuid }, "MessageHandler:queued-ack");
-        logger.info(`[MessageHandler] Emitted ack for queued message: ${msg.uuid}`);
-      }
-      logger.info("[MessageHandler] Processed queued user message");
-      return true;
-    }
-
-    // Other non-tool user messages (synthetic or undefined) - ignore
-    logger.debug("[MessageHandler] Ignoring synthetic/initial user message");
+    // Non-tool user messages — the SDK never emits injected user messages back
+    // through its output iterator, so queued message handling (disk write + ack
+    // registration) lives in SocketMessageStream / QueuedAckManager instead.
+    logger.debug("[MessageHandler] Ignoring non-tool user message");
     return true;
   }
 
   private async handleResult(msg: SDKResultMessage): Promise<boolean> {
+    // Nack any queued messages that didn't reach the 2-turn threshold
+    this.ackManager?.drainNacks();
+
     // Extract context window size from modelUsage (use first model's value)
     const modelUsageEntries = Object.values(msg.modelUsage ?? {});
     const contextWindow = modelUsageEntries[0]?.contextWindow;

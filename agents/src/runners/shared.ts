@@ -22,11 +22,13 @@ import {
   markToolComplete,
   updateFileChange,
   getHubClient,
+  moveMessageToEnd,
 } from "../output.js";
 import { NodePersistence } from "../lib/persistence-node.js";
 import { EventName } from "@core/types/events.js";
 import type { ToolExecutionState } from "@core/types/events.js";
 import { MessageHandler } from "./message-handler.js";
+import { QueuedAckManager } from "../lib/hub/queued-ack-manager.js";
 import { StreamAccumulator } from "../lib/stream-accumulator.js";
 import { DrainManager } from "../lib/drain-manager.js";
 import { DrainEventName } from "@core/types/drain-events.js";
@@ -46,6 +48,7 @@ import type { PermissionModeId } from "@core/types/permissions.js";
 import { createCommentResolutionHook } from "../hooks/comment-resolution-hook.js";
 import { createReplHook } from "../hooks/repl-hook.js";
 import { createSafeGitHook } from "../hooks/safe-git-hook.js";
+import { rollUpCostToParent } from "../lib/mort-repl/budget.js";
 
 // ============================================================================
 // Sub-agent Tracking
@@ -1203,9 +1206,20 @@ export async function runAgentLoop(
                     metadata.cumulativeUsage = usage;
                   }
 
+                  // Write totalCostUsd to child metadata (canonical cost location)
+                  if (taskResponse.total_cost_usd !== undefined) {
+                    metadata.totalCostUsd = taskResponse.total_cost_usd;
+                  }
+
                   metadata.updatedAt = Date.now();
                   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
                   logger.info(`[PostToolUse:SubAgent] Updated metadata for thread ${childThreadId}`);
+
+                  // Roll up child's tree cost to parent's cumulativeCostUsd
+                  if (taskResponse.total_cost_usd !== undefined) {
+                    const childTreeCost = (taskResponse.total_cost_usd as number) + ((metadata.cumulativeCostUsd as number) ?? 0);
+                    rollUpCostToParent(config.mortDir, context.threadId, childTreeCost);
+                  }
                 }
 
                 // === Append final response to state.json ===
@@ -1373,10 +1387,14 @@ export async function runAgentLoop(
 
   // Determine prompt: use message stream if provided (enables queued messages via socket),
   // otherwise use plain string prompt
+  const ackManager = options.messageStream
+    ? new QueuedAckManager(emitEvent, moveMessageToEnd)
+    : undefined;
+
   let prompt: string | AsyncGenerator<import("@anthropic-ai/claude-agent-sdk").SDKUserMessage>;
-  if (options.messageStream) {
+  if (options.messageStream && ackManager) {
     // Create async iterable from the message stream for SDK consumption
-    prompt = options.messageStream.createWrappedStream(config.prompt);
+    prompt = options.messageStream.createWrappedStream(config.prompt, ackManager);
     logger.info("[runAgentLoop] Using message stream for queued message support");
   } else {
     prompt = config.prompt;
@@ -1410,6 +1428,9 @@ export async function runAgentLoop(
           env: {
             ...process.env,
             CLAUDECODE: undefined,
+            // When ANTHROPIC_API_KEY is empty (claude-login mode), remove it so
+            // the CLI falls back to keychain credentials instead of sending "".
+            ...(process.env.ANTHROPIC_API_KEY === "" && { ANTHROPIC_API_KEY: undefined }),
             ...(options.proxyConfig && {
               HTTPS_PROXY: `http://127.0.0.1:${options.proxyConfig.port}`,
               HTTP_PROXY: `http://127.0.0.1:${options.proxyConfig.port}`,
@@ -1491,7 +1512,7 @@ export async function runAgentLoop(
   // Process messages with dedicated handler
   // Pass mortDir for sub-agent message routing, drainManager for analytics
   // Default context window (200k) allows getUtilization() to work before the result message arrives
-  const handler = new MessageHandler(config.mortDir, accumulator, drainManager, 200_000);
+  const handler = new MessageHandler(config.mortDir, accumulator, drainManager, 200_000, ackManager);
 
   let loopError: string | undefined;
   try {

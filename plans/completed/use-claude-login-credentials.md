@@ -2,6 +2,8 @@
 
 Allow Mort users to authenticate using their existing `claude login` credentials instead of requiring a separate API key. Scoped to Claude Code OAuth credentials only — BYOK API key is handled separately.
 
+**Prerequisite:** `bring-your-own-api-key.md` is implemented first. This plan builds on that work — specifically the existing `api-key-settings.tsx` component and the already-fixed `isConfigured()` (which only checks `repository !== null`).
+
 ## How It Works
 
 The Claude Agent SDK's `query()` spawns Claude Code CLI as a subprocess. That subprocess resolves credentials in this order:
@@ -27,27 +29,29 @@ The Claude Agent SDK's `query()` spawns Claude Code CLI as a subprocess. That su
 }
 ```
 
-## Current Auth Flow (What Changes)
+## Current Auth Flow (After BYOK)
 
 `src/lib/agent-service.ts` — two spawn functions (`startSimpleAgent`, `resumeSimpleAgent`):
 
 ```ts
-// Lines 714-721 and 878-885: Currently REQUIRES an API key
+// Key resolution: user key || built-in key
 const apiKey = settings.anthropicApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY;
 if (!apiKey) throw new Error("Anthropic API key not configured");
 
-// Lines 741-742 and 913-914: Passes it to subprocess env
+// Passes it to subprocess env
 const envVars = { ANTHROPIC_API_KEY: apiKey, ... };
 ```
 
-`src/entities/settings/store.ts` — `isConfigured()` currently requires both repo AND apiKey:
+`src/entities/settings/store.ts` — `isConfigured()` already only checks repository (fixed by BYOK):
 
 ```ts
 isConfigured: () => {
-  const { repository, anthropicApiKey } = get().workspace;
-  return repository !== null && anthropicApiKey !== null;
+  const { repository } = get().workspace;
+  return repository !== null;
 }
 ```
+
+`src/components/main-window/settings/api-key-settings.tsx` — BYOK component with key input, masking, validation. Exists but **not yet wired into** `SettingsPage`.
 
 `agents/src/runners/shared.ts:1343` — `query()` passes `process.env` through to the CLI:
 
@@ -59,13 +63,13 @@ env: { ...process.env, CLAUDECODE: undefined, ... }
 
 ## Phases
 
-- [ ] Add auth method to settings schema and store
+- [x] Add auth method to settings schema and store
 
-- [ ] Update agent spawn to support no-API-key mode
+- [x] Update agent spawn to support no-API-key mode
 
-- [ ] Add Claude login detection (keychain probe)
+- [x] Add Claude login detection (keychain probe)
 
-- [ ] Add auth method UI in settings
+- [x] Add unified auth settings UI (composes BYOK's `ApiKeySettings`)
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
@@ -81,24 +85,13 @@ Add an `authMethod` field to `WorkspaceSettingsSchema`:
 authMethod: z.enum(["api-key", "claude-login", "default"]).optional(),
 ```
 
-- `"api-key"` — use `anthropicApiKey` from settings (BYOK, handled separately)
+- `"api-key"` — use `anthropicApiKey` from settings (BYOK)
 - `"claude-login"` — don't pass API key, let CLI use keychain credentials
 - `"default"` / `undefined` — current behavior (use built-in key from env)
 
 `src/entities/settings/store.ts`
 
-Update `isConfigured()` to allow Claude Login auth without an API key:
-
-```ts
-isConfigured: () => {
-  const { repository, anthropicApiKey, authMethod } = get().workspace;
-  if (repository === null) return false;
-  if (authMethod === "claude-login") return true;  // No API key needed
-  return anthropicApiKey !== null;
-}
-```
-
-Add a selector:
+Add a selector (no changes to `isConfigured` — already correct from BYOK):
 
 ```ts
 getAuthMethod: () => get().workspace.authMethod ?? "default",
@@ -195,32 +188,81 @@ export async function detectClaudeLogin(): Promise<ClaudeLoginStatus> {
 
 **Note:** This does NOT extract or store the token — it just checks existence. The actual auth happens inside the Claude Code CLI subprocess which has native keychain access.
 
-## Phase 4: Add Auth Method UI
+## Phase 4: Add Unified Auth Settings UI
+
+**Instead of creating a separate component**, wrap the existing BYOK `ApiKeySettings` inside a new `AuthSettings` component that adds method selection.
 
 **New file:** `src/components/main-window/settings/auth-settings.tsx` (\~80 lines)
 
-A settings section that shows:
+```tsx
+import { useEffect, useState } from "react";
+import { useSettingsStore } from "@/entities/settings/store";
+import { settingsService } from "@/entities/settings";
+import { detectClaudeLogin, type ClaudeLoginStatus } from "@/lib/claude-login-detector";
+import { SettingsSection } from "../settings-section";
+import { ApiKeySettings } from "./api-key-settings";
 
+export function AuthSettings() {
+  const authMethod = useSettingsStore((s) => s.workspace.authMethod ?? "default");
+  const [loginStatus, setLoginStatus] = useState<ClaudeLoginStatus | null>(null);
+
+  useEffect(() => {
+    detectClaudeLogin().then(setLoginStatus);
+  }, []);
+
+  const handleChange = async (method: string) => {
+    await settingsService.set("authMethod", method === "default" ? null : method);
+  };
+
+  return (
+    <SettingsSection title="Authentication" description="How Mort authenticates with Claude">
+      <div className="space-y-3">
+        {/* Radio: Default */}
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" checked={authMethod === "default"} onChange={() => handleChange("default")} />
+          <span>Default (Mort built-in key)</span>
+        </label>
+
+        {/* Radio: Claude Login */}
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" checked={authMethod === "claude-login"} onChange={() => handleChange("claude-login")} />
+          <span>Claude Login</span>
+          {loginStatus?.detected ? (
+            <span className="text-xs text-green-400">Detected</span>
+          ) : loginStatus !== null ? (
+            <span className="text-xs text-surface-500">Not detected</span>
+          ) : null}
+        </label>
+        {authMethod === "claude-login" && !loginStatus?.detected && (
+          <p className="text-xs text-surface-500 ml-6">
+            Run <code className="text-surface-400">claude login</code> in your terminal
+          </p>
+        )}
+
+        {/* Radio: API Key — expands to show BYOK component */}
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" checked={authMethod === "api-key"} onChange={() => handleChange("api-key")} />
+          <span>Custom API Key</span>
+        </label>
+        {authMethod === "api-key" && <ApiKeySettings />}
+      </div>
+    </SettingsSection>
+  );
+}
 ```
-Authentication
-┌─────────────────────────────────────────┐
-│ ○ Default (Mort built-in key)           │
-│ ○ Claude Login  ✓ Detected              │
-│ ○ API Key       [handled by BYOK plan]  │
-└─────────────────────────────────────────┘
 
-Claude Login uses credentials from `claude login`.
-Run this in your terminal if not detected.
+**Key change:** `ApiKeySettings` is NOT a standalone settings section anymore — it's embedded inside `AuthSettings` when "API Key" is selected. This means `ApiKeySettings` needs a small tweak: strip the outer `<SettingsSection>` wrapper and export just the input UI, or accept a prop to suppress the wrapper. Simplest approach: extract the inner content into an `ApiKeyInput` component that both `ApiKeySettings` (standalone, if ever needed) and `AuthSettings` can use.
+
+`settings-page.tsx` — replace the unused `ApiKeySettings` import with `AuthSettings`:
+
+```tsx
+import { AuthSettings } from "./settings/auth-settings";
+
+// In the JSX, add before RepositorySettings:
+<AuthSettings />
 ```
 
-- Radio group for auth method selection
-- Detection status shown inline (calls `detectClaudeLogin()` on mount)
-- "Not detected" shows helper text: "Run `claude login` in your terminal"
-- Selecting "Claude Login" saves `authMethod: "claude-login"` to settings
-- Selecting "Default" saves `authMethod: "default"` (or removes the field)
-- "API Key" option defers to the BYOK plan's UI
-
-**Integration point:** Wire this into the existing settings page layout (likely `repository-settings.tsx` or a new tab/section adjacent to it).
+This gives us a single "Authentication" section with three options. The API key input from BYOK only appears when "Custom API Key" is selected, avoiding any UI duplication.
 
 ---
 
@@ -229,12 +271,13 @@ Run this in your terminal if not detected.
 | File | Change |
 | --- | --- |
 | `src/entities/settings/types.ts` | Add `authMethod` field to schema |
-| `src/entities/settings/store.ts` | Update `isConfigured()`, add `getAuthMethod()` |
+| `src/entities/settings/store.ts` | Add `getAuthMethod()` selector |
 | `src/lib/agent-service.ts` | Make API key optional when `authMethod === "claude-login"` |
 | `agents/src/runners/shared.ts` | Handle empty `ANTHROPIC_API_KEY` in `query()` env |
 | `src/lib/claude-login-detector.ts` | **New** — keychain probe for detection UI |
-| `src/components/main-window/settings/auth-settings.tsx` | **New** — auth method selector UI |
-| `src/entities/settings/settings.test.ts` | Tests for new auth method behavior |
+| `src/components/main-window/settings/auth-settings.tsx` | **New** — unified auth method selector, composes `ApiKeySettings` |
+| `src/components/main-window/settings/api-key-settings.tsx` | Refactor: extract inner content so it can be embedded in `AuthSettings` |
+| `src/components/main-window/settings-page.tsx` | Wire `AuthSettings` (replaces standalone `ApiKeySettings` import) |
 
 ## Edge Cases
 

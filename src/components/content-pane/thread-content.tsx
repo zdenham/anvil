@@ -192,13 +192,17 @@ export function ThreadContent({
     }
   }, [threadId, permissionMode]);
 
-  // Derive view status from entity status
+  // Derive view status from entity status, but also honor reducer-level errors
+  // (e.g. client-side spawn failures that dispatch ERROR to the thread state machine)
+  const reducerStatus = activeState?.status;
   const viewStatus: ViewStatus =
-    entityStatus === "paused"
-      ? "idle"
-      : entityStatus === "cancelled"
-        ? "cancelled"
-        : entityStatus;
+    reducerStatus === "error"
+      ? "error"
+      : entityStatus === "paused"
+        ? "idle"
+        : entityStatus === "cancelled"
+          ? "cancelled"
+          : entityStatus;
 
   // Optimistic cancelling state — shows feedback immediately on cancel click
   const [isCancelling, setIsCancelling] = useState(false);
@@ -303,16 +307,11 @@ export function ThreadContent({
       // Clear the persisted draft on send
       clearCurrentDraft({ type: 'thread', id: threadId }, clearContent);
 
-      // Generate a stable ID and dispatch the user message directly into the
-      // thread reducer — this makes it a first-class message in the same array
-      // as streaming assistant messages, so ordering is always correct.
+      // Generate a stable ID for the user message
       const messageId = crypto.randomUUID();
-      useThreadStore.getState().dispatch(threadId, {
-        type: "THREAD_ACTION",
-        action: { type: "APPEND_USER_MESSAGE", payload: { content: userPrompt, id: messageId } },
-      });
 
-      // Queue message if agent is currently running
+      // Queue message if agent is currently running — message lives exclusively
+      // in the queued store until ACK, so we do NOT dispatch APPEND_USER_MESSAGE here.
       if (canQueueMessages) {
         // If there are pending questions, cancel them — user is overriding with their message
         const pendingQuestions = useQuestionStore.getState().getPendingForThread(threadId);
@@ -328,6 +327,12 @@ export function ThreadContent({
         }
         return;
       }
+
+      // For non-queued messages, dispatch into the thread reducer immediately
+      useThreadStore.getState().dispatch(threadId, {
+        type: "THREAD_ACTION",
+        action: { type: "APPEND_USER_MESSAGE", payload: { content: userPrompt, id: messageId } },
+      });
 
       if (canResumeAgent) {
         try {
@@ -348,7 +353,12 @@ export function ThreadContent({
           }
         } catch (error) {
           logger.error("[ThreadContent] Failed to spawn/resume agent:", error);
-          throw error;
+          const errorMessage = error instanceof Error ? error.message : "Failed to start agent";
+          showToast(errorMessage);
+          useThreadStore.getState().dispatch(threadId, {
+            type: "THREAD_ACTION",
+            action: { type: "ERROR", payload: { message: errorMessage } },
+          });
         }
       } else {
         logger.warn("[ThreadContent] Cannot submit in current state", {

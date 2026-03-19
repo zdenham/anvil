@@ -6,6 +6,7 @@ import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { CollapsibleOutputBlock } from "@/components/ui/collapsible-output-block";
+import { useToolDuration } from "@/hooks/use-tool-duration";
 import { DollarSign } from "lucide-react";
 import { extractReplCode, ReplToolBlock } from "./repl-tool-block";
 import type { ToolBlockProps } from "./index";
@@ -82,6 +83,7 @@ export function BashToolBlock({
   threadId,
 }: ToolBlockProps) {
   const { status, result, isError } = useToolState(threadId, id);
+  const duration = useToolDuration(threadId, id);
 
   // Use Zustand store for expand state to persist across virtualization remounts
   const isExpanded = useToolExpandStore((state) => state.isToolExpanded(threadId, id));
@@ -173,8 +175,13 @@ export function BashToolBlock({
             <StatusIcon isSuccess={false} />
           )}
 
-          {/* Background info - right justified */}
+          {/* Right side: duration and background info */}
           <span className="flex items-center gap-2 shrink-0 ml-auto">
+            {duration && (
+              <span className="text-xs text-zinc-500 font-mono tabular-nums">
+                {duration}
+              </span>
+            )}
             {isBackground && (
               <span className="text-xs text-zinc-500 font-mono">
                 (bg: {id.slice(0, 8)})

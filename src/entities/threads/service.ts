@@ -890,6 +890,30 @@ export const threadService = {
   },
 
   /**
+   * Removes messages from a thread's state.json by ID.
+   * Used during reconciliation to scrub unconfirmed queued messages
+   * that were written to disk but never seen by the LLM.
+   */
+  async scrubMessagesFromState(threadId: string, messageIds: Set<string>): Promise<void> {
+    const statePath = await this.getStatePath(threadId);
+    if (!statePath) return;
+
+    const raw = await appData.readJson<{ messages?: Array<{ id?: string }> }>(statePath);
+    if (!raw?.messages || !Array.isArray(raw.messages)) return;
+
+    const before = raw.messages.length;
+    raw.messages = raw.messages.filter(
+      (m) => !m.id || !messageIds.has(m.id)
+    );
+    const removed = before - raw.messages.length;
+
+    if (removed > 0) {
+      await appData.writeJson(statePath, raw);
+      logger.info(`[threadService] Scrubbed ${removed} unconfirmed message(s) from state.json for ${threadId}`);
+    }
+  },
+
+  /**
    * Get plans related to a thread.
    * Uses the relation service to find associated plans.
    */

@@ -26,6 +26,7 @@ export type ThreadAction =
   | { type: "ERROR"; payload: { message: string } }
   | { type: "CANCELLED" }
   | { type: "HYDRATE"; payload: { state: ThreadState } }
+  | { type: "MOVE_MESSAGE_TO_END"; payload: { id: string } }
   | { type: "STREAM_START"; payload: { anthropicMessageId: string } }
   | { type: "STREAM_DELTA"; payload: { anthropicMessageId: string; deltas: BlockDelta[] } };
 
@@ -68,6 +69,7 @@ export function threadReducer(state: ThreadState, action: ThreadAction): ThreadS
           [action.payload.toolUseId]: {
             status: "running",
             toolName: action.payload.toolName,
+            startedAt: Date.now(),
           },
         },
       };
@@ -87,6 +89,15 @@ export function threadReducer(state: ThreadState, action: ThreadAction): ThreadS
       return applyCancelled(state);
     case "HYDRATE":
       return { ...action.payload.state };
+    case "MOVE_MESSAGE_TO_END": {
+      const idx = state.messages.findIndex((m) => m.id === action.payload.id);
+      if (idx === -1) return state;
+      const msg = state.messages[idx];
+      const messages = [...state.messages];
+      messages.splice(idx, 1);
+      messages.push(msg);
+      return { ...state, messages };
+    }
     case "STREAM_START":
       return applyStreamStart(state, action.payload);
     case "STREAM_DELTA":
@@ -301,6 +312,8 @@ function applyMarkToolComplete(
         result: payload.result,
         isError: payload.isError,
         toolName: existing?.toolName,
+        startedAt: existing?.startedAt,
+        completedAt: Date.now(),
       },
     },
   };
@@ -342,7 +355,9 @@ function applyComplete(
   payload: { metrics: ResultMetrics },
 ): ThreadState {
   const toolStates = markOrphanedTools(state.toolStates);
-  const metrics = { ...payload.metrics };
+  // Strip totalCostUsd — cost lives exclusively in metadata.json
+  const { totalCostUsd: _, ...metricsWithoutCost } = payload.metrics;
+  const metrics = { ...metricsWithoutCost };
   if (state.lastCallUsage && !metrics.lastCallUsage) {
     metrics.lastCallUsage = state.lastCallUsage;
   }
@@ -373,6 +388,8 @@ function markOrphanedTools(
         status: "error",
         result: "Tool execution was interrupted",
         isError: true,
+        startedAt: tool.startedAt,
+        completedAt: Date.now(),
       };
     } else {
       result[id] = tool;

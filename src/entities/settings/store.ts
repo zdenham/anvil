@@ -18,6 +18,7 @@ interface SettingsActions {
   /** Selectors */
   getRepository: () => string | null;
   getApiKey: () => string | null;
+  getAuthMethod: () => "api-key" | "claude-login" | "default";
   isConfigured: () => boolean;
   getWorkflowMode: () => WorkflowMode;
   getPermissionMode: () => PermissionMode;
@@ -51,9 +52,10 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
     // ═══════════════════════════════════════════════════════════════════════════
     getRepository: () => get().workspace.repository,
     getApiKey: () => get().workspace.anthropicApiKey,
+    getAuthMethod: () => get().workspace.authMethod ?? "default",
     isConfigured: () => {
-      const { repository, anthropicApiKey } = get().workspace;
-      return repository !== null && anthropicApiKey !== null;
+      const { repository } = get().workspace;
+      return repository !== null;
     },
     getWorkflowMode: () => get().workspace.workflowMode ?? "solo",
     getPermissionMode: () => get().workspace.permissionMode ?? "allow-all",
