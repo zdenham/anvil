@@ -276,8 +276,8 @@ fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
         .env("MORT_DATA_DIR", paths::data_dir().to_string_lossy().as_ref())
         .env("MORT_APP_SUFFIX", build_info::app_suffix())
         .env("PATH", paths::shell_path())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
 

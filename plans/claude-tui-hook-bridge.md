@@ -2,242 +2,356 @@
 
 ## Summary
 
-Build a hook bridge that connects Claude CLI sessions (spawned in PTY) back to Mort's hub server, enabling full lifecycle event tracking (thread started/ended, tool calls, permissions) for Claude TUI sessions. Without this, TUI sessions are opaque PTY processes — with it, Mort has the same observability and control as SDK-managed threads.
+Connect Claude CLI sessions (spawned in PTY by `plans/claude-tui-content-pane.md`) back to Mort's hub server via the Mort plugin system. The plugin (`~/.mort/`) provides HTTP hooks that POST events to the hub server, enabling lifecycle tracking, permission bridging, and tool deny/allow decisions — with full code sharing between SDK agent runs and CLI TUI runs.
 
-**Depends on**: `plans/claude-tui-content-pane.md` (Phases 1-3 for PTY spawning and settings generation)
+**Depends on**: `plans/claude-tui-content-pane.md` (Phases 1-3 for PTY spawning and thread schema)
 
 ## Problem
 
 Mort's SDK-managed threads emit rich lifecycle events: tool calls, permission requests, file changes, sub-agent spawns, token usage, etc. A Claude CLI process in a PTY is a black box — Mort can see terminal output bytes but has no structured understanding of what's happening.
 
-The Claude CLI supports shell-command hooks via `--settings`. These hooks receive JSON on stdin and return JSON on stdout. We can use this as the bridge: a small process that receives hook events from the CLI, forwards them to Mort's hub server, and returns decisions.
-
 ## Architecture
 
+### Plugin-based approach
+
+The Mort plugin at `~/.mort/` already provides skills to both SDK and CLI sessions. This plan extends it with hooks via `~/.mort/hooks/hooks.json` (auto-discovered by the plugin system). The hooks use the **HTTP hook type** to POST events to the sidecar, which already runs a WebSocket server on a TCP port for the frontend.
+
 ```
-┌─────────────────────┐     stdin/stdout      ┌──────────────────┐
-│   Claude CLI (PTY)  │ ◄──────────────────► │  Hook Bridge      │
-│                     │    hook protocol       │  (Node.js script) │
-└─────────────────────┘                        └────────┬─────────┘
-                                                        │ WebSocket
-                                                        ▼
-                                               ┌──────────────────┐
-                                               │  Mort Hub Server  │
-                                               │  (ws_server)      │
-                                               └────────┬─────────┘
-                                                        │ broadcast
-                                                        ▼
-                                               ┌──────────────────┐
-                                               │  Mort Frontend    │
-                                               │  (permission UI)  │
-                                               └──────────────────┘
+┌─────────────────────┐     HTTP POST        ┌──────────────────┐
+│   Claude CLI (PTY)  │ ───────────────────► │  Sidecar          │
+│                     │    hook events        │  (HTTP + WS)      │
+│  loads plugin at    │ ◄─────────────────── │                   │
+│  ~/.mort/           │    JSON response      │  evaluator logic  │
+└─────────────────────┘                       │  + hub relay      │
+                                              └────────┬─────────┘
+                                                       │ broadcast
+                                                       ▼
+                                              ┌──────────────────┐
+                                              │  Mort Frontend    │
+                                              │  (permission UI)  │
+                                              └──────────────────┘
 ```
 
-### Hook lifecycle
+### HTTP hooks via sidecar
 
-1. Claude CLI is about to call a tool (e.g., `Bash` with `git push`)
-2. CLI invokes the hook bridge script, piping tool info as JSON to stdin
-3. Bridge opens a WebSocket to the hub server (or reuses a persistent connection)
-4. Bridge sends a `claude_tui_hook` message with `{claudeThreadId, hookType, toolName, toolInput, toolUseId}`
-5. Hub broadcasts to frontend → frontend shows permission UI (or auto-allows based on mode)
-6. Frontend sends decision back through hub → hub forwards to bridge
-7. Bridge writes decision JSON to stdout, exits
-8. Claude CLI proceeds (allow) or blocks (deny) the tool
+The sidecar already listens on a TCP port (`ws://localhost:{PORT}/ws`) for the frontend. We add HTTP routes to the same server for hook handling. This avoids opening a new port and leverages existing infrastructure.
 
-### Events to capture
+Claude Code supports both `command` hooks (subprocess per invocation, stdin/stdout JSON) and `http` hooks (POST to URL, JSON request/response). We use HTTP because:
 
-Beyond permissions, the bridge should emit **lifecycle events** so Mort can track TUI session activity:
+- The sidecar is already running on a TCP port — just add HTTP routes alongside WebSocket
+- Zero subprocess overhead per hook invocation
+- Same connection handles all hook types (PreToolUse, PostToolUse, Stop, SessionStart)
+- Thread identification via `X-Mort-Thread-Id` header (env var interpolation in hooks.json)
 
-| Hook point | Events emitted |
-| --- | --- |
-| `PreToolUse` | `TOOL_STARTED`, `PERMISSION_DECIDED` (allow/deny/ask) |
-| `PostToolUse` | `TOOL_COMPLETED`, `FILE_MODIFIED` (if Write/Edit) |
-| `Stop` | `SESSION_ENDED` |
-| `NotificationHook` (if available) | `SESSION_STARTED`, token usage updates |
+### Fail-open design
+
+Claude runs with `--dangerously-skip-permissions`. If the sidecar is unreachable (e.g., user runs `claude --plugin local:~/.mort` outside of Mort), HTTP hooks fail and Claude proceeds unblocked. The hooks are a convenience/safety layer, not a security boundary.
+
+HTTP hook type from the SDK:
+
+```typescript
+{
+  type: 'http';
+  url: string;                          // URL to POST the hook input JSON to
+  timeout?: number;                     // Timeout in seconds
+  headers?: Record<string, string>;     // Can use $VAR_NAME for env var interpolation
+  allowedEnvVars?: string[];            // Whitelist of env vars for header interpolation
+  statusMessage?: string;               // Spinner text while hook runs
+  once?: boolean;                       // Run once then remove
+}
+```
+
+The CLI POSTs the same `PreToolUseHookInput` / `PostToolUseHookInput` / etc. JSON as the request body, and reads the same `HookJSONOutput` JSON from the response body. Docs: <https://docs.anthropic.com/en/docs/claude-code/hooks> (see "HTTP hook fields" section).
+
+### Code sharing between SDK and CLI
+
+The key insight: SDK hooks and CLI hooks need the **same business logic** — the only difference is transport (in-process callback vs HTTP POST to sidecar).
+
+```
+agents/src/hooks/lib/           ← Shared evaluator functions (pure logic)
+  git-safety-evaluator.ts         BANNED_COMMANDS + pattern matching
+  tool-deny-evaluator.ts          disallowed tool list check
+
+agents/src/hooks/                ← SDK adapters (in-process callbacks for query() options)
+  safe-git-hook.ts                 calls git-safety-evaluator, returns JS object
+  repl-hook.ts                     calls MortReplRunner/ChildSpawner directly
+  comment-resolution-hook.ts       calls emitEvent directly
+
+sidecar/src/hooks/hook-handler.ts  ← HTTP adapter (sidecar route handler for CLI hooks)
+                                      receives JSON POST, calls same evaluators,
+                                      returns JSON response
+```
+
+The sidecar HTTP handler receives the same `PreToolUseHookInput` JSON shape that the SDK passes to callbacks. It calls the same evaluator functions and returns the same `HookJSONOutput` JSON.
+
+**Stateless hooks (Phase 1)** — handled directly in the sidecar:
+
+- **Safe-git checks**: `BANNED_COMMANDS` array, pattern matching logic
+- **Tool deny lists**: Same list of disallowed tools (Mcp, EnterWorktree, etc.)
+- **Lifecycle events**: Tool started/completed/denied, session ended
+
+**Stateful hooks (Phase 2, future)** — require per-thread process ("Terminal Runner"):
+
+- **Repl execution**: `MortReplRunner`, `ChildSpawner` need process-local state
+- **Comment resolution**: `emitEvent()` tied to thread context
+- **Permission gating**: `permissionGate` waits for user approval
+
+The Terminal Runner follows the same one-process-per-thread pattern as SDK agent threads. The sidecar relays hook requests to the terminal runner via the hub WebSocket. This is deferred until TUI threads need REPL/permission support.
+
+### Hook lifecycle (HTTP)
+
+1. Claude CLI loads the Mort plugin at `~/.mort/`
+2. Plugin's `hooks/hooks.json` registers HTTP hooks for PreToolUse, PostToolUse, Stop, SessionStart
+3. When an event fires, Claude CLI POSTs the event JSON to `$MORT_SIDECAR_URL/hooks/<event>` with `X-Mort-Thread-Id: $MORT_THREAD_ID` header
+4. Sidecar handler calls the appropriate evaluator(s) — same functions used by SDK hooks
+5. For PreToolUse: evaluator returns allow/deny decision → sidecar responds with JSON → CLI proceeds or blocks
+6. For lifecycle events: sidecar emits to frontend via broadcaster, persists to event log → responds with `{ continue: true }`
+7. If sidecar is unreachable (fail-open): hook times out, Claude proceeds unblocked
+
+## Plugin configuration
+
+### `~/.mort/hooks/hooks.json`
+
+```json
+{
+  "SessionStart": [
+    {
+      "hooks": [{
+        "type": "http",
+        "url": "$MORT_SIDECAR_URL/hooks/session-start",
+        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
+        "allowedEnvVars": ["MORT_SIDECAR_URL", "MORT_THREAD_ID"],
+        "timeout": 10,
+        "statusMessage": "Connecting to Mort..."
+      }]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "hooks": [{
+        "type": "http",
+        "url": "$MORT_SIDECAR_URL/hooks/pre-tool-use",
+        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
+        "allowedEnvVars": ["MORT_SIDECAR_URL", "MORT_THREAD_ID"],
+        "timeout": 86400,
+        "statusMessage": "Checking with Mort..."
+      }]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "hooks": [{
+        "type": "http",
+        "url": "$MORT_SIDECAR_URL/hooks/post-tool-use",
+        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
+        "allowedEnvVars": ["MORT_SIDECAR_URL", "MORT_THREAD_ID"],
+        "timeout": 10
+      }]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [{
+        "type": "http",
+        "url": "$MORT_SIDECAR_URL/hooks/stop",
+        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
+        "allowedEnvVars": ["MORT_SIDECAR_URL", "MORT_THREAD_ID"],
+        "timeout": 10
+      }]
+    }
+  ]
+}
+```
+
+### Environment variables on PTY spawn
+
+The content pane plan's `buildSpawnConfig()` is extended to include:
+
+```typescript
+args: [
+  "--dangerously-skip-permissions",
+  "--plugin", `local:${mortDir}`,
+  "--model", model,
+],
+env: {
+  MORT_SIDECAR_URL: sidecar.getHttpUrl(),   // HTTP URL for hook POSTs (same port as WS)
+  MORT_THREAD_ID: threadId,                 // Session identity — sent as X-Mort-Thread-Id header
+  MORT_DATA_DIR: mortDir,                   // For disk persistence
+}
+```
+
+### `SessionStart` hook for system prompt injection
+
+The `SessionStart` hook returns `additionalContext` to inject Mort-specific instructions — replacing `--append-system-prompt`. This is where worktree context, plan context, and coding guidelines get injected.
+
+```typescript
+// Hub handler for SessionStart
+function handleSessionStart(input: SessionStartHookInput, threadId: string): HookJSONOutput {
+  const thread = await getThread(threadId);
+  return {
+    hookSpecificOutput: {
+      hookEventName: "SessionStart",
+      additionalContext: buildSystemContext({
+        worktreePath: thread.worktreePath,
+        planContext: thread.planContext,
+      }),
+    },
+  };
+}
+```
 
 ## Phases
 
-- [ ] Phase 1: Define the hub protocol messages
+- [ ] Phase 1: Extract shared evaluator functions from SDK hooks
 
-- [ ] Phase 2: Build the hook bridge script
+- [ ] Phase 2: Add HTTP hook endpoints to hub server
 
-- [ ] Phase 3: Extend hub server to handle bridge messages
+- [ ] Phase 3: Create `hooks/hooks.json` in plugin directory
 
-- [ ] Phase 4: Frontend integration for permission UI
+- [ ] Phase 4: Extend `buildSpawnConfig()` with plugin + env vars
 
-- [ ] Phase 5: Lifecycle event emission and tracking
+- [ ] Phase 5: Frontend integration for permission UI
 
-- [ ] Phase 6: Settings generation integration
+- [ ] Phase 6: Lifecycle event emission and tracking
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
-## Phase 1: Define the hub protocol messages
+## Phase 1: Extract shared evaluator functions from SDK hooks
 
-### New message types in `core/types/events.ts`
+Refactor existing SDK hooks to separate pure evaluation logic from SDK-specific transport.
+
+### `agents/src/hooks/lib/git-safety-evaluator.ts`
+
+Extract from `safe-git-hook.ts`:
 
 ```typescript
-// Frontend → Hub → Bridge (decision response)
-interface ClaudeTuiHookResponse {
-  type: "claude_tui_hook_response";
-  claudeThreadId: string;
-  hookId: string;           // correlates request → response
-  decision: "allow" | "deny";
-  reason?: string;
-}
+export type GitEvaluationResult =
+  | { allowed: true }
+  | { allowed: false; reason: string; suggestion: string };
 
-// Bridge → Hub → Frontend (hook request)
-interface ClaudeTuiHookRequest {
-  type: "claude_tui_hook_request";
-  claudeThreadId: string;
-  hookId: string;
-  hookType: "PreToolUse" | "PostToolUse" | "Stop";
-  toolName: string;
-  toolInput: Record<string, unknown>;
-  toolUseId?: string;
-}
+export const BANNED_COMMANDS: Array<{ pattern: RegExp; reason: string; suggestion: string }>;
 
-// Bridge → Hub (lifecycle event, fire-and-forget)
-interface ClaudeTuiLifecycleEvent {
-  type: "claude_tui_lifecycle";
-  claudeThreadId: string;
-  event: string;            // e.g., "TOOL_STARTED", "TOOL_COMPLETED", "SESSION_ENDED"
-  payload: Record<string, unknown>;
-  timestamp: number;
-}
+export function evaluateGitCommand(command: string): GitEvaluationResult;
 ```
 
-### Hub protocol additions in `agents/src/lib/hub/`
+### `agents/src/hooks/lib/tool-deny-evaluator.ts`
 
-Add these message types to the hub's message schema. The hub needs to:
+```typescript
+export const DISALLOWED_TOOLS = [
+  "Mcp", "ListMcpResources", "ReadMcpResource",
+  "SubscribeMcpResource", "UnsubscribeMcpResource",
+  "SubscribePolling", "UnsubscribePolling", "EnterWorktree",
+];
 
-- Accept connections from bridge scripts (new client type: `"claude-tui-bridge"`)
-- Route `claude_tui_hook_request` from bridge → frontend
-- Route `claude_tui_hook_response` from frontend → bridge
-- Store `claude_tui_lifecycle` events (emit to frontend for UI updates)
+export function shouldDenyTool(toolName: string): { denied: boolean; reason?: string };
+```
+
+### Update existing SDK hooks
+
+`safe-git-hook.ts`, `repl-hook.ts`, `comment-resolution-hook.ts` become thin SDK adapters that call the shared evaluators. No behavior change — just a refactor.
 
 ---
 
-## Phase 2: Build the hook bridge script
+## Phase 2: Add HTTP hook endpoints to sidecar
 
-### `agents/src/claude-tui-bridge/bridge.ts`
+### `sidecar/src/hooks/hook-handler.ts`
 
-Compiled to a standalone JS file at `~/.mort/hooks/bridge.js` (bundled at build time or copied at runtime).
+New route handler that processes incoming hook POSTs from the CLI. Handles **stateless** hooks only (safe-git, tool-deny, lifecycle). Stateful hooks (REPL, comment resolution, permission gating) are deferred to the Terminal Runner architecture.
 
-**Behavior per invocation:**
+```typescript
+// POST /hooks/pre-tool-use
+async function handlePreToolUse(input: PreToolUseHookInput, threadId: string): Promise<HookJSONOutput> {
+  // 1. Fast path: check tool deny list
+  const denyResult = shouldDenyTool(input.tool_name);
+  if (denyResult.denied) return denyResponse(denyResult.reason);
 
-```
-1. Read JSON from stdin (Claude CLI hook protocol)
-2. Parse: { hook_type, tool_name, tool_input, tool_use_id, session_id }
-3. Connect to hub WebSocket at MORT_HUB_URL (env var set by Mort when spawning PTY)
-4. Send ClaudeTuiHookRequest
-5. Wait for ClaudeTuiHookResponse (with timeout)
-6. Write response JSON to stdout per Claude CLI hook protocol
-7. Exit
-```
+  // 2. Fast path: check safe-git patterns
+  if (input.tool_name === "Bash") {
+    const gitResult = evaluateGitCommand(input.tool_input.command);
+    if (!gitResult.allowed) return denyResponse(gitResult.reason);
+  }
 
-**Key design decisions:**
-
-- **Stateless per invocation**: Each hook call spawns a fresh bridge process. Simple, no connection management. The CLI spawns/kills it.
-- **Environment variables**: `MORT_HUB_URL` (WebSocket URL), `MORT_CLAUDE_THREAD_ID` (session identity), `MORT_DATA_DIR`
-- **Timeout**: Configurable via `MORT_HOOK_TIMEOUT_MS`, default 300000 (5 min) for permission requests. PostToolUse events use a short timeout (5s) since they're fire-and-forget.
-- **Failure mode**: If hub is unreachable or times out, default to **allow** (fail-open) so the user isn't stuck. Log a warning.
-
-### Claude CLI hook protocol
-
-The bridge must conform to whatever stdin/stdout JSON format Claude CLI uses for shell hooks. We need to verify the exact format. Expected shape:
-
-**stdin (from CLI):**
-
-```json
-{
-  "hook_type": "PreToolUse",
-  "tool_name": "Bash",
-  "tool_input": { "command": "git push" },
-  "tool_use_id": "toolu_abc123",
-  "session_id": "session_xyz"
+  // 3. Default: allow
+  return { continue: true };
 }
 ```
 
-**stdout (to CLI):**
+### Sidecar HTTP routing
 
-```json
-{
-  "decision": "allow"
-}
-```
+Add HTTP routes to the sidecar's existing TCP server (same port as WebSocket):
 
-or
+- `POST /hooks/session-start` → system prompt injection via `additionalContext`
+- `POST /hooks/pre-tool-use` → deny/allow decisions (stateless evaluators)
+- `POST /hooks/post-tool-use` → lifecycle events (emit to frontend via broadcaster)
+- `POST /hooks/stop` → session completion notification
 
-```json
-{
-  "decision": "deny",
-  "reason": "Destructive git operation blocked by Mort"
-}
-```
-
-### `agents/src/claude-tui-bridge/safe-git-check.ts`
-
-Inline the safe-git pattern matching so the bridge can make instant local decisions without round-tripping to the hub for known-bad patterns. This is a fast path:
-
-- If the tool is `Bash` and matches a destructive git pattern → instant deny, no hub call
-- Otherwise → forward to hub for full permission evaluation
+Thread identification via `X-Mort-Thread-Id` header (injected by `allowedEnvVars` + header interpolation in hooks.json).
 
 ---
 
-## Phase 3: Extend hub server to handle bridge messages
+## Phase 3: Create `hooks/hooks.json` in plugin directory
 
-### `src-tauri/src/ws_server/` or `agents/src/lib/hub/`
+### `plugins/mort/hooks/hooks.json`
 
-Wherever the hub server lives, add handlers for:
+Add the hooks config file to the Mort plugin source. It gets synced to `~/.mort/hooks/hooks.json` on app startup (same as skills sync).
 
-1. **Bridge client registration**: When a bridge connects, it sends `{type: "register", clientType: "claude-tui-bridge", claudeThreadId: "..."}`. Hub tracks it.
+The hooks use `$MORT_SIDECAR_URL` env var interpolation for the URL, so they're inert when the hub isn't running (e.g., if the user runs `claude` outside of Mort — the POST fails and the hook falls through with `{ continue: true }`).
 
-2. **Hook request routing**: When bridge sends `claude_tui_hook_request`:
+### Plugin sync update
 
-   - Hub stores the pending request keyed by `hookId`
-   - Broadcasts to frontend clients
-   - When frontend sends `claude_tui_hook_response` with matching `hookId`, hub forwards to the bridge client
-
-3. **Lifecycle event handling**: When bridge sends `claude_tui_lifecycle`:
-
-   - Hub emits to frontend for real-time UI updates
-   - Optionally persists to the claude-thread's event log on disk
-
-### Connection management
-
-- Bridge scripts are short-lived (connect, send, wait, disconnect)
-- Hub needs to handle rapid connect/disconnect gracefully
-- Consider a connection pool or keep-alive if performance becomes an issue
+Update the plugin sync logic to copy `hooks/hooks.json` alongside skills.
 
 ---
 
-## Phase 4: Frontend integration for permission UI
+## Phase 4: Extend `buildSpawnConfig()` with plugin + env vars
+
+### `src/lib/claude-tui-args-builder.ts`
+
+Extend the args builder from the content pane plan:
+
+```typescript
+function buildSpawnConfig(options: {
+  mortDir: string;
+  hubUrl: string;
+  threadId: string;
+  sessionId?: string;
+  model?: string;
+}): ClaudeTuiSpawnConfig {
+  return {
+    args: [
+      "--dangerously-skip-permissions",
+      "--plugin", `local:${options.mortDir}`,
+      "--model", options.model ?? "claude-sonnet-4-6",
+    ],
+    env: {
+      MORT_SIDECAR_URL: options.hubUrl,
+      MORT_THREAD_ID: options.threadId,
+      MORT_DATA_DIR: options.mortDir,
+    },
+  };
+}
+```
+
+---
+
+## Phase 5: Frontend integration for permission UI
 
 ### Reuse existing permission approval flow
 
-The frontend already has permission approval UI for SDK-managed threads (the approval gate). We extend it to work with claude-tui sessions:
+The frontend already has permission approval UI for SDK-managed threads. Extend it to work with TUI sessions:
 
-### `src/entities/claude-threads/listeners.ts`
-
-Listen for `claude_tui_hook_request` events from the hub:
-
-- When a permission request arrives, show the same approval UI used for regular threads
-- Map the request to the claude-thread entity so the UI shows context (which session, what tool)
-- When user approves/denies, send `claude_tui_hook_response` back through the hub
-
-### UI considerations
-
-- Permission requests should show in the claude-thread's content pane (overlay or notification)
-- Since the terminal is rendering Claude's TUI output, an overlay or sidebar notification works better than inline
-- The tree menu item should show `needs-input` status (amber shimmer) when a permission is pending
+- Listen for hook requests forwarded from the hub
+- Show the same approval UI (overlay or notification on the terminal content pane)
+- When user approves/denies, send decision back through hub → hub responds to the HTTP hook
+- Tree menu item shows `needs-input` status (amber shimmer) when a permission is pending
 
 ### Status dot mapping
 
 ```typescript
-function getClaudeThreadStatus(session: ClaudeThread, hasPendingPermission: boolean): StatusDotVariant {
-  if (!session.isAlive) return "read";
+function getClaudeThreadStatus(thread: ThreadMetadata, hasPendingPermission: boolean): StatusDotVariant {
+  if (thread.status === "completed") return "read";
   if (hasPendingPermission) return "needs-input";
   return "running";
 }
@@ -245,78 +359,21 @@ function getClaudeThreadStatus(session: ClaudeThread, hasPendingPermission: bool
 
 ---
 
-## Phase 5: Lifecycle event emission and tracking
+## Phase 6: Lifecycle event emission and tracking
 
-### Events to emit from the bridge
-
-For each hook invocation, the bridge emits lifecycle events to the hub as fire-and-forget messages. These enable the frontend to show activity indicators and the backend to build an audit trail.
+### Events emitted from hub hook handlers
 
 | Event | When | Payload |
 | --- | --- | --- |
-| `TOOL_STARTED` | PreToolUse hook fires | `{toolName, toolInput, toolUseId}` |
-| `TOOL_COMPLETED` | PostToolUse hook fires | `{toolName, toolResult, toolUseId, durationMs}` |
+| `TOOL_STARTED` | PreToolUse handler receives request | `{toolName, toolInput, toolUseId}` |
+| `TOOL_COMPLETED` | PostToolUse handler receives request | `{toolName, toolResult, toolUseId, durationMs}` |
 | `TOOL_DENIED` | PreToolUse returns deny | `{toolName, reason, toolUseId}` |
 | `FILE_MODIFIED` | PostToolUse for Write/Edit | `{filePath, toolUseId}` |
-| `SESSION_ENDED` | Stop hook fires | `{sessionId, totalTokens}` |
+| `SESSION_ENDED` | Stop handler receives request | `{sessionId, totalTokens}` |
 
-### Frontend event display
+### Event persistence
 
-- Tool calls show as activity indicators on the claude-thread tree item
-- `TOOL_DENIED` shows a brief toast or log entry
-- `SESSION_ENDED` transitions the session to "exited" state
-- Token usage updates the session's cumulative usage display (if we add one)
-
-### Persisting events
-
-Events are written to `~/.mort/claude-threads/{id}/events.jsonl` (append-only log). This enables:
-
-- Post-session review of what the TUI did
-- Cost tracking via token usage events
-- File change tracking for the changes view
-
----
-
-## Phase 6: Settings generation integration
-
-Wire the bridge into the settings JSON generated by `claude-tui-content-pane.md` Phase 3.
-
-### Updated settings JSON
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "hooks": ["node ~/.mort/hooks/bridge.js"]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": ["node ~/.mort/hooks/bridge.js"]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": ["node ~/.mort/hooks/bridge.js"]
-      }
-    ]
-  }
-}
-```
-
-### Environment variables set on PTY spawn
-
-```typescript
-// Set these on the PTY process environment when spawning claude
-const env = {
-  MORT_HUB_URL: hubServer.getUrl(),           // WebSocket URL for bridge
-  MORT_CLAUDE_THREAD_ID: claudeThread.id,      // Session identity
-  MORT_DATA_DIR: mortDir,                       // For disk persistence
-  MORT_HOOK_TIMEOUT_MS: "300000",              // 5 min for permissions
-};
-```
-
-The safe-git check is now **built into the bridge** (Phase 2) as a fast path, so we no longer need a separate `safe-git-hook.sh`. The bridge handles everything: fast local decisions for known patterns, hub round-trip for everything else.
+Events are written to `~/.mort/threads/{id}/events.jsonl` (append-only log). Enables post-session review, cost tracking, and file change tracking.
 
 ---
 
@@ -324,17 +381,23 @@ The safe-git check is now **built into the bridge** (Phase 2) as a fast path, so
 
 | File | Purpose |
 | --- | --- |
-| `agents/src/claude-tui-bridge/bridge.ts` | Hook bridge script (stdin/stdout ↔ WebSocket) |
-| `agents/src/claude-tui-bridge/safe-git-check.ts` | Fast-path destructive git detection |
-| `core/types/events.ts` | New message types for bridge protocol |
-| `agents/src/lib/hub/` | Hub server extensions for bridge routing |
-| `src/entities/claude-threads/listeners.ts` | Frontend listener for hook requests |
-| `src/entities/claude-threads/settings-builder.ts` | Updated to include bridge hooks |
+| `agents/src/hooks/lib/git-safety-evaluator.ts` | Shared safe-git evaluation logic |
+| `agents/src/hooks/lib/tool-deny-evaluator.ts` | Shared tool deny list |
+| `sidecar/src/hooks/hook-handler.ts` | Sidecar HTTP handler for hook events |
+| `plugins/mort/hooks/hooks.json` | Plugin hook config (HTTP hooks) |
+| `src/lib/claude-tui-args-builder.ts` | Extended with `--plugin` and env vars |
+| `core/types/events.ts` | New message types for hook events |
+
+## Resolved decisions
+
+1. **Fail-open**: If sidecar is unreachable, hooks fail and Claude proceeds unblocked. Users chose `--dangerously-skip-permissions` knowingly. Hooks are a convenience/safety layer, not a security boundary.
+2. **Thread ID propagation**: Via `X-Mort-Thread-Id` header using env var interpolation (`$MORT_THREAD_ID`) in hooks.json. Stateless, no session-to-thread mapping needed.
+3. **HTTP endpoint location**: Sidecar's existing TCP port (same as WebSocket). No new port needed.
+4. **Stateful vs stateless hooks**: Start with stateless hooks only (safe-git, tool-deny, lifecycle). Stateful hooks (REPL, comment resolution, permission gating) deferred to Terminal Runner architecture.
 
 ## Open questions
 
-1. **Claude CLI hook protocol**: Need to verify the exact stdin/stdout JSON format for shell hooks. The `--settings` hook format may differ from the SDK's programmatic hooks.
-2. **Connection strategy**: Stateless (connect per invocation) vs persistent (long-lived WebSocket). Stateless is simpler but adds latency. Could start stateless and optimize later.
-3. **Fail-open vs fail-closed**: Currently proposed as fail-open (allow on timeout). Should this be configurable per permission mode?
-4. **PostToolUse availability**: Does the Claude CLI support `PostToolUse` and `Stop` hooks via `--settings`? If not, we're limited to `PreToolUse` events only, and we'd need another approach for lifecycle tracking.
-5. **Bridge bundling**: Should the bridge be compiled to a single JS file (esbuild bundle), or rely on the user having Node.js available? A compiled binary (pkg/bun compile) would be more portable.
+1. **Terminal Runner architecture (Q4)**: For stateful hooks (REPL, permissions), the plan proposes a per-thread "Terminal Runner" Node process that receives relayed hook requests from the sidecar via hub WebSocket. This follows the same one-process-per-thread pattern as SDK agent threads. **Decision pending** — see architecture options in plan discussion.
+2. **Plugin hooks vs user hooks**: If the user has their own hooks configured, both sets run. Need to verify hook ordering (plugin hooks vs project hooks).
+3. **Graceful degradation**: When `MORT_SIDECAR_URL` is not set (user runs `claude --plugin local:~/.mort` outside Mort), HTTP hooks should fail silently and fall through.
+4. **Repl hook timeout**: The PreToolUse timeout is set to 86400s to accommodate future REPL execution via Terminal Runner. For stateless-only phase, this could be reduced.

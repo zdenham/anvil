@@ -25,20 +25,41 @@ This means:
 
 ## Architecture Decision: PTY-based Claude Process
 
-We spawn `claude` directly in a PTY. This gives users the authentic Claude TUI experience (keyboard shortcuts, `/` commands, visual styling, streaming) while Mort injects value through CLI args and environment variables assembled at spawn time.
+We spawn `claude` directly in a PTY with minimal CLI args. This gives users the authentic Claude TUI experience (keyboard shortcuts, `/` commands, visual styling, streaming). This plan covers the UI scaffolding only — hooks, plugin integration, lifecycle events, and permission bridging are layered on by `plans/claude-tui-hook-bridge.md`.
 
-**No extra files on disk.** The service builds the `--settings` inline JSON, `--append-system-prompt` string, and all other flags in memory. The PTY spawner (Phase 1) accepts `command`, `args`, and `env` — so the spawn call looks like:
+### Initial spawn (this plan)
+
+Bare-minimum invocation — just enough to get a working Claude TUI in a content pane:
 
 ```typescript
 terminalSessionService.create({
   cwd: worktreePath,
   command: "claude",
-  args: ["--dangerously-skip-permissions", "--settings", settingsJson, "--append-system-prompt", systemPrompt, "--model", "claude-sonnet-4-6"],
-  env: { MORT_HUB_URL: "...", MORT_THREAD_ID: id },
+  args: [
+    "--dangerously-skip-permissions",
+    "--model", "claude-sonnet-4-6",
+  ],
+  env: {},
 })
 ```
 
-The user never sees the flags — they just see the Claude TUI appear in a content pane.
+This is an unmanaged Claude session — no hooks, no Mort observability, no permission bridging. The user gets a raw Claude TUI that Mort can display, name, archive, and resume. That's the scope of this plan.
+
+### Follow-up: Plugin + Hook bridge (`plans/claude-tui-hook-bridge.md`)
+
+The hook bridge plan will extend the spawn call with the Mort plugin (`--plugin local:~/.mort`) and env vars, enabling:
+
+| Concern | How (added by hook bridge plan) |
+| --- | --- |
+| **Skills** | Plugin auto-discovers `~/.mort/skills/` |
+| **Hooks** | Plugin auto-discovers `~/.mort/hooks/hooks.json` — HTTP hooks POST to hub server |
+| **Disallowed tools** | PreToolUse hook returns `permissionDecision: "deny"` at runtime |
+| **System prompt context** | `SessionStart` hook returns `additionalContext` |
+| **Lifecycle events** | PostToolUse/Stop hooks emit events to hub |
+| **Permission bridging** | PreToolUse hook forwards to hub → frontend shows approval UI |
+| **Code sharing** | Hub HTTP handler calls the same evaluator functions as SDK hooks (safe-git, repl, comment-resolution) |
+
+The args builder in this plan is designed to be extended — the hook bridge plan adds `--plugin` and env vars to `buildSpawnConfig()` without changing the content pane code.
 
 ## Design
 
@@ -46,7 +67,7 @@ The user never sees the flags — they just see the Claude TUI appear in a conte
 
 1. User clicks "New Claude Session" on a worktree
 2. Service creates a thread with `threadKind: "claude-tui"` using the existing thread service
-3. Args builder constructs CLI args + env vars in memory
+3. Args builder constructs minimal CLI args (`--dangerously-skip-permissions`, `--model`)
 4. PTY spawns `claude` with those args/env, `cwd` set to the worktree path
 5. Thread metadata updated with `terminalId` linking to the PTY session
 6. Content pane renders a terminal (not the message list) when `threadKind` is set
@@ -75,42 +96,43 @@ claudeSessionId: z.string().optional(),          // Claude CLI --resume session 
 ## Phases
 
 - [ ] Phase 1: Extend PTY spawning to support custom commands and env vars
+
 - [ ] Phase 2: Add `threadKind` to thread schema and update thread service
+
 - [ ] Phase 3: Content pane branching for TUI threads
+
 - [ ] Phase 4: Tree menu differentiation with "cc" prefix
+
 - [ ] Phase 5: Hook bridge integration (see `plans/claude-tui-hook-bridge.md`)
+
 - [ ] Phase 6: "Use terminal interface" preference setting
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
 ## Phase 1: Extend PTY spawning to support custom commands and env vars
 
-Currently `spawn_terminal_inner` in `src-tauri/src/terminal.rs:64` hardcodes the user's `$SHELL -l`. We need to support an optional custom command and extra environment variables.
+The sidecar's `TerminalManager` (in `sidecar/src/managers/terminal-manager.ts`) currently spawns the user's default shell. We need to support an optional custom command and extra environment variables.
 
 **Changes:**
 
-### `src-tauri/src/terminal.rs`
+### `sidecar/src/managers/terminal-manager.ts`
 
-- Add optional `command: Option<String>`, `args: Option<Vec<String>>`, and `env: Option<HashMap<String, String>>` parameters to `spawn_terminal_inner`
-- When `command` is `Some(cmd)`, use `CommandBuilder::new(cmd)` with the provided args instead of the shell
-- Merge `env` entries into the child process environment
-- Still set the same base env vars (`TERM`, `COLORTERM`, `LANG`, `PATH`, `HOME`)
-- Skip shell integration (ZDOTDIR) and `-l` flag when spawning a custom command
+- Add optional `command`, `args`, and `env` parameters to the `spawn()` method
+- When `command` is provided, use it instead of the default shell
+- Merge `env` entries into the child process environment via node-pty's spawn options
+- Still set the same base env vars (`TERM`, `COLORTERM`, etc.)
 
-### `src-tauri/src/ws_server/dispatch_misc.rs`
+### `sidecar/src/dispatch/dispatch-terminal.ts`
 
-- Update WS handler to accept optional `command`, `args`, and `env` fields in the `spawn_terminal` message
+- Update the `spawn_terminal` dispatch handler to accept optional `command`, `args`, and `env` fields in the message payload
+- Pass them through to `TerminalManager.spawn()`
 
-### Tauri IPC command
-
-- Update the `spawn_terminal` Tauri command in `src-tauri/src/lib.rs` to accept optional `command`, `args`, and `env` parameters
-
-### Frontend `invoke` call
+### Frontend `terminalSessionService`
 
 - Update `terminalSessionService.create()` to accept optional `command`, `args`, and `env`
-- Pass them through to `invoke("spawn_terminal", { cols, rows, cwd, command, args, env })`
+- Pass them through the sidecar WebSocket dispatch
 
 ---
 
@@ -151,20 +173,21 @@ Add a `createTuiThread` method (or extend `create` with a `threadKind` option):
 
 ### `src/lib/claude-tui-args-builder.ts`
 
-Builds the CLI args and env vars in memory. No files written.
+Builds the minimal CLI args for an unmanaged Claude TUI session. The hook bridge plan will extend this to add `--plugin` and env vars.
 
 ```typescript
-function buildClaudeArgs(options: {
-  settingsJson: string;
-  systemPrompt: string;
+interface ClaudeTuiSpawnConfig {
+  args: string[];
+  env: Record<string, string>;
+}
+
+function buildSpawnConfig(options: {
   sessionId?: string;
   model?: string;
-}): string[]
-
-function buildSettingsJson(hooks: HookConfig[]): string
-
-function buildSystemPrompt(worktreePath: string): string
+}): ClaudeTuiSpawnConfig
 ```
+
+Initially returns just `["--dangerously-skip-permissions", "--model", model]` and an empty env object.
 
 ### `src/lib/thread-creation-service.ts`
 
@@ -238,22 +261,9 @@ TUI threads use the existing `"thread"` tree item type. The visual differentiati
 
 ## Phase 5: Hook bridge integration
 
-Full lifecycle event tracking and permission forwarding via the hook bridge.
+**Out of scope** — see `plans/claude-tui-hook-bridge.md`.
 
-**Detailed plan**: `plans/claude-tui-hook-bridge.md`
-
-This phase ensures:
-
-- The bridge script is bundled/deployed to `~/.mort/hooks/bridge.js`
-- Env vars (`MORT_HUB_URL`, `MORT_THREAD_ID`) are passed via the PTY `env` parameter (Phase 1)
-- The inline settings JSON includes PreToolUse/PostToolUse/Stop hooks pointing to the bridge
-- Frontend listeners handle incoming hook requests and lifecycle events
-
-### `~/.mort/hooks/safe-git-hook.sh`
-
-- Shell script version of `agents/src/hooks/safe-git-hook.ts`
-- Referenced in the inline settings JSON
-- Written once at app startup by the service
+Adds the Mort plugin (`--plugin local:~/.mort`) and env vars to the spawn call, enabling hooks, skills, lifecycle events, permission bridging, and system prompt injection via the plugin system. Extends `buildSpawnConfig()` from Phase 2.
 
 ---
 
@@ -300,14 +310,14 @@ All thread creation surfaces flow through `createThread()` and automatically res
 
 - **Spotlight** (type + Enter) — already calls `createThread()`
 - **Empty pane input** — already calls `createThread()`
-- **Plan follow-up** — already calls `createThread()`, plan context passed via `--append-system-prompt`
+- **Plan follow-up** — already calls `createThread()`, plan context passed via env var once hook bridge is integrated
 - **Cmd+N** (`main-window-layout.tsx`) — currently calls `threadService.create()` directly, must change to call `createThread()`. For TUI mode, resolve worktree from selection or MRU; fall back to managed if no worktree available.
 
 ### Prompt handling for TUI threads
 
 - Prompt provided → pass via `--message "prompt text"` so Claude starts immediately
 - No prompt (Cmd+N) → spawn PTY with no `--message`, user types in terminal
-- Plan context → `--append-system-prompt` with plan summary (add `planContext` option to `buildSystemPrompt()` in args builder)
+- Plan context → passed via env var (`MORT_PLAN_CONTEXT`), injected into Claude's context by the plugin's `SessionStart` hook `additionalContext`
 
 ### Override menu items (`src/components/tree-menu/worktree-menus.tsx`)
 
@@ -323,7 +333,6 @@ All thread creation surfaces flow through `createThread()` and automatically res
 | `src/entities/settings/types.ts` | Add `preferTerminalInterface` boolean |
 | `src/components/main-window/settings-page.tsx` | Checkbox UI |
 | `src/lib/thread-creation-service.ts` | Route on preference |
-| `src/lib/claude-tui-args-builder.ts` | `planContext` support in `buildSystemPrompt()` |
 | `src/components/main-window/main-window-layout.tsx` | Cmd+N through router |
 | `src/components/tree-menu/worktree-menus.tsx` | Override menu item |
 
@@ -333,12 +342,11 @@ All thread creation surfaces flow through `createThread()` and automatically res
 
 | File | Change |
 | --- | --- |
-| `src-tauri/src/terminal.rs` | Accept optional command/args/env in `spawn_terminal_inner` |
-| `src-tauri/src/ws_server/dispatch_misc.rs` | Pass command/args/env through WS handler |
-| `src-tauri/src/lib.rs` | Update Tauri command signature |
+| `sidecar/src/managers/terminal-manager.ts` | Accept optional command/args/env in `spawn()` |
+| `sidecar/src/dispatch/dispatch-terminal.ts` | Pass command/args/env through dispatch handler |
 | `core/types/threads.ts` | Add `threadKind`, `terminalId`, `claudeSessionId` fields |
 | `src/entities/threads/service.ts` | Add TUI thread creation and exit detection |
-| `src/lib/claude-tui-args-builder.ts` | New file: builds CLI args and env vars |
+| `src/lib/claude-tui-args-builder.ts` | New file: builds minimal CLI args and env vars |
 | `src/lib/thread-creation-service.ts` | Add `createTuiThread` path + preference routing |
 | `src/components/content-pane/thread-content.tsx` | Branch on `threadKind` |
 | `src/components/content-pane/tui-thread-content.tsx` | New thin wrapper component |
@@ -355,6 +363,6 @@ All thread creation surfaces flow through `createThread()` and automatically res
 2. **Session persistence**: Capture Claude CLI session ID from TUI output for `--resume`?
 3. **Keyboard shortcut**: Keybinding for new Claude session?
 4. **Multiple sessions per worktree**: Unlimited or capped?
-5. **CLAUDE.md**: The CLI auto-reads project `CLAUDE.md` — coding guidelines apply automatically.
+5. [**CLAUDE.md**](http://CLAUDE.md): The CLI auto-reads project `CLAUDE.md` — coding guidelines apply automatically.
 6. **Empty TUI threads**: Cmd+N with no prompt — spawn PTY immediately or show prompt input first?
 7. **CLI fallback**: If `claude` CLI isn't on PATH, silently fall back to managed or show error?
