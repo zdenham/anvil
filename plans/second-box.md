@@ -36,12 +36,13 @@ A new content pane that lets users provision, manage, and connect to remote dev 
 │   ├─ DELETE /remote-boxes/:name    → destroy box        │
 │   └─ WS     /remote-boxes/:name/exec → terminal proxy  │
 │                                                         │
-│  Provider layer (server-side only):                     │
-│   └─ Sprites API client (SPRITES_API_TOKEN env var)     │
+│  Provider adapter layer (server-side only):             │
+│   ├─ BoxProvider interface (abstract contract)          │
+│   └─ SpritesProvider (implements BoxProvider)           │
 └──────────────────────┬──────────────────────────────────┘
                        │
                        ▼
-              Sprites API (api.sprites.dev)
+              Provider API (e.g. api.sprites.dev)
 ```
 
 ### Data Flow
@@ -52,27 +53,31 @@ User clicks "Second Box" in three-dot menu
   → Content pane fetches box list from Mort backend
 
 User provisions a box → POST /remote-boxes { name, device_id }
-  → Server creates Sprite, returns metadata
+  → Server calls provider.create() → returns metadata
   → Client saves metadata to ~/.mort/remote-boxes/{name}.json
   → Auto-connect: open WebSocket terminal
 
 User connects → WS /remote-boxes/{name}/exec?device_id=...&rows=R&cols=C
-  → Server opens upstream WS to Sprites exec endpoint (with server-side token)
-  → Server pipes: client ↔ server ↔ Sprites (transparent proxy)
+  → Server calls provider.buildExecUrl() → gets upstream WS URL
+  → Server pipes: client ↔ server ↔ provider (transparent proxy)
   → xterm.js ↔ WebSocket (no Rust PTY involved)
 
-User types → ws.send(keystroke) → server proxy → Sprites → response → xterm.write()
+User types → ws.send(keystroke) → server proxy → provider → response → xterm.write()
 ```
 
 ## Phases
 
-- [ ] Phase 1: Server — remote-boxes Fastify plugin + Sprites provider client
+- [ ] Phase 1: Server — remote-boxes Fastify plugin + BoxProvider interface + Sprites adapter
+
 - [ ] Phase 2: Client entity layer — RemoteBox service, store, types, API client
+
 - [ ] Phase 3: Content pane — "second-box" view type, provisioning UI, WebSocket terminal
+
 - [ ] Phase 4: Entry point — "Second Box" item in three-dot menu dropdown
+
 - [ ] Phase 5: Auto-setup — push SSH keys + git config on first connect
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -80,24 +85,65 @@ User types → ws.send(keystroke) → server proxy → Sprites → response → 
 
 New Fastify plugin registered in `server/src/app.ts` under `/remote-boxes` prefix.
 
-### Provider Client (server-side)
+### BoxProvider Interface (server-side)
 
-`server/src/remote-boxes/sprites-client.ts`
+`server/src/remote-boxes/provider.ts`
+
+Abstract contract that all provider adapters implement. Routes and plugin code **only** depend on this interface — never on a concrete provider.
+
+```typescript
+export interface BoxInfo {
+  name: string;
+  status: "cold" | "running" | "creating" | "error";
+  createdAt: number;
+}
+
+export interface BoxProvider {
+  create(name: string): Promise<BoxInfo>;
+  destroy(name: string): Promise<void>;
+  get(name: string): Promise<BoxInfo>;
+  list(): Promise<BoxInfo[]>;
+  buildExecUrl(name: string, opts: { rows: number; cols: number }): string;
+  writeFile(name: string, path: string, content: string): Promise<void>;
+}
+```
+
+### Sprites Adapter
+
+`server/src/remote-boxes/adapters/sprites.ts`
 
 - **Only file** that knows about Sprites URLs/terminology
+- Implements `BoxProvider`
 - Reads `SPRITES_API_TOKEN` from env
-- `create(name: string)` → POST `https://api.sprites.dev/v1/sprites`
-- `destroy(name: string)` → DELETE `https://api.sprites.dev/v1/sprites/{name}`
-- `get(name: string)` → GET `https://api.sprites.dev/v1/sprites/{name}`
+- Maps Sprites-specific response shapes → `BoxInfo`
+- `create(name)` → POST `https://api.sprites.dev/v1/sprites`
+- `destroy(name)` → DELETE `https://api.sprites.dev/v1/sprites/{name}`
+- `get(name)` → GET `https://api.sprites.dev/v1/sprites/{name}`
 - `list()` → GET `https://api.sprites.dev/v1/sprites`
-- `buildExecUrl(name, opts: { rows, cols })` → WSS URL string with bearer token as query param
-- `writeFile(name, path, content)` → provider filesystem API (for setup)
+- `buildExecUrl(name, opts)` → WSS URL string with bearer token as query param
+- `writeFile(name, path, content)` → Sprites filesystem API
+
+To add a new provider later, create a new file in `adapters/` that implements `BoxProvider` and swap the factory.
+
+### Provider Factory
+
+`server/src/remote-boxes/adapters/index.ts`
+
+```typescript
+import { BoxProvider } from "../provider.js";
+import { SpritesProvider } from "./sprites.js";
+
+export function createProvider(): BoxProvider {
+  // Currently only Sprites — add env-based selection here later
+  return new SpritesProvider();
+}
+```
 
 ### Routes
 
 `server/src/remote-boxes/routes.ts`
 
-All endpoints require `device_id` (query param or header) to scope boxes per device.
+Routes receive a `BoxProvider` instance — they never import or reference any concrete adapter. All endpoints require `device_id` (query param or header) to scope boxes per device.
 
 **REST endpoints:**
 
@@ -107,25 +153,28 @@ All endpoints require `device_id` (query param or header) to scope boxes per dev
 | `GET /remote-boxes` | `?device_id=...` | List boxes for this device. |
 | `GET /remote-boxes/:name` | `?device_id=...` | Get box status. |
 | `DELETE /remote-boxes/:name` | `?device_id=...` | Destroy a box. |
-| `POST /remote-boxes/:name/setup` | `{ device_id, publicKey, privateKey, gitUser, gitEmail }` | Push SSH keys + git config to box via provider filesystem API. |
+| `POST /remote-boxes/:name/setup` | `{ device_id, publicKey, privateKey, gitUser, gitEmail }` | Push SSH keys + git config to box via `provider.writeFile()`. |
 
 **WebSocket endpoint:**
 
 `GET /remote-boxes/:name/exec` (upgrade to WebSocket)
 
 - Query params: `device_id`, `rows`, `cols`
-- Server opens upstream WebSocket to Sprites exec endpoint using server-side token
-- Pipes bidirectionally: client ↔ server ↔ Sprites
+- Server calls `provider.buildExecUrl()` to get the upstream WebSocket URL
+- Pipes bidirectionally: client ↔ server ↔ provider
 - On upstream close, closes client connection (and vice versa)
-- Latency cost is minimal — server is on Fly, close to Sprites infra
+- Latency cost is minimal — server is on Fly, close to provider infra
 
 ### Plugin Registration
 
 `server/src/remote-boxes/index.ts`
 
 ```typescript
+import { createProvider } from "./adapters/index.js";
+
 export const remoteBoxesPlugin: FastifyPluginAsync = async (fastify) => {
-  // Register routes, init Sprites client from env
+  const provider = createProvider();
+  // Register routes, passing provider instance
 };
 ```
 
@@ -254,7 +303,7 @@ No "no token configured" state needed — auth is automatic via device_id.
 When connected to a box:
 
 - Open WebSocket to `wss://mort-server.fly.dev/remote-boxes/{name}/exec?device_id=...&rows=R&cols=C`
-- Server proxies to Sprites — client never sees provider details
+- Server proxies to provider — client never sees provider details
 - Pipe: `ws.onmessage → terminal.write()`, `terminal.onData → ws.send()`
 - Resize: reconnect WebSocket with new dimensions (or in-band resize if server supports forwarding)
 - Auto-reconnect on WebSocket close with exponential backoff
@@ -323,14 +372,14 @@ On **first connection** to a box (when `setupComplete === false`):
 1. Generate SSH keypair locally (if not exists)
 2. Read local git identity (`git config user.name`, `git config user.email`)
 3. Call `POST /remote-boxes/{name}/setup` with `{ publicKey, privateKey, gitUser, gitEmail }`
-4. Server pushes files to box via provider filesystem API:
+4. Server pushes files to box via `provider.writeFile()`:
    - Public key → `/root/.ssh/authorized_keys` (mode 0600)
    - Private key → `/root/.ssh/id_ed25519` (mode 0600, for outbound git)
    - SSH config → `/root/.ssh/config`
    - Git config → `/root/.gitconfig`
 5. Mark `setupComplete = true` in local metadata
 
-User sees "Setting up your box..." overlay for ~2 seconds, then drops into a ready terminal.
+User sees "Setting up your box..." overlay for \~2 seconds, then drops into a ready terminal.
 
 ## File Summary
 
@@ -339,8 +388,10 @@ User sees "Setting up your box..." overlay for ~2 seconds, then drops into a rea
 | File | Purpose |
 | --- | --- |
 | `server/src/remote-boxes/index.ts` | Fastify plugin registration |
-| `server/src/remote-boxes/routes.ts` | REST + WebSocket routes |
-| `server/src/remote-boxes/sprites-client.ts` | Sprites API client (only provider-aware file) |
+| `server/src/remote-boxes/routes.ts` | REST + WebSocket routes (depends only on `BoxProvider` interface) |
+| `server/src/remote-boxes/provider.ts` | `BoxProvider` interface + `BoxInfo` type |
+| `server/src/remote-boxes/adapters/index.ts` | Provider factory (`createProvider()`) |
+| `server/src/remote-boxes/adapters/sprites.ts` | Sprites adapter (implements `BoxProvider`) |
 | `server/src/remote-boxes/types.ts` | Request/response Zod schemas |
 
 ### New Files — Client
@@ -369,7 +420,8 @@ User sees "Setting up your box..." overlay for ~2 seconds, then drops into a rea
 
 ## Open Questions
 
-1. **WebSocket proxy latency**: Server proxies terminal WebSocket through Fly. Since both server and Sprites are on Fly infra, latency should be negligible — but worth validating.
-2. **Resize protocol**: Confirm whether Sprites exec WebSocket supports in-band resize messages or requires reconnection with new dimensions.
+1. **WebSocket proxy latency**: Server proxies terminal WebSocket through Fly. Since both server and provider are co-located on Fly infra, latency should be negligible — but worth validating.
+2. **Resize protocol**: Confirm whether the Sprites exec WebSocket supports in-band resize messages or requires reconnection with new dimensions. The `BoxProvider` interface should accommodate either approach.
 3. **Box naming/scoping**: Using `device_id` prefix to scope boxes. Should we also allow a GitHub handle-based scope for users who switch devices?
 4. **Rate limiting**: Should the server enforce per-device box limits (e.g., max 3 boxes per device)?
+5. **Provider selection**: Currently hardcoded to Sprites via `createProvider()`. When we add a second provider, decide whether selection is per-server env var, per-device config, or per-box.

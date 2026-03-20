@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { nanoid } from "nanoid";
@@ -101,32 +101,6 @@ function loadPriorState(historyFile: string | undefined): PriorState {
   }
 }
 
-/**
- * Set up `mort` command by creating a wrapper script and adding it to PATH.
- * This allows agents to use `mort tasks get ...` directly.
- */
-function setupMortCommand(): void {
-  // This file is at agents/dist/runner.js after build
-  // CLI is at agents/dist/cli/mort.js
-  const currentDir = dirname(fileURLToPath(import.meta.url));
-  const cliPath = join(currentDir, "cli", "mort.js");
-  const binDir = join(currentDir, "bin");
-  const wrapperPath = join(binDir, "mort");
-
-  // Create bin directory if needed
-  mkdirSync(binDir, { recursive: true });
-
-  // Create a shell script wrapper named just "mort"
-  const wrapperContent = `#!/bin/sh
-exec node "${cliPath}" "$@"
-`;
-
-  // Write the wrapper script
-  writeFileSync(wrapperPath, wrapperContent, { mode: 0o755 });
-
-  // Add bin directory to PATH so `mort` command works
-  process.env.PATH = `${binDir}:${process.env.PATH}`;
-}
 
 /**
  * Parse early CLI args needed for HubClient initialization.
@@ -147,9 +121,6 @@ function parseEarlyArgs(args: string[]): { threadId?: string; parentId?: string 
 }
 
 async function main(): Promise<void> {
-  // Set up `mort` command before anything else
-  setupMortCommand();
-
   // Only one strategy exists: SimpleRunnerStrategy
   const strategy = new SimpleRunnerStrategy();
   let context: OrchestrationContext | undefined;
