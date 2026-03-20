@@ -9,8 +9,8 @@ const UI_STATE_PATH = "ui/tree-menu.json";
  * Helper to get persisted state from store.
  */
 function getPersistedState(): TreeMenuPersistedState {
-  const { expandedSections, selectedItemId, pinnedWorktreeId } = useTreeMenuStore.getState();
-  return { expandedSections, selectedItemId, pinnedWorktreeId };
+  const { expandedSections, selectedItemId, pinnedWorktreeId, hiddenWorktreeIds, hiddenRepoIds } = useTreeMenuStore.getState();
+  return { expandedSections, selectedItemId, pinnedWorktreeId, hiddenWorktreeIds, hiddenRepoIds };
 }
 
 /**
@@ -222,5 +222,74 @@ export const treeMenuService = {
    */
   stopRename(): void {
     useTreeMenuStore.getState()._applySetRenaming(null);
+  },
+
+  /**
+   * Hides a worktree from the tree.
+   */
+  async hideWorktree(worktreeId: string): Promise<void> {
+    const current = useTreeMenuStore.getState().hiddenWorktreeIds;
+    if (current.includes(worktreeId)) return;
+    const newIds = [...current, worktreeId];
+
+    const newState: TreeMenuPersistedState = {
+      ...getPersistedState(),
+      hiddenWorktreeIds: newIds,
+    };
+
+    try {
+      await appData.ensureDir("ui");
+      await appData.writeJson(UI_STATE_PATH, newState);
+      useTreeMenuStore.getState()._applySetHiddenWorktrees(newIds);
+    } catch (err) {
+      logger.error("[treeMenuService] Failed to persist hideWorktree:", err);
+      throw err;
+    }
+  },
+
+  /**
+   * Hides a repo (and all its worktrees) from the tree.
+   */
+  async hideRepo(repoId: string): Promise<void> {
+    const current = useTreeMenuStore.getState().hiddenRepoIds;
+    if (current.includes(repoId)) return;
+    const newIds = [...current, repoId];
+
+    const newState: TreeMenuPersistedState = {
+      ...getPersistedState(),
+      hiddenRepoIds: newIds,
+    };
+
+    try {
+      await appData.ensureDir("ui");
+      await appData.writeJson(UI_STATE_PATH, newState);
+      useTreeMenuStore.getState()._applySetHiddenRepos(newIds);
+    } catch (err) {
+      logger.error("[treeMenuService] Failed to persist hideRepo:", err);
+      throw err;
+    }
+  },
+
+  /**
+   * Clears all hidden worktrees, hidden repos, and unpins.
+   */
+  async unhideAll(): Promise<void> {
+    const newState: TreeMenuPersistedState = {
+      ...getPersistedState(),
+      pinnedWorktreeId: null,
+      hiddenWorktreeIds: [],
+      hiddenRepoIds: [],
+    };
+
+    try {
+      await appData.ensureDir("ui");
+      await appData.writeJson(UI_STATE_PATH, newState);
+      useTreeMenuStore.getState()._applySetPinned(null);
+      useTreeMenuStore.getState()._applySetHiddenWorktrees([]);
+      useTreeMenuStore.getState()._applySetHiddenRepos([]);
+    } catch (err) {
+      logger.error("[treeMenuService] Failed to persist unhideAll:", err);
+      throw err;
+    }
   },
 };

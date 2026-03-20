@@ -10,6 +10,7 @@ import { AgentProcessManager } from "./managers/agent-process-manager.js";
 import { AgentHub } from "./managers/agent-hub.js";
 import { TerminalManager } from "./managers/terminal-manager.js";
 import { FileWatcherManager } from "./managers/file-watcher-manager.js";
+import { createLogger } from "./logger.js";
 
 export interface SidecarState {
   broadcaster: EventBroadcaster;
@@ -41,16 +42,24 @@ export interface DiagnosticConfig {
 
 export function createState(): SidecarState {
   const broadcaster = new EventBroadcaster();
-  return {
+  const logBuffer: LogEntry[] = [];
+
+  // Create a temporary state-like object for the logger (it only reads
+  // logBuffer and broadcaster), then assign agentHub after.
+  const partialState = { broadcaster, logBuffer } as SidecarState;
+  const agentLogger = createLogger(partialState);
+
+  const state: SidecarState = {
     broadcaster,
     lockManager: new LockManager(),
     agentProcesses: new AgentProcessManager(),
-    agentHub: new AgentHub(broadcaster),
+    agentHub: new AgentHub(broadcaster, agentLogger),
     terminalManager: new TerminalManager(),
     fileWatcherManager: new FileWatcherManager(),
     shellPath: process.env.PATH ?? "",
     shellInitialized: false,
-    logBuffer: [],
+    logBuffer,
     diagnosticConfig: { enabled: false },
   };
+  return state;
 }

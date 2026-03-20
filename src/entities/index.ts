@@ -209,10 +209,10 @@ export async function hydrateEntities(options: EntityInitOptions = {}): Promise<
 
     await timed("draftService.hydrate", () => draftService.hydrate());
     await timed("pullRequestService.hydrate", () => pullRequestService.hydrate());
-    await timed("syncManagedSkills", () => syncManagedSkills());
 
     // Gateway SSE connection + channel setup: main window only.
     if (isMainWindow) {
+      await timed("syncManagedSkills", () => syncManagedSkills());
       await timed("gatewayChannelService.hydrate", () => gatewayChannelService.hydrate());
 
       const repos = repoService.getAll();

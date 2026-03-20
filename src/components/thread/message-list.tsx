@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, forwardRef, useImperativeHandle, useMemo } from "react";
+import { useRef, useCallback, useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useVirtualList } from "@/hooks/use-virtual-list";
 import { useScrolling } from "@/hooks/use-scrolling";
 import { useIsThreadRunning } from "@/hooks/use-is-thread-running";
@@ -31,10 +31,19 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
 }, ref) {
   const { threadId } = useThreadContext();
   const isRunning = useIsThreadRunning(threadId);
-  const pendingMessages = useQueuedMessagesForThread(threadId);
+  const allPendingMessages = useQueuedMessagesForThread(threadId);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
   useScrolling(scrollerRef);
+  // Deduplicate: after a disk refresh, a queued message may already appear in
+  // turns (the agent wrote it to state.json) while still sitting in the queued
+  // store. Only show pending messages that aren't already rendered as turns.
+  const turnMessageIds = useMemo(() => new Set(turns.map((t) => t.messageId)), [turns]);
+  const pendingMessages = useMemo(
+    () => allPendingMessages.filter((msg) => !turnMessageIds.has(msg.id)),
+    [allPendingMessages, turnMessageIds],
+  );
+
   const [isAtBottom, setIsAtBottom] = useState(true);
 
   // Show working indicator when running but no assistant content yet
@@ -63,6 +72,24 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
     autoScrollOnGrowth: isRunning,
     initialScrollToBottom: true,
   });
+
+  // Re-engage sticky scroll when queued messages are added so the virtual
+  // list keeps the bottom in view. During streaming, sticky mode's existing
+  // auto-scroll handles the rest. When idle, the one-time scrollTop kick
+  // reveals the new message — no ongoing competition.
+  const prevPendingCountRef = useRef(pendingMessages.length);
+  useEffect(() => {
+    if (pendingMessages.length > prevPendingCountRef.current) {
+      setSticky(true);
+      const el = scrollerRef.current;
+      if (el) {
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
+    }
+    prevPendingCountRef.current = pendingMessages.length;
+  }, [pendingMessages.length, setSticky]);
 
   const scrollToBottom = useCallback(() => {
     setSticky(true);
@@ -120,7 +147,8 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
             </div>
           );
         })}
-        {/* Queued messages rendered in-flow so they naturally push content up */}
+        {/* Queued messages rendered outside virtual list for index stability —
+            their scroll visibility is handled by the setSticky effect above. */}
         {pendingMessages.map((msg) => (
           <div key={msg.id} className="px-4 py-0.5 w-full max-w-[900px] mx-auto">
             <PinnedUserMessage content={msg.content} />

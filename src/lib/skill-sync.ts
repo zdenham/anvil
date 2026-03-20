@@ -53,10 +53,14 @@ async function copySkillDirectory(src: string, dst: string): Promise<void> {
   await fs.mkdir(dst);
   const entries = await fs.listDir(src);
   for (const entry of entries) {
-    if (entry.isDirectory) {
-      await copySkillDirectory(`${src}/${entry.name}`, `${dst}/${entry.name}`);
-    } else {
-      await fs.copyFile(`${src}/${entry.name}`, `${dst}/${entry.name}`);
+    try {
+      if (entry.isDirectory) {
+        await copySkillDirectory(`${src}/${entry.name}`, `${dst}/${entry.name}`);
+      } else {
+        await fs.copyFile(`${src}/${entry.name}`, `${dst}/${entry.name}`);
+      }
+    } catch (e) {
+      logger.warn(`[skill-sync] Failed to copy ${entry.name} from ${src}:`, e);
     }
   }
 }

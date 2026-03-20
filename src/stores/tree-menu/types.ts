@@ -12,6 +12,10 @@ export const TreeMenuPersistedStateSchema = z.object({
   selectedItemId: z.string().nullable(),
   /** UUID of pinned worktree node, or null if none pinned */
   pinnedWorktreeId: z.string().nullable().optional(),
+  /** Worktree IDs hidden by the user */
+  hiddenWorktreeIds: z.array(z.string()).optional(),
+  /** Repo IDs hidden by the user */
+  hiddenRepoIds: z.array(z.string()).optional(),
 });
 export type TreeMenuPersistedState = z.infer<typeof TreeMenuPersistedStateSchema>;
 

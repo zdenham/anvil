@@ -8,6 +8,7 @@
 
 import type { WebSocket } from "ws";
 import type { EventBroadcaster } from "../push.js";
+import type { SidecarLogger } from "../logger.js";
 
 interface PipelineStamp {
   stage: string;
@@ -35,45 +36,56 @@ interface AgentEntry {
 export class AgentHub {
   private agents = new Map<string, AgentEntry>();
 
-  constructor(private broadcaster: EventBroadcaster) {}
+  constructor(
+    private broadcaster: EventBroadcaster,
+    private log: SidecarLogger,
+  ) {}
 
   /** Handle a new agent WebSocket connection. */
   handleConnection(socket: WebSocket): void {
     let registeredThreadId: string | null = null;
 
     socket.on("message", (data) => {
-      let msg: AgentMessage;
       try {
-        msg = JSON.parse(String(data));
-      } catch {
-        return;
+        let msg: AgentMessage;
+        try {
+          msg = JSON.parse(String(data));
+        } catch {
+          return;
+        }
+
+        if (msg.type === "register") {
+          registeredThreadId = msg.threadId ?? msg.senderId;
+          this.register(registeredThreadId, msg.parentId, socket);
+          return;
+        }
+
+        // All other messages require a registered agent
+        if (!registeredThreadId) return;
+
+        if (msg.type === "relay") {
+          this.handleRelay(msg);
+          return;
+        }
+
+        // Forward to frontend: stamp pipeline and broadcast
+        this.forwardToFrontend(msg);
+      } catch (err) {
+        const errMsg =
+          err instanceof Error ? (err.stack ?? err.message) : String(err);
+        this.log.warn(`[agent-hub] message handler error: ${errMsg}`);
       }
-
-      if (msg.type === "register") {
-        registeredThreadId = msg.threadId ?? msg.senderId;
-        this.register(registeredThreadId, msg.parentId, socket);
-        return;
-      }
-
-      // All other messages require a registered agent
-      if (!registeredThreadId) return;
-
-      if (msg.type === "relay") {
-        this.handleRelay(msg);
-        return;
-      }
-
-      // Forward to frontend: stamp pipeline and broadcast
-      this.forwardToFrontend(msg);
     });
 
     socket.on("close", () => {
       if (registeredThreadId) {
+        this.log.info(`[agent-hub] agent disconnected: ${registeredThreadId}`);
         this.agents.delete(registeredThreadId);
       }
     });
 
-    socket.on("error", () => {
+    socket.on("error", (err) => {
+      this.log.warn(`[agent-hub] socket error: ${err.message}`);
       if (registeredThreadId) {
         this.agents.delete(registeredThreadId);
       }
@@ -86,6 +98,7 @@ export class AgentHub {
     parentId: string | undefined,
     socket: WebSocket,
   ): void {
+    this.log.info(`[agent-hub] agent registered: ${threadId}`);
     this.agents.set(threadId, {
       threadId,
       parentId,
@@ -108,7 +121,7 @@ export class AgentHub {
       const seq = pipeline[0]?.seq ?? 0;
       if (entry.lastSeq > 0 && seq > entry.lastSeq + 1) {
         const gap = seq - entry.lastSeq - 1;
-        console.warn(
+        this.log.warn(
           `[agent-hub] seq gap: thread=${msg.threadId} expected=${entry.lastSeq + 1} got=${seq} gap=${gap}`,
         );
       }
@@ -141,9 +154,11 @@ export class AgentHub {
   sendToAgent(threadId: string, message: string): void {
     const entry = this.agents.get(threadId);
     if (!entry) {
+      this.log.warn(`[agent-hub] sendToAgent failed — not connected: ${threadId}`);
       throw new Error(`Agent not connected: ${threadId}`);
     }
     if (entry.socket.readyState !== 1) {
+      this.log.warn(`[agent-hub] sendToAgent failed — socket not open: ${threadId}`);
       throw new Error(`Agent socket not open: ${threadId}`);
     }
     entry.socket.send(message);

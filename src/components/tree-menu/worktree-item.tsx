@@ -27,6 +27,7 @@ export interface WorktreeItemProps {
   isCreatingWorktree?: boolean;
   onPinToggle?: (worktreeId: string) => void;
   isPinned?: boolean;
+  onHideWorktree?: (worktreeId: string) => void;
 }
 
 /**
@@ -74,7 +75,7 @@ export function WorktreeItem(props: WorktreeItemProps) {
 function WorktreeHeader({
   item, isSelected, isCreatingWorktree, isPinned,
   onPinToggle, onNewThread, onNewTerminal, onCreatePr,
-  onNewWorktree, onArchiveWorktree, onRefresh,
+  onNewWorktree, onArchiveWorktree, onRefresh, onHideWorktree,
 }: WorktreeItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -238,6 +239,7 @@ function WorktreeHeader({
         onNewThread={onNewThread} onNewTerminal={onNewTerminal}
         onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
         onArchiveWorktree={onArchiveWorktree}
+        onHideWorktree={onHideWorktree}
         onClose={() => setShowContextMenu(false)}
         onStartRename={() => {
           setRenameValue(item.worktreeName ?? "");

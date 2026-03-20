@@ -8,6 +8,7 @@ import {
   Archive,
   Pencil,
   ExternalLink,
+  EyeOff,
   Loader2,
   Terminal,
   Pin,
@@ -128,6 +129,7 @@ interface WorktreeContextMenuProps {
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
+  onHideWorktree?: (worktreeId: string) => void;
   onClose: () => void;
   onStartRename: () => void;
 }
@@ -135,7 +137,7 @@ interface WorktreeContextMenuProps {
 export function WorktreeContextMenu({
   item, show, position, menuRef, isPinned,
   onPinToggle, onNewThread, onNewTerminal, onCreatePr,
-  onNewWorktree, onArchiveWorktree,
+  onNewWorktree, onArchiveWorktree, onHideWorktree,
   onClose, onStartRename,
 }: WorktreeContextMenuProps) {
   if (!show) return null;
@@ -169,6 +171,13 @@ export function WorktreeContextMenu({
           iconClass={isPinned ? "text-accent-400" : undefined}
           label={isPinned ? "Unpin workspace" : "Pin workspace"}
           onClick={() => { close(); onPinToggle(item.id); }}
+        />
+      )}
+      {onHideWorktree && (
+        <CtxItem
+          icon={EyeOff}
+          label="Hide workspace"
+          onClick={() => { close(); onHideWorktree(item.id); }}
         />
       )}
 

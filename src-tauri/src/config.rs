@@ -46,11 +46,11 @@ impl Default for AppConfig {
 }
 
 fn default_spotlight_hotkey() -> String {
-    build_info::DEFAULT_SPOTLIGHT_HOTKEY.to_string()
+    build_info::default_spotlight_hotkey().to_string()
 }
 
 fn default_clipboard_hotkey() -> String {
-    build_info::DEFAULT_CLIPBOARD_HOTKEY.to_string()
+    build_info::default_clipboard_hotkey().to_string()
 }
 
 fn default_zoom_level() -> f64 {

@@ -47,7 +47,11 @@ export type GhCliError =
 export function classifyGhError(stderr: string, exitCode: number): GhCliError {
   const lower = stderr.toLowerCase();
 
-  if (lower.includes("not found") && lower.includes("gh")) {
+  if (
+    lower.includes("command not found") ||
+    lower.includes("gh: not found") ||
+    (lower.includes("not found") && lower.includes("executable"))
+  ) {
     return new GhCliNotInstalledError();
   }
   if (

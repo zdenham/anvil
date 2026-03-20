@@ -20,7 +20,7 @@ fn expand_path(path: &str) -> PathBuf {
 
 /// Get default data directory based on baked suffix
 fn default_data_dir() -> PathBuf {
-    let suffix = build_info::APP_SUFFIX;
+    let suffix = build_info::app_suffix();
     let dir_name = if suffix.is_empty() {
         ".mort".to_string()
     } else {
@@ -33,7 +33,7 @@ fn default_data_dir() -> PathBuf {
 
 /// Get default config directory based on baked suffix
 fn default_config_dir() -> PathBuf {
-    let suffix = build_info::APP_SUFFIX;
+    let suffix = build_info::app_suffix();
     let dir_name = if suffix.is_empty() {
         "mortician".to_string()
     } else {
@@ -226,7 +226,7 @@ pub fn initialize() {
         data_dir = %data_dir().display(),
         config_dir = %config_dir().display(),
         shell_path = %shell_path(),
-        app_suffix = %build_info::APP_SUFFIX,
+        app_suffix = %build_info::app_suffix(),
         "Paths initialized (shell init deferred)"
     );
 }

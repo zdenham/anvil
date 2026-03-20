@@ -27,6 +27,9 @@ export interface TreeItemRendererProps {
   isCreatingWorktree?: boolean;
   onPinToggle?: (worktreeId: string) => void;
   isPinned?: boolean;
+  onHideRepo?: (repoId: string) => void;
+  onRemoveRepo?: (repoId: string, repoName: string) => void;
+  onHideWorktree?: (worktreeId: string) => void;
 }
 
 /**
@@ -39,12 +42,13 @@ export function TreeItemRenderer({
   onNewThread, onNewTerminal, onCreatePr, onNewWorktree,
   onArchiveWorktree, onRefresh, isCreatingWorktree,
   onPinToggle, isPinned,
+  onHideRepo, onRemoveRepo, onHideWorktree,
 }: TreeItemRendererProps) {
   const isSelected = selectedItemId === item.id;
 
   switch (item.type) {
     case "repo":
-      return <RepoItem item={item} />;
+      return <RepoItem item={item} onHideRepo={onHideRepo} onRemoveRepo={onRemoveRepo} />;
     case "worktree":
       return (
         <WorktreeItem
@@ -55,6 +59,7 @@ export function TreeItemRenderer({
           onArchiveWorktree={onArchiveWorktree}
           onRefresh={onRefresh} isCreatingWorktree={isCreatingWorktree}
           onPinToggle={onPinToggle} isPinned={isPinned}
+          onHideWorktree={onHideWorktree}
         />
       );
     case "folder":

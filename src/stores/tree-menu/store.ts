@@ -9,6 +9,10 @@ interface TreeMenuState {
   selectedItemId: string | null;
   /** UUID of pinned worktree node, or null if none pinned */
   pinnedWorktreeId: string | null;
+  /** Worktree IDs hidden by the user */
+  hiddenWorktreeIds: string[];
+  /** Repo IDs hidden by the user */
+  hiddenRepoIds: string[];
   /** ID of the node currently in inline rename mode, or null */
   renamingNodeId: string | null;
   /** Whether store has been hydrated from disk */
@@ -23,6 +27,8 @@ interface TreeMenuActions {
   _applySetExpanded: (nodeId: string, expanded: boolean) => Rollback;
   _applySetSelectedItem: (itemId: string | null) => Rollback;
   _applySetPinned: (worktreeId: string | null) => Rollback;
+  _applySetHiddenWorktrees: (ids: string[]) => Rollback;
+  _applySetHiddenRepos: (ids: string[]) => Rollback;
   _applySetRenaming: (nodeId: string | null) => Rollback;
 }
 
@@ -33,6 +39,8 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
   expandedSections: {},
   selectedItemId: null,
   pinnedWorktreeId: null,
+  hiddenWorktreeIds: [],
+  hiddenRepoIds: [],
   renamingNodeId: null,
   _hydrated: false,
 
@@ -44,6 +52,8 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
       expandedSections: state.expandedSections,
       selectedItemId: state.selectedItemId,
       pinnedWorktreeId: state.pinnedWorktreeId ?? null,
+      hiddenWorktreeIds: state.hiddenWorktreeIds ?? [],
+      hiddenRepoIds: state.hiddenRepoIds ?? [],
       _hydrated: true,
     });
   },
@@ -82,6 +92,18 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
     return () => set({ pinnedWorktreeId: prev });
   },
 
+  _applySetHiddenWorktrees: (ids: string[]): Rollback => {
+    const prev = get().hiddenWorktreeIds;
+    set({ hiddenWorktreeIds: ids });
+    return () => set({ hiddenWorktreeIds: prev });
+  },
+
+  _applySetHiddenRepos: (ids: string[]): Rollback => {
+    const prev = get().hiddenRepoIds;
+    set({ hiddenRepoIds: ids });
+    return () => set({ hiddenRepoIds: prev });
+  },
+
   _applySetRenaming: (nodeId: string | null): Rollback => {
     const prev = get().renamingNodeId;
     set({ renamingNodeId: nodeId });
@@ -92,7 +114,7 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
 /**
  * Get current tree menu state (non-reactive, for use outside React).
  */
-export function getTreeMenuState(): Pick<TreeMenuState, "expandedSections" | "selectedItemId" | "pinnedWorktreeId"> {
-  const { expandedSections, selectedItemId, pinnedWorktreeId } = useTreeMenuStore.getState();
-  return { expandedSections, selectedItemId, pinnedWorktreeId };
+export function getTreeMenuState(): Pick<TreeMenuState, "expandedSections" | "selectedItemId" | "pinnedWorktreeId" | "hiddenWorktreeIds" | "hiddenRepoIds"> {
+  const { expandedSections, selectedItemId, pinnedWorktreeId, hiddenWorktreeIds, hiddenRepoIds } = useTreeMenuStore.getState();
+  return { expandedSections, selectedItemId, pinnedWorktreeId, hiddenWorktreeIds, hiddenRepoIds };
 }

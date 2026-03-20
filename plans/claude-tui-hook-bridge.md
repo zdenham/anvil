@@ -49,7 +49,7 @@ The Claude CLI supports shell-command hooks via `--settings`. These hooks receiv
 Beyond permissions, the bridge should emit **lifecycle events** so Mort can track TUI session activity:
 
 | Hook point | Events emitted |
-|---|---|
+| --- | --- |
 | `PreToolUse` | `TOOL_STARTED`, `PERMISSION_DECIDED` (allow/deny/ask) |
 | `PostToolUse` | `TOOL_COMPLETED`, `FILE_MODIFIED` (if Write/Edit) |
 | `Stop` | `SESSION_ENDED` |
@@ -58,13 +58,18 @@ Beyond permissions, the bridge should emit **lifecycle events** so Mort can trac
 ## Phases
 
 - [ ] Phase 1: Define the hub protocol messages
+
 - [ ] Phase 2: Build the hook bridge script
+
 - [ ] Phase 3: Extend hub server to handle bridge messages
+
 - [ ] Phase 4: Frontend integration for permission UI
+
 - [ ] Phase 5: Lifecycle event emission and tracking
+
 - [ ] Phase 6: Settings generation integration
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -106,6 +111,7 @@ interface ClaudeTuiLifecycleEvent {
 ### Hub protocol additions in `agents/src/lib/hub/`
 
 Add these message types to the hub's message schema. The hub needs to:
+
 - Accept connections from bridge scripts (new client type: `"claude-tui-bridge"`)
 - Route `claude_tui_hook_request` from bridge → frontend
 - Route `claude_tui_hook_response` from frontend → bridge
@@ -143,6 +149,7 @@ Compiled to a standalone JS file at `~/.mort/hooks/bridge.js` (bundled at build 
 The bridge must conform to whatever stdin/stdout JSON format Claude CLI uses for shell hooks. We need to verify the exact format. Expected shape:
 
 **stdin (from CLI):**
+
 ```json
 {
   "hook_type": "PreToolUse",
@@ -154,12 +161,15 @@ The bridge must conform to whatever stdin/stdout JSON format Claude CLI uses for
 ```
 
 **stdout (to CLI):**
+
 ```json
 {
   "decision": "allow"
 }
 ```
+
 or
+
 ```json
 {
   "decision": "deny",
@@ -170,6 +180,7 @@ or
 ### `agents/src/claude-tui-bridge/safe-git-check.ts`
 
 Inline the safe-git pattern matching so the bridge can make instant local decisions without round-tripping to the hub for known-bad patterns. This is a fast path:
+
 - If the tool is `Bash` and matches a destructive git pattern → instant deny, no hub call
 - Otherwise → forward to hub for full permission evaluation
 
@@ -184,11 +195,13 @@ Wherever the hub server lives, add handlers for:
 1. **Bridge client registration**: When a bridge connects, it sends `{type: "register", clientType: "claude-tui-bridge", claudeThreadId: "..."}`. Hub tracks it.
 
 2. **Hook request routing**: When bridge sends `claude_tui_hook_request`:
+
    - Hub stores the pending request keyed by `hookId`
    - Broadcasts to frontend clients
    - When frontend sends `claude_tui_hook_response` with matching `hookId`, hub forwards to the bridge client
 
 3. **Lifecycle event handling**: When bridge sends `claude_tui_lifecycle`:
+
    - Hub emits to frontend for real-time UI updates
    - Optionally persists to the claude-thread's event log on disk
 
@@ -209,6 +222,7 @@ The frontend already has permission approval UI for SDK-managed threads (the app
 ### `src/entities/claude-threads/listeners.ts`
 
 Listen for `claude_tui_hook_request` events from the hub:
+
 - When a permission request arrives, show the same approval UI used for regular threads
 - Map the request to the claude-thread entity so the UI shows context (which session, what tool)
 - When user approves/denies, send `claude_tui_hook_response` back through the hub
@@ -238,7 +252,7 @@ function getClaudeThreadStatus(session: ClaudeThread, hasPendingPermission: bool
 For each hook invocation, the bridge emits lifecycle events to the hub as fire-and-forget messages. These enable the frontend to show activity indicators and the backend to build an audit trail.
 
 | Event | When | Payload |
-|---|---|---|
+| --- | --- | --- |
 | `TOOL_STARTED` | PreToolUse hook fires | `{toolName, toolInput, toolUseId}` |
 | `TOOL_COMPLETED` | PostToolUse hook fires | `{toolName, toolResult, toolUseId, durationMs}` |
 | `TOOL_DENIED` | PreToolUse returns deny | `{toolName, reason, toolUseId}` |
@@ -255,6 +269,7 @@ For each hook invocation, the bridge emits lifecycle events to the hub as fire-a
 ### Persisting events
 
 Events are written to `~/.mort/claude-threads/{id}/events.jsonl` (append-only log). This enables:
+
 - Post-session review of what the TUI did
 - Cost tracking via token usage events
 - File change tracking for the changes view
@@ -308,7 +323,7 @@ The safe-git check is now **built into the bridge** (Phase 2) as a fast path, so
 ## Key files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `agents/src/claude-tui-bridge/bridge.ts` | Hook bridge script (stdin/stdout ↔ WebSocket) |
 | `agents/src/claude-tui-bridge/safe-git-check.ts` | Fast-path destructive git detection |
 | `core/types/events.ts` | New message types for bridge protocol |

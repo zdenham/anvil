@@ -28,6 +28,9 @@ interface TreeMenuProps {
   onPinToggle?: (worktreeId: string) => void;
   /** ID of currently pinned worktree, or null */
   pinnedWorktreeId?: string | null;
+  onHideRepo?: (repoId: string) => void;
+  onRemoveRepo?: (repoId: string, repoName: string) => void;
+  onHideWorktree?: (worktreeId: string) => void;
   className?: string;
 }
 
@@ -39,7 +42,8 @@ interface TreeMenuProps {
 export function TreeMenu({
   onItemSelect, onFilesClick, onNewThread, onNewTerminal, onCreatePr,
   onNewWorktree, onArchiveWorktree,
-  creatingWorktreeIds, onPinToggle, pinnedWorktreeId, className,
+  creatingWorktreeIds, onPinToggle, pinnedWorktreeId,
+  onHideRepo, onRemoveRepo, onHideWorktree, className,
 }: TreeMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const items = useTreeData();
@@ -209,6 +213,9 @@ export function TreeMenu({
                   isCreatingWorktree={item.type === "worktree" && (creatingWorktreeIds?.has(item.id) ?? false)}
                   onPinToggle={onPinToggle}
                   isPinned={item.type === "worktree" && pinnedWorktreeId === item.id}
+                  onHideRepo={onHideRepo}
+                  onRemoveRepo={onRemoveRepo}
+                  onHideWorktree={onHideWorktree}
                 />
               </React.Fragment>
             );

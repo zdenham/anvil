@@ -4,8 +4,13 @@
  * Pushes entries to the shared logBuffer and broadcasts them to
  * connected WS clients. Also writes to console as a fallback
  * (useful in dev and before any WS clients connect).
+ *
+ * Additionally persists every entry to a JSON-lines log file on disk
+ * so that crash diagnostics survive process death.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import type { SidecarState, LogEntry } from "./state.js";
 
 export interface SidecarLogger {
@@ -13,6 +18,33 @@ export interface SidecarLogger {
   warn(message: string): void;
   error(message: string): void;
 }
+
+// ── Persistent log file ──────────────────────────────────────────────
+
+function defaultDataDir(): string {
+  const suffix = process.env.MORT_APP_SUFFIX ?? "";
+  const dirName = suffix ? `.mort-${suffix}` : ".mort";
+  return join(process.env.HOME ?? "", dirName);
+}
+
+const LOG_DIR = join(process.env.MORT_DATA_DIR || defaultDataDir(), "logs");
+const LOG_FILE = join(LOG_DIR, "sidecar.log");
+
+let logDirReady = false;
+
+function writeToLogFile(entry: LogEntry): void {
+  try {
+    if (!logDirReady) {
+      mkdirSync(LOG_DIR, { recursive: true });
+      logDirReady = true;
+    }
+    appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n");
+  } catch {
+    // Best-effort — don't let log-file errors take down the process
+  }
+}
+
+// ── Logger factory ───────────────────────────────────────────────────
 
 export function createLogger(state: SidecarState): SidecarLogger {
   function log(level: string, message: string): void {
@@ -24,6 +56,7 @@ export function createLogger(state: SidecarState): SidecarLogger {
     };
     state.logBuffer.push(entry);
     state.broadcaster.broadcast("log-event", entry);
+    writeToLogFile(entry);
 
     if (level === "error") {
       console.error(`[sidecar] ${message}`);

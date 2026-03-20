@@ -138,11 +138,18 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
 
       // Enter submits (unless Shift is held for newline, or trigger dropdown is active)
       // Only consume Enter if there's content to submit - otherwise let it propagate to quick actions
-      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive && content.trim()) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleSubmit();
-        return;
+      if (e.key === "Enter" && !e.shiftKey && !triggerState?.isActive) {
+        if (content.trim()) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleSubmit();
+          return;
+        } else if (contextType === "plan") {
+          e.preventDefault();
+          e.stopPropagation();
+          handleImplementPlan();
+          return;
+        }
       }
 
       // Handle arrow keys for history navigation
@@ -194,7 +201,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       // Note: Arrow keys, Tab, plain Enter are handled by TriggerSearchInput
       // when trigger is active and dropdown is enabled
     },
-    [handleSubmit, triggerState?.isActive, content, isInHistoryMode, handleHistoryNavigation, onCycleMode]
+    [handleSubmit, handleImplementPlan, triggerState?.isActive, content, contextType, isInHistoryMode, handleHistoryNavigation, onCycleMode]
   );
 
   const handleTriggerStateChange = useCallback((state: TriggerStateInfo) => {

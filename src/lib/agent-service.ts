@@ -1,5 +1,5 @@
 import { join, resolveResource, dirname } from "@/lib/browser-stubs";
-import { invoke } from "@/lib/invoke";
+import { invoke, getWsPort } from "@/lib/invoke";
 import { listen, type UnlistenFn } from "@/lib/events";
 import { z } from "zod";
 import { FilesystemClient } from "./filesystem-client";
@@ -803,7 +803,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   ];
 
   // Add hub WebSocket URL
-  envVars.MORT_AGENT_HUB_WS_URL = `ws://127.0.0.1:${__MORT_WS_PORT__}/ws/agent`;
+  envVars.MORT_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
 
   // Build diagnostic logging env var from current settings
   const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
@@ -995,7 +995,7 @@ export async function resumeSimpleAgent(
   ];
 
   // Add hub WebSocket URL
-  resumeEnvVars.MORT_AGENT_HUB_WS_URL = `ws://127.0.0.1:${__MORT_WS_PORT__}/ws/agent`;
+  resumeEnvVars.MORT_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
 
   // Build diagnostic logging env var from current settings
   const resumeDiagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;

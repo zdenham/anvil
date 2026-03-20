@@ -12,8 +12,11 @@
 
 import { isTauri } from "./runtime";
 
-const WS_URL = `ws://localhost:${__MORT_WS_PORT__}/ws`;
+const DEFAULT_WS_PORT = __MORT_WS_PORT__;
 const REQUEST_TIMEOUT_MS = 30_000;
+
+/** Resolved WS URL — set once at connection time via IPC or fallback to baked port. */
+let resolvedWsUrl: string | null = null;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Native Commands (Tauri IPC only, no-op in browser)
@@ -62,6 +65,7 @@ const NATIVE_COMMANDS = new Set([
   "paste_clipboard_entry",
   "hide_clipboard_manager",
   "run_internal_update",
+  "get_ws_port",
 ]);
 
 /** Sensible defaults when native commands are called from browser */
@@ -171,6 +175,38 @@ function scheduleReconnect(): void {
 }
 
 /**
+ * Resolves the WebSocket URL — queries Tauri IPC for the actual port,
+ * falls back to the build-time baked port in web mode.
+ */
+async function resolveWsUrl(): Promise<string> {
+  if (resolvedWsUrl) return resolvedWsUrl;
+
+  if (isTauri()) {
+    try {
+      const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
+      const port = await tauriInvoke<number>("get_ws_port");
+      resolvedWsUrl = `ws://localhost:${port}/ws`;
+      return resolvedWsUrl;
+    } catch {
+      // Fall through to default
+    }
+  }
+
+  resolvedWsUrl = `ws://localhost:${DEFAULT_WS_PORT}/ws`;
+  return resolvedWsUrl;
+}
+
+/**
+ * Returns the actual WebSocket port the sidecar is on.
+ * Call after connectWs() has resolved for a reliable value.
+ */
+export function getWsPort(): number {
+  if (!resolvedWsUrl) return DEFAULT_WS_PORT;
+  const match = resolvedWsUrl.match(/:(\d+)\//);
+  return match ? parseInt(match[1], 10) : DEFAULT_WS_PORT;
+}
+
+/**
  * Establishes the WebSocket connection.
  * Call early in app init (main.tsx) but do NOT block rendering on it.
  */
@@ -178,34 +214,38 @@ export function connectWs(): Promise<void> {
   if (ws?.readyState === WebSocket.OPEN) return Promise.resolve();
   if (connectingPromise) return connectingPromise;
 
-  connectingPromise = new Promise<void>((resolve, reject) => {
+  connectingPromise = (async () => {
     // Close any existing connection in non-OPEN state
     if (ws) {
       try { ws.close(); } catch { /* ignore */ }
       ws = null;
     }
 
-    const socket = new WebSocket(WS_URL);
+    const url = await resolveWsUrl();
 
-    socket.onopen = () => {
-      ws = socket;
-      reconnectAttempt = 0;
-      resolve();
-    };
+    return new Promise<void>((resolve, reject) => {
+      const socket = new WebSocket(url);
 
-    socket.onmessage = handleMessage;
+      socket.onopen = () => {
+        ws = socket;
+        reconnectAttempt = 0;
+        resolve();
+      };
 
-    socket.onclose = () => {
-      ws = null;
-      scheduleReconnect();
-    };
+      socket.onmessage = handleMessage;
 
-    socket.onerror = () => {
-      ws = null;
-      reject(new Error("WebSocket connection failed"));
-      scheduleReconnect();
-    };
-  }).finally(() => {
+      socket.onclose = () => {
+        ws = null;
+        scheduleReconnect();
+      };
+
+      socket.onerror = () => {
+        ws = null;
+        reject(new Error("WebSocket connection failed"));
+        scheduleReconnect();
+      };
+    });
+  })().finally(() => {
     connectingPromise = null;
   });
 

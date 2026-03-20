@@ -12,6 +12,7 @@ import {
   stat,
   readdir,
   cp,
+  copyFile,
 } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
@@ -75,7 +76,7 @@ export async function dispatchFs(
       return null;
 
     case "fs_copy_file":
-      await cp(
+      await copyFile(
         extractArg<string>(args, "from"),
         extractArg<string>(args, "to"),
       );

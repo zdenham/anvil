@@ -10,6 +10,9 @@ export function initWebErrorCapture(windowName: string): void {
 
   // 1. Capture uncaught exceptions
   window.addEventListener("error", (event) => {
+    // ResizeObserver warnings are benign and noisy — suppress them
+    if (event.message?.includes("ResizeObserver loop")) return;
+
     logger.error(
       `${prefix} [UncaughtError] ${event.message}`,
       `at ${event.filename}:${event.lineno}:${event.colno}`

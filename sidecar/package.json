@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "dev": "tsx watch src/server.ts",
+    "dev": "MORT_APP_SUFFIX=dev tsx watch src/server.ts",
     "start": "node dist/server.js",
     "test": "vitest run"
   },

@@ -35,6 +35,9 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 /// Handle to the sidecar Node.js process, killed on app exit.
 struct SidecarProcess(Mutex<Option<std::process::Child>>);
 
+/// The actual port the sidecar is listening on (may differ from build-time default).
+struct SidecarPort(Mutex<u16>);
+
 const MAIN_WINDOW_LABEL: &str = "main";
 
 
@@ -165,17 +168,80 @@ fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
 /// Spawns the Node.js sidecar server as a background process.
 /// If the sidecar port is already in use (e.g., from `pnpm sidecar:dev`), skips spawning.
 /// Returns the child process handle for lifecycle management, or None if already running.
-fn spawn_sidecar(app: &tauri::App) -> Result<Option<std::process::Child>, String> {
+/// Result of spawning (or discovering) the sidecar, including the actual port it's on.
+struct SidecarSpawnResult {
+    child: Option<std::process::Child>,
+    actual_port: u16,
+}
+
+/// Check a single port's health endpoint and verify appSuffix matches.
+/// Returns the port from the health response if it matches, or None.
+fn check_health_with_suffix(port: u16) -> Option<u16> {
+    let url = format!("http://127.0.0.1:{}/health", port);
+    let response = ureq::get(&url).call().ok()?;
+    if response.status() != 200 {
+        return None;
+    }
+    let body: serde_json::Value = response.into_json().ok()?;
+    let suffix = body.get("appSuffix").and_then(|v| v.as_str()).unwrap_or("");
+    if suffix == build_info::app_suffix() {
+        let reported_port = body.get("port").and_then(|v| v.as_u64()).unwrap_or(port as u64) as u16;
+        Some(reported_port)
+    } else {
+        tracing::info!(
+            port = port,
+            expected_suffix = build_info::app_suffix(),
+            found_suffix = suffix,
+            "Health check appSuffix mismatch — treating as port conflict"
+        );
+        None
+    }
+}
+
+/// Try to discover the actual sidecar port by reading the port file.
+fn read_port_file() -> Option<u16> {
+    let suffix = if build_info::app_suffix().is_empty() { "default" } else { build_info::app_suffix() };
+    let port_file = paths::data_dir().join(format!("sidecar-{}.port", suffix));
+    let contents = std::fs::read_to_string(&port_file).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&contents).ok()?;
+
+    let port = parsed.get("port").and_then(|v| v.as_u64())? as u16;
+    let pid = parsed.get("pid").and_then(|v| v.as_u64());
+
+    // Verify the PID is still alive before trusting the port file
+    if let Some(pid) = pid {
+        use std::process::Command;
+        let alive = Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !alive {
+            tracing::info!(pid = pid, port = port, "Stale port file (PID not alive) — ignoring");
+            return None;
+        }
+    }
+
+    Some(port)
+}
+
+fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
     use std::process::{Command, Stdio};
 
-    let ws_port = build_info::WS_PORT;
+    let base_port: u16 = build_info::ws_port().parse().unwrap_or(9600);
+    const MAX_PORT_RETRIES: u16 = 10;
 
-    // Check if sidecar is already running on this port
-    let health_url = format!("http://127.0.0.1:{}/health", ws_port);
-    if let Ok(response) = ureq::get(&health_url).call() {
-        if response.status() == 200 {
-            tracing::info!(port = ws_port, "Sidecar already running — skipping spawn");
-            return Ok(None);
+    // Check if a sidecar with matching appSuffix is already running on the preferred port
+    if let Some(port) = check_health_with_suffix(base_port) {
+        tracing::info!(port = port, "Sidecar already running with matching appSuffix — skipping spawn");
+        return Ok(SidecarSpawnResult { child: None, actual_port: port });
+    }
+
+    // Also check the port file in case a previous sidecar moved to a different port
+    if let Some(port) = read_port_file() {
+        if let Some(port) = check_health_with_suffix(port) {
+            tracing::info!(port = port, "Found running sidecar via port file — skipping spawn");
+            return Ok(SidecarSpawnResult { child: None, actual_port: port });
         }
     }
 
@@ -197,7 +263,7 @@ fn spawn_sidecar(app: &tauri::App) -> Result<Option<std::process::Child>, String
 
     tracing::info!(
         path = %server_path.display(),
-        port = ws_port,
+        base_port = base_port,
         is_dev = is_dev,
         "Spawning sidecar server"
     );
@@ -206,9 +272,9 @@ fn spawn_sidecar(app: &tauri::App) -> Result<Option<std::process::Child>, String
         .map_err(|e| format!("Cannot find node for sidecar: {}", e))?;
     let child = Command::new(&node_path)
         .arg(&server_path)
-        .env("MORT_WS_PORT", ws_port)
+        .env("MORT_WS_PORT", build_info::ws_port())
         .env("MORT_DATA_DIR", paths::data_dir().to_string_lossy().as_ref())
-        .env("MORT_APP_SUFFIX", build_info::APP_SUFFIX)
+        .env("MORT_APP_SUFFIX", build_info::app_suffix())
         .env("PATH", paths::shell_path())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -216,19 +282,31 @@ fn spawn_sidecar(app: &tauri::App) -> Result<Option<std::process::Child>, String
         .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
 
     // Wait for sidecar to become healthy (up to 5 seconds)
+    // It may have landed on a different port due to EADDRINUSE retry
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     while std::time::Instant::now() < deadline {
-        if let Ok(response) = ureq::get(&health_url).call() {
-            if response.status() == 200 {
-                tracing::info!("Sidecar is healthy on port {}", ws_port);
-                return Ok(Some(child));
+        // First try: check sequential ports for our appSuffix
+        for offset in 0..MAX_PORT_RETRIES {
+            let port = base_port + offset;
+            if let Some(port) = check_health_with_suffix(port) {
+                tracing::info!(port = port, "Sidecar is healthy");
+                return Ok(SidecarSpawnResult { child: Some(child), actual_port: port });
             }
         }
-        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Second try: check the port file (written by sidecar after listen succeeds)
+        if let Some(port) = read_port_file() {
+            if let Some(port) = check_health_with_suffix(port) {
+                tracing::info!(port = port, "Sidecar is healthy (discovered via port file)");
+                return Ok(SidecarSpawnResult { child: Some(child), actual_port: port });
+            }
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(200));
     }
 
-    tracing::warn!("Sidecar health check timed out — continuing anyway");
-    Ok(Some(child))
+    tracing::warn!("Sidecar health check timed out — using base port {}", base_port);
+    Ok(SidecarSpawnResult { child: Some(child), actual_port: base_port })
 }
 
 /// Ensures essential .mort directories exist synchronously
@@ -642,6 +720,13 @@ fn get_zoom_level() -> f64 {
     config::get_zoom_level()
 }
 
+/// Returns the actual WebSocket port the sidecar is listening on.
+/// May differ from the build-time default if the preferred port was taken.
+#[tauri::command]
+fn get_ws_port(state: tauri::State<SidecarPort>) -> u16 {
+    *state.0.lock().unwrap()
+}
+
 /// Restarts the application (dev mode only - for manual refresh)
 #[tauri::command]
 fn restart_app(app: AppHandle) {
@@ -792,6 +877,8 @@ pub fn run() {
 
     // Sidecar process handle — populated in setup() once we have the App handle
     let sidecar_process = SidecarProcess(Mutex::new(None));
+    let base_port: u16 = build_info::ws_port().parse().unwrap_or(9600);
+    let sidecar_port = SidecarPort(Mutex::new(base_port));
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -801,7 +888,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
         .manage(profiling::ProfilingState(std::sync::Mutex::new(false)))
-        .manage(sidecar_process);
+        .manage(sidecar_process)
+        .manage(sidecar_port);
 
     builder
         .on_window_event(|window, event| {
@@ -912,6 +1000,7 @@ pub fn run() {
             zoom_reset,
             get_zoom_level,
             restart_app,
+            get_ws_port,
             // App search commands
             app_search::search_applications,
             app_search::open_application,
@@ -993,13 +1082,20 @@ pub fn run() {
                 use tauri::Manager;
                 let t = std::time::Instant::now();
                 match spawn_sidecar(app) {
-                    Ok(Some(child)) => {
-                        tracing::info!(pid = child.id(), "[startup] sidecar spawned");
-                        let state = app.state::<SidecarProcess>();
-                        *state.0.lock().unwrap() = Some(child);
-                    }
-                    Ok(None) => {
-                        tracing::info!("[startup] sidecar already running externally");
+                    Ok(result) => {
+                        let port = result.actual_port;
+                        // Store actual port for IPC queries
+                        let port_state = app.state::<SidecarPort>();
+                        *port_state.0.lock().unwrap() = port;
+                        tracing::info!(actual_port = port, "[startup] sidecar port resolved");
+
+                        if let Some(child) = result.child {
+                            tracing::info!(pid = child.id(), "[startup] sidecar spawned");
+                            let state = app.state::<SidecarProcess>();
+                            *state.0.lock().unwrap() = Some(child);
+                        } else {
+                            tracing::info!("[startup] sidecar already running externally");
+                        }
                     }
                     Err(e) => {
                         tracing::error!(error = %e, searched_path = %paths::shell_path(), "Failed to spawn sidecar");
@@ -1174,6 +1270,10 @@ pub fn run() {
                             }
                         }
                     }
+                    // Clean up port file
+                    let suffix = if build_info::app_suffix().is_empty() { "default" } else { build_info::app_suffix() };
+                    let port_file = paths::data_dir().join(format!("sidecar-{}.port", suffix));
+                    let _ = std::fs::remove_file(&port_file);
                 }
                 _ => {}
             }

@@ -300,6 +300,8 @@ export function useTreeData(): TreeItemNode[] {
   const folders = useFolderStore((state) => state._foldersArray);
   const expandedSections = useTreeMenuStore((state) => state.expandedSections);
   const pinnedWorktreeId = useTreeMenuStore((state) => state.pinnedWorktreeId);
+  const hiddenWorktreeIds = useTreeMenuStore((state) => state.hiddenWorktreeIds);
+  const hiddenRepoIds = useTreeMenuStore((state) => state.hiddenRepoIds);
   const repos = useRepoWorktreeLookupStore((state) => state.repos);
   const hideExternal = useSettingsStore((s) => s.workspace.hideExternalWorktrees ?? true);
 
@@ -357,18 +359,37 @@ export function useTreeData(): TreeItemNode[] {
       filteredWorktrees, folders, threads, plans, terminals, pullRequests, ctx,
     );
 
+    // Hidden filtering: remove hidden repos and worktrees
+    const hiddenRepoSet = hiddenRepoIds.length > 0 ? new Set(hiddenRepoIds) : null;
+    const hiddenWorktreeSet = hiddenWorktreeIds.length > 0 ? new Set(hiddenWorktreeIds) : null;
+
+    const visibleNodes = (hiddenRepoSet || hiddenWorktreeSet)
+      ? allNodes.filter((node) => {
+          // Hide repo nodes
+          if (node.type === "repo" && hiddenRepoSet?.has(node.id)) return false;
+          // Hide worktrees belonging to hidden repos
+          if (node.repoId && hiddenRepoSet?.has(node.repoId)) return false;
+          // Hide worktrees by worktree ID
+          if (node.type === "worktree" && hiddenWorktreeSet?.has(node.id)) return false;
+          // Hide children of hidden worktrees
+          if (node.worktreeId && hiddenWorktreeSet?.has(node.worktreeId)) return false;
+          return true;
+        })
+      : allNodes;
+
     // Pin filtering: show only the pinned worktree's subtree
     if (pinnedWorktreeId) {
-      return allNodes.filter(
+      return visibleNodes.filter(
         (node) => node.id === pinnedWorktreeId || node.worktreeId === pinnedWorktreeId,
       );
     }
 
-    return allNodes;
+    return visibleNodes;
   }, [
     threads, plans, terminals, pullRequests, prDetails, folders,
     expandedSections, runningThreadIds, worktrees,
-    pinnedWorktreeId, threadsWithPendingInput, hideExternal,
+    pinnedWorktreeId, hiddenWorktreeIds, hiddenRepoIds,
+    threadsWithPendingInput, hideExternal,
   ]);
 }
 

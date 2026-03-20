@@ -2,348 +2,330 @@
 
 ## Summary
 
-Add a new `claude-thread` content pane type that spawns the real Claude TUI (CLI binary) inside a terminal, with Mort's hooks and system prompt injected via CLI flags. Users who prefer the TUI get Mort's orchestration benefits without leaving the app.
+Add Claude TUI support by extending the existing thread schema with a `threadKind` discriminator. Standard GUI threads have `threadKind` undefined; TUI threads set `threadKind: "claude-tui"`. Using `z.string()` (not a closed enum) so we can add new thread kinds in the future without schema migration. TUI threads reuse the same store, service, tree menu, and content pane routing — the only difference is how they render (PTY terminal vs message list) and how they're spawned (`claude` CLI binary vs agent SDK).
+
+## Architecture Decision: Unified Thread Schema
+
+Instead of a separate `ClaudeTuiThread` entity, we add fields to the existing `ThreadMetadata`:
+
+```typescript
+// In ThreadMetadataBaseSchema
+threadKind: z.string().optional(),
+terminalId: z.string().uuid().optional(),       // PTY session ID (TUI threads only)
+claudeSessionId: z.string().optional(),          // Claude CLI session ID for --resume
+```
+
+This means:
+
+- **No new entity, store, or service** — threads are threads
+- **Same tree menu item** — `thread-item.tsx` renders both kinds, differentiated by badge/prefix
+- **Same content pane route** — `{ type: "thread"; threadId }` — the thread content component checks `threadKind` to decide whether to render the message list or a terminal
+- **Same persistence** — `~/.mort/threads/{id}/metadata.json`
+- **Same archiving, naming, visual settings, drag-and-drop** — all just work
 
 ## Architecture Decision: PTY-based Claude Process
 
-We spawn the `claude` binary directly in a PTY rather than reimplementing the TUI or wrapping the SDK. This gives users the authentic Claude TUI experience (keyboard shortcuts, `/` commands, visual styling, streaming) while Mort injects value through CLI flags (`--settings`, `--append-system-prompt`, `--dangerously-skip-permissions`).
+We spawn `claude` directly in a PTY. This gives users the authentic Claude TUI experience (keyboard shortcuts, `/` commands, visual styling, streaming) while Mort injects value through CLI args and environment variables assembled at spawn time.
 
-**Key insight**: The Claude CLI's `--settings <file-or-json>` flag accepts hook definitions as shell commands. We can bridge Mort's programmatic hooks to CLI-compatible shell-script hooks.
+**No extra files on disk.** The service builds the `--settings` inline JSON, `--append-system-prompt` string, and all other flags in memory. The PTY spawner (Phase 1) accepts `command`, `args`, and `env` — so the spawn call looks like:
+
+```typescript
+terminalSessionService.create({
+  cwd: worktreePath,
+  command: "claude",
+  args: ["--dangerously-skip-permissions", "--settings", settingsJson, "--append-system-prompt", systemPrompt, "--model", "claude-sonnet-4-6"],
+  env: { MORT_HUB_URL: "...", MORT_THREAD_ID: id },
+})
+```
+
+The user never sees the flags — they just see the Claude TUI appear in a content pane.
 
 ## Design
 
 ### How it works
 
-1. User clicks "New Claude Session" (or similar action) on a worktree
-2. Mort generates a temporary settings JSON + system prompt
-3. A PTY spawns `claude` with flags: `--dangerously-skip-permissions --append-system-prompt "..." --settings /path/to/settings.json --model claude-sonnet-4-6`
-4. The terminal renders in a content pane (not the bottom terminal panel)
-5. Sidebar shows the session with a `cc` prefix badge
-6. When `claude` exits, the PTY exits and the session shows as "exited"
+1. User clicks "New Claude Session" on a worktree
+2. Service creates a thread with `threadKind: "claude-tui"` using the existing thread service
+3. Args builder constructs CLI args + env vars in memory
+4. PTY spawns `claude` with those args/env, `cwd` set to the worktree path
+5. Thread metadata updated with `terminalId` linking to the PTY session
+6. Content pane renders a terminal (not the message list) when `threadKind` is set
+7. Sidebar shows the thread with a `cc` prefix badge
+8. When `claude` exits, the thread status is set to "completed"
 
 ### Content pane routing
 
 ```
-claude-thread → content zone (main area)
-terminal      → terminal panel (bottom)
+thread (threadKind: undefined)      → message list UI (standard)
+thread (threadKind: "claude-tui")   → terminal content (PTY)
+terminal                            → terminal panel (bottom)
 ```
 
-The `claude-thread` type uses `getViewCategory() → "content"` so it routes to the main content area, reusing the same `TerminalContent` xterm.js component for rendering.
+No new `ContentPaneView` variant needed. The existing `{ type: "thread"; threadId }` route handles both — the component checks `threadKind` at render time.
 
-### New types
+### Schema changes
 
 ```typescript
-// ContentPaneView addition
-| { type: "claude-thread"; claudeThreadId: string }
-
-// TreeItemType addition
-"claude-thread"
-
-// Entity
-interface ClaudeThread {
-  id: string;
-  terminalId: string;      // Associated PTY terminal session
-  worktreeId: string;
-  worktreePath: string;
-  label: string;
-  createdAt: number;
-  isAlive: boolean;
-  sessionId?: string;       // Claude CLI session ID for --resume
-  visualSettings: VisualSettings;
-}
+// Additions to ThreadMetadataBaseSchema in core/types/threads.ts
+threadKind: z.string().optional(),
+terminalId: z.string().uuid().optional(),       // PTY session ID (TUI threads only)
+claudeSessionId: z.string().optional(),          // Claude CLI --resume session ID
 ```
 
 ## Phases
 
-- [ ] Phase 1: Extend PTY spawning to support custom commands
+- [ ] Phase 1: Extend PTY spawning to support custom commands and env vars
+- [ ] Phase 2: Add `threadKind` to thread schema and update thread service
+- [ ] Phase 3: Content pane branching for TUI threads
+- [ ] Phase 4: Tree menu differentiation with "cc" prefix
+- [ ] Phase 5: Hook bridge integration (see `plans/claude-tui-hook-bridge.md`)
+- [ ] Phase 6: "Use terminal interface" preference setting
 
-- [ ] Phase 2: Claude thread entity, service, and store
-
-- [ ] Phase 3: Settings generation and CLI flag assembly
-
-- [ ] Phase 4: Content pane type and UI component
-
-- [ ] Phase 5: Tree menu integration with "cc" prefix
-
-- [ ] Phase 6: Hook bridge integration (see `plans/claude-tui-hook-bridge.md`)
-
-&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
+<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 
 ---
 
-## Phase 1: Extend PTY spawning to support custom commands
+## Phase 1: Extend PTY spawning to support custom commands and env vars
 
-Currently `spawn_terminal_inner` in `src-tauri/src/terminal.rs:64` hardcodes the user's `$SHELL -l`. We need to support an optional custom command.
+Currently `spawn_terminal_inner` in `src-tauri/src/terminal.rs:64` hardcodes the user's `$SHELL -l`. We need to support an optional custom command and extra environment variables.
 
 **Changes:**
 
 ### `src-tauri/src/terminal.rs`
 
-- Add optional `command: Option<String>` and `args: Option<Vec<String>>` parameters to `spawn_terminal_inner`
+- Add optional `command: Option<String>`, `args: Option<Vec<String>>`, and `env: Option<HashMap<String, String>>` parameters to `spawn_terminal_inner`
 - When `command` is `Some(cmd)`, use `CommandBuilder::new(cmd)` with the provided args instead of the shell
-- Still set the same env vars (`TERM`, `COLORTERM`, `LANG`, `PATH`, `HOME`)
-- Skip shell integration (ZDOTDIR) when spawning a custom command
-- Skip `-l` flag when not spawning a shell
+- Merge `env` entries into the child process environment
+- Still set the same base env vars (`TERM`, `COLORTERM`, `LANG`, `PATH`, `HOME`)
+- Skip shell integration (ZDOTDIR) and `-l` flag when spawning a custom command
 
 ### `src-tauri/src/ws_server/dispatch_misc.rs`
 
-- Update WS handler to accept optional `command` and `args` fields in the `spawn_terminal` message
+- Update WS handler to accept optional `command`, `args`, and `env` fields in the `spawn_terminal` message
 
 ### Tauri IPC command
 
-- Update the `spawn_terminal` Tauri command in `src-tauri/src/lib.rs` to accept optional `command` and `args` parameters
+- Update the `spawn_terminal` Tauri command in `src-tauri/src/lib.rs` to accept optional `command`, `args`, and `env` parameters
 
 ### Frontend `invoke` call
 
-- Update `terminalSessionService.create()` to accept optional `command` and `args`
-- Pass them through to `invoke("spawn_terminal", { cols, rows, cwd, command, args })`
+- Update `terminalSessionService.create()` to accept optional `command`, `args`, and `env`
+- Pass them through to `invoke("spawn_terminal", { cols, rows, cwd, command, args, env })`
 
 ---
 
-## Phase 2: Claude thread entity, service, and store
+## Phase 2: Add `threadKind` to thread schema and update thread service
 
-Create a new entity for managing Claude TUI sessions, following the same patterns as `terminal-sessions/`.
+### `core/types/threads.ts`
 
-### `src/entities/claude-threads/types.ts`
+Add to `ThreadMetadataBaseSchema`:
 
 ```typescript
-import { z } from "zod";
-
-export const ClaudeThreadSchema = z.object({
-  id: z.string().uuid(),
-  terminalId: z.string().uuid(),
-  worktreeId: z.string(),
-  worktreePath: z.string(),
-  label: z.string(),
-  createdAt: z.number(),
-  isAlive: z.boolean(),
-  isArchived: z.boolean().optional(),
-  sessionId: z.string().optional(),
-  visualSettings: VisualSettingsSchema,
-});
-
-export type ClaudeThread = z.infer<typeof ClaudeThreadSchema>;
+threadKind: z.string().optional(),
+terminalId: z.string().uuid().optional(),
+claudeSessionId: z.string().optional(),
 ```
 
-### `src/entities/claude-threads/store.ts`
+Add to `CreateThreadInput`:
 
-- Zustand store following entity-store pattern
-- `sessions: Record<string, ClaudeThread>`
-- Methods: `hydrate`, `addSession`, `updateSession`, `removeSession`, `markExited`
-- Selector: `getByWorktree(worktreeId)`
-
-### `src/entities/claude-threads/service.ts`
-
-- `ClaudeThreadService` class
-- `create(worktreeId, worktreePath)`:
-  1. Generate settings JSON file (Phase 3)
-  2. Build CLI args array
-  3. Create terminal session with custom command via `terminalSessionService.create()` (extended in Phase 1) — or spawn directly with command
-  4. Persist metadata to `~/.mort/claude-threads/{id}/metadata.json`
-- `hydrate()`: Load from disk, mark all as not alive
-- `archive(id)`: Kill terminal, remove from disk
-- `resume(id)`: Revive with `claude --resume <sessionId>` flag
-- `get`, `getAll`, `getByWorktree` accessors
-
-### Persistence
-
-- Directory: `~/.mort/claude-threads/{id}/`
-- `metadata.json`: ClaudeThread entity
-- `settings.json`: Generated Claude CLI settings (hooks, etc.)
-
----
-
-## Phase 3: Settings generation and CLI flag assembly
-
-Generate the CLI arguments and settings file that configure each Claude TUI session.
-
-### `src/entities/claude-threads/settings-builder.ts`
-
-Responsible for building the `--settings` JSON and CLI args.
-
-**Settings JSON structure:**
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": ["~/.mort/hooks/safe-git-hook.sh"]
-      }
-    ]
-  }
-}
+```typescript
+threadKind?: string;  // "claude-tui" for TUI threads, undefined for standard GUI
 ```
 
-**CLI args assembly:**
+Add to `UpdateThreadInput`:
+
+```typescript
+terminalId?: string;
+claudeSessionId?: string;
+```
+
+### `src/entities/threads/service.ts`
+
+Add a `createTuiThread` method (or extend `create` with a `threadKind` option):
+
+1. Create thread metadata with `threadKind: "claude-tui"`, `status: "running"`
+2. Build CLI args and env vars in memory (via args builder)
+3. Spawn terminal with `command: "claude"`, the args, env, and `cwd: worktreePath`
+4. Update thread with `terminalId` from the spawned terminal
+5. Return thread metadata
+
+### `src/lib/claude-tui-args-builder.ts`
+
+Builds the CLI args and env vars in memory. No files written.
 
 ```typescript
 function buildClaudeArgs(options: {
-  worktreePath: string;
-  settingsPath: string;
+  settingsJson: string;
   systemPrompt: string;
-  sessionId?: string;  // for resume
+  sessionId?: string;
   model?: string;
-}): string[] {
-  const args = [
-    "--dangerously-skip-permissions",
-    "--append-system-prompt", options.systemPrompt,
-    "--settings", options.settingsPath,
-    "--model", options.model ?? "claude-sonnet-4-6",
-  ];
-  if (options.sessionId) {
-    args.push("--resume", options.sessionId);
-  }
-  return args;
-}
+}): string[]
+
+function buildSettingsJson(hooks: HookConfig[]): string
+
+function buildSystemPrompt(worktreePath: string): string
 ```
 
-**System prompt content:**
+### `src/lib/thread-creation-service.ts`
 
-- Reuse `buildEnvironmentContext()` and `buildGitContext()` from `agents/src/context.ts` (or a simplified version)
-- Include working directory, git branch, platform info
-- Include Mort-specific context (data dir, worktree info)
+Add a `createTuiThread` path that:
 
-### `~/.mort/hooks/safe-git-hook.sh`
+1. Creates thread with `threadKind: "claude-tui"` via the existing thread service
+2. Builds args, spawns the PTY
+3. Updates thread with `terminalId`
+4. Navigates to the thread
 
-- Shell script version of `agents/src/hooks/safe-git-hook.ts`
-- Reads JSON from stdin, checks `tool_input.command` against destructive patterns
-- Returns `{"decision": "deny", "reason": "..."}` or `{"decision": "allow"}`
-- Written once at app startup by the service
+### Exit detection
+
+- Watch for terminal exit events. When the PTY backing a TUI thread exits, update the thread status to `"completed"`.
 
 ---
 
-## Phase 4: Content pane type and UI component
+## Phase 3: Content pane branching for TUI threads
 
-### `src/components/content-pane/types.ts`
+### `src/components/content-pane/thread-content.tsx`
 
-Add to `ContentPaneView`:
-
-```typescript
-| { type: "claude-thread"; claudeThreadId: string }
-```
-
-Update `getViewCategory`:
+Branch on `threadKind` at the top of the component:
 
 ```typescript
-export function getViewCategory(type: ContentPaneView["type"]): ViewCategory {
-  if (type === "terminal") return "terminal";
-  return "content";  // claude-thread routes to content zone
+if (thread.threadKind === "claude-tui") {
+  return <TuiThreadContent thread={thread} />;
 }
+// ... existing GUI thread rendering
 ```
 
-### `src/components/content-pane/claude-thread-content.tsx`
+### `src/components/content-pane/tui-thread-content.tsx`
 
-- Thin wrapper around `TerminalContent`
-- On mount: check if claude-thread's terminal is alive, if not spawn/revive
-- Pass `terminalId` from the claude-thread entity to `TerminalContent`
-- Handle session resumption (if the user reopens a closed session, use `--resume`)
+Thin wrapper around `TerminalContent`:
 
 ```typescript
-export function ClaudeThreadContent({ claudeThreadId }: { claudeThreadId: string }) {
-  const claudeThread = useClaudeThreadStore(s => s.sessions[claudeThreadId]);
-  if (!claudeThread) return <EmptyPaneContent />;
-  return <TerminalContent terminalId={claudeThread.terminalId} />;
+export function TuiThreadContent({ thread }: { thread: ThreadMetadata }) {
+  if (!thread.terminalId) return <EmptyPaneContent />;
+  return <TerminalContent terminalId={thread.terminalId} />;
 }
-```
-
-### `src/components/content-pane/content-pane.tsx`
-
-Add case:
-
-```typescript
-{view.type === "claude-thread" && <ClaudeThreadContent claudeThreadId={view.claudeThreadId} />}
 ```
 
 ### Tab label
 
-- Show `cc: {label}` in tab bar for claude-thread views
-- Differentiate from regular terminals visually
+Show `cc: {name}` in the tab bar for TUI threads, visually differentiated from GUI threads.
 
 ---
 
-## Phase 5: Tree menu integration with "cc" prefix
-
-### `src/stores/tree-menu/types.ts`
-
-Add `"claude-thread"` to `TreeItemType`.
+## Phase 4: Tree menu differentiation with "cc" prefix
 
 ### `src/hooks/tree-node-builders.ts`
 
-Add `claudeThreadToNode()`:
+Update `threadToNode()` to check `threadKind`:
 
-```typescript
-export function claudeThreadToNode(session: ClaudeThread): TreeItemNode {
-  return {
-    type: "claude-thread",
-    id: session.id,
-    title: `cc ${session.label}`,  // "cc" prefix
-    status: session.isAlive ? "running" : "read",
-    depth: 0,
-    isFolder: false,
-    worktreeId: session.worktreeId,
-    visualSettings: session.visualSettings,
-  };
-}
-```
+- TUI threads get title: `cc {name}` with a monospace/muted badge
+- Status mapping: `running` → green pulse, `completed` → gray, same as GUI threads
 
-### `src/hooks/use-tree-data.ts`
+### `src/components/tree-menu/thread-item.tsx`
 
-Include claude-threads in the unified tree builder, sorted alongside threads.
+- Detect TUI threads and show `cc` badge/prefix
+- Context menu additions for TUI threads: Resume, Copy Session ID
+- Archive works the same as GUI threads (already inherited)
 
-### `src/components/tree-menu/claude-thread-item.tsx`
+### No new tree item type needed
 
-Similar to `ThreadItem` but:
-
-- Shows a `cc` badge/prefix before the label (monospace, muted color)
-- Status dot: running (green pulse when alive), read (gray when exited)
-- Archive button (same pattern as ThreadItem)
-- Context menu: Rename, Archive, Resume, Copy Session ID
-
-### `src/components/tree-menu/tree-item-renderer.tsx`
-
-Add case:
-
-```typescript
-case "claude-thread":
-  return <ClaudeThreadItem item={item} isSelected={isSelected} onSelect={onItemSelect} />;
-```
-
-### Navigation
-
-Add to `navigation-service.ts`:
-
-```typescript
-async navigateToClaudeThread(claudeThreadId: string, options?: NavigateOptions) {
-  await treeMenuService.setSelectedItem(claudeThreadId);
-  const view: ContentPaneView = { type: "claude-thread", claudeThreadId };
-  await this.openOrFind(view, options);
-}
-```
+TUI threads use the existing `"thread"` tree item type. The visual differentiation is purely cosmetic based on `threadKind`.
 
 ### Creation UX
 
-Add a "New Claude Session" button/option in the worktree menu (next to "New Thread" and "New Terminal"):
-
-- In `worktree-item.tsx` or the worktree context menu
-- Calls `claudeThreadService.create(worktreeId, worktreePath)`
-- Navigates to the new session
+"New Claude Session" in worktree menu (next to "New Thread" and "New Terminal").
 
 ---
 
-## Phase 6: Hook bridge integration
+## Phase 5: Hook bridge integration
 
-Full lifecycle event tracking and permission forwarding via the hook bridge. This is what makes TUI sessions first-class citizens in Mort rather than opaque terminal processes.
+Full lifecycle event tracking and permission forwarding via the hook bridge.
 
 **Detailed plan**: `plans/claude-tui-hook-bridge.md`
 
-This phase wires the bridge into the settings generation (Phase 3) and ensures:
+This phase ensures:
 
 - The bridge script is bundled/deployed to `~/.mort/hooks/bridge.js`
-- Environment variables (`MORT_HUB_URL`, `MORT_CLAUDE_THREAD_ID`) are set on the PTY
-- The settings JSON includes PreToolUse/PostToolUse/Stop hooks pointing to the bridge
+- Env vars (`MORT_HUB_URL`, `MORT_THREAD_ID`) are passed via the PTY `env` parameter (Phase 1)
+- The inline settings JSON includes PreToolUse/PostToolUse/Stop hooks pointing to the bridge
 - Frontend listeners handle incoming hook requests and lifecycle events
+
+### `~/.mort/hooks/safe-git-hook.sh`
+
+- Shell script version of `agents/src/hooks/safe-git-hook.ts`
+- Referenced in the inline settings JSON
+- Written once at app startup by the service
+
+---
+
+## Phase 6: "Use terminal interface" preference setting
+
+A global checkbox that makes TUI threads the default for all thread creation surfaces.
+
+### Setting
+
+```typescript
+// In src/entities/settings/types.ts — add to WorkspaceSettingsSchema
+preferTerminalInterface: z.boolean().default(false),
+```
+
+No migration needed — `.default(false)` handles existing settings files.
+
+### Settings UI (`src/components/main-window/settings-page.tsx`)
+
+Checkbox labeled **"Use terminal interface"** with helper text: *"New threads open Claude's terminal UI instead of the managed conversation view"*. Place near the permission mode section. Uses `updateSetting("preferTerminalInterface", checked)`.
+
+### Thread creation routing (`src/lib/thread-creation-service.ts`)
+
+`createThread()` becomes a mode-aware router:
+
+```typescript
+export async function createThread(options: CreateThreadOptions) {
+  const settings = getWorkspaceSettings();
+  const useTerminal = options.forceManaged ? false
+    : options.forceTui ? true
+    : settings.preferTerminalInterface;
+
+  if (useTerminal) {
+    return createTuiThread(options);  // from Phase 2
+  }
+  return createManagedThread(options);  // existing behavior
+}
+```
+
+`forceManaged` / `forceTui` flags let explicit menu items override the default.
+
+### Surfaces affected
+
+All thread creation surfaces flow through `createThread()` and automatically respect the preference:
+
+- **Spotlight** (type + Enter) — already calls `createThread()`
+- **Empty pane input** — already calls `createThread()`
+- **Plan follow-up** — already calls `createThread()`, plan context passed via `--append-system-prompt`
+- **Cmd+N** (`main-window-layout.tsx`) — currently calls `threadService.create()` directly, must change to call `createThread()`. For TUI mode, resolve worktree from selection or MRU; fall back to managed if no worktree available.
+
+### Prompt handling for TUI threads
+
+- Prompt provided → pass via `--message "prompt text"` so Claude starts immediately
+- No prompt (Cmd+N) → spawn PTY with no `--message`, user types in terminal
+- Plan context → `--append-system-prompt` with plan summary (add `planContext` option to `buildSystemPrompt()` in args builder)
+
+### Override menu items (`src/components/tree-menu/worktree-menus.tsx`)
+
+"New Thread" always uses the preference. Add an explicit override item:
+
+- When `preferTerminalInterface` is `false`: "New Thread" = managed, also show "New Claude Session" (`forceTui: true`)
+- When `preferTerminalInterface` is `true`: "New Thread" = TUI, also show "New Managed Thread" (`forceManaged: true`)
+
+### Key files
+
+| File | Change |
+| --- | --- |
+| `src/entities/settings/types.ts` | Add `preferTerminalInterface` boolean |
+| `src/components/main-window/settings-page.tsx` | Checkbox UI |
+| `src/lib/thread-creation-service.ts` | Route on preference |
+| `src/lib/claude-tui-args-builder.ts` | `planContext` support in `buildSystemPrompt()` |
+| `src/components/main-window/main-window-layout.tsx` | Cmd+N through router |
+| `src/components/tree-menu/worktree-menus.tsx` | Override menu item |
 
 ---
 
@@ -351,25 +333,28 @@ This phase wires the bridge into the settings generation (Phase 3) and ensures:
 
 | File | Change |
 | --- | --- |
-| `src-tauri/src/terminal.rs` | Accept optional command/args in `spawn_terminal_inner` |
-| `src-tauri/src/ws_server/dispatch_misc.rs` | Pass command/args through WS handler |
+| `src-tauri/src/terminal.rs` | Accept optional command/args/env in `spawn_terminal_inner` |
+| `src-tauri/src/ws_server/dispatch_misc.rs` | Pass command/args/env through WS handler |
 | `src-tauri/src/lib.rs` | Update Tauri command signature |
-| `src/entities/claude-threads/` | New entity: types, store, service |
-| `src/components/content-pane/types.ts` | Add `claude-thread` to ContentPaneView |
-| `src/components/content-pane/content-pane.tsx` | Add rendering case |
-| `src/components/content-pane/claude-thread-content.tsx` | New component |
-| `src/stores/tree-menu/types.ts` | Add `claude-thread` to TreeItemType |
-| `src/hooks/tree-node-builders.ts` | Add `claudeThreadToNode()` |
-| `src/hooks/use-tree-data.ts` | Include claude-threads in tree |
-| `src/components/tree-menu/claude-thread-item.tsx` | New sidebar item |
-| `src/components/tree-menu/tree-item-renderer.tsx` | Add rendering case |
-| `src/stores/navigation-service.ts` | Add `navigateToClaudeThread()` |
-| `src/stores/pane-layout/service.ts` | Handle `claude-thread` view category |
+| `core/types/threads.ts` | Add `threadKind`, `terminalId`, `claudeSessionId` fields |
+| `src/entities/threads/service.ts` | Add TUI thread creation and exit detection |
+| `src/lib/claude-tui-args-builder.ts` | New file: builds CLI args and env vars |
+| `src/lib/thread-creation-service.ts` | Add `createTuiThread` path + preference routing |
+| `src/components/content-pane/thread-content.tsx` | Branch on `threadKind` |
+| `src/components/content-pane/tui-thread-content.tsx` | New thin wrapper component |
+| `src/hooks/tree-node-builders.ts` | TUI thread badge in `threadToNode()` |
+| `src/components/tree-menu/thread-item.tsx` | `cc` prefix and TUI-specific context menu items |
+| `src/entities/settings/types.ts` | Add `preferTerminalInterface` boolean |
+| `src/components/main-window/settings-page.tsx` | Checkbox UI for terminal preference |
+| `src/components/main-window/main-window-layout.tsx` | Cmd+N through `createThread()` router |
+| `src/components/tree-menu/worktree-menus.tsx` | Override menu item for non-default mode |
 
 ## Open questions
 
-1. **Model selection**: Should claude-thread sessions default to the same model as Mort threads, or let the user pick? The `--model` flag makes this configurable.
-2. **Session persistence**: Claude CLI supports `--resume <sessionId>`. Should we capture the session ID from the TUI output and persist it for later resumption?
-3. **Keyboard shortcut**: Should there be a keybinding to create a new Claude session (like Ctrl+\` for terminals)?
-4. **Multiple sessions per worktree**: Allow unlimited, or cap like terminals?
-5. [**CLAUDE.md**](http://CLAUDE.md): The Claude CLI auto-reads project `CLAUDE.md`. This means the project's coding guidelines apply automatically — no extra work needed.
+1. **Model selection**: Default to same model as Mort threads, or let user pick?
+2. **Session persistence**: Capture Claude CLI session ID from TUI output for `--resume`?
+3. **Keyboard shortcut**: Keybinding for new Claude session?
+4. **Multiple sessions per worktree**: Unlimited or capped?
+5. **CLAUDE.md**: The CLI auto-reads project `CLAUDE.md` — coding guidelines apply automatically.
+6. **Empty TUI threads**: Cmd+N with no prompt — spawn PTY immediately or show prompt input first?
+7. **CLI fallback**: If `claude` CLI isn't on PATH, silently fall back to managed or show error?

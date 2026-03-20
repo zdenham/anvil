@@ -10,6 +10,8 @@
 //! Note: This module initializes before paths::initialize() is called,
 //! so we use a fallback path resolution that matches paths.rs logic.
 
+use crate::build_info;
+
 mod config;
 pub mod log_server;
 pub mod sqlite_layer;
@@ -346,8 +348,7 @@ impl tracing::field::Visit for MessageVisitor<'_> {
 /// Uses the same path derivation logic as paths.rs but doesn't require
 /// paths::initialize() to have been called (since logging starts first).
 fn get_logs_dir() -> io::Result<PathBuf> {
-    // Read suffix directly from baked env var (same as build_info::APP_SUFFIX)
-    let suffix = env!("MORT_APP_SUFFIX");
+    let suffix = build_info::app_suffix();
     let dir_name = if suffix.is_empty() {
         "mortician".to_string()
     } else {

@@ -268,6 +268,7 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
         placeholder="Type a message to start a thread about this plan..."
         permissionMode={permissionMode}
         onCycleMode={handleCycleMode}
+        autoFocus
       />
     </div>
   );

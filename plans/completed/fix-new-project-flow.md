@@ -12,8 +12,8 @@ Additionally, all error paths log silently with no user-visible feedback.
 
 ## Phases
 
-- [ ] Add a "New Project" modal dialog (name input + folder picker) and wire it into the creation flow
-- [ ] Add toast notifications for error/success feedback
+- [x] Add a "New Project" modal dialog (name input + folder picker) and wire it into the creation flow
+- [x] Add toast notifications for error/success feedback
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

@@ -40,6 +40,7 @@ import { worktreeService } from "@/entities/worktrees";
 import { logger } from "@/lib/logger-client";
 import { generateUniqueWorktreeName } from "@/lib/random-name";
 import { createNewProjectAndHydrate } from "@/lib/project-creation-service";
+import { NewProjectDialog } from "@/components/new-project-dialog";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { terminalSessionService } from "@/entities/terminal-sessions";
 import { createThread } from "@/lib/thread-creation-service";
@@ -94,8 +95,10 @@ export function MainWindowLayout() {
   // Flat tree items for Command+N / Command+T worktree resolution
   const treeItems = useTreeData();
 
-  // Pinned worktree state for passing to TreeMenu
+  // Pinned/hidden worktree state for passing to TreeMenu
   const pinnedWorktreeId = useTreeMenuStore((state) => state.pinnedWorktreeId);
+  const hiddenWorktreeIds = useTreeMenuStore((state) => state.hiddenWorktreeIds);
+  const hiddenRepoIds = useTreeMenuStore((state) => state.hiddenRepoIds);
 
   // Store ref to treeItems for use in keyboard handler (avoids stale closure)
   const treeItemsRef = useRef(treeItems);
@@ -610,11 +613,50 @@ export function MainWindowLayout() {
   }, []);
 
   const handleUnhideAll = useCallback(async () => {
-    logger.info(`[MainWindowLayout] Unpin all requested`);
+    logger.info(`[MainWindowLayout] Unhide all requested`);
     try {
-      await treeMenuService.pinWorktree(null);
+      await treeMenuService.unhideAll();
     } catch (err) {
-      logger.error(`[MainWindowLayout] Failed to unpin:`, err);
+      logger.error(`[MainWindowLayout] Failed to unhide all:`, err);
+    }
+  }, []);
+
+  const handleHideRepo = useCallback(async (repoId: string) => {
+    logger.info(`[MainWindowLayout] Hide repo requested: ${repoId}`);
+    try {
+      await treeMenuService.hideRepo(repoId);
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to hide repo:`, err);
+    }
+  }, []);
+
+  const handleRemoveRepo = useCallback(async (repoId: string, repoName: string) => {
+    logger.info(`[MainWindowLayout] Remove repo requested: ${repoName} (${repoId})`);
+    const confirmed = await confirm(
+      `Remove "${repoName}" from Mort? This won't delete files on disk.`,
+      { title: "Remove project", kind: "warning" },
+    );
+    if (!confirmed) return;
+
+    try {
+      await repoService.remove(repoId);
+      await repoService.hydrate();
+      await useRepoWorktreeLookupStore.getState().hydrate();
+      await treeMenuService.hydrate();
+      logger.info(`[MainWindowLayout] Removed repo "${repoName}"`);
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to remove repo:`, err);
+      const errorMsg = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Failed to remove "${repoName}": ${errorMsg}`);
+    }
+  }, []);
+
+  const handleHideWorktree = useCallback(async (worktreeId: string) => {
+    logger.info(`[MainWindowLayout] Hide worktree requested: ${worktreeId}`);
+    try {
+      await treeMenuService.hideWorktree(worktreeId);
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to hide worktree:`, err);
     }
   }, []);
 
@@ -797,7 +839,7 @@ export function MainWindowLayout() {
               onNewRepo={handleNewRepo}
               onCreateProject={handleCreateProject}
               onUnhideAll={handleUnhideAll}
-              hasHiddenOrPinned={pinnedWorktreeId !== null}
+              hasHiddenOrPinned={pinnedWorktreeId !== null || hiddenWorktreeIds.length > 0 || hiddenRepoIds.length > 0}
             />
             <TreeMenu
               onItemSelect={handleItemSelect}
@@ -810,6 +852,9 @@ export function MainWindowLayout() {
               creatingWorktreeIds={creatingWorktreeIds}
               onPinToggle={handlePinToggle}
               pinnedWorktreeId={pinnedWorktreeId}
+              onHideRepo={handleHideRepo}
+              onRemoveRepo={handleRemoveRepo}
+              onHideWorktree={handleHideWorktree}
               className="flex-1 min-h-0"
             />
             <button
@@ -876,6 +921,9 @@ export function MainWindowLayout() {
 
         {/* Global toast notifications */}
         <GlobalToast />
+
+        {/* New Project dialog */}
+        <NewProjectDialog />
       </div>
     </MainWindowProvider>
   );

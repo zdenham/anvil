@@ -9,13 +9,18 @@ import express from "express";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { lookup } from "mime-types";
-import { readFile, stat } from "node:fs/promises";
-import { resolve, extname } from "node:path";
+import { readFile, stat, writeFile, unlink, mkdir } from "node:fs/promises";
+import { resolve, extname, join } from "node:path";
 import { handleConnection } from "./ws-handler.js";
 import { createState } from "./state.js";
 import { createLogger } from "./logger.js";
 
-const PORT = parseInt(process.env.MORT_WS_PORT ?? "9600", 10);
+const BASE_PORT = parseInt(process.env.MORT_WS_PORT ?? "9600", 10);
+const MAX_PORT_RETRIES = 10;
+const APP_SUFFIX = process.env.MORT_APP_SUFFIX ?? "";
+const DATA_DIR = process.env.MORT_DATA_DIR ?? "";
+
+let actualPort = BASE_PORT;
 
 const app = express();
 const server = createServer(app);
@@ -60,7 +65,7 @@ app.get("/files", async (req, res) => {
 // ── Health check ────────────────────────────────────────────────────────
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", port: PORT });
+  res.json({ status: "ok", port: actualPort, appSuffix: APP_SUFFIX });
 });
 
 // ── WebSocket servers (noServer mode for correct path routing) ──────
@@ -87,11 +92,69 @@ server.on("upgrade", (request, socket, head) => {
   }
 });
 
-// ── Start ───────────────────────────────────────────────────────────────
+// ── Port file ────────────────────────────────────────────────────────────
 
-server.listen(PORT, "127.0.0.1", () => {
-  log.info(`listening on http://127.0.0.1:${PORT} (ws, ws/agent)`);
+function portFilePath(): string | null {
+  if (!DATA_DIR) return null;
+  const suffix = APP_SUFFIX || "default";
+  return join(DATA_DIR, `sidecar-${suffix}.port`);
+}
+
+async function writePortFile(): Promise<void> {
+  const path = portFilePath();
+  if (!path) return;
+  try {
+    await mkdir(DATA_DIR, { recursive: true });
+    await writeFile(
+      path,
+      JSON.stringify({ port: actualPort, appSuffix: APP_SUFFIX, pid: process.pid }),
+    );
+  } catch (err) {
+    log.error(`Failed to write port file: ${err}`);
+  }
+}
+
+async function removePortFile(): Promise<void> {
+  const path = portFilePath();
+  if (!path) return;
+  try {
+    await unlink(path);
+  } catch {
+    // File may not exist — that's fine
+  }
+}
+
+// ── Start with EADDRINUSE retry ──────────────────────────────────────────
+
+function tryListen(port: number, attempt: number): void {
+  actualPort = port;
+  server.listen(port, "127.0.0.1");
+}
+
+server.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    const nextPort = actualPort + 1;
+    const attempt = nextPort - BASE_PORT;
+    if (attempt >= MAX_PORT_RETRIES) {
+      log.error(
+        `All ports ${BASE_PORT}–${BASE_PORT + MAX_PORT_RETRIES - 1} are in use — giving up`,
+      );
+      process.exit(1);
+    }
+    log.info(`Port ${actualPort} in use, trying ${nextPort}`);
+    tryListen(nextPort, attempt);
+  } else {
+    log.error(`Server error: ${err.message}`);
+    process.exit(1);
+  }
 });
+
+server.on("listening", () => {
+  log.info(`listening on http://127.0.0.1:${actualPort} (ws, ws/agent)`);
+  writePortFile();
+});
+
+tryListen(BASE_PORT, 0);
 
 // Graceful shutdown
 function shutdown(signal: string): void {
@@ -100,8 +163,33 @@ function shutdown(signal: string): void {
   state.fileWatcherManager.dispose();
   wss.close();
   server.close();
-  process.exit(0);
+  removePortFile().finally(() => process.exit(0));
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+
+// ── Process-level error handlers ─────────────────────────────────────
+
+process.on("uncaughtException", (err) => {
+  log.error(`[fatal] uncaughtException: ${err.stack ?? err.message}`);
+  // Process is in undefined state — exit after logging
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  const msg =
+    reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+  log.error(`[fatal] unhandledRejection: ${msg}`);
+  // Don't exit — rejection may be non-critical (e.g. dropped socket write)
+});
+
+// ── WebSocket server error handlers ──────────────────────────────────
+
+wss.on("error", (err) => {
+  log.error(`[ws] server error: ${err.message}`);
+});
+
+wssAgent.on("error", (err) => {
+  log.error(`[ws/agent] server error: ${err.message}`);
+});

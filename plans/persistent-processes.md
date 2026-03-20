@@ -7,12 +7,14 @@ When the Tauri app restarts, the sidecar (and all its child processes — PTYs a
 ## Feasibility Assessment
 
 **Agents: Very feasible.** The groundwork is already laid:
+
 - Agents persist state to disk (`state.json`, `metadata.json`) before any socket emission
 - Hub client has reconnection logic with exponential backoff
 - Agents already survive hub disconnects — they keep running, write to disk only, and resync on reconnect
 - `sessionId` is persisted, enabling SDK conversation continuity across restarts
 
 **PTY sessions: Harder, but feasible.** node-pty doesn't support "adopting" an existing PTY fd. Two viable approaches:
+
 1. **Sidecar-as-daemon** — the sidecar outlives Tauri, PTYs survive because their owner survives
 2. **PTY multiplexer** — use `screen`/`tmux` underneath, reconnect to named sessions
 
@@ -23,6 +25,7 @@ When the Tauri app restarts, the sidecar (and all its child processes — PTYs a
 ### Core Idea
 
 Decouple the sidecar's lifecycle from Tauri's lifecycle. The sidecar becomes a standalone daemon that:
+
 - Starts on first Tauri launch (or first need)
 - Keeps running across Tauri restarts
 - Owns all PTY sessions and agent process references
@@ -43,12 +46,16 @@ After:
 ## Phases
 
 - [ ] Phase 1: Sidecar daemonization
+
 - [ ] Phase 2: PID registry and descendant labeling
+
 - [ ] Phase 3: Kill safeguards (`mort kill-all`)
+
 - [ ] Phase 4: Tauri reconnection on restart
+
 - [ ] Phase 5: Stale process cleanup
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -79,6 +86,7 @@ let child = Command::new("node")
 3. **Don't kill sidecar on Tauri exit.** Remove the `SidecarProcess` cleanup. Since the child is in its own session, Tauri exiting won't signal it.
 
 4. **Sidecar writes its own PID file** on startup (`sidecar/src/server.ts`):
+
 ```typescript
 import { writeFileSync } from "node:fs";
 writeFileSync(join(dataDir, "sidecar.pid"), String(process.pid));
@@ -105,6 +113,7 @@ writeFileSync(join(dataDir, "session-id"), SESSION_ID);
 ```
 
 All spawned processes inherit it:
+
 - **Agent processes** (`agent-process-manager.ts` line 32): add `MORT_SESSION_ID` to env
 - **PTY sessions** (`terminal-manager.ts` line 39): add `MORT_SESSION_ID` to env
 - **Child agents** (`child-spawner.ts`): already inherits parent env, so gets it automatically
@@ -138,12 +147,14 @@ interface PidRegistry {
 ```
 
 **Writers:**
+
 - Sidecar writes its own entry on startup
 - `AgentProcessManager.spawn()` writes agent entries
 - `TerminalManager.spawn()` writes terminal entries (node-pty exposes `pty.pid`)
 - All writers use read-modify-write with the existing disk-as-truth pattern
 
 **Cleanup:**
+
 - On process exit/close events, remove the entry
 - On sidecar startup, validate all existing PIDs (check if process exists, remove stale entries)
 
@@ -228,6 +239,7 @@ echo "Done."
 ### UI Kill Button
 
 Add a "Kill All Processes" button in the app settings/debug panel that:
+
 1. Sends a `kill-all` command to the sidecar via WebSocket
 2. Sidecar iterates `agentProcesses.list()` and `terminalManager.list()`, kills each
 3. Then kills itself
@@ -270,6 +282,7 @@ The frontend WebSocket client (`src/lib/event-bridge.ts` or equivalent) needs:
 ### Agent State Recovery
 
 Agents already handle this:
+
 - They persist state to disk continuously
 - On hub reconnect, they emit full state via `emitState()` → HYDRATE action
 - The frontend entity stores receive this and update
@@ -296,7 +309,7 @@ PTY sessions survive because the sidecar survives. Terminal output that occurred
 2. **Ring buffer** — sidecar keeps last N lines per terminal in memory, sends on reconnect
 3. **Scrollback file** — write terminal output to a file, frontend replays on reconnect
 
-Recommend option 2 (ring buffer of ~5000 lines) as a good balance.
+Recommend option 2 (ring buffer of \~5000 lines) as a good balance.
 
 ## Phase 5: Stale Process Cleanup
 
@@ -338,7 +351,7 @@ PIDs can be reused by the OS. To prevent killing an innocent process:
 ## Summary of Changes by File
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `src-tauri/src/lib.rs` | Detach sidecar (setsid), remove cleanup-on-exit, write PID |
 | `sidecar/src/server.ts` | Write PID file, set `process.title`, add zombie timeout, ring buffer for terminal output |
 | `sidecar/src/state.ts` | Add PID registry to state, add session ID |
@@ -354,4 +367,4 @@ PIDs can be reused by the OS. To prevent killing an innocent process:
 1. **Should the sidecar auto-start on macOS login?** (launchd plist) — probably not initially, just on first Tauri launch
 2. **Multiple Tauri windows connecting to same sidecar?** — already supported by the WebSocket architecture
 3. **Sidecar version mismatch after app update?** — need a version handshake; if mismatch, gracefully restart sidecar
-4. **Should `mort kill-all` be a Tauri command or a standalone script?** — both: UI button + standalone script for when UI is broken
+4. **Should** `mort kill-all` **be a Tauri command or a standalone script?** — both: UI button + standalone script for when UI is broken
