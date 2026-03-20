@@ -1,7 +1,7 @@
 {
   "name": "mort",
   "private": true,
-  "version": "v0.0.76",
+  "version": "v0.0.77",
   "type": "module",
   "scripts": {
     "dev": "./scripts/dev-mort.sh dev",
@@ -13,7 +13,7 @@
     "dev:sdk": "cd core/sdk && pnpm build:watch",
     "dev:migrations": "cd migrations && pnpm build:watch",
     "build": "./scripts/build-mort.sh",
-    "build:frontend": "pnpm build:agents && pnpm build:sdk && pnpm build:migrations && tsc && vite build",
+    "build:frontend": "pnpm build:agents && pnpm build:sdk && pnpm build:migrations && pnpm sidecar:build && tsc && vite build",
     "build:agents": "cd agents && pnpm build",
     "build:sdk": "cd core/sdk && pnpm build",
     "build:migrations": "cd migrations && pnpm build",
