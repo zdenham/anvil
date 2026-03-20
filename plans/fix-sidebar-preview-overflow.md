@@ -8,7 +8,7 @@ When hovering over a left sidebar item, the white preview tooltip can overflow h
 
 ## Phases
 
-- [ ] Add overflow handling to tooltip content
+- [x] Add overflow handling to tooltip content
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

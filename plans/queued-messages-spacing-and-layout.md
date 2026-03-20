@@ -7,8 +7,8 @@ Two issues with pinned queued messages in the message list:
 
 ## Phases
 
-- [ ] Fix spacing between queued messages
-- [ ] Make queued messages push streamed content up
+- [x] Fix spacing between queued messages
+- [x] Make queued messages push streamed content up
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

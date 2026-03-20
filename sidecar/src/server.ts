@@ -13,12 +13,14 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { handleConnection } from "./ws-handler.js";
 import { createState } from "./state.js";
+import { createLogger } from "./logger.js";
 
 const PORT = parseInt(process.env.MORT_WS_PORT ?? "9600", 10);
 
 const app = express();
 const server = createServer(app);
 const state = createState();
+const log = createLogger(state);
 
 // ── CORS ────────────────────────────────────────────────────────────────
 
@@ -88,14 +90,12 @@ server.on("upgrade", (request, socket, head) => {
 // ── Start ───────────────────────────────────────────────────────────────
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[sidecar] listening on http://127.0.0.1:${PORT}`);
-  console.log(`[sidecar] ws://127.0.0.1:${PORT}/ws (frontend)`);
-  console.log(`[sidecar] ws://127.0.0.1:${PORT}/ws/agent (agents)`);
+  log.info(`listening on http://127.0.0.1:${PORT} (ws, ws/agent)`);
 });
 
 // Graceful shutdown
 function shutdown(signal: string): void {
-  console.log(`[sidecar] ${signal} received, shutting down`);
+  log.info(`${signal} received, shutting down`);
   state.terminalManager.dispose();
   state.fileWatcherManager.dispose();
   wss.close();

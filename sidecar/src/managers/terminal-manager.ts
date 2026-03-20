@@ -8,9 +8,32 @@
  */
 
 import type { IPty } from "node-pty";
+import { chmodSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { EventBroadcaster } from "../push.js";
+
+let nodePty: typeof import("node-pty") | undefined;
+
+function getNodePty(): typeof import("node-pty") {
+  if (nodePty) return nodePty;
+
+  // Tauri resource bundling strips the execute bit from native binaries.
+  // Ensure spawn-helper is executable before node-pty tries to use it.
+  const helperPath = join(
+    dirname(require.resolve("node-pty/package.json")),
+    "prebuilds",
+    `${process.platform}-${process.arch}`,
+    "spawn-helper",
+  );
+  if (existsSync(helperPath)) {
+    chmodSync(helperPath, 0o755);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  nodePty = require("node-pty") as typeof import("node-pty");
+  return nodePty;
+}
 
 interface TerminalSession {
   id: number;
@@ -38,9 +61,7 @@ export class TerminalManager {
 
     const env = buildPtyEnv(home, shell);
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const nodePty = require("node-pty") as typeof import("node-pty");
-    const pty = nodePty.spawn(shell, ["-l"], {
+    const pty = getNodePty().spawn(shell, ["-l"], {
       name: "xterm-256color",
       cols,
       rows,

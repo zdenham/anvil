@@ -140,7 +140,9 @@ fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
         return Err(format!("Migration runner not found at: {}", runner_path.display()));
     }
 
-    let output = Command::new("node")
+    let node_path = paths::resolve_node_binary()
+        .map_err(|e| format!("Cannot find node for migrations: {}", e))?;
+    let output = Command::new(&node_path)
         .arg(&runner_path)
         .env("MORT_DATA_DIR", data_dir)
         .env("MORT_TEMPLATE_DIR", &template_dir)
@@ -200,7 +202,9 @@ fn spawn_sidecar(app: &tauri::App) -> Result<Option<std::process::Child>, String
         "Spawning sidecar server"
     );
 
-    let child = Command::new("node")
+    let node_path = paths::resolve_node_binary()
+        .map_err(|e| format!("Cannot find node for sidecar: {}", e))?;
+    let child = Command::new(&node_path)
         .arg(&server_path)
         .env("MORT_WS_PORT", ws_port)
         .env("MORT_DATA_DIR", paths::data_dir().to_string_lossy().as_ref())
@@ -998,7 +1002,20 @@ pub fn run() {
                         tracing::info!("[startup] sidecar already running externally");
                     }
                     Err(e) => {
-                        tracing::warn!(error = %e, "Failed to spawn sidecar — frontend will use Tauri IPC fallback");
+                        tracing::error!(error = %e, searched_path = %paths::shell_path(), "Failed to spawn sidecar");
+                        // Show a user-visible dialog so it's clear why the app isn't working
+                        let msg = if e.contains("Cannot find node") {
+                            "Mort requires Node.js but couldn't find it.\n\n\
+                             Install Node.js from https://nodejs.org or via a version \
+                             manager (nvm, fnm, volta), then relaunch the app."
+                        } else {
+                            "The sidecar server failed to start. Check the logs for details."
+                        };
+                        use tauri_plugin_dialog::DialogExt;
+                        app.dialog()
+                            .message(msg)
+                            .title("Mort — Startup Error")
+                            .blocking_show();
                     }
                 }
                 tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] spawn_sidecar");

@@ -31,11 +31,15 @@ export function useToolDuration(
   if (!startedAt) return null;
 
   if (status === "running") {
-    return formatDuration(now - startedAt);
+    const ms = now - startedAt;
+    if (ms < 1000) return null;
+    return formatDuration(ms);
   }
 
   const end = completedAt ?? Date.now();
-  return formatDuration(end - startedAt);
+  const ms = end - startedAt;
+  if (ms < 1000) return null;
+  return formatDuration(ms);
 }
 
 // Exported for testing

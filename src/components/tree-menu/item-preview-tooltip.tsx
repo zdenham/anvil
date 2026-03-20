@@ -63,7 +63,7 @@ const TooltipContent = React.forwardRef<HTMLDivElement, TooltipContentProps>(
           "z-50 px-3 py-2 text-xs",
           "bg-accent-600 text-accent-900",
           "rounded-xl shadow-sm",
-          "max-w-[300px] whitespace-pre-wrap"
+          "max-w-[300px] whitespace-pre-wrap break-words overflow-hidden"
           // No animation classes - instant appear/disappear
         )}
       >

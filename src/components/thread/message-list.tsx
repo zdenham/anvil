@@ -120,19 +120,14 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
             </div>
           );
         })}
+        {/* Queued messages rendered in-flow so they naturally push content up */}
+        {pendingMessages.map((msg) => (
+          <div key={msg.id} className="px-4 py-0.5 w-full max-w-[900px] mx-auto">
+            <PinnedUserMessage content={msg.content} />
+          </div>
+        ))}
         <div style={{ height: paddingAfter + 30 }} />
         </div>
-
-        {/* Pinned pending messages — sticky to viewport bottom */}
-        {pendingMessages.length > 0 && (
-          <div style={{ position: "sticky", bottom: 0, zIndex: 10, pointerEvents: "none" }}>
-            {pendingMessages.map((msg) => (
-              <div key={msg.id} className="px-4 py-2 w-full max-w-[900px] mx-auto pointer-events-auto">
-                <PinnedUserMessage content={msg.content} />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Scroll to bottom button */}
@@ -164,7 +159,7 @@ export const MessageList = forwardRef<MessageListRef, MessageListProps>(function
 /** Lightweight ghost-styled bubble for pending queued messages. */
 function PinnedUserMessage({ content }: { content: string }) {
   return (
-    <article role="article" aria-label="Pending message" className="flex justify-end my-3">
+    <article role="article" aria-label="Pending message" className="flex justify-end my-1">
       <div className="max-w-[80%] flex flex-col items-end gap-1 overflow-hidden">
         <div className="px-4 py-3 rounded-2xl bg-accent-600/90 text-accent-900">
           <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] italic">{content}</p>

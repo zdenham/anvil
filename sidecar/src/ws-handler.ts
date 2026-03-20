@@ -10,11 +10,13 @@ import type { SidecarState } from "./state.js";
 import type { WsResponse } from "./types.js";
 import { isRelayMessage, isRequest } from "./types.js";
 import { dispatch } from "./dispatch.js";
+import { createLogger } from "./logger.js";
 
 export function handleConnection(
   socket: WebSocket,
   state: SidecarState,
 ): void {
+  const log = createLogger(state);
   // Subscribe to push events and forward to this client
   const unsubscribe = state.broadcaster.subscribe((event) => {
     if (socket.readyState === socket.OPEN) {
@@ -24,7 +26,7 @@ export function handleConnection(
 
   socket.on("message", (data) => {
     handleMessage(socket, state, data).catch((err) => {
-      console.error("[ws-handler] Unhandled error:", err);
+      log.error(`unhandled error: ${err instanceof Error ? err.message : String(err)}`);
     });
   });
 
