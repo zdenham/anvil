@@ -140,14 +140,17 @@ if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
   echo "Signing third-party native binaries..."
 
   AGENTS_DIR="$REPO_ROOT/agents/node_modules/@anthropic-ai"
+  SIDECAR_DIR="$REPO_ROOT/sidecar/node_modules/node-pty"
 
-  if [ -d "$AGENTS_DIR" ]; then
-    # Find and sign all .node files and darwin executables
-    # Use -L to follow symlinks (pnpm uses symlinks in node_modules)
-    find -L "$AGENTS_DIR" -type f \( -name "*.node" -o -name "rg" \) | while read -r binary; do
-      # Only sign darwin binaries
+  sign_mach_o_binaries() {
+    local search_dir="$1"
+    local label="$2"
+    if [ ! -d "$search_dir" ]; then
+      echo "Warning: $label directory not found at $search_dir"
+      return
+    fi
+    find -L "$search_dir" -type f \( -name "*.node" -o -name "rg" -o -name "spawn-helper" \) | while read -r binary; do
       if file "$binary" | grep -q "Mach-O"; then
-        # Resolve symlinks to get the real path
         REAL_BINARY=$(realpath "$binary")
         echo "  Signing: $REAL_BINARY"
         codesign --force --options runtime --timestamp \
@@ -156,11 +159,12 @@ if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
           "$REAL_BINARY"
       fi
     done
+  }
 
-    echo "Third-party binaries signed."
-  else
-    echo "Warning: agents directory not found at $AGENTS_DIR"
-  fi
+  sign_mach_o_binaries "$AGENTS_DIR" "agents"
+  sign_mach_o_binaries "$SIDECAR_DIR" "sidecar/node-pty"
+
+  echo "Third-party binaries signed."
 fi
 
 # --- 3. Build Application ---
