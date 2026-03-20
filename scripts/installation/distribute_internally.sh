@@ -33,6 +33,12 @@ echo "Moving to Applications..."
 mv ~/Downloads/Mort.app /Applications/
 
 echo "Opening Mort..."
+xattr -rd com.apple.quarantine /Applications/Mort.app 2>/dev/null || true
 open /Applications/Mort.app
+
+# Force activation - `open` from a backgrounded shell process doesn't
+# reliably activate the app, leaving WKWebView in a broken focus state
+sleep 2
+osascript -e 'tell application "Mort" to activate' 2>/dev/null || true
 
 echo "Done!"

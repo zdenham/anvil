@@ -81,6 +81,26 @@ fn enable_fullscreen_button(_window: &tauri::WebviewWindow) {
     // No-op on non-macOS platforms
 }
 
+/// Force macOS app activation to synchronize WKWebView focus state.
+/// Without this, the window can be "key" (receives keystrokes) but the app
+/// not "active" (hover/focus/caret don't render in the webview).
+/// This happens when the app is launched via `open` from a background process.
+#[cfg(target_os = "macos")]
+fn force_app_activation() {
+    use objc2::msg_send;
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSApplication;
+
+    let mtm = MainThreadMarker::new()
+        .expect("force_app_activation must be called from main thread");
+    let ns_app = NSApplication::sharedApplication(mtm);
+
+    #[allow(deprecated)]
+    unsafe {
+        let _: () = msg_send![&ns_app, activateIgnoringOtherApps: true];
+    }
+}
+
 /// Run TypeScript migrations by spawning Node.js process.
 /// Returns Ok(()) on success, Err on failure (but failures should not block app startup).
 fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
@@ -343,6 +363,8 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
             tracing::error!(error = %e, "Failed to focus main window");
             e.to_string()
         })?;
+        #[cfg(target_os = "macos")]
+        force_app_activation();
     } else {
         // Window was destroyed - recreate it
         let app_for_nav = app.clone();
@@ -378,6 +400,8 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
             tracing::error!(error = %e, "Failed to focus recreated main window");
             e.to_string()
         })?;
+        #[cfg(target_os = "macos")]
+        force_app_activation();
     }
     Ok(())
 }
@@ -406,6 +430,8 @@ fn show_main_window_with_view(app: AppHandle, view: serde_json::Value) -> Result
         tracing::error!(error = %e, "Failed to focus main window");
         e.to_string()
     })?;
+    #[cfg(target_os = "macos")]
+    force_app_activation();
 
     // Broadcast set-content-pane-view via WS (with targetWindow for filtering)
     let broadcaster = app.state::<ws_server::push::EventBroadcaster>();
@@ -1244,6 +1270,8 @@ pub fn run() {
                         let _ = app.handle().set_activation_policy(ActivationPolicy::Regular);
                         let _ = window.show();
                         let _ = window.set_focus();
+                        #[cfg(target_os = "macos")]
+                        force_app_activation();
                     }
                 }
             } else {
@@ -1256,6 +1284,8 @@ pub fn run() {
                     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                         let _ = window.show();
                         let _ = window.set_focus();
+                        #[cfg(target_os = "macos")]
+                        force_app_activation();
                     }
                 }
                 // Only register clipboard hotkey (spotlight hotkey will be set during onboarding)
