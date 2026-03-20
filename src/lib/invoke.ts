@@ -61,6 +61,7 @@ const NATIVE_COMMANDS = new Set([
   "get_clipboard_content",
   "paste_clipboard_entry",
   "hide_clipboard_manager",
+  "run_internal_update",
 ]);
 
 /** Sensible defaults when native commands are called from browser */
@@ -256,7 +257,7 @@ function wsInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
  *
  * Routes:
  * - Native commands: Tauri IPC (or no-op defaults in browser)
- * - Data commands: WebSocket if connected, Tauri IPC fallback
+ * - Data commands: WebSocket only (sidecar must be running)
  */
 export async function invoke<T>(
   cmd: string,
@@ -271,17 +272,12 @@ export async function invoke<T>(
     return (NATIVE_DEFAULTS[cmd] ?? undefined) as T;
   }
 
-  // Data commands: prefer WebSocket, fall back to Tauri IPC
+  // Data commands: WebSocket only (sidecar must be running)
   if (ws?.readyState === WebSocket.OPEN) {
     return wsInvoke<T>(cmd, args);
   }
 
-  if (isTauri()) {
-    const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
-    return tauriInvoke<T>(cmd, args);
-  }
-
-  // Neither transport ready — wait for in-progress WS connection before giving up
+  // Wait for in-progress WS connection before giving up
   if (connectingPromise) {
     await connectingPromise;
     if (ws?.readyState === WebSocket.OPEN) {
@@ -289,5 +285,5 @@ export async function invoke<T>(
     }
   }
 
-  throw new Error(`No transport available for command: ${cmd}`);
+  throw new Error(`WebSocket not connected for data command: ${cmd}`);
 }

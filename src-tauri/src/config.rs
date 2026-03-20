@@ -214,11 +214,6 @@ pub fn get_device_id() -> String {
     load_config().device_id
 }
 
-/// Gets the GitHub handle from config, if set
-pub fn get_github_handle() -> Option<String> {
-    load_config().github_handle
-}
-
 /// Saves the GitHub handle to config
 pub fn set_github_handle(handle: &str) -> Result<(), String> {
     let mut config = load_config();

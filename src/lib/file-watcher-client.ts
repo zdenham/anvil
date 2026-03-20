@@ -1,5 +1,5 @@
 import { invoke } from "@/lib/invoke";
-import { listen, type UnlistenFn } from "@/lib/events";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { logger } from "@/lib/logger-client";
 
 /** Payload shape for file-watcher:changed events from Rust */

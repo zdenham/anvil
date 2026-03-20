@@ -806,6 +806,13 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
   const diagnosticEnv = diagnosticConfig ? JSON.stringify(diagnosticConfig) : undefined;
 
+  const envVars: Record<string, string> = {
+    ANTHROPIC_API_KEY: apiKey,
+    NODE_PATH: nodeModulesPath,
+    MORT_DATA_DIR: mortDir,
+    PATH: shellPath,
+    MORT_AGENT_HUB_WS_URL: `ws://127.0.0.1:${__MORT_WS_PORT__}/ws/agent`,
+  };
   if (diagnosticEnv) {
     envVars.MORT_DIAGNOSTIC_LOGGING = diagnosticEnv;
   }
@@ -995,6 +1002,13 @@ export async function resumeSimpleAgent(
 
   // Build diagnostic logging env var from current settings
   const resumeDiagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
+  const resumeEnvVars: Record<string, string> = {
+    ANTHROPIC_API_KEY: apiKey,
+    NODE_PATH: nodeModulesPath,
+    MORT_DATA_DIR: mortDir,
+    PATH: shellPath,
+    MORT_AGENT_HUB_WS_URL: `ws://127.0.0.1:${__MORT_WS_PORT__}/ws/agent`,
+  };
   if (resumeDiagnosticConfig) {
     resumeEnvVars.MORT_DIAGNOSTIC_LOGGING = JSON.stringify(resumeDiagnosticConfig);
   }

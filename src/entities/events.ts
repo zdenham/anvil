@@ -79,6 +79,8 @@ type LocalEvents = {
   "open-control-panel": OpenControlPanelPayload;
   "clipboard-entry-added": void;
   "show-error": ShowErrorPayload;
+  "navigate": { targetWindow?: string; tab: string };
+  "set-content-pane-view": { targetWindow?: string; type: string; [key: string]: unknown };
 
   // Window API events (synthetic, from bridge)
   "window:focus-changed": WindowFocusChangedPayload;

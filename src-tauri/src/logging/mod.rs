@@ -27,7 +27,7 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::time::FormatTime;
 use tracing_subscriber::layer::SubscriberExt;
@@ -133,7 +133,6 @@ pub struct LogEvent {
 struct LogBuffer {
     logs: Mutex<Vec<LogEvent>>,
     app_handle: Mutex<Option<AppHandle>>,
-    broadcaster: Mutex<Option<crate::ws_server::push::EventBroadcaster>>,
     /// Tracks last emit time for each unique log message (for throttling duplicates)
     last_emit: Mutex<HashMap<String, (Instant, u64)>>, // (last_time, suppressed_count)
 }
@@ -146,16 +145,11 @@ impl LogBuffer {
         Self {
             logs: Mutex::new(Vec::new()),
             app_handle: Mutex::new(None),
-            broadcaster: Mutex::new(None),
             last_emit: Mutex::new(HashMap::new()),
         }
     }
 
     fn set_app_handle(&self, handle: AppHandle) {
-        // Extract broadcaster from Tauri managed state
-        if let Ok(mut bc_guard) = self.broadcaster.lock() {
-            *bc_guard = Some(handle.state::<crate::ws_server::push::EventBroadcaster>().inner().clone());
-        }
         if let Ok(mut guard) = self.app_handle.lock() {
             *guard = Some(handle);
         }
@@ -202,11 +196,12 @@ impl LogBuffer {
             log.message = format!("{} (repeated {} times)", log.message, suppressed_count + 1);
         }
 
-        // Broadcast to frontend via WS
-        if let Ok(guard) = self.broadcaster.lock() {
-            if let Some(ref broadcaster) = *guard {
+        // Emit to frontend via Tauri events
+        if let Ok(guard) = self.app_handle.lock() {
+            if let Some(ref app) = *guard {
+                use tauri::Emitter;
                 if let Ok(payload) = serde_json::to_value(&log) {
-                    broadcaster.broadcast("log-event", payload);
+                    let _ = app.emit("log-event", payload);
                 }
             }
         }
@@ -220,21 +215,6 @@ impl LogBuffer {
         }
     }
 
-    /// Get all buffered logs (for initial frontend load)
-    fn get_all(&self) -> Vec<LogEvent> {
-        self.logs.lock().map(|logs| logs.clone()).unwrap_or_default()
-    }
-
-    /// Clear all buffered logs
-    fn clear(&self) {
-        if let Ok(mut logs) = self.logs.lock() {
-            logs.clear();
-        }
-        // Also clear the dedup tracker
-        if let Ok(mut last_emit) = self.last_emit.lock() {
-            last_emit.clear();
-        }
-    }
 }
 
 /// Global log buffer instance
@@ -462,51 +442,4 @@ where
         .with_filter(EnvFilter::new("debug,ureq=off,rustls=off,h2=off")))
 }
 
-/// Logs a message from the web frontend.
-///
-/// Bridges frontend logging calls to the centralized logging system.
-/// The source parameter identifies which window the log came from (e.g., "spotlight", "main").
-pub fn log_from_web(level: &str, message: &str, source: &str) {
-    // tracing requires static string targets, so we include source in the message
-    // and use a generic "web" target, but prefix with the source for clarity
-    let prefixed = format!("[{}] {}", source, message);
-    match level {
-        "error" => tracing::error!(target: "web", "{}", prefixed),
-        "warn" => tracing::warn!(target: "web", "{}", prefixed),
-        "info" => tracing::info!(target: "web", "{}", prefixed),
-        "debug" => tracing::debug!(target: "web", "{}", prefixed),
-        _ => tracing::info!(target: "web", "{}", prefixed),
-    }
-}
-
-/// A single log entry from a batched web frontend flush.
-#[derive(serde::Deserialize)]
-pub struct WebLogEntry {
-    pub level: String,
-    pub message: String,
-    pub source: String,
-    /// Milliseconds since epoch, captured at log creation time on the frontend.
-    #[allow(dead_code)]
-    pub timestamp: f64,
-}
-
-/// Process a batch of log entries from the web frontend.
-/// Each entry carries its own creation-time timestamp for correct ordering.
-pub fn log_batch_from_web(entries: Vec<WebLogEntry>) {
-    for entry in entries {
-        log_from_web(&entry.level, &entry.message, &entry.source);
-    }
-}
-
-/// Get all buffered logs for initial frontend hydration
-#[tauri::command]
-pub fn get_buffered_logs() -> Vec<LogEvent> {
-    LOG_BUFFER.get_all()
-}
-
-/// Clear all buffered logs
-#[tauri::command]
-pub fn clear_logs() {
-    LOG_BUFFER.clear();
-}
 

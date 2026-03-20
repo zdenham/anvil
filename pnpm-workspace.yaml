@@ -1,0 +1,6 @@
+packages:
+  - "agents"
+  - "core/*"
+  - "migrations"
+  - "server"
+  - "sidecar"

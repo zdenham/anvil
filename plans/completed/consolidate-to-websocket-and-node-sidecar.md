@@ -68,12 +68,12 @@ These are non-negotiable. The project is not complete until every item is verifi
 
 ## Phases
 
-- [ ] Spike A0: Verify Vite can alias `@tauri-apps/*` imports to shim modules
-- [ ] Phase A: Web build & Tauri shimming (A1–A4)
-- [ ] Spike B0: Verify minimal Node.js WS server can serve commands to the web frontend
-- [ ] Phase B: Node.js sidecar server (B1–B4)
-- [ ] Phase C: Agent hub migration (C1–C3)
-- [ ] Phase D: Rust WS removal, Tauri integration & final verification (D1–D3)
+- [x] Spike A0: Verify Vite can alias `@tauri-apps/*` imports to shim modules
+- [x] Phase A: Web build & Tauri shimming (A1–A4)
+- [x] Spike B0: Verify minimal Node.js WS server can serve commands to the web frontend
+- [x] Phase B: Node.js sidecar server (B1–B4)
+- [x] Phase C: Agent hub migration (C1–C3)
+- [x] Phase D: Rust WS removal, Tauri integration & final verification (D1–D3)
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

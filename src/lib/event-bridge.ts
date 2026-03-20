@@ -1,4 +1,5 @@
 import { emit, listen, type UnlistenFn } from "@/lib/events";
+import { listen as tauriListen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@/lib/browser-stubs";
 import { EventName } from "@core/types/events.js";
 import { eventBus, type AppEvents } from "@/entities/events";
@@ -95,6 +96,8 @@ const RUST_PANEL_EVENTS = [
   "open-control-panel",
   "clipboard-entry-added",
   "show-error",
+  "navigate",
+  "set-content-pane-view",
 ] as const;
 
 /**
@@ -199,7 +202,7 @@ async function registerTauriToMitt(
   mittEvent: string
 ): Promise<UnlistenFn | null> {
   try {
-    const unlisten = await listen(tauriEvent, (event) => {
+    const unlisten = await tauriListen(tauriEvent, (event) => {
       // Always log spotlight-shown and open-control-panel for debugging
       if (tauriEvent === "spotlight-shown") {
         logger.info(`[event-bridge] 🔦 Received spotlight-shown event, forwarding to mitt`);

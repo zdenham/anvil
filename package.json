@@ -7,8 +7,8 @@
     "dev": "./scripts/dev-mort.sh dev",
     "dev:headless": "MORT_SKIP_MAIN_WINDOW=1 pnpm dev",
     "dev:no-hmr": "MORT_DISABLE_HMR=true pnpm dev",
-    "dev:run": "mkdir -p logs && concurrently -n agents,sdk,migrations,tauri -c green,blue,magenta,yellow \"pnpm dev:agents\" \"pnpm dev:sdk\" \"pnpm dev:migrations\" \"tauri dev $TAURI_ARGS\" 2>&1 | tee logs/dev.log",
-    "dev:run:no-hmr": "mkdir -p logs && pnpm build:agents && pnpm build:sdk && pnpm build:migrations && tauri dev $TAURI_ARGS 2>&1 | tee logs/dev.log",
+    "dev:run": "mkdir -p logs && concurrently -n agents,sdk,migrations,sidecar,tauri -c green,blue,magenta,cyan,yellow \"pnpm dev:agents\" \"pnpm dev:sdk\" \"pnpm dev:migrations\" \"pnpm sidecar:dev\" \"tauri dev $TAURI_ARGS\" 2>&1 | tee logs/dev.log",
+    "dev:run:no-hmr": "mkdir -p logs && pnpm build:agents && pnpm build:sdk && pnpm build:migrations && pnpm sidecar:build && tauri dev $TAURI_ARGS 2>&1 | tee logs/dev.log",
     "dev:agents": "cd agents && pnpm build --watch",
     "dev:sdk": "cd core/sdk && pnpm build:watch",
     "dev:migrations": "cd migrations && pnpm build:watch",
@@ -31,7 +31,12 @@
     "lint:fix": "eslint src core --fix",
     "release:internal": "./scripts/internal-build.sh",
     "postinstall": "cp -r node_modules/material-icon-theme/icons public/material-icons",
-    "setup": "./scripts/setup-worktree.sh"
+    "setup": "./scripts/setup-worktree.sh",
+    "sidecar:build": "cd sidecar && pnpm build",
+    "sidecar:dev": "cd sidecar && pnpm dev",
+    "web:build": "vite build --config vite.config.web.ts",
+    "web:dev": "vite --config vite.config.web.ts",
+    "verify:web": "./scripts/verify-web-build.sh"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.53",

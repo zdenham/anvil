@@ -1,75 +1,43 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { getHubSocketPath } from "./socket.js";
-import * as mortDir from "./mort-dir.js";
+import { getHubEndpoint } from "./socket.js";
 
-describe("getHubSocketPath", () => {
+describe("getHubEndpoint", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
-  // Test 1: Returns correct path structure
-  it("should return path ending with agent-hub.sock", () => {
-    const result = getHubSocketPath();
-    expect(result).toMatch(/agent-hub\.sock$/);
+  it("returns default WebSocket URL with port 9600", () => {
+    const result = getHubEndpoint();
+    expect(result).toBe("ws://127.0.0.1:9600/ws/agent");
   });
 
-  // Test 2: Path is built from mort directory
-  it("should build path from getMortDir()", () => {
-    const getMortDirSpy = vi.spyOn(mortDir, "getMortDir");
-    getMortDirSpy.mockReturnValue("/custom/mort/dir");
-
-    const result = getHubSocketPath();
-
-    expect(result).toBe("/custom/mort/dir/agent-hub.sock");
+  it("uses MORT_AGENT_HUB_WS_URL when set", () => {
+    vi.stubEnv("MORT_AGENT_HUB_WS_URL", "ws://custom:1234/ws/agent");
+    const result = getHubEndpoint();
+    expect(result).toBe("ws://custom:1234/ws/agent");
   });
 
-  // Test 3: Returns absolute path (not relative)
-  it("should return an absolute path", () => {
-    const result = getHubSocketPath();
-    expect(result.startsWith("/")).toBe(true);
+  it("uses MORT_WS_PORT when set", () => {
+    vi.stubEnv("MORT_WS_PORT", "7777");
+    const result = getHubEndpoint();
+    expect(result).toBe("ws://127.0.0.1:7777/ws/agent");
   });
 
-  // Test 4: Path does not contain unexpanded tilde
-  it("should not contain unexpanded tilde", () => {
-    const result = getHubSocketPath();
-    expect(result).not.toContain("~");
+  it("prefers MORT_AGENT_HUB_WS_URL over MORT_WS_PORT", () => {
+    vi.stubEnv("MORT_AGENT_HUB_WS_URL", "ws://override:9999/ws/agent");
+    vi.stubEnv("MORT_WS_PORT", "7777");
+    const result = getHubEndpoint();
+    expect(result).toBe("ws://override:9999/ws/agent");
   });
 
-  // Test 5: Consistent return value (idempotent)
-  it("should return the same path on repeated calls", () => {
-    const result1 = getHubSocketPath();
-    const result2 = getHubSocketPath();
+  it("returns consistent value on repeated calls", () => {
+    const result1 = getHubEndpoint();
+    const result2 = getHubEndpoint();
     expect(result1).toBe(result2);
   });
 
-  // Test 6: Handles mort directory with spaces
-  it("should handle mort directory with spaces in path", () => {
-    const getMortDirSpy = vi.spyOn(mortDir, "getMortDir");
-    getMortDirSpy.mockReturnValue("/path with spaces/.mort");
-
-    const result = getHubSocketPath();
-
-    expect(result).toBe("/path with spaces/.mort/agent-hub.sock");
-  });
-
-  // Test 7: Handles mort directory with special characters
-  it("should handle mort directory with special characters", () => {
-    const getMortDirSpy = vi.spyOn(mortDir, "getMortDir");
-    getMortDirSpy.mockReturnValue("/path-with_special.chars/.mort");
-
-    const result = getHubSocketPath();
-
-    expect(result).toBe("/path-with_special.chars/.mort/agent-hub.sock");
-  });
-
-  // Test 8: No double slashes when mort dir ends without slash
-  it("should not create double slashes in path", () => {
-    const getMortDirSpy = vi.spyOn(mortDir, "getMortDir");
-    getMortDirSpy.mockReturnValue("/home/user/.mort");
-
-    const result = getHubSocketPath();
-
-    expect(result).not.toContain("//");
-    expect(result).toBe("/home/user/.mort/agent-hub.sock");
+  it("always returns a ws:// URL", () => {
+    const result = getHubEndpoint();
+    expect(result).toMatch(/^wss?:\/\//);
   });
 });

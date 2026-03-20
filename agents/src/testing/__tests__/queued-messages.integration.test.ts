@@ -8,18 +8,12 @@ import { createMockScript, cleanupMockScript, MOCK_LLM_VAR } from '../mock-llm.j
  * These tests validate that the agent harness can schedule and send
  * queued messages during agent execution without crashing.
  *
- * ## Socket-Based IPC Migration
+ * ## WebSocket-Based IPC
  *
- * As of the socket-ipc migration, these tests now use socket-based IPC by default:
- * - The AgentTestHarness creates a MockHubServer with a unique Unix socket
+ * These tests use WebSocket-based IPC:
+ * - The AgentTestHarness creates a MockHubServer with a WebSocket endpoint
  * - Queued messages are sent via `mockHub.sendQueuedMessage()` instead of stdin
  * - Messages are collected from the MockHubServer instead of parsing stdout
- *
- * The test interface remains the same (queuedMessages option with delayMs and content),
- * but the underlying transport has changed from stdin JSON lines to socket messages.
- *
- * To use legacy stdin-based IPC for comparison testing, pass `useSocketIpc: false`
- * to the AgentTestHarness constructor.
  *
  * Note: Testing actual queued message processing requires carefully timed
  * mock scripts that keep the agent alive long enough for messages to arrive.

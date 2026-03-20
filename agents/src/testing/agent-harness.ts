@@ -114,7 +114,7 @@ export class AgentTestHarness {
   }
 
   /**
-   * Spawn the agent subprocess and collect its output via socket-based IPC.
+   * Spawn the agent subprocess and collect its output via WebSocket IPC.
    */
   private async spawnAgent(opts: AgentTestOptions): Promise<AgentRunOutput> {
     const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -139,9 +139,8 @@ export class AgentTestHarness {
     const startTime = Date.now();
     const timeout = opts.timeout ?? 60000;
 
-    // Create and start MockHubServer with unique socket path
-    const socketPath = join(this.mortDir!.path, `test-hub-${threadId}.sock`);
-    this.mockHub = new MockHubServer(socketPath);
+    // Create and start MockHubServer with random port
+    this.mockHub = new MockHubServer();
     await this.mockHub.start();
 
     return new Promise((resolve, reject) => {
@@ -150,7 +149,7 @@ export class AgentTestHarness {
           ...process.env,
           ...this.runnerConfig.env,
           ...opts.env,
-          MORT_HUB_SOCKET_PATH: socketPath,
+          MORT_AGENT_HUB_WS_URL: this.mockHub!.getEndpoint(),
           // Strip CLAUDECODE to prevent "nested session" error on SDK v0.2.59+
           CLAUDECODE: undefined,
         },
@@ -160,12 +159,12 @@ export class AgentTestHarness {
       let killed = false;
       let timeoutId: NodeJS.Timeout | null = null;
 
-      // Wait for agent to register, then schedule queued messages via socket
+      // Wait for agent to register, then schedule queued messages via WebSocket
       const setupQueuedMessages = async () => {
         try {
           await this.mockHub!.waitForRegistration(threadId, timeout);
 
-          // Schedule queued messages to be sent via socket
+          // Schedule queued messages to be sent via WebSocket
           if (opts.queuedMessages && opts.queuedMessages.length > 0) {
             for (const qm of opts.queuedMessages) {
               setTimeout(() => {
@@ -206,7 +205,7 @@ export class AgentTestHarness {
         }
       });
 
-      // Parse stdout for debug output only (all protocol messages go via socket)
+      // Parse stdout for debug output only (all protocol messages go via WebSocket)
       const rl = createReadlineInterface({ input: proc.stdout });
       rl.on("line", (line) => {
         this.parseDebugOutput(line, logs);
@@ -273,7 +272,7 @@ export class AgentTestHarness {
 
   /**
    * Parse debug output from stdout.
-   * All protocol messages now go via socket; stdout is only for debug logs.
+   * All protocol messages now go via WebSocket; stdout is only for debug logs.
    */
   private parseDebugOutput(line: string, logs: AgentLogMessage[]): void {
     try {

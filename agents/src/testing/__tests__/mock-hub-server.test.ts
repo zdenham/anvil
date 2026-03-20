@@ -1,19 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Socket as NetSocket, connect } from "net";
-import { tmpdir } from "os";
-import { join } from "path";
-import { existsSync, unlinkSync, mkdirSync } from "fs";
-import { randomUUID } from "crypto";
+import WebSocket from "ws";
 import { MockHubServer } from "../mock-hub-server.js";
 import type { SocketMessage, TauriToAgentMessage } from "../../lib/hub/types.js";
 
 /**
- * Helper to create a mock agent client that connects to the hub.
+ * Helper to create a mock agent client that connects to the hub via WebSocket.
  * Simulates what the HubClient does in production.
  */
 class MockAgentClient {
-  private socket: NetSocket | null = null;
-  private buffer = "";
+  private ws: WebSocket | null = null;
   private receivedMessages: TauriToAgentMessage[] = [];
   private onMessageCallback: ((msg: TauriToAgentMessage) => void) | null = null;
 
@@ -22,53 +17,42 @@ class MockAgentClient {
     private parentId?: string
   ) {}
 
-  async connect(socketPath: string): Promise<void> {
+  async connect(endpoint: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.socket = connect(socketPath);
+      this.ws = new WebSocket(endpoint);
 
-      this.socket.once("connect", () => {
-        this.setupDataHandler();
+      this.ws.once("open", () => {
+        this.setupHandlers();
         resolve();
       });
 
-      this.socket.once("error", reject);
+      this.ws.once("error", reject);
     });
   }
 
-  private setupDataHandler(): void {
-    if (!this.socket) return;
+  private setupHandlers(): void {
+    if (!this.ws) return;
 
-    this.socket.on("data", (data) => {
-      this.buffer += data.toString();
-      this.processBuffer();
-    });
-  }
-
-  private processBuffer(): void {
-    const lines = this.buffer.split("\n");
-    this.buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
+    this.ws.on("message", (data) => {
       try {
-        const msg = JSON.parse(line) as TauriToAgentMessage;
+        const msg = JSON.parse(String(data)) as TauriToAgentMessage;
         this.receivedMessages.push(msg);
         this.onMessageCallback?.(msg);
       } catch {
         // Invalid JSON, skip
       }
-    }
+    });
   }
 
   send(msg: Partial<SocketMessage>): void {
-    if (this.socket && !this.socket.destroyed) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       const fullMsg: SocketMessage = {
         senderId: this.threadId,
         threadId: this.threadId,
         type: "unknown",
         ...msg,
       };
-      this.socket.write(JSON.stringify(fullMsg) + "\n");
+      this.ws.send(JSON.stringify(fullMsg));
     }
   }
 
@@ -123,62 +107,41 @@ class MockAgentClient {
   }
 
   disconnect(): void {
-    this.socket?.destroy();
-    this.socket = null;
+    this.ws?.terminate();
+    this.ws = null;
   }
-}
-
-/**
- * Generate a unique socket path for test isolation.
- */
-function getTestSocketPath(): string {
-  const testDir = join(tmpdir(), "mort-test-hub");
-  if (!existsSync(testDir)) {
-    mkdirSync(testDir, { recursive: true });
-  }
-  return join(testDir, `test-hub-${randomUUID()}.sock`);
 }
 
 describe("MockHubServer", () => {
   let server: MockHubServer;
-  let socketPath: string;
 
   beforeEach(() => {
-    socketPath = getTestSocketPath();
-    server = new MockHubServer(socketPath);
+    server = new MockHubServer();
   });
 
   afterEach(async () => {
     await server.stop();
-    // Clean up socket file if it exists
-    if (existsSync(socketPath)) {
-      try {
-        unlinkSync(socketPath);
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
   });
 
   describe("server lifecycle", () => {
     it("starts and accepts connections", async () => {
       await server.start();
 
-      // Verify server is running by successfully connecting to it
+      const endpoint = server.getEndpoint();
       const client = new MockAgentClient("test-lifecycle");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
 
-      expect(server.getSocketPath()).toBe(socketPath);
+      expect(endpoint).toMatch(/^ws:\/\/127\.0\.0\.1:\d+\/ws\/agent$/);
 
       client.disconnect();
     });
 
     it("cleans up connections on stop", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
-      // Connect and register
       const client = new MockAgentClient("test-cleanup");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
       await server.waitForRegistration("test-cleanup", 1000);
 
@@ -186,7 +149,6 @@ describe("MockHubServer", () => {
 
       await server.stop();
 
-      // Server should have cleaned up connections
       expect(server.getConnectedThreadIds()).toHaveLength(0);
     });
 
@@ -196,35 +158,39 @@ describe("MockHubServer", () => {
       await server.stop(); // Should not throw
     });
 
-    it("generates unique socket path if not provided", () => {
-      const server1 = new MockHubServer();
+    it("assigns unique ports when using default port 0", async () => {
       const server2 = new MockHubServer();
+      await server.start();
+      await server2.start();
 
-      expect(server1.getSocketPath()).not.toBe(server2.getSocketPath());
+      expect(server.getEndpoint()).not.toBe(server2.getEndpoint());
+
+      await server2.stop();
     });
   });
 
   describe("agent connections", () => {
     it("accepts agent connections", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-1");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
 
-      // Connection should be established
-      expect(server.getConnectedThreadIds()).toHaveLength(0); // Not registered yet
+      // Connection should be established but not registered
+      expect(server.getConnectedThreadIds()).toHaveLength(0);
 
       client.disconnect();
     });
 
     it("tracks registered agents by threadId", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-abc");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
-      // Wait for registration to be processed
       await server.waitForRegistration("thread-abc", 1000);
 
       expect(server.getConnectedThreadIds()).toContain("thread-abc");
@@ -234,9 +200,10 @@ describe("MockHubServer", () => {
 
     it("handles agent disconnection", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-disconnect");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-disconnect", 1000);
@@ -252,15 +219,16 @@ describe("MockHubServer", () => {
 
     it("handles multiple concurrent agents", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client1 = new MockAgentClient("thread-1");
       const client2 = new MockAgentClient("thread-2");
       const client3 = new MockAgentClient("thread-3");
 
       await Promise.all([
-        client1.connect(socketPath),
-        client2.connect(socketPath),
-        client3.connect(socketPath),
+        client1.connect(endpoint),
+        client2.connect(endpoint),
+        client3.connect(endpoint),
       ]);
 
       client1.register();
@@ -286,9 +254,10 @@ describe("MockHubServer", () => {
 
     it("times out on missing registration", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-never-registers");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       // Note: not calling client.register()
 
       await expect(
@@ -310,13 +279,14 @@ describe("MockHubServer", () => {
   describe("message routing", () => {
     it("routes messages by threadId", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client1 = new MockAgentClient("thread-a");
       const client2 = new MockAgentClient("thread-b");
 
       await Promise.all([
-        client1.connect(socketPath),
-        client2.connect(socketPath),
+        client1.connect(endpoint),
+        client2.connect(endpoint),
       ]);
 
       client1.register();
@@ -355,9 +325,10 @@ describe("MockHubServer", () => {
 
     it("collects all messages", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-collect");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-collect", 1000);
@@ -383,9 +354,10 @@ describe("MockHubServer", () => {
   describe("sending messages to agents", () => {
     it("sendCancel sends cancel message to agent", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-cancel");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-cancel", 1000);
@@ -405,9 +377,10 @@ describe("MockHubServer", () => {
 
     it("sendPermissionResponse sends permission response to agent", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-permission");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-permission", 1000);
@@ -421,7 +394,7 @@ describe("MockHubServer", () => {
 
       const msg = await permissionReceived;
       expect(msg.type).toBe("permission_response");
-      expect((msg as any).payload.decision).toBe("allow");
+      expect((msg as any).payload.decision).toBe("approve");
       expect((msg as any).payload.requestId).toBe("req-123");
 
       client.disconnect();
@@ -429,9 +402,10 @@ describe("MockHubServer", () => {
 
     it("sendPermissionResponse sends deny response", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-deny");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-deny", 1000);
@@ -452,9 +426,10 @@ describe("MockHubServer", () => {
 
     it("sendQueuedMessage sends queued message to agent", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-queued");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-queued", 1000);
@@ -475,9 +450,10 @@ describe("MockHubServer", () => {
 
     it("sendToAgent sends message to specific agent", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-arbitrary");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-arbitrary", 1000);
@@ -510,9 +486,10 @@ describe("MockHubServer", () => {
   describe("waitForMessage", () => {
     it("resolves when matching message is received", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-wait");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-wait", 1000);
@@ -537,9 +514,10 @@ describe("MockHubServer", () => {
 
     it("resolves immediately if matching message already exists", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-exists");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-exists", 1000);
@@ -563,9 +541,10 @@ describe("MockHubServer", () => {
 
     it("times out if matching message is not received", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-timeout");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-timeout", 1000);
@@ -582,13 +561,14 @@ describe("MockHubServer", () => {
 
     it("can filter by threadId", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client1 = new MockAgentClient("thread-filter-1");
       const client2 = new MockAgentClient("thread-filter-2");
 
       await Promise.all([
-        client1.connect(socketPath),
-        client2.connect(socketPath),
+        client1.connect(endpoint),
+        client2.connect(endpoint),
       ]);
 
       client1.register();
@@ -628,9 +608,10 @@ describe("MockHubServer", () => {
   describe("message receiving", () => {
     it("receives register messages with parentId", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const childClient = new MockAgentClient("child-thread", "parent-thread");
-      await childClient.connect(socketPath);
+      await childClient.connect(endpoint);
       childClient.register();
 
       await server.waitForRegistration("child-thread", 1000);
@@ -647,9 +628,10 @@ describe("MockHubServer", () => {
 
     it("receives thread_action messages", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-state");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-state", 1000);
@@ -677,9 +659,10 @@ describe("MockHubServer", () => {
 
     it("receives event messages", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-event");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-event", 1000);
@@ -706,16 +689,18 @@ describe("MockHubServer", () => {
   describe("edge cases", () => {
     it("handles malformed JSON gracefully", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
-      const socket = connect(socketPath);
+      const ws = new WebSocket(endpoint);
 
-      await new Promise<void>((resolve) => {
-        socket.once("connect", () => {
+      await new Promise<void>((resolve, reject) => {
+        ws.once("open", () => {
           // Send malformed JSON
-          socket.write("{ invalid json }\n");
-          socket.write('{"type": "register", "threadId": "malformed-test", "senderId": "malformed-test"}\n');
+          ws.send("{ invalid json }");
+          ws.send('{"type": "register", "threadId": "malformed-test", "senderId": "malformed-test"}');
           resolve();
         });
+        ws.once("error", reject);
       });
 
       // Server should still work
@@ -724,14 +709,15 @@ describe("MockHubServer", () => {
       // The valid message should have been processed
       expect(server.getConnectedThreadIds()).toContain("malformed-test");
 
-      socket.destroy();
+      ws.terminate();
     });
 
     it("handles rapid message sending", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-rapid");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-rapid", 1000);
@@ -754,9 +740,10 @@ describe("MockHubServer", () => {
 
     it("handles reconnection after disconnect", async () => {
       await server.start();
+      const endpoint = server.getEndpoint();
 
       const client = new MockAgentClient("thread-reconnect");
-      await client.connect(socketPath);
+      await client.connect(endpoint);
       client.register();
 
       await server.waitForRegistration("thread-reconnect", 1000);
@@ -772,7 +759,7 @@ describe("MockHubServer", () => {
 
       // Reconnect with same threadId
       const client2 = new MockAgentClient("thread-reconnect");
-      await client2.connect(socketPath);
+      await client2.connect(endpoint);
       client2.register();
 
       await server.waitForRegistration("thread-reconnect", 1000);

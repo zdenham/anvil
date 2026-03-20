@@ -14,6 +14,9 @@ export default defineConfig({
   // Bundling the SDK breaks its internal path resolution for these files.
   // Current result: ~96MB app (vs 547MB before optimization)
   noExternal: [/^(?!@anthropic-ai\/claude-agent-sdk)/],
+  banner: {
+    js: `import { createRequire } from "module"; const require = createRequire(import.meta.url);`,
+  },
   esbuildOptions(options) {
     options.alias = {
       "@core": resolve(__dirname, "../core"),

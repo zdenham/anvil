@@ -4,7 +4,7 @@ use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use crate::clipboard_db::{self, ClipboardEntryPreview};
 use crate::panels;
@@ -120,10 +120,12 @@ pub fn initialize(app: &AppHandle) {
                                 tracing::error!(error = %e, "Failed to insert clipboard entry");
                             }
 
-                            // Notify frontend of new entry via WS broadcast
+                            // Notify frontend of new entry
                             if let Some(app) = APP_HANDLE.get() {
-                                let broadcaster = app.state::<crate::ws_server::push::EventBroadcaster>();
-                                broadcaster.broadcast("clipboard-entry-added", serde_json::json!({}));
+                                use tauri::Emitter;
+                                if let Err(e) = app.emit("clipboard-entry-added", serde_json::json!({})) {
+                                    tracing::error!(error = %e, "Failed to emit clipboard-entry-added");
+                                }
                             }
                         } else {
                             last_content = Some(content);

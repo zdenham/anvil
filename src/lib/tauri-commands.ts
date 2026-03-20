@@ -15,13 +15,8 @@ import { invoke } from "@/lib/invoke";
 import { logger } from "@/lib/logger-client";
 import { toast } from "@/lib/toast";
 import { z } from "zod";
-import type { ThreadStatus, ThreadMetadata } from "@/entities/threads/types";
-
 // Re-export invoke for convenience
 export { invoke };
-
-// Re-export types for backward compatibility
-export type { ThreadStatus, ThreadMetadata };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types with Zod Schemas (IPC boundary validation)
@@ -332,106 +327,6 @@ export const fsCommands = {
    * Delete a file.
    */
   deleteFile: (path: string) => invoke<void>("fs_remove", { path }),
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Thread Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const threadCommands = {
-  /**
-   * Get the status of a thread.
-   */
-  getThreadStatus: (threadId: string) =>
-    invoke<ThreadStatus | null>("get_thread_status", {
-      threadId,
-    }),
-
-  /**
-   * Get full thread metadata.
-   */
-  getThread: (threadId: string) =>
-    invoke<ThreadMetadata | null>("get_thread", {
-      threadId,
-    }),
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Lock Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const lockCommands = {
-  /**
-   * Acquire an exclusive lock for a repository.
-   * Returns a lock ID that must be passed to releaseLock.
-   */
-  acquireRepoLock: (repoName: string) =>
-    invoke<string>("lock_acquire_repo", { repoName }),
-
-  /**
-   * Release a repository lock.
-   */
-  releaseRepoLock: (lockId: string) =>
-    invoke<void>("lock_release_repo", { lockId }),
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Agent Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const agentCommands = {
-  /**
-   * Get the list of available agent types.
-   * Returns: ['research', 'execution', 'review', 'merge']
-   */
-  getAgentTypes: () => invoke<string[]>("get_agent_types"),
-
-  /**
-   * Send a message to a connected agent via the AgentHub socket.
-   * Used for permission responses, cancel signals, and queued messages.
-   *
-   * @param threadId - The thread ID of the agent to send to
-   * @param message - The JSON-stringified message to send
-   */
-  sendToAgent: (threadId: string, message: string) =>
-    invoke<void>("send_to_agent", { threadId, message }),
-
-  /**
-   * List all currently connected agents.
-   * Returns an array of thread IDs.
-   */
-  listConnectedAgents: () => invoke<string[]>("list_connected_agents"),
-
-  /**
-   * Get the socket path for agent connections.
-   * Returns the path to the AgentHub socket (e.g., ~/.mort/agent-hub.sock).
-   */
-  getAgentSocketPath: () => invoke<string>("get_agent_socket_path"),
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Panel Commands
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const panelCommands = {
-  /**
-   * Check if any nspanel is currently visible.
-   * Returns true if any panel (spotlight, clipboard, task, error, control-panel, tasks-list) is visible.
-   */
-  isAnyPanelVisible: () => invoke<boolean>("is_any_panel_visible"),
-
-  /**
-   * Check if a specific panel is currently visible.
-   * Returns true if the specified panel is visible, false otherwise.
-   * @param panelLabel The panel label to check (e.g., "control-panel", "task", "spotlight")
-   */
-  isPanelVisible: (panelLabel: string) => invoke<boolean>("is_panel_visible", { panelLabel }),
-
-  /**
-   * Show the control panel without setting thread context.
-   * The view will be set via eventBus from the frontend.
-   */
-  showControlPanel: () => invoke<void>("show_control_panel"),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

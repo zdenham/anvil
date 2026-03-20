@@ -14,8 +14,3 @@ pub const DEFAULT_CLIPBOARD_HOTKEY: &str = env!("MORT_CLIPBOARD_HOTKEY");
 /// WebSocket server port baked at build time (default "9600", dev uses "9601")
 pub const WS_PORT: &str = env!("MORT_WS_PORT");
 
-/// Check if this is a non-production build
-pub const fn is_alternate_build() -> bool {
-    !APP_SUFFIX.is_empty()
-}
-

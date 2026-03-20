@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { listen } from "@/lib/events";
+import { eventBus } from "@/entities/events";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { BottomGutter } from "@/components/ui/bottom-gutter";
@@ -312,17 +312,13 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   useEffect(() => {
-    const unlisten = listen<ContentPaneView & { targetWindow?: string }>("set-content-pane-view", async (event) => {
-      // Filter by targetWindow (WS broadcast goes to all windows)
-      const { targetWindow, ...view } = event.payload;
+    const handler = async (payload: { targetWindow?: string; type: string; [key: string]: unknown }) => {
+      const { targetWindow, ...view } = payload;
       if (targetWindow && targetWindow !== "main") return;
-      // Update both tree selection and content pane via navigation service
       await navigationService.navigateToView(view as ContentPaneView);
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
     };
+    eventBus.on("set-content-pane-view", handler);
+    return () => { eventBus.off("set-content-pane-view", handler); };
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -330,9 +326,8 @@ export function MainWindowLayout() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   useEffect(() => {
-    const unlisten = listen<{ targetWindow?: string; tab: string }>("navigate", async (event) => {
-      // Filter by targetWindow (WS broadcast goes to all windows)
-      const { targetWindow, tab } = event.payload;
+    const handler = async (payload: { targetWindow?: string; tab: string }) => {
+      const { targetWindow, tab } = payload;
       if (targetWindow && targetWindow !== "main") return;
       const target = tab as NavTarget;
       if (VALID_NAV_TARGETS.includes(target)) {
@@ -343,11 +338,9 @@ export function MainWindowLayout() {
         }
         logger.debug(`[MainWindowLayout] Navigated to ${target}`);
       }
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
     };
+    eventBus.on("navigate", handler);
+    return () => { eventBus.off("navigate", handler); };
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════

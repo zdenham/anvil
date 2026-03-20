@@ -20,7 +20,6 @@ const TERMINAL_SESSIONS_DIR = "terminal-sessions";
  * Coordinates between the Rust PTY backend, disk persistence, and the frontend store.
  */
 class TerminalSessionService {
-  private readonly encoder = new TextEncoder();
   /** Maps terminal UUID -> numeric PTY ID for Rust IPC */
   private readonly ptyIds = new Map<string, number>();
   /** Guards against concurrent revive calls for the same terminal */
@@ -186,8 +185,7 @@ class TerminalSessionService {
    * Writes data to a terminal's PTY.
    */
   async write(id: string, data: string): Promise<void> {
-    const bytes = Array.from(this.encoder.encode(data));
-    await invoke("write_terminal", { id: this.getPtyId(id), data: bytes });
+    await invoke("write_terminal", { id: this.getPtyId(id), data });
   }
 
   /**

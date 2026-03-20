@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@core/lib/socket.js", () => ({
-  getHubSocketPath: vi.fn().mockReturnValue("/tmp/mort-hub.sock"),
+  getHubEndpoint: vi.fn().mockReturnValue("ws://127.0.0.1:9600/ws/agent"),
+}));
+
+vi.mock("./visibility-watcher.js", () => ({
+  VisibilityWatcher: class MockVisibilityWatcher {
+    start() {}
+    stop() {}
+    shouldSendEvent() { return true; }
+    getVisibleThreadIds() { return new Set(); }
+  },
 }));
 
 // Track mock instances for verification
@@ -57,7 +66,7 @@ describe("HubClient", () => {
   describe("connect", () => {
     it("connects to the socket path", async () => {
       await client.connect();
-      expect(mockConnection.connect).toHaveBeenCalledWith("/tmp/mort-hub.sock");
+      expect(mockConnection.connect).toHaveBeenCalledWith("ws://127.0.0.1:9600/ws/agent");
     });
 
     it("sends register message after connecting", async () => {

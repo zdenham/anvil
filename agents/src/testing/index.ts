@@ -79,5 +79,5 @@ export {
 } from "./mock-query.js";
 export type { ToolExecutor, MockQueryOptions } from "./mock-query.js";
 
-// Mock Hub Server (for socket IPC testing)
+// Mock Hub Server (for WebSocket IPC testing)
 export { MockHubServer } from "./mock-hub-server.js";

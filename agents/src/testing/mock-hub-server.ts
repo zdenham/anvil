@@ -1,7 +1,6 @@
-import { createServer, Server, Socket } from "net";
-import { tmpdir } from "os";
-import { join } from "path";
-import { unlinkSync, existsSync } from "fs";
+import { createServer } from "http";
+import { WebSocketServer, WebSocket } from "ws";
+import type { Server as HttpServer } from "http";
 import type {
   SocketMessage,
   TauriToAgentMessage,
@@ -9,10 +8,10 @@ import type {
 } from "../lib/hub/types.js";
 
 /**
- * A mock hub server for testing agents via Unix socket IPC.
+ * A mock hub server for testing agents via WebSocket IPC.
  *
  * This server:
- * - Creates a Unix socket server at a configurable path
+ * - Creates a WebSocket server on a configurable port
  * - Accepts connections from agents
  * - Tracks connections by threadId (extracted from registration messages)
  * - Collects all received messages
@@ -23,7 +22,7 @@ import type {
  * const hub = new MockHubServer();
  * await hub.start();
  *
- * // Spawn agent with MORT_HUB_SOCKET_PATH=hub.getSocketPath()
+ * // Spawn agent with MORT_AGENT_HUB_WS_URL=hub.getEndpoint()
  * await hub.waitForRegistration("thread-123");
  *
  * // Send messages to the agent
@@ -36,43 +35,44 @@ import type {
  * ```
  */
 export class MockHubServer {
-  private server: Server | null = null;
-  private socketPath: string;
-  private connections: Map<string, Socket> = new Map(); // threadId -> socket
-  private pendingConnections: Set<Socket> = new Set(); // connections not yet registered
+  private httpServer: HttpServer | null = null;
+  private wss: WebSocketServer | null = null;
+  private port: number;
+  private connections: Map<string, WebSocket> = new Map(); // threadId -> ws
+  private pendingConnections: Set<WebSocket> = new Set(); // connections not yet registered
   private receivedMessages: SocketMessage[] = [];
   private messageListeners: Array<(msg: SocketMessage) => void> = [];
-  private buffers: Map<Socket, string> = new Map(); // socket -> partial message buffer
 
   /**
    * Create a new MockHubServer.
    *
-   * @param socketPath - Path for the Unix socket. Defaults to a unique path in the temp directory.
+   * @param port - Port to listen on. Defaults to 0 (OS-assigned random port).
    */
-  constructor(socketPath?: string) {
-    this.socketPath =
-      socketPath ?? join(tmpdir(), `mock-hub-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`);
+  constructor(port = 0) {
+    this.port = port;
   }
 
   /**
    * Start the server and begin accepting connections.
    */
   async start(): Promise<void> {
-    // Clean up any stale socket file
-    if (existsSync(this.socketPath)) {
-      unlinkSync(this.socketPath);
-    }
-
     return new Promise((resolve, reject) => {
-      this.server = createServer((socket) => {
-        this.handleConnection(socket);
+      this.httpServer = createServer();
+      this.wss = new WebSocketServer({ server: this.httpServer });
+
+      this.wss.on("connection", (ws) => {
+        this.handleConnection(ws);
       });
 
-      this.server.on("error", (err) => {
+      this.httpServer.on("error", (err) => {
         reject(err);
       });
 
-      this.server.listen(this.socketPath, () => {
+      this.httpServer.listen(this.port, "127.0.0.1", () => {
+        const addr = this.httpServer!.address();
+        if (addr && typeof addr === "object") {
+          this.port = addr.port;
+        }
         resolve();
       });
     });
@@ -82,81 +82,59 @@ export class MockHubServer {
    * Stop the server and clean up all connections.
    */
   async stop(): Promise<void> {
-    // Close all connections
-    for (const socket of this.connections.values()) {
-      socket.destroy();
+    // Close all WebSocket connections
+    for (const ws of this.connections.values()) {
+      ws.terminate();
     }
-    for (const socket of this.pendingConnections) {
-      socket.destroy();
+    for (const ws of this.pendingConnections) {
+      ws.terminate();
     }
     this.connections.clear();
     this.pendingConnections.clear();
-    this.buffers.clear();
 
-    // Close the server
-    if (this.server) {
+    // Close the WebSocket server
+    if (this.wss) {
+      this.wss.close();
+      this.wss = null;
+    }
+
+    // Close the HTTP server
+    if (this.httpServer) {
       await new Promise<void>((resolve) => {
-        this.server!.close(() => resolve());
+        this.httpServer!.close(() => resolve());
       });
-      this.server = null;
-    }
-
-    // Clean up socket file
-    if (existsSync(this.socketPath)) {
-      try {
-        unlinkSync(this.socketPath);
-      } catch {
-        // Ignore cleanup errors
-      }
+      this.httpServer = null;
     }
   }
 
   /**
-   * Handle a new socket connection.
+   * Handle a new WebSocket connection.
    */
-  private handleConnection(socket: Socket): void {
-    this.pendingConnections.add(socket);
-    this.buffers.set(socket, "");
+  private handleConnection(ws: WebSocket): void {
+    this.pendingConnections.add(ws);
 
-    socket.on("data", (data) => {
-      this.processData(socket, data);
-    });
-
-    socket.on("close", () => {
-      this.handleDisconnect(socket);
-    });
-
-    socket.on("error", () => {
-      this.handleDisconnect(socket);
-    });
-  }
-
-  /**
-   * Process incoming data from a socket using newline-delimited JSON.
-   */
-  private processData(socket: Socket, data: Buffer): void {
-    const buffer = (this.buffers.get(socket) ?? "") + data.toString();
-    const lines = buffer.split("\n");
-
-    // Keep the last incomplete line in the buffer
-    this.buffers.set(socket, lines.pop() ?? "");
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
+    ws.on("message", (data) => {
       try {
-        const msg = JSON.parse(line) as SocketMessage;
-        this.handleMessage(socket, msg);
+        const msg = JSON.parse(String(data)) as SocketMessage;
+        this.handleMessage(ws, msg);
       } catch {
         // Invalid JSON, skip
       }
-    }
+    });
+
+    ws.on("close", () => {
+      this.handleDisconnect(ws);
+    });
+
+    ws.on("error", () => {
+      this.handleDisconnect(ws);
+    });
   }
 
   /**
-   * Handle a parsed message from a socket.
+   * Handle a parsed message from a WebSocket.
    */
-  private handleMessage(socket: Socket, msg: SocketMessage): void {
+  private handleMessage(ws: WebSocket, msg: SocketMessage): void {
     // Store the message
     this.receivedMessages.push(msg);
 
@@ -166,8 +144,8 @@ export class MockHubServer {
       const threadId = registerMsg.threadId;
 
       // Move from pending to registered
-      this.pendingConnections.delete(socket);
-      this.connections.set(threadId, socket);
+      this.pendingConnections.delete(ws);
+      this.connections.set(threadId, ws);
     }
 
     // Notify listeners
@@ -177,15 +155,14 @@ export class MockHubServer {
   }
 
   /**
-   * Handle socket disconnection.
+   * Handle WebSocket disconnection.
    */
-  private handleDisconnect(socket: Socket): void {
-    this.pendingConnections.delete(socket);
-    this.buffers.delete(socket);
+  private handleDisconnect(ws: WebSocket): void {
+    this.pendingConnections.delete(ws);
 
     // Remove from connections map
     for (const [threadId, s] of this.connections.entries()) {
-      if (s === socket) {
+      if (s === ws) {
         this.connections.delete(threadId);
         break;
       }
@@ -200,22 +177,20 @@ export class MockHubServer {
    * @throws Error if no connection exists for the threadId
    */
   sendToAgent(threadId: string, message: TauriToAgentMessage): void {
-    const socket = this.connections.get(threadId);
-    if (!socket) {
+    const ws = this.connections.get(threadId);
+    if (!ws) {
       throw new Error(`No connection found for threadId: ${threadId}`);
     }
 
-    if (socket.destroyed) {
-      throw new Error(`Connection for threadId ${threadId} is destroyed`);
+    if (ws.readyState !== WebSocket.OPEN) {
+      throw new Error(`Connection for threadId ${threadId} is not open`);
     }
 
-    socket.write(JSON.stringify(message) + "\n");
+    ws.send(JSON.stringify(message));
   }
 
   /**
    * Send a cancel message to an agent.
-   *
-   * @param threadId - The thread ID of the agent to cancel
    */
   sendCancel(threadId: string): void {
     this.sendToAgent(threadId, { type: "cancel" });
@@ -223,10 +198,6 @@ export class MockHubServer {
 
   /**
    * Send a permission response to an agent.
-   *
-   * @param threadId - The thread ID of the agent
-   * @param allowed - Whether the permission is granted
-   * @param requestId - Optional request ID (defaults to "test-request")
    */
   sendPermissionResponse(
     threadId: string,
@@ -244,9 +215,6 @@ export class MockHubServer {
 
   /**
    * Send a queued message to an agent.
-   *
-   * @param threadId - The thread ID of the agent
-   * @param content - The message content
    */
   sendQueuedMessage(threadId: string, content: string): void {
     this.sendToAgent(threadId, {
@@ -264,8 +232,6 @@ export class MockHubServer {
 
   /**
    * Get all messages received from a specific thread.
-   *
-   * @param threadId - The thread ID to filter by
    */
   getMessagesForThread(threadId: string): SocketMessage[] {
     return this.receivedMessages.filter((msg) => msg.threadId === threadId);
@@ -273,11 +239,6 @@ export class MockHubServer {
 
   /**
    * Wait for a message matching a predicate.
-   *
-   * @param predicate - Function to test each message
-   * @param timeout - Maximum time to wait in milliseconds (default: 5000)
-   * @returns The matching message
-   * @throws Error if timeout is reached without finding a matching message
    */
   waitForMessage(
     predicate: (msg: SocketMessage) => boolean,
@@ -316,9 +277,6 @@ export class MockHubServer {
 
   /**
    * Wait for an agent to register with the hub.
-   *
-   * @param threadId - The thread ID to wait for
-   * @param timeout - Maximum time to wait in milliseconds (default: 5000)
    */
   async waitForRegistration(
     threadId: string,
@@ -336,10 +294,10 @@ export class MockHubServer {
   }
 
   /**
-   * Get the socket path for this server.
+   * Get the WebSocket endpoint URL for this server.
    */
-  getSocketPath(): string {
-    return this.socketPath;
+  getEndpoint(): string {
+    return `ws://127.0.0.1:${this.port}/ws/agent`;
   }
 
   /**
@@ -351,12 +309,10 @@ export class MockHubServer {
 
   /**
    * Check if a specific thread is connected.
-   *
-   * @param threadId - The thread ID to check
    */
   isConnected(threadId: string): boolean {
-    const socket = this.connections.get(threadId);
-    return socket !== undefined && !socket.destroyed;
+    const ws = this.connections.get(threadId);
+    return ws !== undefined && ws.readyState === WebSocket.OPEN;
   }
 
   /**

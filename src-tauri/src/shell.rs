@@ -1,35 +1,3 @@
-//! Utilities for running external commands with proper environment.
-//!
-//! GUI apps on macOS don't inherit the user's shell PATH, so commands like
-//! git-lfs, node, pnpm etc. installed via Homebrew won't be found.
-//! This module provides helpers that set up the correct PATH.
-
-use crate::paths;
-use std::process::Command;
-
-/// Creates a Command with the user's shell PATH set.
-/// Use this for any external command that might depend on tools
-/// installed via Homebrew or other package managers.
-///
-/// # Example
-/// ```ignore
-/// let output = shell::command("git")
-///     .args(["status"])
-///     .output()?;
-/// ```
-pub fn command(program: &str) -> Command {
-    let shell_path = paths::shell_path();
-    tracing::debug!(
-        program = %program,
-        path_length = shell_path.len(),
-        path_entries = shell_path.split(':').count(),
-        "Creating command with shell PATH"
-    );
-    let mut cmd = Command::new(program);
-    cmd.env("PATH", shell_path);
-    cmd
-}
-
 /// Runs the internal update script in the background.
 /// The script downloads a new version and restarts the app, so it must be detached.
 #[tauri::command]

@@ -5,12 +5,12 @@
 import { listen } from "@/lib/events";
 import { useTerminalSessionStore } from "./store";
 import { terminalSessionService } from "./service";
-import { decodeOutput, appendOutput } from "./output-buffer";
+import { appendOutput } from "./output-buffer";
 import { logger } from "@/lib/logger-client";
 
 interface TerminalOutputPayload {
   id: number;
-  data: number[];
+  data: string;
 }
 
 interface TerminalExitPayload {
@@ -33,8 +33,7 @@ export function setupTerminalListeners(): () => void {
     const { id, data } = event.payload;
     const termId = terminalSessionService.resolveByPtyId(id);
     if (!termId) return; // Unknown PTY ID — ignore
-    const text = decodeOutput(termId, data);
-    appendOutput(termId, text);
+    appendOutput(termId, data);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   // Listen for terminal exit (process ended)

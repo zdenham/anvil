@@ -172,23 +172,6 @@ export const mockInvoke = vi.fn(async (cmd: string, args?: Record<string, unknow
     // Process commands removed - we use Tauri shell plugin directly
     // See agent-service.ts for process management via Command.create().spawn()
 
-    // Thread commands
-    case "get_thread_status": {
-      const thread = mockThreadState.threads.get(args?.threadId as string);
-      return thread?.status ?? null;
-    }
-
-    case "get_thread": {
-      return mockThreadState.threads.get(args?.threadId as string) ?? null;
-    }
-
-    // Lock commands
-    case "lock_acquire_repo":
-      return `mock-lock-${Date.now()}`;
-
-    case "lock_release_repo":
-      return;
-
     // Agent commands
     case "get_agent_types":
       return ["research", "execution", "review", "merge"];

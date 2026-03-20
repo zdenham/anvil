@@ -13,7 +13,7 @@ interface LogEntryRowProps {
 }
 
 export function LogEntryRow({ log }: LogEntryRowProps) {
-  const style = levelStyles[log.level];
+  const style = levelStyles[log.level] ?? levelStyles.debug;
   const date = new Date(log.timestamp);
   const time = date.toLocaleTimeString("en-US", {
     hour12: false,

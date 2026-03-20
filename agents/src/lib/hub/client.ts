@@ -1,6 +1,5 @@
-import { existsSync } from "fs";
 import { EventEmitter } from "events";
-import { getHubSocketPath } from "@core/lib/socket.js";
+import { getHubEndpoint } from "@core/lib/socket.js";
 import type { PipelineStamp } from "@core/types/pipeline.js";
 import type { DiagnosticLoggingConfig } from "@core/types/diagnostic-logging.js";
 import { HubConnection } from "./connection.js";
@@ -18,7 +17,7 @@ const STATS_INTERVAL_MS = 30_000;
 
 export class HubClient extends EventEmitter {
   private connection: HubConnection;
-  private socketPath: string;
+  private endpoint: string;
   private heartbeat: HeartbeatEmitter;
   private visibilityWatcher: VisibilityWatcher;
   private diagnosticConfig: DiagnosticLoggingConfig;
@@ -30,9 +29,7 @@ export class HubClient extends EventEmitter {
   // --- Counters (always-on for session summary) ---
   private totalSent = 0;
   private totalWriteFailures = 0;
-  private totalBackpressureEvents = 0;
   private totalEventsGated = 0;
-  private maxQueueDepth = 0;
 
   /** Current high-level connection state. */
   connectionState: ConnectionState = "disconnected";
@@ -42,7 +39,7 @@ export class HubClient extends EventEmitter {
     private parentId?: string
   ) {
     super();
-    this.socketPath = getHubSocketPath();
+    this.endpoint = getHubEndpoint();
     this.connection = new HubConnection();
     this.diagnosticConfig = parseDiagnosticConfig();
     this.heartbeat = new HeartbeatEmitter((msg) => this.send(msg));
@@ -64,24 +61,13 @@ export class HubClient extends EventEmitter {
         this.emit("log", "WARN", `[hub] write failure #${consecutiveFailures}`);
       }
     });
-    this.connection.on("backpressure", ({ queueDepth }) => {
-      this.totalBackpressureEvents++;
-      this.trackQueueDepth(queueDepth);
-    });
-    this.connection.on("drain-complete", ({ queueDepth }) => {
-      this.trackQueueDepth(queueDepth);
-    });
-  }
-
-  private trackQueueDepth(depth: number): void {
-    if (depth > this.maxQueueDepth) this.maxQueueDepth = depth;
   }
 
   async connect(options: Partial<RetryOptions> = {}): Promise<void> {
     this.visibilityWatcher.start();
 
     const retryOptions = { ...DEFAULT_RETRY_OPTIONS, ...options };
-    await withRetry(() => this.connection.connect(this.socketPath), retryOptions);
+    await withRetry(() => this.connection.connect(this.endpoint), retryOptions);
     this.connectionState = "connected";
     this.startStatsTimer();
 
@@ -138,19 +124,12 @@ export class HubClient extends EventEmitter {
     this.heartbeat.stop();
     this.connection.destroy();
 
-    // Check if socket file still exists (app may have quit)
-    if (!existsSync(this.socketPath)) {
-      this.connectionState = "disconnected";
-      this.emit("disconnect");
-      return false;
-    }
-
     this.connection = new HubConnection();
     this.wireConnectionEvents();
 
     try {
       await withRetry(
-        () => this.connection.connect(this.socketPath),
+        () => this.connection.connect(this.endpoint),
         RECONNECT_RETRY,
       );
       this.send({
@@ -254,8 +233,7 @@ export class HubClient extends EventEmitter {
     this.statsTimer = setInterval(() => {
       this.emit(
         "log", "DEBUG",
-        `[hub] stats: sent=${this.totalSent}, writeFailures=${this.totalWriteFailures}, ` +
-          `backpressure=${this.totalBackpressureEvents}, queueDepth=${this.connection.queueDepth}`,
+        `[hub] stats: sent=${this.totalSent}, writeFailures=${this.totalWriteFailures}`,
       );
     }, STATS_INTERVAL_MS);
   }
@@ -278,8 +256,6 @@ export class HubClient extends EventEmitter {
     return (
       `[hub] session summary: totalSent=${this.totalSent}, ` +
       `writeFailures=${this.totalWriteFailures}, ` +
-      `backpressureEvents=${this.totalBackpressureEvents}, ` +
-      `maxQueueDepth=${this.maxQueueDepth}, ` +
       `eventsGated=${this.totalEventsGated}`
     );
   }

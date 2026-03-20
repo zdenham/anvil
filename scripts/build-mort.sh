@@ -19,9 +19,9 @@ echo "  MORT_CLIPBOARD_HOTKEY=${MORT_CLIPBOARD_HOTKEY:-Command+Option+C}"
 pnpm build:frontend
 
 if [ "$PRESET" = "prod" ] || [ -z "$PRESET" ]; then
-  tauri build
+  pnpm tauri build
 else
-  tauri build --config "src-tauri/tauri.conf.${PRESET}.json"
+  pnpm tauri build --config "src-tauri/tauri.conf.${PRESET}.json"
 fi
 
 echo "Build complete: src-tauri/target/release/bundle/macos/"

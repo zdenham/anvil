@@ -1,39 +1,26 @@
 #[cfg(target_os = "macos")]
 pub mod accessibility;
 
-// Public accessibility exports (used by WS server and tests)
+// Public accessibility exports
 #[cfg(target_os = "macos")]
 pub use accessibility::{is_accessibility_trusted, check_accessibility_with_prompt};
 #[cfg(target_os = "macos")]
 pub use accessibility::{disable_spotlight_shortcut, is_spotlight_shortcut_enabled};
 #[cfg(target_os = "macos")]
 pub use accessibility::SystemSettingsNavigator;
-mod agent_hub;
 #[path = "app-search.rs"]
 mod app_search;
 mod build_info;
 mod clipboard;
 mod clipboard_db;
 mod config;
-mod file_watcher;
-mod filesystem;
-mod git_commands;
 mod icons;
 mod identity;
 mod logging;
-mod mort_commands;
 mod panels;
 mod paths;
-mod process_commands;
 mod profiling;
-mod repo_commands;
-mod search;
 mod shell;
-mod terminal;
-mod thread_commands;
-mod worktree_commands;
-mod ws_server;
-
 
 #[cfg(target_os = "macos")]
 mod menu;
@@ -41,12 +28,12 @@ mod menu;
 #[cfg(target_os = "macos")]
 mod tray;
 
-use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use agent_hub::AgentHub;
-use terminal::TerminalState;
+/// Handle to the sidecar Node.js process, killed on app exit.
+struct SidecarProcess(Mutex<Option<std::process::Child>>);
 
 const MAIN_WINDOW_LABEL: &str = "main";
 
@@ -173,6 +160,73 @@ fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
     Ok(())
 }
 
+/// Spawns the Node.js sidecar server as a background process.
+/// If the sidecar port is already in use (e.g., from `pnpm sidecar:dev`), skips spawning.
+/// Returns the child process handle for lifecycle management, or None if already running.
+fn spawn_sidecar(app: &tauri::App) -> Result<Option<std::process::Child>, String> {
+    use std::process::{Command, Stdio};
+
+    let ws_port = build_info::WS_PORT;
+
+    // Check if sidecar is already running on this port
+    let health_url = format!("http://127.0.0.1:{}/health", ws_port);
+    if let Ok(response) = ureq::get(&health_url).call() {
+        if response.status() == 200 {
+            tracing::info!(port = ws_port, "Sidecar already running — skipping spawn");
+            return Ok(None);
+        }
+    }
+
+    let is_dev = cfg!(debug_assertions);
+    let server_path = if is_dev {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let project_root = std::path::Path::new(manifest_dir).parent().unwrap();
+        project_root.join("sidecar/dist/server.js")
+    } else {
+        use tauri::Manager;
+        app.path()
+            .resolve("_up_/sidecar/dist/server.js", tauri::path::BaseDirectory::Resource)
+            .map_err(|e| format!("Failed to resolve sidecar path: {}", e))?
+    };
+
+    if !server_path.exists() {
+        return Err(format!("Sidecar server not found at: {}", server_path.display()));
+    }
+
+    tracing::info!(
+        path = %server_path.display(),
+        port = ws_port,
+        is_dev = is_dev,
+        "Spawning sidecar server"
+    );
+
+    let child = Command::new("node")
+        .arg(&server_path)
+        .env("MORT_WS_PORT", ws_port)
+        .env("MORT_DATA_DIR", paths::data_dir().to_string_lossy().as_ref())
+        .env("MORT_APP_SUFFIX", build_info::APP_SUFFIX)
+        .env("PATH", paths::shell_path())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
+
+    // Wait for sidecar to become healthy (up to 5 seconds)
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while std::time::Instant::now() < deadline {
+        if let Ok(response) = ureq::get(&health_url).call() {
+            if response.status() == 200 {
+                tracing::info!("Sidecar is healthy on port {}", ws_port);
+                return Ok(Some(child));
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    tracing::warn!("Sidecar health check timed out — continuing anyway");
+    Ok(Some(child))
+}
+
 /// Ensures essential .mort directories exist synchronously
 fn ensure_mort_directories() -> Result<(), String> {
     let settings_dir = paths::settings_dir();
@@ -192,39 +246,6 @@ fn ensure_mort_directories() -> Result<(), String> {
     Ok(())
 }
 
-/// Receives log messages from the web frontend and routes them through the centralized logger
-#[tauri::command]
-fn web_log(level: &str, message: &str, source: Option<&str>) {
-    logging::log_from_web(level, message, source.unwrap_or("web"));
-}
-
-/// Receives a batch of log messages from the web frontend
-#[tauri::command]
-fn web_log_batch(entries: Vec<logging::WebLogEntry>) {
-    logging::log_batch_from_web(entries);
-}
-
-/// Sends a message to a connected agent via the AgentHub socket.
-#[tauri::command]
-fn send_to_agent(
-    state: tauri::State<'_, Arc<AgentHub>>,
-    thread_id: String,
-    message: String,
-) -> Result<(), String> {
-    state.send_to_agent(&thread_id, &message)
-}
-
-/// Lists all currently connected agents.
-#[tauri::command]
-fn list_connected_agents(state: tauri::State<'_, Arc<AgentHub>>) -> Vec<String> {
-    state.list_connected_agents()
-}
-
-/// Gets the socket path for agent connections.
-#[tauri::command]
-fn get_agent_socket_path(state: tauri::State<'_, Arc<AgentHub>>) -> String {
-    state.socket_path().to_string()
-}
 
 /// Registers a global hotkey that shows the spotlight window when triggered.
 /// Re-registers the clipboard hotkey to preserve it.
@@ -433,8 +454,7 @@ fn show_main_window_with_view(app: AppHandle, view: serde_json::Value) -> Result
     #[cfg(target_os = "macos")]
     force_app_activation();
 
-    // Broadcast set-content-pane-view via WS (with targetWindow for filtering)
-    let broadcaster = app.state::<ws_server::push::EventBroadcaster>();
+    // Emit set-content-pane-view to all windows
     let mut payload_with_target = serde_json::json!({ "targetWindow": MAIN_WINDOW_LABEL });
     if let Some(obj) = payload_with_target.as_object_mut() {
         if let Some(view_obj) = view.as_object() {
@@ -445,7 +465,9 @@ fn show_main_window_with_view(app: AppHandle, view: serde_json::Value) -> Result
             obj.insert("view".to_string(), view);
         }
     }
-    broadcaster.broadcast("set-content-pane-view", payload_with_target);
+    if let Err(e) = app.emit("set-content-pane-view", payload_with_target) {
+        tracing::error!(error = %e, "Failed to emit set-content-pane-view");
+    }
 
     tracing::info!("[MainWindow] Main window shown with view");
     Ok(())
@@ -499,10 +521,11 @@ fn show_control_panel(app: AppHandle) -> Result<(), String> {
 fn show_control_panel_with_view(app: AppHandle, view: serde_json::Value) -> Result<(), String> {
     tracing::info!("[ControlPanel] show_control_panel_with_view called: {:?}", view);
 
-    // Broadcast event to control panel window via WS
+    // Emit event to control panel window
     let payload = serde_json::json!({ "view": view });
-    let broadcaster = app.state::<ws_server::push::EventBroadcaster>();
-    broadcaster.broadcast("open-control-panel", payload);
+    if let Err(e) = app.emit("open-control-panel", payload) {
+        tracing::error!(error = %e, "Failed to emit open-control-panel");
+    }
 
     // Show the panel
     panels::show_control_panel_simple(&app)
@@ -713,66 +736,6 @@ fn kill_system_settings() -> Result<(), String> {
     Ok(())
 }
 
-/// Initialize shell environment by running login shell.
-/// This may trigger macOS Documents permission prompt if shell configs access ~/Documents.
-/// Should be called after user explicitly grants Documents permission via the UI.
-/// Returns true if a valid PATH was captured from the shell.
-#[tauri::command]
-fn initialize_shell_environment() -> bool {
-    tracing::info!("═══════════════════════════════════════════════════════════════");
-    tracing::info!("[tauri-cmd] initialize_shell_environment: called from frontend");
-    tracing::info!("═══════════════════════════════════════════════════════════════");
-
-    let start_time = std::time::Instant::now();
-    let result = paths::run_login_shell_initialization();
-    let elapsed = start_time.elapsed();
-
-    tracing::info!(
-        result = result,
-        elapsed_ms = elapsed.as_millis(),
-        "[tauri-cmd] initialize_shell_environment: completed"
-    );
-    result
-}
-
-/// Check if shell environment has been initialized (login shell has been run).
-#[tauri::command]
-fn is_shell_initialized() -> bool {
-    let result = paths::is_shell_initialized();
-    tracing::info!(
-        is_initialized = result,
-        "[tauri-cmd] is_shell_initialized: returning"
-    );
-    result
-}
-
-/// Check if the app has Documents folder access.
-/// This attempts to list ~/Documents to see if we have permission.
-/// Note: On first access, this may trigger the macOS permission prompt.
-/// Returns true if we can access the folder, false otherwise.
-#[tauri::command]
-fn check_documents_access() -> bool {
-    tracing::info!("[tauri-cmd] check_documents_access: called from frontend");
-    let result = paths::check_documents_access();
-    tracing::info!(
-        has_access = result,
-        "[tauri-cmd] check_documents_access: returning"
-    );
-    result
-}
-
-/// Get the captured shell PATH for spawning agent processes.
-/// This returns the PATH that was captured from the user's login shell,
-/// which includes version manager paths (nvm, fnm, volta, etc.).
-#[tauri::command]
-fn get_shell_path() -> String {
-    let path = paths::shell_path();
-    tracing::debug!(
-        path_len = path.len(),
-        "[tauri-cmd] get_shell_path: returning"
-    );
-    path
-}
 
 /// Get detailed accessibility status for debugging
 #[cfg(target_os = "macos")]
@@ -823,48 +786,8 @@ pub fn run() {
 
     tracing::info!(elapsed_ms = %run_start.elapsed().as_millis(), "[startup] paths + logging initialized");
 
-    // Create AgentHub with socket path in data directory
-    let socket_path = paths::data_dir()
-        .join("agent-hub.sock")
-        .to_string_lossy()
-        .to_string();
-    // Shared agent process map — Rust-side PID tracking for reliable cancellation.
-    // Created first so it can be shared with both AgentHub and WsState.
-    let agent_processes = ws_server::new_agent_process_map();
-    let agent_hub = Arc::new(AgentHub::new(socket_path, agent_processes.clone()));
-
-    // Create shared state for both Tauri and WS server
-    let lock_manager = Arc::new(mort_commands::LockManager::new());
-    let terminal_state = terminal::create_terminal_state();
-    let file_watcher_state = file_watcher::create_file_watcher_state();
-    let diagnostic_config = agent_hub.diagnostic_config();
-
-    // Build WS server state (shares Arc references with Tauri managed state)
-    let broadcaster = ws_server::push::EventBroadcaster::new();
-    // Bridge AgentHub events to WS clients so browser mode receives agent:message
-    agent_hub.set_ws_broadcaster(broadcaster.clone());
-    // Clone for Tauri managed state so any module with AppHandle can broadcast
-    let managed_broadcaster = broadcaster.clone();
-    let ws_state = Arc::new(ws_server::WsState {
-        lock_manager: lock_manager.clone(),
-        terminal_state: terminal_state.clone(),
-        agent_hub: agent_hub.clone(),
-        file_watcher_state: file_watcher_state.clone(),
-        diagnostic_config: diagnostic_config.clone(),
-        broadcaster,
-        agent_processes: agent_processes.clone(),
-    });
-
-    // Spawn WS server on a background tokio task
-    let ws_state_handle = ws_state.clone();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime for WS server");
-        rt.block_on(async move {
-            if let Err(e) = ws_server::start(ws_state_handle).await {
-                tracing::error!(error = %e, "WS server failed to start");
-            }
-        });
-    });
+    // Sidecar process handle — populated in setup() once we have the App handle
+    let sidecar_process = SidecarProcess(Mutex::new(None));
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -873,14 +796,8 @@ pub fn run() {
         .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
-        .manage(lock_manager)
-        .manage(diagnostic_config)
-        .manage(agent_hub.clone())
-        .manage(terminal_state)
-        .manage(file_watcher_state)
         .manage(profiling::ProfilingState(std::sync::Mutex::new(false)))
-        .manage(managed_broadcaster)
-        .manage(agent_processes);
+        .manage(sidecar_process);
 
     builder
         .on_window_event(|window, event| {
@@ -927,13 +844,12 @@ pub fn run() {
                 // Show main window if hidden
                 let _ = show_main_window(app.clone());
 
-                // Broadcast navigation event to frontend via WS
-                {
-                    let broadcaster = app.state::<ws_server::push::EventBroadcaster>();
-                    broadcaster.broadcast("navigate", serde_json::json!({
-                        "targetWindow": MAIN_WINDOW_LABEL,
-                        "tab": tab
-                    }));
+                // Emit navigation event to all windows
+                if let Err(e) = app.emit("navigate", serde_json::json!({
+                    "targetWindow": MAIN_WINDOW_LABEL,
+                    "tab": tab
+                })) {
+                    tracing::error!(error = %e, "Failed to emit navigate event");
                 }
             }
 
@@ -958,23 +874,16 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            web_log,
-            web_log_batch,
-            // Logging commands
-            logging::get_buffered_logs,
-            logging::clear_logs,
-            // AgentHub commands
-            send_to_agent,
-            list_connected_agents,
-            get_agent_socket_path,
-            agent_hub::update_diagnostic_config,
+            // Hotkey commands
             register_hotkey,
             save_hotkey,
             get_saved_hotkey,
             save_clipboard_hotkey,
             get_saved_clipboard_hotkey,
+            // Onboarding commands
             is_onboarded,
             complete_onboarding,
+            // Window/panel commands
             show_main_window,
             show_main_window_with_view,
             hide_main_window,
@@ -999,86 +908,17 @@ pub fn run() {
             zoom_reset,
             get_zoom_level,
             restart_app,
+            // App search commands
             app_search::search_applications,
             app_search::open_application,
             app_search::open_directory_in_app,
+            // Clipboard commands
             clipboard::paste_clipboard_entry,
             clipboard::hide_clipboard_manager,
             clipboard::get_clipboard_history,
             clipboard::get_clipboard_content,
-            filesystem::fs_write_binary,
-            filesystem::fs_write_file,
-            filesystem::fs_read_file,
-            filesystem::fs_mkdir,
-            filesystem::fs_exists,
-            filesystem::fs_remove,
-            filesystem::fs_remove_dir_all,
-            filesystem::fs_move,
-            filesystem::fs_copy_file,
-            filesystem::fs_copy_directory,
-            filesystem::fs_git_worktree_add,
-            filesystem::fs_git_worktree_remove,
-            filesystem::fs_list_dir,
-            filesystem::fs_is_git_repo,
-            filesystem::fs_grep,
-            filesystem::fs_bulk_read,
-            // Git commands
-            git_commands::git_get_current_branch,
-            git_commands::git_fetch,
-            git_commands::git_get_default_branch,
-            git_commands::git_get_branch_commit,
-            git_commands::git_init,
-            git_commands::git_create_branch,
-            git_commands::git_checkout_branch,
-            git_commands::git_checkout_commit,
-            git_commands::git_delete_branch,
-            git_commands::git_branch_exists,
-            git_commands::git_list_mort_branches,
-            git_commands::git_create_worktree,
-            git_commands::git_remove_worktree,
-            git_commands::git_list_worktrees,
-            git_commands::git_ls_files,
-            git_commands::git_ls_files_untracked,
-            git_commands::git_get_head_commit,
-            git_commands::git_diff_files,
-            git_commands::git_get_branch_commits,
-            git_commands::git_diff_commit,
-            git_commands::git_diff_range,
-            git_commands::git_diff_uncommitted,
-            git_commands::git_get_merge_base,
-            git_commands::git_get_remote_branch_commit,
-            git_commands::git_show_file,
-            git_commands::git_cat_file_batch,
-            git_commands::git_grep,
-            git_commands::git_rm,
-            // Search commands
-            search::search_threads,
-            // Mort-specific commands
-            mort_commands::fs_get_repo_dir,
-            mort_commands::fs_get_repo_source_path,
-            mort_commands::fs_get_home_dir,
-            mort_commands::fs_list_dir_names,
-            // Lock commands
-            mort_commands::lock_acquire_repo,
-            mort_commands::lock_release_repo,
-            // Build info commands
-            mort_commands::get_paths_info,
-            // Agent commands
-            mort_commands::get_agent_types,
-            // Process commands
-            process_commands::kill_process,
-            process_commands::agent_cancel,
             // Shell commands
             shell::run_internal_update,
-            // Thread commands
-            thread_commands::get_thread_status,
-            thread_commands::get_thread,
-            // Worktree commands
-            worktree_commands::worktree_create,
-            worktree_commands::worktree_delete,
-            worktree_commands::worktree_rename,
-            worktree_commands::worktree_touch,
-            worktree_commands::worktree_sync,
             // Spotlight shortcut commands (macOS only)
             #[cfg(target_os = "macos")]
             disable_system_spotlight_shortcut,
@@ -1094,33 +934,12 @@ pub fn run() {
             get_accessibility_status,
             #[cfg(target_os = "macos")]
             kill_system_settings,
-            // Shell environment commands
-            initialize_shell_environment,
-            is_shell_initialized,
-            check_documents_access,
-            get_shell_path,
-            // Repository commands
-            repo_commands::validate_repository,
-            repo_commands::remove_repository_data,
             // Profiling commands (on-demand, zero overhead at runtime)
             #[cfg(unix)]
             profiling::capture_cpu_profile,
             profiling::start_trace,
             profiling::write_memory_snapshot,
             profiling::get_process_memory,
-            // Terminal commands
-            terminal::spawn_terminal,
-            terminal::write_terminal,
-            terminal::resize_terminal,
-            terminal::kill_terminal,
-            terminal::list_terminals,
-            terminal::kill_terminals_by_cwd,
-            // File watcher commands
-            file_watcher::start_watch,
-            file_watcher::stop_watch,
-            file_watcher::list_watches,
-            // Identity commands
-            identity::get_github_handle,
         ])
         .setup(|app| {
             use tauri::ActivationPolicy;
@@ -1139,13 +958,6 @@ pub fn run() {
             }
             tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] ensure_mort_directories");
 
-            let t = std::time::Instant::now();
-            let hub: tauri::State<'_, Arc<AgentHub>> = app.state();
-            if let Err(e) = hub.start() {
-                tracing::error!(error = %e, "Failed to start AgentHub");
-            }
-            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] agent_hub.start");
-
             // Set up log buffer to emit events to frontend
             logging::set_app_handle(app.handle().clone());
 
@@ -1153,8 +965,6 @@ pub fn run() {
             let _ = app
                 .handle()
                 .set_activation_policy(ActivationPolicy::Accessory);
-
-            mort_commands::clear_all_locks();
 
             let t = std::time::Instant::now();
             config::initialize();
@@ -1173,6 +983,26 @@ pub fn run() {
                 tracing::warn!(error = %e, "TypeScript migrations failed (non-fatal)");
             }
             tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] run_ts_migrations");
+
+            // Spawn the Node.js sidecar server (handles WS data commands and agent hub)
+            {
+                use tauri::Manager;
+                let t = std::time::Instant::now();
+                match spawn_sidecar(app) {
+                    Ok(Some(child)) => {
+                        tracing::info!(pid = child.id(), "[startup] sidecar spawned");
+                        let state = app.state::<SidecarProcess>();
+                        *state.0.lock().unwrap() = Some(child);
+                    }
+                    Ok(None) => {
+                        tracing::info!("[startup] sidecar already running externally");
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to spawn sidecar — frontend will use Tauri IPC fallback");
+                    }
+                }
+                tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] spawn_sidecar");
+            }
 
             let t = std::time::Instant::now();
             panels::initialize(app.handle());
@@ -1318,23 +1148,13 @@ pub fn run() {
                     let _ = show_main_window(app_handle.clone());
                 }
                 tauri::RunEvent::Exit => {
-                    // Clean up AgentHub socket on exit
-                    if let Some(hub) = app_handle.try_state::<Arc<AgentHub>>() {
-                        tracing::info!("Cleaning up AgentHub on exit");
-                        hub.cleanup();
-                    }
-                    // Kill all terminal PTY processes on exit
-                    if let Some(terminal_state) = app_handle.try_state::<TerminalState>() {
-                        tracing::info!("Killing all terminals on exit");
-                        if let Ok(mut manager) = terminal_state.lock() {
-                            manager.kill_all();
-                        }
-                    }
-                    // Stop all file watchers on exit
-                    if let Some(watcher_state) = app_handle.try_state::<file_watcher::FileWatcherState>() {
-                        tracing::info!("Stopping all file watchers on exit");
-                        if let Ok(mut manager) = watcher_state.lock() {
-                            manager.cleanup_all();
+                    // Kill the sidecar process on exit
+                    if let Some(sidecar) = app_handle.try_state::<SidecarProcess>() {
+                        if let Ok(mut guard) = sidecar.0.lock() {
+                            if let Some(mut child) = guard.take() {
+                                tracing::info!(pid = child.id(), "Killing sidecar on exit");
+                                let _ = child.kill();
+                            }
                         }
                     }
                 }

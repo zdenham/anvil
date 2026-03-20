@@ -78,12 +78,14 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
                 let _ = window.show();
                 let _ = window.set_focus();
-                // Broadcast navigate event via WS (with targetWindow for filtering)
-                let broadcaster = app.state::<crate::ws_server::push::EventBroadcaster>();
-                broadcaster.broadcast("navigate", serde_json::json!({
+                // Emit navigate event to all windows
+                use tauri::Emitter;
+                if let Err(e) = app.emit("navigate", serde_json::json!({
                     "targetWindow": MAIN_WINDOW_LABEL,
                     "tab": "settings"
-                }));
+                })) {
+                    tracing::error!(error = %e, "Failed to emit navigate event");
+                }
             }
         }
         "quit" => {
