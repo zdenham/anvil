@@ -339,6 +339,7 @@ Full lifecycle event tracking and permission forwarding via the hook bridge. Thi
 **Detailed plan**: `plans/claude-tui-hook-bridge.md`
 
 This phase wires the bridge into the settings generation (Phase 3) and ensures:
+
 - The bridge script is bundled/deployed to `~/.mort/hooks/bridge.js`
 - Environment variables (`MORT_HUB_URL`, `MORT_CLAUDE_THREAD_ID`) are set on the PTY
 - The settings JSON includes PreToolUse/PostToolUse/Stop hooks pointing to the bridge
