@@ -96,6 +96,12 @@ export const WorkspaceSettingsSchema = z.object({
    * Optional — defaults to false (managed threads).
    */
   preferTerminalInterface: z.boolean().optional(),
+
+  /**
+   * Whether TUI sessions launch with --permission-mode bypassPermissions.
+   * Optional — defaults to true for backwards compatibility.
+   */
+  tuiBypassPermissions: z.boolean().optional(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 

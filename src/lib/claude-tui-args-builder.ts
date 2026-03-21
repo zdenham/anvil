@@ -22,13 +22,18 @@ export function buildSpawnConfig(options: {
   sessionId?: string;
   model?: string;
   prompt?: string;
+  bypassPermissions?: boolean;
 }): ClaudeTuiSpawnConfig {
   const model = options.model ?? "claude-sonnet-4-6";
+  const bypass = options.bypassPermissions ?? true;
 
-  const args: string[] = [
-    "--dangerously-skip-permissions",
-    "--model", model,
-  ];
+  const args: string[] = [];
+
+  if (bypass) {
+    args.push("--permission-mode", "bypassPermissions");
+  }
+
+  args.push("--model", model);
 
   if (options.sessionId) {
     args.push("--resume", options.sessionId);

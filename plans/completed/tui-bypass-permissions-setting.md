@@ -39,9 +39,9 @@ If the confirmation prompt still appears, fall back to the PTY auto-accept appro
 
 ## Phases
 
-- [ ] Phase 1: Add `tuiBypassPermissions` setting and UI toggle
+- [x] Phase 1: Add `tuiBypassPermissions` setting and UI toggle
 
-- [ ] Phase 2: Make args builder conditional on the setting
+- [x] Phase 2: Make args builder conditional on the setting
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

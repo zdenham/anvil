@@ -219,8 +219,10 @@ export async function createTuiThread(
   });
 
   // Build CLI args
+  const bypassPermissions = useSettingsStore.getState().workspace.tuiBypassPermissions ?? true;
   const spawnConfig = buildSpawnConfig({
     prompt: options.prompt,
+    bypassPermissions,
   });
 
   // Spawn PTY directly via PtyService — no TerminalSession entity created

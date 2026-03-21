@@ -11,6 +11,10 @@ import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortabl
 import { Plus } from "lucide-react";
 import { paneLayoutService } from "@/stores/pane-layout";
 import { terminalSessionService } from "@/entities/terminal-sessions";
+import { useSettingsStore } from "@/entities/settings/store";
+import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
+import { createTuiThread } from "@/lib/thread-creation-service";
 import { logger } from "@/lib/logger-client";
 import { TabItem } from "./tab-item";
 import type { TabItem as TabItemType } from "@core/types/pane-layout.js";
@@ -47,6 +51,32 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
           return;
         } catch (err) {
           logger.error("[TabBar] Failed to create terminal, falling back to thread", err);
+        }
+      }
+    }
+
+    // If TUI preference is enabled, directly create a TUI thread
+    const preferTui = useSettingsStore.getState().workspace.preferTerminalInterface ?? false;
+    if (preferTui) {
+      const mru = useMRUWorktreeStore.getState().getMRUWorktree();
+      if (mru) {
+        const worktreePath = useRepoWorktreeLookupStore.getState()
+          .getWorktreePath(mru.repoId, mru.worktreeId);
+        if (worktreePath) {
+          try {
+            const result = await createTuiThread({
+              repoId: mru.repoId,
+              worktreeId: mru.worktreeId,
+              worktreePath,
+            });
+            paneLayoutService.openTab(
+              { type: "thread", threadId: result.threadId },
+              groupId,
+            );
+            return;
+          } catch (err) {
+            logger.error("[TabBar] Failed to create TUI thread, falling back to empty", err);
+          }
         }
       }
     }

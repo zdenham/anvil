@@ -334,7 +334,7 @@ class TranscriptReader {
 
 ## State Writing in the Sidecar
 
-The sidecar writes `state.json` and `metadata.json` using the same `threadReducer` from `core/lib/thread-reducer.ts`:
+The sidecar writes `state.json` and `metadata.json` using the existing `threadReducer` from `core/lib/thread-reducer.ts` (pure function, discriminated union `ThreadAction`, already tested). Supported actions include `MARK_TOOL_RUNNING`, `MARK_TOOL_COMPLETE`, `UPDATE_FILE_CHANGE`, `UPDATE_USAGE`, `APPEND_ASSISTANT_MESSAGE`, `COMPLETE`, `ERROR`, etc.:
 
 ```typescript
 // sidecar/src/hooks/thread-state-writer.ts
@@ -342,8 +342,18 @@ import { threadReducer, type ThreadAction } from "@core/lib/thread-reducer.js";
 
 class ThreadStateWriter {
   private states = new Map<string, ThreadState>();  // in-memory cache
+  private locks = new Map<string, Promise<void>>();  // per-thread async mutex
 
-  dispatch(threadId: string, action: ThreadAction): void {
+  async dispatch(threadId: string, action: ThreadAction): Promise<void> {
+    // Per-thread serialization — parallel tool calls for different threads
+    // are fully concurrent; same-thread calls are serialized.
+    const prev = this.locks.get(threadId) ?? Promise.resolve();
+    const next = prev.then(() => this.applyAction(threadId, action));
+    this.locks.set(threadId, next.catch(() => {}));
+    await next;
+  }
+
+  private applyAction(threadId: string, action: ThreadAction): void {
     let state = this.states.get(threadId) ?? this.loadFromDisk(threadId);
     state = threadReducer(state, action);
     this.states.set(threadId, state);

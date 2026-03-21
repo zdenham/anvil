@@ -6,6 +6,9 @@ export function TerminalInterfaceSettings() {
   const preferTerminal = useSettingsStore(
     (s) => s.workspace.preferTerminalInterface ?? false,
   );
+  const bypassPermissions = useSettingsStore(
+    (s) => s.workspace.tuiBypassPermissions ?? true,
+  );
 
   return (
     <SettingsSection
@@ -26,6 +29,22 @@ export function TerminalInterfaceSettings() {
           className="accent-accent-500"
         />
       </label>
+      {preferTerminal && (
+        <label className="flex items-center justify-between cursor-pointer">
+          <div>
+            <div className="text-sm text-surface-200">Bypass permissions</div>
+            <div className="text-xs text-surface-500">
+              Skip permission prompts in terminal sessions
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={bypassPermissions}
+            onChange={(e) => settingsService.set("tuiBypassPermissions", e.target.checked)}
+            className="accent-accent-500"
+          />
+        </label>
+      )}
     </SettingsSection>
   );
 }
