@@ -20,6 +20,8 @@ export interface TreeItemRendererProps {
   onFilesClick: (item: TreeItemNode) => void;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
+  onNewClaudeSession?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  onNewManagedThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
@@ -39,7 +41,7 @@ export interface TreeItemRendererProps {
 export function TreeItemRenderer({
   item, index, allItems, childCount, selectedItemId, onItemSelect,
   onChangesClick, onFilesClick,
-  onNewThread, onNewTerminal, onCreatePr, onNewWorktree,
+  onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread, onCreatePr, onNewWorktree,
   onArchiveWorktree, onRefresh, isCreatingWorktree,
   onPinToggle, isPinned,
   onHideRepo, onRemoveRepo, onHideWorktree,
@@ -55,6 +57,8 @@ export function TreeItemRenderer({
           item={item} childCount={childCount} isSelected={isSelected}
           itemIndex={index} allItems={allItems} onItemSelect={onItemSelect}
           onNewThread={onNewThread} onNewTerminal={onNewTerminal}
+          onNewClaudeSession={onNewClaudeSession}
+          onNewManagedThread={onNewManagedThread}
           onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
           onArchiveWorktree={onArchiveWorktree}
           onRefresh={onRefresh} isCreatingWorktree={isCreatingWorktree}

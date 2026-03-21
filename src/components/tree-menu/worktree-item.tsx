@@ -20,6 +20,8 @@ export interface WorktreeItemProps {
   onItemSelect: (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => void;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
+  onNewClaudeSession?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  onNewManagedThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
@@ -74,7 +76,7 @@ export function WorktreeItem(props: WorktreeItemProps) {
 /** Renders the worktree header row with menus and rename logic. */
 function WorktreeHeader({
   item, isSelected, isCreatingWorktree, isPinned,
-  onPinToggle, onNewThread, onNewTerminal, onCreatePr,
+  onPinToggle, onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread, onCreatePr,
   onNewWorktree, onArchiveWorktree, onRefresh, onHideWorktree,
 }: WorktreeItemProps) {
   const [showMenu, setShowMenu] = useState(false);
@@ -229,6 +231,7 @@ function WorktreeHeader({
           menuPosition={menuPosition} buttonRef={buttonRef} menuRef={menuRef}
           isCreatingWorktree={isCreatingWorktree}
           onNewThread={onNewThread} onNewTerminal={onNewTerminal}
+          onNewClaudeSession={onNewClaudeSession} onNewManagedThread={onNewManagedThread}
           onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
         />
       </div>
@@ -237,6 +240,7 @@ function WorktreeHeader({
         item={item} show={showContextMenu} position={contextMenuPosition}
         menuRef={contextMenuRef} isPinned={isPinned} onPinToggle={onPinToggle}
         onNewThread={onNewThread} onNewTerminal={onNewTerminal}
+        onNewClaudeSession={onNewClaudeSession} onNewManagedThread={onNewManagedThread}
         onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
         onArchiveWorktree={onArchiveWorktree}
         onHideWorktree={onHideWorktree}

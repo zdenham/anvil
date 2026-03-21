@@ -8,6 +8,7 @@ import { SpotlightSettings } from "./settings/spotlight-settings";
 import { PermissionsSettings } from "./settings/permissions-settings";
 import { AuthSettings } from "./settings/auth-settings";
 import { EnvFileSettings } from "./settings/env-file-settings";
+import { TerminalInterfaceSettings } from "./settings/terminal-interface-settings";
 
 export function SettingsPage() {
   return (
@@ -17,6 +18,7 @@ export function SettingsPage() {
         <ClipboardHotkeySettings />
         <SpotlightSettings />
         <PermissionsSettings />
+        <TerminalInterfaceSettings />
         {/* Quick actions hidden for now - low usage
         <QuickActionsSettings />
         */}

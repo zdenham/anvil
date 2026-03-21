@@ -4,7 +4,7 @@
 import { useCallback, useMemo } from "react";
 import { useTerminalSessionStore } from "./store";
 import { terminalSessionService } from "./service";
-import { getOutputBuffer } from "./output-buffer";
+import { getOutputBuffer } from "@/entities/pty/output-buffer";
 import type { TerminalSession } from "./types";
 
 /**

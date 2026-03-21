@@ -14,13 +14,20 @@ export async function dispatchTerminal(
 ): Promise<unknown> {
   switch (cmd) {
     // ── Terminal ───────────────────────────────────────────────────────
-    case "spawn_terminal":
+    case "spawn_terminal": {
+      const command = args.command as string | undefined;
+      const spawnArgs = args.args as string[] | undefined;
+      const env = args.env as Record<string, string> | undefined;
       return state.terminalManager.spawn(
         extractArg<number>(args, "cols"),
         extractArg<number>(args, "rows"),
         extractArg<string>(args, "cwd"),
         state.broadcaster,
+        (command || spawnArgs || env)
+          ? { command, args: spawnArgs, env }
+          : undefined,
       );
+    }
 
     case "write_terminal":
       state.terminalManager.write(

@@ -9,8 +9,11 @@
 
 import type { IPty } from "node-pty";
 import { chmodSync, existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+
+const require = createRequire(import.meta.url);
 import type { EventBroadcaster } from "../push.js";
 
 let nodePty: typeof import("node-pty") | undefined;
@@ -48,20 +51,34 @@ export class TerminalManager {
   /**
    * Spawn a new PTY session.
    * Returns the session ID.
+   *
+   * When `command` is provided, spawns that binary instead of the user's shell.
+   * Extra `extraEnv` entries are merged into the child process environment.
    */
   spawn(
     cols: number,
     rows: number,
     cwd: string,
     broadcaster: EventBroadcaster,
+    options?: {
+      command?: string;
+      args?: string[];
+      env?: Record<string, string>;
+    },
   ): number {
     const id = this.nextId++;
     const shell = process.env.SHELL ?? "/bin/zsh";
     const home = homedir();
 
-    const env = buildPtyEnv(home, shell);
+    const baseEnv = buildPtyEnv(home, shell);
+    const env = options?.env
+      ? { ...baseEnv, ...options.env }
+      : baseEnv;
 
-    const pty = getNodePty().spawn(shell, ["-l"], {
+    const bin = options?.command ?? shell;
+    const binArgs = options?.command ? (options.args ?? []) : ["-l"];
+
+    const pty = getNodePty().spawn(bin, binArgs, {
       name: "xterm-256color",
       cols,
       rows,

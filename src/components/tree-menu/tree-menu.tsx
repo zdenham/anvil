@@ -20,6 +20,8 @@ interface TreeMenuProps {
   onFilesClick?: (item: TreeItemNode) => void;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
+  onNewClaudeSession?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  onNewManagedThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
@@ -40,7 +42,7 @@ interface TreeMenuProps {
  * to the correct component. Supports keyboard navigation.
  */
 export function TreeMenu({
-  onItemSelect, onFilesClick, onNewThread, onNewTerminal, onCreatePr,
+  onItemSelect, onFilesClick, onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread, onCreatePr,
   onNewWorktree, onArchiveWorktree,
   creatingWorktreeIds, onPinToggle, pinnedWorktreeId,
   onHideRepo, onRemoveRepo, onHideWorktree, className,
@@ -206,6 +208,8 @@ export function TreeMenu({
                   onFilesClick={handleFilesClick}
                   onNewThread={onNewThread}
                   onNewTerminal={onNewTerminal}
+                  onNewClaudeSession={onNewClaudeSession}
+                  onNewManagedThread={onNewManagedThread}
                   onCreatePr={onCreatePr}
                   onNewWorktree={onNewWorktree}
                   onArchiveWorktree={onArchiveWorktree}

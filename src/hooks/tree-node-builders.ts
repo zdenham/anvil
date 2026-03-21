@@ -101,10 +101,12 @@ export function threadToNode(
   thread: ThreadMetadata,
   ctx: TreeBuildContext,
 ): TreeItemNode {
+  const baseName = thread.name ?? "New Thread";
+  const title = thread.threadKind ? `cc ${baseName}` : baseName;
   return {
     type: "thread",
     id: thread.id,
-    title: thread.name ?? "New Thread",
+    title,
     status: getThreadStatusVariant(thread, ctx.threadsWithPendingInput.has(thread.id)),
     updatedAt: thread.updatedAt,
     createdAt: thread.createdAt,

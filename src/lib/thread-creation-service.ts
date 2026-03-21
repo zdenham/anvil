@@ -15,10 +15,13 @@
  */
 
 import { threadService, eventBus } from "@/entities";
+import { ptyService } from "@/entities/pty";
+import { useSettingsStore } from "@/entities/settings/store";
 import { EventName } from "@core/types/events.js";
 import type { PermissionModeId } from "@core/types/permissions.js";
 import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import { spawnSimpleAgent } from "./agent-service";
+import { buildSpawnConfig } from "./claude-tui-args-builder";
 import { logger } from "./logger-client";
 import { toast } from "./toast";
 
@@ -31,6 +34,10 @@ export interface CreateThreadOptions {
   permissionMode?: PermissionModeId;
   /** Skip worktree/thread naming (for setup threads) */
   skipNaming?: boolean;
+  /** Force managed thread even when preferTerminalInterface is on */
+  forceManaged?: boolean;
+  /** Force TUI thread even when preferTerminalInterface is off */
+  forceTui?: boolean;
 }
 
 export interface CreateThreadResult {
@@ -56,6 +63,21 @@ export interface CreateThreadResult {
 export async function createThread(
   options: CreateThreadOptions
 ): Promise<CreateThreadResult> {
+  // Route to TUI thread if preference is set (unless explicitly forced)
+  const useTerminal = options.forceManaged ? false
+    : options.forceTui ? true
+    : useSettingsStore.getState().workspace.preferTerminalInterface ?? false;
+
+  if (useTerminal) {
+    const result = await createTuiThread({
+      repoId: options.repoId,
+      worktreeId: options.worktreeId,
+      worktreePath: options.worktreePath,
+      prompt: options.prompt || undefined,
+    });
+    return { threadId: result.threadId, taskId: crypto.randomUUID() };
+  }
+
   const { prompt, repoId, worktreeId, worktreePath } = options;
   const startTime = Date.now();
 
@@ -145,4 +167,97 @@ export async function createThread(
   });
 
   return { threadId, taskId };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TUI Thread Creation
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface CreateTuiThreadOptions {
+  repoId: string;
+  worktreeId: string;
+  worktreePath: string;
+  /** Optional initial prompt — passed via --message so Claude starts immediately. */
+  prompt?: string;
+}
+
+export interface CreateTuiThreadResult {
+  threadId: string;
+  terminalId: string;
+}
+
+/**
+ * Creates a TUI thread backed by a Claude CLI PTY session.
+ *
+ * 1. Creates thread with `threadKind: "claude-tui"` and status "running"
+ * 2. Builds CLI args via args builder
+ * 3. Spawns PTY directly via PtyService (no TerminalSession created)
+ * 4. Updates thread with `terminalId` (the pty connectionId)
+ * 5. Returns { threadId, terminalId }
+ */
+export async function createTuiThread(
+  options: CreateTuiThreadOptions,
+): Promise<CreateTuiThreadResult> {
+  const { repoId, worktreeId, worktreePath } = options;
+  const threadId = crypto.randomUUID();
+
+  logger.info("[thread-creation-service] Creating TUI thread", {
+    threadId,
+    repoId,
+    worktreeId,
+    worktreePath,
+    hasPrompt: !!options.prompt,
+  });
+
+  // Create thread metadata with threadKind
+  const thread = await threadService.create({
+    id: threadId,
+    repoId,
+    worktreeId,
+    prompt: options.prompt ?? "",
+    threadKind: "claude-tui",
+  });
+
+  // Build CLI args
+  const spawnConfig = buildSpawnConfig({
+    prompt: options.prompt,
+  });
+
+  // Spawn PTY directly via PtyService — no TerminalSession entity created
+  let spawnResult;
+  try {
+    spawnResult = await ptyService.spawn({
+      cwd: worktreePath,
+      cols: 80,
+      rows: 24,
+      command: "claude",
+      args: spawnConfig.args,
+      env: Object.keys(spawnConfig.env).length > 0 ? spawnConfig.env : undefined,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("[thread-creation-service] Failed to spawn Claude TUI", {
+      threadId,
+      error: message,
+    });
+    toast.error(`Failed to start Claude session: ${message}`, { duration: 6000 });
+    await threadService.markError(threadId);
+    throw err;
+  }
+
+  // Link the PTY connection to the thread
+  await threadService.update(threadId, {
+    terminalId: spawnResult.connectionId,
+    status: "running",
+  });
+
+  useMRUWorktreeStore.getState().touchMRU(worktreeId);
+
+  logger.info("[thread-creation-service] TUI thread created", {
+    threadId: thread.id,
+    terminalId: spawnResult.connectionId,
+    ptyId: spawnResult.ptyId,
+  });
+
+  return { threadId: thread.id, terminalId: spawnResult.connectionId };
 }

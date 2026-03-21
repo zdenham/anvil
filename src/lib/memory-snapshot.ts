@@ -1,6 +1,6 @@
 import { useThreadStore } from "@/entities/threads/store";
 import { useTerminalSessionStore } from "@/entities/terminal-sessions/store";
-import { getAllOutputBuffers } from "@/entities/terminal-sessions/output-buffer";
+import { getAllOutputBuffers } from "@/entities/pty/output-buffer";
 import { useLogStore } from "@/entities/logs/store";
 import { useHeartbeatStore } from "@/stores/heartbeat-store";
 import { invoke } from "@/lib/invoke";

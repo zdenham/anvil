@@ -43,7 +43,8 @@ import { createNewProjectAndHydrate } from "@/lib/project-creation-service";
 import { NewProjectDialog } from "@/components/new-project-dialog";
 import { warmupAgentEnvironment } from "@/lib/agent-service";
 import { terminalSessionService } from "@/entities/terminal-sessions";
-import { createThread } from "@/lib/thread-creation-service";
+import { createThread, createTuiThread } from "@/lib/thread-creation-service";
+import { useSettingsStore } from "@/entities/settings/store";
 import { loadSettings } from "@/lib/app-data-store";
 
 import { useTabSelectionSync } from "@/hooks/use-tab-selection-sync";
@@ -253,16 +254,25 @@ export function MainWindowLayout() {
         }
 
         try {
-          const thread = await threadService.create({
-            repoId,
-            worktreeId,
-            prompt: "",
-          });
+          // Check if TUI mode is preferred
+          const preferTui = useSettingsStore.getState().workspace.preferTerminalInterface ?? false;
+          const worktreePath = useRepoWorktreeLookupStore.getState().getWorktreePath(repoId, worktreeId);
 
-          await treeMenuService.hydrate();
-          await navigationService.navigateToThread(thread.id, { autoFocus: true });
-
-          logger.info(`[MainWindowLayout] Command+N: Created new thread ${thread.id}`);
+          if (preferTui && worktreePath) {
+            const result = await createTuiThread({ repoId, worktreeId, worktreePath });
+            await treeMenuService.hydrate();
+            await navigationService.navigateToThread(result.threadId);
+            logger.info(`[MainWindowLayout] Command+N: Created TUI thread ${result.threadId}`);
+          } else {
+            const thread = await threadService.create({
+              repoId,
+              worktreeId,
+              prompt: "",
+            });
+            await treeMenuService.hydrate();
+            await navigationService.navigateToThread(thread.id, { autoFocus: true });
+            logger.info(`[MainWindowLayout] Command+N: Created new thread ${thread.id}`);
+          }
         } catch (err) {
           logger.error(`[MainWindowLayout] Command+N: Failed to create thread:`, err);
         }
@@ -380,19 +390,39 @@ export function MainWindowLayout() {
   // New Thread/Worktree Handlers (from tree section plus buttons)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleNewThread = useCallback(async (repoId: string, worktreeId: string, _worktreePath: string) => {
+  const handleNewThread = useCallback(async (repoId: string, worktreeId: string, worktreePath: string) => {
+    try {
+      const preferTui = useSettingsStore.getState().workspace.preferTerminalInterface ?? false;
+
+      if (preferTui) {
+        const result = await createTuiThread({ repoId, worktreeId, worktreePath });
+        await treeMenuService.hydrate();
+        await navigationService.navigateToThread(result.threadId);
+      } else {
+        const thread = await threadService.create({
+          repoId,
+          worktreeId,
+          prompt: "",
+        });
+        await treeMenuService.hydrate();
+        await navigationService.navigateToThread(thread.id, { autoFocus: true });
+      }
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to create thread:`, err);
+    }
+  }, []);
+
+  const handleNewManagedThread = useCallback(async (repoId: string, worktreeId: string, _worktreePath: string) => {
     try {
       const thread = await threadService.create({
         repoId,
         worktreeId,
-        prompt: "", // Empty prompt - user will fill it in
+        prompt: "",
       });
-
-      // Refresh tree menu to show new thread, then navigate to it
       await treeMenuService.hydrate();
       await navigationService.navigateToThread(thread.id, { autoFocus: true });
     } catch (err) {
-      logger.error(`[MainWindowLayout] Failed to create thread:`, err);
+      logger.error(`[MainWindowLayout] Failed to create managed thread:`, err);
     }
   }, []);
 
@@ -409,6 +439,15 @@ export function MainWindowLayout() {
       await navigationService.navigateToTerminal(session.id);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to create terminal:`, err);
+    }
+  }, []);
+
+  const handleNewClaudeSession = useCallback(async (repoId: string, worktreeId: string, worktreePath: string) => {
+    try {
+      const result = await createTuiThread({ repoId, worktreeId, worktreePath });
+      await navigationService.navigateToThread(result.threadId);
+    } catch (err) {
+      logger.error(`[MainWindowLayout] Failed to create Claude session:`, err);
     }
   }, []);
 
@@ -847,6 +886,8 @@ export function MainWindowLayout() {
               onNewThread={handleNewThread}
               onCreatePr={handleCreatePrCallback}
               onNewTerminal={handleNewTerminal}
+              onNewClaudeSession={handleNewClaudeSession}
+              onNewManagedThread={handleNewManagedThread}
               onNewWorktree={handleNewWorktree}
               onArchiveWorktree={handleArchiveWorktree}
               creatingWorktreeIds={creatingWorktreeIds}

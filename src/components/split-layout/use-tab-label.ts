@@ -28,12 +28,15 @@ function getPlanTitle(relativePath: string): string {
  * Uses the same underlying stores as `useTreeData` / sidebar tree items.
  */
 export function useTabLabel(view: ContentPaneView): string {
-  // Thread label: name or "New Thread"
+  // Thread label: name or "New Thread", prefixed with "cc: " for TUI threads
   const threadName = useThreadStore(
     useCallback(
       (s) => {
         if (view.type !== "thread") return null;
-        return s.threads[view.threadId]?.name ?? null;
+        const thread = s.threads[view.threadId];
+        if (!thread) return null;
+        const name = thread.name ?? "New Thread";
+        return thread.threadKind ? `cc: ${name}` : name;
       },
       [view],
     ),
@@ -80,7 +83,7 @@ export function useTabLabel(view: ContentPaneView): string {
 
   switch (view.type) {
     case "thread":
-      return threadName ?? "New Thread";
+      return threadName ?? "New Thread"; // threadName already has cc: prefix for TUI threads
     case "plan":
       return planLabel ?? "Plan";
     case "terminal":

@@ -7,6 +7,8 @@
  * - Resize handling (fit to container)
  * - PTY output streaming
  * - Scrollback buffer restoration
+ *
+ * Uses PtyService for all PTY I/O. Works for both terminal sessions and TUI threads.
  */
 
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -26,9 +28,9 @@ import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { listen, type UnlistenFn } from "@/lib/events";
 import "@xterm/xterm/css/xterm.css";
 
+import { ptyService } from "@/entities/pty";
+import { getOutputBuffer, onOutput } from "@/entities/pty/output-buffer";
 import { terminalSessionService } from "@/entities/terminal-sessions";
-import { useTerminalSessionStore } from "@/entities/terminal-sessions";
-import { getOutputBuffer, onOutput } from "@/entities/terminal-sessions/output-buffer";
 import { logger } from "@/lib/logger-client";
 import type { TerminalContentProps } from "./types";
 
@@ -80,7 +82,7 @@ export function TerminalContent({
   // Write to PTY when user types
   const handleInput = useCallback(
     (data: string) => {
-      terminalSessionService.write(terminalId, data).catch((err) => {
+      ptyService.write(terminalId, data).catch((err) => {
         logger.error("[TerminalContent] Failed to write to terminal", {
           terminalId,
           error: err,
@@ -115,9 +117,9 @@ export function TerminalContent({
 
       try {
         fitAddon.fit();
-        const session = useTerminalSessionStore.getState().sessions[terminalId];
-        if (!session?.isAlive) return;
-        terminalSessionService.resize(terminalId, terminal.cols, terminal.rows).catch((err) => {
+        // Only resize if PTY is registered (alive)
+        if (ptyService.getPtyIdOrUndefined(terminalId) === undefined) return;
+        ptyService.resize(terminalId, terminal.cols, terminal.rows).catch((err) => {
           logger.debug("[TerminalContent] Failed to resize terminal", {
             terminalId,
             error: err,
@@ -271,7 +273,7 @@ export function TerminalContent({
     // Listen for PTY exit
     let exitUnlisten: UnlistenFn | undefined;
     listen<TerminalExitPayload>("terminal:exit", (event) => {
-      const resolvedId = terminalSessionService.resolveByPtyId(event.payload.id);
+      const resolvedId = ptyService.resolveByPtyId(event.payload.id);
       if (resolvedId === terminalId) {
         logger.info("[TerminalContent] Terminal exit event received", {
           terminalId,
@@ -312,10 +314,9 @@ export function TerminalContent({
   }, [terminalId, handleInput, handleResize, initialBuffer]);
 
   // Auto-revive dead terminals when this component is displayed.
-  // Covers: mount with dead terminal, terminal dies while viewed, any navigation path.
-  const session = useTerminalSessionStore(
-    useCallback((s) => s.sessions[terminalId], [terminalId])
-  );
+  // For terminal sessions: uses terminalSessionService.revive()
+  // For TUI threads: handled by TuiThreadContent (not here)
+  const session = terminalSessionService.get(terminalId);
 
   useEffect(() => {
     if (session && !session.isAlive && !session.isArchived) {

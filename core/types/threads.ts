@@ -61,6 +61,19 @@ export const ThreadMetadataBaseSchema = z.object({
   // Permission mode for the agent (default: "implement")
   permissionMode: z.enum(["plan", "implement", "approve"]).optional().default("implement"),
 
+  /**
+   * Thread kind discriminator. undefined = standard GUI thread.
+   * "claude-tui" = Claude CLI running in a PTY terminal.
+   * Open string type so new kinds can be added without schema migration.
+   */
+  threadKind: z.string().optional(),
+
+  /** PTY session ID — only present for TUI threads (threadKind set). */
+  terminalId: z.string().uuid().optional(),
+
+  /** Claude CLI session ID for --resume. */
+  claudeSessionId: z.string().optional(),
+
   /** Visual settings for sidebar tree positioning */
   visualSettings: VisualSettingsSchema.optional(),
 });
@@ -91,6 +104,7 @@ export interface CreateThreadInput {
   worktreeId: string;                  // Required
   prompt: string;
   parentThreadId?: string;             // Parent thread ID for sub-agent threads
+  threadKind?: string;                 // "claude-tui" for TUI threads, undefined for standard GUI
   git?: {
     branch: string;
   };
@@ -110,6 +124,8 @@ export interface UpdateThreadInput {
   changedFilePaths?: string[];
   name?: string;
   permissionMode?: "plan" | "implement" | "approve";
+  terminalId?: string;
+  claudeSessionId?: string;
   visualSettings?: z.infer<typeof VisualSettingsSchema>;
 }
 

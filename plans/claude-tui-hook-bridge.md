@@ -65,38 +65,34 @@ The CLI POSTs the same `PreToolUseHookInput` / `PostToolUseHookInput` / etc. JSO
 
 ### Code sharing between SDK and CLI
 
-The key insight: SDK hooks and CLI hooks need the **same business logic** — the only difference is transport (in-process callback vs HTTP POST to sidecar).
+SDK hooks and CLI hooks need the **same business logic** — the only difference is transport (in-process callback vs HTTP POST to sidecar). Shared pure-logic helpers live in `core/lib/hooks/`, importable by both `agents/` and `sidecar/`.
 
 ```
-agents/src/hooks/lib/           ← Shared evaluator functions (pure logic)
-  git-safety-evaluator.ts         BANNED_COMMANDS + pattern matching
-  tool-deny-evaluator.ts          disallowed tool list check
+core/lib/hooks/                   ← Shared evaluator functions (pure logic)
+  git-safety.ts                     BANNED_COMMANDS + evaluateGitCommand()
+  tool-deny.ts                      DISALLOWED_TOOLS + shouldDenyTool()
+  file-changes.ts                   extractFileChange(toolName, toolInput, workingDir)
+  comment-resolution.ts             parseCommentResolution(command) → { ids } | null
 
-agents/src/hooks/                ← SDK adapters (in-process callbacks for query() options)
-  safe-git-hook.ts                 calls git-safety-evaluator, returns JS object
-  repl-hook.ts                     calls MortReplRunner/ChildSpawner directly
-  comment-resolution-hook.ts       calls emitEvent directly
+core/lib/transcript/              ← Transcript parser (defensive, Zod safeParse)
+  parser.ts                         readTranscript() + readTranscriptIncremental()
+  schemas.ts                        Zod schemas for transcript line types
+  types.ts                          TranscriptMessage, ParsedTranscript
 
-sidecar/src/hooks/hook-handler.ts  ← HTTP adapter (sidecar route handler for CLI hooks)
-                                      receives JSON POST, calls same evaluators,
-                                      returns JSON response
+agents/src/hooks/                 ← SDK adapters (in-process callbacks for query() options)
+  safe-git-hook.ts                  thin wrapper → git-safety.evaluateGitCommand()
+  repl-hook.ts                      agent-runner-only (MortReplRunner/ChildSpawner)
+  comment-resolution-hook.ts        thin wrapper → comment-resolution.parse() + emitEvent()
+
+sidecar/src/hooks/                ← HTTP adapter (sidecar route handler for CLI hooks)
+  hook-handler.ts                   HTTP routes, calls core/lib/hooks/ evaluators
+  thread-state-writer.ts            ThreadState via threadReducer, writes to disk
+  transcript-reader.ts              Incremental transcript reads, merges into ThreadState
 ```
 
-The sidecar HTTP handler receives the same `PreToolUseHookInput` JSON shape that the SDK passes to callbacks. It calls the same evaluator functions and returns the same `HookJSONOutput` JSON.
+### Hooks as triggers, transcript as data source
 
-**Stateless hooks (Phase 1)** — handled directly in the sidecar:
-
-- **Safe-git checks**: `BANNED_COMMANDS` array, pattern matching logic
-- **Tool deny lists**: Same list of disallowed tools (Mcp, EnterWorktree, etc.)
-- **Lifecycle events**: Tool started/completed/denied, session ended
-
-**Stateful hooks (Phase 2, future)** — require per-thread process ("Terminal Runner"):
-
-- **Repl execution**: `MortReplRunner`, `ChildSpawner` need process-local state
-- **Comment resolution**: `emitEvent()` tied to thread context
-- **Permission gating**: `permissionGate` waits for user approval
-
-The Terminal Runner follows the same one-process-per-thread pattern as SDK agent threads. The sidecar relays hook requests to the terminal runner via the hub WebSocket. This is deferred until TUI threads need REPL/permission support.
+Hook events are **triggers** ("something happened"). The transcript `.jsonl` file is the **data source** ("here's what happened"). Every hook input includes `transcript_path` — on PostToolUse and Stop, the sidecar reads new transcript lines to extract messages, usage, and thinking blocks. See `plans/tui-runner-state-architecture.md` for full details.
 
 ### Hook lifecycle (HTTP)
 
@@ -202,15 +198,15 @@ function handleSessionStart(input: SessionStartHookInput, threadId: string): Hoo
 
 ## Phases
 
-- [ ] Phase 1: Extract shared evaluator functions from SDK hooks
+- [ ] Phase 1: Extract shared helpers into `core/lib/hooks/` + build transcript parser in `core/lib/transcript/`
 
-- [ ] Phase 2: Add HTTP hook endpoints to hub server
+- [ ] Phase 2: Add HTTP hook endpoints + thread state writer + transcript reader to sidecar
 
-- [ ] Phase 3: Create `hooks/hooks.json` in plugin directory
+- [ ] Phase 3: Create `hooks/hooks.json` in plugin directory + plugin sync
 
 - [ ] Phase 4: Extend `buildSpawnConfig()` with plugin + env vars
 
-- [ ] Phase 5: Frontend integration for permission UI
+- [ ] Phase 5: Frontend integration for TUI thread state display
 
 - [ ] Phase 6: Lifecycle event emission and tracking
 
@@ -218,39 +214,23 @@ function handleSessionStart(input: SessionStartHookInput, threadId: string): Hoo
 
 ---
 
-## Phase 1: Extract shared evaluator functions from SDK hooks
+## Phase 1: Extract shared helpers into `core/lib/hooks/`
 
-Refactor existing SDK hooks to separate pure evaluation logic from SDK-specific transport.
+Refactor existing SDK hooks to separate pure evaluation logic from SDK-specific transport. Shared helpers go in `core/lib/hooks/` (importable by both `agents/` and `sidecar/`). This phase is defined in detail in `plans/tui-runner-state-architecture.md` § "What Needs to Happen" items 1-2.
 
-### `agents/src/hooks/lib/git-safety-evaluator.ts`
+### Files to create
 
-Extract from `safe-git-hook.ts`:
-
-```typescript
-export type GitEvaluationResult =
-  | { allowed: true }
-  | { allowed: false; reason: string; suggestion: string };
-
-export const BANNED_COMMANDS: Array<{ pattern: RegExp; reason: string; suggestion: string }>;
-
-export function evaluateGitCommand(command: string): GitEvaluationResult;
-```
-
-### `agents/src/hooks/lib/tool-deny-evaluator.ts`
-
-```typescript
-export const DISALLOWED_TOOLS = [
-  "Mcp", "ListMcpResources", "ReadMcpResource",
-  "SubscribeMcpResource", "UnsubscribeMcpResource",
-  "SubscribePolling", "UnsubscribePolling", "EnterWorktree",
-];
-
-export function shouldDenyTool(toolName: string): { denied: boolean; reason?: string };
-```
+- `core/lib/hooks/git-safety.ts` — extract `BANNED_COMMANDS` + `evaluateGitCommand()` from `safe-git-hook.ts`
+- `core/lib/hooks/tool-deny.ts` — extract `DISALLOWED_TOOLS` + `shouldDenyTool()` from `shared.ts`
+- `core/lib/hooks/file-changes.ts` — extract file change detection from PostToolUse hook in `shared.ts`
+- `core/lib/hooks/comment-resolution.ts` — extract command parsing from `comment-resolution-hook.ts`
 
 ### Update existing SDK hooks
 
-`safe-git-hook.ts`, `repl-hook.ts`, `comment-resolution-hook.ts` become thin SDK adapters that call the shared evaluators. No behavior change — just a refactor.
+- `safe-git-hook.ts` → thin wrapper calling `evaluateGitCommand()`
+- `comment-resolution-hook.ts` → thin wrapper calling `parseCommentResolution()` + `emitEvent()`
+- PostToolUse in `shared.ts` → call `extractFileChange()`
+- `repl-hook.ts` → unchanged (agent-runner-only)
 
 ---
 
@@ -258,34 +238,58 @@ export function shouldDenyTool(toolName: string): { denied: boolean; reason?: st
 
 ### `sidecar/src/hooks/hook-handler.ts`
 
-New route handler that processes incoming hook POSTs from the CLI. Handles **stateless** hooks only (safe-git, tool-deny, lifecycle). Stateful hooks (REPL, comment resolution, permission gating) are deferred to the Terminal Runner architecture.
+HTTP route handler calling shared `core/lib/hooks/` evaluators + transcript reader for rich state. See `plans/tui-runner-state-architecture.md` for full handler code.
 
 ```typescript
 // POST /hooks/pre-tool-use
 async function handlePreToolUse(input: PreToolUseHookInput, threadId: string): Promise<HookJSONOutput> {
-  // 1. Fast path: check tool deny list
+  // 1. Check tool deny list
   const denyResult = shouldDenyTool(input.tool_name);
   if (denyResult.denied) return denyResponse(denyResult.reason);
 
-  // 2. Fast path: check safe-git patterns
+  // 2. Check safe-git patterns
   if (input.tool_name === "Bash") {
     const gitResult = evaluateGitCommand(input.tool_input.command);
     if (!gitResult.allowed) return denyResponse(gitResult.reason);
   }
 
-  // 3. Default: allow
+  // 3. Track tool as running
+  stateWriter.dispatch(threadId, { type: "MARK_TOOL_RUNNING", ... });
+  return { continue: true };
+}
+
+// POST /hooks/post-tool-use
+async function handlePostToolUse(input: PostToolUseHookInput, threadId: string): Promise<HookJSONOutput> {
+  // 1. Extract file changes
+  const fileChange = extractFileChange(input.tool_name, input.tool_input, workingDir);
+  if (fileChange) stateWriter.dispatch(threadId, { type: "UPDATE_FILE_CHANGE", payload: { change: fileChange } });
+
+  // 2. Mark tool complete
+  stateWriter.dispatch(threadId, { type: "MARK_TOOL_COMPLETE", ... });
+
+  // 3. Read transcript for messages + usage
+  transcriptReader.syncFromTranscript(threadId, input.transcript_path);
+
   return { continue: true };
 }
 ```
+
+### `sidecar/src/hooks/thread-state-writer.ts`
+
+Writes `ThreadState` to disk using `threadReducer` from `core/lib/thread-reducer.ts`. In-memory cache per active thread, rehydrated from disk on first access. Broadcasts actions to frontend.
+
+### `sidecar/src/hooks/transcript-reader.ts`
+
+Incremental transcript reads. Maintains a cursor per thread so only new lines are parsed on each hook trigger. Extracts messages, usage, thinking blocks → dispatches to `ThreadStateWriter`.
 
 ### Sidecar HTTP routing
 
 Add HTTP routes to the sidecar's existing TCP server (same port as WebSocket):
 
 - `POST /hooks/session-start` → system prompt injection via `additionalContext`
-- `POST /hooks/pre-tool-use` → deny/allow decisions (stateless evaluators)
-- `POST /hooks/post-tool-use` → lifecycle events (emit to frontend via broadcaster)
-- `POST /hooks/stop` → session completion notification
+- `POST /hooks/pre-tool-use` → deny/allow + tool state tracking
+- `POST /hooks/post-tool-use` → file changes + tool completion + transcript sync
+- `POST /hooks/stop` → session end + final transcript sync + thread status update
 
 Thread identification via `X-Mort-Thread-Id` header (injected by `allowedEnvVars` + header interpolation in hooks.json).
 
@@ -381,23 +385,30 @@ Events are written to `~/.mort/threads/{id}/events.jsonl` (append-only log). Ena
 
 | File | Purpose |
 | --- | --- |
-| `agents/src/hooks/lib/git-safety-evaluator.ts` | Shared safe-git evaluation logic |
-| `agents/src/hooks/lib/tool-deny-evaluator.ts` | Shared tool deny list |
+| `core/lib/hooks/git-safety.ts` | Shared safe-git evaluation logic |
+| `core/lib/hooks/tool-deny.ts` | Shared tool deny list |
+| `core/lib/hooks/file-changes.ts` | Shared file change extraction |
+| `core/lib/hooks/comment-resolution.ts` | Shared comment resolution parsing |
+| `core/lib/transcript/parser.ts` | Transcript `.jsonl` parser (incremental) |
+| `core/lib/transcript/schemas.ts` | Zod schemas for transcript lines |
 | `sidecar/src/hooks/hook-handler.ts` | Sidecar HTTP handler for hook events |
+| `sidecar/src/hooks/thread-state-writer.ts` | ThreadState via threadReducer |
+| `sidecar/src/hooks/transcript-reader.ts` | Incremental transcript → state sync |
 | `plugins/mort/hooks/hooks.json` | Plugin hook config (HTTP hooks) |
 | `src/lib/claude-tui-args-builder.ts` | Extended with `--plugin` and env vars |
-| `core/types/events.ts` | New message types for hook events |
 
 ## Resolved decisions
 
 1. **Fail-open**: If sidecar is unreachable, hooks fail and Claude proceeds unblocked. Users chose `--dangerously-skip-permissions` knowingly. Hooks are a convenience/safety layer, not a security boundary.
 2. **Thread ID propagation**: Via `X-Mort-Thread-Id` header using env var interpolation (`$MORT_THREAD_ID`) in hooks.json. Stateless, no session-to-thread mapping needed.
 3. **HTTP endpoint location**: Sidecar's existing TCP port (same as WebSocket). No new port needed.
-4. **Stateful vs stateless hooks**: Start with stateless hooks only (safe-git, tool-deny, lifecycle). Stateful hooks (REPL, comment resolution, permission gating) deferred to Terminal Runner architecture.
+4. **State architecture**: Hooks are triggers, transcript `.jsonl` is the data source. No per-thread Terminal Runner process needed — the sidecar reads the transcript incrementally on hook events to extract messages, usage, and thinking blocks. See `plans/tui-runner-state-architecture.md`.
+5. **Shared helper location**: `core/lib/hooks/` (not `agents/src/hooks/lib/`) — importable by both `agents/` and `sidecar/`.
 
 ## Open questions
 
-1. **Terminal Runner architecture (Q4)**: For stateful hooks (REPL, permissions), the plan proposes a per-thread "Terminal Runner" Node process that receives relayed hook requests from the sidecar via hub WebSocket. This follows the same one-process-per-thread pattern as SDK agent threads. **Decision pending** — see architecture options in plan discussion.
-2. **Plugin hooks vs user hooks**: If the user has their own hooks configured, both sets run. Need to verify hook ordering (plugin hooks vs project hooks).
-3. **Graceful degradation**: When `MORT_SIDECAR_URL` is not set (user runs `claude --plugin local:~/.mort` outside Mort), HTTP hooks should fail silently and fall through.
-4. **Repl hook timeout**: The PreToolUse timeout is set to 86400s to accommodate future REPL execution via Terminal Runner. For stateless-only phase, this could be reduced.
+1. **Plugin hooks vs user hooks**: If the user has their own hooks configured, both sets run. Need to verify hook ordering (plugin hooks vs project hooks).
+2. **Graceful degradation**: When `MORT_SIDECAR_URL` is not set (user runs `claude --plugin local:~/.mort` outside Mort), HTTP hooks should fail silently and fall through.
+3. **REPL hook for TUI**: Deferred. `MortReplRunner` + `ChildSpawner` need process-local state. When needed, either run in sidecar or spawn per-thread process.
+4. **Transcript write timing**: Does Claude CLI flush transcript lines before firing hooks? If racy, add retry with backoff in transcript reader.
+5. **PreToolUse timeout**: Set to 86400s to accommodate future REPL. Could reduce for stateless-only phase.

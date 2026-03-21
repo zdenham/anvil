@@ -1,38 +1,24 @@
 /**
- * Terminal session service - manages PTY lifecycle via Tauri commands.
+ * Terminal session service - manages terminal session entities.
+ * Delegates PTY lifecycle to PtyService.
  * Persists terminal metadata to ~/.mort/terminal-sessions/{id}/metadata.json.
  */
-import { invoke } from "@/lib/invoke";
 import { appData } from "@/lib/app-data-store";
 import { useTerminalSessionStore } from "./store";
 import { TerminalSessionSchema, type TerminalSession } from "./types";
-import { clearOutputBuffer } from "./output-buffer";
-import { ensureShellIntegration } from "./shell-integration";
 import { logger } from "@/lib/logger-client";
 import { eventBus } from "@/entities/events";
 import { EventName } from "@core/types/events.js";
+import { ptyService } from "@/entities/pty";
 import type { VisualSettings } from "@core/types/visual-settings.js";
 
 const TERMINAL_SESSIONS_DIR = "terminal-sessions";
 
 /**
  * Service for managing terminal sessions.
- * Coordinates between the Rust PTY backend, disk persistence, and the frontend store.
+ * Coordinates between PtyService, disk persistence, and the frontend store.
  */
 class TerminalSessionService {
-  /** Maps terminal UUID -> numeric PTY ID for Rust IPC */
-  private readonly ptyIds = new Map<string, number>();
-  /** Guards against concurrent revive calls for the same terminal */
-  private readonly revivingIds = new Set<string>();
-
-  private getPtyId(id: string): number {
-    const ptyId = this.ptyIds.get(id);
-    if (ptyId === undefined) {
-      throw new Error(`No PTY ID for terminal ${id}`);
-    }
-    return ptyId;
-  }
-
   /**
    * Hydrates the store from disk.
    * Loads all persisted terminal sessions, marks them as not alive (PTY is gone after restart).
@@ -81,33 +67,43 @@ class TerminalSessionService {
 
   /**
    * Creates a new terminal session.
-   * Generates a UUID, spawns the PTY, persists metadata to disk.
+   * Generates a UUID, spawns the PTY via PtyService, persists metadata to disk.
    */
   async create(
     worktreeId: string,
     worktreePath: string,
     cols = 80,
-    rows = 24
+    rows = 24,
+    options?: {
+      command?: string;
+      args?: string[];
+      env?: Record<string, string>;
+    },
   ): Promise<TerminalSession> {
     logger.info("[TerminalService] Creating terminal", {
       worktreeId,
       worktreePath,
       cols,
       rows,
+      command: options?.command,
     });
 
-    // Ensure shell integration script exists before spawning
-    await ensureShellIntegration();
-
     try {
-      // Spawn the PTY in Rust
-      const numericId = await invoke<number>("spawn_terminal", {
-        cols,
-        rows,
-        cwd: worktreePath,
-      });
-
       const id = crypto.randomUUID();
+
+      // Spawn PTY via PtyService (reuse the terminal's UUID as connectionId)
+      const { ptyId: numericId } = await ptyService.spawn(
+        {
+          cwd: worktreePath,
+          cols,
+          rows,
+          command: options?.command,
+          args: options?.args,
+          env: options?.env,
+        },
+        id,
+      );
+
       const label = this.generateAutoLabel(worktreeId, worktreePath);
 
       const session: TerminalSession = {
@@ -124,9 +120,6 @@ class TerminalSessionService {
           parentId: worktreeId,
         },
       };
-
-      // Register PTY ID mapping
-      this.ptyIds.set(id, numericId);
 
       // Add to store
       useTerminalSessionStore.getState().addSession(session);
@@ -157,12 +150,8 @@ class TerminalSessionService {
     logger.info("[TerminalService] Archiving terminal", { terminalId: id });
 
     try {
-      // Kill the PTY if it has one
-      const ptyId = this.ptyIds.get(id);
-      if (ptyId !== undefined) {
-        await invoke("kill_terminal", { id: ptyId });
-        this.ptyIds.delete(id);
-      }
+      // Kill the PTY via PtyService
+      await ptyService.kill(id);
 
       useTerminalSessionStore.getState().removeSession(id);
 
@@ -185,18 +174,14 @@ class TerminalSessionService {
    * Writes data to a terminal's PTY.
    */
   async write(id: string, data: string): Promise<void> {
-    await invoke("write_terminal", { id: this.getPtyId(id), data });
+    await ptyService.write(id, data);
   }
 
   /**
    * Resizes a terminal's PTY.
    */
   async resize(id: string, cols: number, rows: number): Promise<void> {
-    await invoke("resize_terminal", {
-      id: this.getPtyId(id),
-      cols,
-      rows,
-    });
+    await ptyService.resize(id, cols, rows);
   }
 
   /**
@@ -223,7 +208,7 @@ class TerminalSessionService {
    */
   markExited(id: string): void {
     useTerminalSessionStore.getState().markExited(id);
-    this.ptyIds.delete(id);
+    ptyService.unregisterPtyId(id);
     // Persist so exited state survives restart
     this.persistMetadata(id);
   }
@@ -235,22 +220,10 @@ class TerminalSessionService {
   async revive(id: string, cols = 80, rows = 24): Promise<void> {
     const session = this.get(id);
     if (!session) throw new Error(`Terminal not found: ${id}`);
-    if (session.isAlive || this.revivingIds.has(id)) return;
+    if (session.isAlive || ptyService.isReviving(id)) return;
 
-    this.revivingIds.add(id);
     try {
-      logger.info("[TerminalService] Reviving terminal", { terminalId: id });
-
-      // Clear old output so the new shell starts clean (preserves live listeners)
-      clearOutputBuffer(id);
-
-      const numericId = await invoke<number>("spawn_terminal", {
-        cols,
-        rows,
-        cwd: session.worktreePath,
-      });
-
-      this.registerPtyId(id, numericId);
+      const numericId = await ptyService.revive(id, session.worktreePath, cols, rows);
 
       useTerminalSessionStore.getState().updateSession(id, {
         isAlive: true,
@@ -259,8 +232,9 @@ class TerminalSessionService {
 
       await this.persistMetadata(id);
       logger.info("[TerminalService] Terminal revived", { terminalId: id, ptyId: numericId });
-    } finally {
-      this.revivingIds.delete(id);
+    } catch (error) {
+      logger.error("[TerminalService] Failed to revive terminal", { terminalId: id, error });
+      throw error;
     }
   }
 
@@ -387,25 +361,6 @@ class TerminalSessionService {
    */
   getByWorktree(worktreeId: string): TerminalSession[] {
     return useTerminalSessionStore.getState().getSessionsByWorktree(worktreeId);
-  }
-
-  /**
-   * Registers a PTY ID mapping for a terminal.
-   * Used when associating a newly spawned PTY with an existing terminal.
-   */
-  registerPtyId(terminalId: string, ptyId: number): void {
-    this.ptyIds.set(terminalId, ptyId);
-  }
-
-  /**
-   * Resolves a Rust PTY numeric ID to a terminal UUID.
-   * Used by listeners that receive events keyed by PTY ID.
-   */
-  resolveByPtyId(ptyId: number): string | undefined {
-    for (const [uuid, pid] of this.ptyIds.entries()) {
-      if (pid === ptyId) return uuid;
-    }
-    return undefined;
   }
 
   /**

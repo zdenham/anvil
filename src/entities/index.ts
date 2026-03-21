@@ -58,6 +58,10 @@ export type { DraftsFile } from "./drafts";
 export { useSkillsStore } from "./skills";
 export type * from "./skills";
 
+// PTY Service (low-level PTY connections)
+export { ptyService } from "./pty";
+export type { PtySpawnOptions, PtySpawnResult } from "./pty";
+
 // Terminal Sessions
 export {
   useTerminalSessionStore,

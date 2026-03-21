@@ -209,6 +209,7 @@ export const threadService = {
       git: input.git,
       isRead: true, // New threads start as read
       permissionMode: "implement",
+      ...(input.threadKind && { threadKind: input.threadKind }),
       visualSettings: {
         parentId: input.worktreeId,
       },

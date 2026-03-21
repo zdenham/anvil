@@ -11,6 +11,7 @@ import {
   EyeOff,
   Loader2,
   Terminal,
+  TerminalSquare,
   Pin,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { logger } from "@/lib/logger-client";
 import { cn } from "@/lib/utils";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
+import { useSettingsStore } from "@/entities/settings/store";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Plus menu (dropdown from + button on worktree header)
@@ -34,6 +36,8 @@ interface PlusMenuProps {
   isCreatingWorktree?: boolean;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
+  onNewClaudeSession?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  onNewManagedThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
 }
@@ -41,9 +45,11 @@ interface PlusMenuProps {
 export function PlusMenu({
   item, showMenu, setShowMenu, menuPosition,
   buttonRef, menuRef, isCreatingWorktree,
-  onNewThread, onNewTerminal, onCreatePr, onNewWorktree,
+  onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread, onCreatePr, onNewWorktree,
 }: PlusMenuProps) {
   if (!onNewThread && !onNewWorktree) return null;
+
+  const preferTui = useSettingsStore((s) => s.workspace.preferTerminalInterface) ?? false;
 
   const handlePlusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -51,10 +57,16 @@ export function PlusMenu({
     setShowMenu(!showMenu);
   };
 
+  const repoId = item.repoId!;
+  const worktreeId = item.worktreeId ?? item.id;
+  const worktreePath = item.worktreePath!;
+
   const handlePlusDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowMenu(false);
-    onNewThread?.(item.repoId!, item.worktreeId ?? item.id, item.worktreePath!);
+    // Double-click creates the preferred thread type
+    const handler = preferTui ? onNewClaudeSession : onNewThread;
+    handler?.(repoId, worktreeId, worktreePath);
   };
 
   const close = () => setShowMenu(false);
@@ -79,9 +91,20 @@ export function PlusMenu({
           className="fixed z-50 bg-surface-900 border border-surface-700 rounded-lg shadow-lg p-1.5"
           style={{ top: menuPosition.top, left: menuPosition.left }}
         >
-          <PlusMenuItem icon={MessageSquarePlus} label={`New thread in ${item.worktreeName}`} hint="dbl-click" show={!!onNewThread} onClick={() => { close(); onNewThread?.(item.repoId!, item.worktreeId ?? item.id, item.worktreePath!); }} />
+          {/* Primary "New thread" — creates the preferred type */}
+          <PlusMenuItem
+            icon={preferTui ? TerminalSquare : MessageSquarePlus}
+            label={`New thread in ${item.worktreeName}`} hint="dbl-click"
+            show={!!(preferTui ? onNewClaudeSession : onNewThread)}
+            onClick={() => { close(); (preferTui ? onNewClaudeSession : onNewThread)?.(repoId, worktreeId, worktreePath); }}
+          />
+          {/* Override — show the non-default option */}
+          {preferTui
+            ? <PlusMenuItem icon={MessageSquarePlus} label={`New managed thread in ${item.worktreeName}`} show={!!onNewManagedThread} onClick={() => { close(); onNewManagedThread?.(repoId, worktreeId, worktreePath); }} />
+            : <PlusMenuItem icon={TerminalSquare} label={`New Claude session in ${item.worktreeName}`} show={!!onNewClaudeSession} onClick={() => { close(); onNewClaudeSession?.(repoId, worktreeId, worktreePath); }} />
+          }
           <PlusMenuItem icon={Terminal} label={`New terminal in ${item.worktreeName}`} hint="⌘T" show={!!onNewTerminal} onClick={() => { close(); onNewTerminal?.(item.worktreeId ?? item.id, item.worktreePath!); }} />
-          <PlusMenuItem icon={GitPullRequest} label="Create pull request" show={!!onCreatePr} onClick={() => { close(); onCreatePr?.(item.repoId!, item.worktreeId ?? item.id, item.worktreePath!); }} />
+          <PlusMenuItem icon={GitPullRequest} label="Create pull request" show={!!onCreatePr} onClick={() => { close(); onCreatePr?.(repoId, worktreeId, worktreePath); }} />
           <PlusMenuItem icon={GitBranch} label={`New workspace in ${item.repoName}`} show={!!onNewWorktree} onClick={() => { close(); onNewWorktree?.(item.repoName!); }} />
         </div>,
         document.body,
@@ -126,6 +149,8 @@ interface WorktreeContextMenuProps {
   onPinToggle?: (worktreeId: string) => void;
   onNewThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
+  onNewClaudeSession?: (repoId: string, worktreeId: string, worktreePath: string) => void;
+  onNewManagedThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
@@ -136,10 +161,12 @@ interface WorktreeContextMenuProps {
 
 export function WorktreeContextMenu({
   item, show, position, menuRef, isPinned,
-  onPinToggle, onNewThread, onNewTerminal, onCreatePr,
+  onPinToggle, onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread, onCreatePr,
   onNewWorktree, onArchiveWorktree, onHideWorktree,
   onClose, onStartRename,
 }: WorktreeContextMenuProps) {
+  const preferTui = useSettingsStore((s) => s.workspace.preferTerminalInterface) ?? false;
+
   if (!show) return null;
 
   const close = onClose;
@@ -182,7 +209,16 @@ export function WorktreeContextMenu({
       )}
 
       <div className="h-px bg-surface-700 my-1" />
-      {onNewThread && <CtxItem icon={MessageSquarePlus} label="New thread" onClick={() => { close(); onNewThread(item.repoId!, wId, item.worktreePath!); }} />}
+      {/* Primary "New thread" — creates the preferred type */}
+      {preferTui
+        ? onNewClaudeSession && <CtxItem icon={TerminalSquare} label="New thread" onClick={() => { close(); onNewClaudeSession(item.repoId!, wId, item.worktreePath!); }} />
+        : onNewThread && <CtxItem icon={MessageSquarePlus} label="New thread" onClick={() => { close(); onNewThread(item.repoId!, wId, item.worktreePath!); }} />
+      }
+      {/* Override — show the non-default option */}
+      {preferTui
+        ? onNewManagedThread && <CtxItem icon={MessageSquarePlus} label="New managed thread" onClick={() => { close(); onNewManagedThread(item.repoId!, wId, item.worktreePath!); }} />
+        : onNewClaudeSession && <CtxItem icon={TerminalSquare} label="New Claude session" onClick={() => { close(); onNewClaudeSession(item.repoId!, wId, item.worktreePath!); }} />
+      }
       {onNewTerminal && <CtxItem icon={Terminal} label="New terminal" hint="⌘T" onClick={() => { close(); onNewTerminal(wId, item.worktreePath!); }} />}
       {onCreatePr && <CtxItem icon={GitPullRequest} label="Create pull request" onClick={() => { close(); onCreatePr(item.repoId!, wId, item.worktreePath!); }} />}
       {onNewWorktree && <CtxItem icon={GitBranch} label="New workspace" onClick={() => { close(); onNewWorktree(item.repoName!); }} />}

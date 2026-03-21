@@ -90,6 +90,12 @@ export const WorkspaceSettingsSchema = z.object({
    * Optional — defaults to false (disabled).
    */
   envFileEnabled: z.boolean().optional(),
+
+  /**
+   * When true, new threads open Claude's terminal UI instead of the managed conversation view.
+   * Optional — defaults to false (managed threads).
+   */
+  preferTerminalInterface: z.boolean().optional(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 

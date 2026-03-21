@@ -95,17 +95,17 @@ claudeSessionId: z.string().optional(),          // Claude CLI --resume session 
 
 ## Phases
 
-- [ ] Phase 1: Extend PTY spawning to support custom commands and env vars
+- [x] Phase 1: Extend PTY spawning to support custom commands and env vars
 
-- [ ] Phase 2: Add `threadKind` to thread schema and update thread service
+- [x] Phase 2: Add `threadKind` to thread schema and update thread service
 
-- [ ] Phase 3: Content pane branching for TUI threads
+- [x] Phase 3: Content pane branching for TUI threads
 
-- [ ] Phase 4: Tree menu differentiation with "cc" prefix
+- [x] Phase 4: Tree menu differentiation with "cc" prefix
 
 - [ ] Phase 5: Hook bridge integration (see `plans/claude-tui-hook-bridge.md`)
 
-- [ ] Phase 6: "Use terminal interface" preference setting
+- [x] Phase 6: "Use terminal interface" preference setting
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

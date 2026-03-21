@@ -14,6 +14,7 @@ import { useThreadStore } from "@/entities/threads/store";
 // import { ContentPaneHeader } from "./content-pane-header";
 import { FindBar } from "./find-bar";
 import { ThreadContent } from "./thread-content";
+import { TuiThreadContent } from "./tui-thread-content";
 import { PlanContent } from "./plan-content";
 import { TerminalContent } from "./terminal-content";
 import { FileContent } from "./file-content";
@@ -157,7 +158,10 @@ export function ContentPane({
           {view.type === "thread" && !activeMetadata && (
             <div className="flex-1" />
           )}
-          {view.type === "thread" && activeMetadata?.worktreeId && (
+          {view.type === "thread" && activeMetadata?.threadKind && (
+            <TuiThreadContent key={view.threadId} thread={activeMetadata} />
+          )}
+          {view.type === "thread" && activeMetadata?.worktreeId && !activeMetadata?.threadKind && (
             <DiffCommentProvider worktreeId={activeMetadata.worktreeId} repoId={activeMetadata.repoId} worktreePath={worktreePath} threadId={view.threadId}>
               {threadTab === "conversation" && (
                 <ThreadContent
@@ -177,7 +181,7 @@ export function ContentPane({
               <FloatingAddressButton />
             </DiffCommentProvider>
           )}
-          {view.type === "thread" && activeMetadata && !activeMetadata.worktreeId && (
+          {view.type === "thread" && activeMetadata && !activeMetadata.worktreeId && !activeMetadata?.threadKind && (
             <>
               {threadTab === "conversation" && (
                 <ThreadContent

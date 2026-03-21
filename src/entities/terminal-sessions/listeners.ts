@@ -1,12 +1,17 @@
 /**
  * Terminal session event listeners.
  * Connects Tauri PTY events to the frontend store and disk persistence.
+ *
+ * Uses PtyService for ptyId → connectionId resolution. Routes events to
+ * both terminal sessions and TUI thread lifecycle.
  */
 import { listen } from "@/lib/events";
 import { useTerminalSessionStore } from "./store";
 import { terminalSessionService } from "./service";
-import { appendOutput } from "./output-buffer";
+import { appendOutput } from "@/entities/pty/output-buffer";
+import { ptyService } from "@/entities/pty";
 import { logger } from "@/lib/logger-client";
+import { markTuiThreadCompleted } from "@/lib/tui-thread-lifecycle";
 
 interface TerminalOutputPayload {
   id: number;
@@ -31,29 +36,37 @@ export function setupTerminalListeners(): () => void {
   // Listen for terminal output — decode once, store + notify subscribers
   listen<TerminalOutputPayload>("terminal:output", (event) => {
     const { id, data } = event.payload;
-    const termId = terminalSessionService.resolveByPtyId(id);
-    if (!termId) return; // Unknown PTY ID — ignore
-    appendOutput(termId, data);
+    const connId = ptyService.resolveByPtyId(id);
+    if (!connId) return; // Unknown PTY ID — ignore
+    appendOutput(connId, data);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   // Listen for terminal exit (process ended)
   listen<TerminalExitPayload>("terminal:exit", (event) => {
     const ptyId = event.payload.id;
-    const termId = terminalSessionService.resolveByPtyId(ptyId);
-    if (!termId) return;
+    const connId = ptyService.resolveByPtyId(ptyId);
+    if (!connId) return;
 
-    logger.info("[TerminalListeners] Terminal exited", { terminalId: termId, ptyId });
-    terminalSessionService.markExited(termId);
+    logger.info("[TerminalListeners] PTY exited", { connectionId: connId, ptyId });
+
+    // Check if this is a terminal session
+    const session = terminalSessionService.get(connId);
+    if (session) {
+      terminalSessionService.markExited(connId);
+    }
+
+    // Check if this backs a TUI thread (works for both cases)
+    markTuiThreadCompleted(connId);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   // Listen for terminal killed (archived)
   listen<TerminalKilledPayload>("terminal:killed", (event) => {
     const ptyId = event.payload.id;
-    const termId = terminalSessionService.resolveByPtyId(ptyId);
-    if (!termId) return;
+    const connId = ptyService.resolveByPtyId(ptyId);
+    if (!connId) return;
 
-    logger.info("[TerminalListeners] Terminal killed", { terminalId: termId, ptyId });
-    useTerminalSessionStore.getState().removeSession(termId);
+    logger.info("[TerminalListeners] PTY killed", { connectionId: connId, ptyId });
+    useTerminalSessionStore.getState().removeSession(connId);
   }).then((unlisten) => unlisteners.push(unlisten));
 
   logger.info("[TerminalListeners] Terminal event listeners set up");
