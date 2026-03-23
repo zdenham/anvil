@@ -1,9 +1,8 @@
 /**
  * Claude TUI Args Builder
  *
- * Builds the minimal CLI args and env vars for spawning an unmanaged
- * Claude TUI session. The hook bridge plan will extend this to add
- * `--plugin` and env vars.
+ * Builds CLI args and env vars for spawning a Claude TUI session
+ * with the Mort plugin loaded for HTTP hooks.
  */
 
 export interface ClaudeTuiSpawnConfig {
@@ -14,11 +13,13 @@ export interface ClaudeTuiSpawnConfig {
 /**
  * Build CLI args and env vars for a Claude TUI PTY session.
  *
- * Currently returns the bare minimum for an unmanaged session.
- * The hook bridge plan (`plans/claude-tui-hook-bridge.md`) will
- * extend this with `--plugin local:~/.mort` and env vars.
+ * Includes `--plugin local:<mortDir>` to load the Mort plugin
+ * (which provides hooks.json for HTTP hooks back to the sidecar)
+ * and env vars for thread identification.
  */
 export function buildSpawnConfig(options: {
+  mortDir: string;
+  threadId: string;
   sessionId?: string;
   model?: string;
   prompt?: string;
@@ -33,6 +34,7 @@ export function buildSpawnConfig(options: {
     args.push("--permission-mode", "bypassPermissions");
   }
 
+  args.push("--plugin", `local:${options.mortDir}`);
   args.push("--model", model);
 
   if (options.sessionId) {
@@ -43,5 +45,10 @@ export function buildSpawnConfig(options: {
     args.push("--message", options.prompt);
   }
 
-  return { args, env: {} };
+  const env: Record<string, string> = {
+    MORT_THREAD_ID: options.threadId,
+    MORT_DATA_DIR: options.mortDir,
+  };
+
+  return { args, env };
 }

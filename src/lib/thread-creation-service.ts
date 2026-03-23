@@ -23,6 +23,7 @@ import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import { spawnSimpleAgent } from "./agent-service";
 import { buildSpawnConfig } from "./claude-tui-args-builder";
 import { logger } from "./logger-client";
+import { getMortDir } from "./paths";
 import { toast } from "./toast";
 
 export interface CreateThreadOptions {
@@ -219,8 +220,11 @@ export async function createTuiThread(
   });
 
   // Build CLI args
+  const mortDir = await getMortDir();
   const bypassPermissions = useSettingsStore.getState().workspace.tuiBypassPermissions ?? true;
   const spawnConfig = buildSpawnConfig({
+    mortDir,
+    threadId,
     prompt: options.prompt,
     bypassPermissions,
   });
