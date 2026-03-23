@@ -422,11 +422,11 @@ Created on first hook request, cleaned up on Stop hook.
 
 - [x] Define transcript parser architecture (schemas, incremental reads, error handling)
 
-- [ ] Extract shared helpers into `core/lib/hooks/`
+- [x] Extract shared helpers into `core/lib/hooks/`
 
-- [ ] Build transcript parser in `core/lib/transcript/`
+- [x] Build transcript parser in `core/lib/transcript/`
 
-- [ ] Update agent runner hooks to use shared helpers
+- [x] Update agent runner hooks to use shared helpers
 
 - [ ] Add sidecar hook endpoints + thread state writer + transcript reader
 

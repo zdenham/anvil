@@ -218,7 +218,7 @@ function handleSessionStart(input: SessionStartHookInput, threadId: string): Hoo
 
 ## Phases
 
-- [ ] Phase 1: Extract shared helpers into `core/lib/hooks/` + build transcript parser in `core/lib/transcript/`
+- [x] Phase 1: Extract shared helpers into `core/lib/hooks/` + build transcript parser in `core/lib/transcript/`
 
 - [ ] Phase 2: Add HTTP hook endpoints + thread state writer + transcript reader to sidecar
 

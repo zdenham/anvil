@@ -48,6 +48,8 @@ import type { PermissionModeId } from "@core/types/permissions.js";
 import { createCommentResolutionHook } from "../hooks/comment-resolution-hook.js";
 import { createReplHook } from "../hooks/repl-hook.js";
 import { createSafeGitHook } from "../hooks/safe-git-hook.js";
+import { DISALLOWED_TOOLS } from "@core/lib/hooks/tool-deny.js";
+import { extractFileChange } from "@core/lib/hooks/file-changes.js";
 import { rollUpCostToParent } from "../lib/mort-repl/budget.js";
 
 // ============================================================================
@@ -476,8 +478,7 @@ export async function runAgentLoop(
 
   const systemPrompt = baseSystemPrompt;
 
-  // Tools that modify files and should be tracked for diffing
-  const FILE_MODIFYING_TOOLS = ["Edit", "Write", "NotebookEdit"];
+  // FILE_MODIFYING_TOOLS now in core/lib/hooks/file-changes.ts
 
   // Phase reminder state: track incomplete phases to nudge agent to update plan
   let currentPlanPhaseInfo: PhaseInfo | null = null;
@@ -942,102 +943,85 @@ export async function runAgentLoop(
             // Track file changes for file-modifying tools
             // This must be done here because PostToolUse hooks fire before/instead of
             // SDK user messages, so MessageHandler may never see the tool result.
-            if (FILE_MODIFYING_TOOLS.includes(input.tool_name)) {
-              const toolInput = input.tool_input as { file_path?: string; notebook_path?: string };
-              const filePath = toolInput.file_path ?? toolInput.notebook_path;
+            const fileChange = extractFileChange(
+              input.tool_name,
+              input.tool_input as Record<string, unknown>,
+              context.workingDir,
+            );
+            if (fileChange) {
+              await updateFileChange(fileChange, context.workingDir);
+              const filePath = fileChange.path;
+              logger.info(`[PostToolUse] Recorded file change: ${fileChange.operation} ${filePath}`);
 
-              if (filePath) {
-                const operation = input.tool_name === "Write" ? "create" : "modify";
-                await updateFileChange(
-                  {
-                    path: filePath,
-                    operation,
-                  },
-                  context.workingDir
-                );
-                logger.info(`[PostToolUse] Recorded file change: ${operation} ${filePath}`);
+              // Detect plan files and create/update plan entity + relation
+              if (isPlanPath(filePath, context.workingDir)) {
+                if (!context.repoId || !context.worktreeId) {
+                  logger.warn(`[PostToolUse] Cannot create plan: missing repoId or worktreeId`);
+                } else if (!context.threadId) {
+                  logger.warn(`[PostToolUse] Cannot create relation: missing threadId`);
+                } else {
+                  const absolutePath = isAbsolute(filePath)
+                    ? filePath
+                    : resolve(context.workingDir, filePath);
 
-                // Detect plan files and create/update plan entity + relation
-                // Requires repoId and worktreeId for proper plan creation
-                if (isPlanPath(filePath, context.workingDir)) {
-                  // Require repoId and worktreeId for plan creation
-                  if (!context.repoId || !context.worktreeId) {
-                    logger.warn(`[PostToolUse] Cannot create plan: missing repoId or worktreeId`);
-                  } else if (!context.threadId) {
-                    logger.warn(`[PostToolUse] Cannot create relation: missing threadId`);
-                  } else {
-                    // Normalize to absolute path for conversion
-                    const absolutePath = isAbsolute(filePath)
-                      ? filePath
-                      : resolve(context.workingDir, filePath);
-
-                    // Parse phases from plan file content
-                    let phaseInfo: PhaseInfo | null = null;
-                    try {
-                      const content = readFileSync(absolutePath, 'utf-8');
-                      phaseInfo = parsePhases(content);
-                      if (phaseInfo) {
-                        logger.info(`[PostToolUse] 📋 Parsed phases: ${phaseInfo.completed}/${phaseInfo.total}`);
-                        // Keep closure in sync for phase reminders
-                        currentPlanPhaseInfo = phaseInfo;
-                      }
-                    } catch (parseErr) {
-                      logger.warn(`[PostToolUse] Failed to parse phases: ${parseErr}`);
+                  let phaseInfo: PhaseInfo | null = null;
+                  try {
+                    const content = readFileSync(absolutePath, 'utf-8');
+                    phaseInfo = parsePhases(content);
+                    if (phaseInfo) {
+                      logger.info(`[PostToolUse] Parsed phases: ${phaseInfo.completed}/${phaseInfo.total}`);
+                      currentPlanPhaseInfo = phaseInfo;
                     }
+                  } catch (parseErr) {
+                    logger.warn(`[PostToolUse] Failed to parse phases: ${parseErr}`);
+                  }
 
+                  try {
+                    const { id: planId, isNew } = await persistence.ensurePlanExists(
+                      context.repoId,
+                      context.worktreeId,
+                      absolutePath,
+                      context.workingDir,
+                      phaseInfo
+                    );
+                    logger.info(`[PostToolUse] About to emit PLAN_DETECTED event: planId=${planId}`);
+                    emitEvent(EventName.PLAN_DETECTED, { planId }, "PostToolUse:plan-detection");
+                    logger.info(`[PostToolUse] PLAN_DETECTED event emitted to stdout: ${filePath} -> ${planId}`);
+
+                    const relationType = isNew ? 'created' : 'modified';
                     try {
-                      const { id: planId, isNew } = await persistence.ensurePlanExists(
-                        context.repoId,
-                        context.worktreeId,
-                        absolutePath,
-                        context.workingDir,
-                        phaseInfo
+                      const relation = await persistence.createOrUpgradeRelation(
+                        planId,
+                        context.threadId,
+                        relationType as 'created' | 'modified'
                       );
-                      logger.info(`[PostToolUse] 📋 About to emit PLAN_DETECTED event: planId=${planId}`);
-                      emitEvent(EventName.PLAN_DETECTED, { planId }, "PostToolUse:plan-detection");
-                      logger.info(`[PostToolUse] 📋 PLAN_DETECTED event emitted to stdout: ${filePath} -> ${planId}`);
-
-                      // Write plan-thread relation directly to disk
-                      // 'created' if this thread just created the plan, 'modified' otherwise
-                      const relationType = isNew ? 'created' : 'modified';
-                      try {
-                        const relation = await persistence.createOrUpgradeRelation(
-                          planId,
-                          context.threadId,
-                          relationType as 'created' | 'modified'
-                        );
-                        logger.info(`[PostToolUse] 📋 Created/upgraded relation: ${planId}-${context.threadId} (${relation.type})`);
-                        // Emit relation event for UI refresh
-                        emitEvent(EventName.RELATION_CREATED, {
-                          planId,
-                          threadId: context.threadId,
-                          type: relation.type,
-                        }, "PostToolUse:plan-relation");
-                      } catch (relErr) {
-                        logger.warn(`[PostToolUse] Failed to create relation: ${relErr}`);
-                      }
-
-                      // Associate thread with plan by updating thread metadata
-                      const threadMetadataPath = join(context.threadPath, "metadata.json");
-                      try {
-                        const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, "utf-8"));
-                        // Only associate if thread doesn't already have a plan
-                        if (!threadMetadata.planId) {
-                          threadMetadata.planId = planId;
-                          threadMetadata.updatedAt = Date.now();
-                          writeFileSync(threadMetadataPath, JSON.stringify(threadMetadata, null, 2));
-                          // Emit thread:updated so frontend refreshes
-                          emitEvent(EventName.THREAD_UPDATED, {
-                            threadId: context.threadId,
-                          }, "PostToolUse:plan-association");
-                          logger.info(`[PostToolUse] Associated thread ${context.threadId} with plan ${planId}`);
-                        }
-                      } catch (metaErr) {
-                        logger.warn(`[PostToolUse] Failed to associate thread with plan: ${metaErr}`);
-                      }
-                    } catch (err) {
-                      logger.warn(`[PostToolUse] Failed to create plan entity: ${err}`);
+                      logger.info(`[PostToolUse] Created/upgraded relation: ${planId}-${context.threadId} (${relation.type})`);
+                      emitEvent(EventName.RELATION_CREATED, {
+                        planId,
+                        threadId: context.threadId,
+                        type: relation.type,
+                      }, "PostToolUse:plan-relation");
+                    } catch (relErr) {
+                      logger.warn(`[PostToolUse] Failed to create relation: ${relErr}`);
                     }
+
+                    const threadMetadataPath = join(context.threadPath, "metadata.json");
+                    try {
+                      const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, "utf-8"));
+                      if (!threadMetadata.planId) {
+                        threadMetadata.planId = planId;
+                        threadMetadata.updatedAt = Date.now();
+                        writeFileSync(threadMetadataPath, JSON.stringify(threadMetadata, null, 2));
+                        emitEvent(EventName.THREAD_UPDATED, {
+                          threadId: context.threadId,
+                        }, "PostToolUse:plan-association");
+                        logger.info(`[PostToolUse] Associated thread ${context.threadId} with plan ${planId}`);
+                      }
+                    } catch (metaErr) {
+                      logger.warn(`[PostToolUse] Failed to associate thread with plan: ${metaErr}`);
+                    }
+                  } catch (err) {
+                    logger.warn(`[PostToolUse] Failed to create plan entity: ${err}`);
                   }
                 }
               }
@@ -1449,16 +1433,7 @@ export async function runAgentLoop(
             append: systemPrompt,
           },
           tools: agentConfig.tools,
-          disallowedTools: [
-            "EnterWorktree",
-            "Mcp",
-            "ListMcpResources",
-            "ReadMcpResource",
-            "SubscribeMcpResource",
-            "UnsubscribeMcpResource",
-            "SubscribePolling",
-            "UnsubscribePolling",
-          ],
+          disallowedTools: [...DISALLOWED_TOOLS],
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           includePartialMessages: true,

@@ -1,4 +1,5 @@
 import type { PreToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
+import { parseCommentResolution } from "@core/lib/hooks/comment-resolution.js";
 import { EventName } from "@core/types/events.js";
 
 interface CommentHookDeps {
@@ -8,22 +9,19 @@ interface CommentHookDeps {
 
 /**
  * Creates a PreToolUse hook that intercepts `mort-resolve-comment` Bash calls.
- * Parses comment IDs, emits COMMENT_RESOLVED events, rewrites command to echo.
+ * Thin wrapper: parses with shared helper, then emits events + returns deny.
  */
 export function createCommentResolutionHook(deps: CommentHookDeps) {
   return async (hookInput: unknown) => {
     const input = hookInput as PreToolUseHookInput;
     const command = (input.tool_input as Record<string, unknown>).command as string;
 
-    if (!command.trimStart().startsWith("mort-resolve-comment")) {
-      // Not our command — pass through to other hooks
+    const parsed = parseCommentResolution(command);
+    if (!parsed) {
       return { continue: true };
     }
 
-    // Parse: mort-resolve-comment "id1,id2,id3"
-    const argsMatch = command.match(/mort-resolve-comment\s+["']?([^"']+)["']?/);
-    if (!argsMatch) {
-      // Invalid usage — deny with reason (agent sees this as the tool error)
+    if (parsed.ids.length === 0) {
       return {
         reason: "Usage: mort-resolve-comment \"<comma-separated-ids>\"",
         hookSpecificOutput: {
@@ -33,8 +31,6 @@ export function createCommentResolutionHook(deps: CommentHookDeps) {
         },
       };
     }
-
-    const ids = argsMatch[1].split(",").map((id) => id.trim()).filter(Boolean);
 
     if (!deps.worktreeId) {
       return {
@@ -47,22 +43,19 @@ export function createCommentResolutionHook(deps: CommentHookDeps) {
       };
     }
 
-    // Emit COMMENT_RESOLVED events for each ID
-    for (const commentId of ids) {
+    for (const commentId of parsed.ids) {
       deps.emitEvent(EventName.COMMENT_RESOLVED, {
         worktreeId: deps.worktreeId,
         commentId,
       });
     }
 
-    // Deny the command (prevents any Bash execution) but with a success reason
-    // so the agent understands the comments were resolved, not that something failed.
     return {
-      reason: `Resolved ${ids.length} comment(s): ${ids.join(", ")}. Comments have been marked as resolved internally — no Bash execution needed.`,
+      reason: `Resolved ${parsed.ids.length} comment(s): ${parsed.ids.join(", ")}. Comments have been marked as resolved internally — no Bash execution needed.`,
       hookSpecificOutput: {
         hookEventName: "PreToolUse" as const,
         permissionDecision: "deny" as const,
-        permissionDecisionReason: `Successfully resolved ${ids.length} comment(s). This is a virtual command handled by the system.`,
+        permissionDecisionReason: `Successfully resolved ${parsed.ids.length} comment(s). This is a virtual command handled by the system.`,
       },
     };
   };
