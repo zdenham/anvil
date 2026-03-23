@@ -222,7 +222,7 @@ function handleSessionStart(input: SessionStartHookInput, threadId: string): Hoo
 
 - [x] Phase 2: Add HTTP hook endpoints + thread state writer + transcript reader to sidecar
 
-- [ ] Phase 3: Dynamic `hooks.json` generation in sidecar on startup
+- [x] Phase 3: Dynamic `hooks.json` generation in sidecar on startup
 
 - [ ] Phase 4: Extend `buildSpawnConfig()` with plugin + env vars
 

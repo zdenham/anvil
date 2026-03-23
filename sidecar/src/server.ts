@@ -15,6 +15,7 @@ import { handleConnection } from "./ws-handler.js";
 import { createState } from "./state.js";
 import { createLogger } from "./logger.js";
 import { createHookRouter } from "./hooks/hook-handler.js";
+import { writeHooksJson } from "./hooks/hooks-writer.js";
 
 const BASE_PORT = parseInt(process.env.MORT_WS_PORT ?? "9600", 10);
 const MAX_PORT_RETRIES = 10;
@@ -162,8 +163,18 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 });
 
 server.on("listening", () => {
-  log.info(`listening on http://127.0.0.1:${actualPort} (ws, ws/agent)`);
+  log.info(`listening on http://127.0.0.1:${actualPort} (ws, ws/agent, hooks)`);
   writePortFile();
+
+  // Write hooks.json with resolved port for Claude CLI plugin
+  if (DATA_DIR) {
+    try {
+      writeHooksJson(DATA_DIR, actualPort);
+      log.info(`wrote hooks.json to ${DATA_DIR}/hooks/hooks.json`);
+    } catch (err) {
+      log.warn(`failed to write hooks.json: ${err}`);
+    }
+  }
 });
 
 tryListen(BASE_PORT, 0);
