@@ -87,7 +87,7 @@ export class ThreadStateWriter {
   private broadcastUpdate(threadId: string, action: ThreadAction): void {
     this.broadcaster.broadcast("tui-thread-state", {
       threadId,
-      action: { type: action.type },
+      action,
     });
   }
 

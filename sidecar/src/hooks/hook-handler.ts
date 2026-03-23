@@ -4,6 +4,7 @@
  * Express router that handles POST requests from Claude CLI hooks.
  * Calls shared evaluators from core/lib/hooks/ and dispatches state
  * updates via ThreadStateWriter + TranscriptReader.
+ * Writes lifecycle events to events.jsonl via EventWriter.
  */
 
 import { Router, json } from "express";
@@ -13,6 +14,7 @@ import { extractFileChange } from "@core/lib/hooks/file-changes.js";
 import { parseCommentResolution } from "@core/lib/hooks/comment-resolution.js";
 import { ThreadStateWriter } from "./thread-state-writer.js";
 import { TranscriptReader } from "./transcript-reader.js";
+import { EventWriter } from "./event-writer.js";
 import type { EventBroadcaster } from "../push.js";
 import type { SidecarLogger } from "../logger.js";
 
@@ -47,6 +49,7 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
   const { dataDir, broadcaster, log } = deps;
   const stateWriter = new ThreadStateWriter(dataDir, broadcaster, log);
   const transcriptReader = new TranscriptReader(stateWriter, log);
+  const eventWriter = new EventWriter(dataDir, log);
 
   const router = Router();
   router.use(json());
@@ -62,13 +65,17 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
 
     log.info(`[hooks] session-start for thread ${threadId}`);
 
+    const workingDirectory = (req.body?.cwd as string) ?? "";
+
     await stateWriter.dispatch(threadId, {
       type: "INIT",
       payload: {
-        workingDirectory: (req.body?.cwd as string) ?? "",
+        workingDirectory,
         sessionId: req.body?.session_id as string | undefined,
       },
     });
+
+    eventWriter.sessionStarted(threadId, workingDirectory);
 
     res.json(continueResponse());
   });
@@ -86,6 +93,9 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
     const denyResult = shouldDenyTool(toolName);
     if (denyResult.denied) {
       log.info(`[hooks] denied tool ${toolName}: ${denyResult.reason}`);
+      if (threadId) {
+        eventWriter.toolDenied(threadId, toolName, denyResult.reason);
+      }
       res.json(denyResponse(denyResult.reason));
       return;
     }
@@ -96,6 +106,9 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
       const gitResult = evaluateGitCommand(command);
       if (!gitResult.allowed) {
         log.info(`[hooks] denied git command: ${gitResult.reason}`);
+        if (threadId) {
+          eventWriter.toolDenied(threadId, toolName, gitResult.reason);
+        }
         res.json(denyResponse(`${gitResult.reason}. ${gitResult.suggestion}`));
         return;
       }
@@ -115,12 +128,13 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
       }
     }
 
-    // 4. Track tool as running
+    // 4. Track tool as running + emit lifecycle event
     if (threadId && toolUseId) {
       await stateWriter.dispatch(threadId, {
         type: "MARK_TOOL_RUNNING",
         payload: { toolUseId, toolName },
       });
+      eventWriter.toolStarted(threadId, toolName, toolUseId);
     }
 
     res.json(allowResponse());
@@ -144,9 +158,10 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
           type: "UPDATE_FILE_CHANGE",
           payload: { change: fileChange },
         });
+        eventWriter.fileModified(threadId, fileChange.path, toolUseId);
       }
 
-      // 2. Mark tool complete
+      // 2. Mark tool complete + emit lifecycle event
       if (toolUseId) {
         const toolResult = (body.tool_result as string) ?? "";
         const isError = (body.tool_result_is_error as boolean) ?? false;
@@ -154,6 +169,7 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
           type: "MARK_TOOL_COMPLETE",
           payload: { toolUseId, result: toolResult, isError },
         });
+        eventWriter.toolCompleted(threadId, toolName, toolUseId, isError);
       }
 
       // 3. Sync transcript for messages + usage
@@ -189,6 +205,7 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
         },
       });
 
+      eventWriter.sessionEnded(threadId);
       log.info(`[hooks] stop for thread ${threadId}`);
 
       // Clean up in-memory state

@@ -215,8 +215,88 @@ describe("Hook handler", () => {
     });
   });
 
+  describe("events.jsonl lifecycle events", () => {
+    function readEvents(threadId: string) {
+      const filePath = join(dataDir, "threads", threadId, "events.jsonl");
+      if (!existsSync(filePath)) return [];
+      return readFileSync(filePath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+    }
+
+    it("writes SESSION_STARTED on session-start", async () => {
+      await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
+        "x-mort-thread-id": "thread-evt-1",
+      });
+
+      const events = readEvents("thread-evt-1");
+      expect(events.some((e: { type: string }) => e.type === "SESSION_STARTED")).toBe(true);
+    });
+
+    it("writes TOOL_STARTED and TOOL_COMPLETED on tool lifecycle", async () => {
+      await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
+        "x-mort-thread-id": "thread-evt-2",
+      });
+      await post(server, "/hooks/pre-tool-use", {
+        tool_name: "Read",
+        tool_input: { file_path: "/tmp/foo.ts" },
+        tool_use_id: "tu-evt",
+      }, { "x-mort-thread-id": "thread-evt-2" });
+      await post(server, "/hooks/post-tool-use", {
+        tool_name: "Read",
+        tool_input: { file_path: "/tmp/foo.ts" },
+        tool_use_id: "tu-evt",
+        tool_result: "contents",
+      }, { "x-mort-thread-id": "thread-evt-2" });
+
+      const events = readEvents("thread-evt-2");
+      const types = events.map((e: { type: string }) => e.type);
+      expect(types).toContain("TOOL_STARTED");
+      expect(types).toContain("TOOL_COMPLETED");
+    });
+
+    it("writes TOOL_DENIED when tool is blocked", async () => {
+      await post(server, "/hooks/pre-tool-use", {
+        tool_name: "EnterWorktree",
+        tool_input: {},
+        tool_use_id: "tu-deny",
+      }, { "x-mort-thread-id": "thread-evt-3" });
+
+      const events = readEvents("thread-evt-3");
+      expect(events.some((e: { type: string }) => e.type === "TOOL_DENIED")).toBe(true);
+    });
+
+    it("writes FILE_MODIFIED on file-changing tools", async () => {
+      await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
+        "x-mort-thread-id": "thread-evt-4",
+      });
+      await post(server, "/hooks/post-tool-use", {
+        tool_name: "Write",
+        tool_input: { file_path: "/tmp/new.ts", content: "x" },
+        tool_use_id: "tu-file",
+        tool_result: "written",
+      }, { "x-mort-thread-id": "thread-evt-4" });
+
+      const events = readEvents("thread-evt-4");
+      expect(events.some((e: { type: string }) => e.type === "FILE_MODIFIED")).toBe(true);
+    });
+
+    it("writes SESSION_ENDED on stop", async () => {
+      await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
+        "x-mort-thread-id": "thread-evt-5",
+      });
+      await post(server, "/hooks/stop", {}, {
+        "x-mort-thread-id": "thread-evt-5",
+      });
+
+      const events = readEvents("thread-evt-5");
+      expect(events.some((e: { type: string }) => e.type === "SESSION_ENDED")).toBe(true);
+    });
+  });
+
   describe("broadcasts", () => {
-    it("broadcasts tui-thread-state events", async () => {
+    it("broadcasts tui-thread-state events with full action payload", async () => {
       const events: unknown[] = [];
       broadcaster.subscribe((e) => events.push(e));
 
@@ -225,9 +305,12 @@ describe("Hook handler", () => {
       });
 
       expect(events.length).toBeGreaterThan(0);
-      const event = events[0] as { event: string; payload: { threadId: string } };
+      const event = events[0] as { event: string; payload: { threadId: string; action: { type: string; payload: unknown } } };
       expect(event.event).toBe("tui-thread-state");
       expect(event.payload.threadId).toBe("thread-bc");
+      // Full action payload should be included (not just {type})
+      expect(event.payload.action.type).toBe("INIT");
+      expect(event.payload.action.payload).toBeDefined();
     });
   });
 });

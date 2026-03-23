@@ -226,9 +226,9 @@ function handleSessionStart(input: SessionStartHookInput, threadId: string): Hoo
 
 - [x] Phase 4: Extend `buildSpawnConfig()` with plugin + env vars
 
-- [ ] Phase 5: Frontend integration for TUI thread state display
+- [x] Phase 5: Frontend integration for TUI thread state display
 
-- [ ] Phase 6: Lifecycle event emission and tracking
+- [x] Phase 6: Lifecycle event emission and tracking
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

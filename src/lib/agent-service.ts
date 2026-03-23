@@ -164,6 +164,62 @@ export async function initAgentMessageListener(): Promise<void> {
   });
 
   logger.info("[agent-service] Agent message listener initialized");
+
+  // Also listen for TUI thread state updates from the sidecar hook bridge.
+  // These arrive as "tui-thread-state" WS push events and contain the same
+  // ThreadAction payloads that agent threads emit via socket.
+  await initTuiThreadStateListener();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TUI Thread State Listener
+// ═══════════════════════════════════════════════════════════════════════════
+
+let tuiStateUnlisten: UnlistenFn | null = null;
+
+/**
+ * Listens for "tui-thread-state" WS push events from the sidecar hook bridge.
+ * Routes ThreadActions to the eventBus so TUI threads use the same state
+ * machine and reducers as agent-managed threads.
+ */
+async function initTuiThreadStateListener(): Promise<void> {
+  if (tuiStateUnlisten) return;
+
+  const STATUS_ACTIONS = new Set(["COMPLETE", "ERROR", "CANCELLED"]);
+
+  tuiStateUnlisten = await listen<{ threadId: string; action: ThreadAction }>(
+    "tui-thread-state",
+    (event) => {
+      const { threadId, action } = event.payload;
+      if (!threadId || !action) return;
+
+      eventBus.emit(EventName.THREAD_ACTION, { threadId, action });
+
+      // Terminal status transitions need to trigger a metadata refresh so
+      // the sidebar status dot and thread list update correctly.
+      if (STATUS_ACTIONS.has(action.type)) {
+        const statusMap: Record<string, string> = {
+          COMPLETE: "completed",
+          ERROR: "error",
+          CANCELLED: "cancelled",
+        };
+        eventBus.emit(EventName.THREAD_STATUS_CHANGED, {
+          threadId,
+          status: (statusMap[action.type] ?? "completed") as import("@core/types/threads.js").ThreadStatus,
+        });
+      }
+    },
+  );
+
+  logger.info("[agent-service] TUI thread state listener initialized");
+}
+
+/** Clean up TUI thread state listener. */
+export function cleanupTuiThreadStateListener(): void {
+  if (tuiStateUnlisten) {
+    tuiStateUnlisten();
+    tuiStateUnlisten = null;
+  }
 }
 
 /**
@@ -320,6 +376,7 @@ export function cleanupAgentMessageListener(): void {
     agentMessageUnlisten();
     agentMessageUnlisten = null;
   }
+  cleanupTuiThreadStateListener();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
