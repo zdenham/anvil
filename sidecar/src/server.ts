@@ -14,6 +14,7 @@ import { resolve, extname, join } from "node:path";
 import { handleConnection } from "./ws-handler.js";
 import { createState } from "./state.js";
 import { createLogger } from "./logger.js";
+import { createHookRouter } from "./hooks/hook-handler.js";
 
 const BASE_PORT = parseInt(process.env.MORT_WS_PORT ?? "9600", 10);
 const MAX_PORT_RETRIES = 10;
@@ -31,10 +32,21 @@ const log = createLogger(state);
 
 app.use((_req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, X-Mort-Thread-Id",
+  );
   next();
 });
+
+// ── Hook endpoints (Claude CLI HTTP hooks) ───────────────────────────
+
+app.use("/hooks", createHookRouter({
+  dataDir: DATA_DIR,
+  broadcaster: state.broadcaster,
+  log,
+}));
 
 // ── File server (/files?path=<absolute-path>) ──────────────────────────
 

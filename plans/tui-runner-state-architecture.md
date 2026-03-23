@@ -428,7 +428,7 @@ Created on first hook request, cleaned up on Stop hook.
 
 - [x] Update agent runner hooks to use shared helpers
 
-- [ ] Add sidecar hook endpoints + thread state writer + transcript reader
+- [x] Add sidecar hook endpoints + thread state writer + transcript reader
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
