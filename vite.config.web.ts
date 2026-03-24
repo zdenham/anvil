@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 
-const wsPort = parseInt(process.env.MORT_WS_PORT || "9600", 10);
+const wsPort = parseInt(process.env.ANVIL_WS_PORT || "9600", 10);
 
 /**
  * Vite config for the standalone web build.
@@ -16,8 +16,8 @@ export default defineConfig({
 
   define: {
     __PROJECT_ROOT__: JSON.stringify(process.cwd()),
-    __MORT_APP_SUFFIX__: JSON.stringify(""),
-    __MORT_WS_PORT__: JSON.stringify(wsPort),
+    __ANVIL_APP_SUFFIX__: JSON.stringify(""),
+    __ANVIL_WS_PORT__: JSON.stringify(wsPort),
   },
 
   resolve: {

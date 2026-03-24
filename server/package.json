@@ -1,5 +1,5 @@
 {
-  "name": "mort-server",
+  "name": "anvil-server",
   "version": "0.0.1",
   "type": "module",
   "scripts": {

@@ -1,12 +1,12 @@
 {
-  "name": "@mort/sidecar",
+  "name": "@anvil/sidecar",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "dev": "MORT_APP_SUFFIX=dev tsx watch src/server.ts",
+    "dev": "ANVIL_APP_SUFFIX=dev tsx watch src/server.ts",
     "start": "node dist/server.js",
     "test": "vitest run"
   },

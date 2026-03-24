@@ -1,7 +1,7 @@
 {
-  "name": "mortician-api",
+  "name": "anvil-api",
   "version": "1.0.0",
-  "description": "Fastify API server for Mortician",
+  "description": "Fastify API server for Anvil",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
   "dependencies": {
     "fastify": "^4.26.2"
   },
-  "keywords": ["fastify", "api", "mortician"],
+  "keywords": ["fastify", "api", "anvil"],
   "author": "",
   "license": "ISC"
 }

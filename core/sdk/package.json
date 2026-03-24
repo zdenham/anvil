@@ -1,5 +1,5 @@
 {
-  "name": "@mort/sdk-runner",
+  "name": "@anvil/sdk-runner",
   "version": "0.0.1",
   "private": true,
   "type": "module",
