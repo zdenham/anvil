@@ -84,7 +84,7 @@ vi.mock("@/lib/utils/thread-diff-generator", () => ({
   }),
 }));
 
-// Real test data matching a thread at /Users/zac/.mort-dev/threads/
+// Real test data matching a thread at /Users/zac/.anvil-dev/threads/
 const THREAD_ID = "5863f47e-8573-468c-9694-5b72479c50a8";
 const PLAN_ID = "f3a45523-4e7f-47a3-9895-fa8ca0a22d2f";
 

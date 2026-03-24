@@ -2,8 +2,8 @@ import { z } from "zod";
 import { VisualSettingsSchema } from "./visual-settings.js";
 
 /**
- * Persisted PR metadata -- the binding between a GitHub PR and a Mort worktree.
- * Storage: ~/.mort/pull-requests/{id}/metadata.json
+ * Persisted PR metadata -- the binding between a GitHub PR and an Anvil worktree.
+ * Storage: ~/.anvil/pull-requests/{id}/metadata.json
  *
  * This is intentionally lightweight. The gh CLI is the source of truth for all
  * display data (title, description, checks, reviews). We only persist the fields

@@ -1,11 +1,11 @@
 import { readFileSync, watch, type FSWatcher } from "fs";
 import { join } from "path";
-import { getMortDir } from "@core/lib/mort-dir.js";
+import { getAnvilDir } from "@core/lib/mort-dir.js";
 import { PaneLayoutPersistedStateSchema } from "@core/types/pane-layout.js";
 import { extractVisibleThreadIds } from "@core/lib/pane-layout.js";
 import { LIFECYCLE_EVENTS } from "@core/types/events.js";
 
-const PANE_LAYOUT_PATH = join(getMortDir(), "ui", "pane-layout.json");
+const PANE_LAYOUT_PATH = join(getAnvilDir(), "ui", "pane-layout.json");
 const RETRY_DELAY_MS = 50;
 
 /**

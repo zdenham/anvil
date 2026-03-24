@@ -16,14 +16,14 @@ export interface BudgetCheckResult {
  */
 export function isOverBudget(
   threadId: string,
-  mortDir: string,
+  anvilDir: string,
 ): BudgetCheckResult {
   const visited = new Set<string>();
   let currentId: string | undefined = threadId;
 
   while (currentId && !visited.has(currentId)) {
     visited.add(currentId);
-    const metadataPath = join(mortDir, "threads", currentId, "metadata.json");
+    const metadataPath = join(anvilDir, "threads", currentId, "metadata.json");
 
     let metadata: Record<string, unknown>;
     try {
@@ -69,14 +69,14 @@ export function isOverBudget(
  * both synchronous contexts.
  */
 export function rollUpCostToParent(
-  mortDir: string,
+  anvilDir: string,
   parentThreadId: string,
   childTreeCost: number,
 ): void {
   if (childTreeCost <= 0) return;
 
   const parentPath = join(
-    mortDir,
+    anvilDir,
     "threads",
     parentThreadId,
     "metadata.json",

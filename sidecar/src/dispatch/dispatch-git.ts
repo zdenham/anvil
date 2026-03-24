@@ -11,8 +11,8 @@ export async function dispatchGit(
   args: Record<string, unknown>,
 ): Promise<unknown> {
   switch (cmd) {
-    case "git_list_mort_branches":
-      return listMortBranches(extractArg(args, "repoPath"));
+    case "git_list_anvil_branches":
+      return listAnvilBranches(extractArg(args, "repoPath"));
 
     case "git_diff_uncommitted":
       return diffUncommitted(extractArg(args, "workingDirectory"));
@@ -170,8 +170,8 @@ async function dispatchGitPart3(
 
 // ── Implementation helpers ─────────────────────────────────────────────
 
-async function listMortBranches(repoPath: string): Promise<string[]> {
-  const output = await gitSafe(repoPath, ["branch", "--list", "mort/*"]);
+async function listAnvilBranches(repoPath: string): Promise<string[]> {
+  const output = await gitSafe(repoPath, ["branch", "--list", "anvil/*"]);
   if (!output) return [];
   return output
     .split("\n")

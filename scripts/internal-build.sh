@@ -179,7 +179,7 @@ export APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
 pnpm build
 
 # --- 4. Locate and Verify App Bundle ---
-APP_PATH="src-tauri/target/release/bundle/macos/Mort.app"
+APP_PATH="src-tauri/target/release/bundle/macos/Anvil.app"
 
 if [ ! -d "$APP_PATH" ]; then
   echo "Error: App bundle not found at ${APP_PATH}"
@@ -213,7 +213,7 @@ ZIP_PATH="src-tauri/target/release/bundle/macos/${ZIP_NAME}"
 
 echo "Creating zip archive: ${ZIP_NAME}..."
 cd src-tauri/target/release/bundle/macos
-zip -r -q "${ZIP_NAME}" Mort.app
+zip -r -q "${ZIP_NAME}" Anvil.app
 cd - > /dev/null
 
 echo "Zip created: ${ZIP_PATH}"
@@ -221,13 +221,13 @@ echo "Zip created: ${ZIP_PATH}"
 # --- 6. Upload to Cloudflare R2 ---
 echo "Uploading to Cloudflare R2..."
 
-# Upload the zip to mort-builds/
+# TODO(anvil-rename): update R2 bucket path when infra is migrated
 npx wrangler r2 object put "mort-builds/mort-builds/${ZIP_NAME}" \
   --file="${ZIP_PATH}" \
   --content-type="application/zip" \
   --remote
 
-echo "Uploaded ${ZIP_NAME} to mort-builds/"
+echo "Uploaded ${ZIP_NAME} to R2"
 
 # --- 7. Update Version File ---
 echo "Updating version file..."
@@ -236,7 +236,7 @@ echo "Updating version file..."
 VERSION_FILE=$(mktemp)
 echo -n "${NEW_VERSION}" > "$VERSION_FILE"
 
-# Upload version file
+# TODO(anvil-rename): update R2 bucket path when infra is migrated
 npx wrangler r2 object put "mort-builds/mort-installation-scripts/version" \
   --file="$VERSION_FILE" \
   --content-type="text/plain" \
@@ -257,8 +257,10 @@ else
 echo "  Signed:  No (unsigned build)"
 fi
 echo "  Zip: ${ZIP_PATH}"
+# TODO(anvil-rename): update R2 path reference when infra is migrated
 echo "  R2 path: mort-builds/${ZIP_NAME}"
 echo "=========================================="
 echo ""
 echo "Users can install with:"
+# TODO(anvil-rename): update URL when infra is migrated
 echo "  curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh | bash"

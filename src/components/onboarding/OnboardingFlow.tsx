@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "../reusable/Button";
 import { saveHotkey } from "../../lib/hotkey-service";
 import { repoService } from "../../entities/repositories";
-import { bootstrapMortDirectory } from "../../lib/mort-bootstrap";
+import { bootstrapAnvilDirectory } from "../../lib/mort-bootstrap";
 import { logger } from "../../lib/logger-client";
 import { WelcomeStep } from "./steps/WelcomeStep";
 import { RepositoryStep } from "./steps/RepositoryStep";
@@ -25,7 +25,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   useEffect(() => {
     async function checkExistingRepo() {
       try {
-        await bootstrapMortDirectory();
+        await bootstrapAnvilDirectory();
         await repoService.hydrate();
 
         const repos = repoService.getAll();

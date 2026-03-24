@@ -11,9 +11,9 @@ import { VisualSettingsSchema } from "./visual-settings.js";
  * Stored in repository settings, keyed by thread ID.
  */
 export const ThreadBranchInfoSchema = z.object({
-  /** Branch name, e.g., "mort/thread-abc123" */
+  /** Branch name, e.g., "anvil/thread-abc123" */
   branch: z.string(),
-  /** Base branch this was created from, e.g., "main" or "mort/thread-parent" */
+  /** Base branch this was created from, e.g., "main" or "anvil/thread-parent" */
   baseBranch: z.string(),
   /** Commit hash at branch creation - used for accurate diffs */
   mergeBase: z.string(),
@@ -44,7 +44,7 @@ export const WorktreeStateSchema = z.object({
   isRenamed: z.boolean().optional(),
   /** Visual settings for sidebar tree positioning */
   visualSettings: VisualSettingsSchema.nullish(),
-  /** Whether this worktree was discovered via git (not created by Mort) */
+  /** Whether this worktree was discovered via git (not created by Anvil) */
   isExternal: z.boolean().optional(),
 });
 export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
@@ -61,7 +61,7 @@ export interface RepoWorktree {
 
 /**
  * Repository settings file structure.
- * Location: ~/.mort/repositories/{repo-slug}/settings.json
+ * Location: ~/.anvil/repositories/{repo-slug}/settings.json
  *
  * Includes migration support for older formats:
  * - Adds defaultBranch if missing (defaults to 'main')
@@ -82,7 +82,7 @@ export const RepositorySettingsSchema = z.object({
   useWorktrees: z.boolean(),
   /** Default branch name (e.g., "main", "master") */
   defaultBranch: z.string().default('main'),
-  /** When this repo was added to mort */
+  /** When this repo was added to anvil */
   createdAt: z.number(),
   /** Pool of available worktrees */
   worktrees: z.array(WorktreeStateSchema).default([]),

@@ -1,11 +1,11 @@
-import { getBundledPluginPath, getMortDir } from './paths';
+import { getBundledPluginPath, getAnvilDir } from './paths';
 import { FilesystemClient } from './filesystem-client';
 import { logger } from './logger-client';
 
 const fs = new FilesystemClient();
 
 /**
- * Sync managed skills from the bundled plugin to ~/.mort.
+ * Sync managed skills from the bundled plugin to ~/.anvil.
  *
  * - Copies .claude-plugin/plugin.json (always overwrites)
  * - Copies skills/* (overwrites existing managed skills, preserves user-created)
@@ -16,21 +16,21 @@ export async function syncManagedSkills(): Promise<void> {
 
   let t = performance.now();
   const pluginSourcePath = await getBundledPluginPath();
-  const mortDir = await getMortDir();
+  const anvilDir = await getAnvilDir();
   logger.info(`[startup:skill-sync] resolve paths: ${(performance.now() - t).toFixed(0)}ms`);
 
   // 1. Sync .claude-plugin/plugin.json
   t = performance.now();
   const srcPluginJson = `${pluginSourcePath}/.claude-plugin/plugin.json`;
-  const dstPluginJson = `${mortDir}/.claude-plugin/plugin.json`;
-  await fs.mkdir(`${mortDir}/.claude-plugin`);
+  const dstPluginJson = `${anvilDir}/.claude-plugin/plugin.json`;
+  await fs.mkdir(`${anvilDir}/.claude-plugin`);
   await fs.copyFile(srcPluginJson, dstPluginJson);
   logger.info(`[startup:skill-sync] copy plugin.json: ${(performance.now() - t).toFixed(0)}ms`);
 
   // 2. Sync skills directory
   t = performance.now();
   const srcSkillsDir = `${pluginSourcePath}/skills`;
-  const dstSkillsDir = `${mortDir}/skills`;
+  const dstSkillsDir = `${anvilDir}/skills`;
   await fs.mkdir(dstSkillsDir);
 
   const sourceSkills = await fs.listDir(srcSkillsDir);

@@ -4,7 +4,7 @@ import { SpotlightResult } from "./types";
 import { ResultItem } from "./result-item";
 import { AppIcon } from "./app-icon";
 import { CalculatorIcon } from "./calculator-icon";
-import { MortLogo } from "../ui/mort-logo";
+import { AnvilLogo } from "../ui/mort-logo";
 import type { RepoWorktree } from "@core/types/repositories";
 import { BUILTIN_MODES, type PermissionModeId } from "@core/types/permissions";
 
@@ -88,7 +88,7 @@ const getResultDisplay = (
 
   if (result.type === "thread") {
     // Build subtitle based on worktree state
-    let subtitle: React.ReactNode = "Ask Mort to help with this";
+    let subtitle: React.ReactNode = "Ask Anvil to help with this";
     if (worktreeInfo) {
       const { repoWorktrees, selectedWorktreeIndex, repoCount } = worktreeInfo;
       const selected = repoWorktrees[selectedWorktreeIndex];
@@ -126,17 +126,17 @@ const getResultDisplay = (
     );
 
     return {
-      icon: <div className="w-10 h-10 flex items-center justify-center"><MortLogo size={7} /></div>,
+      icon: <div className="w-10 h-10 flex items-center justify-center"><AnvilLogo size={24} /></div>,
       title,
       subtitle,
     };
   }
 
   if (result.type === "action") {
-    if (result.data.action === "open-mort") {
+    if (result.data.action === "open-anvil") {
       return {
-        icon: <div className="w-10 h-10 flex items-center justify-center"><MortLogo size={7} /></div>,
-        title: "Mort",
+        icon: <div className="w-10 h-10 flex items-center justify-center"><AnvilLogo size={24} /></div>,
+        title: "Anvil",
         subtitle: "Open the main window",
       };
     }

@@ -5,7 +5,7 @@ import { MainWindowLayout } from "./components/main-window/main-window-layout";
 import { hydrateEntities, setupEntityListeners } from "./entities";
 import { isOnboarded, completeOnboarding } from "./lib/hotkey-service";
 import { initializeTriggers } from "./lib/triggers";
-import { bootstrapMortDirectory } from "./lib/mort-bootstrap";
+import { bootstrapAnvilDirectory } from "./lib/mort-bootstrap";
 import { initAgentMessageListener, cleanupAgentMessageListener } from "./lib/agent-service";
 import { logger } from "./lib/logger-client";
 
@@ -57,8 +57,8 @@ function App() {
       logger.info(`[startup] window.setSize: ${(performance.now() - t).toFixed(0)}ms`);
 
       t = performance.now();
-      await bootstrapMortDirectory();
-      logger.info(`[startup] bootstrapMortDirectory: ${(performance.now() - t).toFixed(0)}ms`);
+      await bootstrapAnvilDirectory();
+      logger.info(`[startup] bootstrapAnvilDirectory: ${(performance.now() - t).toFixed(0)}ms`);
 
       t = performance.now();
       await hydrateEntities();

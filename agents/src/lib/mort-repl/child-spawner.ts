@@ -17,7 +17,7 @@ interface ChildSpawnerDeps {
 }
 
 /**
- * Spawns child agent processes for mort-repl.
+ * Spawns child agent processes for anvil-repl.
  *
  * Reuses the same thread-on-disk pattern as PreToolUse:Task in shared.ts:
  * create metadata + state on disk, emit thread:created, spawn runner process,
@@ -76,29 +76,29 @@ export class ChildSpawner {
           writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
         }
       } catch (err) {
-        logger.warn(`[mort-repl] Failed to write cancelled status for ${threadId}: ${err}`);
+        logger.warn(`[anvil-repl] Failed to write cancelled status for ${threadId}: ${err}`);
       }
 
       // Emit events so frontend updates immediately
       this.emitEvent(
         EventName.THREAD_STATUS_CHANGED,
         { threadId, status: "cancelled" },
-        "mort-repl:child-cancel",
+        "anvil-repl:child-cancel",
       );
       this.emitEvent(
         EventName.AGENT_COMPLETED,
         { threadId, exitCode: 130 },
-        "mort-repl:child-cancel",
+        "anvil-repl:child-cancel",
       );
 
-      logger.info(`[mort-repl] Cancelled child ${threadId}`);
+      logger.info(`[anvil-repl] Cancelled child ${threadId}`);
     }
     this.activeChildren.clear();
   }
 
   /** Spawn a child agent process and return its last assistant message text. */
   async spawn(options: SpawnOptions): Promise<string> {
-    const budgetCheck = isOverBudget(this.context.threadId, this.context.mortDir);
+    const budgetCheck = isOverBudget(this.context.threadId, this.context.anvilDir);
     if (budgetCheck.overBudget) {
       throw new Error(
         `Budget exceeded: thread ${budgetCheck.budgetThreadId} ` +
@@ -108,7 +108,7 @@ export class ChildSpawner {
     }
 
     const childThreadId = crypto.randomUUID();
-    const childThreadPath = join(this.context.mortDir, "threads", childThreadId);
+    const childThreadPath = join(this.context.anvilDir, "threads", childThreadId);
 
     this.createThreadOnDisk(childThreadId, childThreadPath, options);
     this.emitThreadCreated(childThreadId);
@@ -181,9 +181,9 @@ export class ChildSpawner {
         threadId: childThreadId,
         repoId: this.context.repoId,
         worktreeId: this.context.worktreeId,
-        source: "mort-repl:child-spawn",
+        source: "anvil-repl:child-spawn",
       },
-      "mort-repl:child-spawn",
+      "anvil-repl:child-spawn",
     );
   }
 
@@ -209,10 +209,10 @@ export class ChildSpawner {
         this.emitEvent(
           EventName.THREAD_NAME_GENERATED,
           { threadId: childThreadId, name },
-          "mort-repl:name",
+          "anvil-repl:name",
         );
       })
-      .catch((err) => logger.warn(`[mort-repl] Failed to generate name: ${err}`));
+      .catch((err) => logger.warn(`[anvil-repl] Failed to generate name: ${err}`));
   }
 
   /** Spawn the child runner process with the appropriate CLI args. */
@@ -231,7 +231,7 @@ export class ChildSpawner {
       "--worktree-id", this.context.worktreeId,
       "--cwd", this.context.workingDir,
       "--prompt", options.prompt,
-      "--mort-dir", this.context.mortDir,
+      "--anvil-dir", this.context.anvilDir,
       "--parent-thread-id", this.context.threadId,
       "--permission-mode", this.context.permissionModeId,
       "--skip-naming",
@@ -263,7 +263,7 @@ export class ChildSpawner {
 
     const exitCode = await new Promise<number>((resolve) => {
       const timer = setTimeout(() => {
-        logger.warn(`[mort-repl] Child ${childThreadId} timed out after ${timeoutMs}ms, killing`);
+        logger.warn(`[anvil-repl] Child ${childThreadId} timed out after ${timeoutMs}ms, killing`);
         try { process.kill(child.pid!, "SIGTERM"); } catch { /* already exited */ }
         setTimeout(() => {
           try { process.kill(child.pid!, "SIGKILL"); } catch { /* already exited */ }
@@ -273,7 +273,7 @@ export class ChildSpawner {
       child.on("exit", (code) => { clearTimeout(timer); resolve(code ?? 1); });
       child.on("error", (err) => {
         clearTimeout(timer);
-        logger.error(`[mort-repl] Child process error: ${err}`);
+        logger.error(`[anvil-repl] Child process error: ${err}`);
         resolve(1);
       });
     });
@@ -292,7 +292,7 @@ export class ChildSpawner {
     this.emitEvent(
       EventName.THREAD_STATUS_CHANGED,
       { threadId: childThreadId, status },
-      "mort-repl:child-complete",
+      "anvil-repl:child-complete",
     );
     // Read child's cost from metadata (written by child's complete() in output.ts)
     const childCostUsd = this.readChildCostFromMetadata(childThreadPath);
@@ -300,14 +300,14 @@ export class ChildSpawner {
     this.emitEvent(
       EventName.AGENT_COMPLETED,
       { threadId: childThreadId, exitCode, costUsd: childCostUsd },
-      "mort-repl:child-complete",
+      "anvil-repl:child-complete",
     );
 
     // Roll up child's tree cost to parent metadata
     this.rollUpChildCost(childThreadPath);
 
     logger.info(
-      `[mort-repl] Child ${childThreadId} exited with code ${exitCode} in ${durationMs}ms`,
+      `[anvil-repl] Child ${childThreadId} exited with code ${exitCode} in ${durationMs}ms`,
     );
 
     return resultText;
@@ -334,9 +334,9 @@ export class ChildSpawner {
       const childTreeCost = (childMeta.totalCostUsd ?? 0) + (childMeta.cumulativeCostUsd ?? 0);
       if (childTreeCost <= 0) return;
 
-      rollUpCostToParent(this.context.mortDir, this.context.threadId, childTreeCost);
+      rollUpCostToParent(this.context.anvilDir, this.context.threadId, childTreeCost);
     } catch (err) {
-      logger.warn(`[mort-repl] Failed to roll up child cost: ${err}`);
+      logger.warn(`[anvil-repl] Failed to roll up child cost: ${err}`);
     }
   }
 
@@ -358,7 +358,7 @@ export class ChildSpawner {
           ?.map((c: { text: string }) => c.text)
           ?.join("\n") ?? "";
     } catch (err) {
-      logger.warn(`[mort-repl] Failed to read child state: ${err}`);
+      logger.warn(`[anvil-repl] Failed to read child state: ${err}`);
     }
 
     // Truncate to 50KB

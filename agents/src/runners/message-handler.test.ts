@@ -583,8 +583,8 @@ describe("MessageHandler", () => {
         toolUseId === "toolu_task" ? CHILD_THREAD_ID : undefined
       );
 
-      // Create handler with mortDir so child thread routing activates
-      const tmpDir = "/tmp/test-mort";
+      // Create handler with anvilDir so child thread routing activates
+      const tmpDir = "/tmp/test-anvil";
       childHandler = new MessageHandler(tmpDir);
 
       // Mock hub client

@@ -20,8 +20,8 @@ export const mockFileSystem = new Map<string, string>();
 /** Home directory for tests */
 export const MOCK_HOME_DIR = "/Users/test";
 
-/** Mort directory for tests */
-export const MOCK_MORT_DIR = `${MOCK_HOME_DIR}/.mort`;
+/** Anvil directory for tests */
+export const MOCK_ANVIL_DIR = `${MOCK_HOME_DIR}/.anvil`;
 
 // ============================================================================
 // Mock Git State
@@ -114,7 +114,7 @@ export const mockInvoke = vi.fn(async (cmd: string, args?: Record<string, unknow
       return MOCK_HOME_DIR;
 
     case "fs_get_repo_dir":
-      return `${MOCK_MORT_DIR}/repositories/${args?.repoName}`;
+      return `${MOCK_ANVIL_DIR}/repositories/${args?.repoName}`;
 
     case "fs_get_repo_source_path":
       return `/Users/test/code/${args?.repoName}`;
@@ -146,8 +146,8 @@ export const mockInvoke = vi.fn(async (cmd: string, args?: Record<string, unknow
       mockGitState.branches.delete(args?.branch as string);
       return;
 
-    case "git_list_mort_branches":
-      return [...mockGitState.branches.keys()].filter((b) => b.startsWith("mort/"));
+    case "git_list_anvil_branches":
+      return [...mockGitState.branches.keys()].filter((b) => b.startsWith("anvil/"));
 
     case "git_list_worktrees":
       return mockGitState.worktrees;
@@ -178,7 +178,7 @@ export const mockInvoke = vi.fn(async (cmd: string, args?: Record<string, unknow
 
     // Path resolution
     case "get_paths_info":
-      return { data_dir: MOCK_MORT_DIR, config_dir: MOCK_MORT_DIR, app_suffix: "", is_alternate_build: false };
+      return { data_dir: MOCK_ANVIL_DIR, config_dir: MOCK_ANVIL_DIR, app_suffix: "", is_alternate_build: false };
 
     // Directory creation (no-op in virtual filesystem)
     case "fs_mkdir":

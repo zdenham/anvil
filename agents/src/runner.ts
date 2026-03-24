@@ -183,9 +183,9 @@ async function main(): Promise<void> {
             permissionEvaluator.setMode(newMode);
             logger.info(`[runner] Permission mode changed to: ${newMode.name}`);
             // Propagate to running child threads
-            const mortDir = process.env.MORT_DATA_DIR;
-            if (context && mortDir) {
-              propagateModeToChildren(context.threadId, newModeId, mortDir);
+            const anvilDir = process.env.ANVIL_DATA_DIR;
+            if (context && anvilDir) {
+              propagateModeToChildren(context.threadId, newModeId, anvilDir);
             }
             // Notify agent via streamInput
             const planContext = newMode.id === "plan"
@@ -285,9 +285,9 @@ async function main(): Promise<void> {
     // Parse args using strategy-specific logic
     const config = strategy.parseArgs(args);
 
-    // Set MORT_DATA_DIR env var so the `mort` CLI can find the correct data directory
+    // Set ANVIL_DATA_DIR env var so the `anvil` CLI can find the correct data directory
     // This is important because the CLI is invoked as a subprocess by agents
-    process.env.MORT_DATA_DIR = config.mortDir;
+    process.env.ANVIL_DATA_DIR = config.anvilDir;
 
     // Get agent configuration (model, tools, prompts) - hardcoded to "simple"
     const agentConfig = getAgentConfig("simple");
@@ -325,12 +325,12 @@ async function main(): Promise<void> {
     // Proxy config is passed through options so only the SDK query() env gets
     // proxy vars — subprocess tools (Bash → gh, git, curl) stay unaffected.
     let proxyConfig: { port: number; certPath: string } | undefined;
-    if (process.env.MORT_NETWORK_DEBUG === "1") {
+    if (process.env.ANVIL_NETWORK_DEBUG === "1") {
       logger.info("[runner] Network debug enabled, starting proxy interceptor");
       const { CertManager } = await import("./lib/proxy/cert-manager.js");
       const { ProxyServer } = await import("./lib/proxy/proxy-server.js");
 
-      const certManager = new CertManager(config.mortDir);
+      const certManager = new CertManager(config.anvilDir);
       await certManager.ensureCA();
 
       const proxy = new ProxyServer(certManager, (event) => {

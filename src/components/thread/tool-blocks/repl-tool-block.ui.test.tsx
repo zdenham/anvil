@@ -7,35 +7,35 @@ import { extractReplCode, stripReplPrefix, ReplToolBlock } from "./repl-tool-blo
 
 describe("extractReplCode", () => {
   it("extracts code from heredoc format", () => {
-    const command = `mort-repl <<'MORT_REPL'\nconst x = 42;\nreturn x;\nMORT_REPL`;
+    const command = `anvil-repl <<'ANVIL_REPL'\nconst x = 42;\nreturn x;\nANVIL_REPL`;
     expect(extractReplCode(command)).toBe("const x = 42;\nreturn x;");
   });
 
   it("extracts code from quoted format", () => {
-    expect(extractReplCode(`mort-repl "return 42"`)).toBe("return 42");
-    expect(extractReplCode(`mort-repl 'return 42'`)).toBe("return 42");
+    expect(extractReplCode(`anvil-repl "return 42"`)).toBe("return 42");
+    expect(extractReplCode(`anvil-repl 'return 42'`)).toBe("return 42");
   });
 
   it("returns null for non-repl commands", () => {
     expect(extractReplCode("ls -la")).toBeNull();
     expect(extractReplCode("git status")).toBeNull();
-    expect(extractReplCode("echo mort-repl")).toBeNull();
+    expect(extractReplCode("echo anvil-repl")).toBeNull();
   });
 
   it("handles leading whitespace", () => {
-    expect(extractReplCode("  mort-repl 'return 1'")).toBe("return 1");
+    expect(extractReplCode("  anvil-repl 'return 1'")).toBe("return 1");
   });
 });
 
 describe("stripReplPrefix", () => {
-  it("strips 'mort-repl result:' prefix", () => {
-    const { text, isReplError } = stripReplPrefix("mort-repl result:\n42");
+  it("strips 'anvil-repl result:' prefix", () => {
+    const { text, isReplError } = stripReplPrefix("anvil-repl result:\n42");
     expect(text).toBe("42");
     expect(isReplError).toBe(false);
   });
 
-  it("strips 'mort-repl error:' prefix and flags error", () => {
-    const { text, isReplError } = stripReplPrefix("mort-repl error:\nReferenceError: x is not defined");
+  it("strips 'anvil-repl error:' prefix and flags error", () => {
+    const { text, isReplError } = stripReplPrefix("anvil-repl error:\nReferenceError: x is not defined");
     expect(text).toBe("ReferenceError: x is not defined");
     expect(isReplError).toBe(true);
   });
@@ -54,8 +54,8 @@ describe("stripReplPrefix", () => {
 
   it("strips system instruction prefix then repl prefix", () => {
     // The hook now prepends a [System: ...] block — stripReplPrefix
-    // operates on the raw result which still has the mort-repl prefix
-    const raw = "mort-repl result:\n{foo: 1}";
+    // operates on the raw result which still has the anvil-repl prefix
+    const raw = "anvil-repl result:\n{foo: 1}";
     const { text, isReplError } = stripReplPrefix(raw);
     expect(text).toBe("{foo: 1}");
     expect(isReplError).toBe(false);
@@ -69,13 +69,13 @@ describe("ReplToolBlock", () => {
     id: "toolu_repl_01",
     threadId: "thread-1",
     code: 'const x = 42;\nreturn x;',
-    result: "mort-repl result:\n42",
+    result: "anvil-repl result:\n42",
     isRunning: false,
   };
 
-  it("renders mort-repl label", () => {
+  it("renders anvil-repl label", () => {
     render(<ReplToolBlock {...defaultProps} />);
-    expect(screen.getByText("mort-repl")).toBeInTheDocument();
+    expect(screen.getByText("anvil-repl")).toBeInTheDocument();
   });
 
   it("shows first line of code as preview", () => {
@@ -103,11 +103,11 @@ describe("ReplToolBlock", () => {
 
   it("shows shimmer text while running", () => {
     render(<ReplToolBlock {...defaultProps} isRunning={true} result={undefined} />);
-    expect(screen.getByText("mort-repl")).toHaveClass("animate-shimmer");
+    expect(screen.getByText("anvil-repl")).toHaveClass("animate-shimmer");
   });
 
   it("shows error indicator for repl errors", () => {
-    const errorResult = "mort-repl error:\nReferenceError: x is not defined";
+    const errorResult = "anvil-repl error:\nReferenceError: x is not defined";
     render(
       <ReplToolBlock
         {...defaultProps}

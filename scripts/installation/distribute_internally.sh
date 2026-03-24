@@ -4,41 +4,43 @@ cat << 'EOF'
      █ ◠◡◠ █
       ▀▄▄▄▀
 
-  mortician inbound... 
+  anvil inbound...
 
 EOF
 
+# TODO(anvil-rename): update when infra is migrated
 VERSION=$(curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/version)
 
-echo "Installing Mort ${VERSION}..."
+echo "Installing Anvil ${VERSION}..."
 
-echo "Quitting existing Mort..."
-killall mort 2>/dev/null || true
+echo "Quitting existing Anvil..."
+killall anvil 2>/dev/null || true
 
 echo "Cleaning up old files..."
-rm -rf ~/Downloads/Mort.zip ~/Downloads/Mort.app /Applications/Mort.app
+rm -rf ~/Downloads/Anvil.zip ~/Downloads/Anvil.app /Applications/Anvil.app
 
-echo "Downloading Mort ${VERSION}..."
-curl -fL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-builds/${VERSION}.zip -o ~/Downloads/Mort.zip
+echo "Downloading Anvil ${VERSION}..."
+# TODO(anvil-rename): update when infra is migrated
+curl -fL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-builds/${VERSION}.zip -o ~/Downloads/Anvil.zip
 
-if [ ! -f ~/Downloads/Mort.zip ]; then
-    echo "Error: Failed to download Mort ${VERSION}. Build may not exist."
+if [ ! -f ~/Downloads/Anvil.zip ]; then
+    echo "Error: Failed to download Anvil ${VERSION}. Build may not exist."
     exit 1
 fi
 
 echo "Extracting..."
-unzip -o -q ~/Downloads/Mort.zip -d ~/Downloads/ -x "__MACOSX/*"
+unzip -o -q ~/Downloads/Anvil.zip -d ~/Downloads/ -x "__MACOSX/*"
 
 echo "Moving to Applications..."
-mv ~/Downloads/Mort.app /Applications/
+mv ~/Downloads/Anvil.app /Applications/
 
-echo "Opening Mort..."
-xattr -rd com.apple.quarantine /Applications/Mort.app 2>/dev/null || true
-open /Applications/Mort.app
+echo "Opening Anvil..."
+xattr -rd com.apple.quarantine /Applications/Anvil.app 2>/dev/null || true
+open /Applications/Anvil.app
 
 # Force activation - `open` from a backgrounded shell process doesn't
 # reliably activate the app, leaving WKWebView in a broken focus state
 sleep 2
-osascript -e 'tell application "Mort" to activate' 2>/dev/null || true
+osascript -e 'tell application "Anvil" to activate' 2>/dev/null || true
 
 echo "Done!"

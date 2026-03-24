@@ -35,7 +35,7 @@ export function AboutSettings() {
       <div data-testid="about-settings" className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-surface-400">
           <Info size={16} />
-          <span>Mortician v{version}</span>
+          <span>Anvil v{version}</span>
         </div>
         <button
           onClick={handleUpdate}

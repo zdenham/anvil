@@ -3,7 +3,7 @@ import { VisualSettingsSchema } from "./visual-settings.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Folder Entity Types - Zod schemas with derived types
-// Storage: ~/.mort/folders/{id}/metadata.json
+// Storage: ~/.anvil/folders/{id}/metadata.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**

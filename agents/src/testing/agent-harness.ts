@@ -3,7 +3,7 @@ import { createInterface as createReadlineInterface } from "readline";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-import { TestMortDirectory } from "./services/test-mort-directory.js";
+import { TestAnvilDirectory } from "./services/test-mort-directory.js";
 import { TestRepository } from "./services/test-repository.js";
 import { RunnerConfig, defaultRunnerConfig } from "./runner-config.js";
 import { MockHubServer } from "./mock-hub-server.js";
@@ -24,10 +24,10 @@ export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
   /**
    * Custom environment setup function.
    * Use this to configure a specific test scenario with custom
-   * mort directory contents or repository fixtures.
+   * anvil directory contents or repository fixtures.
    */
   setupEnvironment?: () => Promise<{
-    mortDir: TestMortDirectory;
+    anvilDir: TestAnvilDirectory;
     repo: TestRepository;
   }>;
 }
@@ -35,11 +35,11 @@ export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
 /**
  * Test harness for spawning agent subprocesses and capturing their output.
  *
- * The harness manages the lifecycle of test resources (mort directory, repository)
+ * The harness manages the lifecycle of test resources (anvil directory, repository)
  * and provides structured access to agent output for assertions.
  */
 export class AgentTestHarness {
-  private mortDir: TestMortDirectory | null = null;
+  private anvilDir: TestAnvilDirectory | null = null;
   private repo: TestRepository | null = null;
   private mockHub: MockHubServer | null = null;
   private runnerConfig: RunnerConfig;
@@ -55,7 +55,7 @@ export class AgentTestHarness {
    * Returns null if run() has not been called yet.
    */
   get tempDirPath(): string | null {
-    return this.mortDir?.path ?? null;
+    return this.anvilDir?.path ?? null;
   }
 
   /**
@@ -77,7 +77,7 @@ export class AgentTestHarness {
   /**
    * Run an agent and capture all stdout output.
    *
-   * Creates temporary test resources (mort directory, repository),
+   * Creates temporary test resources (anvil directory, repository),
    * spawns the agent subprocess, and collects all JSON output lines.
    *
    * @param overrides - Options to override the constructor defaults for this run
@@ -89,12 +89,12 @@ export class AgentTestHarness {
 
     if (this.customSetup) {
       const setup = await this.customSetup();
-      this.mortDir = setup.mortDir;
+      this.anvilDir = setup.anvilDir;
       this.repo = setup.repo;
     } else {
-      this.mortDir = new TestMortDirectory().init();
+      this.anvilDir = new TestAnvilDirectory().init();
       this.repo = new TestRepository({ fixture: "minimal" }).init();
-      this.mortDir.registerRepository(this.repo);
+      this.anvilDir.registerRepository(this.repo);
     }
 
     return this.spawnAgent(opts);
@@ -110,7 +110,7 @@ export class AgentTestHarness {
     this.mockHub?.stop();
     this.mockHub = null;
     this.repo?.cleanup(preserveOnFailure);
-    this.mortDir?.cleanup(preserveOnFailure);
+    this.anvilDir?.cleanup(preserveOnFailure);
   }
 
   /**
@@ -127,7 +127,7 @@ export class AgentTestHarness {
 
     const cliArgs = this.runnerConfig.buildArgs(
       optsWithThreadId,
-      this.mortDir!.path,
+      this.anvilDir!.path,
       repoCwd
     );
     const args = [runnerPath, ...cliArgs];
@@ -149,7 +149,7 @@ export class AgentTestHarness {
           ...process.env,
           ...this.runnerConfig.env,
           ...opts.env,
-          MORT_AGENT_HUB_WS_URL: this.mockHub!.getEndpoint(),
+          ANVIL_AGENT_HUB_WS_URL: this.mockHub!.getEndpoint(),
           // Strip CLAUDECODE to prevent "nested session" error on SDK v0.2.59+
           CLAUDECODE: undefined,
         },

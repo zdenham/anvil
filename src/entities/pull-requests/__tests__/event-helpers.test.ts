@@ -295,7 +295,7 @@ describe("buildAutoAddressPrompt", () => {
 
   it("builds fix-ci prompt for ci-failure actions", () => {
     const prompt = buildAutoAddressPrompt(basePr, { type: "ci-failure" }, "- test: failure");
-    expect(prompt).toContain("/mort:fix-ci");
+    expect(prompt).toContain("/anvil:fix-ci");
     expect(prompt).toContain("PR #42");
     expect(prompt).toContain("owner/repo");
     expect(prompt).toContain("feature/test");
@@ -304,12 +304,12 @@ describe("buildAutoAddressPrompt", () => {
 
   it("builds address-pr-comment prompt for review-submitted actions", () => {
     const prompt = buildAutoAddressPrompt(basePr, { type: "review-submitted" }, "comments");
-    expect(prompt).toContain("/mort:address-pr-comment");
+    expect(prompt).toContain("/anvil:address-pr-comment");
   });
 
   it("builds address-pr-comment prompt for pr-comment actions", () => {
     const prompt = buildAutoAddressPrompt(basePr, { type: "pr-comment" }, "comments");
-    expect(prompt).toContain("/mort:address-pr-comment");
+    expect(prompt).toContain("/anvil:address-pr-comment");
   });
 });
 

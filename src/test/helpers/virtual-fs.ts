@@ -6,7 +6,7 @@
  */
 
 import type { ThreadState } from "@core/types/events";
-import { mockFileSystem, MOCK_MORT_DIR, mockThreadState, type MockThreadMetadata } from "../mocks/tauri-api";
+import { mockFileSystem, MOCK_ANVIL_DIR, mockThreadState, type MockThreadMetadata } from "../mocks/tauri-api";
 
 // ============================================================================
 // Types
@@ -81,7 +81,7 @@ export class VirtualFS {
    * VirtualFS.seedThread("thread-123", { status: "running" });
    */
   static seedThread(threadId: string, options: SeedThreadOptions = {}): void {
-    const threadDir = `${MOCK_MORT_DIR}/threads/${threadId}`;
+    const threadDir = `${MOCK_ANVIL_DIR}/threads/${threadId}`;
 
     // Create thread metadata for Tauri command mocks
     const threadMeta: MockThreadMetadata = {
@@ -119,7 +119,7 @@ export class VirtualFS {
    * Update thread state.
    */
   static updateThreadState(threadId: string, state: Partial<ThreadState>): void {
-    const threadDir = `${MOCK_MORT_DIR}/threads/${threadId}`;
+    const threadDir = `${MOCK_ANVIL_DIR}/threads/${threadId}`;
     const existing = mockFileSystem.get(`${threadDir}/state.json`);
     const current = existing ? JSON.parse(existing) : {};
     const updated = { ...current, ...state, timestamp: Date.now() };
@@ -134,7 +134,7 @@ export class VirtualFS {
    * Seed a repository configuration.
    */
   static seedRepository(name: string, sourcePath: string): void {
-    const repoDir = `${MOCK_MORT_DIR}/repositories/${name}`;
+    const repoDir = `${MOCK_ANVIL_DIR}/repositories/${name}`;
     mockFileSystem.set(
       `${repoDir}/config.json`,
       JSON.stringify({
@@ -153,6 +153,6 @@ export class VirtualFS {
    * Seed application settings.
    */
   static seedSettings(settings: Record<string, unknown>): void {
-    mockFileSystem.set(`${MOCK_MORT_DIR}/settings.json`, JSON.stringify(settings, null, 2));
+    mockFileSystem.set(`${MOCK_ANVIL_DIR}/settings.json`, JSON.stringify(settings, null, 2));
   }
 }

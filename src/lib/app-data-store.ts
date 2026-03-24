@@ -2,14 +2,14 @@ import { FilesystemClient, type DirEntry, type GrepMatch } from "./filesystem-cl
 import { logger } from "./logger-client";
 
 /**
- * App data store - manages files in the Mort data directory.
+ * App data store - manages files in the Anvil data directory.
  *
- * IMPORTANT: All paths are RELATIVE to the data directory (e.g., ~/.mort or ~/.mort-dev).
+ * IMPORTANT: All paths are RELATIVE to the data directory (e.g., ~/.anvil or ~/.anvil-dev).
  * This is NOT for accessing arbitrary filesystem paths - use FilesystemClient directly for that.
  *
  * Examples:
- *   appData.readJson("threads/abc/state.json")  // reads ~/.mort/threads/abc/state.json
- *   appData.exists("repositories/my-repo")       // checks ~/.mort/repositories/my-repo
+ *   appData.readJson("threads/abc/state.json")  // reads ~/.anvil/threads/abc/state.json
+ *   appData.exists("repositories/my-repo")       // checks ~/.anvil/repositories/my-repo
  *
  * This is a singleton - use `appData` export directly.
  */

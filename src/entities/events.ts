@@ -90,7 +90,7 @@ type LocalEvents = {
   "quick-actions:manifest-changed": void;
 
   // SDK write operation events (DD #24, #33)
-  // The SDK emits events through stdout, Mort handles the actual disk write
+  // The SDK emits events through stdout, Anvil handles the actual disk write
   "sdk:thread:archive": { threadId: string };
   "sdk:thread:unarchive": { threadId: string };
   "sdk:thread:markRead": { threadId: string };

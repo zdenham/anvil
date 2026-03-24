@@ -10,7 +10,7 @@ import { getThreadFolderName, ThreadMetadataSchema } from '@core/types/threads.j
 
 /**
  * Service for creating, reading, and updating thread metadata.
- * Threads are stored at ~/.mort/threads/{threadId}/
+ * Threads are stored at ~/.anvil/threads/{threadId}/
  *
  * This service ONLY:
  * - Creates thread metadata on disk
@@ -24,7 +24,7 @@ import { getThreadFolderName, ThreadMetadataSchema } from '@core/types/threads.j
  */
 export class ThreadService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private fs: FileSystemAdapter
   ) {}
 
@@ -209,7 +209,7 @@ export class ThreadService {
    * @returns Array of thread IDs
    */
   list(): string[] {
-    const threadsDir = path.join(this.mortDir, 'threads');
+    const threadsDir = path.join(this.anvilDir, 'threads');
     if (!this.fs.exists(threadsDir)) {
       return [];
     }
@@ -219,7 +219,7 @@ export class ThreadService {
   }
 
   private getThreadDir(folderName: string): string {
-    return path.join(this.mortDir, 'threads', folderName);
+    return path.join(this.anvilDir, 'threads', folderName);
   }
 
   private getMetadataPath(folderName: string): string {

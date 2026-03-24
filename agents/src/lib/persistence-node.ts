@@ -11,27 +11,27 @@ import {
 } from "fs";
 import { join, dirname } from "path";
 import { homedir } from "os";
-import { MortPersistence } from "../core/persistence.js";
+import { AnvilPersistence } from "../core/persistence.js";
 import { logger } from "./logger.js";
 
 /**
- * Node.js filesystem implementation of MortPersistence.
+ * Node.js filesystem implementation of AnvilPersistence.
  * Used by the CLI and agent runner.
  */
-export class NodePersistence extends MortPersistence {
-  private mortDir: string;
+export class NodePersistence extends AnvilPersistence {
+  private anvilDir: string;
 
-  constructor(mortDir?: string) {
+  constructor(anvilDir?: string) {
     super();
-    // Priority: constructor arg > MORT_DATA_DIR env var > default ~/.mort
-    this.mortDir = mortDir ?? process.env.MORT_DATA_DIR ?? join(homedir(), ".mort");
-    if (!mortDir && !process.env.MORT_DATA_DIR) {
-      logger.warn("[NodePersistence] No mortDir or MORT_DATA_DIR provided, falling back to ~/.mort");
+    // Priority: constructor arg > ANVIL_DATA_DIR env var > default ~/.anvil
+    this.anvilDir = anvilDir ?? process.env.ANVIL_DATA_DIR ?? join(homedir(), ".anvil");
+    if (!anvilDir && !process.env.ANVIL_DATA_DIR) {
+      logger.warn("[NodePersistence] No anvilDir or ANVIL_DATA_DIR provided, falling back to ~/.anvil");
     }
   }
 
   private resolvePath(path: string): string {
-    return join(this.mortDir, path);
+    return join(this.anvilDir, path);
   }
 
   async read<T>(path: string): Promise<T | null> {

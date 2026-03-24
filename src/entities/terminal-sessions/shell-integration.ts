@@ -1,6 +1,6 @@
 /**
  * Shell integration for terminal command tracking.
- * Writes a zsh .zshenv script to ~/.mort/shell-integration/zsh/
+ * Writes a zsh .zshenv script to ~/.anvil/shell-integration/zsh/
  * that emits OSC 7727 escape sequences on each command execution.
  */
 import { appData } from "@/lib/app-data-store";
@@ -15,14 +15,14 @@ const ZSHENV_PATH = `${SHELL_INTEGRATION_DIR}/.zshenv`;
  * 2. Sources the user's real .zshenv
  * 3. Adds a preexec hook that emits OSC 7727 with the command text
  */
-const ZSHENV_CONTENT = `# Mort shell integration for zsh
+const ZSHENV_CONTENT = `# Anvil shell integration for zsh
 # Restores original ZDOTDIR so user config loads normally,
 # then adds a minimal preexec hook for command tracking.
 
 # 1. Restore original ZDOTDIR
-if [[ -n "$MORT_ORIGINAL_ZDOTDIR" ]]; then
-  ZDOTDIR="$MORT_ORIGINAL_ZDOTDIR"
-  unset MORT_ORIGINAL_ZDOTDIR
+if [[ -n "$ANVIL_ORIGINAL_ZDOTDIR" ]]; then
+  ZDOTDIR="$ANVIL_ORIGINAL_ZDOTDIR"
+  unset ANVIL_ORIGINAL_ZDOTDIR
 else
   unset ZDOTDIR
 fi
@@ -31,8 +31,8 @@ fi
 [[ -f "\${ZDOTDIR:-$HOME}/.zshenv" ]] && source "\${ZDOTDIR:-$HOME}/.zshenv"
 
 # 3. Add preexec hook — emits OSC 7727 with the command text
-__mort_preexec() { printf '\\e]7727;cmd;%s\\a' "$1"; }
-preexec_functions+=(__mort_preexec)
+__anvil_preexec() { printf '\\e]7727;cmd;%s\\a' "$1"; }
+preexec_functions+=(__anvil_preexec)
 `;
 
 /**

@@ -25,7 +25,7 @@ type PromptHistoryData = z.infer<typeof PromptHistoryDataSchema>;
 
 /**
  * Service for managing prompt history persistence.
- * Stores prompts in ~/.mort-dev/prompt-history.json.
+ * Stores prompts in ~/.anvil-dev/prompt-history.json.
  */
 export class PromptHistoryService {
   private fs: FilesystemClient;

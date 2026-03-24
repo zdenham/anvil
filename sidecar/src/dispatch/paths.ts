@@ -1,31 +1,31 @@
 /**
  * Centralized path resolution for the sidecar.
  *
- * Uses MORT_DATA_DIR env var, or derives from MORT_APP_SUFFIX, or defaults to ~/.mort.
+ * Uses ANVIL_DATA_DIR env var, or derives from ANVIL_APP_SUFFIX, or defaults to ~/.anvil.
  */
 
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 function suffixedName(base: string): string {
-  const suffix = process.env.MORT_APP_SUFFIX ?? "";
+  const suffix = process.env.ANVIL_APP_SUFFIX ?? "";
   return suffix ? `${base}-${suffix}` : base;
 }
 
 export function dataDirPath(): string {
-  return process.env.MORT_DATA_DIR ?? join(homedir(), suffixedName(".mort"));
+  return process.env.ANVIL_DATA_DIR ?? join(homedir(), suffixedName(".anvil"));
 }
 
 export function configDirPath(): string {
-  if (process.env.MORT_CONFIG_DIR) {
-    return process.env.MORT_CONFIG_DIR;
+  if (process.env.ANVIL_CONFIG_DIR) {
+    return process.env.ANVIL_CONFIG_DIR;
   }
-  // macOS: ~/Library/Application Support/mortician[-suffix]
+  // macOS: ~/Library/Application Support/anvil[-suffix]
   return join(
     homedir(),
     "Library",
     "Application Support",
-    suffixedName("mortician"),
+    suffixedName("anvil"),
   );
 }
 

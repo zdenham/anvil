@@ -36,11 +36,13 @@ export {
 
 // Services
 export {
-  TestMortDirectory,
+  TestAnvilDirectory,
+  TestMortDirectory, // deprecated alias
   TestRepository,
 } from "./services/index.js";
 export type {
-  TestMortDirectoryOptions,
+  TestAnvilDirectoryOptions,
+  TestMortDirectoryOptions, // deprecated alias
   TestRepositoryOptions,
   FileFixture,
 } from "./services/index.js";

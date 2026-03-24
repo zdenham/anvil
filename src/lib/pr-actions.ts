@@ -91,7 +91,7 @@ async function spawnCreatePrAgent(
   worktreePath: string,
 ): Promise<void> {
   const { threadId } = await createThread({
-    prompt: "/mort:create-pr",
+    prompt: "/anvil:create-pr",
     repoId,
     worktreeId,
     worktreePath,

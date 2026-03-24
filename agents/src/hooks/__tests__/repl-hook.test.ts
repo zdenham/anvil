@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ReplContext, ReplResult } from "../../lib/mort-repl/types.js";
+import type { ReplContext, ReplResult } from "../../lib/anvil-repl/types.js";
 
 // ── Mocks ────────────────────────────────────────────────────
 
@@ -7,20 +7,20 @@ const mockExtractCode = vi.fn();
 const mockExecute = vi.fn();
 const mockFormatResult = vi.fn();
 
-vi.mock("../../lib/mort-repl/repl-runner.js", () => {
+vi.mock("../../lib/anvil-repl/repl-runner.js", () => {
   const MockRunner = vi.fn(function (this: Record<string, unknown>) {
     this.extractCode = mockExtractCode;
     this.execute = mockExecute;
     this.formatResult = mockFormatResult;
   });
-  return { MortReplRunner: MockRunner };
+  return { AnvilReplRunner: MockRunner };
 });
 
 const mockKillAll = vi.fn();
 const mockCancelAll = vi.fn();
 const mockSpawnerInstances: Array<{ killAll: ReturnType<typeof vi.fn>; cancelAll: ReturnType<typeof vi.fn> }> = [];
 
-vi.mock("../../lib/mort-repl/child-spawner.js", () => {
+vi.mock("../../lib/anvil-repl/child-spawner.js", () => {
   const MockSpawner = vi.fn(function (this: Record<string, unknown>) {
     this.killAll = mockKillAll;
     this.cancelAll = mockCancelAll;
@@ -30,18 +30,18 @@ vi.mock("../../lib/mort-repl/child-spawner.js", () => {
   return { ChildSpawner: MockSpawner };
 });
 
-vi.mock("../../lib/mort-repl/mort-sdk.js", () => {
+vi.mock("../../lib/anvil-repl/mort-sdk.js", () => {
   const MockSdk = vi.fn(function (this: Record<string, unknown>) {
     this.spawn = vi.fn();
     this.log = vi.fn();
     this.context = {};
     this.logs = [];
   });
-  return { MortReplSdk: MockSdk };
+  return { AnvilReplSdk: MockSdk };
 });
 
 import { createReplHook } from "../repl-hook.js";
-import { ChildSpawner } from "../../lib/mort-repl/child-spawner.js";
+import { ChildSpawner } from "../../lib/anvil-repl/child-spawner.js";
 
 const mockContext: ReplContext = {
   threadId: "test-thread-id",
@@ -49,7 +49,7 @@ const mockContext: ReplContext = {
   worktreeId: "test-worktree-id",
   workingDir: "/test/dir",
   permissionModeId: "implement",
-  mortDir: "/test/.mort",
+  anvilDir: "/test/.anvil",
 };
 
 function makeHookInput(
@@ -74,8 +74,8 @@ describe("createReplHook", () => {
 
   // ── Pass-through ───────────────────────────────────────────
 
-  describe("non-mort-repl commands", () => {
-    it("returns continue for non-mort-repl commands", async () => {
+  describe("non-anvil-repl commands", () => {
+    it("returns continue for non-anvil-repl commands", async () => {
       mockExtractCode.mockReturnValue(null);
 
       const { hook } = createReplHook({
@@ -102,8 +102,8 @@ describe("createReplHook", () => {
 
   // ── Interception ───────────────────────────────────────────
 
-  describe("mort-repl command interception", () => {
-    it("intercepts mort-repl commands and returns deny with formatted result", async () => {
+  describe("anvil-repl command interception", () => {
+    it("intercepts anvil-repl commands and returns deny with formatted result", async () => {
       mockExtractCode.mockReturnValue("return 42");
       const replResult: ReplResult = {
         success: true,
@@ -112,21 +112,21 @@ describe("createReplHook", () => {
         durationMs: 5,
       };
       mockExecute.mockResolvedValue(replResult);
-      mockFormatResult.mockReturnValue("mort-repl result:\n42");
+      mockFormatResult.mockReturnValue("anvil-repl result:\n42");
 
       const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
 
-      const result = await hook(makeHookInput('mort-repl "return 42"'));
+      const result = await hook(makeHookInput('anvil-repl "return 42"'));
 
       expect(result).toEqual({
-        reason: expect.stringContaining("mort-repl result:\n42"),
+        reason: expect.stringContaining("anvil-repl result:\n42"),
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
           permissionDecision: "deny",
-          permissionDecisionReason: "mort-repl result:\n42",
+          permissionDecisionReason: "anvil-repl result:\n42",
         },
       });
     });
@@ -139,19 +139,19 @@ describe("createReplHook", () => {
         logs: [],
         durationMs: 5,
       });
-      mockFormatResult.mockReturnValue("mort-repl result:\n42");
+      mockFormatResult.mockReturnValue("anvil-repl result:\n42");
 
       const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
 
-      const result = (await hook(makeHookInput('mort-repl "return 42"'))) as {
+      const result = (await hook(makeHookInput('anvil-repl "return 42"'))) as {
         reason: string;
       };
 
       expect(result.reason).toMatch(
-        /\[System:.*successful.*\]\n\nmort-repl result:\n42/,
+        /\[System:.*successful.*\]\n\nanvil-repl result:\n42/,
       );
     });
 
@@ -164,7 +164,7 @@ describe("createReplHook", () => {
         error: "oops",
         durationMs: 2,
       });
-      mockFormatResult.mockReturnValue("mort-repl error:\noops");
+      mockFormatResult.mockReturnValue("anvil-repl error:\noops");
 
       const { hook } = createReplHook({
         context: mockContext,
@@ -172,11 +172,11 @@ describe("createReplHook", () => {
       });
 
       const result = (await hook(
-        makeHookInput('mort-repl "throw new Error(\'oops\')"'),
+        makeHookInput('anvil-repl "throw new Error(\'oops\')"'),
       )) as { reason: string };
 
       expect(result.reason).toMatch(
-        /\[System:.*error.*not as a permission denial.*\]\n\nmort-repl error:\noops/,
+        /\[System:.*error.*not as a permission denial.*\]\n\nanvil-repl error:\noops/,
       );
     });
 
@@ -188,14 +188,14 @@ describe("createReplHook", () => {
         logs: [],
         durationMs: 1,
       });
-      mockFormatResult.mockReturnValue("mort-repl result:\n1");
+      mockFormatResult.mockReturnValue("anvil-repl result:\n1");
 
       const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
 
-      const result = (await hook(makeHookInput('mort-repl "return 1"'))) as {
+      const result = (await hook(makeHookInput('anvil-repl "return 1"'))) as {
         hookSpecificOutput: { hookEventName: string; permissionDecision: string };
       };
 
@@ -211,14 +211,14 @@ describe("createReplHook", () => {
         logs: [],
         durationMs: 0,
       });
-      mockFormatResult.mockReturnValue("mort-repl result:\nundefined");
+      mockFormatResult.mockReturnValue("anvil-repl result:\nundefined");
 
       const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
 
-      await hook(makeHookInput('mort-repl "const x = 1;"'));
+      await hook(makeHookInput('anvil-repl "const x = 1;"'));
 
       expect(mockExecute).toHaveBeenCalledWith(
         "const x = 1;",
@@ -239,14 +239,14 @@ describe("createReplHook", () => {
         logs: [],
         durationMs: 0,
       });
-      mockFormatResult.mockReturnValue("mort-repl result:\n1");
+      mockFormatResult.mockReturnValue("anvil-repl result:\n1");
 
       const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
 
-      await hook(makeHookInput('mort-repl "return 1"', "specific-tool-use-id"));
+      await hook(makeHookInput('anvil-repl "return 1"', "specific-tool-use-id"));
 
       expect(ChildSpawner).toHaveBeenCalledWith({
         context: mockContext,
@@ -259,7 +259,7 @@ describe("createReplHook", () => {
   // ── run_in_background guard ──────────────────────────────
 
   describe("run_in_background guard", () => {
-    it("denies mort-repl with run_in_background: true", async () => {
+    it("denies anvil-repl with run_in_background: true", async () => {
       mockExtractCode.mockReturnValue("return 42");
 
       const { hook } = createReplHook({
@@ -268,7 +268,7 @@ describe("createReplHook", () => {
       });
 
       const result = (await hook(
-        makeHookInput('mort-repl "return 42"', "tool-use-abc", {
+        makeHookInput('anvil-repl "return 42"', "tool-use-abc", {
           run_in_background: true,
         }),
       )) as { reason: string; hookSpecificOutput: Record<string, unknown> };
@@ -278,7 +278,7 @@ describe("createReplHook", () => {
       expect(mockExecute).not.toHaveBeenCalled();
     });
 
-    it("passes through non-mort-repl commands even with run_in_background", async () => {
+    it("passes through non-anvil-repl commands even with run_in_background", async () => {
       mockExtractCode.mockReturnValue(null);
 
       const { hook } = createReplHook({
@@ -311,7 +311,7 @@ describe("createReplHook", () => {
       controller.abort();
 
       const result = (await hook(
-        makeHookInput('mort-repl "return 42"'),
+        makeHookInput('anvil-repl "return 42"'),
         "tool-use-abc",
         { signal: controller.signal },
       )) as { reason: string; hookSpecificOutput: Record<string, unknown> };
@@ -329,7 +329,7 @@ describe("createReplHook", () => {
         logs: [],
         durationMs: 5,
       });
-      mockFormatResult.mockReturnValue("mort-repl result:\n42");
+      mockFormatResult.mockReturnValue("anvil-repl result:\n42");
 
       const { hook } = createReplHook({
         context: mockContext,
@@ -339,12 +339,12 @@ describe("createReplHook", () => {
       const controller = new AbortController();
 
       const result = (await hook(
-        makeHookInput('mort-repl "return 42"'),
+        makeHookInput('anvil-repl "return 42"'),
         "tool-use-abc",
         { signal: controller.signal },
       )) as { reason: string };
 
-      expect(result.reason).toContain("mort-repl result:");
+      expect(result.reason).toContain("anvil-repl result:");
       expect(mockExecute).toHaveBeenCalled();
     });
 
@@ -356,7 +356,7 @@ describe("createReplHook", () => {
         logs: [],
         durationMs: 0,
       });
-      mockFormatResult.mockReturnValue("mort-repl result:\n1");
+      mockFormatResult.mockReturnValue("anvil-repl result:\n1");
 
       const { hook } = createReplHook({
         context: mockContext,
@@ -364,10 +364,10 @@ describe("createReplHook", () => {
       });
 
       const result = (await hook(
-        makeHookInput('mort-repl "return 1"'),
+        makeHookInput('anvil-repl "return 1"'),
       )) as { reason: string };
 
-      expect(result.reason).toContain("mort-repl result:");
+      expect(result.reason).toContain("anvil-repl result:");
       expect(mockExecute).toHaveBeenCalled();
     });
   });
@@ -385,7 +385,7 @@ describe("createReplHook", () => {
       });
 
       await expect(
-        hook(makeHookInput('mort-repl "bad code"')),
+        hook(makeHookInput('anvil-repl "bad code"')),
       ).rejects.toThrow("execution failed");
 
       expect(mockKillAll).toHaveBeenCalled();
@@ -399,14 +399,14 @@ describe("createReplHook", () => {
         logs: [],
         durationMs: 0,
       });
-      mockFormatResult.mockReturnValue("mort-repl result:\n1");
+      mockFormatResult.mockReturnValue("anvil-repl result:\n1");
 
       const { hook } = createReplHook({
         context: mockContext,
         emitEvent: mockEmitEvent,
       });
 
-      await hook(makeHookInput('mort-repl "return 1"'));
+      await hook(makeHookInput('anvil-repl "return 1"'));
       expect(mockKillAll).not.toHaveBeenCalled();
     });
   });

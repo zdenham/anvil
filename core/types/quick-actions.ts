@@ -37,7 +37,7 @@ export type QuickActionManifest = z.infer<typeof QuickActionManifestSchema>;
 // ============================================================================
 
 export const QuickActionMetadataSchema = z.object({
-  id: z.string().uuid(),                           // Internal UUID (assigned by Mort)
+  id: z.string().uuid(),                           // Internal UUID (assigned by Anvil)
   slug: z.string(),                                // Original slug from manifest
   title: z.string().min(1).max(50),
   description: z.string().max(200).optional(),
@@ -53,7 +53,7 @@ export const QuickActionMetadataSchema = z.object({
 export type QuickActionMetadata = z.infer<typeof QuickActionMetadataSchema>;
 
 // ============================================================================
-// Registry (user overrides, stored at ~/.mort/quick-actions-registry.json)
+// Registry (user overrides, stored at ~/.anvil/quick-actions-registry.json)
 // ============================================================================
 
 export const QuickActionOverrideSchema = z.object({
@@ -64,7 +64,7 @@ export const QuickActionOverrideSchema = z.object({
 export type QuickActionOverride = z.infer<typeof QuickActionOverrideSchema>;
 
 export const QuickActionsRegistrySchema = z.object({
-  // Key is the action's UUID (assigned by Mort on registration)
+  // Key is the action's UUID (assigned by Anvil on registration)
   actionOverrides: z.record(z.string(), QuickActionOverrideSchema),
   // Map from slug to UUID for stable identification across rebuilds
   slugToId: z.record(z.string(), z.string().uuid()),

@@ -12,7 +12,7 @@
 
 import { isTauri } from "./runtime";
 
-const DEFAULT_WS_PORT = __MORT_WS_PORT__;
+const DEFAULT_WS_PORT = __ANVIL_WS_PORT__;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /** Resolved WS URL — set once at connection time via IPC or fallback to baked port. */

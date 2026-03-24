@@ -1,4 +1,5 @@
 import { ChevronDown, RefreshCw } from "lucide-react";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export interface WorktreeOption {
   id: string;
@@ -58,15 +59,16 @@ export function RightPanelSubheader({
 
       {/* Right: optional refresh button */}
       {onRefresh && (
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors shrink-0"
-          aria-label="Refresh"
-          title="Refresh"
-        >
-          <RefreshCw size={12} />
-        </button>
+        <Tooltip content="Refresh" side="bottom">
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors shrink-0"
+            aria-label="Refresh"
+          >
+            <RefreshCw size={12} />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

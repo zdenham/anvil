@@ -140,10 +140,10 @@ export function emitEvent(
 export function propagateModeToChildren(
   parentThreadId: string,
   modeId: PermissionModeId,
-  mortDir: string,
+  anvilDir: string,
 ): void {
   const hub = getHubClient();
-  const threadsDir = join(mortDir, "threads");
+  const threadsDir = join(anvilDir, "threads");
 
   let entries: string[];
   try {
@@ -194,7 +194,7 @@ export function buildSystemPrompt(
     slug?: string;
     branchName?: string | null;
     cwd: string;
-    mortDir: string;
+    anvilDir: string;
     runnerPath: string;
     parentThreadId?: string;
     permissionModeId?: string;
@@ -206,7 +206,7 @@ export function buildSystemPrompt(
   prompt = prompt.replace(/\{\{worktreeId\}\}/g, context.worktreeId ?? "none");
   prompt = prompt.replace(/\{\{slug\}\}/g, context.slug ?? "none");
   prompt = prompt.replace(/\{\{branchName\}\}/g, context.branchName ?? "none");
-  prompt = prompt.replace(/\{\{mortDir\}\}/g, context.mortDir);
+  prompt = prompt.replace(/\{\{anvilDir\}\}/g, context.anvilDir);
   prompt = prompt.replace(/\{\{threadId\}\}/g, context.threadId ?? "none");
   prompt = prompt.replace(/\{\{runnerPath\}\}/g, context.runnerPath);
   prompt = prompt.replace(/\{\{cwd\}\}/g, context.cwd);
@@ -457,7 +457,7 @@ export async function runAgentLoop(
   await initState(context.threadPath, context.workingDir, [...priorMessages, userMessage], options.threadWriter, priorSessionId, priorToolStates, lastCallUsage, cumulativeUsage, priorFileChanges);
 
   // Persistence instance for plan detection and mention tracking
-  const persistence = new NodePersistence(config.mortDir);
+  const persistence = new NodePersistence(config.anvilDir);
 
   // Process plan mentions in the initial prompt (e.g., @plans/my-feature.md)
   await processPlanMentions(config.prompt, persistence, context);
@@ -470,7 +470,7 @@ export async function runAgentLoop(
     repoId: context.repoId,
     worktreeId: context.worktreeId,
     cwd: context.workingDir,
-    mortDir: config.mortDir,
+    anvilDir: config.anvilDir,
     runnerPath,
     parentThreadId: config.parentThreadId,
     permissionModeId: context.permissionModeId ?? "implement",
@@ -561,7 +561,7 @@ export async function runAgentLoop(
           createSafeGitHook(),
         ],
       },
-      // REPL hook — intercepts mort-repl Bash calls for programmatic agent orchestration
+      // REPL hook — intercepts anvil-repl Bash calls for programmatic agent orchestration
       // Must be before comment resolution and permission hooks
       (() => {
         const replHook = createReplHook({
@@ -571,7 +571,7 @@ export async function runAgentLoop(
             worktreeId: context.worktreeId,
             workingDir: context.workingDir,
             permissionModeId: context.permissionModeId,
-            mortDir: config.mortDir,
+            anvilDir: config.anvilDir,
           },
           emitEvent,
         });
@@ -585,7 +585,7 @@ export async function runAgentLoop(
           hooks: [replHook.hook],
         };
       })(),
-      // Comment resolution hook — intercepts mort-resolve-comment Bash calls
+      // Comment resolution hook — intercepts anvil-resolve-comment Bash calls
       // Must be before the catch-all permission hook so it gets first look at Bash calls
       {
         matcher: "Bash" as const,
@@ -788,7 +788,7 @@ export async function runAgentLoop(
             const taskPrompt = taskInput.prompt ?? `Sub-agent: ${agentType}`;
 
             // Create child thread directory and metadata
-            const childThreadPath = join(config.mortDir, "threads", childThreadId);
+            const childThreadPath = join(config.anvilDir, "threads", childThreadId);
             const now = Date.now();
 
             const childMetadata = {
@@ -1155,7 +1155,7 @@ export async function runAgentLoop(
                   return { continue: true };
                 }
 
-                const childThreadPath = join(config.mortDir, "threads", childThreadId);
+                const childThreadPath = join(config.anvilDir, "threads", childThreadId);
                 const metadataPath = join(childThreadPath, "metadata.json");
                 const statePath = join(childThreadPath, "state.json");
 
@@ -1202,7 +1202,7 @@ export async function runAgentLoop(
                   // Roll up child's tree cost to parent's cumulativeCostUsd
                   if (taskResponse.total_cost_usd !== undefined) {
                     const childTreeCost = (taskResponse.total_cost_usd as number) + ((metadata.cumulativeCostUsd as number) ?? 0);
-                    rollUpCostToParent(config.mortDir, context.threadId, childTreeCost);
+                    rollUpCostToParent(config.anvilDir, context.threadId, childTreeCost);
                   }
                 }
 
@@ -1317,7 +1317,7 @@ export async function runAgentLoop(
             if (input.tool_name === "Task" || input.tool_name === "Agent") {
               const childThreadId = toolUseIdToChildThreadId.get(input.tool_use_id);
               if (childThreadId) {
-                const childThreadPath = join(config.mortDir, "threads", childThreadId);
+                const childThreadPath = join(config.anvilDir, "threads", childThreadId);
                 const metadataPath = join(childThreadPath, "metadata.json");
                 if (existsSync(metadataPath)) {
                   const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
@@ -1422,8 +1422,8 @@ export async function runAgentLoop(
             }),
           },
           cwd: context.workingDir,
-          additionalDirectories: [config.mortDir],
-          plugins: [{ type: "local" as const, path: config.mortDir }],
+          additionalDirectories: [config.anvilDir],
+          plugins: [{ type: "local" as const, path: config.anvilDir }],
           settingSources: ["user", "project"],
           betas: ["fast-mode-2026-02-01" as any],
           model: agentConfig.model ?? "claude-opus-4-6",
@@ -1485,9 +1485,9 @@ export async function runAgentLoop(
     : undefined;
 
   // Process messages with dedicated handler
-  // Pass mortDir for sub-agent message routing, drainManager for analytics
+  // Pass anvilDir for sub-agent message routing, drainManager for analytics
   // Default context window (200k) allows getUtilization() to work before the result message arrives
-  const handler = new MessageHandler(config.mortDir, accumulator, drainManager, 200_000, ackManager);
+  const handler = new MessageHandler(config.anvilDir, accumulator, drainManager, 200_000, ackManager);
 
   let loopError: string | undefined;
   try {

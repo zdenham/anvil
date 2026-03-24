@@ -8,7 +8,7 @@ import type { LogMessage } from "../../lib/hub/types.js";
 const describeWithApi = process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
 
 const shortCircuitRunnerConfig = createRunnerConfig({
-  buildArgs: (opts, mortDirPath, repoCwd) => {
+  buildArgs: (opts, anvilDirPath, repoCwd) => {
     const threadId = opts.threadId ?? randomUUID();
     const repoId = opts.repoId ?? randomUUID();
     const worktreeId = opts.worktreeId ?? randomUUID();
@@ -23,7 +23,7 @@ const shortCircuitRunnerConfig = createRunnerConfig({
       "--thread-id", threadId,
       "--repo-id", repoId,
       "--worktree-id", worktreeId,
-      "--mort-dir", mortDirPath,
+      "--anvil-dir", anvilDirPath,
       "--cwd", opts.cwd ?? repoCwd,
       "--context-short-circuit", JSON.stringify(shortCircuit),
     ];

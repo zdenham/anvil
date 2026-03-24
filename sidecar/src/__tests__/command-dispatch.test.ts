@@ -171,9 +171,9 @@ describe("Command dispatch over WebSocket", () => {
     expect((res.result as string).length).toBeGreaterThan(0);
   });
 
-  it("git_list_mort_branches returns an array", async () => {
+  it("git_list_anvil_branches returns an array", async () => {
     const repoPath = process.cwd().replace(/\/sidecar$/, "");
-    const res = await sendCommand(ws, 21, "git_list_mort_branches", {
+    const res = await sendCommand(ws, 21, "git_list_anvil_branches", {
       repoPath,
     });
     expect(res.id).toBe(21);

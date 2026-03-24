@@ -157,7 +157,7 @@ export function setupThreadListeners(): () => void {
       await threadService.refreshById(threadId);
 
       // Auto-expand parent when REPL spawns a child
-      if (source === "mort-repl:child-spawn") {
+      if (source === "anvil-repl:child-spawn") {
         const thread = threadService.get(threadId);
         if (thread?.parentThreadId) {
           await treeMenuService.expandSection(`thread:${thread.parentThreadId}`);

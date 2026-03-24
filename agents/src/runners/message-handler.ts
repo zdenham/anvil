@@ -41,7 +41,7 @@ import { DrainEventName } from "@core/types/drain-events.js";
  * to the async iterator, so we can't reliably track file changes here.
  */
 export class MessageHandler {
-  private mortDir: string | null = null;
+  private anvilDir: string | null = null;
   private accumulator: StreamAccumulator | null = null;
   private drainManager: DrainManager | null = null;
 
@@ -69,15 +69,15 @@ export class MessageHandler {
 
   /**
    * Create a MessageHandler.
-   * @param mortDir - Optional path to mort directory for sub-agent state routing
+   * @param anvilDir - Optional path to anvil directory for sub-agent state routing
    * @param accumulator - Optional stream accumulator for live streaming display
    * @param drainManager - Optional drain manager for analytics event emission
    * @param defaultContextWindow - Optional default context window size so getUtilization()
    *   returns a value during the agent loop before the result message arrives
    * @param ackManager - Optional queued ack manager for deferred ack lifecycle
    */
-  constructor(mortDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager, defaultContextWindow?: number, ackManager?: QueuedAckManager) {
-    this.mortDir = mortDir ?? null;
+  constructor(anvilDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager, defaultContextWindow?: number, ackManager?: QueuedAckManager) {
+    this.anvilDir = anvilDir ?? null;
     this.accumulator = accumulator ?? null;
     this.drainManager = drainManager ?? null;
     if (defaultContextWindow) this.contextWindow = defaultContextWindow;
@@ -91,7 +91,7 @@ export class MessageHandler {
   async handle(message: SDKMessage): Promise<boolean> {
     // Check if this message belongs to a sub-agent
     const parentToolUseId = this.getParentToolUseId(message);
-    if (parentToolUseId && this.mortDir) {
+    if (parentToolUseId && this.anvilDir) {
       const childThreadId = getChildThreadId(parentToolUseId);
       if (childThreadId) {
         // Route to child thread's state
@@ -313,7 +313,7 @@ export class MessageHandler {
     );
 
     // Update child thread metadata to "running" if we can correlate via tool_use_id
-    if (msg.tool_use_id && this.mortDir) {
+    if (msg.tool_use_id && this.anvilDir) {
       const childThreadId = getChildThreadId(msg.tool_use_id);
       if (childThreadId) {
         this.updateChildMetadataField(childThreadId, { status: "running" });
@@ -346,7 +346,7 @@ export class MessageHandler {
     );
 
     // Update child thread metadata with final status
-    if (msg.tool_use_id && this.mortDir) {
+    if (msg.tool_use_id && this.anvilDir) {
       const childThreadId = getChildThreadId(msg.tool_use_id);
       if (childThreadId) {
         const metadataStatus = msg.status === "completed" ? "completed"
@@ -375,7 +375,7 @@ export class MessageHandler {
     childThreadId: string,
     fields: Record<string, unknown>,
   ): void {
-    const metadataPath = join(this.mortDir!, "threads", childThreadId, "metadata.json");
+    const metadataPath = join(this.anvilDir!, "threads", childThreadId, "metadata.json");
     try {
       if (!existsSync(metadataPath)) return;
       const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
@@ -533,7 +533,7 @@ export class MessageHandler {
     if (state) return state;
 
     // Try to load from disk
-    const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
+    const statePath = join(this.anvilDir!, "threads", childThreadId, "state.json");
     if (existsSync(statePath)) {
       try {
         state = JSON.parse(readFileSync(statePath, "utf-8")) as ThreadState;
@@ -562,7 +562,7 @@ export class MessageHandler {
    */
   private async emitChildThreadState(childThreadId: string, state: ThreadState): Promise<void> {
     state.timestamp = Date.now();
-    const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
+    const statePath = join(this.anvilDir!, "threads", childThreadId, "state.json");
     writeFileSync(statePath, JSON.stringify(state, null, 2));
 
     // Emit THREAD_UPDATED so frontend refreshes this child's metadata
@@ -636,7 +636,7 @@ export class MessageHandler {
         // Write usage to child's metadata.json BEFORE emitting event
         // so the frontend reads updated metadata when it refreshes
         if (state.lastCallUsage || state.cumulativeUsage) {
-          const childMetadataPath = join(this.mortDir!, "threads", childThreadId, "metadata.json");
+          const childMetadataPath = join(this.anvilDir!, "threads", childThreadId, "metadata.json");
           await writeUsageToMetadata(childMetadataPath, state.lastCallUsage, state.cumulativeUsage);
         }
 

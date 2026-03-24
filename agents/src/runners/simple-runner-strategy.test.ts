@@ -35,7 +35,7 @@ describe("SimpleRunnerStrategy", () => {
         "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", testDir,
-        "--mort-dir", testDir,
+        "--anvil-dir", testDir,
         "--prompt", "test prompt",
       ]);
 
@@ -43,7 +43,7 @@ describe("SimpleRunnerStrategy", () => {
       expect(config.worktreeId).toBe("worktree-789");
       expect(config.threadId).toBe("thread-456");
       expect(config.cwd).toBe(testDir);
-      expect(config.mortDir).toBe(testDir);
+      expect(config.anvilDir).toBe(testDir);
       expect(config.prompt).toBe("test prompt");
     });
 
@@ -53,7 +53,7 @@ describe("SimpleRunnerStrategy", () => {
         "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", testDir,
-        "--mort-dir", testDir,
+        "--anvil-dir", testDir,
         "--prompt", "test prompt",
         "--history-file", "/path/to/history.json",
       ]);
@@ -68,7 +68,7 @@ describe("SimpleRunnerStrategy", () => {
         "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", testDir,
-        "--mort-dir", testDir,
+        "--anvil-dir", testDir,
         "--prompt", "test prompt",
         "--agent-mode", "auto-accept",
       ]);
@@ -84,7 +84,7 @@ describe("SimpleRunnerStrategy", () => {
         "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", testDir,
-        "--mort-dir", testDir,
+        "--anvil-dir", testDir,
         "--prompt", "test prompt",
       ])).toThrow("Missing required argument: --repo-id");
     });
@@ -94,7 +94,7 @@ describe("SimpleRunnerStrategy", () => {
         "--repo-id", "repo-123",
         "--thread-id", "thread-456",
         "--cwd", testDir,
-        "--mort-dir", testDir,
+        "--anvil-dir", testDir,
         "--prompt", "test prompt",
       ])).toThrow("Missing required argument: --worktree-id");
     });
@@ -104,7 +104,7 @@ describe("SimpleRunnerStrategy", () => {
         "--repo-id", "repo-123",
         "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
-        "--mort-dir", testDir,
+        "--anvil-dir", testDir,
         "--prompt", "test prompt",
       ])).toThrow("Missing required argument: --cwd");
     });
@@ -115,7 +115,7 @@ describe("SimpleRunnerStrategy", () => {
         "--worktree-id", "worktree-789",
         "--thread-id", "thread-456",
         "--cwd", "/non/existent/path",
-        "--mort-dir", testDir,
+        "--anvil-dir", testDir,
         "--prompt", "test prompt",
       ])).toThrow("Working directory does not exist: /non/existent/path");
     });

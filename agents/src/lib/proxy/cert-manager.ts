@@ -112,8 +112,8 @@ export class CertManager {
   private hostCache = new Map<string, tls.SecureContext>();
   private static MAX_HOST_CACHE = 100;
 
-  constructor(mortDir: string) {
-    this.caDir = join(mortDir, "proxy-ca");
+  constructor(anvilDir: string) {
+    this.caDir = join(anvilDir, "proxy-ca");
     this.caKeyPath = join(this.caDir, "ca-key.pem");
     this.caCertPath = join(this.caDir, "ca-cert.pem");
   }
@@ -213,7 +213,7 @@ export class CertManager {
     const notAfter = new Date(now);
     notAfter.setFullYear(notAfter.getFullYear() + 1);
 
-    const subject = buildName("Mort Debug Proxy CA", "Mort");
+    const subject = buildName("Anvil Debug Proxy CA", "Anvil");
 
     // Extensions: BasicConstraints (CA:true, critical) + KeyUsage (keyCertSign, critical)
     const basicConstraints = derSequence(
@@ -248,7 +248,7 @@ export class CertManager {
   }
 
   private caSubject(): Buffer {
-    return buildName("Mort Debug Proxy CA", "Mort");
+    return buildName("Anvil Debug Proxy CA", "Anvil");
   }
 
   private evictIfNeeded(): void {

@@ -155,7 +155,7 @@ describe("handleCreatePr", () => {
     await handleCreatePr("repo-1", "wt-1", "/path/to/worktree");
 
     expect(mockCreateThread).toHaveBeenCalledWith({
-      prompt: "/mort:create-pr",
+      prompt: "/anvil:create-pr",
       repoId: "repo-1",
       worktreeId: "wt-1",
       worktreePath: "/path/to/worktree",

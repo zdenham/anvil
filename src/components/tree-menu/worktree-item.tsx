@@ -214,7 +214,7 @@ function WorktreeHeader({
         {item.isExternal && (
           <span
             className="ml-1 px-1 py-0.5 text-[10px] leading-none rounded bg-surface-700 text-surface-400"
-            title="This workspace was not created by Mort"
+            title="This workspace was not created by Anvil"
           >
             external
           </span>

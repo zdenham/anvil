@@ -72,7 +72,7 @@ export interface QuickActionExecutionContext {
 
 /**
  * The main SDK object passed to quick actions.
- * Provides access to all available services for interacting with Mort.
+ * Provides access to all available services for interacting with Anvil.
  *
  * @example
  * ```typescript
@@ -87,7 +87,7 @@ export interface QuickActionExecutionContext {
  * } satisfies QuickActionDefinition;
  * ```
  */
-export interface MortSDK {
+export interface AnvilSDK {
   /** Git operations service */
   git: GitService;
 
@@ -103,6 +103,9 @@ export interface MortSDK {
   /** Logging service */
   log: LogService;
 }
+
+/** @deprecated Use AnvilSDK instead */
+export type MortSDK = AnvilSDK;
 
 /**
  * Service for performing Git operations.
@@ -159,7 +162,7 @@ export interface GitService {
  * Provides read access to thread metadata and write operations for state changes.
  *
  * @remarks
- * Write operations (archive, markRead, markUnread) emit events to Mort
+ * Write operations (archive, markRead, markUnread) emit events to Anvil
  * rather than writing directly to disk.
  */
 export interface ThreadService {
@@ -191,21 +194,21 @@ export interface ThreadService {
 
   /**
    * Archive a thread.
-   * This emits an event to Mort which handles the actual archiving.
+   * This emits an event to Anvil which handles the actual archiving.
    * @param threadId - The thread ID to archive
    */
   archive(threadId: string): Promise<void>;
 
   /**
    * Mark a thread as read.
-   * This emits an event to Mort which handles the state update.
+   * This emits an event to Anvil which handles the state update.
    * @param threadId - The thread ID to mark as read
    */
   markRead(threadId: string): Promise<void>;
 
   /**
    * Mark a thread as unread.
-   * This emits an event to Mort which handles the state update.
+   * This emits an event to Anvil which handles the state update.
    * @param threadId - The thread ID to mark as unread
    */
   markUnread(threadId: string): Promise<void>;
@@ -245,7 +248,7 @@ export interface ThreadInfo {
  * Provides read access to plan metadata and content, plus write operations.
  *
  * @remarks
- * Write operations (archive) emit events to Mort rather than writing directly to disk.
+ * Write operations (archive) emit events to Anvil rather than writing directly to disk.
  */
 export interface PlanService {
   /**
@@ -277,14 +280,14 @@ export interface PlanService {
 
   /**
    * Archive a plan.
-   * This emits an event to Mort which handles the actual archiving.
+   * This emits an event to Anvil which handles the actual archiving.
    * @param planId - The plan ID to archive
    */
   archive(planId: string): Promise<void>;
 
   /**
    * Mark a plan as unread.
-   * This emits an event to Mort which handles the state update.
+   * This emits an event to Anvil which handles the state update.
    * @param planId - The plan ID to mark as unread
    */
   markUnread(planId: string): Promise<void>;
@@ -376,7 +379,7 @@ export interface UIService {
 
 /**
  * Service for logging messages.
- * Log calls route to Mort's main logger for consistent logging across the application.
+ * Log calls route to Anvil's main logger for consistent logging across the application.
  */
 export interface LogService {
   /**
@@ -419,7 +422,7 @@ export interface LogService {
  */
 export type QuickActionFn = (
   context: QuickActionExecutionContext,
-  sdk: MortSDK
+  sdk: AnvilSDK
 ) => Promise<void> | void;
 
 /**

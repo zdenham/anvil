@@ -4,13 +4,13 @@ import type { ReplContext, ReplResult, ContextShortCircuit } from "./types.js";
 
 const MAX_RESULT_SIZE = 50 * 1024;
 
-const HEREDOC_PATTERN = /mort-repl\s+<<['"]?(\w+)['"]?\n([\s\S]*?)\n\1/;
-const QUOTED_PATTERN = /mort-repl\s+["']([\s\S]*?)["']/;
+const HEREDOC_PATTERN = /anvil-repl\s+<<['"]?(\w+)['"]?\n([\s\S]*?)\n\1/;
+const QUOTED_PATTERN = /anvil-repl\s+["']([\s\S]*?)["']/;
 
 /**
- * SDK interface compatible with both the stub and real MortReplSdk.
+ * SDK interface compatible with both the stub and real AnvilReplSdk.
  */
-export interface MortSdk {
+export interface AnvilSdk {
   spawn: (options: { prompt: string; contextShortCircuit?: ContextShortCircuit; budgetCapUsd?: number }) => Promise<string>;
   setBudgetCap: (usd: number) => void;
   log: (msg: string) => void;
@@ -18,18 +18,18 @@ export interface MortSdk {
   logs: string[];
 }
 
-function createStubSdk(context: ReplContext): MortSdk {
+function createStubSdk(context: ReplContext): AnvilSdk {
   const logs: string[] = [];
   return {
     spawn: async () => {
-      throw new Error("mort.spawn() not available — use /orchestrate skill first");
+      throw new Error("anvil.spawn() not available — use /orchestrate skill first");
     },
     setBudgetCap: () => {
-      throw new Error("mort.setBudgetCap() not available — use /orchestrate skill first");
+      throw new Error("anvil.setBudgetCap() not available — use /orchestrate skill first");
     },
     log: (msg: string) => {
       logs.push(msg);
-      logger.info(`[mort-repl] ${msg}`);
+      logger.info(`[anvil-repl] ${msg}`);
     },
     context: { ...context },
     logs,
@@ -37,18 +37,18 @@ function createStubSdk(context: ReplContext): MortSdk {
 }
 
 /**
- * Parses mort-repl commands, transpiles TypeScript, and executes code
- * with an injected `mort` SDK object.
+ * Parses anvil-repl commands, transpiles TypeScript, and executes code
+ * with an injected `anvil` SDK object.
  */
-export class MortReplRunner {
+export class AnvilReplRunner {
   /**
-   * Extract code from a mort-repl Bash command.
+   * Extract code from an anvil-repl Bash command.
    * Supports heredoc and quoted string formats.
-   * Returns null if the command is not a mort-repl invocation.
+   * Returns null if the command is not an anvil-repl invocation.
    */
   extractCode(command: string): string | null {
     const trimmed = command.trimStart();
-    if (!trimmed.startsWith("mort-repl")) {
+    if (!trimmed.startsWith("anvil-repl")) {
       return null;
     }
 
@@ -77,34 +77,34 @@ export class MortReplRunner {
   }
 
   /**
-   * Execute code with an injected `mort` SDK object.
+   * Execute code with an injected `anvil` SDK object.
    * Accepts an optional sdk parameter so Phase 2 can inject a real SDK.
    */
   async execute(
     code: string,
     context: ReplContext,
-    sdk?: MortSdk,
+    sdk?: AnvilSdk,
   ): Promise<ReplResult> {
     const start = performance.now();
-    const mortSdk = sdk ?? createStubSdk(context);
+    const anvilSdk = sdk ?? createStubSdk(context);
 
     try {
       const transpiledCode = this.transpile(code);
-      const value = await this.executeTranspiled(transpiledCode, mortSdk);
+      const value = await this.executeTranspiled(transpiledCode, anvilSdk);
       return {
         success: true,
         value,
-        logs: mortSdk.logs,
+        logs: anvilSdk.logs,
         durationMs: performance.now() - start,
       };
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : String(err);
-      logger.error(`[mort-repl] execution error: ${errorMessage}`);
+      logger.error(`[anvil-repl] execution error: ${errorMessage}`);
       return {
         success: false,
         value: undefined,
-        logs: mortSdk.logs,
+        logs: anvilSdk.logs,
         error: errorMessage,
         durationMs: performance.now() - start,
       };
@@ -120,9 +120,9 @@ export class MortReplRunner {
 
     if (result.success) {
       const serialized = this.serializeValue(result.value);
-      parts.push(`mort-repl result:\n${serialized}`);
+      parts.push(`anvil-repl result:\n${serialized}`);
     } else {
-      parts.push(`mort-repl error:\n${result.error ?? "Unknown error"}`);
+      parts.push(`anvil-repl error:\n${result.error ?? "Unknown error"}`);
     }
 
     if (result.logs.length > 0) {
@@ -135,16 +135,16 @@ export class MortReplRunner {
 
   private async executeTranspiled(
     transpiledCode: string,
-    sdk: MortSdk,
+    sdk: AnvilSdk,
   ): Promise<unknown> {
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
     const AsyncFunction = Object.getPrototypeOf(
       async function () {},
     ).constructor as new (
       ...args: string[]
-    ) => (mort: MortSdk) => Promise<unknown>;
+    ) => (anvil: AnvilSdk) => Promise<unknown>;
 
-    const fn = new AsyncFunction("mort", transpiledCode);
+    const fn = new AsyncFunction("anvil", transpiledCode);
     return fn(sdk);
   }
 

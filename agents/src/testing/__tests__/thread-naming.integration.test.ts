@@ -85,10 +85,10 @@ describe.skip('Thread Naming - Live LLM', () => {
     expect(name.length).toBeGreaterThan(0);
 
     // 7. Verify thread metadata was updated with name on disk
-    const mortDir = harness.tempDirPath;
-    expect(mortDir).not.toBeNull();
+    const anvilDir = harness.tempDirPath;
+    expect(anvilDir).not.toBeNull();
 
-    const threadMetadataPath = join(mortDir!, 'threads', threadId, 'metadata.json');
+    const threadMetadataPath = join(anvilDir!, 'threads', threadId, 'metadata.json');
     let threadMetadata: {
       id: string;
       name?: string;
@@ -285,8 +285,8 @@ describe.skip('Thread Naming - Live LLM', () => {
     console.log(`[LIVE TEST] Generated name: "${generatedName}"`);
 
     // Read thread metadata from disk
-    const mortDir = harness.tempDirPath!;
-    const threadMetadataPath = join(mortDir, 'threads', threadId, 'metadata.json');
+    const anvilDir = harness.tempDirPath!;
+    const threadMetadataPath = join(anvilDir, 'threads', threadId, 'metadata.json');
     const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, 'utf-8'));
 
     console.log(`[LIVE TEST] Disk metadata name: "${threadMetadata.name}"`);

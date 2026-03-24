@@ -4,7 +4,7 @@ import { tmpdir } from "os";
 import { randomUUID } from "crypto";
 import type { RepositorySettings } from "@core/types/repositories.js";
 
-export interface TestMortDirectoryOptions {
+export interface TestAnvilDirectoryOptions {
   /** Keep directory after cleanup for debugging */
   keepOnCleanup?: boolean;
 }
@@ -16,13 +16,13 @@ export interface TestRepository {
   defaultBranch?: string;
 }
 
-export class TestMortDirectory {
+export class TestAnvilDirectory {
   public readonly path: string;
   private cleaned = false;
   private registeredRepos: Map<string, TestRepository> = new Map();
 
-  constructor(private options: TestMortDirectoryOptions = {}) {
-    this.path = join(tmpdir(), `mort-test-${randomUUID()}`);
+  constructor(private options: TestAnvilDirectoryOptions = {}) {
+    this.path = join(tmpdir(), `anvil-test-${randomUUID()}`);
   }
 
   /**
@@ -97,7 +97,7 @@ export class TestMortDirectory {
 
     const shouldKeep = this.options.keepOnCleanup || process.env.KEEP_TEMP || failed;
     if (shouldKeep) {
-      console.log(`[TestMortDirectory] Keeping temp dir for debugging: ${this.path}`);
+      console.log(`[TestAnvilDirectory] Keeping temp dir for debugging: ${this.path}`);
       return;
     }
 

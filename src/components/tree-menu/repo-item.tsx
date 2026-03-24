@@ -96,7 +96,7 @@ export function RepoItem({ item, onHideRepo, onRemoveRepo }: RepoItemProps) {
           {onRemoveRepo && (
             <RepoCtxItem
               icon={Trash2}
-              label="Remove from Mort"
+              label="Remove from Anvil"
               className="text-red-400"
               iconClass="text-red-400"
               onClick={() => { setShowContextMenu(false); onRemoveRepo(item.id, item.title); }}

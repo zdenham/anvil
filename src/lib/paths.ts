@@ -1,9 +1,9 @@
 /**
- * Path utilities for Mort application resources and directories.
+ * Path utilities for Anvil application resources and directories.
  *
  * Provides helpers for resolving:
  * - Quick actions template directory (bundled with app)
- * - Quick actions project directory (~/.mort/quick-actions)
+ * - Quick actions project directory (~/.anvil/quick-actions)
  * - SDK runner script (bundled with app)
  * - SDK types file (bundled with app)
  */
@@ -34,11 +34,11 @@ export async function getQuickActionsTemplatePath(): Promise<string> {
 
 /**
  * Gets the path to the user's quick actions project.
- * Located at ~/.mort/quick-actions (or ~/.mort-dev/quick-actions in dev).
+ * Located at ~/.anvil/quick-actions (or ~/.anvil-dev/quick-actions in dev).
  */
 export async function getQuickActionsProjectPath(): Promise<string> {
-  const mortDir = await fs.getDataDir();
-  return fs.joinPath(mortDir, 'quick-actions');
+  const anvilDir = await fs.getDataDir();
+  return fs.joinPath(anvilDir, 'quick-actions');
 }
 
 /**
@@ -78,15 +78,15 @@ export async function getSdkTypesPath(): Promise<string> {
 }
 
 /**
- * Gets the .mort data directory path.
+ * Gets the .anvil data directory path.
  * This is a convenience export that delegates to FilesystemClient.
  */
-export async function getMortDir(): Promise<string> {
+export async function getAnvilDir(): Promise<string> {
   return fs.getDataDir();
 }
 
 /**
- * Gets the path to the bundled Mort plugin source directory.
+ * Gets the path to the bundled Anvil plugin source directory.
  * In dev: points at the repo's plugins/mort/ directly.
  * In production: resolves from Tauri's bundled resources.
  */

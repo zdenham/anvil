@@ -457,9 +457,9 @@ export const repoService = {
   },
 
   /**
-   * Removes a repository from Mort settings without deleting source files on disk.
+   * Removes a repository from Anvil settings without deleting source files on disk.
    * This is the user-facing "remove" action from the UI.
-   * Removes the ~/.mort/repositories/{slug} folder but leaves source code untouched.
+   * Removes the ~/.anvil/repositories/{slug} folder but leaves source code untouched.
    */
   async remove(repoId: string): Promise<void> {
     const existing = useRepoStore.getState().repositories[repoId];

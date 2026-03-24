@@ -1,14 +1,14 @@
 import { fsCommands } from "@/lib/tauri-commands";
-import { getMortDir } from "@/lib/paths";
+import { getAnvilDir } from "@/lib/paths";
 
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export async function writeImageToTempFile(blob: File): Promise<string> {
-  const mortDir = await getMortDir();
+  const anvilDir = await getAnvilDir();
   const ext = extensionFromMime(blob.type);
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 8);
-  const path = `${mortDir}/tmp/paste-${timestamp}-${random}.${ext}`;
+  const path = `${anvilDir}/tmp/paste-${timestamp}-${random}.${ext}`;
 
   const base64 = await readBlobAsBase64(blob);
   await fsCommands.writeBinaryFile(path, base64);

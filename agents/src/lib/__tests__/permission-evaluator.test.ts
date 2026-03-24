@@ -297,14 +297,14 @@ describe("PermissionEvaluator", () => {
       );
       const result = evaluator.evaluate("EnterWorktree", {});
       expect(result.decision).toBe("deny");
-      expect(result.reason).toContain("Worktree creation is managed by Mort");
+      expect(result.reason).toContain("Worktree creation is managed by Anvil");
     });
 
     it("EnterWorktree is denied in plan mode", () => {
       const evaluator = new PermissionEvaluator(makeConfig());
       const result = evaluator.evaluate("EnterWorktree", {});
       expect(result.decision).toBe("deny");
-      expect(result.reason).toContain("Worktree creation is managed by Mort");
+      expect(result.reason).toContain("Worktree creation is managed by Anvil");
     });
 
     it("EnterWorktree is denied in approve mode", () => {
@@ -313,7 +313,7 @@ describe("PermissionEvaluator", () => {
       );
       const result = evaluator.evaluate("EnterWorktree", {});
       expect(result.decision).toBe("deny");
-      expect(result.reason).toContain("Worktree creation is managed by Mort");
+      expect(result.reason).toContain("Worktree creation is managed by Anvil");
     });
 
     it("EnterWorktree denial overrides custom allow rules", () => {

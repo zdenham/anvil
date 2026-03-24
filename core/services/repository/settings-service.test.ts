@@ -44,23 +44,23 @@ function createValidSettings(overrides: Partial<RepositorySettings> = {}): Repos
 }
 
 describe('RepositorySettingsService', () => {
-  const mortDir = '/home/user/.mort';
+  const anvilDir = '/home/user/.anvil';
   let mockFS: FileSystemAdapter;
   let service: RepositorySettingsService;
 
   beforeEach(() => {
     mockFS = createMockFS();
-    service = new RepositorySettingsService(mortDir, mockFS);
+    service = new RepositorySettingsService(anvilDir, mockFS);
   });
 
   describe('load', () => {
     it('should load existing settings file', () => {
       const settings = createValidSettings({ name: 'my-repo' });
-      const settingsPath = '/home/user/.mort/repositories/my-repo/settings.json';
+      const settingsPath = '/home/user/.anvil/repositories/my-repo/settings.json';
       mockFS = createMockFS({
         [settingsPath]: JSON.stringify(settings),
       });
-      service = new RepositorySettingsService(mortDir, mockFS);
+      service = new RepositorySettingsService(anvilDir, mockFS);
 
       const result = service.load('my-repo');
 
@@ -73,11 +73,11 @@ describe('RepositorySettingsService', () => {
     });
 
     it('should throw on malformed JSON', () => {
-      const settingsPath = '/home/user/.mort/repositories/bad-repo/settings.json';
+      const settingsPath = '/home/user/.anvil/repositories/bad-repo/settings.json';
       mockFS = createMockFS({
         [settingsPath]: 'not valid json {{{',
       });
-      service = new RepositorySettingsService(mortDir, mockFS);
+      service = new RepositorySettingsService(anvilDir, mockFS);
 
       expect(() => service.load('bad-repo')).toThrow();
     });
@@ -86,7 +86,7 @@ describe('RepositorySettingsService', () => {
   describe('save', () => {
     it('should save settings file', () => {
       const settings = createValidSettings({ name: 'my-repo' });
-      const settingsPath = '/home/user/.mort/repositories/my-repo/settings.json';
+      const settingsPath = '/home/user/.anvil/repositories/my-repo/settings.json';
 
       service.save('my-repo', settings);
 
@@ -113,12 +113,12 @@ describe('RepositorySettingsService', () => {
     });
 
     it('should overwrite existing settings file', () => {
-      const settingsPath = '/home/user/.mort/repositories/my-repo/settings.json';
+      const settingsPath = '/home/user/.anvil/repositories/my-repo/settings.json';
       const initialSettings = createValidSettings({ name: 'my-repo' });
       mockFS = createMockFS({
         [settingsPath]: JSON.stringify(initialSettings),
       });
-      service = new RepositorySettingsService(mortDir, mockFS);
+      service = new RepositorySettingsService(anvilDir, mockFS);
 
       const updatedSettings = createValidSettings({
         name: 'my-repo',
@@ -145,11 +145,11 @@ describe('RepositorySettingsService', () => {
 
   describe('exists', () => {
     it('should return true when settings file exists', () => {
-      const settingsPath = '/home/user/.mort/repositories/my-repo/settings.json';
+      const settingsPath = '/home/user/.anvil/repositories/my-repo/settings.json';
       mockFS = createMockFS({
         [settingsPath]: '{}',
       });
-      service = new RepositorySettingsService(mortDir, mockFS);
+      service = new RepositorySettingsService(anvilDir, mockFS);
 
       const result = service.exists('my-repo');
 
@@ -166,11 +166,11 @@ describe('RepositorySettingsService', () => {
 
   describe('settings path construction', () => {
     it('should construct correct path for repository', () => {
-      const settingsPath = '/home/user/.mort/repositories/test-repo/settings.json';
+      const settingsPath = '/home/user/.anvil/repositories/test-repo/settings.json';
       mockFS = createMockFS({
         [settingsPath]: JSON.stringify(createValidSettings()),
       });
-      service = new RepositorySettingsService(mortDir, mockFS);
+      service = new RepositorySettingsService(anvilDir, mockFS);
 
       service.load('test-repo');
 
@@ -179,11 +179,11 @@ describe('RepositorySettingsService', () => {
 
     it('should handle repository names with special characters', () => {
       const repoName = 'my-awesome-repo_123';
-      const settingsPath = `/home/user/.mort/repositories/${repoName}/settings.json`;
+      const settingsPath = `/home/user/.anvil/repositories/${repoName}/settings.json`;
       mockFS = createMockFS({
         [settingsPath]: JSON.stringify(createValidSettings()),
       });
-      service = new RepositorySettingsService(mortDir, mockFS);
+      service = new RepositorySettingsService(anvilDir, mockFS);
 
       service.load(repoName);
 

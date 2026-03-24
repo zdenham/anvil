@@ -12,11 +12,11 @@ import { navigationService } from "@/stores/navigation-service";
 
 const fs = new FilesystemClient();
 
-/** Resolves the effective env file path, falling back to {mortDir}/.env */
+/** Resolves the effective env file path, falling back to {anvilDir}/.env */
 async function resolveEnvPath(customPath?: string): Promise<string> {
   if (customPath) return customPath;
-  const mortDir = await fs.getDataDir();
-  return join(mortDir, ".env");
+  const anvilDir = await fs.getDataDir();
+  return join(anvilDir, ".env");
 }
 
 export function EnvFileSettings() {
@@ -136,7 +136,7 @@ export function EnvFileSettings() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
-              placeholder={resolvedPath || ".mort/.env"}
+              placeholder={resolvedPath || ".anvil/.env"}
               className="w-full bg-surface-900 border border-surface-700 rounded pl-8 pr-3 py-1.5 text-sm text-surface-200 placeholder-surface-600 focus:outline-none focus:border-accent-500"
             />
           </div>

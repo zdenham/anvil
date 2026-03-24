@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Pane Layout Zod Schemas (shared between frontend and agents)
-// Persistence location: ~/.mort/ui/pane-layout.json
+// Persistence location: ~/.anvil/ui/pane-layout.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**

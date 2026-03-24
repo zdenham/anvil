@@ -30,13 +30,13 @@ describe("createCommentResolutionHook", () => {
       expect(mockEmitEvent).not.toHaveBeenCalled();
     });
 
-    it("returns continue for commands that contain but do not start with mort-resolve-comment", async () => {
+    it("returns continue for commands that contain but do not start with anvil-resolve-comment", async () => {
       const hook = createCommentResolutionHook({
         worktreeId: "test-worktree-id",
         emitEvent: mockEmitEvent,
       });
 
-      const result = await hook(makeHookInput("echo mort-resolve-comment abc"));
+      const result = await hook(makeHookInput("echo anvil-resolve-comment abc"));
       expect(result).toEqual({ continue: true });
       expect(mockEmitEvent).not.toHaveBeenCalled();
     });
@@ -51,7 +51,7 @@ describe("createCommentResolutionHook", () => {
         emitEvent: mockEmitEvent,
       });
 
-      const result = await hook(makeHookInput('mort-resolve-comment "abc-123"'));
+      const result = await hook(makeHookInput('anvil-resolve-comment "abc-123"'));
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(1);
       expect(mockEmitEvent).toHaveBeenCalledWith(EventName.COMMENT_RESOLVED, {
@@ -74,7 +74,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       const result = await hook(
-        makeHookInput('mort-resolve-comment "abc-123,def-456,ghi-789"'),
+        makeHookInput('anvil-resolve-comment "abc-123,def-456,ghi-789"'),
       );
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(3);
@@ -106,7 +106,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       const result = await hook(
-        makeHookInput("mort-resolve-comment abc-123,def-456"),
+        makeHookInput("anvil-resolve-comment abc-123,def-456"),
       );
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(2);
@@ -132,7 +132,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       const result = await hook(
-        makeHookInput("mort-resolve-comment 'abc-123,def-456'"),
+        makeHookInput("anvil-resolve-comment 'abc-123,def-456'"),
       );
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(2);
@@ -150,7 +150,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       await hook(
-        makeHookInput('mort-resolve-comment "abc-123 , def-456 , ghi-789"'),
+        makeHookInput('anvil-resolve-comment "abc-123 , def-456 , ghi-789"'),
       );
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(3);
@@ -175,7 +175,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       await hook(
-        makeHookInput('mort-resolve-comment "abc-123,,def-456,"'),
+        makeHookInput('anvil-resolve-comment "abc-123,,def-456,"'),
       );
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(2);
@@ -196,7 +196,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       const result = await hook(
-        makeHookInput('  mort-resolve-comment "abc-123"'),
+        makeHookInput('  anvil-resolve-comment "abc-123"'),
       );
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(1);
@@ -211,13 +211,13 @@ describe("createCommentResolutionHook", () => {
   // ── Deny cases ────────────────────────────────────────────────
 
   describe("deny cases", () => {
-    it("denies bare mort-resolve-comment with no args", async () => {
+    it("denies bare anvil-resolve-comment with no args", async () => {
       const hook = createCommentResolutionHook({
         worktreeId: "wt-1",
         emitEvent: mockEmitEvent,
       });
 
-      const result = await hook(makeHookInput("mort-resolve-comment"));
+      const result = await hook(makeHookInput("anvil-resolve-comment"));
 
       expect(result).toMatchObject({
         reason: expect.stringContaining("Usage"),
@@ -237,7 +237,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       const result = await hook(
-        makeHookInput('mort-resolve-comment "abc-123"'),
+        makeHookInput('anvil-resolve-comment "abc-123"'),
       );
 
       expect(result).toMatchObject({
@@ -262,7 +262,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       await hook(
-        makeHookInput('mort-resolve-comment "id-1,id-2,id-3"'),
+        makeHookInput('anvil-resolve-comment "id-1,id-2,id-3"'),
       );
 
       expect(mockEmitEvent).toHaveBeenCalledTimes(3);
@@ -281,7 +281,7 @@ describe("createCommentResolutionHook", () => {
         emitEvent: mockEmitEvent,
       });
 
-      await hook(makeHookInput('mort-resolve-comment "comment-abc"'));
+      await hook(makeHookInput('anvil-resolve-comment "comment-abc"'));
 
       expect(mockEmitEvent).toHaveBeenCalledWith(
         EventName.COMMENT_RESOLVED,
@@ -298,7 +298,7 @@ describe("createCommentResolutionHook", () => {
         emitEvent: mockEmitEvent,
       });
 
-      await hook(makeHookInput("mort-resolve-comment"));
+      await hook(makeHookInput("anvil-resolve-comment"));
       expect(mockEmitEvent).not.toHaveBeenCalled();
     });
 
@@ -308,7 +308,7 @@ describe("createCommentResolutionHook", () => {
         emitEvent: mockEmitEvent,
       });
 
-      await hook(makeHookInput('mort-resolve-comment "abc-123"'));
+      await hook(makeHookInput('anvil-resolve-comment "abc-123"'));
       expect(mockEmitEvent).not.toHaveBeenCalled();
     });
   });
@@ -323,7 +323,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       const result = await hook(
-        makeHookInput('mort-resolve-comment "abc,def"'),
+        makeHookInput('anvil-resolve-comment "abc,def"'),
       );
 
       expect(result).toMatchObject({
@@ -342,7 +342,7 @@ describe("createCommentResolutionHook", () => {
       });
 
       const result = await hook(
-        makeHookInput('mort-resolve-comment "abc-123"'),
+        makeHookInput('anvil-resolve-comment "abc-123"'),
       );
 
       const output = (result as Record<string, unknown>)

@@ -93,7 +93,7 @@ export function BashToolBlock({
   const bashInput = input as unknown as BashInput;
   const command = bashInput.command || "";
 
-  // Detect mort-repl commands and render with dedicated component
+  // Detect anvil-repl commands and render with dedicated component
   const replCode = extractReplCode(command);
   if (replCode !== null) {
     return (

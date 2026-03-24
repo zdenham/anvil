@@ -3,10 +3,6 @@
 declare const __PROJECT_ROOT__: string;
 declare const __ANVIL_WS_PORT__: number;
 
-interface ImportMetaEnv {
-  readonly VITE_ANTHROPIC_API_KEY?: string;
-}
-
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }

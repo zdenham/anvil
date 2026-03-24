@@ -12,7 +12,7 @@ export interface Migration {
 }
 
 export interface MigrationContext {
-  /** Path to ~/.mort or ~/.mort-dev data directory */
+  /** Path to ~/.anvil or ~/.anvil-dev data directory */
   dataDir: string;
   /** Path to the SDK template directory (bundled with app) */
   templateDir: string;

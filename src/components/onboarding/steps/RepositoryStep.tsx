@@ -69,7 +69,7 @@ export const RepositoryStep = ({
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-surface-100 font-mono">Select Your Project</h2>
         <p className="text-surface-300">
-          mort will write code to this directory
+          anvil will write code to this directory
         </p>
       </div>
 

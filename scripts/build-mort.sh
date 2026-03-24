@@ -11,10 +11,10 @@ if [ -f "scripts/env-presets/${PRESET}.sh" ]; then
   source "scripts/env-presets/${PRESET}.sh"
 fi
 
-echo "Building Mort with:"
-echo "  MORT_APP_SUFFIX=${MORT_APP_SUFFIX:-<production>}"
-echo "  MORT_SPOTLIGHT_HOTKEY=${MORT_SPOTLIGHT_HOTKEY:-Command+Space}"
-echo "  MORT_CLIPBOARD_HOTKEY=${MORT_CLIPBOARD_HOTKEY:-Command+Option+C}"
+echo "Building Anvil with:"
+echo "  ANVIL_APP_SUFFIX=${ANVIL_APP_SUFFIX:-<production>}"
+echo "  ANVIL_SPOTLIGHT_HOTKEY=${ANVIL_SPOTLIGHT_HOTKEY:-Command+Space}"
+echo "  ANVIL_CLIPBOARD_HOTKEY=${ANVIL_CLIPBOARD_HOTKEY:-Command+Option+C}"
 
 pnpm build:frontend
 

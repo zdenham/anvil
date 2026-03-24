@@ -7,6 +7,7 @@
 
 import { useCallback } from "react";
 import { PanelLeft, PanelRight, PanelBottom } from "lucide-react";
+import { Tooltip } from "@/components/ui/tooltip";
 import { usePaneLayoutStore } from "@/stores/pane-layout";
 import { useTabTooltip } from "@/components/split-layout/use-tab-tooltip";
 import { cn } from "@/lib/utils";
@@ -68,33 +69,39 @@ export function WindowTitlebar({
 
       {/* Panel toggle controls */}
       <div className="flex items-center gap-0.5 flex-shrink-0">
-        <button
-          onClick={onToggleLeftPanel}
-          className={cn(
-            "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
-            leftPanelOpen && "bg-surface-800",
-          )}
-        >
-          <PanelLeft size={12} />
-        </button>
-        <button
-          onClick={onToggleTerminalPanel}
-          className={cn(
-            "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
-            terminalPanelOpen && "bg-surface-800",
-          )}
-        >
-          <PanelBottom size={12} />
-        </button>
-        <button
-          onClick={onToggleRightPanel}
-          className={cn(
-            "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
-            rightPanelOpen && "bg-surface-800",
-          )}
-        >
-          <PanelRight size={12} />
-        </button>
+        <Tooltip content="Toggle sidebar" side="bottom">
+          <button
+            onClick={onToggleLeftPanel}
+            className={cn(
+              "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
+              leftPanelOpen && "bg-surface-800",
+            )}
+          >
+            <PanelLeft size={12} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Toggle terminal" side="bottom">
+          <button
+            onClick={onToggleTerminalPanel}
+            className={cn(
+              "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
+              terminalPanelOpen && "bg-surface-800",
+            )}
+          >
+            <PanelBottom size={12} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Toggle right panel" side="bottom">
+          <button
+            onClick={onToggleRightPanel}
+            className={cn(
+              "flex items-center justify-center w-5 h-5 rounded transition-colors text-surface-600 hover:text-surface-400",
+              rightPanelOpen && "bg-surface-800",
+            )}
+          >
+            <PanelRight size={12} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );

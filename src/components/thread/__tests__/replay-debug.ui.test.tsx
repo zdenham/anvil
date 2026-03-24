@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { ReplayHarness } from "@/test/helpers/event-replay";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
-import { MOCK_MORT_DIR, mockFileSystem } from "@/test/mocks/tauri-api";
+import { MOCK_ANVIL_DIR, mockFileSystem } from "@/test/mocks/tauri-api";
 import { ThreadStateSchema } from "@core/types/events";
 import fixture from "@/test/fixtures/hello-world.json";
 import type { CapturedEvent } from "@/stores/event-debugger-store";
@@ -15,7 +15,7 @@ describe("replay debug", () => {
   it("validates disk state against schema", () => {
     const harness = new ReplayHarness(fixture as CapturedEvent[]);
 
-    const statePath = `${MOCK_MORT_DIR}/threads/${harness.id}/state.json`;
+    const statePath = `${MOCK_ANVIL_DIR}/threads/${harness.id}/state.json`;
     const raw = JSON.parse(mockFileSystem.get(statePath)!);
     console.log("Raw state keys:", Object.keys(raw));
     console.log("Raw state status:", raw.status);

@@ -2,7 +2,7 @@
  * ResizablePanel
  *
  * A panel with a draggable edge for resizing.
- * Persists width to disk following ~/.mort/ conventions.
+ * Persists width to disk following ~/.anvil/ conventions.
  *
  * Usage:
  * <ResizablePanel
@@ -20,7 +20,7 @@
  * - Horizontal resizing (width)
  * - Min/max width constraints
  * - Drag handle with visual indicator
- * - Persist width via layoutService (backed by ~/.mort/ui/layout.json)
+ * - Persist width via layoutService (backed by ~/.anvil/ui/layout.json)
  * - Snap-to-close behavior when dragged below threshold
  */
 
@@ -43,7 +43,7 @@ export interface ResizablePanelProps {
   maxWidth?: number;
   /** Default width if no persisted value (can be number or "1/3" for window fraction) */
   defaultWidth: number | "1/3";
-  /** Key for persisting width (stored in ~/.mort/ui/layout.json) */
+  /** Key for persisting width (stored in ~/.anvil/ui/layout.json) */
   persistKey: string;
   /** Threshold below which panel snaps closed */
   closeThreshold?: number;

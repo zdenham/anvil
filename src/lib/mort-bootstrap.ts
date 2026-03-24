@@ -4,23 +4,23 @@ import { SettingsStoreClient } from "./settings-store-client";
 import { appData } from "./app-data-store";
 
 /**
- * Mort store clients for accessing the .mort directory structure
+ * Anvil store clients for accessing the .anvil directory structure
  */
-export interface MortStores {
+export interface AnvilStores {
   fs: FilesystemClient;
   repos: RepoStoreClient;
   settings: SettingsStoreClient;
 }
 
 /**
- * Bootstraps the .mort directory structure in Documents.
+ * Bootstraps the .anvil directory structure in Documents.
  * Creates all necessary directories and returns initialized store clients.
  *
  * Note: Migrations (including quick-actions project initialization) are now
  * handled by Rust during app startup via the TypeScript migration runner.
  *
  * Directory structure:
- * ~/.mort/
+ * ~/.anvil/
  * ├── threads/{threadId}/         - Active threads
  * ├── plans/{planId}/             - Active plans
  * ├── plan-thread-edges/          - Relation files
@@ -29,7 +29,7 @@ export interface MortStores {
  *     ├── plans/{planId}/         - Archived plans
  *     └── plan-thread-edges/      - Archived relations
  */
-export async function bootstrapMortDirectory(): Promise<MortStores> {
+export async function bootstrapAnvilDirectory(): Promise<AnvilStores> {
   const fs = new FilesystemClient();
   const repos = new RepoStoreClient(fs);
   const settings = new SettingsStoreClient(fs);

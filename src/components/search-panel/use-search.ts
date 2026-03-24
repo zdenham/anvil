@@ -46,12 +46,12 @@ export function useSearch(opts: {
 
   const requestCounter = useRef(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
-  const mortDirRef = useRef<string>("");
+  const anvilDirRef = useRef<string>("");
 
-  // Resolve mortDir once on mount
+  // Resolve anvilDir once on mount
   useEffect(() => {
     fsCommands.getDataDir().then((dir) => {
-      mortDirRef.current = dir;
+      anvilDirRef.current = dir;
     }).catch((err) => {
       logger.error("[useSearch] Failed to get data dir:", err);
     });
@@ -74,7 +74,7 @@ export function useSearch(opts: {
 
     // Thread search (always runs)
     promises.push(
-      searchCommands.searchThreads(mortDirRef.current, q, { caseSensitive })
+      searchCommands.searchThreads(anvilDirRef.current, q, { caseSensitive })
         .then((res) => {
           if (requestCounter.current !== counter) return;
           setThreadTruncated(res.truncated);

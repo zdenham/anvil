@@ -21,8 +21,8 @@ export interface RunnerOptions {
   actionPath: string;
   /** Execution context passed to the action */
   context: QuickActionExecutionContext;
-  /** Path to the .mort directory */
-  mortDir: string;
+  /** Path to the .anvil directory */
+  anvilDir: string;
   /** Override default timeout (ms). Default: 5000ms for tests */
   timeout?: number;
 }
@@ -62,7 +62,7 @@ export async function runQuickAction(options: RunnerOptions): Promise<RunnerResu
   const {
     actionPath,
     context,
-    mortDir,
+    anvilDir,
     timeout = 5000,
   } = options;
 
@@ -80,7 +80,7 @@ export async function runQuickAction(options: RunnerOptions): Promise<RunnerResu
       runnerPath,
       '--action', actionPath,
       '--context', JSON.stringify(context),
-      '--mort-dir', mortDir,
+      '--anvil-dir', anvilDir,
     ], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });

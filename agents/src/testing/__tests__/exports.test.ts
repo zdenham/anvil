@@ -10,7 +10,8 @@ import {
   // Classes
   AgentTestHarness,
   AgentAssertions,
-  TestMortDirectory,
+  TestAnvilDirectory,
+  TestMortDirectory, // deprecated alias
   TestRepository,
   MockClaudeClient,
   // Functions
@@ -41,7 +42,8 @@ import type {
   AgentEventMessage,
   AgentStateMessage,
   StdoutMessage,
-  TestMortDirectoryOptions,
+  TestAnvilDirectoryOptions,
+  TestMortDirectoryOptions, // deprecated alias
   TestRepositoryOptions,
   FileFixture,
   // Mock LLM types
@@ -72,7 +74,12 @@ describe("testing module exports", () => {
       expect(typeof AgentAssertions).toBe("function");
     });
 
-    it("exports TestMortDirectory", () => {
+    it("exports TestAnvilDirectory", () => {
+      expect(TestAnvilDirectory).toBeDefined();
+      expect(typeof TestAnvilDirectory).toBe("function");
+    });
+
+    it("exports TestMortDirectory (deprecated alias)", () => {
       expect(TestMortDirectory).toBeDefined();
       expect(typeof TestMortDirectory).toBe("function");
     });
@@ -109,7 +116,7 @@ describe("testing module exports", () => {
 
   describe("mock LLM exports", () => {
     it("exports MOCK_LLM_VAR constant", () => {
-      expect(MOCK_LLM_VAR).toBe("MORT_MOCK_LLM_PATH");
+      expect(MOCK_LLM_VAR).toBe("ANVIL_MOCK_LLM_PATH");
     });
 
     it("exports createMockScript function", () => {
@@ -175,7 +182,7 @@ describe("testing module exports", () => {
         repoId: "test-repo-456",
         cwd: "/test/cwd",
       };
-      const args = defaultRunnerConfig.buildArgs(opts, "/mort/dir", "/repo/cwd");
+      const args = defaultRunnerConfig.buildArgs(opts, "/anvil/dir", "/repo/cwd");
 
       expect(args).toContain("--prompt");
       expect(args).toContain("test prompt");
@@ -183,8 +190,8 @@ describe("testing module exports", () => {
       expect(args).toContain("test-thread-123");
       expect(args).toContain("--repo-id");
       expect(args).toContain("test-repo-456");
-      expect(args).toContain("--mort-dir");
-      expect(args).toContain("/mort/dir");
+      expect(args).toContain("--anvil-dir");
+      expect(args).toContain("/anvil/dir");
       expect(args).toContain("--cwd");
       expect(args).toContain("/test/cwd");
     });

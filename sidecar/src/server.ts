@@ -1,8 +1,8 @@
 /**
- * Mort sidecar server entry point.
+ * Anvil sidecar server entry point.
  *
  * Express + WebSocket server that handles all data commands for the
- * Mort frontend (both Tauri webview and standalone web browser).
+ * Anvil frontend (both Tauri webview and standalone web browser).
  */
 
 import express from "express";
@@ -17,10 +17,10 @@ import { createLogger } from "./logger.js";
 import { createHookRouter } from "./hooks/hook-handler.js";
 import { writeHooksJson } from "./hooks/hooks-writer.js";
 
-const BASE_PORT = parseInt(process.env.MORT_WS_PORT ?? "9600", 10);
+const BASE_PORT = parseInt(process.env.ANVIL_WS_PORT ?? "9600", 10);
 const MAX_PORT_RETRIES = 10;
-const APP_SUFFIX = process.env.MORT_APP_SUFFIX ?? "";
-const DATA_DIR = process.env.MORT_DATA_DIR ?? "";
+const APP_SUFFIX = process.env.ANVIL_APP_SUFFIX ?? "";
+const DATA_DIR = process.env.ANVIL_DATA_DIR ?? "";
 
 let actualPort = BASE_PORT;
 
@@ -36,7 +36,7 @@ app.use((_req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type, X-Mort-Thread-Id",
+    "Content-Type, X-Anvil-Thread-Id",
   );
   next();
 });

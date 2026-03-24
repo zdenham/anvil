@@ -5,13 +5,13 @@ import type { ChildSpawner } from "./child-spawner.js";
 import type { ReplContext, ContextShortCircuit } from "./types.js";
 
 /**
- * SDK object injected into mort-repl user code as `mort`.
+ * SDK object injected into anvil-repl user code as `anvil`.
  *
  * Provides a clean API surface for REPL scripts to spawn child agents
  * and log messages. The spawner handles all the heavy lifting (disk
  * thread creation, process management, result extraction).
  */
-export class MortReplSdk {
+export class AnvilReplSdk {
   private spawner: ChildSpawner;
   private _context: ReplContext;
   private _logs: string[] = [];
@@ -27,7 +27,7 @@ export class MortReplSdk {
    */
   async spawn(options: { prompt: string; contextShortCircuit?: ContextShortCircuit; budgetCapUsd?: number }): Promise<string> {
     if (!options?.prompt) {
-      throw new Error("mort.spawn() requires a prompt");
+      throw new Error("anvil.spawn() requires a prompt");
     }
     return this.spawner.spawn({
       prompt: options.prompt,
@@ -41,7 +41,7 @@ export class MortReplSdk {
     if (usd <= 0) throw new Error("Budget cap must be positive");
 
     const metadataPath = join(
-      this._context.mortDir, "threads", this._context.threadId, "metadata.json"
+      this._context.anvilDir, "threads", this._context.threadId, "metadata.json"
     );
 
     try {
@@ -51,7 +51,7 @@ export class MortReplSdk {
       metadata.updatedAt = Date.now();
       writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
     } catch (err) {
-      logger.warn(`[mort-repl] Failed to set budget cap: ${err}`);
+      logger.warn(`[anvil-repl] Failed to set budget cap: ${err}`);
       throw new Error(`Failed to set budget cap: ${err}`);
     }
   }
@@ -59,7 +59,7 @@ export class MortReplSdk {
   /** Log a message (captured in REPL result and sent to agent logger). */
   log(message: string): void {
     this._logs.push(message);
-    logger.info(`[mort-repl] ${message}`);
+    logger.info(`[anvil-repl] ${message}`);
   }
 
   /** Read-only snapshot of the current REPL context. */

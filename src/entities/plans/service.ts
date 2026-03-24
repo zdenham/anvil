@@ -581,7 +581,7 @@ class PlanService {
    *
    * Two-step process for each plan:
    * 1. Moves the markdown file from repo `plans/` to `plans/completed/`
-   * 2. Moves the metadata from `~/.mort/plans/{id}` to `~/.mort/archive/plans/{id}`
+   * 2. Moves the metadata from `~/.anvil/plans/{id}` to `~/.anvil/archive/plans/{id}`
    *    and updates relativePath to reflect the new location.
    *
    * Emits PLAN_ARCHIVED event so relation service can archive associated relations.

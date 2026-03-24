@@ -145,7 +145,7 @@ describe("Thread History - loadPriorMessages", () => {
     // Now run the agent loop with these prior messages
     const config: RunnerConfig = {
       prompt: "What is my name?",
-      mortDir: testDir,
+      anvilDir: testDir,
       mode: "simple",
     };
 
@@ -271,7 +271,7 @@ describe("Thread History - End-to-End Resume Flow", () => {
     // Now verify the agent loop would receive these messages
     const config: RunnerConfig = {
       prompt: "What is my secret code?",
-      mortDir: testDir,
+      anvilDir: testDir,
       mode: "simple",
       historyFile: stateJsonPath,
     };

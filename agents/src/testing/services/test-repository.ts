@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 
 export interface TestRepositoryOptions {
-  /** Repository name (used when registering with TestMortDirectory) */
+  /** Repository name (used when registering with TestAnvilDirectory) */
   name?: string;
   /** Keep directory after cleanup for debugging */
   keepOnCleanup?: boolean;

@@ -12,13 +12,13 @@ import type { ThemedToken } from "@/lib/syntax-highlighter";
 const LINE_COLLAPSE_THRESHOLD = 20;
 const MAX_COLLAPSED_HEIGHT = 300;
 
-const HEREDOC_PATTERN = /mort-repl\s+<<['"]?(\w+)['"]?\n([\s\S]*?)\n\1/;
-const QUOTED_PATTERN = /mort-repl\s+['"]?([\s\S]*?)['"]?\s*$/;
+const HEREDOC_PATTERN = /anvil-repl\s+<<['"]?(\w+)['"]?\n([\s\S]*?)\n\1/;
+const QUOTED_PATTERN = /anvil-repl\s+['"]?([\s\S]*?)['"]?\s*$/;
 
-/** Extract TypeScript code body from a mort-repl command string. */
+/** Extract TypeScript code body from a anvil-repl command string. */
 export function extractReplCode(command: string): string | null {
   const trimmed = command.trimStart();
-  if (!trimmed.startsWith("mort-repl")) return null;
+  if (!trimmed.startsWith("anvil-repl")) return null;
   const heredoc = trimmed.match(HEREDOC_PATTERN);
   if (heredoc) return heredoc[2];
   const quoted = trimmed.match(QUOTED_PATTERN);
@@ -26,17 +26,17 @@ export function extractReplCode(command: string): string | null {
   return null;
 }
 
-/** Strip the mort-repl prefix from result text and detect repl-level errors. */
+/** Strip the anvil-repl prefix from result text and detect repl-level errors. */
 export function stripReplPrefix(result: string | undefined): {
   text: string;
   isReplError: boolean;
 } {
   if (!result) return { text: "", isReplError: false };
-  if (result.startsWith("mort-repl error:\n")) {
-    return { text: result.slice("mort-repl error:\n".length), isReplError: true };
+  if (result.startsWith("anvil-repl error:\n")) {
+    return { text: result.slice("anvil-repl error:\n".length), isReplError: true };
   }
-  if (result.startsWith("mort-repl result:\n")) {
-    return { text: result.slice("mort-repl result:\n".length), isReplError: false };
+  if (result.startsWith("anvil-repl result:\n")) {
+    return { text: result.slice("anvil-repl result:\n".length), isReplError: false };
   }
   return { text: result, isReplError: false };
 }
@@ -84,7 +84,7 @@ interface ReplToolBlockProps {
 }
 
 /**
- * Renders a mort-repl tool call with syntax-highlighted TypeScript code
+ * Renders a anvil-repl tool call with syntax-highlighted TypeScript code
  * and cleaned-up result output (no error styling for successful repl results).
  */
 export function ReplToolBlock({ id, threadId, code, result, isRunning }: ReplToolBlockProps) {
@@ -109,7 +109,7 @@ export function ReplToolBlock({ id, threadId, code, result, isRunning }: ReplToo
   return (
     <div
       className="group py-0.5"
-      aria-label={`mort-repl execution, status: ${isRunning ? "running" : "complete"}`}
+      aria-label={`anvil-repl execution, status: ${isRunning ? "running" : "complete"}`}
       data-testid={`repl-tool-${id}`}
       data-tool-status={isRunning ? "running" : "complete"}
     >
@@ -133,7 +133,7 @@ export function ReplToolBlock({ id, threadId, code, result, isRunning }: ReplToo
             isShimmering={isRunning}
             className="text-sm text-zinc-200 truncate min-w-0"
           >
-            mort-repl
+            anvil-repl
           </ShimmerText>
           {!isRunning && isReplError && (
             <span className="text-xs text-red-400">error</span>

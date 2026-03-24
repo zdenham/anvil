@@ -8,11 +8,11 @@ if [ -f "scripts/env-presets/${PRESET}.sh" ]; then
   source "scripts/env-presets/${PRESET}.sh"
 fi
 
-echo "Starting Mort with:"
-echo "  MORT_APP_SUFFIX=${MORT_APP_SUFFIX:-<production>}"
-echo "  MORT_VITE_PORT=${MORT_VITE_PORT:-1420}"
-if [ -n "$MORT_SKIP_MAIN_WINDOW" ]; then
-  echo "  MORT_SKIP_MAIN_WINDOW=1 (main window hidden on startup)"
+echo "Starting Anvil with:"
+echo "  ANVIL_APP_SUFFIX=${ANVIL_APP_SUFFIX:-<production>}"
+echo "  ANVIL_VITE_PORT=${ANVIL_VITE_PORT:-1420}"
+if [ -n "$ANVIL_SKIP_MAIN_WINDOW" ]; then
+  echo "  ANVIL_SKIP_MAIN_WINDOW=1 (main window hidden on startup)"
 fi
 
 # Set TAURI_ARGS for non-production presets
@@ -24,8 +24,8 @@ fi
 echo "Building SDK runner..."
 pnpm build:sdk
 
-if [ "$MORT_DISABLE_HMR" = "true" ]; then
-  echo "  MORT_DISABLE_HMR=true (manual refresh mode)"
+if [ "$ANVIL_DISABLE_HMR" = "true" ]; then
+  echo "  ANVIL_DISABLE_HMR=true (manual refresh mode)"
   pnpm dev:run:no-hmr
 else
   pnpm dev:run

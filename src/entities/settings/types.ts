@@ -27,9 +27,8 @@ export const WorkspaceSettingsSchema = z.object({
    * Authentication method for agent processes.
    * "api-key" — use anthropicApiKey from settings (BYOK)
    * "claude-login" — don't pass API key, let CLI use keychain credentials
-   * "default" / undefined — current behavior (use built-in key from env)
    */
-  authMethod: z.enum(["api-key", "claude-login", "default"]).optional(),
+  authMethod: z.enum(["api-key", "claude-login"]).optional(),
 
   /**
    * Workflow mode for handling completed threads.
@@ -74,14 +73,14 @@ export const WorkspaceSettingsSchema = z.object({
   networkDebugEnabled: z.boolean().optional(),
 
   /**
-   * Whether to hide worktrees not created by Mort from the sidebar.
+   * Whether to hide worktrees not created by Anvil from the sidebar.
    * Optional for backwards compatibility — defaults to true (hide external).
    */
   hideExternalWorktrees: z.boolean().optional(),
 
   /**
    * Path to a .env file whose variables are injected into agent processes.
-   * Optional — defaults to `{mortDir}/.env` in the UI when not set.
+   * Optional — defaults to `{anvilDir}/.env` in the UI when not set.
    */
   envFilePath: z.string().optional(),
 
@@ -102,6 +101,13 @@ export const WorkspaceSettingsSchema = z.object({
    * Optional — defaults to true for backwards compatibility.
    */
   tuiBypassPermissions: z.boolean().optional(),
+
+  /**
+   * Whether to send anonymous usage logs to the anvil server.
+   * Optional — defaults to true (enabled). Set to false to disable telemetry.
+   * Requires restart to take effect.
+   */
+  telemetryEnabled: z.boolean().optional(),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 

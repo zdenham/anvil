@@ -8,8 +8,8 @@ export interface RunnerConfig {
   prompt: string;
   /** Unique thread identifier */
   threadId: string;
-  /** Centralized .mort data directory (e.g., ~/.mort or ~/.mort-dev) */
-  mortDir: string;
+  /** Centralized .anvil data directory (e.g., ~/.anvil or ~/.anvil-dev) */
+  anvilDir: string;
   /** Repository UUID - used for associating threads with repositories */
   repoId?: string;
   /** Worktree UUID - used for associating threads with worktrees */

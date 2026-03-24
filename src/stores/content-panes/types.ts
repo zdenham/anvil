@@ -7,7 +7,7 @@ export { ContentPaneViewSchema };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Zod Schemas for Disk Persistence
-// Location: ~/.mort/ui/content-panes.json
+// Location: ~/.anvil/ui/content-panes.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**

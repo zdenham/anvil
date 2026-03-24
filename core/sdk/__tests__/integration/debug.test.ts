@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { getTemplateActionPath, runQuickAction, createMortFixture } from '../harness/index.js';
+import { getTemplateActionPath, runQuickAction, createAnvilFixture } from '../harness/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,8 +35,8 @@ describe('debug paths', () => {
     }
 
     // Try running
-    const fixture = await createMortFixture();
-    console.log('Mort dir:', fixture.mortDir);
+    const fixture = await createAnvilFixture();
+    console.log('Anvil dir:', fixture.anvilDir);
 
     const result = await runQuickAction({
       actionPath,
@@ -45,7 +45,7 @@ describe('debug paths', () => {
         repository: null,
         worktree: null,
       },
-      mortDir: fixture.mortDir,
+      anvilDir: fixture.anvilDir,
       timeout: 5000,
     });
 

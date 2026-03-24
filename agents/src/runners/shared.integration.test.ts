@@ -72,7 +72,7 @@ describe("runAgentLoop - tool completion via hooks", () => {
   const baseConfig: RunnerConfig = {
     agent: "simple",
     prompt: "Test prompt",
-    mortDir: "/tmp/mort",
+    anvilDir: "/tmp/anvil",
     threadId: "test-thread-id",
   };
 

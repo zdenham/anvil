@@ -6,6 +6,7 @@ import { cancelAgent } from "@/lib/agent-service";
 import { StopCircle, ChevronRight, X, GitCompare, MessageSquare, PictureInPicture2 } from "lucide-react";
 import type { ControlPanelViewType } from "@/entities/events";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
+import { Tooltip } from "@/components/ui/tooltip";
 import { logger } from "@/lib/logger-client";
 import { showMainWindowWithView } from "@/lib/hotkey-service";
 
@@ -130,24 +131,27 @@ function PlanModeHeader({
       <div className="ml-auto flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()}>
         {/* Open in main window button - only show in NSPanel, not in standalone windows */}
         {!isStandaloneWindow && (
-          <button
-            onClick={handleOpenInMainWindow}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Open in main window"
-            title="Open in main window"
-          >
-            <PictureInPicture2 size={16} />
-          </button>
+          <Tooltip content="Open in main window" side="bottom">
+            <button
+              onClick={handleOpenInMainWindow}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label="Open in main window"
+            >
+              <PictureInPicture2 size={16} />
+            </button>
+          </Tooltip>
         )}
         {/* Close button - only show in NSPanel, standalone windows use native traffic lights */}
         {!isStandaloneWindow && (
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Close panel (Escape)"
-          >
-            <X size={16} />
-          </button>
+          <Tooltip content="Close (Escape)" side="bottom">
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label="Close panel (Escape)"
+            >
+              <X size={16} />
+            </button>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -253,40 +257,44 @@ function ThreadModeHeader({
         )}
         {/* Tab toggle: conversation <-> changes (two-way) */}
         {onThreadTabChange && (
-          <button
-            onClick={handleToggle}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label={threadTab === "conversation" ? "View changes" : "View conversation"}
-            title={threadTab === "conversation" ? "View changes" : "View conversation"}
-            data-testid={threadTab === "conversation" ? "control-panel-tab-changes" : "control-panel-tab-thread"}
-          >
-            {threadTab === "conversation" ? (
-              <GitCompare size={16} />
-            ) : (
-              <MessageSquare size={16} />
-            )}
-          </button>
+          <Tooltip content={threadTab === "conversation" ? "View changes" : "View conversation"} side="bottom">
+            <button
+              onClick={handleToggle}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label={threadTab === "conversation" ? "View changes" : "View conversation"}
+              data-testid={threadTab === "conversation" ? "control-panel-tab-changes" : "control-panel-tab-thread"}
+            >
+              {threadTab === "conversation" ? (
+                <GitCompare size={16} />
+              ) : (
+                <MessageSquare size={16} />
+              )}
+            </button>
+          </Tooltip>
         )}
         {/* Open in main window button - only show in NSPanel, not in standalone windows */}
         {!isStandaloneWindow && (
-          <button
-            onClick={handleOpenInMainWindow}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Open in main window"
-            title="Open in main window"
-          >
-            <PictureInPicture2 size={16} />
-          </button>
+          <Tooltip content="Open in main window" side="bottom">
+            <button
+              onClick={handleOpenInMainWindow}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label="Open in main window"
+            >
+              <PictureInPicture2 size={16} />
+            </button>
+          </Tooltip>
         )}
         {/* Close button - only show in NSPanel, standalone windows use native traffic lights */}
         {!isStandaloneWindow && (
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Close panel (Escape)"
-          >
-            <X size={16} />
-          </button>
+          <Tooltip content="Close (Escape)" side="bottom">
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label="Close panel (Escape)"
+            >
+              <X size={16} />
+            </button>
+          </Tooltip>
         )}
       </div>
     </div>

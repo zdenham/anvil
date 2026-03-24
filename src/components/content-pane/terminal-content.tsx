@@ -42,7 +42,7 @@ interface TerminalExitPayload {
  * Mort's dark theme for xterm.js.
  * Matches the app's surface colors.
  */
-const MORT_TERMINAL_THEME = {
+const ANVIL_TERMINAL_THEME = {
   background: "#141514", // surface-900
   foreground: "#e5e5e5", // neutral-200
   cursor: "#e5e5e5",
@@ -155,7 +155,7 @@ export function TerminalContent({
       fontSize: 13,
       lineHeight: 1.0,
       letterSpacing: 0,
-      theme: MORT_TERMINAL_THEME,
+      theme: ANVIL_TERMINAL_THEME,
       allowProposedApi: true,
       scrollback: 10_000,
       rescaleOverlappingGlyphs: true,

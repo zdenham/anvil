@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@/lib/invoke";
 import { RefreshCw, Terminal } from "lucide-react";
-import { MortLogo } from "@/components/ui/mort-logo";
+import { AnvilLogo } from "@/components/ui/mort-logo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { MenuDropdown } from "./menu-dropdown";
 import { PathsInfoSchema } from "@/lib/types/paths";
@@ -32,7 +32,7 @@ interface TreePanelHeaderProps {
 /**
  * Header bar for the tree panel.
  * Lives inside the tree panel, not spanning the full window.
- * Contains: MORT logo + title, icon buttons for Settings, Terminal, New dropdown.
+ * Contains: ANVIL logo + title, icon buttons for Settings, Terminal, New dropdown.
  */
 export function TreePanelHeader({
   onSettingsClick,
@@ -79,9 +79,9 @@ export function TreePanelHeader({
 
   return (
     <div data-testid="tree-panel-header" className="pl-3 pr-2 py-2 border-b border-dashed border-surface-700 flex items-center gap-2.5">
-      <MortLogo size={4} />
+      <AnvilLogo size={16} />
       <h1 className="font-semibold text-surface-100 font-mono text-sm">
-        MORT{appSuffix ? ` ${appSuffix.toUpperCase()}` : ""}
+        ANVIL{appSuffix ? ` ${appSuffix.toUpperCase()}` : ""}
       </h1>
       <div className="flex-1" />
       <div className="flex items-center gap-0.5">

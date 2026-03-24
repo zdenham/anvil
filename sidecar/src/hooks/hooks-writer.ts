@@ -1,8 +1,8 @@
 /**
- * Dynamic hooks.json writer for the Mort plugin.
+ * Dynamic hooks.json writer for the Anvil plugin.
  *
- * Called by the sidecar on startup to write ~/.mort/hooks/hooks.json
- * with the actual port baked into hook URLs. $MORT_THREAD_ID remains
+ * Called by the sidecar on startup to write ~/.anvil/hooks/hooks.json
+ * with the actual port baked into hook URLs. $ANVIL_THREAD_ID remains
  * as an env var since it varies per PTY session.
  */
 
@@ -34,8 +34,8 @@ function buildHook(baseUrl: string, path: string, statusMessage?: string): HttpH
   return {
     type: "http",
     url: `${baseUrl}/hooks/${path}`,
-    headers: { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
-    allowedEnvVars: ["MORT_THREAD_ID"],
+    headers: { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" },
+    allowedEnvVars: ["ANVIL_THREAD_ID"],
     timeout: 10,
     ...(statusMessage ? { statusMessage } : {}),
   };
@@ -43,20 +43,20 @@ function buildHook(baseUrl: string, path: string, statusMessage?: string): HttpH
 
 export function buildHooksConfig(baseUrl: string): HooksConfig {
   return {
-    UserPromptSubmit: [{ hooks: [buildHook(baseUrl, "user-prompt-submit", "Connecting to Mort...")] }],
-    SessionStart: [{ hooks: [buildHook(baseUrl, "session-start", "Connecting to Mort...")] }],
-    PreToolUse: [{ hooks: [buildHook(baseUrl, "pre-tool-use", "Checking with Mort...")] }],
+    UserPromptSubmit: [{ hooks: [buildHook(baseUrl, "user-prompt-submit", "Connecting to Anvil...")] }],
+    SessionStart: [{ hooks: [buildHook(baseUrl, "session-start", "Connecting to Anvil...")] }],
+    PreToolUse: [{ hooks: [buildHook(baseUrl, "pre-tool-use", "Checking with Anvil...")] }],
     PostToolUse: [{ hooks: [buildHook(baseUrl, "post-tool-use")] }],
     Stop: [{ hooks: [buildHook(baseUrl, "stop")] }],
   };
 }
 
 /**
- * Write hooks.json to the Mort plugin directory.
+ * Write hooks.json to the Anvil plugin directory.
  * Called after the sidecar binds its port.
  */
-export function writeHooksJson(mortDir: string, port: number): void {
-  const hooksDir = join(mortDir, "hooks");
+export function writeHooksJson(anvilDir: string, port: number): void {
+  const hooksDir = join(anvilDir, "hooks");
   mkdirSync(hooksDir, { recursive: true });
 
   const baseUrl = `http://localhost:${port}`;

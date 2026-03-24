@@ -1,7 +1,7 @@
 /**
  * Terminal session service - manages terminal session entities.
  * Delegates PTY lifecycle to PtyService.
- * Persists terminal metadata to ~/.mort/terminal-sessions/{id}/metadata.json.
+ * Persists terminal metadata to ~/.anvil/terminal-sessions/{id}/metadata.json.
  */
 import { appData } from "@/lib/app-data-store";
 import { useTerminalSessionStore } from "./store";

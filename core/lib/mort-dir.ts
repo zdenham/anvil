@@ -2,9 +2,12 @@ import { join } from "path";
 import { homedir } from "os";
 
 /**
- * Get the path to the mort data directory.
- * Uses MORT_DATA_DIR env var if set, otherwise defaults to ~/.mort
+ * Get the path to the anvil data directory.
+ * Uses ANVIL_DATA_DIR env var if set, otherwise defaults to ~/.anvil
  */
-export function getMortDir(): string {
-  return process.env.MORT_DATA_DIR ?? join(homedir(), ".mort");
+export function getAnvilDir(): string {
+  return process.env.ANVIL_DATA_DIR ?? join(homedir(), ".anvil");
 }
+
+/** @deprecated Use getAnvilDir() instead */
+export const getMortDir = getAnvilDir;

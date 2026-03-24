@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Zod Schemas for Disk Persistence
-// Location: ~/.mort/ui/debug-panel.json
+// Location: ~/.anvil/ui/debug-panel.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const DebugPanelTabSchema = z.enum(["logs", "diagnostics", "events", "network"]);

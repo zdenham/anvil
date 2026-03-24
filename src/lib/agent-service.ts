@@ -634,7 +634,7 @@ async function getRunnerPaths(): Promise<{
     return {
       runnerPath: `${__PROJECT_ROOT__}/agents/dist/runner.js`,
       nodeModulesPath: `${__PROJECT_ROOT__}/agents/node_modules`,
-      cliPath: `${__PROJECT_ROOT__}/agents/dist/cli/mort.js`,
+      cliPath: `${__PROJECT_ROOT__}/agents/dist/cli/anvil.js`,
     };
   }
   const runnerPath = await resolveResource("_up_/agents/dist/runner.js");
@@ -643,7 +643,7 @@ async function getRunnerPaths(): Promise<{
   return {
     runnerPath,
     nodeModulesPath: await join(agentsDir, "node_modules"),
-    cliPath: await join(agentsDistDir, "cli", "mort.js"),
+    cliPath: await join(agentsDistDir, "cli", "anvil.js"),
   };
 }
 
@@ -778,15 +778,15 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
   await ensureShellInitialized();
 
-  let mortDir: string;
+  let anvilDir: string;
   try {
-    mortDir = await fs.getDataDir();
-  } catch (mortDirError) {
-    logger.error("[agent-service] Failed to get mortDir:", {
-      error: mortDirError,
-      errorMessage: mortDirError instanceof Error ? mortDirError.message : String(mortDirError),
+    anvilDir = await fs.getDataDir();
+  } catch (anvilDirError) {
+    logger.error("[agent-service] Failed to get anvilDir:", {
+      error: anvilDirError,
+      errorMessage: anvilDirError instanceof Error ? anvilDirError.message : String(anvilDirError),
     });
-    throw mortDirError;
+    throw anvilDirError;
   }
 
   let runnerPath: string;
@@ -815,7 +815,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   }
 
   logger.info("[agent-service] Paths resolved", {
-    mortDir,
+    anvilDir,
     runnerPath,
     nodeModulesPath,
     sourcePath: options.sourcePath,
@@ -845,11 +845,11 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
 
   // Resolve auth method and API key
   const settings = settingsService.get();
-  const authMethod = settings.authMethod ?? "default";
+  const authMethod = settings.authMethod ?? "claude-login";
 
   const envVars: Record<string, string> = {
     NODE_PATH: nodeModulesPath,
-    MORT_DATA_DIR: mortDir,
+    ANVIL_DATA_DIR: anvilDir,
     PATH: shellPath,
   };
 
@@ -867,14 +867,6 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
       throw new Error("Custom API key selected but not configured. Set your API key in Settings → Authentication.");
     }
     envVars.ANTHROPIC_API_KEY = settings.anthropicApiKey;
-  } else {
-    // "default" — use only the built-in Mort key, never fall back to BYOK
-    const builtInKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined;
-    if (!builtInKey) {
-      logger.error("[agent-service] No built-in Anthropic API key available");
-      throw new Error("Built-in API key not available. Try using a custom API key in Settings → Authentication.");
-    }
-    envVars.ANTHROPIC_API_KEY = builtInKey;
   }
 
   // Command args for simple agent - matches SimpleRunnerStrategy.parseArgs()
@@ -885,25 +877,25 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     "--thread-id", parsed.threadId,
     "--cwd", parsed.sourcePath,
     "--prompt", parsed.prompt,
-    "--mort-dir", mortDir,
+    "--anvil-dir", anvilDir,
     ...(parsed.permissionMode ? ["--permission-mode", parsed.permissionMode] : []),
     ...(parsed.skipNaming ? ["--skip-naming"] : []),
     ...(parsed.messageId ? ["--message-id", parsed.messageId] : []),
   ];
 
   // Add hub WebSocket URL
-  envVars.MORT_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
+  envVars.ANVIL_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
 
   // Build diagnostic logging env var from current settings
   const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
   if (diagnosticConfig) {
-    envVars.MORT_DIAGNOSTIC_LOGGING = JSON.stringify(diagnosticConfig);
+    envVars.ANVIL_DIAGNOSTIC_LOGGING = JSON.stringify(diagnosticConfig);
   }
 
   // Only enable network proxy when user has clicked Record in the debug panel
   const networkDebugEnabled = useSettingsStore.getState().workspace.networkDebugEnabled;
   if (networkDebugEnabled) {
-    envVars.MORT_NETWORK_DEBUG = "1";
+    envVars.ANVIL_NETWORK_DEBUG = "1";
   }
 
   // Line buffer for stdout — server sends lines individually via push events,
@@ -1023,17 +1015,17 @@ export async function resumeSimpleAgent(
   // Ensure shell is initialized to get proper PATH with version managers (nvm, fnm, volta, etc.)
   await ensureShellInitialized();
 
-  const mortDir = await fs.getDataDir();
+  const anvilDir = await fs.getDataDir();
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
   const shellPath = await getShellPath();
 
   // Resolve auth method and API key
   const settings = settingsService.get();
-  const authMethod = settings.authMethod ?? "default";
+  const authMethod = settings.authMethod ?? "claude-login";
 
   const resumeEnvVars: Record<string, string> = {
     NODE_PATH: nodeModulesPath,
-    MORT_DATA_DIR: mortDir,
+    ANVIL_DATA_DIR: anvilDir,
     PATH: shellPath,
   };
 
@@ -1049,18 +1041,10 @@ export async function resumeSimpleAgent(
       throw new Error("Custom API key selected but not configured. Set your API key in Settings → Authentication.");
     }
     resumeEnvVars.ANTHROPIC_API_KEY = settings.anthropicApiKey;
-  } else {
-    // "default" — use only the built-in Mort key, never fall back to BYOK
-    const builtInKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined;
-    if (!builtInKey) {
-      logger.error("[agent-service] resumeSimpleAgent: No built-in API key available");
-      throw new Error("Built-in API key not available. Try using a custom API key in Settings → Authentication.");
-    }
-    resumeEnvVars.ANTHROPIC_API_KEY = builtInKey;
   }
 
   // State path: threads/{threadId}/state.json
-  const stateFilePath = await join(mortDir, "threads", threadId, "state.json");
+  const stateFilePath = await join(anvilDir, "threads", threadId, "state.json");
 
   // Get repoId and worktreeId from thread metadata for resume
   const thread = threadService.get(threadId);
@@ -1077,23 +1061,23 @@ export async function resumeSimpleAgent(
     "--thread-id", threadId,
     "--cwd", sourcePath,
     "--prompt", prompt,
-    "--mort-dir", mortDir,
+    "--anvil-dir", anvilDir,
     "--history-file", stateFilePath,
     ...(permissionMode ? ["--permission-mode", permissionMode] : []),
     ...(messageId ? ["--message-id", messageId] : []),
   ];
 
   // Add hub WebSocket URL
-  resumeEnvVars.MORT_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
+  resumeEnvVars.ANVIL_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
 
   // Build diagnostic logging env var from current settings
   const resumeDiagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
   if (resumeDiagnosticConfig) {
-    resumeEnvVars.MORT_DIAGNOSTIC_LOGGING = JSON.stringify(resumeDiagnosticConfig);
+    resumeEnvVars.ANVIL_DIAGNOSTIC_LOGGING = JSON.stringify(resumeDiagnosticConfig);
   }
   const resumeNetworkDebug = useSettingsStore.getState().workspace.networkDebugEnabled;
   if (resumeNetworkDebug) {
-    resumeEnvVars.MORT_NETWORK_DEBUG = "1";
+    resumeEnvVars.ANVIL_NETWORK_DEBUG = "1";
   }
 
   const stdoutBuffer = { value: "" };

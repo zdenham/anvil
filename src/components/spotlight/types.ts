@@ -29,9 +29,9 @@ export interface OpenRepoResult {
   action: "open-repo";
 }
 
-/** Internal type - open mort action */
-export interface OpenMortResult {
-  action: "open-mort";
+/** Internal type - open anvil action */
+export interface OpenAnvilResult {
+  action: "open-anvil";
 }
 
 /** Internal type - open threads list action */
@@ -45,7 +45,7 @@ export interface RefreshResult {
 }
 
 /** Internal type - action result discriminated union */
-export type ActionResult = OpenRepoResult | OpenMortResult | OpenThreadsResult | RefreshResult;
+export type ActionResult = OpenRepoResult | OpenAnvilResult | OpenThreadsResult | RefreshResult;
 
 /** File mention result from @ trigger */
 export interface FileResult {

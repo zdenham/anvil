@@ -152,7 +152,7 @@ export function SpotlightSettings() {
   return (
     <SettingsSection
       title="Spotlight Shortcut"
-      description="Disable macOS Spotlight shortcut so Mort can use ⌘ + Space"
+      description="Disable macOS Spotlight shortcut so Anvil can use ⌘ + Space"
     >
       {renderContent()}
     </SettingsSection>

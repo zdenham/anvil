@@ -22,7 +22,7 @@ describe("EventWriter", () => {
   let writer: EventWriter;
 
   beforeEach(() => {
-    dataDir = join(tmpdir(), `mort-event-writer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    dataDir = join(tmpdir(), `anvil-event-writer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(dataDir, { recursive: true });
     writer = new EventWriter(dataDir, createTestLogger());
   });

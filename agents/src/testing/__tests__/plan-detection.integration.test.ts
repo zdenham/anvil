@@ -9,7 +9,7 @@ import { EventName } from '@core/types/events.js';
  *
  * These tests use a REAL Anthropic API key to verify that when the agent
  * creates/edits files in the plans/ directory, proper PLAN_DETECTED events
- * are emitted and plan metadata is persisted to the .mort directory.
+ * are emitted and plan metadata is persisted to the .anvil directory.
  *
  * IMPORTANT: Requires ANTHROPIC_API_KEY environment variable.
  */
@@ -74,10 +74,10 @@ describe('Plan Detection - Live LLM', () => {
     console.log(`[LIVE TEST] Plan ID: ${planEvent.payload.planId}`);
 
     // 6. Verify plan metadata was written to disk
-    const mortDir = harness.tempDirPath;
-    expect(mortDir).not.toBeNull();
+    const anvilDir = harness.tempDirPath;
+    expect(anvilDir).not.toBeNull();
 
-    const plansDir = join(mortDir!, 'plans');
+    const plansDir = join(anvilDir!, 'plans');
     console.log(`[LIVE TEST] Checking plans dir: ${plansDir}`);
 
     // List plan directories
@@ -170,8 +170,8 @@ describe('Plan Detection - Live LLM', () => {
     console.log(`[LIVE TEST] Initial plan ID: ${planId}`);
 
     // Read initial metadata
-    const mortDir = harness.tempDirPath!;
-    const planMetadataPath = join(mortDir, 'plans', planId, 'metadata.json');
+    const anvilDir = harness.tempDirPath!;
+    const planMetadataPath = join(anvilDir, 'plans', planId, 'metadata.json');
     const initialMetadata = JSON.parse(readFileSync(planMetadataPath, 'utf-8'));
     const initialUpdatedAt = initialMetadata.updatedAt;
 
@@ -224,8 +224,8 @@ describe('Plan Detection - Live LLM', () => {
     console.log(`[LIVE TEST] Nested plan ID: ${planId}`);
 
     // Verify the path is stored correctly
-    const mortDir = harness.tempDirPath!;
-    const planMetadataPath = join(mortDir, 'plans', planId, 'metadata.json');
+    const anvilDir = harness.tempDirPath!;
+    const planMetadataPath = join(anvilDir, 'plans', planId, 'metadata.json');
     const planMetadata = JSON.parse(readFileSync(planMetadataPath, 'utf-8'));
 
     console.log(`[LIVE TEST] Nested plan relativePath: ${planMetadata.relativePath}`);
@@ -268,14 +268,14 @@ describe('Plan Detection - Live LLM', () => {
     console.log(`[LIVE TEST] Thread ID: ${threadId}`);
 
     // Verify plan metadata was persisted to disk
-    const mortDir = harness.tempDirPath!;
-    const planMetadataPath = join(mortDir, 'plans', planId, 'metadata.json');
+    const anvilDir = harness.tempDirPath!;
+    const planMetadataPath = join(anvilDir, 'plans', planId, 'metadata.json');
     const planMetadata = JSON.parse(readFileSync(planMetadataPath, 'utf-8'));
     console.log(`[LIVE TEST] Plan metadata:`, planMetadata);
     expect(planMetadata.id).toBe(planId);
 
     // Verify thread metadata exists
-    const threadMetadataPath = join(mortDir, 'threads', threadId, 'metadata.json');
+    const threadMetadataPath = join(anvilDir, 'threads', threadId, 'metadata.json');
     const threadMetadata = JSON.parse(readFileSync(threadMetadataPath, 'utf-8'));
     console.log(`[LIVE TEST] Thread metadata:`, threadMetadata);
     expect(threadMetadata.id).toBe(threadId);

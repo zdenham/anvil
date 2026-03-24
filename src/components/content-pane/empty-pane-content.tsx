@@ -125,7 +125,7 @@ export function EmptyPaneContent() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-surface-400">
             <h2 className="text-xl font-medium font-mono text-surface-100">
-              Welcome to Mort
+              Welcome to Anvil
             </h2>
             <p className="text-base mt-2 mb-5">
               Add a project to get started

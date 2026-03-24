@@ -339,7 +339,7 @@ describe("setupThreadListeners", () => {
         threadId: childId,
         repoId: "repo-1",
         worktreeId: "wt-1",
-        source: "mort-repl:child-spawn",
+        source: "anvil-repl:child-spawn",
       });
 
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -348,7 +348,7 @@ describe("setupThreadListeners", () => {
       expect(treeMenuService.expandSection).toHaveBeenCalledWith(`thread:${parentId}`);
     });
 
-    it("does not expand when source is not mort-repl:child-spawn", async () => {
+    it("does not expand when source is not anvil-repl:child-spawn", async () => {
       const childId = "child-thread-2";
 
       triggerEvent(EventName.THREAD_CREATED, {
@@ -374,7 +374,7 @@ describe("setupThreadListeners", () => {
         threadId: childId,
         repoId: "repo-1",
         worktreeId: "wt-1",
-        source: "mort-repl:child-spawn",
+        source: "anvil-repl:child-spawn",
       });
 
       await new Promise((resolve) => setTimeout(resolve, 0));

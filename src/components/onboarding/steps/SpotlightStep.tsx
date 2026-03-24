@@ -58,7 +58,7 @@ export const SpotlightStep = ({ onChangeHotkey }: SpotlightStepProps) => {
         timeoutPromise,
       ]);
 
-      // Cleanup: kill System Settings and refocus Mort window
+      // Cleanup: kill System Settings and refocus Anvil window
       try {
         await invoke("kill_system_settings");
         await invoke("show_main_window");
@@ -199,10 +199,10 @@ export const SpotlightStep = ({ onChangeHotkey }: SpotlightStepProps) => {
     <div data-testid="onboarding-step-spotlight" className="space-y-2">
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-surface-100 font-mono">
-          Make Mort Your Spotlight
+          Make Anvil Your Spotlight
         </h2>
         <p className="text-surface-300">
-          Mort replaces macOS Spotlight with ⌘ + Space. To enable Mort, we must disable the macOS shortcut.
+          Anvil replaces macOS Spotlight with ⌘ + Space. To enable Anvil, we must disable the macOS shortcut.
         </p>
       </div>
 

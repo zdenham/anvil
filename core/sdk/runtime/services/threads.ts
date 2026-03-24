@@ -3,8 +3,8 @@ import * as path from 'path';
 import type { ThreadService, ThreadInfo } from '../../types.js';
 import type { EmitEvent } from '../index.js';
 
-export function createThreadService(mortDir: string, emitEvent: EmitEvent): ThreadService {
-  const threadsDir = path.join(mortDir, 'threads');
+export function createThreadService(anvilDir: string, emitEvent: EmitEvent): ThreadService {
+  const threadsDir = path.join(anvilDir, 'threads');
 
   async function readThreadMeta(threadId: string): Promise<ThreadInfo | null> {
     try {

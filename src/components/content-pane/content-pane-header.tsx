@@ -30,6 +30,7 @@ import { usePlanStore } from "@/entities/plans/store";
 import { useTerminalSession, terminalSessionService } from "@/entities/terminal-sessions";
 import { getTerminalDisplayName } from "@/entities/terminal-sessions/display-name";
 import { StatusDot, type StatusDotVariant } from "@/components/ui/status-dot";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useIsMainWindow } from "@/components/main-window/main-window-context";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { usePullRequestStore } from "@/entities/pull-requests/store";
@@ -158,25 +159,28 @@ function PlanHeader({
       <div className="ml-auto flex items-center gap-2">
         {/* Pop-out button - only show in panel windows, not main window */}
         {onPopOut && !isMainWindow && (
-          <button
-            data-testid="pop-out-button"
-            onClick={onPopOut}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Pop out to window"
-            title="Pop out to window"
-          >
-            <PictureInPicture2 size={12} />
-          </button>
+          <Tooltip content="Pop out to window" side="bottom">
+            <button
+              data-testid="pop-out-button"
+              onClick={onPopOut}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label="Pop out to window"
+            >
+              <PictureInPicture2 size={12} />
+            </button>
+          </Tooltip>
         )}
         {/* Close button */}
-        <button
-          data-testid="close-pane-button"
-          onClick={onClose}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close pane"
-        >
-          <X size={12} />
-        </button>
+        <Tooltip content="Close" side="bottom">
+          <button
+            data-testid="close-pane-button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close pane"
+          >
+            <X size={12} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -287,50 +291,50 @@ function ThreadHeader({
 
         {/* Tab toggle: conversation <-> changes (two-way) */}
         {onThreadTabChange && (
-          <button
-            onClick={handleToggle}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label={
-              threadTab === "conversation"
-                ? "View changes"
-                : "View conversation"
-            }
-            title={
-              threadTab === "conversation"
-                ? "View changes"
-                : "View conversation"
-            }
-          >
-            {threadTab === "conversation" ? (
-              <GitCompare size={12} />
-            ) : (
-              <MessageSquare size={12} />
-            )}
-          </button>
+          <Tooltip content={threadTab === "conversation" ? "View changes" : "View conversation"} side="bottom">
+            <button
+              onClick={handleToggle}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label={
+                threadTab === "conversation"
+                  ? "View changes"
+                  : "View conversation"
+              }
+            >
+              {threadTab === "conversation" ? (
+                <GitCompare size={12} />
+              ) : (
+                <MessageSquare size={12} />
+              )}
+            </button>
+          </Tooltip>
         )}
 
         {/* Pop-out button - only show in panel windows, not main window */}
         {onPopOut && !isMainWindow && (
-          <button
-            data-testid="pop-out-button"
-            onClick={onPopOut}
-            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-            aria-label="Pop out to window"
-            title="Pop out to window"
-          >
-            <PictureInPicture2 size={12} />
-          </button>
+          <Tooltip content="Pop out to window" side="bottom">
+            <button
+              data-testid="pop-out-button"
+              onClick={onPopOut}
+              className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              aria-label="Pop out to window"
+            >
+              <PictureInPicture2 size={12} />
+            </button>
+          </Tooltip>
         )}
 
         {/* Close button */}
-        <button
-          data-testid="close-pane-button"
-          onClick={onClose}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close pane"
-        >
-          <X size={12} />
-        </button>
+        <Tooltip content="Close" side="bottom">
+          <button
+            data-testid="close-pane-button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close pane"
+          >
+            <X size={12} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -354,14 +358,16 @@ function SimpleHeader({
       <span className="text-surface-200 text-xs">{displayTitle}</span>
 
       <div className="ml-auto">
-        <button
-          data-testid="close-pane-button"
-          onClick={onClose}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close pane"
-        >
-          <X size={12} />
-        </button>
+        <Tooltip content="Close" side="bottom">
+          <button
+            data-testid="close-pane-button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close pane"
+          >
+            <X size={12} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -396,14 +402,16 @@ function FileHeader({
       />
 
       <div className="ml-auto">
-        <button
-          data-testid="close-pane-button"
-          onClick={onClose}
-          className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close pane"
-        >
-          <X size={12} />
-        </button>
+        <Tooltip content="Close" side="bottom">
+          <button
+            data-testid="close-pane-button"
+            onClick={onClose}
+            className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close pane"
+          >
+            <X size={12} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -459,25 +467,27 @@ function TerminalHeader({
 
       <div className="ml-auto flex items-center gap-2">
         {/* Archive button - kills the PTY */}
-        <button
-          onClick={handleArchive}
-          className="p-1 rounded hover:bg-red-600/20 text-surface-400 hover:text-red-400 transition-colors"
-          aria-label="Archive terminal (kill process)"
-          title="Archive terminal (kill process)"
-        >
-          <Archive size={12} />
-        </button>
+        <Tooltip content="Archive terminal" side="bottom">
+          <button
+            onClick={handleArchive}
+            className="p-1 rounded hover:bg-red-600/20 text-surface-400 hover:text-red-400 transition-colors"
+            aria-label="Archive terminal (kill process)"
+          >
+            <Archive size={12} />
+          </button>
+        </Tooltip>
 
         {/* Close button - hides pane but keeps terminal alive */}
-        <button
-          data-testid="close-pane-button"
-          onClick={onClose}
-          className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close pane (terminal stays alive)"
-          title="Close pane (terminal stays alive)"
-        >
-          <X size={12} />
-        </button>
+        <Tooltip content="Close" side="bottom">
+          <button
+            data-testid="close-pane-button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close pane (terminal stays alive)"
+          >
+            <X size={12} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -549,14 +559,16 @@ function ChangesHeader({
           {isCreating ? <Loader2 size={12} className="animate-spin" /> : <GitPullRequest size={12} />}
           {isCreating ? "Creating..." : hasPr ? "View PR" : "Create PR"}
         </button>
-        <button
-          data-testid="close-pane-button"
-          onClick={onClose}
-          className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
-          aria-label="Close pane"
-        >
-          <X size={12} />
-        </button>
+        <Tooltip content="Close" side="bottom">
+          <button
+            data-testid="close-pane-button"
+            onClick={onClose}
+            className="flex items-center justify-center w-5 h-5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            aria-label="Close pane"
+          >
+            <X size={12} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );

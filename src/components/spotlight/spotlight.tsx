@@ -11,7 +11,7 @@ import { z } from "zod";
 import {
   AppResultSchema,
   OpenRepoResult,
-  OpenMortResult,
+  OpenAnvilResult,
   OpenThreadsResult,
   RefreshResult,
   SpotlightResult,
@@ -99,18 +99,18 @@ export class SpotlightController {
         query,
       });
       const appResults = z.array(AppResultSchema).parse(rawAppResults);
-      // Filter out Mort app since we have a manual Mort entry
-      const filteredApps = appResults.filter((app) => app.name.toLowerCase() !== "mort");
+      // Filter out Anvil app since we have a manual Anvil entry
+      const filteredApps = appResults.filter((app) => app.name.toLowerCase() !== "anvil");
       results.push(
         ...filteredApps.map((app) => ({ type: "app" as const, data: app }))
       );
 
-      // Add "Mort" action if query partially matches
-      if (this.partialMatch(query, "Mort")) {
-        const openMortData: OpenMortResult = { action: "open-mort" };
+      // Add "Anvil" action if query partially matches
+      if (this.partialMatch(query, "Anvil")) {
+        const openAnvilData: OpenAnvilResult = { action: "open-anvil" };
         results.push({
           type: "action",
-          data: openMortData,
+          data: openAnvilData,
         });
       }
 
@@ -613,7 +613,7 @@ export const Spotlight = () => {
         // Small delay to ensure panel is fully hidden before opening dialog
         // await new Promise((resolve) => setTimeout(resolve, 100));
         await controller.openRepository();
-      } else if (result.type === "action" && result.data.action === "open-mort") {
+      } else if (result.type === "action" && result.data.action === "open-anvil") {
         try {
           await showMainWindow();
           await controller.hideSpotlight();
@@ -651,7 +651,7 @@ export const Spotlight = () => {
         // Build Rust
         try {
           logger.info("[spotlight] [2/4] Building Rust...");
-          const cargoCmd = Command.create("cargo", ["build", "--package", "mort"], {
+          const cargoCmd = Command.create("cargo", ["build", "--package", "anvil"], {
             cwd: `${__PROJECT_ROOT__}/src-tauri`,
           });
           const cargoOutput = await cargoCmd.execute();
@@ -698,9 +698,9 @@ export const Spotlight = () => {
           const viteCmd = Command.create("pnpm", ["exec", "vite", "--port", vitePort], {
             cwd: __PROJECT_ROOT__,
             env: {
-              MORT_VITE_PORT: vitePort,
-              MORT_APP_SUFFIX: "dev",
-              MORT_DISABLE_HMR: "true",
+              ANVIL_VITE_PORT: vitePort,
+              ANVIL_APP_SUFFIX: "dev",
+              ANVIL_DISABLE_HMR: "true",
             },
           });
 

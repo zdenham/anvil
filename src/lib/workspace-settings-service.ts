@@ -28,7 +28,7 @@ function getSettingsClient(): SettingsStoreClient {
 }
 
 /**
- * Fetches workspace settings from the .mort settings store.
+ * Fetches workspace settings from the .anvil settings store.
  * Validates the data from disk and returns defaults if invalid.
  */
 export const getWorkspaceSettings = async (): Promise<WorkspaceSettings> => {
@@ -53,7 +53,7 @@ export const getWorkspaceSettings = async (): Promise<WorkspaceSettings> => {
 };
 
 /**
- * Saves workspace settings to the .mort settings store
+ * Saves workspace settings to the .anvil settings store
  */
 export const saveWorkspaceSettings = async (
   settings: WorkspaceSettings

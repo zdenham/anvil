@@ -1,7 +1,7 @@
 /**
  * Migration 001: Quick Actions Project
  *
- * Initializes the default quick actions project at ~/.mort/quick-actions/
+ * Initializes the default quick actions project at ~/.anvil/quick-actions/
  * This is idempotent - safe to call multiple times.
  */
 
@@ -19,7 +19,7 @@ import {
 const SDK_VERSION = '1.0.0';
 const QUICK_ACTIONS_DIR = 'quick-actions';
 const TYPES_FILE = 'sdk.d.ts';
-const MORT_TYPES_DIR = 'mort-types'; // Types directory name (safe from pnpm install)
+const ANVIL_TYPES_DIR = 'anvil-types'; // Types directory name (safe from pnpm install)
 
 interface SdkVersionFile {
   version: string;
@@ -71,15 +71,15 @@ async function copyTemplate(ctx: MigrationContext, projectPath: string): Promise
   // Create project directory structure
   ensureDir(projectPath);
 
-  // Create mort-types directory for SDK types (safe from pnpm install)
-  const mortTypesDir = joinPath(projectPath, MORT_TYPES_DIR);
-  ensureDir(mortTypesDir);
+  // Create anvil-types directory for SDK types (safe from pnpm install)
+  const anvilTypesDir = joinPath(projectPath, ANVIL_TYPES_DIR);
+  ensureDir(anvilTypesDir);
 
   // Copy template files (excluding node_modules - user will run pnpm install)
   copyDirExcluding(ctx.templateDir, projectPath, ['node_modules', 'dist']);
 
-  // Copy SDK types to mort-types directory
-  const typesDestPath = joinPath(mortTypesDir, TYPES_FILE);
+  // Copy SDK types to anvil-types directory
+  const typesDestPath = joinPath(anvilTypesDir, TYPES_FILE);
   copyFile(ctx.sdkTypesPath, typesDestPath);
 
   // Create SDK version file for tracking
@@ -87,23 +87,23 @@ async function copyTemplate(ctx: MigrationContext, projectPath: string): Promise
     version: SDK_VERSION,
     updatedAt: new Date().toISOString(),
   };
-  writeJsonFile(joinPath(mortTypesDir, 'version.json'), versionFile);
+  writeJsonFile(joinPath(anvilTypesDir, 'version.json'), versionFile);
 }
 
 function readSdkVersion(projectPath: string): string | null {
-  const versionPath = joinPath(projectPath, MORT_TYPES_DIR, 'version.json');
+  const versionPath = joinPath(projectPath, ANVIL_TYPES_DIR, 'version.json');
   const data = readJsonFile<SdkVersionFile>(versionPath);
   return data?.version ?? null;
 }
 
 async function updateSdkTypes(ctx: MigrationContext, projectPath: string): Promise<void> {
-  const mortTypesDir = joinPath(projectPath, MORT_TYPES_DIR);
+  const anvilTypesDir = joinPath(projectPath, ANVIL_TYPES_DIR);
 
-  // Ensure mort-types directory exists
-  ensureDir(mortTypesDir);
+  // Ensure anvil-types directory exists
+  ensureDir(anvilTypesDir);
 
   // Update sdk.d.ts
-  const typesDestPath = joinPath(mortTypesDir, TYPES_FILE);
+  const typesDestPath = joinPath(anvilTypesDir, TYPES_FILE);
   copyFile(ctx.sdkTypesPath, typesDestPath);
 
   // Update version file
@@ -111,5 +111,5 @@ async function updateSdkTypes(ctx: MigrationContext, projectPath: string): Promi
     version: SDK_VERSION,
     updatedAt: new Date().toISOString(),
   };
-  writeJsonFile(joinPath(mortTypesDir, 'version.json'), versionFile);
+  writeJsonFile(joinPath(anvilTypesDir, 'version.json'), versionFile);
 }

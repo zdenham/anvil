@@ -131,7 +131,7 @@ export interface UpdateThreadInput {
 
 /**
  * Get the folder name for a thread.
- * Thread folders are stored at ~/.mort/threads/{threadId}/
+ * Thread folders are stored at ~/.anvil/threads/{threadId}/
  * The folder name is simply the thread's UUID.
  */
 export function getThreadFolderName(id: string): string {

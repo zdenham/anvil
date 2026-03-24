@@ -22,7 +22,7 @@ const describeWithApi = process.env.ANTHROPIC_API_KEY
 
 /** Runner config that passes --permission-mode approve */
 const approveRunnerConfig = createRunnerConfig({
-  buildArgs: (opts, mortDirPath, repoCwd) => {
+  buildArgs: (opts, anvilDirPath, repoCwd) => {
     const threadId = opts.threadId ?? randomUUID();
     const repoId = opts.repoId ?? randomUUID();
     const worktreeId = opts.worktreeId ?? randomUUID();
@@ -31,7 +31,7 @@ const approveRunnerConfig = createRunnerConfig({
       "--thread-id", threadId,
       "--repo-id", repoId,
       "--worktree-id", worktreeId,
-      "--mort-dir", mortDirPath,
+      "--anvil-dir", anvilDirPath,
       "--cwd", opts.cwd ?? repoCwd,
       "--permission-mode", "approve",
       "--skip-naming",

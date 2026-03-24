@@ -4,7 +4,7 @@
  * CRUD operations for gateway channels, persists to disk, and manages
  * the SSE connection lifecycle via the GatewayClient singleton.
  *
- * Storage layout (within ~/.mort/):
+ * Storage layout (within ~/.anvil/):
  *   gateway-channels/{channelId}/metadata.json  <- Zod-validated on read
  *   gateway-channels/checkpoint                 <- Last-Event-ID for SSE replay
  */

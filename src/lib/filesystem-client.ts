@@ -36,7 +36,7 @@ export type { PathsInfo };
 export class FilesystemClient {
   /**
    * Returns paths info from the Tauri backend, including the data directory.
-   * The data directory is the centralized location for all mort data.
+   * The data directory is the centralized location for all anvil data.
    */
   async getPathsInfo(): Promise<PathsInfo> {
     const raw = await invoke<unknown>("get_paths_info");
@@ -53,8 +53,8 @@ export class FilesystemClient {
   }
 
   /**
-   * Returns the data directory path (e.g., ~/.mort or ~/.mort-dev).
-   * This is the centralized location for all mort data.
+   * Returns the data directory path (e.g., ~/.anvil or ~/.anvil-dev).
+   * This is the centralized location for all anvil data.
    */
   async getDataDir(): Promise<string> {
     const info = await this.getPathsInfo();

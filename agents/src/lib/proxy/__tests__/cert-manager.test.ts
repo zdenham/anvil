@@ -11,7 +11,7 @@ describe("CertManager", () => {
   let manager: CertManager;
 
   beforeAll(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mort-cert-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "anvil-cert-test-"));
     manager = new CertManager(tmpDir);
     await manager.ensureCA();
   });
@@ -27,8 +27,8 @@ describe("CertManager", () => {
     const pem = fs.readFileSync(certPath, "utf-8");
     const x509 = new crypto.X509Certificate(pem);
 
-    expect(x509.issuer).toContain("Mort Debug Proxy CA");
-    expect(x509.subject).toContain("Mort Debug Proxy CA");
+    expect(x509.issuer).toContain("Anvil Debug Proxy CA");
+    expect(x509.subject).toContain("Anvil Debug Proxy CA");
     expect(x509.ca).toBe(true);
   });
 

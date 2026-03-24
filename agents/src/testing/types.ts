@@ -55,8 +55,8 @@ export interface QueuedMessageSpec {
 export interface AgentTestOptions {
   /** The prompt/instruction to send to the agent */
   prompt: string;
-  /** Path to the mort directory (defaults to temp directory if not provided) */
-  mortDir?: string;
+  /** Path to the anvil directory (defaults to temp directory if not provided) */
+  anvilDir?: string;
   /** Repository name for context */
   repositoryName?: string;
   /** Thread ID to resume or create */

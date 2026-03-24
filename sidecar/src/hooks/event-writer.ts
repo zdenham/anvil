@@ -1,7 +1,7 @@
 /**
  * Lifecycle event writer for TUI hook bridge.
  *
- * Appends structured events to `~/.mort/threads/{id}/events.jsonl`.
+ * Appends structured events to `~/.anvil/threads/{id}/events.jsonl`.
  * Enables post-session review, cost tracking, and file change tracking.
  */
 

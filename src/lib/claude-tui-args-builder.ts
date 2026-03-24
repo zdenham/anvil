@@ -2,7 +2,7 @@
  * Claude TUI Args Builder
  *
  * Builds CLI args and env vars for spawning a Claude TUI session
- * with the Mort plugin loaded for HTTP hooks.
+ * with the Anvil plugin loaded for HTTP hooks.
  */
 
 export interface ClaudeTuiSpawnConfig {
@@ -13,12 +13,12 @@ export interface ClaudeTuiSpawnConfig {
 /**
  * Build CLI args and env vars for a Claude TUI PTY session.
  *
- * Includes `--plugin local:<mortDir>` to load the Mort plugin
+ * Includes `--plugin local:<anvilDir>` to load the Anvil plugin
  * (which provides hooks.json for HTTP hooks back to the sidecar)
  * and env vars for thread identification.
  */
 export function buildSpawnConfig(options: {
-  mortDir: string;
+  anvilDir: string;
   threadId: string;
   sessionId?: string;
   model?: string;
@@ -34,7 +34,7 @@ export function buildSpawnConfig(options: {
     args.push("--permission-mode", "bypassPermissions");
   }
 
-  args.push("--plugin", `local:${options.mortDir}`);
+  args.push("--plugin", `local:${options.anvilDir}`);
   args.push("--model", model);
 
   if (options.sessionId) {
@@ -46,8 +46,8 @@ export function buildSpawnConfig(options: {
   }
 
   const env: Record<string, string> = {
-    MORT_THREAD_ID: options.threadId,
-    MORT_DATA_DIR: options.mortDir,
+    ANVIL_THREAD_ID: options.threadId,
+    ANVIL_DATA_DIR: options.anvilDir,
   };
 
   return { args, env };

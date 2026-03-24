@@ -6,9 +6,9 @@
  * Invoked by Rust during app startup.
  *
  * Environment variables (passed by Rust):
- * - MORT_DATA_DIR: Path to ~/.mort or ~/.mort-dev
- * - MORT_TEMPLATE_DIR: Path to the bundled SDK template
- * - MORT_SDK_TYPES_PATH: Path to the bundled SDK types file
+ * - ANVIL_DATA_DIR: Path to ~/.anvil or ~/.anvil-dev
+ * - ANVIL_TEMPLATE_DIR: Path to the bundled SDK template
+ * - ANVIL_SDK_TYPES_PATH: Path to the bundled SDK types file
  */
 
 import * as path from 'node:path';
@@ -16,22 +16,22 @@ import { migrations } from './migrations/index.js';
 import { readJsonFile, writeJsonFile, ensureDir, joinPath } from './utils.js';
 import type { AppConfig, MigrationContext, MigrationLogger } from './types.js';
 
-const dataDir = process.env.MORT_DATA_DIR;
-const templateDir = process.env.MORT_TEMPLATE_DIR;
-const sdkTypesPath = process.env.MORT_SDK_TYPES_PATH;
+const dataDir = process.env.ANVIL_DATA_DIR;
+const templateDir = process.env.ANVIL_TEMPLATE_DIR;
+const sdkTypesPath = process.env.ANVIL_SDK_TYPES_PATH;
 
 if (!dataDir) {
-  console.error('MORT_DATA_DIR environment variable is required');
+  console.error('ANVIL_DATA_DIR environment variable is required');
   process.exit(1);
 }
 
 if (!templateDir) {
-  console.error('MORT_TEMPLATE_DIR environment variable is required');
+  console.error('ANVIL_TEMPLATE_DIR environment variable is required');
   process.exit(1);
 }
 
 if (!sdkTypesPath) {
-  console.error('MORT_SDK_TYPES_PATH environment variable is required');
+  console.error('ANVIL_SDK_TYPES_PATH environment variable is required');
   process.exit(1);
 }
 

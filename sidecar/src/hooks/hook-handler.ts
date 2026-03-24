@@ -19,7 +19,7 @@ import { initiateNaming } from "./naming.js";
 import type { EventBroadcaster } from "../push.js";
 import type { SidecarLogger } from "../logger.js";
 
-const THREAD_ID_HEADER = "x-mort-thread-id";
+const THREAD_ID_HEADER = "x-anvil-thread-id";
 
 interface HookHandlerDeps {
   dataDir: string;

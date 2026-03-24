@@ -8,7 +8,7 @@ describe('ThreadService', () => {
   let mockFs: FileSystemAdapter;
   let mockStorage: Map<string, string>;
   let mockDirs: Set<string>;
-  const mortDir = '/home/user/.mort';
+  const anvilDir = '/home/user/.anvil';
 
   // Valid UUIDs for testing
   const testThreadId = '550e8400-e29b-41d4-a716-446655440001';
@@ -56,7 +56,7 @@ describe('ThreadService', () => {
       glob: vi.fn(() => []),
     };
 
-    service = new ThreadService(mortDir, mockFs);
+    service = new ThreadService(anvilDir, mockFs);
   });
 
   describe('create', () => {
@@ -121,7 +121,7 @@ describe('ThreadService', () => {
       service.create(input);
 
       expect(mockFs.mkdir).toHaveBeenCalledWith(
-        `/home/user/.mort/threads/${testThreadId}`,
+        `/home/user/.anvil/threads/${testThreadId}`,
         { recursive: true }
       );
     });
@@ -137,7 +137,7 @@ describe('ThreadService', () => {
       service.create(input);
 
       expect(mockFs.writeFile).toHaveBeenCalledWith(
-        `/home/user/.mort/threads/${testThreadId}/metadata.json`,
+        `/home/user/.anvil/threads/${testThreadId}/metadata.json`,
         expect.any(String)
       );
     });
@@ -156,7 +156,7 @@ describe('ThreadService', () => {
         turns: [],
         permissionMode: "plan",
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.get(testThreadId);
@@ -181,7 +181,7 @@ describe('ThreadService', () => {
         isRead: true,
         turns: [],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.update(testThreadId, { status: 'paused' });
@@ -202,7 +202,7 @@ describe('ThreadService', () => {
         isRead: true,
         turns: [],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.update(testThreadId, { status: 'paused' });
@@ -222,7 +222,7 @@ describe('ThreadService', () => {
         git: { branch: 'feature/old' },
         turns: [],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.update(testThreadId, {
@@ -248,7 +248,7 @@ describe('ThreadService', () => {
         isRead: true,
         turns: [{ index: 0, prompt: 'test', startedAt: 1000, completedAt: null }],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.markCompleted(testThreadId);
@@ -267,7 +267,7 @@ describe('ThreadService', () => {
         isRead: true,
         turns: [{ index: 0, prompt: 'test', startedAt: 1000, completedAt: null }],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.markCompleted(testThreadId, 0);
@@ -290,7 +290,7 @@ describe('ThreadService', () => {
           { index: 0, prompt: 'test', startedAt: 1000, completedAt, exitCode: 1 },
         ],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.markCompleted(testThreadId, 0);
@@ -312,7 +312,7 @@ describe('ThreadService', () => {
         isRead: true,
         turns: [{ index: 0, prompt: 'test', startedAt: 1000, completedAt: null }],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.markError(testThreadId);
@@ -331,7 +331,7 @@ describe('ThreadService', () => {
         isRead: true,
         turns: [{ index: 0, prompt: 'test', startedAt: 1000, completedAt: null }],
       };
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, JSON.stringify(metadata));
 
       const result = service.markError(testThreadId, 1);
@@ -343,7 +343,7 @@ describe('ThreadService', () => {
 
   describe('exists', () => {
     it('should return true when thread exists', () => {
-      const metadataPath = `/home/user/.mort/threads/${testThreadId}/metadata.json`;
+      const metadataPath = `/home/user/.anvil/threads/${testThreadId}/metadata.json`;
       mockStorage.set(metadataPath, '{}');
 
       const result = service.exists(testThreadId);
@@ -365,18 +365,18 @@ describe('ThreadService', () => {
       const uuid3 = '550e8400-e29b-41d4-a716-446655440013';
       // Set up multiple threads
       mockStorage.set(
-        `/home/user/.mort/threads/${uuid1}/metadata.json`,
+        `/home/user/.anvil/threads/${uuid1}/metadata.json`,
         '{}'
       );
       mockStorage.set(
-        `/home/user/.mort/threads/${uuid2}/metadata.json`,
+        `/home/user/.anvil/threads/${uuid2}/metadata.json`,
         '{}'
       );
       mockStorage.set(
-        `/home/user/.mort/threads/${uuid3}/metadata.json`,
+        `/home/user/.anvil/threads/${uuid3}/metadata.json`,
         '{}'
       );
-      mockDirs.add('/home/user/.mort/threads');
+      mockDirs.add('/home/user/.anvil/threads');
 
       const result = service.list();
 
@@ -393,11 +393,11 @@ describe('ThreadService', () => {
       const validUuid = '550e8400-e29b-41d4-a716-446655440021';
       // Set up one valid thread and one invalid directory
       mockStorage.set(
-        `/home/user/.mort/threads/${validUuid}/metadata.json`,
+        `/home/user/.anvil/threads/${validUuid}/metadata.json`,
         '{}'
       );
       // Add a directory without metadata.json
-      mockDirs.add('/home/user/.mort/threads');
+      mockDirs.add('/home/user/.anvil/threads');
 
       // Override readDir to return both valid and invalid entries
       (mockFs.readDir as ReturnType<typeof vi.fn>).mockReturnValue([

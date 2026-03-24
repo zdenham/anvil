@@ -120,10 +120,10 @@ export const gitCommands = {
     invoke<boolean>("git_branch_exists", { repoPath, branch }),
 
   /**
-   * List all mort/* branches.
+   * List all anvil/* branches.
    */
-  listMortBranches: (repoPath: string) =>
-    invoke<string[]>("git_list_mort_branches", { repoPath }),
+  listAnvilBranches: (repoPath: string) =>
+    invoke<string[]>("git_list_anvil_branches", { repoPath }),
 
   /**
    * Create a new worktree with detached HEAD, then checkout a branch.
@@ -293,7 +293,7 @@ export const fsCommands = {
     invoke<void>("fs_write_binary", { path, base64Data }),
 
   /**
-   * Get the mort repository directory for a repo (~/.mort/repositories/{repo-name}).
+   * Get the anvil repository directory for a repo (~/.anvil/repositories/{repo-name}).
    */
   getRepoDir: (repoName: string) =>
     invoke<string>("fs_get_repo_dir", { repoName }),
@@ -310,7 +310,7 @@ export const fsCommands = {
   getHomeDir: () => invoke<string>("fs_get_home_dir"),
 
   /**
-   * Get the mort data directory (e.g., ~/.mort or ~/.mort-dev).
+   * Get the anvil data directory (e.g., ~/.anvil or ~/.anvil-dev).
    * Uses the Tauri backend to resolve the suffix-aware path.
    */
   getDataDir: async (): Promise<string> => {
@@ -337,7 +337,7 @@ export const fsCommands = {
  * Spotlight shortcut management commands.
  *
  * These commands allow disabling the system Spotlight keyboard shortcut
- * so Mort can use Cmd+Space instead. Requires accessibility permission.
+ * so Anvil can use Cmd+Space instead. Requires accessibility permission.
  */
 export const spotlightShortcutCommands = {
   /**
@@ -454,12 +454,12 @@ export const repoCommands = {
     invoke<RepoValidation>("validate_repository", { sourcePath }),
 
   /**
-   * Remove repository data from ~/.mort/repositories/{repo_slug}.
-   * Used when removing a repository from Mort.
+   * Remove repository data from ~/.anvil/repositories/{repo_slug}.
+   * Used when removing a repository from Anvil.
    */
   removeRepositoryData: async (repoSlug: string): Promise<void> => {
-    const mortDir = await fsCommands.getDataDir();
-    return invoke<void>("remove_repository_data", { repoSlug, mortDir });
+    const anvilDir = await fsCommands.getDataDir();
+    return invoke<void>("remove_repository_data", { repoSlug, anvilDir });
   },
 };
 
@@ -490,15 +490,15 @@ export const searchCommands = {
 
   /**
    * Search thread conversation content by grepping state.json files.
-   * Searches ~/.mort/threads/ for the query string.
+   * Searches ~/.anvil/threads/ for the query string.
    * Returns matched snippets with thread IDs.
    */
-  searchThreads: (mortDir: string, query: string, opts?: {
+  searchThreads: (anvilDir: string, query: string, opts?: {
     maxResults?: number;
     caseSensitive?: boolean;
   }) =>
     invoke<ThreadSearchResponse>("search_threads", {
-      mortDir,
+      anvilDir,
       query,
       maxResults: opts?.maxResults,
       caseSensitive: opts?.caseSensitive,

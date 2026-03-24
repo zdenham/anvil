@@ -7,7 +7,7 @@
 export type SkillSource =
   | 'project'           // <repo>/.claude/skills/
   | 'project_command'   // <repo>/.claude/commands/
-  | 'mort'              // ~/.mort/skills/
+  | 'anvil'             // ~/.anvil/skills/
   | 'personal'          // ~/.claude/skills/
   | 'personal_command'; // ~/.claude/commands/
 

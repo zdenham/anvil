@@ -167,7 +167,7 @@ export class TerminalManager {
  * Mirrors the Rust terminal environment setup.
  */
 function buildPtyEnv(home: string, shell: string): Record<string, string> {
-  const dataDir = process.env.MORT_DATA_DIR ?? join(home, ".mort");
+  const dataDir = process.env.ANVIL_DATA_DIR ?? join(home, ".anvil");
 
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
@@ -183,7 +183,7 @@ function buildPtyEnv(home: string, shell: string): Record<string, string> {
   // Shell integration: redirect zsh's ZDOTDIR so our .zshenv loads first.
   // Mirrors src-tauri/src/terminal.rs:98-104
   if (shell.endsWith("zsh")) {
-    env.MORT_ORIGINAL_ZDOTDIR = process.env.ZDOTDIR ?? "";
+    env.ANVIL_ORIGINAL_ZDOTDIR = process.env.ZDOTDIR ?? "";
     env.ZDOTDIR = join(dataDir, "shell-integration", "zsh");
   }
 

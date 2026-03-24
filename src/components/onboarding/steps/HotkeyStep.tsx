@@ -11,7 +11,7 @@ export const HotkeyStep = ({ hotkey, onHotkeyChanged }: HotkeyStepProps) => {
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-surface-100 font-mono">Set Your Global Hotkey</h2>
         <p className="text-surface-300">
-          Choose a keyboard shortcut to quickly access Mort from anywhere on your system.
+          Choose a keyboard shortcut to quickly access Anvil from anywhere on your system.
         </p>
       </div>
 

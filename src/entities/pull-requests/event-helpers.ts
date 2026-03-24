@@ -201,10 +201,10 @@ export function buildAutoAddressPrompt(
 ): string {
   switch (action.type) {
     case "ci-failure":
-      return `/mort:fix-ci\n\nPR #${pr.prNumber} on ${pr.repoSlug}\nBranch: ${pr.headBranch}\n\nFailing checks:\n${context}`;
+      return `/anvil:fix-ci\n\nPR #${pr.prNumber} on ${pr.repoSlug}\nBranch: ${pr.headBranch}\n\nFailing checks:\n${context}`;
     case "pr-comment":
     case "review-submitted":
-      return `/mort:address-pr-comment\n\nPR #${pr.prNumber} on ${pr.repoSlug}\nBranch: ${pr.headBranch}\n\nReview comments to address:\n${context}`;
+      return `/anvil:address-pr-comment\n\nPR #${pr.prNumber} on ${pr.repoSlug}\nBranch: ${pr.headBranch}\n\nReview comments to address:\n${context}`;
   }
 }
 

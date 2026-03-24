@@ -1,7 +1,7 @@
 /**
  * Quick Actions Build
  *
- * Builds the user's quick actions project (~/.mort/quick-actions) by running
+ * Builds the user's quick actions project (~/.anvil/quick-actions) by running
  * `pnpm build`. Handles auto-installing dependencies when node_modules is
  * missing. Includes a module-level lock to prevent concurrent builds.
  */

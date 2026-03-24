@@ -182,7 +182,7 @@ describe("Thread History - Live Multi-Turn Test", () => {
     // === TURN 1: Send UUID to agent ===
     const config1: RunnerConfig = {
       prompt: `Remember this exact code: ${testUuid}. Reply with only "Acknowledged, I will remember the code." and nothing else.`,
-      mortDir: testDir,
+      anvilDir: testDir,
       agent: "simple",
       threadId: "test-thread-1",
     };
@@ -235,7 +235,7 @@ describe("Thread History - Live Multi-Turn Test", () => {
 
     const config2: RunnerConfig = {
       prompt: "What was the exact code I gave you in my previous message? Reply with ONLY the code, nothing else.",
-      mortDir: testDir,
+      anvilDir: testDir,
       agent: "simple",
       threadId: "test-thread-1",
       historyFile: stateJsonPath,
@@ -296,7 +296,7 @@ describe("Thread History - Live Multi-Turn Test", () => {
     // Ask about a UUID without ever sending it
     const config: RunnerConfig = {
       prompt: `What was the exact code I gave you in my previous message? If you don't know, reply "I don't have any previous context."`,
-      mortDir: testDir,
+      anvilDir: testDir,
       agent: "simple",
       threadId: "test-thread-control",
     };

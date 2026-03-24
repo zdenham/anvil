@@ -86,7 +86,7 @@ export function QuickActionsSettings() {
 
       <div className="text-sm text-surface-400 bg-surface-800 rounded-md p-3">
         <p>
-          Actions are defined in <code className="text-accent-400">~/.mort/quick-actions/src/actions/</code>
+          Actions are defined in <code className="text-accent-400">~/.anvil/quick-actions/src/actions/</code>
         </p>
         <p className="mt-1">
           After editing, click "Rebuild Actions" to compile and reload.
@@ -95,7 +95,7 @@ export function QuickActionsSettings() {
 
       {actions.length === 0 ? (
         <div className="text-sm text-surface-400">
-          No actions found. Add actions to <code className="text-accent-400">~/.mort/quick-actions/src/actions/</code>
+          No actions found. Add actions to <code className="text-accent-400">~/.anvil/quick-actions/src/actions/</code>
         </div>
       ) : (
         <DndContext collisionDetection={closestCenter} onDragEnd={handleReorder}>

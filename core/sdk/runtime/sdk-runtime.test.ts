@@ -5,7 +5,7 @@ describe('SDK Runtime', () => {
   describe('createSDK', () => {
     it('creates SDK with all services', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       expect(sdk.git).toBeDefined();
       expect(sdk.threads).toBeDefined();
@@ -18,7 +18,7 @@ describe('SDK Runtime', () => {
   describe('UI Service Events', () => {
     it('emits ui:setInput event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.setInputContent('test content');
 
@@ -27,7 +27,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:appendInput event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.appendInputContent('more content');
 
@@ -36,7 +36,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:clearInput event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.clearInput();
 
@@ -45,7 +45,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:focusInput event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.focusInput();
 
@@ -54,7 +54,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:navigate event for thread', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.navigateToThread('thread-123');
 
@@ -63,7 +63,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:navigate event for plan', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.navigateToPlan('plan-456');
 
@@ -72,7 +72,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:navigate event for nextUnread', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.navigateToNextUnread();
 
@@ -81,7 +81,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:toast event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.showToast('Success!', 'success');
 
@@ -90,7 +90,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:closePanel event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.ui.closePanel();
 
@@ -101,7 +101,7 @@ describe('SDK Runtime', () => {
   describe('Thread Service Events', () => {
     it('emits thread:archive event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.threads.archive('thread-456');
 
@@ -110,7 +110,7 @@ describe('SDK Runtime', () => {
 
     it('emits thread:markRead event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.threads.markRead('thread-789');
 
@@ -119,7 +119,7 @@ describe('SDK Runtime', () => {
 
     it('emits thread:markUnread event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.threads.markUnread('thread-101');
 
@@ -130,7 +130,7 @@ describe('SDK Runtime', () => {
   describe('Plan Service Events', () => {
     it('emits plan:archive event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       await sdk.plans.archive('plan-123');
 
@@ -141,7 +141,7 @@ describe('SDK Runtime', () => {
   describe('Log Service Events', () => {
     it('emits log event with info level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       sdk.log.info('Test message', { key: 'value' });
 
@@ -154,7 +154,7 @@ describe('SDK Runtime', () => {
 
     it('emits log event with warn level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       sdk.log.warn('Warning message');
 
@@ -167,7 +167,7 @@ describe('SDK Runtime', () => {
 
     it('emits log event with error level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       sdk.log.error('Error message', { code: 500 });
 
@@ -180,7 +180,7 @@ describe('SDK Runtime', () => {
 
     it('emits log event with debug level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK('/test/.mort', emitEvent);
+      const sdk = createSDK('/test/.anvil', emitEvent);
 
       sdk.log.debug('Debug message', { count: 1 });
 

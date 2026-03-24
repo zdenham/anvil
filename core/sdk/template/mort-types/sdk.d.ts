@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// Ambient type declarations for Mort Quick Actions SDK
+// Ambient type declarations for Anvil Quick Actions SDK
 // These types are globally available - no import needed
 // ═══════════════════════════════════════════════════════════════════
 
@@ -33,7 +33,7 @@ declare global {
   // SDK Services
   // ═══════════════════════════════════════════════════════════════════
 
-  interface MortSDK {
+  interface AnvilSDK {
     git: GitService;
     threads: ThreadService;
     plans: PlanService;
@@ -114,7 +114,7 @@ declare global {
 
   type QuickActionFn = (
     context: QuickActionExecutionContext,
-    sdk: MortSDK
+    sdk: AnvilSDK
   ) => Promise<void> | void;
 
   interface QuickActionDefinition {

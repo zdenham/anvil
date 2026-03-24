@@ -14,7 +14,7 @@ import { threadReducer, type ThreadAction } from "@core/lib/thread-reducer";
 import { useThreadStore } from "@/entities/threads/store";
 import { threadService } from "@/entities/threads/service";
 import { VirtualFS } from "./virtual-fs";
-import { MOCK_MORT_DIR } from "../mocks/tauri-api";
+import { MOCK_ANVIL_DIR } from "../mocks/tauri-api";
 import { waitForReact } from "./event-emitter";
 import type { CapturedEvent } from "@/stores/event-debugger-store";
 import type { ThreadState } from "@core/types/events";
@@ -123,7 +123,7 @@ export class ReplayHarness {
 
   /** Seed VirtualFS so threadService reads succeed */
   private seedVirtualDisk(): void {
-    const dir = `${MOCK_MORT_DIR}/threads/${this.threadId}`;
+    const dir = `${MOCK_ANVIL_DIR}/threads/${this.threadId}`;
     VirtualFS.seed({
       [`${dir}/metadata.json`]: this.diskMetadata,
       [`${dir}/state.json`]: this.diskState,

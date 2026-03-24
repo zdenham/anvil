@@ -23,7 +23,7 @@ export async function dispatchMisc(
   switch (cmd) {
     // ── Paths ──────────────────────────────────────────────────────────
     case "get_paths_info": {
-      const suffix = process.env.MORT_APP_SUFFIX ?? "";
+      const suffix = process.env.ANVIL_APP_SUFFIX ?? "";
       return {
         data_dir: dataDirPath(),
         config_dir: configDirPath(),
@@ -42,7 +42,7 @@ export async function dispatchMisc(
     case "remove_repository_data":
       return removeRepositoryData(
         extractArg(args, "repoSlug"),
-        extractArg(args, "mortDir"),
+        extractArg(args, "anvilDir"),
       );
 
     default:
@@ -59,7 +59,7 @@ async function dispatchMiscPart2(
     // ── Search ─────────────────────────────────────────────────────────
     case "search_threads":
       return searchThreads(
-        extractArg(args, "mortDir"),
+        extractArg(args, "anvilDir"),
         extractArg(args, "query"),
         extractOptArg(args, "maxResults"),
         extractOptArg(args, "caseSensitive"),
@@ -169,7 +169,7 @@ async function dispatchMiscPart3(
 
     case "get_agent_socket_path":
       // Return WS URL instead of socket path
-      return `ws://127.0.0.1:${process.env.MORT_WS_PORT ?? "9600"}/ws/agent`;
+      return `ws://127.0.0.1:${process.env.ANVIL_WS_PORT ?? "9600"}/ws/agent`;
 
     default:
       throw new Error(`unknown command: ${cmd}`);
@@ -193,9 +193,9 @@ function validateRepository(
 
 async function removeRepositoryData(
   repoSlug: string,
-  mortDir: string,
+  anvilDir: string,
 ): Promise<null> {
-  await rm(join(mortDir, "repositories", repoSlug), {
+  await rm(join(anvilDir, "repositories", repoSlug), {
     recursive: true,
     force: true,
   });
@@ -203,13 +203,13 @@ async function removeRepositoryData(
 }
 
 async function searchThreads(
-  mortDir: string,
+  anvilDir: string,
   query: string,
   maxResults?: number,
   caseSensitive?: boolean,
 ): Promise<{ matches: unknown[]; truncated: boolean }> {
   const max = maxResults ?? 100;
-  const threadsDir = join(mortDir, "threads");
+  const threadsDir = join(anvilDir, "threads");
   const matches: {
     threadId: string;
     lineContent: string;

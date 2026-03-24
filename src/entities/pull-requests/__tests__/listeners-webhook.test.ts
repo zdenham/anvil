@@ -356,7 +356,7 @@ describe("setupPullRequestListeners - GITHUB_WEBHOOK_EVENT", () => {
 
     // Verify prompt contains the address-pr-comment skill
     const callArgs = mockCreateThread.mock.calls[0][0] as { prompt: string };
-    expect(callArgs.prompt).toContain("/mort:address-pr-comment");
+    expect(callArgs.prompt).toContain("/anvil:address-pr-comment");
     expect(callArgs.prompt).toContain("PR #42");
 
     vi.useRealTimers();
@@ -404,7 +404,7 @@ describe("setupPullRequestListeners - GITHUB_WEBHOOK_EVENT", () => {
 
     expect(mockCreateThread).toHaveBeenCalledOnce();
     const callArgs = mockCreateThread.mock.calls[0][0] as { prompt: string };
-    expect(callArgs.prompt).toContain("/mort:fix-ci");
+    expect(callArgs.prompt).toContain("/anvil:fix-ci");
 
     vi.useRealTimers();
   });

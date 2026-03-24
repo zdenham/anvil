@@ -104,7 +104,7 @@ describe('QuickActionMetadataSchema', () => {
       slug: 'archive',
       title: 'Archive',
       entryPoint: 'actions/archive.js',
-      projectPath: '/Users/test/.mort/quick-actions',
+      projectPath: '/Users/test/.anvil/quick-actions',
       contexts: ['thread'],
       createdAt: Date.now(),
       updatedAt: Date.now(),

@@ -12,7 +12,7 @@ import { parseSSEFrames } from "./sse-parser.js";
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
 export interface GatewayClientOptions {
-  /** Gateway base URL (e.g. "https://mort-server.fly.dev") */
+  /** Gateway base URL (e.g. "https://anvil-server.fly.dev") */
   baseUrl: string;
   /** Device ID for SSE stream subscription */
   deviceId: string;

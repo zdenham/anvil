@@ -2,20 +2,20 @@
  * Quick Actions Project Initialization
  *
  * Handles first-launch initialization that creates the default quick actions
- * project at ~/.mort/quick-actions/. This follows the existing migrations
+ * project at ~/.anvil/quick-actions/. This follows the existing migrations
  * pattern for idempotent setup.
  *
  * Design Decisions Referenced:
  * - #1 Default Project, Batteries Included: Created on first launch
  * - #4 SDK Distribution: Types shipped as static .d.ts file, implementation injected at runtime
- * - #5 Runtime Dependency: Node.js must be installed by user; Mort detects and provides helpful error
+ * - #5 Runtime Dependency: Node.js must be installed by user; Anvil detects and provides helpful error
  * - #13 SDK Versioning: Version checked, SDK types updated through migrations
  * - #22 SDK Types Distribution: Only types.d.ts shipped to user projects, never real SDK code
  * - #30 Bootstrap Initialization: Idempotent, uses migrations pattern
  */
 
 import { FilesystemClient, type DirEntry } from './filesystem-client';
-import { getMortDir, getQuickActionsTemplatePath, getSdkTypesPath, getQuickActionsProjectPath } from './paths';
+import { getAnvilDir, getQuickActionsTemplatePath, getSdkTypesPath, getQuickActionsProjectPath } from './paths';
 import { logger } from './logger-client';
 import { checkNodeAvailable as checkNode, type NodeAvailability } from './node-detection';
 
@@ -24,7 +24,7 @@ const fs = new FilesystemClient();
 const SDK_VERSION = '1.0.0';
 const QUICK_ACTIONS_DIR = 'quick-actions';
 const TYPES_FILE = 'sdk.d.ts';
-const MORT_TYPES_DIR = 'mort-types'; // Types directory name (safe from pnpm install)
+const ANVIL_TYPES_DIR = 'anvil-types'; // Types directory name (safe from pnpm install)
 
 export interface InitResult {
   created: boolean;
@@ -37,7 +37,7 @@ export type { NodeAvailability };
 
 /**
  * Check if Node.js is installed and accessible.
- * Per Design Decision #5, Mort should detect if Node.js is missing
+ * Per Design Decision #5, Anvil should detect if Node.js is missing
  * and provide a helpful error message.
  *
  * This is a wrapper around the existing node-detection module with
@@ -64,8 +64,8 @@ export async function checkNodeAvailable(): Promise<NodeAvailability> {
  * even without Node.js, but actions won't be runnable.
  */
 export async function initializeQuickActionsProject(): Promise<InitResult> {
-  const mortDir = await getMortDir();
-  const projectPath = fs.joinPath(mortDir, QUICK_ACTIONS_DIR);
+  const anvilDir = await getAnvilDir();
+  const projectPath = fs.joinPath(anvilDir, QUICK_ACTIONS_DIR);
 
   // Check Node.js availability (DD #5)
   // We log a warning but still proceed with project creation
@@ -118,15 +118,15 @@ async function copyTemplate(projectPath: string): Promise<void> {
   // Create project directory structure
   await fs.mkdir(projectPath);
 
-  // Create mort-types directory for SDK types (safe from pnpm install)
-  const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
-  await fs.mkdir(mortTypesDir);
+  // Create anvil-types directory for SDK types (safe from pnpm install)
+  const anvilTypesDir = fs.joinPath(projectPath, ANVIL_TYPES_DIR);
+  await fs.mkdir(anvilTypesDir);
 
   // Copy template files (excluding node_modules - user will run pnpm install)
   await copyDirExcluding(templatePath, projectPath, ['node_modules', 'dist']);
 
-  // Copy SDK types to mort-types directory (DD #4 and #22)
-  const typesDestPath = fs.joinPath(mortTypesDir, TYPES_FILE);
+  // Copy SDK types to anvil-types directory (DD #4 and #22)
+  const typesDestPath = fs.joinPath(anvilTypesDir, TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
   // Create SDK version file for tracking
@@ -135,7 +135,7 @@ async function copyTemplate(projectPath: string): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   await fs.writeJsonFile(
-    fs.joinPath(mortTypesDir, 'version.json'),
+    fs.joinPath(anvilTypesDir, 'version.json'),
     versionFile
   );
 }
@@ -171,7 +171,7 @@ async function copyDirExcluding(
 
 async function readSdkVersion(projectPath: string): Promise<string | null> {
   try {
-    const versionPath = fs.joinPath(projectPath, MORT_TYPES_DIR, 'version.json');
+    const versionPath = fs.joinPath(projectPath, ANVIL_TYPES_DIR, 'version.json');
     if (await fs.exists(versionPath)) {
       const data = await fs.readJsonFile<{ version?: string }>(versionPath);
       return data.version ?? null;
@@ -200,17 +200,17 @@ export function needsUpdate(current: string, target: string): boolean {
 /**
  * Update only the SDK types file (DD #4 and #22).
  * User's actions and other project files are preserved.
- * The actual SDK implementation is injected at runtime by Mort's runner.
+ * The actual SDK implementation is injected at runtime by Anvil's runner.
  */
 async function updateSdkTypes(projectPath: string): Promise<void> {
   const sdkTypesPath = await getSdkTypesPath();
-  const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
+  const anvilTypesDir = fs.joinPath(projectPath, ANVIL_TYPES_DIR);
 
-  // Ensure mort-types directory exists
-  await fs.mkdir(mortTypesDir);
+  // Ensure anvil-types directory exists
+  await fs.mkdir(anvilTypesDir);
 
   // Update sdk.d.ts
-  const typesDestPath = fs.joinPath(mortTypesDir, TYPES_FILE);
+  const typesDestPath = fs.joinPath(anvilTypesDir, TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
   // Update version file
@@ -219,7 +219,7 @@ async function updateSdkTypes(projectPath: string): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   await fs.writeJsonFile(
-    fs.joinPath(mortTypesDir, 'version.json'),
+    fs.joinPath(anvilTypesDir, 'version.json'),
     versionFile
   );
 }
@@ -230,7 +230,7 @@ async function updateSdkTypes(projectPath: string): Promise<void> {
  */
 export async function ensureSdkTypesPresent(): Promise<boolean> {
   const projectPath = await getQuickActionsProjectPath();
-  const typesPath = fs.joinPath(projectPath, MORT_TYPES_DIR, TYPES_FILE);
+  const typesPath = fs.joinPath(projectPath, ANVIL_TYPES_DIR, TYPES_FILE);
 
   if (!await fs.exists(typesPath)) {
     logger.warn('SDK types missing, attempting recovery');

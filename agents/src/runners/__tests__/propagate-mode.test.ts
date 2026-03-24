@@ -40,21 +40,21 @@ import { getHubClient } from "../../output.js";
 const mockedGetHubClient = vi.mocked(getHubClient);
 
 describe("propagateModeToChildren", () => {
-  let mortDir: string;
+  let anvilDir: string;
   let threadsDir: string;
 
   beforeEach(() => {
-    mortDir = join(
+    anvilDir = join(
       tmpdir(),
-      `mort-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      `anvil-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
-    threadsDir = join(mortDir, "threads");
+    threadsDir = join(anvilDir, "threads");
     mkdirSync(threadsDir, { recursive: true });
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    rmSync(mortDir, { recursive: true, force: true });
+    rmSync(anvilDir, { recursive: true, force: true });
   });
 
   // Helper to create a thread directory with metadata
@@ -87,7 +87,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "implement", mortDir);
+    propagateModeToChildren("parent-1", "implement", anvilDir);
 
     // Verify relay was called
     expect(mockRelay).toHaveBeenCalledWith("child-1", {
@@ -115,7 +115,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "implement", mortDir);
+    propagateModeToChildren("parent-1", "implement", anvilDir);
 
     expect(mockRelay).not.toHaveBeenCalled();
     // Metadata should not be updated
@@ -137,7 +137,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "implement", mortDir);
+    propagateModeToChildren("parent-1", "implement", anvilDir);
 
     expect(mockRelay).not.toHaveBeenCalled();
   });
@@ -162,7 +162,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "approve", mortDir);
+    propagateModeToChildren("parent-1", "approve", anvilDir);
 
     expect(mockRelay).toHaveBeenCalledTimes(2);
     expect(readMetadata("child-a").permissionMode).toBe("approve");
@@ -179,7 +179,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "implement", mortDir);
+    propagateModeToChildren("parent-1", "implement", anvilDir);
 
     // Mode should still be persisted to disk
     const metadata = readMetadata("child-1");
@@ -189,8 +189,8 @@ describe("propagateModeToChildren", () => {
   it("handles missing threads directory gracefully", () => {
     mockedGetHubClient.mockReturnValue(null);
 
-    // Use a mortDir with no threads directory
-    const emptyDir = join(tmpdir(), `mort-empty-${Date.now()}`);
+    // Use an anvilDir with no threads directory
+    const emptyDir = join(tmpdir(), `anvil-empty-${Date.now()}`);
     mkdirSync(emptyDir, { recursive: true });
 
     // Should not throw
@@ -220,7 +220,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "implement", mortDir);
+    propagateModeToChildren("parent-1", "implement", anvilDir);
 
     // Only the valid child should be relayed
     expect(mockRelay).toHaveBeenCalledTimes(1);
@@ -243,7 +243,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "implement", mortDir);
+    propagateModeToChildren("parent-1", "implement", anvilDir);
 
     // Hub relay should NOT be called since isConnected is false
     const hub = mockedGetHubClient();
@@ -266,7 +266,7 @@ describe("propagateModeToChildren", () => {
       updatedAt: originalTime,
     });
 
-    propagateModeToChildren("parent-1", "implement", mortDir);
+    propagateModeToChildren("parent-1", "implement", anvilDir);
 
     const metadata = readMetadata("child-1");
     expect(metadata.updatedAt).toBeGreaterThan(originalTime);
@@ -298,7 +298,7 @@ describe("propagateModeToChildren", () => {
       permissionMode: "plan",
     });
 
-    propagateModeToChildren("parent-1", "approve", mortDir);
+    propagateModeToChildren("parent-1", "approve", anvilDir);
 
     // Only the running child of parent-1 should be relayed
     expect(mockRelay).toHaveBeenCalledTimes(1);

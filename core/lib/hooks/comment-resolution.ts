@@ -8,16 +8,16 @@ export interface CommentResolutionResult {
 }
 
 /**
- * Parse a `mort-resolve-comment` Bash command and extract comment IDs.
- * Returns null if the command is not a mort-resolve-comment call.
+ * Parse a `anvil-resolve-comment` Bash command and extract comment IDs.
+ * Returns null if the command is not a anvil-resolve-comment call.
  * Returns { ids: [] } if it matches but has invalid args.
  */
 export function parseCommentResolution(command: string): CommentResolutionResult | null {
-  if (!command.trimStart().startsWith("mort-resolve-comment")) {
+  if (!command.trimStart().startsWith("anvil-resolve-comment")) {
     return null;
   }
 
-  const argsMatch = command.match(/mort-resolve-comment\s+["']?([^"']+)["']?/);
+  const argsMatch = command.match(/anvil-resolve-comment\s+["']?([^"']+)["']?/);
   if (!argsMatch) {
     return null;
   }

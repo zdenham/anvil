@@ -22,7 +22,7 @@ describe("ProxyServer integration", () => {
   let targetPort: number;
 
   beforeAll(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mort-proxy-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "anvil-proxy-test-"));
     certManager = new CertManager(tmpDir);
     await certManager.ensureCA();
     caCertPem = fs.readFileSync(certManager.certPath, "utf-8");

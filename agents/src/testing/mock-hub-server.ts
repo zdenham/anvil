@@ -22,7 +22,7 @@ import type {
  * const hub = new MockHubServer();
  * await hub.start();
  *
- * // Spawn agent with MORT_AGENT_HUB_WS_URL=hub.getEndpoint()
+ * // Spawn agent with ANVIL_AGENT_HUB_WS_URL=hub.getEndpoint()
  * await hub.waitForRegistration("thread-123");
  *
  * // Send messages to the agent

@@ -8,7 +8,7 @@ import { logger } from "../lib/logger.js";
  * Environment variable to enable mock LLM mode.
  * When set to a file path, agent uses scripted responses instead of Claude API.
  */
-export const MOCK_LLM_VAR = "MORT_MOCK_LLM_PATH";
+export const MOCK_LLM_VAR = "ANVIL_MOCK_LLM_PATH";
 
 /**
  * Mock response script format.
@@ -42,7 +42,7 @@ export interface MockToolCall {
 
 /**
  * Create a mock script file for testing.
- * Returns the file path to pass via MORT_MOCK_LLM_PATH.
+ * Returns the file path to pass via ANVIL_MOCK_LLM_PATH.
  */
 export function createMockScript(script: MockScript): string {
   const path = join(tmpdir(), `mock-llm-${randomUUID()}.json`);

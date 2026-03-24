@@ -50,13 +50,13 @@ describe("SimpleRunnerStrategy --skip-naming", () => {
     "--repo-id", "550e8400-e29b-41d4-a716-446655440000",
     "--worktree-id", "660e8400-e29b-41d4-a716-446655440000",
     "--thread-id", "770e8400-e29b-41d4-a716-446655440000",
-    "--mort-dir", "", // Will be set per test
+    "--anvil-dir", "", // Will be set per test
     "--prompt", "test prompt",
     "--cwd", "", // Will be set per test
   ];
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `mort-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    tmpDir = join(tmpdir(), `anvil-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tmpDir, { recursive: true });
     // Create a threads subdir for setup to use
     mkdirSync(join(tmpDir, "threads"), { recursive: true });
@@ -73,7 +73,7 @@ describe("SimpleRunnerStrategy --skip-naming", () => {
   describe("parseArgs", () => {
     it("sets skipNaming to true when --skip-naming is present", () => {
       const args = [...baseArgs, "--skip-naming"];
-      args[args.indexOf("--mort-dir") + 1] = tmpDir;
+      args[args.indexOf("--anvil-dir") + 1] = tmpDir;
       args[args.indexOf("--cwd") + 1] = tmpDir;
       const config = strategy.parseArgs(args);
       expect(config.skipNaming).toBe(true);
@@ -81,20 +81,20 @@ describe("SimpleRunnerStrategy --skip-naming", () => {
 
     it("leaves skipNaming undefined when --skip-naming is absent", () => {
       const args = [...baseArgs];
-      args[args.indexOf("--mort-dir") + 1] = tmpDir;
+      args[args.indexOf("--anvil-dir") + 1] = tmpDir;
       args[args.indexOf("--cwd") + 1] = tmpDir;
       const config = strategy.parseArgs(args);
       expect(config.skipNaming).toBeUndefined();
     });
   });
 
-  /** Build args with tmpDir already set for --mort-dir and --cwd */
+  /** Build args with tmpDir already set for --anvil-dir and --cwd */
   function buildArgs(extra: string[] = []): string[] {
     return [
       "--repo-id", "550e8400-e29b-41d4-a716-446655440000",
       "--worktree-id", "660e8400-e29b-41d4-a716-446655440000",
       "--thread-id", "770e8400-e29b-41d4-a716-446655440000",
-      "--mort-dir", tmpDir,
+      "--anvil-dir", tmpDir,
       "--prompt", "test prompt",
       "--cwd", tmpDir,
       ...extra,

@@ -9,15 +9,15 @@ import { tmpdir } from "node:os";
 import { writeHooksJson, buildHooksConfig } from "../hooks/hooks-writer.js";
 
 describe("hooks-writer", () => {
-  let mortDir: string;
+  let anvilDir: string;
 
   beforeEach(() => {
-    mortDir = join(tmpdir(), `mort-hooks-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    mkdirSync(mortDir, { recursive: true });
+    anvilDir = join(tmpdir(), `anvil-hooks-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(anvilDir, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(mortDir, { recursive: true, force: true });
+    rmSync(anvilDir, { recursive: true, force: true });
   });
 
   describe("buildHooksConfig", () => {
@@ -34,8 +34,8 @@ describe("hooks-writer", () => {
       const config = buildHooksConfig("http://localhost:9603");
       const hook = config.PreToolUse[0].hooks[0];
 
-      expect(hook.headers["X-Mort-Thread-Id"]).toBe("$MORT_THREAD_ID");
-      expect(hook.allowedEnvVars).toContain("MORT_THREAD_ID");
+      expect(hook.headers["X-Anvil-Thread-Id"]).toBe("$ANVIL_THREAD_ID");
+      expect(hook.allowedEnvVars).toContain("ANVIL_THREAD_ID");
     });
 
     it("sets 10s timeout on all hooks", () => {
@@ -53,8 +53,8 @@ describe("hooks-writer", () => {
     it("includes status messages on user-visible hooks", () => {
       const config = buildHooksConfig("http://localhost:9603");
 
-      expect(config.SessionStart[0].hooks[0].statusMessage).toBe("Connecting to Mort...");
-      expect(config.PreToolUse[0].hooks[0].statusMessage).toBe("Checking with Mort...");
+      expect(config.SessionStart[0].hooks[0].statusMessage).toBe("Connecting to Anvil...");
+      expect(config.PreToolUse[0].hooks[0].statusMessage).toBe("Checking with Anvil...");
       expect(config.PostToolUse[0].hooks[0].statusMessage).toBeUndefined();
       expect(config.Stop[0].hooks[0].statusMessage).toBeUndefined();
     });
@@ -62,9 +62,9 @@ describe("hooks-writer", () => {
 
   describe("writeHooksJson", () => {
     it("creates hooks directory and writes hooks.json", () => {
-      writeHooksJson(mortDir, 9603);
+      writeHooksJson(anvilDir, 9603);
 
-      const hooksPath = join(mortDir, "hooks", "hooks.json");
+      const hooksPath = join(anvilDir, "hooks", "hooks.json");
       expect(existsSync(hooksPath)).toBe(true);
 
       const content = JSON.parse(readFileSync(hooksPath, "utf-8"));
@@ -72,10 +72,10 @@ describe("hooks-writer", () => {
     });
 
     it("overwrites existing hooks.json on port change", () => {
-      writeHooksJson(mortDir, 9600);
-      writeHooksJson(mortDir, 9601);
+      writeHooksJson(anvilDir, 9600);
+      writeHooksJson(anvilDir, 9601);
 
-      const hooksPath = join(mortDir, "hooks", "hooks.json");
+      const hooksPath = join(anvilDir, "hooks", "hooks.json");
       const content = JSON.parse(readFileSync(hooksPath, "utf-8"));
       expect(content.PreToolUse[0].hooks[0].url).toContain("9601");
     });

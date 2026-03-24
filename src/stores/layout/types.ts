@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Zod Schemas for Disk Persistence
-// Location: ~/.mort/ui/layout.json
+// Location: ~/.anvil/ui/layout.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**

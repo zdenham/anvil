@@ -8,7 +8,7 @@ import { z } from "zod";
  * Zod schema for diagnostic logging configuration.
  *
  * Each module can be independently toggled. Parsed from:
- * - MORT_DIAGNOSTIC_LOGGING env var (JSON string) in agent processes
+ * - ANVIL_DIAGNOSTIC_LOGGING env var (JSON string) in agent processes
  * - SettingsStoreClient in the frontend
  *
  * Status transitions, gap summaries, and errors always log regardless

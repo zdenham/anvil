@@ -142,25 +142,41 @@ describe("Settings Store", () => {
       expect(useSettingsStore.getState().getApiKey()).toBe("my-key");
     });
 
-    it("isConfigured returns true when repository is set (regardless of API key)", () => {
+    it("isConfigured returns true when repository is set with claude-login", () => {
       useSettingsStore.setState({
-        workspace: { repository: "/repo", anthropicApiKey: null, workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal" },
+        workspace: { repository: "/repo", anthropicApiKey: null, authMethod: "claude-login", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal", quickActionsCollapsed: false },
       });
 
       expect(useSettingsStore.getState().isConfigured()).toBe(true);
     });
 
-    it("isConfigured returns true when both repository and API key are set", () => {
+    it("isConfigured returns true when repository is set with no explicit authMethod (defaults to claude-login)", () => {
       useSettingsStore.setState({
-        workspace: { repository: "/repo", anthropicApiKey: "key", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal" },
+        workspace: { repository: "/repo", anthropicApiKey: null, workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal", quickActionsCollapsed: false },
       });
 
       expect(useSettingsStore.getState().isConfigured()).toBe(true);
+    });
+
+    it("isConfigured returns true when api-key auth has a key set", () => {
+      useSettingsStore.setState({
+        workspace: { repository: "/repo", anthropicApiKey: "key", authMethod: "api-key", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal", quickActionsCollapsed: false },
+      });
+
+      expect(useSettingsStore.getState().isConfigured()).toBe(true);
+    });
+
+    it("isConfigured returns false when api-key auth has no key", () => {
+      useSettingsStore.setState({
+        workspace: { repository: "/repo", anthropicApiKey: null, authMethod: "api-key", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal", quickActionsCollapsed: false },
+      });
+
+      expect(useSettingsStore.getState().isConfigured()).toBe(false);
     });
 
     it("isConfigured returns false when repository is null", () => {
       useSettingsStore.setState({
-        workspace: { repository: null, anthropicApiKey: "key", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal" },
+        workspace: { repository: null, anthropicApiKey: "key", workflowMode: "solo", permissionMode: "allow-all", permissionDisplayMode: "modal", quickActionsCollapsed: false },
       });
 
       expect(useSettingsStore.getState().isConfigured()).toBe(false);

@@ -9,25 +9,25 @@ vi.mock("../../logger.js", () => ({
 }));
 
 describe("budget", () => {
-  let mortDir: string;
+  let anvilDir: string;
 
   beforeEach(() => {
-    mortDir = join(
+    anvilDir = join(
       tmpdir(),
-      `mort-budget-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      `anvil-budget-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
-    mkdirSync(join(mortDir, "threads"), { recursive: true });
+    mkdirSync(join(anvilDir, "threads"), { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(mortDir, { recursive: true, force: true });
+    rmSync(anvilDir, { recursive: true, force: true });
   });
 
   function createThread(
     threadId: string,
     metadata: Record<string, unknown>,
   ): void {
-    const threadDir = join(mortDir, "threads", threadId);
+    const threadDir = join(anvilDir, "threads", threadId);
     mkdirSync(threadDir, { recursive: true });
     writeFileSync(
       join(threadDir, "metadata.json"),
@@ -41,7 +41,7 @@ describe("budget", () => {
     it("returns not over budget when thread has no budgetCapUsd", () => {
       createThread("thread-1", { totalCostUsd: 5 });
 
-      const result = isOverBudget("thread-1", mortDir);
+      const result = isOverBudget("thread-1", anvilDir);
 
       expect(result).toEqual({ overBudget: false });
     });
@@ -53,7 +53,7 @@ describe("budget", () => {
         cumulativeCostUsd: 2,
       });
 
-      const result = isOverBudget("thread-2", mortDir);
+      const result = isOverBudget("thread-2", anvilDir);
 
       expect(result).toEqual({
         overBudget: false,
@@ -70,7 +70,7 @@ describe("budget", () => {
         cumulativeCostUsd: 4,
       });
 
-      const result = isOverBudget("thread-3", mortDir);
+      const result = isOverBudget("thread-3", anvilDir);
 
       expect(result).toEqual({
         overBudget: true,
@@ -87,7 +87,7 @@ describe("budget", () => {
         cumulativeCostUsd: 2,
       });
 
-      const result = isOverBudget("thread-4", mortDir);
+      const result = isOverBudget("thread-4", anvilDir);
 
       expect(result).toEqual({
         overBudget: true,
@@ -112,7 +112,7 @@ describe("budget", () => {
         cumulativeCostUsd: 4,
       });
 
-      const result = isOverBudget("child", mortDir);
+      const result = isOverBudget("child", anvilDir);
 
       expect(result).toEqual({
         overBudget: true,
@@ -139,7 +139,7 @@ describe("budget", () => {
         cumulativeCostUsd: 4,
       });
 
-      const result = isOverBudget("child", mortDir);
+      const result = isOverBudget("child", anvilDir);
 
       expect(result).toEqual({
         overBudget: false,
@@ -155,13 +155,13 @@ describe("budget", () => {
         totalCostUsd: 1,
       });
 
-      const result = isOverBudget("loop-thread", mortDir);
+      const result = isOverBudget("loop-thread", anvilDir);
 
       expect(result).toEqual({ overBudget: false });
     });
 
     it("returns not over budget when thread directory does not exist", () => {
-      const result = isOverBudget("nonexistent-thread", mortDir);
+      const result = isOverBudget("nonexistent-thread", anvilDir);
 
       expect(result).toEqual({ overBudget: false });
     });
@@ -176,10 +176,10 @@ describe("budget", () => {
         cumulativeCostUsd: 0,
       });
 
-      rollUpCostToParent(mortDir, "parent-a", 3.5);
+      rollUpCostToParent(anvilDir, "parent-a", 3.5);
 
       const raw = readFileSync(
-        join(mortDir, "threads", "parent-a", "metadata.json"),
+        join(anvilDir, "threads", "parent-a", "metadata.json"),
         "utf-8",
       );
       const meta = JSON.parse(raw);
@@ -193,10 +193,10 @@ describe("budget", () => {
         cumulativeCostUsd: 5,
       });
 
-      rollUpCostToParent(mortDir, "parent-b", 3);
+      rollUpCostToParent(anvilDir, "parent-b", 3);
 
       const raw = readFileSync(
-        join(mortDir, "threads", "parent-b", "metadata.json"),
+        join(anvilDir, "threads", "parent-b", "metadata.json"),
         "utf-8",
       );
       const meta = JSON.parse(raw);
@@ -210,10 +210,10 @@ describe("budget", () => {
         updatedAt: 1000,
       });
 
-      rollUpCostToParent(mortDir, "parent-c", 0);
+      rollUpCostToParent(anvilDir, "parent-c", 0);
 
       const raw = readFileSync(
-        join(mortDir, "threads", "parent-c", "metadata.json"),
+        join(anvilDir, "threads", "parent-c", "metadata.json"),
         "utf-8",
       );
       const meta = JSON.parse(raw);
@@ -223,7 +223,7 @@ describe("budget", () => {
 
     it("does not throw when parent metadata does not exist", () => {
       expect(() => {
-        rollUpCostToParent(mortDir, "missing-parent", 10);
+        rollUpCostToParent(anvilDir, "missing-parent", 10);
       }).not.toThrow();
     });
   });

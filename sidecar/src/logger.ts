@@ -22,12 +22,12 @@ export interface SidecarLogger {
 // ── Persistent log file ──────────────────────────────────────────────
 
 function defaultDataDir(): string {
-  const suffix = process.env.MORT_APP_SUFFIX ?? "";
-  const dirName = suffix ? `.mort-${suffix}` : ".mort";
+  const suffix = process.env.ANVIL_APP_SUFFIX ?? "";
+  const dirName = suffix ? `.anvil-${suffix}` : ".anvil";
   return join(process.env.HOME ?? "", dirName);
 }
 
-const LOG_DIR = join(process.env.MORT_DATA_DIR || defaultDataDir(), "logs");
+const LOG_DIR = join(process.env.ANVIL_DATA_DIR || defaultDataDir(), "logs");
 const LOG_FILE = join(LOG_DIR, "sidecar.log");
 
 let logDirReady = false;

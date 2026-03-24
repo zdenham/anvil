@@ -174,8 +174,8 @@ function formatAddressPrompt(comments: InlineComment[]): string {
     ...sections,
     "",
     "For each comment, make the requested change. After addressing a comment, mark it resolved:",
-    `mort-resolve-comment "${commentIds.join(",")}"`,
+    `anvil-resolve-comment "${commentIds.join(",")}"`,
     "",
-    "Note: mort-resolve-comment is a virtual command intercepted by the system. It will appear as \"denied\" in the tool output but the comments ARE resolved — this is expected behavior, do not retry.",
+    "Note: anvil-resolve-comment is a virtual command intercepted by the system. It will appear as \"denied\" in the tool output but the comments ARE resolved — this is expected behavior, do not retry.",
   ].join("\n");
 }

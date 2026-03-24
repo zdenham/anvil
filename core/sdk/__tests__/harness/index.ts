@@ -30,12 +30,12 @@
  */
 
 import type { QuickActionExecutionContext } from '../../types.js';
-import { MortFixture, createMortFixture } from './mort-fixture.js';
+import { AnvilFixture, createAnvilFixture, MortFixture, createMortFixture } from './mort-fixture.js';
 import { runQuickAction, getTemplateActionPath, type RunnerResult } from './runner-spawn.js';
 import { EventCollector } from './event-collector.js';
 
 // Re-export all harness components
-export { MortFixture, createMortFixture } from './mort-fixture.js';
+export { AnvilFixture, createAnvilFixture, MortFixture, createMortFixture } from './mort-fixture.js';
 export type { ThreadMetaFixture, PlanEntryFixture } from './mort-fixture.js';
 
 export { runQuickAction, getTemplateActionPath } from './runner-spawn.js';
@@ -69,8 +69,8 @@ export interface TestRunResult {
  * High-level test context combining fixture and runner.
  */
 export interface QuickActionTestContext {
-  /** The temporary .mort fixture */
-  fixture: MortFixture;
+  /** The temporary .anvil fixture */
+  fixture: AnvilFixture;
 
   /**
    * Run a quick action and return results.
@@ -108,7 +108,7 @@ function buildContext(partial: Partial<QuickActionExecutionContext>): QuickActio
 
 /**
  * Create a test context for quick action integration tests.
- * Initializes a temporary .mort directory and provides helpers
+ * Initializes a temporary .anvil directory and provides helpers
  * for running actions and asserting on events.
  *
  * @example
@@ -124,7 +124,7 @@ function buildContext(partial: Partial<QuickActionExecutionContext>): QuickActio
  * ```
  */
 export async function createTestContext(): Promise<QuickActionTestContext> {
-  const fixture = await createMortFixture();
+  const fixture = await createAnvilFixture();
 
   return {
     fixture,
@@ -140,7 +140,7 @@ export async function createTestContext(): Promise<QuickActionTestContext> {
       const result = await runQuickAction({
         actionPath,
         context: fullContext,
-        mortDir: fixture.mortDir,
+        anvilDir: fixture.anvilDir,
         timeout: options.timeout,
       });
 

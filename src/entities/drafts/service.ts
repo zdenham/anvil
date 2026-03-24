@@ -2,7 +2,7 @@ import { appData } from '@/lib/app-data-store.js';
 import { useDraftsStore } from './store.js';
 import { DraftsFileSchema, type DraftsFile } from './types.js';
 
-// Path relative to the data directory (e.g., ~/.mort/drafts.json)
+// Path relative to the data directory (e.g., ~/.anvil/drafts.json)
 const DRAFTS_PATH = 'drafts.json';
 
 async function readDraftsFile(): Promise<DraftsFile> {

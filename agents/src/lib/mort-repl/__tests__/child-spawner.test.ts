@@ -55,7 +55,7 @@ const mockContext: ReplContext = {
   worktreeId: "test-worktree-id",
   workingDir: "/test/dir",
   permissionModeId: "implement",
-  mortDir: "/test/.mort",
+  anvilDir: "/test/.anvil",
 };
 
 function createMockChild(): EventEmitter & { pid: number } {
@@ -95,7 +95,7 @@ describe("ChildSpawner", () => {
 
       // Verify mkdirSync was called with the correct thread path
       expect(mockMkdirSync).toHaveBeenCalledWith(
-        "/test/.mort/threads/child-uuid-1234",
+        "/test/.anvil/threads/child-uuid-1234",
         { recursive: true },
       );
 
@@ -104,7 +104,7 @@ describe("ChildSpawner", () => {
 
       const [metadataPath, metadataContent] = mockWriteFileSync.mock.calls[0];
       expect(metadataPath).toBe(
-        "/test/.mort/threads/child-uuid-1234/metadata.json",
+        "/test/.anvil/threads/child-uuid-1234/metadata.json",
       );
       const metadata = JSON.parse(metadataContent);
       expect(metadata.id).toBe("child-uuid-1234");
@@ -116,7 +116,7 @@ describe("ChildSpawner", () => {
 
       const [statePath, stateContent] = mockWriteFileSync.mock.calls[1];
       expect(statePath).toBe(
-        "/test/.mort/threads/child-uuid-1234/state.json",
+        "/test/.anvil/threads/child-uuid-1234/state.json",
       );
       const state = JSON.parse(stateContent);
       expect(state.messages[0].role).toBe("user");
@@ -171,9 +171,9 @@ describe("ChildSpawner", () => {
           threadId: "child-uuid-1234",
           repoId: "test-repo-id",
           worktreeId: "test-worktree-id",
-          source: "mort-repl:child-spawn",
+          source: "anvil-repl:child-spawn",
         },
-        "mort-repl:child-spawn",
+        "anvil-repl:child-spawn",
       );
     });
   });
@@ -206,7 +206,7 @@ describe("ChildSpawner", () => {
           "--worktree-id", "test-worktree-id",
           "--cwd", "/test/dir",
           "--prompt", "run tests",
-          "--mort-dir", "/test/.mort",
+          "--anvil-dir", "/test/.anvil",
           "--parent-thread-id", "parent-thread-id",
           "--permission-mode", "implement",
           "--skip-naming",
@@ -441,12 +441,12 @@ describe("ChildSpawner", () => {
       expect(emitEvent).toHaveBeenCalledWith(
         "thread:status-changed",
         { threadId: "child-uuid-1234", status: "completed" },
-        "mort-repl:child-complete",
+        "anvil-repl:child-complete",
       );
       expect(emitEvent).toHaveBeenCalledWith(
         "agent:completed",
         { threadId: "child-uuid-1234", exitCode: 0 },
-        "mort-repl:child-complete",
+        "anvil-repl:child-complete",
       );
     });
 
@@ -468,12 +468,12 @@ describe("ChildSpawner", () => {
       expect(emitEvent).toHaveBeenCalledWith(
         "thread:status-changed",
         { threadId: "child-uuid-1234", status: "error" },
-        "mort-repl:child-complete",
+        "anvil-repl:child-complete",
       );
       expect(emitEvent).toHaveBeenCalledWith(
         "agent:completed",
         { threadId: "child-uuid-1234", exitCode: 1 },
-        "mort-repl:child-complete",
+        "anvil-repl:child-complete",
       );
     });
 
@@ -495,7 +495,7 @@ describe("ChildSpawner", () => {
       expect(emitEvent).toHaveBeenCalledWith(
         "thread:status-changed",
         { threadId: "child-uuid-1234", status: "cancelled" },
-        "mort-repl:child-complete",
+        "anvil-repl:child-complete",
       );
     });
   });
@@ -567,12 +567,12 @@ describe("ChildSpawner", () => {
       expect(emitEvent).toHaveBeenCalledWith(
         "thread:status-changed",
         { threadId: "child-uuid-1234", status: "cancelled" },
-        "mort-repl:child-cancel",
+        "anvil-repl:child-cancel",
       );
       expect(emitEvent).toHaveBeenCalledWith(
         "agent:completed",
         { threadId: "child-uuid-1234", exitCode: 130 },
-        "mort-repl:child-cancel",
+        "anvil-repl:child-cancel",
       );
 
       // Clean up the pending promise
@@ -628,7 +628,7 @@ describe("ChildSpawner", () => {
       expect(emitEvent).toHaveBeenCalledWith(
         "thread:status-changed",
         { threadId: "child-uuid-1234", status: "cancelled" },
-        "mort-repl:child-cancel",
+        "anvil-repl:child-cancel",
       );
 
       child.emit("exit", 130);

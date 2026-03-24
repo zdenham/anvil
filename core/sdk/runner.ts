@@ -62,20 +62,20 @@ const { values } = parseArgs({
   options: {
     action: { type: 'string' },    // Path to built JS file
     context: { type: 'string' },   // JSON context
-    'mort-dir': { type: 'string' }, // Path to .mort directory
+    'anvil-dir': { type: 'string' }, // Path to .anvil directory
   },
 });
 
 async function main() {
   const actionPath = values.action!;
-  const mortDir = values['mort-dir']!;
+  const anvilDir = values['anvil-dir']!;
 
   // Validate context from CLI args (trust boundary - requires Zod validation)
   const context = QuickActionExecutionContextSchema.parse(JSON.parse(values.context!));
 
   // Create SDK with event emitter that writes to stdout
   const sdk = createSDK(
-    mortDir,
+    anvilDir,
     (event, payload) => {
       console.log(JSON.stringify({ event, payload }));
     }

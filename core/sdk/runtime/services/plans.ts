@@ -18,8 +18,8 @@ interface PlansIndexEntry {
   updatedAt: number;
 }
 
-export function createPlanService(mortDir: string, emitEvent: EmitEvent): PlanService {
-  const plansIndexPath = path.join(mortDir, 'plans-index.json');
+export function createPlanService(anvilDir: string, emitEvent: EmitEvent): PlanService {
+  const plansIndexPath = path.join(anvilDir, 'plans-index.json');
 
   async function readPlansIndex(): Promise<Record<string, PlansIndexEntry>> {
     try {

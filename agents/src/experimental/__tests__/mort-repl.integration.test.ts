@@ -13,8 +13,8 @@ const describeWithApi = process.env.ANTHROPIC_API_KEY
  * The runner now emits `thread_action` messages (not `state`/`state_event`),
  * so the harness states array is empty. Disk is the source of truth.
  */
-function readStateFromDisk(mortDir: string): ThreadState | null {
-  const threadsDir = join(mortDir, "threads");
+function readStateFromDisk(anvilDir: string): ThreadState | null {
+  const threadsDir = join(anvilDir, "threads");
   if (!existsSync(threadsDir)) return null;
 
   const dirs = readdirSync(threadsDir);
@@ -61,7 +61,7 @@ function extractFinalText(state: ThreadState | null): string {
   return "";
 }
 
-describeWithApi.skip("mort-repl: Live Agent Integration", () => {
+describeWithApi.skip("anvil-repl: Live Agent Integration", () => {
   let harness: AgentTestHarness;
 
   afterEach((context) => {
@@ -74,7 +74,7 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
 
     const output = await harness.run({
       prompt:
-        'Call the Bash tool with the command: mort-repl "return 42"\n' +
+        'Call the Bash tool with the command: anvil-repl "return 42"\n' +
         "Then report the result you see in your response.",
       timeout: 60_000,
     });
@@ -88,7 +88,7 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
     expect(text).toContain("42");
 
     // Verify the hook intercepted: messages should contain the deny result
-    // (agent sees "mort-repl result: 42" and reports it in final text)
+    // (agent sees "anvil-repl result: 42" and reports it in final text)
     const messages = state!.messages ?? [];
     const hasToolUse = messages.some((m: unknown) => {
       const msg = m as { role?: string; content?: Array<{ type: string; name?: string }> };
@@ -104,11 +104,11 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
     const output = await harness.run({
       prompt:
         "Call the Bash tool with the following command exactly:\n\n" +
-        "mort-repl <<'MORT_REPL'\n" +
+        "anvil-repl <<'ANVIL_REPL'\n" +
         'interface Result { value: number; label: string }\n' +
         'const r: Result = { value: 99, label: "test" };\n' +
         "return r;\n" +
-        "MORT_REPL\n\n" +
+        "ANVIL_REPL\n\n" +
         "Then report the result you see.",
       timeout: 60_000,
     });
@@ -121,16 +121,16 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
     expect(text).toContain("test");
   }, 60_000);
 
-  it("mort.log() output appears in result", async () => {
+  it("anvil.log() output appears in result", async () => {
     harness = new AgentTestHarness();
 
     const output = await harness.run({
       prompt:
         "Call the Bash tool with the following command exactly:\n\n" +
-        "mort-repl <<'MORT_REPL'\n" +
-        'mort.log("hello from repl");\n' +
+        "anvil-repl <<'ANVIL_REPL'\n" +
+        'anvil.log("hello from repl");\n' +
         'return "done";\n' +
-        "MORT_REPL\n\n" +
+        "ANVIL_REPL\n\n" +
         "Then report the full result you see.",
       timeout: 60_000,
     });
@@ -143,17 +143,17 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
     expect(text).toContain("done");
   }, 60_000);
 
-  it("mort.spawn() — child agent execution", async () => {
+  it("anvil.spawn() — child agent execution", async () => {
     harness = new AgentTestHarness();
 
     const output = await harness.run({
       prompt:
-        "mort-repl is a special Bash command prefix that executes TypeScript code with a `mort` SDK.\n" +
+        "anvil-repl is a special Bash command prefix that executes TypeScript code with an `anvil` SDK.\n" +
         "Call the Bash tool with the following command exactly:\n\n" +
-        "mort-repl <<'MORT_REPL'\n" +
-        "const result = await mort.spawn({ prompt: 'Reply with exactly the word PINEAPPLE and nothing else.' });\n" +
+        "anvil-repl <<'ANVIL_REPL'\n" +
+        "const result = await anvil.spawn({ prompt: 'Reply with exactly the word PINEAPPLE and nothing else.' });\n" +
         "return result;\n" +
-        "MORT_REPL\n\n" +
+        "ANVIL_REPL\n\n" +
         "Then report the result you see.",
       timeout: 120_000,
     });
@@ -165,8 +165,8 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
     expect(text).toContain("PINEAPPLE");
 
     // Verify child thread directory was created on disk
-    const mortDir = harness.tempDirPath!;
-    const threadsDir = join(mortDir, "threads");
+    const anvilDir = harness.tempDirPath!;
+    const threadsDir = join(anvilDir, "threads");
     const threadDirs = readdirSync(threadsDir);
     // Should have at least 2 directories: parent + child
     expect(threadDirs.length).toBeGreaterThanOrEqual(2);
@@ -177,7 +177,7 @@ describeWithApi.skip("mort-repl: Live Agent Integration", () => {
 
     const output = await harness.run({
       prompt:
-        'Call the Bash tool with the command: mort-repl "throw new Error(\'kaboom\')"\n' +
+        'Call the Bash tool with the command: anvil-repl "throw new Error(\'kaboom\')"\n' +
         "Then report what you see.",
       timeout: 60_000,
     });

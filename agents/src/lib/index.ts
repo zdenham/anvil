@@ -1,5 +1,5 @@
 /**
- * Shared library utilities for mort agents
+ * Shared library utilities for anvil agents
  */
 
 export { withTimeout, TimeoutError } from "./timeout.js";

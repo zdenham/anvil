@@ -28,9 +28,13 @@ export function GuideContent() {
       {/* Skills */}
       <section className="mb-6">
         <h2 className="text-sm font-medium font-mono text-surface-300 uppercase tracking-wider mb-2">
-          Orchestration
+          Skills
         </h2>
-        <div className="space-y-1.5 text-sm">
+
+        <h3 className="text-xs font-medium font-mono text-surface-400 uppercase tracking-wider mb-1.5 mt-3">
+          Orchestration
+        </h3>
+        <div className="space-y-1.5 text-sm mb-3">
           <ConceptRow
             name="/decompose"
             description="Break a task into sub-plans, execute in parallel waves"
@@ -41,7 +45,39 @@ export function GuideContent() {
           />
           <ConceptRow
             name="/orchestrate"
-            description="Programmatic agent coordination with mort-repl"
+            description="Programmatic agent coordination with anvil-repl"
+          />
+        </div>
+
+        <h3 className="text-xs font-medium font-mono text-surface-400 uppercase tracking-wider mb-1.5">
+          Workflow
+        </h3>
+        <div className="space-y-1.5 text-sm mb-3">
+          <ConceptRow
+            name="/commit"
+            description="Create a well-formatted conventional commit"
+          />
+          <ConceptRow
+            name="/create-pr"
+            description="Create a GitHub pull request for the current branch"
+          />
+          <ConceptRow
+            name="/fix-ci"
+            description="Investigate and fix a CI check failure"
+          />
+        </div>
+
+        <h3 className="text-xs font-medium font-mono text-surface-400 uppercase tracking-wider mb-1.5">
+          Code Quality
+        </h3>
+        <div className="space-y-1.5 text-sm">
+          <ConceptRow
+            name="/simplify-code"
+            description="Simplify and refine code for clarity and consistency"
+          />
+          <ConceptRow
+            name="/address-comments"
+            description="Address unresolved PR review comments"
           />
         </div>
       </section>

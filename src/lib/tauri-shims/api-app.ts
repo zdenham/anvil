@@ -9,7 +9,7 @@ export async function getVersion(): Promise<string> {
 }
 
 export async function getName(): Promise<string> {
-  return "mort-web";
+  return "anvil-web";
 }
 
 export async function getTauriVersion(): Promise<string> {

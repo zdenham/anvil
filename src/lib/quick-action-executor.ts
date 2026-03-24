@@ -12,7 +12,7 @@
  * - #25 Action Timeout: 30-second timeout using Promise.race()
  * - #26 Error Detail Level: Shows message and stack trace
  * - #29 navigateToNextUnread() Empty Case: Navigates to empty state
- * - #33 SDK Write Operations: SDK emits events, Mort handles writes
+ * - #33 SDK Write Operations: SDK emits events, Anvil handles writes
  */
 
 import { Command, type Child } from '@tauri-apps/plugin-shell';
@@ -167,7 +167,7 @@ export async function executeQuickAction(
     runnerPath,
     '--action', actionJsPath,
     '--context', JSON.stringify(execContext),
-    '--mort-dir', dataDir,
+    '--anvil-dir', dataDir,
   ], { env: { PATH: shellPath } });
 
   let child: Child;

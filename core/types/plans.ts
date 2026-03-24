@@ -3,7 +3,7 @@ import { VisualSettingsSchema } from './visual-settings.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Plan Entity Types - Zod schemas with derived types
-// Storage: ~/.mort/plans/{id}/metadata.json
+// Storage: ~/.anvil/plans/{id}/metadata.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**

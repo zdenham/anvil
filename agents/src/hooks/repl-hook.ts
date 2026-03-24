@@ -1,7 +1,7 @@
 import type { PreToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
-import { MortReplRunner } from "../lib/mort-repl/repl-runner.js";
+import { AnvilReplRunner } from "../lib/mort-repl/repl-runner.js";
 import { ChildSpawner } from "../lib/mort-repl/child-spawner.js";
-import { MortReplSdk } from "../lib/mort-repl/mort-sdk.js";
+import { AnvilReplSdk } from "../lib/mort-repl/mort-sdk.js";
 import type { ReplContext } from "../lib/mort-repl/types.js";
 
 interface ReplHookDeps {
@@ -14,8 +14,8 @@ interface ReplHookDeps {
 }
 
 /**
- * Creates a PreToolUse hook that intercepts `mort-repl` Bash calls.
- * Extracts code, executes it with the mort SDK, and returns the result
+ * Creates a PreToolUse hook that intercepts `anvil-repl` Bash calls.
+ * Extracts code, executes it with the anvil SDK, and returns the result
  * as a deny reason (same pattern as comment-resolution-hook).
  *
  * Returns both the hook function and a `cancelAll` for parent cancellation cleanup.
@@ -28,7 +28,7 @@ export function createReplHook(deps: ReplHookDeps): {
   ) => Promise<unknown>;
   cancelAll: () => void;
 } {
-  const runner = new MortReplRunner();
+  const runner = new AnvilReplRunner();
   const activeSpawners = new Set<ChildSpawner>();
 
   const hook = async (
@@ -40,21 +40,21 @@ export function createReplHook(deps: ReplHookDeps): {
     const toolInput = input.tool_input as Record<string, unknown>;
     const command = toolInput.command as string;
 
-    // mort-repl must run in foreground — block background attempts
+    // anvil-repl must run in foreground — block background attempts
     if (toolInput.run_in_background === true) {
       const code = runner.extractCode(command);
       if (code !== null) {
         return {
           reason: [
-            "[System: mort-repl MUST run in the foreground. Re-invoke this exact",
-            "same mort-repl command without run_in_background (or with",
+            "[System: anvil-repl MUST run in the foreground. Re-invoke this exact",
+            "same anvil-repl command without run_in_background (or with",
             "run_in_background: false). The repl handles its own long-running",
             "execution internally — you do not need to background it.]",
           ].join(" "),
           hookSpecificOutput: {
             hookEventName: "PreToolUse" as const,
             permissionDecision: "deny" as const,
-            permissionDecisionReason: "mort-repl must run in foreground",
+            permissionDecisionReason: "anvil-repl must run in foreground",
           },
         };
       }
@@ -69,7 +69,7 @@ export function createReplHook(deps: ReplHookDeps): {
     if (options?.signal?.aborted) {
       return {
         reason:
-          "[System: mort-repl hook was aborted before execution started. Retry the command.]",
+          "[System: anvil-repl hook was aborted before execution started. Retry the command.]",
         hookSpecificOutput: {
           hookEventName: "PreToolUse" as const,
           permissionDecision: "deny" as const,
@@ -87,14 +87,14 @@ export function createReplHook(deps: ReplHookDeps): {
     });
     activeSpawners.add(spawner);
 
-    const sdk = new MortReplSdk(spawner, deps.context);
+    const sdk = new AnvilReplSdk(spawner, deps.context);
 
     try {
       const result = await runner.execute(code, deps.context, sdk);
       const formatted = runner.formatResult(result);
       const reason = result.success
-        ? `[System: The mort-repl code executed successfully. The result below is the output. Do not mention any denial or error — treat this as a successful Bash execution.]\n\n${formatted}`
-        : `[System: The mort-repl code threw an error. Report the error naturally as a code execution failure, not as a permission denial.]\n\n${formatted}`;
+        ? `[System: The anvil-repl code executed successfully. The result below is the output. Do not mention any denial or error — treat this as a successful Bash execution.]\n\n${formatted}`
+        : `[System: The anvil-repl code threw an error. Report the error naturally as a code execution failure, not as a permission denial.]\n\n${formatted}`;
 
       return {
         reason,

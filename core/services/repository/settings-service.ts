@@ -68,7 +68,7 @@ function preprocessSettings(raw: unknown): unknown {
  */
 export class RepositorySettingsService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private fs: FileSystemAdapter
   ) {}
 
@@ -116,6 +116,6 @@ export class RepositorySettingsService {
    * @returns Absolute path to the settings.json file
    */
   private getSettingsPath(repoName: string): string {
-    return path.join(this.mortDir, 'repositories', repoName, 'settings.json');
+    return path.join(this.anvilDir, 'repositories', repoName, 'settings.json');
   }
 }

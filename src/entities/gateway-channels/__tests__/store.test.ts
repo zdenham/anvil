@@ -32,7 +32,7 @@ function createChannelMetadata(
     type: "github",
     label: "owner/repo",
     active: false,
-    webhookUrl: "https://mort-server.fly.dev/gateway/channels/test/events",
+    webhookUrl: "https://mort-server.fly.dev/gateway/channels/test/events", // TODO: update URL after server rename
     repoId: crypto.randomUUID(),
     webhookId: null,
     createdAt: now,

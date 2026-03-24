@@ -672,7 +672,7 @@ export function MainWindowLayout() {
   const handleRemoveRepo = useCallback(async (repoId: string, repoName: string) => {
     logger.info(`[MainWindowLayout] Remove repo requested: ${repoName} (${repoId})`);
     const confirmed = await confirm(
-      `Remove "${repoName}" from Mort? This won't delete files on disk.`,
+      `Remove "${repoName}" from Anvil? This won't delete files on disk.`,
       { title: "Remove project", kind: "warning" },
     );
     if (!confirmed) return;

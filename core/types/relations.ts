@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Plan-Thread Relation Types - Zod schemas with derived types
-// Storage: ~/.mort/plan-thread-edges/{planId}-{threadId}.json
+// Storage: ~/.anvil/plan-thread-edges/{planId}-{threadId}.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**

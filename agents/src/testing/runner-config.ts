@@ -15,13 +15,13 @@ export interface RunnerConfig {
    * Build CLI arguments for the runner.
    *
    * @param opts - Test options including agent type, prompt, and optional overrides
-   * @param mortDirPath - Absolute path to the mort directory
+   * @param anvilDirPath - Absolute path to the anvil directory
    * @param repoCwd - Working directory for the agent (repo path or custom cwd)
    * @returns Array of CLI arguments to pass to the runner
    */
   buildArgs: (
     opts: AgentTestOptions,
-    mortDirPath: string,
+    anvilDirPath: string,
     repoCwd: string
   ) => string[];
 
@@ -38,7 +38,7 @@ export interface RunnerConfig {
 export const defaultRunnerConfig: RunnerConfig = {
   runnerPath: "runner.ts",
 
-  buildArgs: (opts, mortDirPath, repoCwd) => {
+  buildArgs: (opts, anvilDirPath, repoCwd) => {
     const threadId = opts.threadId ?? randomUUID();
     const repoId = opts.repoId ?? randomUUID();
     const worktreeId = opts.worktreeId ?? randomUUID();
@@ -48,7 +48,7 @@ export const defaultRunnerConfig: RunnerConfig = {
       "--thread-id", threadId,
       "--repo-id", repoId,
       "--worktree-id", worktreeId,
-      "--mort-dir", mortDirPath,
+      "--anvil-dir", anvilDirPath,
       "--cwd", opts.cwd ?? repoCwd,
     ];
   },
@@ -64,7 +64,7 @@ export const defaultRunnerConfig: RunnerConfig = {
  * @example
  * // Custom arg builder for special test scenarios
  * const config = createRunnerConfig({
- *   buildArgs: (opts, mortDir, cwd) => [
+ *   buildArgs: (opts, anvilDir, cwd) => [
  *     "--agent", opts.agent,
  *     "--debug",
  *   ],

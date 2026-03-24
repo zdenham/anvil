@@ -9,7 +9,7 @@ export type RepoPath = string;
 // Constants - subdirectories within the data directory
 // NOTE: The data directory itself is not hardcoded here.
 // - Frontend: Use fs.getDataDir() from filesystem-client.ts
-// - Agents: Use MORT_DATA_DIR env var or ~/.mort default
+// - Agents: Use ANVIL_DATA_DIR env var or ~/.anvil default
 export const THREADS_DIR = "threads";
 export const STATE_FILE = "state.json";
 

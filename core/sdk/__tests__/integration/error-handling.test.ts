@@ -26,7 +26,7 @@ describe('error handling', () => {
           repository: null,
           worktree: null,
         },
-        mortDir: ctx.fixture.mortDir,
+        anvilDir: ctx.fixture.anvilDir,
         timeout: 2000,
       });
 
@@ -50,7 +50,7 @@ describe('error handling', () => {
           repository: null,
           worktree: null,
         },
-        mortDir: ctx.fixture.mortDir,
+        anvilDir: ctx.fixture.anvilDir,
         timeout: 100, // Very short timeout
       });
 
@@ -70,7 +70,7 @@ describe('error handling', () => {
           repository: null,
           worktree: null,
         },
-        mortDir: ctx.fixture.mortDir,
+        anvilDir: ctx.fixture.anvilDir,
         timeout: 2000,
       });
 

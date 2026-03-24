@@ -1,12 +1,12 @@
-# Mort Quick Actions
+# Anvil Quick Actions
 
-This directory contains your custom quick actions for Mort.
+This directory contains your custom quick actions for Anvil.
 
 ## Quick Start
 
 1. Create a new file in `src/actions/` (e.g., `my-action.ts`)
 2. Run `npm run build` to compile
-3. Click "Refresh Actions" in Mort settings
+3. Click "Refresh Actions" in Anvil settings
 
 ## Writing an Action
 
@@ -20,7 +20,7 @@ export default {
   async execute(context, sdk) {
     // Your code here
     // context: information about current view
-    // sdk: Mort services (git, threads, plans, ui, log)
+    // sdk: Anvil services (git, threads, plans, ui, log)
 
     await sdk.ui.showToast('Hello!', 'success');
   },
@@ -75,6 +75,6 @@ interface QuickActionExecutionContext {
 ## Tips
 
 - Actions have a 30-second timeout
-- Use `sdk.log` for debugging (appears in Mort's logs)
+- Use `sdk.log` for debugging (appears in Anvil's logs)
 - Test with the example action first
 - Run `npm run watch` for auto-rebuild during development

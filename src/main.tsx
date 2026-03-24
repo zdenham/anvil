@@ -74,7 +74,7 @@ interface PathsInfo {
   is_alternate_build: boolean;
 }
 
-// NOTE: bootstrapMortDirectory() is called from App.tsx after permissions check
+// NOTE: bootstrapAnvilDirectory() is called from App.tsx after permissions check
 // This ensures no filesystem operations happen before our permissions flow
 
 // Set data-app-suffix attribute on document root for CSS styling

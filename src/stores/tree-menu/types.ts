@@ -4,7 +4,7 @@ import type { PhaseInfo } from "@/entities/plans/types";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Persisted State - Zod schema for disk validation
-// Location: ~/.mort/ui/tree-menu.json
+// Location: ~/.anvil/ui/tree-menu.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TreeMenuPersistedStateSchema = z.object({
@@ -58,7 +58,7 @@ export interface TreeItemNode {
   worktreePath?: string;
   /** UUID of the repository (worktree nodes only) */
   repoId?: string;
-  /** Whether this worktree was discovered externally (not created by Mort) */
+  /** Whether this worktree was discovered externally (not created by Anvil) */
   isExternal?: boolean;
 
   // ── Folder-specific fields ────────────────────────────────────────────

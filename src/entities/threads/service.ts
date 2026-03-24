@@ -30,7 +30,7 @@ const ARCHIVE_THREADS_DIR = "archive/threads";
 
 /**
  * Gets the path for a thread in the new top-level structure.
- * Thread folders are stored at ~/.mort/threads/{threadId}/
+ * Thread folders are stored at ~/.anvil/threads/{threadId}/
  */
 function getStandaloneThreadPath(threadId: string): string {
   return `${THREADS_DIR}/${threadId}`;
@@ -82,11 +82,11 @@ export const threadService = {
   async hydrate(): Promise<void> {
     const threads: Record<string, ThreadMetadata> = {};
 
-    // Load from new top-level structure: ~/.mort/threads/*/metadata.json
+    // Load from new top-level structure: ~/.anvil/threads/*/metadata.json
     const newPattern = `${THREADS_DIR}/*/metadata.json`;
     const newFiles = await appData.glob(newPattern);
 
-    // Load from legacy task-nested structure: ~/.mort/tasks/*/threads/*/metadata.json
+    // Load from legacy task-nested structure: ~/.anvil/tasks/*/threads/*/metadata.json
     const legacyPattern = `${LEGACY_TASKS_DIR}/*/threads/*/metadata.json`;
     const legacyFiles = await appData.glob(legacyPattern);
 
@@ -176,7 +176,7 @@ export const threadService = {
 
   /**
    * Creates a new thread.
-   * Threads are stored at top-level: ~/.mort/threads/{threadId}/
+   * Threads are stored at top-level: ~/.anvil/threads/{threadId}/
    * Uses optimistic updates - UI updates immediately, rolls back on failure.
    * If input.id is provided, uses that ID instead of generating a new one.
    *
@@ -932,7 +932,7 @@ export const threadService = {
 
 /**
  * Extracts thread ID from an absolute metadata.json path.
- * Path format: /Users/.../.mort/archive/threads/{id}/metadata.json
+ * Path format: /Users/.../.anvil/archive/threads/{id}/metadata.json
  */
 function extractThreadIdFromPath(absPath: string): string | null {
   const parts = absPath.split("/");

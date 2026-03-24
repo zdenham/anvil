@@ -10,9 +10,9 @@ import {
   type DiagnosticLoggingConfig,
 } from "@core/types/diagnostic-logging.js";
 
-const ENV_KEY = "MORT_DIAGNOSTIC_LOGGING";
+const ENV_KEY = "ANVIL_DIAGNOSTIC_LOGGING";
 
-/** Parse diagnostic config from MORT_DIAGNOSTIC_LOGGING env var. */
+/** Parse diagnostic config from ANVIL_DIAGNOSTIC_LOGGING env var. */
 export function parseDiagnosticConfig(): DiagnosticLoggingConfig {
   const raw = process.env[ENV_KEY];
   if (!raw) return { ...DEFAULT_DIAGNOSTIC_LOGGING };

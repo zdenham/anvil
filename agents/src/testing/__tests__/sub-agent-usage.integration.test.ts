@@ -28,8 +28,8 @@ describeWithApi("Sub-Agent Usage in Metadata", () => {
     assertAgent(output).usedTools(["Agent"]);
 
     // Find child thread on disk
-    const mortDir = harness.tempDirPath!;
-    const threadsDir = join(mortDir, "threads");
+    const anvilDir = harness.tempDirPath!;
+    const threadsDir = join(anvilDir, "threads");
     const threadDirs = readdirSync(threadsDir);
 
     let childMetadata: Record<string, unknown> | null = null;

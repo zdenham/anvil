@@ -29,7 +29,7 @@ export { StatusLegend } from "./status-legend";
 export { Tooltip } from "./tooltip";
 
 // Branding
-export { MortLogo } from "./mort-logo";
+export { AnvilLogo } from "./mort-logo";
 
 // Build mode
 export { BuildModeIndicator } from "./BuildModeIndicator";

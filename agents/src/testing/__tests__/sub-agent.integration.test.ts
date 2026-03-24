@@ -46,8 +46,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       expect(threadCreatedEvents.length).toBeGreaterThanOrEqual(1);
 
       // Verify child thread was created on disk
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
 
       expect(existsSync(threadsDir)).toBe(true);
 
@@ -125,8 +125,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
 
       assertAgent(output).succeeded();
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
 
       // Find parent and child threads
       const threadDirs = readdirSync(threadsDir);
@@ -202,8 +202,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
 
       assertAgent(output).succeeded();
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
       const threadDirs = readdirSync(threadsDir);
 
       // Find all child threads and verify their metadata
@@ -269,8 +269,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       assertAgent(output).succeeded();
       assertAgent(output).usedTools(["Agent"]);
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
 
       // Find the child thread
       const threadDirs = readdirSync(threadsDir);
@@ -325,8 +325,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       assertAgent(output).succeeded();
       assertAgent(output).usedTools(["Agent"]);
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
 
       // Find the child thread
       const threadDirs = readdirSync(threadsDir);
@@ -395,8 +395,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       assertAgent(output).succeeded();
       assertAgent(output).usedTools(["Agent"]);
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
 
       // Find parent and child threads
       const threadDirs = readdirSync(threadsDir);
@@ -480,8 +480,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       assertAgent(output).succeeded();
       assertAgent(output).usedTools(["Agent"]);
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
 
       // Find parent and child threads
       const threadDirs = readdirSync(threadsDir);
@@ -596,8 +596,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       const succeeded = output.exitCode === 0;
       console.log(`Agent succeeded: ${succeeded}`);
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
 
       // Find all threads
       const threadDirs = readdirSync(threadsDir);
@@ -962,8 +962,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       assertAgent(output).succeeded();
       assertAgent(output).usedTools(["Agent"]);
 
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
       const threadDirs = readdirSync(threadsDir);
 
       let parentThreadDir: string | null = null;
@@ -1055,8 +1055,8 @@ describeWithApi("Sub-Agent First-Class Display Integration Tests", () => {
       assertAgent(output).succeeded();
 
       // Find child thread ID from metadata on disk
-      const mortDir = harness.tempDirPath!;
-      const threadsDir = join(mortDir, "threads");
+      const anvilDir = harness.tempDirPath!;
+      const threadsDir = join(anvilDir, "threads");
       const threadDirs = readdirSync(threadsDir);
       let childThreadId: string | undefined;
       for (const dir of threadDirs) {

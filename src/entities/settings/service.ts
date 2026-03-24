@@ -13,6 +13,10 @@ export const settingsService = {
    */
   async hydrate(): Promise<void> {
     const raw = await appData.readJson(SETTINGS_FILE);
+    // Migrate: rewrite legacy "default" authMethod to "claude-login"
+    if (raw && typeof raw === "object" && (raw as Record<string, unknown>).authMethod === "default") {
+      (raw as Record<string, unknown>).authMethod = "claude-login";
+    }
     const result = raw ? WorkspaceSettingsSchema.safeParse(raw) : null;
     const settings = result?.success ? result.data : DEFAULT_WORKSPACE_SETTINGS;
     useSettingsStore.getState().hydrate(settings);

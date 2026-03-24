@@ -4,7 +4,7 @@ export interface ReplContext {
   worktreeId: string;
   workingDir: string;
   permissionModeId: string;
-  mortDir: string;
+  anvilDir: string;
 }
 
 export interface ReplResult {

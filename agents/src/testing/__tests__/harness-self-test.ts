@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { existsSync } from "fs";
 import { AgentTestHarness } from "../agent-harness.js";
 import { assertAgent } from "../assertions.js";
-import { TestMortDirectory } from "../services/test-mort-directory.js";
+import { TestAnvilDirectory } from "../services/test-mort-directory.js";
 import { TestRepository } from "../services/test-repository.js";
 import type { AgentRunOutput, AgentEventMessage, AgentStateMessage } from "../types.js";
 
@@ -33,35 +33,35 @@ const describeWithApi = process.env.ANTHROPIC_API_KEY
   : describe.skip;
 
 describe("AgentTestHarness Self-Verification", () => {
-  describe("TestMortDirectory service", () => {
-    let mortDir: TestMortDirectory;
+  describe("TestAnvilDirectory service", () => {
+    let anvilDir: TestAnvilDirectory;
 
     afterEach(() => {
-      mortDir?.cleanup();
+      anvilDir?.cleanup();
     });
 
     it("creates directory structure on init", () => {
-      mortDir = new TestMortDirectory().init();
+      anvilDir = new TestAnvilDirectory().init();
 
-      expect(existsSync(mortDir.path)).toBe(true);
-      expect(existsSync(`${mortDir.path}/repositories`)).toBe(true);
-      expect(existsSync(`${mortDir.path}/config.json`)).toBe(true);
+      expect(existsSync(anvilDir.path)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/repositories`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/config.json`)).toBe(true);
     });
 
     it("removes directory on cleanup", () => {
-      mortDir = new TestMortDirectory().init();
-      const savedPath = mortDir.path;
+      anvilDir = new TestAnvilDirectory().init();
+      const savedPath = anvilDir.path;
 
-      mortDir.cleanup();
+      anvilDir.cleanup();
       expect(existsSync(savedPath)).toBe(false);
     });
 
     it("registers repositories with settings", () => {
-      mortDir = new TestMortDirectory().init();
-      mortDir.registerRepository({ name: "my-repo", path: "/tmp/fake" });
+      anvilDir = new TestAnvilDirectory().init();
+      anvilDir.registerRepository({ name: "my-repo", path: "/tmp/fake" });
 
       expect(
-        existsSync(`${mortDir.path}/repositories/my-repo/settings.json`)
+        existsSync(`${anvilDir.path}/repositories/my-repo/settings.json`)
       ).toBe(true);
     });
   });
@@ -130,7 +130,7 @@ describe("AgentTestHarness Self-Verification", () => {
 
       // After run() is called, tempDirPath should be set
       expect(harness.tempDirPath).not.toBeNull();
-      expect(harness.tempDirPath).toMatch(/mort-test-/);
+      expect(harness.tempDirPath).toMatch(/anvil-test-/);
       expect(existsSync(harness.tempDirPath!)).toBe(true);
 
       // Allow run to complete or timeout

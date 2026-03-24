@@ -8,7 +8,7 @@ interface CommentHookDeps {
 }
 
 /**
- * Creates a PreToolUse hook that intercepts `mort-resolve-comment` Bash calls.
+ * Creates a PreToolUse hook that intercepts `anvil-resolve-comment` Bash calls.
  * Thin wrapper: parses with shared helper, then emits events + returns deny.
  */
 export function createCommentResolutionHook(deps: CommentHookDeps) {
@@ -23,11 +23,11 @@ export function createCommentResolutionHook(deps: CommentHookDeps) {
 
     if (parsed.ids.length === 0) {
       return {
-        reason: "Usage: mort-resolve-comment \"<comma-separated-ids>\"",
+        reason: "Usage: anvil-resolve-comment \"<comma-separated-ids>\"",
         hookSpecificOutput: {
           hookEventName: "PreToolUse" as const,
           permissionDecision: "deny" as const,
-          permissionDecisionReason: "Invalid mort-resolve-comment usage — no IDs provided",
+          permissionDecisionReason: "Invalid anvil-resolve-comment usage — no IDs provided",
         },
       };
     }

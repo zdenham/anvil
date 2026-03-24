@@ -46,14 +46,14 @@ function getCurrentBranch(cwd: string): string | undefined {
 
 /**
  * Check if a worktree has already been renamed by looking up repository settings from disk.
- * Scans all repositories in mortDir/repositories/ to find the one matching repoId,
+ * Scans all repositories in anvilDir/repositories/ to find the one matching repoId,
  * then looks up the worktree by worktreeId to check its isRenamed flag.
  *
  * @returns true if the worktree has been renamed, false otherwise (including on any errors)
  */
-function isWorktreeRenamed(mortDir: string, repoId: string, worktreeId: string): boolean {
+function isWorktreeRenamed(anvilDir: string, repoId: string, worktreeId: string): boolean {
   try {
-    const reposDir = join(mortDir, "repositories");
+    const reposDir = join(anvilDir, "repositories");
     if (!existsSync(reposDir)) {
       return false;
     }
@@ -110,9 +110,9 @@ function isWorktreeRenamed(mortDir: string, repoId: string, worktreeId: string):
  *
  * @returns true if this is the main worktree, false otherwise (including on any errors)
  */
-function isMainWorktree(mortDir: string, repoId: string, worktreeId: string): boolean {
+function isMainWorktree(anvilDir: string, repoId: string, worktreeId: string): boolean {
   try {
-    const reposDir = join(mortDir, "repositories");
+    const reposDir = join(anvilDir, "repositories");
     if (!existsSync(reposDir)) {
       return false;
     }
@@ -191,7 +191,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
    * - --worktree-id <uuid>
    * - --cwd <path> (must exist and be a directory)
    * - --thread-id <uuid>
-   * - --mort-dir <path>
+   * - --anvil-dir <path>
    * - --prompt <string>
    *
    * Optional arguments:
@@ -214,8 +214,8 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         case "--thread-id":
           config.threadId = args[++i];
           break;
-        case "--mort-dir":
-          config.mortDir = args[++i];
+        case "--anvil-dir":
+          config.anvilDir = args[++i];
           break;
         case "--prompt":
           config.prompt = args[++i];
@@ -265,8 +265,8 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     if (!config.threadId) {
       throw new Error("Missing required argument: --thread-id");
     }
-    if (!config.mortDir) {
-      throw new Error("Missing required argument: --mort-dir");
+    if (!config.anvilDir) {
+      throw new Error("Missing required argument: --anvil-dir");
     }
     if (!config.prompt) {
       throw new Error("Missing required argument: --prompt");
@@ -303,7 +303,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
    * 4. Return context with cwd as workingDir
    */
   async setup(config: RunnerConfig): Promise<OrchestrationContext> {
-    const { cwd, repoId, worktreeId, threadId, mortDir, prompt, historyFile } = config;
+    const { cwd, repoId, worktreeId, threadId, anvilDir, prompt, historyFile } = config;
 
     if (!cwd) {
       throw new Error("cwd is required for simple agent");
@@ -324,7 +324,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     if (!cwdStat.isDirectory()) {
       throw new Error(`Path is not a directory: ${cwd}`);
     }
-    const threadPath = join(mortDir, "threads", threadId);
+    const threadPath = join(anvilDir, "threads", threadId);
     const threadMetadataPath = join(threadPath, "metadata.json");
     const now = Date.now();
 
@@ -444,14 +444,14 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
         // Start worktree naming in parallel (fire and forget)
         // Only trigger if the worktree hasn't already been renamed from its initial animal name
         // and this is not the main worktree (which should never be renamed)
-        const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
-        const mainWorktree = isMainWorktree(mortDir, repoId, worktreeId);
+        const alreadyRenamed = isWorktreeRenamed(anvilDir, repoId, worktreeId);
+        const mainWorktree = isMainWorktree(anvilDir, repoId, worktreeId);
 
         if (mainWorktree) {
           emitLog("INFO", `[worktree_rename] Skipping worktree naming - this is the main worktree (worktreeId=${worktreeId})`);
         } else if (!alreadyRenamed) {
           emitLog("INFO", `[worktree_rename] New thread created, worktree not yet renamed - initiating worktree naming for worktreeId=${worktreeId}`);
-          this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
+          this.initiateWorktreeNaming(worktreeId, repoId, prompt, anvilDir);
         } else {
           emitLog("INFO", `[worktree_rename] Skipping worktree naming - worktree already renamed (worktreeId=${worktreeId})`);
         }
@@ -612,7 +612,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     worktreeId: string,
     repoId: string,
     prompt: string,
-    mortDir: string
+    anvilDir: string
   ): void {
     emitLog("INFO", `[worktree_rename] initiateWorktreeNaming called: worktreeId=${worktreeId}, repoId=${repoId}, prompt="${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
 
@@ -629,7 +629,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
 
         // Write to disk FIRST (same pattern as thread naming)
         try {
-          this.updateWorktreeNameOnDisk(mortDir, repoId, worktreeId, name);
+          this.updateWorktreeNameOnDisk(anvilDir, repoId, worktreeId, name);
           emitLog("INFO", `[worktree_rename] Updated worktree name on disk: "${name}"`);
         } catch (err) {
           emitLog("ERROR", `[worktree_rename] Failed to write name to disk: ${err}`);
@@ -662,12 +662,12 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
    * creates a branch with the new name, and checks it out.
    */
   private updateWorktreeNameOnDisk(
-    mortDir: string,
+    anvilDir: string,
     repoId: string,
     worktreeId: string,
     newName: string
   ): void {
-    const reposDir = join(mortDir, "repositories");
+    const reposDir = join(anvilDir, "repositories");
 
     if (!existsSync(reposDir)) {
       throw new Error(`Repositories directory does not exist: ${reposDir}`);

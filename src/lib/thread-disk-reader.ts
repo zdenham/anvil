@@ -20,7 +20,7 @@ export interface ThreadDiskSnapshot {
 /**
  * Reads thread metadata and state from disk.
  *
- * Thread data lives at: ~/.mort/threads/{threadId}/
+ * Thread data lives at: ~/.anvil/threads/{threadId}/
  *   - metadata.json: thread metadata (name, status, turns, etc.)
  *   - state.json: full thread state (messages, file changes, tool states)
  *

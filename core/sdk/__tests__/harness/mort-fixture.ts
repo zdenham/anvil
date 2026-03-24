@@ -32,23 +32,23 @@ export interface PlanEntryFixture {
 }
 
 /**
- * MortFixture manages temporary .mort directories for testing.
+ * AnvilFixture manages temporary .anvil directories for testing.
  * Creates isolated test environments with thread/plan fixtures.
  */
-export class MortFixture {
-  private _mortDir: string | null = null;
+export class AnvilFixture {
+  private _anvilDir: string | null = null;
   private readonly threadMetas: Map<string, ThreadMetaFixture> = new Map();
   private readonly planEntries: Map<string, PlanEntryFixture> = new Map();
 
   /**
-   * Path to the temporary .mort directory.
+   * Path to the temporary .anvil directory.
    * Throws if not yet initialized.
    */
-  get mortDir(): string {
-    if (!this._mortDir) {
-      throw new Error('MortFixture not initialized. Call init() first.');
+  get anvilDir(): string {
+    if (!this._anvilDir) {
+      throw new Error('AnvilFixture not initialized. Call init() first.');
     }
-    return this._mortDir;
+    return this._anvilDir;
   }
 
   /**
@@ -58,15 +58,15 @@ export class MortFixture {
   async init(): Promise<void> {
     const tmpBase = os.tmpdir();
     const uniqueId = randomUUID().slice(0, 8);
-    this._mortDir = path.join(tmpBase, `mort-test-${uniqueId}`);
+    this._anvilDir = path.join(tmpBase, `anvil-test-${uniqueId}`);
 
-    // Create standard .mort structure
-    await fs.mkdir(this._mortDir, { recursive: true });
-    await fs.mkdir(path.join(this._mortDir, 'threads'), { recursive: true });
+    // Create standard .anvil structure
+    await fs.mkdir(this._anvilDir, { recursive: true });
+    await fs.mkdir(path.join(this._anvilDir, 'threads'), { recursive: true });
 
     // Initialize empty plans index
     await fs.writeFile(
-      path.join(this._mortDir, 'plans-index.json'),
+      path.join(this._anvilDir, 'plans-index.json'),
       JSON.stringify({ plans: [] }, null, 2)
     );
   }
@@ -76,8 +76,8 @@ export class MortFixture {
    * Creates the thread directory and meta.json file.
    */
   async addThread(threadId: string, meta: ThreadMetaFixture = {}): Promise<void> {
-    const mortDir = this.mortDir;
-    const threadDir = path.join(mortDir, 'threads', threadId);
+    const anvilDir = this.anvilDir;
+    const threadDir = path.join(anvilDir, 'threads', threadId);
     await fs.mkdir(threadDir, { recursive: true });
 
     const now = Date.now();
@@ -104,7 +104,7 @@ export class MortFixture {
    * Updates the plans-index.json file.
    */
   async addPlan(planId: string, entry: PlanEntryFixture = {}): Promise<void> {
-    const mortDir = this.mortDir;
+    const anvilDir = this.anvilDir;
     const now = Date.now();
 
     const fullEntry = {
@@ -120,7 +120,7 @@ export class MortFixture {
     this.planEntries.set(planId, fullEntry);
 
     // Rebuild plans-index.json
-    const indexPath = path.join(mortDir, 'plans-index.json');
+    const indexPath = path.join(anvilDir, 'plans-index.json');
     const index = {
       plans: Array.from(this.planEntries.values()),
     };
@@ -132,8 +132,8 @@ export class MortFixture {
    * Reads directly from disk to verify file system state.
    */
   async getThread(threadId: string): Promise<ThreadInfo | null> {
-    const mortDir = this.mortDir;
-    const metaPath = path.join(mortDir, 'threads', threadId, 'meta.json');
+    const anvilDir = this.anvilDir;
+    const metaPath = path.join(anvilDir, 'threads', threadId, 'meta.json');
 
     try {
       const content = await fs.readFile(metaPath, 'utf-8');
@@ -158,8 +158,8 @@ export class MortFixture {
    * Reads directly from disk to verify file system state.
    */
   async getPlan(planId: string): Promise<PlanInfo | null> {
-    const mortDir = this.mortDir;
-    const indexPath = path.join(mortDir, 'plans-index.json');
+    const anvilDir = this.anvilDir;
+    const indexPath = path.join(anvilDir, 'plans-index.json');
 
     try {
       const content = await fs.readFile(indexPath, 'utf-8');
@@ -172,11 +172,11 @@ export class MortFixture {
   }
 
   /**
-   * Check if a file exists at the given relative path within .mort.
+   * Check if a file exists at the given relative path within .anvil.
    */
   async fileExists(relativePath: string): Promise<boolean> {
-    const mortDir = this.mortDir;
-    const fullPath = path.join(mortDir, relativePath);
+    const anvilDir = this.anvilDir;
+    const fullPath = path.join(anvilDir, relativePath);
     try {
       await fs.access(fullPath);
       return true;
@@ -186,20 +186,20 @@ export class MortFixture {
   }
 
   /**
-   * Read file content at the given relative path within .mort.
+   * Read file content at the given relative path within .anvil.
    */
   async readFile(relativePath: string): Promise<string> {
-    const mortDir = this.mortDir;
-    const fullPath = path.join(mortDir, relativePath);
+    const anvilDir = this.anvilDir;
+    const fullPath = path.join(anvilDir, relativePath);
     return fs.readFile(fullPath, 'utf-8');
   }
 
   /**
-   * Write file content at the given relative path within .mort.
+   * Write file content at the given relative path within .anvil.
    */
   async writeFile(relativePath: string, content: string): Promise<void> {
-    const mortDir = this.mortDir;
-    const fullPath = path.join(mortDir, relativePath);
+    const anvilDir = this.anvilDir;
+    const fullPath = path.join(anvilDir, relativePath);
     const dir = path.dirname(fullPath);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(fullPath, content);
@@ -210,13 +210,13 @@ export class MortFixture {
    * Should be called after each test.
    */
   async cleanup(): Promise<void> {
-    if (this._mortDir) {
+    if (this._anvilDir) {
       try {
-        await fs.rm(this._mortDir, { recursive: true, force: true });
+        await fs.rm(this._anvilDir, { recursive: true, force: true });
       } catch {
         // Ignore cleanup errors
       }
-      this._mortDir = null;
+      this._anvilDir = null;
       this.threadMetas.clear();
       this.planEntries.clear();
     }
@@ -224,11 +224,16 @@ export class MortFixture {
 }
 
 /**
- * Create and initialize a new MortFixture.
+ * Create and initialize a new AnvilFixture.
  * Convenience function for tests.
  */
-export async function createMortFixture(): Promise<MortFixture> {
-  const fixture = new MortFixture();
+export async function createAnvilFixture(): Promise<AnvilFixture> {
+  const fixture = new AnvilFixture();
   await fixture.init();
   return fixture;
 }
+
+/** @deprecated Use AnvilFixture instead */
+export const MortFixture = AnvilFixture;
+/** @deprecated Use createAnvilFixture instead */
+export const createMortFixture = createAnvilFixture;

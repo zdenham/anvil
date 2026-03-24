@@ -54,11 +54,11 @@ interface PlanMetadata {
 }
 
 /**
- * Abstract persistence class for .mort/ directory operations.
+ * Abstract persistence class for .anvil/ directory operations.
  * Implementations provide platform-specific I/O (Node.js fs, Tauri IPC, etc.)
  * while sharing all plan operation logic.
  */
-export abstract class MortPersistence {
+export abstract class AnvilPersistence {
   // ─────────────────────────────────────────────────────────────────────────
   // Abstract I/O methods - implemented by platform-specific adapters
   // ─────────────────────────────────────────────────────────────────────────

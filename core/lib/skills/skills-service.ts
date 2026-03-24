@@ -3,7 +3,7 @@ import type { SkillMetadata, SkillSource, SkillContent } from '@core/types/skill
 import { parseFrontmatter, SOURCE_PRIORITY, scoreMatch } from '@core/skills/index.js';
 
 interface SkillLocation {
-  getPath: (repoPath: string, homeDir: string, mortDataDir: string) => string;
+  getPath: (repoPath: string, homeDir: string, anvilDataDir: string) => string;
   source: SkillSource;
   isLegacy: boolean;
 }
@@ -15,7 +15,7 @@ interface SkillLocation {
 const SKILL_LOCATIONS: SkillLocation[] = [
   { getPath: (repo) => `${repo}/.claude/skills`, source: 'project', isLegacy: false },
   { getPath: (repo) => `${repo}/.claude/commands`, source: 'project_command', isLegacy: true },
-  { getPath: (_, _home, mortDir) => `${mortDir}/skills`, source: 'mort', isLegacy: false },
+  { getPath: (_, _home, anvilDir) => `${anvilDir}/skills`, source: 'anvil', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/skills`, source: 'personal', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/commands`, source: 'personal_command', isLegacy: true },
 ];
@@ -47,15 +47,15 @@ export class SkillsService {
    *
    * @param repoPath - Path to the current repository
    * @param homeDir - Path to user's home directory
-   * @param mortDataDir - Path to mort data directory (e.g. ~/.mort or ~/.mort-dev)
+   * @param anvilDataDir - Path to anvil data directory (e.g. ~/.anvil or ~/.anvil-dev)
    * @returns Array of discovered skill metadata, sorted by priority
    */
-  async discover(repoPath: string, homeDir: string, mortDataDir: string): Promise<SkillMetadata[]> {
+  async discover(repoPath: string, homeDir: string, anvilDataDir: string): Promise<SkillMetadata[]> {
     this.skills.clear();
     this.lastDiscoveryPath = repoPath;
 
     for (const location of SKILL_LOCATIONS) {
-      const dirPath = location.getPath(repoPath, homeDir, mortDataDir);
+      const dirPath = location.getPath(repoPath, homeDir, anvilDataDir);
 
       if (!await this.fs.exists(dirPath)) {
         continue;

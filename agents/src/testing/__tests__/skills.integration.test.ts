@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { TestMortDirectory } from '../services/test-mort-directory.js';
+import { TestAnvilDirectory } from '../services/test-mort-directory.js';
 import { TestRepository } from '../services/test-repository.js';
 import { extractSkillMatches } from '@core/skills/index.js';
 import { parseFrontmatter } from '@core/skills/index.js';
@@ -202,13 +202,13 @@ Content`;
 // ============================================================================
 
 describe('Skill Discovery Flow', () => {
-  let mortDir: TestMortDirectory;
+  let anvilDir: TestAnvilDirectory;
   let repo: TestRepository;
 
   beforeEach(() => {
-    mortDir = new TestMortDirectory().init();
+    anvilDir = new TestAnvilDirectory().init();
     repo = new TestRepository({ fixture: 'minimal' }).init();
-    mortDir.registerRepository({
+    anvilDir.registerRepository({
       name: repo.name,
       path: repo.path,
     });
@@ -217,7 +217,7 @@ describe('Skill Discovery Flow', () => {
   afterEach((context) => {
     const failed = context.task.result?.state === 'fail';
     repo.cleanup(failed);
-    mortDir.cleanup(failed);
+    anvilDir.cleanup(failed);
   });
 
   /**
@@ -270,32 +270,32 @@ ${options.content ?? '# Legacy command content'}`;
     writeFileSync(join(commandDir, `${name}.md`), content);
   }
 
-  it('creates skill fixtures in mort directory', () => {
-    // Create a skill in ~/.mort/skills/
-    createSkillFixture(mortDir.path, 'skills', 'test-mort', {
-      name: 'test-mort',
-      description: 'Test skill in mort directory',
-      content: 'This is a test skill for Mort. Args: $ARGUMENTS',
+  it('creates skill fixtures in anvil directory', () => {
+    // Create a skill in ~/.anvil/skills/
+    createSkillFixture(anvilDir.path, 'skills', 'test-anvil', {
+      name: 'test-anvil',
+      description: 'Test skill in anvil directory',
+      content: 'This is a test skill for Anvil. Args: $ARGUMENTS',
     });
 
     // Verify file was created
-    const skillPath = join(mortDir.path, 'skills', 'test-mort', 'SKILL.md');
+    const skillPath = join(anvilDir.path, 'skills', 'test-anvil', 'SKILL.md');
     const content = readFileSync(skillPath, 'utf-8');
 
-    expect(content).toContain('name: test-mort');
-    expect(content).toContain('description: Test skill in mort directory');
-    expect(content).toContain('This is a test skill for Mort');
+    expect(content).toContain('name: test-anvil');
+    expect(content).toContain('description: Test skill in anvil directory');
+    expect(content).toContain('This is a test skill for Anvil');
   });
 
   it('creates skill fixtures in personal claude directory', () => {
     // Simulate ~/.claude/skills/ by using a subdirectory
-    createSkillFixture(mortDir.path, 'claude/skills', 'test-personal', {
+    createSkillFixture(anvilDir.path, 'claude/skills', 'test-personal', {
       name: 'test-personal',
       description: 'Personal skill',
       content: '# Personal skill content',
     });
 
-    const skillPath = join(mortDir.path, 'claude', 'skills', 'test-personal', 'SKILL.md');
+    const skillPath = join(anvilDir.path, 'claude', 'skills', 'test-personal', 'SKILL.md');
     const content = readFileSync(skillPath, 'utf-8');
 
     expect(content).toContain('name: test-personal');
@@ -317,12 +317,12 @@ ${options.content ?? '# Legacy command content'}`;
   });
 
   it('creates legacy command fixtures', () => {
-    createLegacyCommandFixture(mortDir.path, 'claude/commands', 'test-command', {
+    createLegacyCommandFixture(anvilDir.path, 'claude/commands', 'test-command', {
       description: 'A legacy command',
       content: 'Legacy command content here',
     });
 
-    const commandPath = join(mortDir.path, 'claude', 'commands', 'test-command.md');
+    const commandPath = join(anvilDir.path, 'claude', 'commands', 'test-command.md');
     const content = readFileSync(commandPath, 'utf-8');
 
     expect(content).toContain('description: A legacy command');
@@ -330,13 +330,13 @@ ${options.content ?? '# Legacy command content'}`;
   });
 
   it('skill with user-invocable: false is excluded', () => {
-    createSkillFixture(mortDir.path, 'skills', 'hidden-skill', {
+    createSkillFixture(anvilDir.path, 'skills', 'hidden-skill', {
       name: 'Hidden',
       description: 'This skill is not user-invocable',
       userInvocable: false,
     });
 
-    const skillPath = join(mortDir.path, 'skills', 'hidden-skill', 'SKILL.md');
+    const skillPath = join(anvilDir.path, 'skills', 'hidden-skill', 'SKILL.md');
     const content = readFileSync(skillPath, 'utf-8');
 
     expect(content).toContain('user-invocable: false');

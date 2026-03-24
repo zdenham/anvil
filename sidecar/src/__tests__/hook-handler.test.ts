@@ -76,7 +76,7 @@ describe("Hook handler", () => {
   describe("POST /hooks/session-start", () => {
     it("responds with empty JSON on success", async () => {
       const res = await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-1",
+        "x-anvil-thread-id": "thread-1",
       });
       expect(res.status).toBe(200);
       expect(res.body).toEqual({});
@@ -84,7 +84,7 @@ describe("Hook handler", () => {
 
     it("creates state.json for thread", async () => {
       await post(server, "/hooks/session-start", { cwd: "/home/user" }, {
-        "x-mort-thread-id": "thread-init",
+        "x-anvil-thread-id": "thread-init",
       });
 
       const statePath = join(dataDir, "threads", "thread-init", "state.json");
@@ -106,7 +106,7 @@ describe("Hook handler", () => {
         tool_name: "Read",
         tool_input: { file_path: "/tmp/foo.ts" },
         tool_use_id: "tu-1",
-      }, { "x-mort-thread-id": "thread-2" });
+      }, { "x-anvil-thread-id": "thread-2" });
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ decision: "allow" });
@@ -117,7 +117,7 @@ describe("Hook handler", () => {
         tool_name: "EnterWorktree",
         tool_input: {},
         tool_use_id: "tu-2",
-      }, { "x-mort-thread-id": "thread-2" });
+      }, { "x-anvil-thread-id": "thread-2" });
 
       expect(res.status).toBe(200);
       const body = res.body as { decision: string; reason: string };
@@ -130,7 +130,7 @@ describe("Hook handler", () => {
         tool_name: "Bash",
         tool_input: { command: "git reset --hard HEAD" },
         tool_use_id: "tu-3",
-      }, { "x-mort-thread-id": "thread-2" });
+      }, { "x-anvil-thread-id": "thread-2" });
 
       expect(res.status).toBe(200);
       const body = res.body as { decision: string; reason: string };
@@ -143,7 +143,7 @@ describe("Hook handler", () => {
         tool_name: "Bash",
         tool_input: { command: "git status" },
         tool_use_id: "tu-4",
-      }, { "x-mort-thread-id": "thread-2" });
+      }, { "x-anvil-thread-id": "thread-2" });
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ decision: "allow" });
@@ -152,14 +152,14 @@ describe("Hook handler", () => {
     it("tracks tool as running in thread state", async () => {
       // Init thread first
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-tool",
+        "x-anvil-thread-id": "thread-tool",
       });
 
       await post(server, "/hooks/pre-tool-use", {
         tool_name: "Read",
         tool_input: { file_path: "/tmp/foo.ts" },
         tool_use_id: "tu-track",
-      }, { "x-mort-thread-id": "thread-tool" });
+      }, { "x-anvil-thread-id": "thread-tool" });
 
       const statePath = join(dataDir, "threads", "thread-tool", "state.json");
       const state = JSON.parse(readFileSync(statePath, "utf-8"));
@@ -172,13 +172,13 @@ describe("Hook handler", () => {
     it("marks tool complete and extracts file changes", async () => {
       // Init + pre-tool
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-post",
+        "x-anvil-thread-id": "thread-post",
       });
       await post(server, "/hooks/pre-tool-use", {
         tool_name: "Write",
         tool_input: { file_path: "/tmp/new.ts", content: "export {}" },
         tool_use_id: "tu-write",
-      }, { "x-mort-thread-id": "thread-post" });
+      }, { "x-anvil-thread-id": "thread-post" });
 
       const res = await post(server, "/hooks/post-tool-use", {
         tool_name: "Write",
@@ -186,7 +186,7 @@ describe("Hook handler", () => {
         tool_use_id: "tu-write",
         tool_result: "File written",
         tool_result_is_error: false,
-      }, { "x-mort-thread-id": "thread-post" });
+      }, { "x-anvil-thread-id": "thread-post" });
 
       expect(res.status).toBe(200);
 
@@ -200,11 +200,11 @@ describe("Hook handler", () => {
   describe("POST /hooks/stop", () => {
     it("marks thread complete", async () => {
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-stop",
+        "x-anvil-thread-id": "thread-stop",
       });
 
       const res = await post(server, "/hooks/stop", {}, {
-        "x-mort-thread-id": "thread-stop",
+        "x-anvil-thread-id": "thread-stop",
       });
 
       expect(res.status).toBe(200);
@@ -227,7 +227,7 @@ describe("Hook handler", () => {
 
     it("writes SESSION_STARTED on session-start", async () => {
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-evt-1",
+        "x-anvil-thread-id": "thread-evt-1",
       });
 
       const events = readEvents("thread-evt-1");
@@ -236,19 +236,19 @@ describe("Hook handler", () => {
 
     it("writes TOOL_STARTED and TOOL_COMPLETED on tool lifecycle", async () => {
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-evt-2",
+        "x-anvil-thread-id": "thread-evt-2",
       });
       await post(server, "/hooks/pre-tool-use", {
         tool_name: "Read",
         tool_input: { file_path: "/tmp/foo.ts" },
         tool_use_id: "tu-evt",
-      }, { "x-mort-thread-id": "thread-evt-2" });
+      }, { "x-anvil-thread-id": "thread-evt-2" });
       await post(server, "/hooks/post-tool-use", {
         tool_name: "Read",
         tool_input: { file_path: "/tmp/foo.ts" },
         tool_use_id: "tu-evt",
         tool_result: "contents",
-      }, { "x-mort-thread-id": "thread-evt-2" });
+      }, { "x-anvil-thread-id": "thread-evt-2" });
 
       const events = readEvents("thread-evt-2");
       const types = events.map((e: { type: string }) => e.type);
@@ -261,7 +261,7 @@ describe("Hook handler", () => {
         tool_name: "EnterWorktree",
         tool_input: {},
         tool_use_id: "tu-deny",
-      }, { "x-mort-thread-id": "thread-evt-3" });
+      }, { "x-anvil-thread-id": "thread-evt-3" });
 
       const events = readEvents("thread-evt-3");
       expect(events.some((e: { type: string }) => e.type === "TOOL_DENIED")).toBe(true);
@@ -269,14 +269,14 @@ describe("Hook handler", () => {
 
     it("writes FILE_MODIFIED on file-changing tools", async () => {
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-evt-4",
+        "x-anvil-thread-id": "thread-evt-4",
       });
       await post(server, "/hooks/post-tool-use", {
         tool_name: "Write",
         tool_input: { file_path: "/tmp/new.ts", content: "x" },
         tool_use_id: "tu-file",
         tool_result: "written",
-      }, { "x-mort-thread-id": "thread-evt-4" });
+      }, { "x-anvil-thread-id": "thread-evt-4" });
 
       const events = readEvents("thread-evt-4");
       expect(events.some((e: { type: string }) => e.type === "FILE_MODIFIED")).toBe(true);
@@ -284,10 +284,10 @@ describe("Hook handler", () => {
 
     it("writes SESSION_ENDED on stop", async () => {
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-evt-5",
+        "x-anvil-thread-id": "thread-evt-5",
       });
       await post(server, "/hooks/stop", {}, {
-        "x-mort-thread-id": "thread-evt-5",
+        "x-anvil-thread-id": "thread-evt-5",
       });
 
       const events = readEvents("thread-evt-5");
@@ -301,7 +301,7 @@ describe("Hook handler", () => {
       broadcaster.subscribe((e) => events.push(e));
 
       await post(server, "/hooks/session-start", { cwd: "/tmp" }, {
-        "x-mort-thread-id": "thread-bc",
+        "x-anvil-thread-id": "thread-bc",
       });
 
       expect(events.length).toBeGreaterThan(0);

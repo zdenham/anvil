@@ -7,7 +7,7 @@ import type {
 import { skillsService } from "@/entities/skills";
 import { SOURCE_ICONS, SOURCE_LABELS } from "@core/skills";
 import { getHomeDir } from "@/lib/utils/path-display";
-import { getMortDir } from "@/lib/paths";
+import { getAnvilDir } from "@/lib/paths";
 
 /**
  * Skill trigger handler for "/" - follows same pattern as FileTriggerHandler for "@"
@@ -35,8 +35,8 @@ class SkillTriggerHandler implements TriggerHandler {
     // Refresh skills on each "/" trigger (ensures fresh list)
     const homeDir = getHomeDir();
     if (homeDir) {
-      const mortDir = await getMortDir();
-      await skillsService.discover(context.rootPath, homeDir, mortDir);
+      const anvilDir = await getAnvilDir();
+      await skillsService.discover(context.rootPath, homeDir, anvilDir);
     }
 
     const skills = query
@@ -45,10 +45,10 @@ class SkillTriggerHandler implements TriggerHandler {
 
     return skills.map((skill) => ({
       id: skill.slug,
-      label: skill.source === 'mort' ? `/mort:${skill.slug}` : `/${skill.slug}`,
+      label: skill.source === 'anvil' ? `/anvil:${skill.slug}` : `/${skill.slug}`,
       description: skill.description || "",
       icon: SOURCE_ICONS[skill.source], // Lucide icon name from shared constants
-      insertText: skill.source === 'mort' ? `/mort:${skill.slug} ` : `/${skill.slug} `,
+      insertText: skill.source === 'anvil' ? `/anvil:${skill.slug} ` : `/${skill.slug} `,
       secondaryLabel: SOURCE_LABELS[skill.source], // Display label from shared constants
     }));
   }

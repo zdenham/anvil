@@ -5,14 +5,14 @@ import { randomUUID } from 'crypto';
 import { AgentTestHarness } from '../agent-harness.js';
 import { assertAgent } from '../assertions.js';
 import { EventName } from '@core/types/events.js';
-import { TestMortDirectory } from '../services/test-mort-directory.js';
+import { TestAnvilDirectory } from '../services/test-mort-directory.js';
 import { TestRepository } from '../services/test-repository.js';
 
 /**
  * Live LLM integration tests for plan-thread relation persistence.
  *
  * These tests verify that when agents interact with plans, the correct
- * relations are written to disk in the .mort/plan-thread-edges directory.
+ * relations are written to disk in the .anvil/plan-thread-edges directory.
  *
  * Scenarios tested:
  * 1. Create Plan - thread creates a new plan file → 'created' relation
@@ -37,7 +37,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
    * Scenario 1: Create Plan
    *
    * When a thread creates a new plan file, a 'created' relation should be
-   * persisted to disk at .mort/plan-thread-edges/{planId}-{threadId}.json
+   * persisted to disk at .anvil/plan-thread-edges/{planId}-{threadId}.json
    */
   it('persists "created" relation when thread creates a new plan file', async () => {
     const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.VITE_ANTHROPIC_API_KEY;
@@ -78,8 +78,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     console.log(`[LIVE TEST] Relation type: ${relationEvent!.payload.type}`);
 
     // 4. Verify relation was persisted to disk
-    const mortDir = harness.tempDirPath!;
-    const relationsDir = join(mortDir, 'plan-thread-edges');
+    const anvilDir = harness.tempDirPath!;
+    const relationsDir = join(anvilDir, 'plan-thread-edges');
     const relationPath = join(relationsDir, `${planId}-${threadId}.json`);
 
     console.log(`[LIVE TEST] Checking relation file: ${relationPath}`);
@@ -103,7 +103,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
    *
    * When a thread modifies an existing plan file, a 'modified' relation should be
    * created/updated on disk. This requires:
-   * - Pre-existing plan metadata in .mort/plans/{planId}/
+   * - Pre-existing plan metadata in .anvil/plans/{planId}/
    * - Pre-existing plan file in the repo
    */
   it('persists "modified" relation when thread updates an existing plan file', async () => {
@@ -122,9 +122,9 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
     harness = new AgentTestHarness({
       setupEnvironment: async () => {
-        const mortDir = new TestMortDirectory().init();
+        const anvilDir = new TestAnvilDirectory().init();
         const repo = new TestRepository({ fixture: 'minimal' }).init();
-        mortDir.registerRepository(repo);
+        anvilDir.registerRepository(repo);
 
         // Create the plan file in the repo
         const plansDir = join(repo.path, 'plans');
@@ -135,8 +135,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         );
         repo.commit('Add existing plan');
 
-        // Create plan metadata in mort directory
-        const planMetadataDir = join(mortDir.path, 'plans', existingPlanId);
+        // Create plan metadata in anvil directory
+        const planMetadataDir = join(anvilDir.path, 'plans', existingPlanId);
         mkdirSync(planMetadataDir, { recursive: true });
         const now = Date.now();
         writeFileSync(
@@ -154,9 +154,9 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
         console.log(`[LIVE TEST] Pre-created plan: ${existingPlanId}`);
         console.log(`[LIVE TEST] Repo path: ${repo.path}`);
-        console.log(`[LIVE TEST] Mort dir: ${mortDir.path}`);
+        console.log(`[LIVE TEST] Anvil dir: ${anvilDir.path}`);
 
-        return { mortDir, repo };
+        return { anvilDir, repo };
       },
     });
 
@@ -191,8 +191,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     console.log(`[LIVE TEST] Relation type: ${relationEvent!.payload.type}`);
 
     // 4. Verify relation was persisted to disk
-    const mortDir = harness.tempDirPath!;
-    const relationPath = join(mortDir, 'plan-thread-edges', `${existingPlanId}-${threadId}.json`);
+    const anvilDir = harness.tempDirPath!;
+    const relationPath = join(anvilDir, 'plan-thread-edges', `${existingPlanId}-${threadId}.json`);
 
     console.log(`[LIVE TEST] Checking relation file: ${relationPath}`);
     expect(existsSync(relationPath)).toBe(true);
@@ -207,7 +207,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     expect(relation.archived).toBe(false);
 
     // 6. Verify plan metadata was updated (isRead should be false)
-    const planMetadataPath = join(mortDir, 'plans', existingPlanId, 'metadata.json');
+    const planMetadataPath = join(anvilDir, 'plans', existingPlanId, 'metadata.json');
     const planMetadata = JSON.parse(readFileSync(planMetadataPath, 'utf-8'));
     console.log(`[LIVE TEST] Plan metadata after update:`, planMetadata);
     expect(planMetadata.isRead).toBe(false); // Should be marked unread after modification
@@ -236,9 +236,9 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
     harness = new AgentTestHarness({
       setupEnvironment: async () => {
-        const mortDir = new TestMortDirectory().init();
+        const anvilDir = new TestAnvilDirectory().init();
         const repo = new TestRepository({ fixture: 'minimal' }).init();
-        mortDir.registerRepository(repo);
+        anvilDir.registerRepository(repo);
 
         // Create the plan file in the repo
         const plansDir = join(repo.path, 'plans');
@@ -250,7 +250,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         repo.commit('Add mentioned plan');
 
         // Create plan metadata
-        const planMetadataDir = join(mortDir.path, 'plans', existingPlanId);
+        const planMetadataDir = join(anvilDir.path, 'plans', existingPlanId);
         mkdirSync(planMetadataDir, { recursive: true });
         const now = Date.now();
         writeFileSync(
@@ -267,7 +267,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         );
 
         // Pre-create a 'mentioned' relation for this thread
-        const relationsDir = join(mortDir.path, 'plan-thread-edges');
+        const relationsDir = join(anvilDir.path, 'plan-thread-edges');
         mkdirSync(relationsDir, { recursive: true });
         writeFileSync(
           join(relationsDir, `${existingPlanId}-${existingThreadId}.json`),
@@ -283,7 +283,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
         console.log(`[LIVE TEST] Pre-created 'mentioned' relation for plan ${existingPlanId}`);
 
-        return { mortDir, repo };
+        return { anvilDir, repo };
       },
     });
 
@@ -307,8 +307,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     expect(relationEvent!.payload.type).toBe('modified'); // Should be upgraded
 
     // 3. Verify relation on disk was upgraded
-    const mortDir = harness.tempDirPath!;
-    const relationPath = join(mortDir, 'plan-thread-edges', `${existingPlanId}-${existingThreadId}.json`);
+    const anvilDir = harness.tempDirPath!;
+    const relationPath = join(anvilDir, 'plan-thread-edges', `${existingPlanId}-${existingThreadId}.json`);
     const relation = JSON.parse(readFileSync(relationPath, 'utf-8'));
 
     console.log(`[LIVE TEST] Relation on disk after upgrade:`, relation);
@@ -340,9 +340,9 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
     harness = new AgentTestHarness({
       setupEnvironment: async () => {
-        const mortDir = new TestMortDirectory().init();
+        const anvilDir = new TestAnvilDirectory().init();
         const repo = new TestRepository({ fixture: 'minimal' }).init();
-        mortDir.registerRepository(repo);
+        anvilDir.registerRepository(repo);
 
         // Create the plan file in the repo
         const plansDir = join(repo.path, 'plans');
@@ -354,7 +354,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         repo.commit('Add created plan');
 
         // Create plan metadata
-        const planMetadataDir = join(mortDir.path, 'plans', existingPlanId);
+        const planMetadataDir = join(anvilDir.path, 'plans', existingPlanId);
         mkdirSync(planMetadataDir, { recursive: true });
         const now = Date.now();
         writeFileSync(
@@ -371,7 +371,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         );
 
         // Pre-create a 'created' relation for this thread (highest precedence)
-        const relationsDir = join(mortDir.path, 'plan-thread-edges');
+        const relationsDir = join(anvilDir.path, 'plan-thread-edges');
         mkdirSync(relationsDir, { recursive: true });
         const originalCreatedAt = now - 5000;
         writeFileSync(
@@ -388,7 +388,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
         console.log(`[LIVE TEST] Pre-created 'created' relation for plan ${existingPlanId}`);
 
-        return { mortDir, repo };
+        return { anvilDir, repo };
       },
     });
 
@@ -411,8 +411,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     expect(relationEvent!.payload.type).toBe('created'); // Should NOT downgrade
 
     // 3. Verify relation on disk was NOT downgraded
-    const mortDir = harness.tempDirPath!;
-    const relationPath = join(mortDir, 'plan-thread-edges', `${existingPlanId}-${existingThreadId}.json`);
+    const anvilDir = harness.tempDirPath!;
+    const relationPath = join(anvilDir, 'plan-thread-edges', `${existingPlanId}-${existingThreadId}.json`);
     const relation = JSON.parse(readFileSync(relationPath, 'utf-8'));
 
     console.log(`[LIVE TEST] Relation on disk after re-edit:`, relation);
@@ -471,8 +471,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     expect(uniquePlanIds.size).toBe(planIds.length);
 
     // Verify all relations are on disk
-    const mortDir = harness.tempDirPath!;
-    const relationsDir = join(mortDir, 'plan-thread-edges');
+    const anvilDir = harness.tempDirPath!;
+    const relationsDir = join(anvilDir, 'plan-thread-edges');
 
     for (const planId of planIds) {
       const relationPath = join(relationsDir, `${planId}-${threadId}.json`);
@@ -513,9 +513,9 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
     harness = new AgentTestHarness({
       setupEnvironment: async () => {
-        const mortDir = new TestMortDirectory().init();
+        const anvilDir = new TestAnvilDirectory().init();
         const repo = new TestRepository({ fixture: 'minimal' }).init();
-        mortDir.registerRepository(repo);
+        anvilDir.registerRepository(repo);
 
         // Create the plan file in the repo
         const plansDir = join(repo.path, 'plans');
@@ -526,8 +526,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         );
         repo.commit('Add existing feature plan');
 
-        // Create plan metadata in mort directory
-        const planMetadataDir = join(mortDir.path, 'plans', existingPlanId);
+        // Create plan metadata in anvil directory
+        const planMetadataDir = join(anvilDir.path, 'plans', existingPlanId);
         mkdirSync(planMetadataDir, { recursive: true });
         const now = Date.now();
         writeFileSync(
@@ -546,7 +546,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         console.log(`[LIVE TEST] Pre-created plan: ${existingPlanId}`);
         console.log(`[LIVE TEST] Plan path: plans/existing-feature.md`);
 
-        return { mortDir, repo };
+        return { anvilDir, repo };
       },
     });
 
@@ -576,8 +576,8 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     console.log(`[LIVE TEST] Relation type: ${relationEvent!.payload.type}`);
 
     // 3. Verify relation was persisted to disk
-    const mortDir = harness.tempDirPath!;
-    const relationPath = join(mortDir, 'plan-thread-edges', `${existingPlanId}-${threadId}.json`);
+    const anvilDir = harness.tempDirPath!;
+    const relationPath = join(anvilDir, 'plan-thread-edges', `${existingPlanId}-${threadId}.json`);
 
     console.log(`[LIVE TEST] Checking relation file: ${relationPath}`);
     expect(existsSync(relationPath)).toBe(true);
@@ -618,9 +618,9 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
     harness = new AgentTestHarness({
       setupEnvironment: async () => {
-        const mortDir = new TestMortDirectory().init();
+        const anvilDir = new TestAnvilDirectory().init();
         const repo = new TestRepository({ fixture: 'minimal' }).init();
-        mortDir.registerRepository(repo);
+        anvilDir.registerRepository(repo);
 
         // Create the plan file in the repo
         const plansDir = join(repo.path, 'plans');
@@ -632,7 +632,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
         repo.commit('Add plan to be modified');
 
         // Create plan metadata
-        const planMetadataDir = join(mortDir.path, 'plans', existingPlanId);
+        const planMetadataDir = join(anvilDir.path, 'plans', existingPlanId);
         mkdirSync(planMetadataDir, { recursive: true });
         const now = Date.now();
         writeFileSync(
@@ -650,7 +650,7 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
 
         console.log(`[LIVE TEST] Pre-created plan: ${existingPlanId}`);
 
-        return { mortDir, repo };
+        return { anvilDir, repo };
       },
     });
 
@@ -677,9 +677,9 @@ describe('Plan-Thread Relations Persistence - Live LLM', () => {
     expect(relationEvents.length).toBeGreaterThanOrEqual(1);
 
     // 3. Check disk - should show final upgraded type
-    const mortDir = harness.tempDirPath!;
+    const anvilDir = harness.tempDirPath!;
     const threadId = relationEvents[0].payload.threadId as string;
-    const relationPath = join(mortDir, 'plan-thread-edges', `${existingPlanId}-${threadId}.json`);
+    const relationPath = join(anvilDir, 'plan-thread-edges', `${existingPlanId}-${threadId}.json`);
 
     expect(existsSync(relationPath)).toBe(true);
     const relation = JSON.parse(readFileSync(relationPath, 'utf-8'));

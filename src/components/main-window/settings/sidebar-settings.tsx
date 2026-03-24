@@ -16,7 +16,7 @@ export function SidebarSettings() {
         <div>
           <div className="text-sm text-surface-200">Hide external workspaces</div>
           <div className="text-xs text-surface-500">
-            Hide workspaces not created by Mort from the sidebar
+            Hide workspaces not created by Anvil from the sidebar
           </div>
         </div>
         <input

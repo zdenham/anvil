@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-shell";
 import type { LogEntry, LogFilter, LogLevel } from "@/entities/logs";
 import { captureMemorySnapshot } from "@/lib/memory-snapshot";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
 const COPY_FEEDBACK_MS = 2000;
@@ -372,32 +373,33 @@ export function LogsToolbar({
       <div className="ml-auto flex items-center gap-1">
         {/* Profiling dropdown */}
         <div ref={profilingMenuRef} className="relative">
-          <button
-            onClick={() => !profilingType && setShowProfilingMenu(!showProfilingMenu)}
-            disabled={!!profilingType}
-            className={cn(
-              "p-1.5 rounded transition-colors",
-              profilingType
-                ? "text-amber-400 animate-pulse"
-                : profilingError
-                  ? "text-red-400"
-                  : profilingResult
-                    ? "text-green-400"
-                    : "text-surface-400 hover:text-surface-200 hover:bg-surface-800",
-              profilingType && "cursor-not-allowed"
-            )}
-            title={
-              profilingType
-                ? `Capturing ${profilingType === "cpu" ? "CPU flamegraph" : profilingType === "trace" ? "chrome trace" : "memory snapshot"}...`
-                : profilingError
-                  ? `Profiling error: ${profilingError}`
-                  : profilingResult
-                    ? "Profiling complete"
-                    : "Profile"
-            }
-          >
-            {profilingType ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
-          </button>
+          <Tooltip content={
+            profilingType
+              ? `Capturing ${profilingType === "cpu" ? "CPU flamegraph" : profilingType === "trace" ? "chrome trace" : "memory snapshot"}...`
+              : profilingError
+                ? `Profiling error: ${profilingError}`
+                : profilingResult
+                  ? "Profiling complete"
+                  : "Profile"
+          } side="bottom">
+            <button
+              onClick={() => !profilingType && setShowProfilingMenu(!showProfilingMenu)}
+              disabled={!!profilingType}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                profilingType
+                  ? "text-amber-400 animate-pulse"
+                  : profilingError
+                    ? "text-red-400"
+                    : profilingResult
+                      ? "text-green-400"
+                      : "text-surface-400 hover:text-surface-200 hover:bg-surface-800",
+                profilingType && "cursor-not-allowed"
+              )}
+            >
+              {profilingType ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+            </button>
+          </Tooltip>
 
           {showProfilingMenu && (
             <div className="absolute top-full right-0 mt-1 z-50 w-[180px] bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1">
@@ -437,33 +439,35 @@ export function LogsToolbar({
           )}
         </div>
 
-        <button
-          onClick={handleCopy}
-          disabled={filteredLogs.length === 0}
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            isCopied
-              ? "text-green-400"
-              : "text-surface-400 hover:text-surface-200 hover:bg-surface-800",
-            filteredLogs.length === 0 && "opacity-50 cursor-not-allowed"
-          )}
-          title={
-            filteredLogs.length === 0
-              ? "No logs to copy"
-              : isCopied
-              ? "Copied to clipboard"
-              : "Copy logs to clipboard"
-          }
-        >
-          {isCopied ? <Check size={14} /> : <Copy size={14} />}
-        </button>
-        <button
-          onClick={onClear}
-          className="p-1.5 text-surface-400 hover:text-red-400 hover:bg-surface-800 rounded transition-colors"
-          title="Clear all logs"
-        >
-          <Trash2 size={14} />
-        </button>
+        <Tooltip content={
+          filteredLogs.length === 0
+            ? "No logs to copy"
+            : isCopied
+            ? "Copied!"
+            : "Copy logs"
+        } side="bottom">
+          <button
+            onClick={handleCopy}
+            disabled={filteredLogs.length === 0}
+            className={cn(
+              "p-1.5 rounded transition-colors",
+              isCopied
+                ? "text-green-400"
+                : "text-surface-400 hover:text-surface-200 hover:bg-surface-800",
+              filteredLogs.length === 0 && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {isCopied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        </Tooltip>
+        <Tooltip content="Clear all logs" side="bottom">
+          <button
+            onClick={onClear}
+            className="p-1.5 text-surface-400 hover:text-red-400 hover:bg-surface-800 rounded transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ export const GLOBAL_OVERRIDES: PermissionRule[] = [
   {
     toolPattern: "^EnterWorktree$",
     decision: "deny",
-    reason: "Worktree creation is managed by Mort. Use the Bash tool with `git worktree add` if you need a worktree, or ask the user to create one from the sidebar.",
+    reason: "Worktree creation is managed by Anvil. Use the Bash tool with `git worktree add` if you need a worktree, or ask the user to create one from the sidebar.",
   },
   {
     toolPattern: "^(Mcp|ListMcpResources|ReadMcpResource|SubscribeMcpResource|UnsubscribeMcpResource|SubscribePolling|UnsubscribePolling)$",

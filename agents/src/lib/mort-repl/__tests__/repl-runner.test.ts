@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MortReplRunner } from "../repl-runner.js";
+import { AnvilReplRunner } from "../repl-runner.js";
 import type { ReplContext, ReplResult } from "../types.js";
 
 vi.mock("../../logger.js", () => ({
@@ -12,52 +12,52 @@ const mockContext: ReplContext = {
   worktreeId: "test-worktree-id",
   workingDir: "/test/dir",
   permissionModeId: "implement",
-  mortDir: "/test/.mort",
+  anvilDir: "/test/.anvil",
 };
 
-describe("MortReplRunner", () => {
-  let runner: MortReplRunner;
+describe("AnvilReplRunner", () => {
+  let runner: AnvilReplRunner;
 
   beforeEach(() => {
-    runner = new MortReplRunner();
+    runner = new AnvilReplRunner();
   });
 
   // ── extractCode() ──────────────────────────────────────────
 
   describe("extractCode", () => {
     it("extracts code from single-quote heredoc", () => {
-      const command = `mort-repl <<'MORT_REPL'\nconst x = 1;\nreturn x;\nMORT_REPL`;
+      const command = `anvil-repl <<'ANVIL_REPL'\nconst x = 1;\nreturn x;\nANVIL_REPL`;
       expect(runner.extractCode(command)).toBe("const x = 1;\nreturn x;");
     });
 
     it("extracts code from double-quote heredoc delimiter", () => {
-      const command = `mort-repl <<"DELIM"\nconst y = 2;\nDELIM`;
+      const command = `anvil-repl <<"DELIM"\nconst y = 2;\nDELIM`;
       expect(runner.extractCode(command)).toBe("const y = 2;");
     });
 
     it("extracts code from unquoted heredoc delimiter", () => {
-      const command = `mort-repl <<EOF\nreturn 99;\nEOF`;
+      const command = `anvil-repl <<EOF\nreturn 99;\nEOF`;
       expect(runner.extractCode(command)).toBe("return 99;");
     });
 
     it("extracts code from double-quoted string", () => {
-      expect(runner.extractCode('mort-repl "return 42"')).toBe("return 42");
+      expect(runner.extractCode('anvil-repl "return 42"')).toBe("return 42");
     });
 
     it("extracts code from single-quoted string", () => {
-      expect(runner.extractCode("mort-repl 'return 42'")).toBe("return 42");
+      expect(runner.extractCode("anvil-repl 'return 42'")).toBe("return 42");
     });
 
-    it("returns null for non-mort-repl commands", () => {
+    it("returns null for non-anvil-repl commands", () => {
       expect(runner.extractCode("ls -la")).toBeNull();
     });
 
-    it("returns null for bare mort-repl with no code body", () => {
-      expect(runner.extractCode("mort-repl")).toBeNull();
+    it("returns null for bare anvil-repl with no code body", () => {
+      expect(runner.extractCode("anvil-repl")).toBeNull();
     });
 
     it("handles leading whitespace in command", () => {
-      expect(runner.extractCode('  mort-repl "return 1"')).toBe("return 1");
+      expect(runner.extractCode('  anvil-repl "return 1"')).toBe("return 1");
     });
   });
 
@@ -109,9 +109,9 @@ describe("MortReplRunner", () => {
       expect(result.value).toBe("hello");
     });
 
-    it("captures mort.log calls", async () => {
+    it("captures anvil.log calls", async () => {
       const result = await runner.execute(
-        "mort.log('test message'); return 'done'",
+        "anvil.log('test message'); return 'done'",
         mockContext,
       );
       expect(result.success).toBe(true);
@@ -128,9 +128,9 @@ describe("MortReplRunner", () => {
       expect(result.error).toBe("boom");
     });
 
-    it("makes mort.context accessible with correct threadId", async () => {
+    it("makes anvil.context accessible with correct threadId", async () => {
       const result = await runner.execute(
-        "return mort.context.threadId",
+        "return anvil.context.threadId",
         mockContext,
       );
       expect(result.success).toBe(true);
@@ -159,7 +159,7 @@ describe("MortReplRunner", () => {
       };
 
       const result = await runner.execute(
-        "mort.log('via-sdk'); return 'ok'",
+        "anvil.log('via-sdk'); return 'ok'",
         mockContext,
         customSdk,
       );
@@ -179,7 +179,7 @@ describe("MortReplRunner", () => {
         durationMs: 10,
       };
       const output = runner.formatResult(result);
-      expect(output).toMatch(/^mort-repl result:/);
+      expect(output).toMatch(/^anvil-repl result:/);
       expect(output).toContain("42");
     });
 
@@ -192,7 +192,7 @@ describe("MortReplRunner", () => {
         durationMs: 5,
       };
       const output = runner.formatResult(result);
-      expect(output).toMatch(/^mort-repl error:/);
+      expect(output).toMatch(/^anvil-repl error:/);
       expect(output).toContain("boom");
     });
 
