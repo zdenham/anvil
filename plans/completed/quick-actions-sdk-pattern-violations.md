@@ -1,6 +1,6 @@
 # Quick Actions SDK Plan - Pattern Violations
 
-This document consolidates major violations of Mort's architectural patterns found in `plans/quick-actions-sdk.md`. These should be addressed before implementation.
+This document consolidates major violations of Anvil's architectural patterns found in `plans/quick-actions-sdk.md`. These should be addressed before implementation.
 
 ---
 
@@ -53,7 +53,7 @@ The SDK exposes `readFile`, `writeFile`, `exists`, `readDir`, `glob` - none of w
 **Section:** Phase 3.1
 
 ```typescript
-export function createSDK(mortDir, emitEvent): MortSDK {
+export function createSDK(anvilDir, emitEvent): AnvilSDK {
   const fs = new NodeFSAdapter();  // Direct instantiation
   const git = new NodeGitAdapter(); // Direct instantiation
 }
@@ -64,11 +64,11 @@ The adapters pattern requires constructor injection for testability.
 **Recommendation:**
 ```typescript
 export function createSDK(
-  mortDir: string,
+  anvilDir: string,
   fs: FileSystemAdapter,
   git: GitAdapter,
   emitEvent: (event, payload) => void
-): MortSDK
+): AnvilSDK
 ```
 
 ---
@@ -107,7 +107,7 @@ The plan creates store.ts, service.ts, types.ts but NOT listeners.ts. Without li
 ### 1. QuickActionsRegistry Lacks Zod Schema (Major)
 **Section:** 1.4
 
-The registry at `~/.mort/quick-actions-registry.json` is defined as a plain TypeScript interface but loaded from disk. Disk data requires Zod validation.
+The registry at `~/.anvil/quick-actions-registry.json` is defined as a plain TypeScript interface but loaded from disk. Disk data requires Zod validation.
 
 **Recommendation:** Add `QuickActionsRegistrySchema` alongside other schemas in Phase 1.1.
 

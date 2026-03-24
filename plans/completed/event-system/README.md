@@ -93,6 +93,6 @@
 | Sub-plan | Create | Modify | Delete From |
 |----------|--------|--------|-------------|
 | 1 | `core/types/events.ts`, `core/types/settings.ts` | `core/types/index.ts` | `agents/src/output.ts`, `src/lib/types/agent-messages.ts`, `agents/src/agent-types/merge-types.ts` |
-| 2 | - | `agents/src/lib/events.ts`, `agents/src/cli/mort.ts`, `agents/src/orchestration.ts` | - |
+| 2 | - | `agents/src/lib/events.ts`, `agents/src/cli/anvil.ts`, `agents/src/orchestration.ts` | - |
 | 3 | `src/lib/agent-output-parser.ts` | `src/lib/agent-service.ts`, `src/entities/threads/service.ts`, `src/entities/threads/store.ts`, `src/hooks/use-action-state.ts` | - |
 | 4 | `src/entities/tasks/listeners.ts`, `src/entities/threads/listeners.ts`, `src/entities/repositories/listeners.ts` | `src/entities/index.ts`, `src/entities/events.ts`, `src/lib/event-bridge.ts`, `src/entities/threads/service.ts` | - |

@@ -48,7 +48,7 @@ export interface AgentConfig {
 
 - Remove `BASE_PROMPT` (SDK preset provides the base)
 - Keep all agent-specific sections (ROLE, WORKFLOW, CAPABILITIES, etc.)
-- Keep `TASK_CONTEXT`, `COMMIT_STRATEGY`, `MORT_CLI_CORE`, etc. (these are Mort-specific)
+- Keep `TASK_CONTEXT`, `COMMIT_STRATEGY`, `ANVIL_CLI_CORE`, etc. (these are Anvil-specific)
 - Keep `composePrompt()` helper for assembling agent-specific sections
 
 ### Step 3: Update Each Agent Type
@@ -57,7 +57,7 @@ For each agent (entrypoint, execution, review, merge):
 - Change `tools` from explicit array to `{ type: "preset", preset: "claude_code" }`
 - Rename `systemPrompt` to `appendedPrompt`
 - Remove `BASE_PROMPT` from the composed sections
-- Keep agent-specific sections that add Mort-specific behavior
+- Keep agent-specific sections that add Anvil-specific behavior
 
 Example for execution agent:
 ```typescript
@@ -73,7 +73,7 @@ export const execution: AgentConfig = {
     WORKFLOW,
     COMMIT_STRATEGY,
     MINIMAL_CHANGES,
-    MORT_CLI_CORE,
+    ANVIL_CLI_CORE,
     HUMAN_REVIEW_TOOL,
     GUIDELINES
   ),

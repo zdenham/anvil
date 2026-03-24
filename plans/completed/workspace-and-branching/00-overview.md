@@ -46,15 +46,15 @@ Conversation (1) ─── temporarily claims ───▶ (0..1) Worktree
 
 ```
 main (or detected default)
-├── mort/task-123           ← branches from main, mergeBase stored
-│   ├── mort/task-123-sub-1 ← branches from mort/task-123
-│   └── mort/task-123-sub-2 ← branches from mort/task-123
-└── mort/task-456           ← branches from main
+├── anvil/task-123           ← branches from main, mergeBase stored
+│   ├── anvil/task-123-sub-1 ← branches from anvil/task-123
+│   └── anvil/task-123-sub-2 ← branches from anvil/task-123
+└── anvil/task-456           ← branches from main
 ```
 
 ### Lifecycle
 
-1. **Task Created** → Determine base branch, create `mort/task-{id}`, store merge base
+1. **Task Created** → Determine base branch, create `anvil/task-{id}`, store merge base
 2. **Conversation Starts** → Claim available worktree, checkout task's branch
 3. **Agent Works** → Makes commits, diff uses stored merge base
 4. **Conversation Ends** → Release worktree, branch persists

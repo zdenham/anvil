@@ -23,7 +23,7 @@ Two related changes:
 - Line 1: `import { entrypoint }` → `import { planning }`
 - Line 15: `entrypoint,` → `planning,` (in agents record)
 
-**agents/src/cli/mort.ts**
+**agents/src/cli/anvil.ts**
 - Line 60: Update VALID_AGENT_TYPES array
 - Lines 191, 193: Update help text
 
@@ -43,7 +43,7 @@ Two related changes:
 **src/lib/tauri-commands.ts**
 - Line 245: Update comment
 
-**src-tauri/src/mort_commands.rs**
+**src-tauri/src/anvil_commands.rs**
 - Line 463: `"entrypoint"` → `"planning"` in returned vec
 
 ---
@@ -75,7 +75,7 @@ Current:
 const CLI_OUTPUT_FORMAT = `
 ## Step 4: Write Implementation Plan
 
-Write to: {{mortDir}}/tasks/{{slug}}/content.md
+Write to: {{anvilDir}}/tasks/{{slug}}/content.md
 
 ## Problem
 [1-2 sentences describing what needs to be done and why]
@@ -145,10 +145,10 @@ After:
 |------|---------|
 | `agents/src/agent-types/entrypoint.ts` | Rename to planning.ts, update export, refactor prompts |
 | `agents/src/agent-types/index.ts` | Update import and export |
-| `agents/src/cli/mort.ts` | Update VALID_AGENT_TYPES and help text |
+| `agents/src/cli/anvil.ts` | Update VALID_AGENT_TYPES and help text |
 | `agents/src/agent-types/shared-prompts.ts` | Update agent table and examples |
 | `src/components/spotlight/spotlight.tsx` | Update default agentType |
 | `src/components/workspace/threads-list.tsx` | Update switch cases |
 | `src/components/workspace/action-panel.tsx` | Update fallback array |
 | `src/lib/tauri-commands.ts` | Update comment |
-| `src-tauri/src/mort_commands.rs` | Update returned agent types |
+| `src-tauri/src/anvil_commands.rs` | Update returned agent types |

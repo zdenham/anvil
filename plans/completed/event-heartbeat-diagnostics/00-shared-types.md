@@ -60,7 +60,7 @@ export function isDiagnosticEnabled(config: DiagnosticLoggingConfig): boolean {
 
 ### Key Decisions
 
-- **Zod schemas at boundaries**: Add Zod schemas for both types since they cross trust boundaries (disk settings file, env var parsing, IPC messages). The Zod schema for `DiagnosticLoggingConfig` is used when parsing `MORT_DIAGNOSTIC_LOGGING` env var and when reading from `SettingsStoreClient`.
+- **Zod schemas at boundaries**: Add Zod schemas for both types since they cross trust boundaries (disk settings file, env var parsing, IPC messages). The Zod schema for `DiagnosticLoggingConfig` is used when parsing `ANVIL_DIAGNOSTIC_LOGGING` env var and when reading from `SettingsStoreClient`.
 - **PipelineStamp Zod schema**: Used in `agent-service.ts` when validating incoming messages from the socket (trust boundary).
 - **Type layering**: These live in `core/types/` so both `agents/` and `src/` can import them without violating the import direction rule (`src/ → agents/ → core/`).
 

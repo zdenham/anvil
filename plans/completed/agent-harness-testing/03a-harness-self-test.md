@@ -29,7 +29,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { existsSync } from "fs";
 import { AgentTestHarness } from "../agent-harness";
 import { assertAgent } from "../assertions";
-import { TestMortDirectory } from "../services/test-mort-directory";
+import { TestAnvilDirectory } from "../services/test-anvil-directory";
 import { TestRepository } from "../services/test-repository";
 import type { AgentOutput } from "../types";
 
@@ -41,47 +41,47 @@ const describeWithApi = process.env.ANTHROPIC_API_KEY
   : describe.skip;
 
 describe("AgentTestHarness Self-Verification", () => {
-  describe("TestMortDirectory service", () => {
-    let mortDir: TestMortDirectory;
+  describe("TestAnvilDirectory service", () => {
+    let anvilDir: TestAnvilDirectory;
 
     afterEach(() => {
-      mortDir?.cleanup();
+      anvilDir?.cleanup();
     });
 
     it("creates directory structure on init", () => {
-      mortDir = new TestMortDirectory().init();
+      anvilDir = new TestAnvilDirectory().init();
 
-      expect(existsSync(mortDir.path)).toBe(true);
-      expect(existsSync(`${mortDir.path}/repositories`)).toBe(true);
-      expect(existsSync(`${mortDir.path}/tasks`)).toBe(true);
-      expect(existsSync(`${mortDir.path}/config.json`)).toBe(true);
+      expect(existsSync(anvilDir.path)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/repositories`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/tasks`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/config.json`)).toBe(true);
     });
 
     it("removes directory on cleanup", () => {
-      mortDir = new TestMortDirectory().init();
-      const savedPath = mortDir.path;
+      anvilDir = new TestAnvilDirectory().init();
+      const savedPath = anvilDir.path;
 
-      mortDir.cleanup();
+      anvilDir.cleanup();
       expect(existsSync(savedPath)).toBe(false);
     });
 
     it("creates tasks with metadata", () => {
-      mortDir = new TestMortDirectory().init();
-      const task = mortDir.createTask({
+      anvilDir = new TestAnvilDirectory().init();
+      const task = anvilDir.createTask({
         repositoryName: "test-repo",
         title: "Test Task",
       });
 
       expect(task.slug).toMatch(/^test-task-/);
       expect(task.repositoryName).toBe("test-repo");
-      expect(existsSync(`${mortDir.path}/tasks/${task.slug}/metadata.json`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/tasks/${task.slug}/metadata.json`)).toBe(true);
     });
 
     it("registers repositories with settings", () => {
-      mortDir = new TestMortDirectory().init();
-      mortDir.registerRepository({ name: "my-repo", path: "/tmp/fake" });
+      anvilDir = new TestAnvilDirectory().init();
+      anvilDir.registerRepository({ name: "my-repo", path: "/tmp/fake" });
 
-      expect(existsSync(`${mortDir.path}/repositories/my-repo/settings.json`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/repositories/my-repo/settings.json`)).toBe(true);
     });
   });
 
@@ -150,7 +150,7 @@ describe("AgentTestHarness Self-Verification", () => {
 
       // After run() is called, tempDirPath should be set
       expect(harness.tempDirPath).not.toBeNull();
-      expect(harness.tempDirPath).toMatch(/mort-test-/);
+      expect(harness.tempDirPath).toMatch(/anvil-test-/);
       expect(existsSync(harness.tempDirPath!)).toBe(true);
 
       // Allow run to complete or timeout
@@ -342,7 +342,7 @@ describe("AgentTestHarness Self-Verification", () => {
 
 | Category | Tests |
 |----------|-------|
-| TestMortDirectory | Directory creation, task creation, repository registration, cleanup |
+| TestAnvilDirectory | Directory creation, task creation, repository registration, cleanup |
 | TestRepository | Git init, fixture templates, file operations, commit, cleanup |
 | Harness lifecycle | Temp directory creation, cleanup behavior |
 | Assertion helpers | All assertion methods with mock AgentOutput data |
@@ -384,7 +384,7 @@ Add to `agents/package.json`:
 
 ## Acceptance Criteria
 
-- [ ] All TestMortDirectory tests pass without API key
+- [ ] All TestAnvilDirectory tests pass without API key
 - [ ] All TestRepository tests pass without API key
 - [ ] All assertion helper tests pass without API key
 - [ ] Live tests are skipped when ANTHROPIC_API_KEY is not set

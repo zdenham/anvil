@@ -95,7 +95,7 @@ Tab double-click / context menu "Rename"
       → Zustand store mutation (useThreadStore / useTerminalSessionStore)
         → useTabLabel re-renders tab with new name  ✓
         → threadToNode / terminalToNode re-renders sidebar with new name  ✓
-        → Persisted to ~/.mort/{entity}/{id}/metadata.json  ✓
+        → Persisted to ~/.anvil/{entity}/{id}/metadata.json  ✓
 ```
 
 No explicit sync needed — both UI surfaces subscribe to the same store.

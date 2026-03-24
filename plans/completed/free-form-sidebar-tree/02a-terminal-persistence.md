@@ -4,7 +4,7 @@
 
 ## Summary
 
-Persist terminal session metadata to disk at `~/.mort/terminal-sessions/{id}/metadata.json`. Currently `TerminalSession` is runtime-only (Zustand store, lost on restart). Persistence enables `visualSettings` on terminals, sidebar organization across restarts, and makes terminals first-class entities.
+Persist terminal session metadata to disk at `~/.anvil/terminal-sessions/{id}/metadata.json`. Currently `TerminalSession` is runtime-only (Zustand store, lost on restart). Persistence enables `visualSettings` on terminals, sidebar organization across restarts, and makes terminals first-class entities.
 
 Includes setting `visualSettings.parentId` to the worktree node ID at terminal creation time (terminal-specific seeding — 02c handles threads/plans/PRs).
 
@@ -237,7 +237,7 @@ Replace the full file with the following. Key changes:
 ```typescript
 /**
  * Terminal session service - manages PTY lifecycle via Tauri commands.
- * Persists terminal metadata to ~/.mort/terminal-sessions/{id}/metadata.json.
+ * Persists terminal metadata to ~/.anvil/terminal-sessions/{id}/metadata.json.
  */
 import { invoke } from "@/lib/invoke";
 import { appData } from "@/lib/app-data-store";
@@ -695,7 +695,7 @@ Terminal metadata is only written by the Tauri frontend process (unlike thread m
 
 ## Acceptance Criteria
 
-- [x] Terminal metadata written to `~/.mort/terminal-sessions/{id}/metadata.json` on create
+- [x] Terminal metadata written to `~/.anvil/terminal-sessions/{id}/metadata.json` on create
 
 - [x] Terminal `id` is a stable UUID; PTY numeric ID stored as `ptyId`
 

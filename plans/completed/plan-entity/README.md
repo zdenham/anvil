@@ -7,7 +7,7 @@ This directory contains the broken-down implementation plan for the Plan Entity 
 These decisions were made during plan review and apply across all sub-plans:
 
 ### Architecture
-- **Storage Location**: Plans stored in `plans/{id}/metadata.json` within `.mort` data directory
+- **Storage Location**: Plans stored in `plans/{id}/metadata.json` within `.anvil` data directory
 - **Persistence Pattern**: Use `persistence.readJson/writeJson/glob` (NOT `window.api`)
 - **Store Pattern**: Plain Zustand without immer middleware
 - **UUID Generation**: Use native `crypto.randomUUID()`

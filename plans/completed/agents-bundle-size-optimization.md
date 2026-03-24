@@ -2,7 +2,7 @@
 
 ## Problem
 
-The bundled `mort.app` is **547MB**, with **523MB (95%)** coming from `agents/node_modules`. This includes:
+The bundled `anvil.app` is **547MB**, with **523MB (95%)** coming from `agents/node_modules`. This includes:
 
 - Dev dependencies (tsup, typescript, vitest, vite, esbuild) - ~200MB
 - Duplicate packages due to pnpm's resolution (2x `@anthropic-ai/claude-agent-sdk` for different zod versions) - 150MB
@@ -41,7 +41,7 @@ Bundle all dependencies into the output files, eliminating node_modules entirely
 ```ts
 // tsup.config.ts
 export default defineConfig({
-  entry: ["src/runner.ts", "src/cli/mort.ts"],
+  entry: ["src/runner.ts", "src/cli/anvil.ts"],
   format: ["esm"],
   target: "node22",
   outDir: "dist",

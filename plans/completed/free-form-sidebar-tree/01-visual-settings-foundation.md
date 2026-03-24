@@ -46,7 +46,7 @@ None — this is the foundation.
 
 - Fields: `id`, `path`, `name`, `createdAt`, `lastAccessedAt`, `currentBranch`, `isRenamed`
 - Lives inside `RepositorySettings.worktrees[]` array (line 83: `worktrees: z.array(WorktreeStateSchema).default([])`)
-- Persisted at `~/.mort/repositories/{repo-slug}/settings.json`
+- Persisted at `~/.anvil/repositories/{repo-slug}/settings.json`
 - Updates go through `loadSettings(slug)` / `saveSettings(slug, settings)` from `src/lib/app-data-store.ts`
 - No dedicated worktree update method exists in `src/entities/worktrees/service.ts` — all operations go through Rust invoke commands
 
@@ -314,10 +314,10 @@ After implementation, run these commands to verify:
 
 ```bash
 # Type check
-cd /Users/zac/.mort/repositories/mortician/ivory-dragonfly && pnpm tsc --noEmit
+cd /Users/zac/.anvil/repositories/anvil/ivory-dragonfly && pnpm tsc --noEmit
 
 # Run tests
-cd /Users/zac/.mort/repositories/mortician/ivory-dragonfly && pnpm test
+cd /Users/zac/.anvil/repositories/anvil/ivory-dragonfly && pnpm test
 ```
 
 Key things to verify:

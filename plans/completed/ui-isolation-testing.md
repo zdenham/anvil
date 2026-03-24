@@ -206,7 +206,7 @@ VirtualFS.updateTask("my-task", { status: "done" });
 VirtualFS.updateThreadState("my-task", "thread-123", { status: "complete" });
 ```
 
-**Constants:** `MOCK_HOME_DIR = "/Users/test"`, `MOCK_MORT_DIR = "/Users/test/.mort"`
+**Constants:** `MOCK_HOME_DIR = "/Users/test"`, `MOCK_ANVIL_DIR = "/Users/test/.anvil"`
 
 ### Phase 2: Event Simulation - COMPLETE
 
@@ -1072,7 +1072,7 @@ const thread: ThreadMetadata = {
   updatedAt: Date.now(),
   turns: [],                        // Required: array of ThreadTurn
   git: {                            // Optional
-    branch: "mort/my-task",
+    branch: "anvil/my-task",
     commitHash: "abc123",
   },
   ttlMs: undefined,                 // Optional
@@ -1380,7 +1380,7 @@ Addressed all 14 gaps identified in the Round 2 review by verifying against actu
 
 #### 7. MOCK_HOME_DIR Documentation (Gap #7)
 - These constants are already documented in Phase 1.5 section
-- **Verified:** `MOCK_HOME_DIR` and `MOCK_MORT_DIR` are exported from `tauri-api.ts`
+- **Verified:** `MOCK_HOME_DIR` and `MOCK_ANVIL_DIR` are exported from `tauri-api.ts`
 - **Note:** `VirtualFS` imports these from tauri-api.ts, so tests can use VirtualFS helpers
 
 #### 8. ThreadMetadata Schema Fields (Gap #8)

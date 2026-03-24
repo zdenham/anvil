@@ -191,7 +191,7 @@ These files define their own local `ThreadStatus` type for UI purposes:
 
 1. Build agents package:
    ```bash
-   pnpm --filter @mort/agents build
+   pnpm --filter @anvil/agents build
    ```
 
 2. Run type check:

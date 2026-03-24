@@ -56,7 +56,7 @@ Add two new public methods:
 1. Resolve the plan's absolute path via `resolvePlanPath(plan)`
 2. Delete the markdown file from disk using `FilesystemClient.remove()`
 3. If the plan is a folder (has child plans in subdirectory), also delete child markdown files and their metadata
-4. Delete plan metadata via existing `this.delete(id)` (removes `~/.mort/plans/{id}`)
+4. Delete plan metadata via existing `this.delete(id)` (removes `~/.anvil/plans/{id}`)
 
 ### `deletePlanFileAndUntrack(planId: string)`
 1. Resolve the plan's absolute path and worktree path

@@ -38,7 +38,7 @@ Add a PreToolUse hook in the agent runner that fires on `Bash` tool calls. The h
 
 1. **Extract the command string** from the tool input
 2. **Check against banned patterns** using regex matching (not naive substring — avoid false positives on e.g. `git stash list` or `git log --force`)
-3. **Check worktree context** — only deny when the command runs in the main repo worktree. Commands in agent-owned worktrees (`.claude/worktrees/`, `.mort/worktrees/`) are fine.
+3. **Check worktree context** — only deny when the command runs in the main repo worktree. Commands in agent-owned worktrees (`.claude/worktrees/`, `.anvil/worktrees/`) are fine.
 4. **Return** `deny` **with a clear message** explaining why the command was blocked and suggesting alternatives:
    - Instead of `git stash`: use `git diff > /tmp/patch.diff && ... && git apply /tmp/patch.diff`
    - Instead of `git checkout --force`: use `git checkout` (without force) and handle conflicts
@@ -122,4 +122,4 @@ Even though `git checkout --force` was not the root cause, the `--force` flag on
 | `git_commands.rs:997` | `git rm --force` | OK — intentional file deletion |
 | `filesystem.rs:284` | `git worktree add --force --detach` | OK — overrides stale registrations |
 | `filesystem.rs:306` | `git worktree remove --force` | OK — same as above |
-| `git_commands.rs:349` | `git branch -D` | OK — only mort-managed branches |
+| `git_commands.rs:349` | `git branch -D` | OK — only anvil-managed branches |

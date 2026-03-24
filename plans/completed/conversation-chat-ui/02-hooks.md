@@ -22,7 +22,7 @@ src/
 
 ## Key Principles
 
-- **Disk always wins**: On mount, load persisted state from `.mort/conversations/{id}/` - this is the source of truth
+- **Disk always wins**: On mount, load persisted state from `.anvil/conversations/{id}/` - this is the source of truth
 - **Zustand for state**: All conversation state lives in zustand store, not local React state
 - **Service for operations**: Explicit CRUD methods, not implicit hooks
 - **Hooks are thin**: Hooks only trigger service calls and select from store
@@ -207,7 +207,7 @@ class ConversationService {
   ): Promise<LoadedConversation> {
     const conversationPath = await join(
       workingDirectory,
-      ".mort",
+      ".anvil",
       "conversations",
       conversationId
     );

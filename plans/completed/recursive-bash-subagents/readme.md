@@ -12,7 +12,7 @@ This enables:
 
 ## Phases
 
-- [x] Remove `MORT_RUNNER_PATH` env var - derive path from `import.meta.url` instead
+- [x] Remove `ANVIL_RUNNER_PATH` env var - derive path from `import.meta.url` instead
 - [x] Inject parent context into system prompt as template variables
 - [x] Add `--parent-thread-id` CLI arg and store in thread metadata
 - [x] Update `RECURSIVE_SUBAGENT` prompt to use injected template variables
@@ -35,7 +35,7 @@ This enables:
 ### Key Insight: Context Already Available
 
 The parent agent process already has all the values needed to spawn sub-agents:
-- `repoId`, `worktreeId`, `threadId`, `mortDir`, `cwd` - all passed via CLI args
+- `repoId`, `worktreeId`, `threadId`, `anvilDir`, `cwd` - all passed via CLI args
 - `runnerPath` - derivable from `import.meta.url` (the runner knows its own location)
 
 **No new environment variables are needed.** Instead, the runner injects these values into the system prompt as template variables (e.g., `{{repoId}}`), making them directly usable by the agent.
@@ -48,7 +48,7 @@ The parent agent process already has all the values needed to spawn sub-agents:
 | `{{repoId}}` | CLI `--repo-id` | Repository UUID |
 | `{{worktreeId}}` | CLI `--worktree-id` | Worktree UUID |
 | `{{threadId}}` | CLI `--thread-id` | Current thread UUID (becomes parent for sub-agents) |
-| `{{mortDir}}` | CLI `--mort-dir` | Path to `~/.mort` data directory |
+| `{{anvilDir}}` | CLI `--anvil-dir` | Path to `~/.anvil` data directory |
 | `{{cwd}}` | CLI `--cwd` | Working directory |
 
 ### Command Format (Template in System Prompt)
@@ -60,7 +60,7 @@ node "{{runnerPath}}" \
   --thread-id "$(uuidgen | tr '[:upper:]' '[:lower:]')" \
   --parent-thread-id "{{threadId}}" \
   --cwd "$PWD" \
-  --mort-dir "{{mortDir}}" \
+  --anvil-dir "{{anvilDir}}" \
   --prompt "Task description for sub-agent"
 ```
 
@@ -84,7 +84,7 @@ The agent copies this template, changing only:
 
 ## Implementation Details
 
-### Phase 1: Remove MORT_RUNNER_PATH Env Var
+### Phase 1: Remove ANVIL_RUNNER_PATH Env Var
 
 **File**: `agents/src/runner.ts`
 
@@ -98,7 +98,7 @@ Pass this to the prompt template system.
 
 **File**: `src/lib/agent-service.ts`
 
-Remove `MORT_RUNNER_PATH` from env vars - no longer needed.
+Remove `ANVIL_RUNNER_PATH` from env vars - no longer needed.
 
 ### Phase 2: Inject Context into System Prompt
 
@@ -106,7 +106,7 @@ Remove `MORT_RUNNER_PATH` from env vars - no longer needed.
 
 In `runAgentLoop`, replace template variables in the appended prompt:
 - `{{runnerPath}}` → derived from `import.meta.url`
-- `{{repoId}}`, `{{worktreeId}}`, `{{threadId}}`, `{{mortDir}}`, `{{cwd}}` → from `RunnerConfig`
+- `{{repoId}}`, `{{worktreeId}}`, `{{threadId}}`, `{{anvilDir}}`, `{{cwd}}` → from `RunnerConfig`
 
 ### Phase 3: Add Parent Thread ID Support
 
@@ -143,7 +143,7 @@ node "{{runnerPath}}" \
   --thread-id "$(uuidgen | tr '[:upper:]' '[:lower:]')" \
   --parent-thread-id "{{threadId}}" \
   --cwd "$PWD" \
-  --mort-dir "{{mortDir}}" \
+  --anvil-dir "{{anvilDir}}" \
   --prompt "Your task description"
 \`\`\`
 
@@ -172,7 +172,7 @@ Test scenarios:
 | `agents/src/runners/types.ts` | Add `parentThreadId` to `RunnerConfig` | ✅ |
 | `agents/src/runners/simple-runner-strategy.ts` | Parse `--parent-thread-id`, write to metadata | ✅ |
 | `agents/src/agent-types/shared-prompts.ts` | Update to use `{{var}}` template syntax | ✅ |
-| `src/lib/agent-service.ts` | Remove `MORT_RUNNER_PATH` env var | ✅ |
+| `src/lib/agent-service.ts` | Remove `ANVIL_RUNNER_PATH` env var | ✅ |
 | `agents/src/output.ts` | (Keep existing `subagent_result` marker) | ✅ |
 
 ---

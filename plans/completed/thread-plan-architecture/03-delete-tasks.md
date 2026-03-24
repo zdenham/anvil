@@ -116,7 +116,7 @@ Remove all task-related code from the codebase. This is a breaking change with n
 - [ ] `src/lib/persistence.ts` - Remove task file I/O
 - [ ] `src/lib/agent-service.ts` - Remove taskService import, TaskMetadata usage, task.slug, task.branchName references
 - [ ] `src/lib/agent-state-machine.ts` - Remove task imports
-- [ ] `src/lib/mort-bootstrap.ts` - Remove task service references
+- [ ] `src/lib/anvil-bootstrap.ts` - Remove task service references
 
 ### Hooks
 - [ ] `src/hooks/index.ts` - Remove `useTaskThreads`, `useDeleteTask` exports
@@ -139,7 +139,7 @@ Remove all task-related code from the codebase. This is a breaking change with n
 - [ ] `agents/src/testing/agent-harness.ts` - Remove task references
 - [ ] `agents/src/testing/runner-config.ts` - Remove task references
 - [ ] `agents/src/testing/types.ts` - Remove task references
-- [ ] `agents/src/testing/services/test-mort-directory.ts` - Remove task references
+- [ ] `agents/src/testing/services/test-anvil-directory.ts` - Remove task references
 
 ## Build Configuration
 - [ ] `vite.config.ts` - Remove `task`, `tasks-panel` entries

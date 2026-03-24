@@ -6,7 +6,7 @@ Three fixes: less prescriptive breadcrumbs, proper per-task plan directories, an
 
 **Problem**: The breadcrumb file format and child prompt encourage the next agent to follow a detailed playbook instead of exercising judgment. Look at `003-progress.md` — it contains 50+ lines of specific chapter content, character bios, and step-by-step instructions. The "Next Steps" section essentially scripts the next agent's entire session. This defeats the design principle stated in the breadcrumb protocol: "Don't just follow a checklist from the previous breadcrumb; use your own judgment."
 
-**Fix**: Revise both `plugins/mort/skills/breadcrumb/SKILL.md` and `plugins/mort/skills/breadcrumb-loop/SKILL.md` to:
+**Fix**: Revise both `plugins/anvil/skills/breadcrumb/SKILL.md` and `plugins/anvil/skills/breadcrumb-loop/SKILL.md` to:
 
 - **Shrink the breadcrumb format**. Replace the current 6-section template with a leaner one:
 
@@ -87,9 +87,9 @@ By the time real utilization hits \~25-30%, the cumulative calculation already s
 
 - [x] Fix context utilization bug in `message-handler.ts` — use latest turn tokens instead of cumulative sum for `getUtilization()` and `checkContextPressure()`
 
-- [x] Revise breadcrumb format in `plugins/mort/skills/breadcrumb/SKILL.md` — leaner template, no "Next Steps" playbook, 50 line cap
+- [x] Revise breadcrumb format in `plugins/anvil/skills/breadcrumb/SKILL.md` — leaner template, no "Next Steps" playbook, 50 line cap
 
-- [x] Revise child prompt in `plugins/mort/skills/breadcrumb-loop/SKILL.md` — instruct concise factual breadcrumbs, no instructions for next agent
+- [x] Revise child prompt in `plugins/anvil/skills/breadcrumb-loop/SKILL.md` — instruct concise factual breadcrumbs, no instructions for next agent
 
 - [x] Update breadcrumb directory from `plans/breadcrumbs/<task-slug>/` to `plans/<task-slug>/` and rename `goal.md` → `readme.md` in both [SKILL.md](http://SKILL.md) files
 
@@ -104,7 +104,7 @@ By the time real utilization hits \~25-30%, the cumulative calculation already s
 | File | Change |
 | --- | --- |
 | `agents/src/runners/message-handler.ts` | Fix `getUtilization()` and `checkContextPressure()` to use latest turn tokens, not cumulative sum |
-| `plugins/mort/skills/breadcrumb/SKILL.md` | Leaner breadcrumb template (Done/Remaining/Context, 50 line cap) |
-| `plugins/mort/skills/breadcrumb-loop/SKILL.md` | Update child prompt, breadcrumb dir path (`plans/<task-slug>/`), and rename `goal.md` → `readme.md` |
-| `plugins/mort/skills/breadcrumb/SKILL.md` | Also update `goal.md` → `readme.md` references |
+| `plugins/anvil/skills/breadcrumb/SKILL.md` | Leaner breadcrumb template (Done/Remaining/Context, 50 line cap) |
+| `plugins/anvil/skills/breadcrumb-loop/SKILL.md` | Update child prompt, breadcrumb dir path (`plans/<task-slug>/`), and rename `goal.md` → `readme.md` |
+| `plugins/anvil/skills/breadcrumb/SKILL.md` | Also update `goal.md` → `readme.md` references |
 | `plans/breadcrumb-skill-system.md` | Update directory references and format description |

@@ -99,7 +99,7 @@ PreToolUse: [
         const taskPrompt = taskInput.prompt ?? `Sub-agent: ${agentType}`;
 
         // Create child thread directory and metadata
-        const childThreadPath = join(config.mortDir, "threads", childThreadId);
+        const childThreadPath = join(config.anvilDir, "threads", childThreadId);
         const now = Date.now();
 
         const childMetadata = {
@@ -250,7 +250,7 @@ if (input.tool_name === "Task") {
       ? JSON.parse(input.tool_response)
       : input.tool_response;
 
-    const childThreadPath = join(config.mortDir, "threads", childThreadId);
+    const childThreadPath = join(config.anvilDir, "threads", childThreadId);
     const metadataPath = join(childThreadPath, "metadata.json");
     const statePath = join(childThreadPath, "state.json");
 

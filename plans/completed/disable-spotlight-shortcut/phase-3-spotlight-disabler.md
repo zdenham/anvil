@@ -276,17 +276,17 @@ Add to `src-tauri/src/lib.rs`:
 ```rust
 mod spotlight_shortcut;
 
-// Make public for mort-test CLI access
+// Make public for anvil-test CLI access
 pub use spotlight_shortcut::{disable_spotlight_shortcut, is_spotlight_shortcut_enabled};
 ```
 
 ## Verification
 
-1. Run `cargo check -p mortician`
+1. Run `cargo check -p anvil`
 2. Manually test with accessibility permission granted:
    ```bash
-   # In a test binary or via mort-test (after Phase 5)
-   cargo test -p mortician -- --ignored test_check_spotlight_enabled
+   # In a test binary or via anvil-test (after Phase 5)
+   cargo test -p anvil -- --ignored test_check_spotlight_enabled
    ```
 
 ## Success Criteria

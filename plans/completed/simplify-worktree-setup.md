@@ -109,7 +109,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKTREE_ROOT="$(dirname "$SCRIPT_DIR")"
-MAIN_WORKTREE="${1:-$HOME/Documents/juice/mort/mortician}"
+MAIN_WORKTREE="${1:-$HOME/Documents/juice/anvil/anvil}"
 
 echo "Setting up worktree at: $WORKTREE_ROOT"
 echo "Copying .env from: $MAIN_WORKTREE"
@@ -154,7 +154,7 @@ After `git worktree add`, run:
 
     pnpm setup [path-to-main-worktree]
 
-Default main worktree: `~/Documents/juice/mort/mortician`
+Default main worktree: `~/Documents/juice/anvil/anvil`
 
 This copies `.env` and installs all dependencies. Then run `pnpm dev`.
 ```

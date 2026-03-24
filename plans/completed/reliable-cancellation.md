@@ -214,7 +214,7 @@ Replace the single-PID SIGTERM with a process-tree kill. On macOS/Linux, use `pk
 #[tauri::command]
 pub async fn kill_process_tree(pid: u32) -> Result<bool, String> {
     // 1. Validate: read /proc/{pid}/cmdline or use `ps -p {pid} -o command=`
-    //    Verify it contains "node" and "runner.js" or "mort"
+    //    Verify it contains "node" and "runner.js" or "anvil"
     // 2. Get all descendant PIDs: `pgrep -P {pid}` recursively
     // 3. Send SIGTERM to all (leaf-first, then parent)
     // 4. Wait up to 3s, checking if processes exited
@@ -327,7 +327,7 @@ From the Claude Agent SDK types (`sdk.d.ts`):
 
 ## Risks and Considerations
 
-1. **Process tree kill safety** — must validate PID/command before killing to avoid killing unrelated processes. The validation regex should check for "node" + ("runner.js" | "mort") in the command line.
+1. **Process tree kill safety** — must validate PID/command before killing to avoid killing unrelated processes. The validation regex should check for "node" + ("runner.js" | "anvil") in the command line.
 2. **SIGKILL data loss** — SIGKILL prevents graceful cleanup. The agent won't write final state to disk. This is acceptable as a last resort since the disk state from the last write is still valid.
 3. **Sub-agent orphans** — when killing a parent agent, sub-agents may also need cleanup. The process tree kill handles this, but hub connections from sub-agents may linger. The hub should detect disconnected sockets and clean up.
 4. **Race conditions** — the agent might complete naturally during the cancellation timeout window. The code should handle this gracefully (cancelling an already-completed agent is a no-op).

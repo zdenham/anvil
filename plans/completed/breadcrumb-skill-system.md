@@ -16,13 +16,13 @@ User invokes /breadcrumb-loop "Implement the auth module"
   ├─ Parent agent (breadcrumb-loop skill):
   │   1. Creates breadcrumb dir: plans/breadcrumbs/<task-slug>/
   │   2. Writes goal.md with the overall objective
-  │   3. Runs mort-repl loop (sequential, not parallel)
+  │   3. Runs anvil-repl loop (sequential, not parallel)
   │       │
-  │       ├─ Iteration 1: mort.spawn({ prompt, contextShortCircuit })
+  │       ├─ Iteration 1: anvil.spawn({ prompt, contextShortCircuit })
   │       │   Prompt says: "no prior breadcrumbs, write 001-progress.md"
   │       │   Child reads goal.md, explores, works, writes 001-progress.md
   │       │
-  │       ├─ Iteration 2: mort.spawn({ prompt, contextShortCircuit })
+  │       ├─ Iteration 2: anvil.spawn({ prompt, contextShortCircuit })
   │       │   Prompt says: "latest breadcrumb: 001-progress.md, write 002-progress.md"
   │       │   Child reads goal.md + breadcrumbs as needed, continues work
   │       │
@@ -35,20 +35,20 @@ User invokes /breadcrumb-loop "Implement the auth module"
 
 ### `breadcrumb-loop` (user-invocable)
 
-**File**: `plugins/mort/skills/breadcrumb-loop/SKILL.md`
+**File**: `plugins/anvil/skills/breadcrumb-loop/SKILL.md`
 
 This skill instructs the parent agent to:
 
 1. **Parse the goal** from `$ARGUMENTS`
 2. **Create the breadcrumb directory** at `plans/breadcrumbs/<task-slug>/` with a `goal.md` summarizing the objective, acceptance criteria, and any relevant context
-3. **Run a mort-repl loop** that spawns child agents sequentially:
+3. **Run a anvil-repl loop** that spawns child agents sequentially:
    - Each child gets the same well-crafted prompt (see "Child Prompt Design" below)
    - Each child uses `contextShortCircuit` (depends on context-short-circuit plan being implemented)
    - After each child completes, the parent checks its result for a **completion signal** (`BREADCRUMB_COMPLETE`) — if found, exit the loop
    - Cap at a configurable max iterations (default: 100) as a safety valve
 4. **Report final status** — summarize what was accomplished by reading the breadcrumb trail
 
-The mort-repl code the parent writes would look roughly like:
+The anvil-repl code the parent writes would look roughly like:
 
 ```javascript
 const BREADCRUMB_DIR = "plans/breadcrumbs/<task-slug>";
@@ -59,9 +59,9 @@ for (let i = 0; i < MAX_ITERATIONS; i++) {
   const lastBreadcrumb = i === 0 ? null : `${String(i).padStart(3, "0")}-progress.md`;
   const nextBreadcrumb = `${num}-progress.md`;
 
-  mort.log(`Breadcrumb iteration ${i + 1}/${MAX_ITERATIONS}`);
+  anvil.log(`Breadcrumb iteration ${i + 1}/${MAX_ITERATIONS}`);
 
-  const result = await mort.spawn({
+  const result = await anvil.spawn({
     prompt: buildChildPrompt(BREADCRUMB_DIR, { lastBreadcrumb, nextBreadcrumb }),
     contextShortCircuit: {
       limitPercent: 75,
@@ -71,7 +71,7 @@ for (let i = 0; i < MAX_ITERATIONS; i++) {
 
   // Check for completion signal — child must have 100% confidence
   if (result.includes("BREADCRUMB_COMPLETE")) {
-    mort.log("Task completed!");
+    anvil.log("Task completed!");
     break;
   }
 }
@@ -79,11 +79,11 @@ for (let i = 0; i < MAX_ITERATIONS; i++) {
 return readFinalSummary(BREADCRUMB_DIR);
 ```
 
-**Key**: The skill should tell the parent agent to write this mort-repl code itself — the SKILL.md provides the pattern, not a hardcoded script. This lets the parent adapt the loop parameters (max iterations, limitPercent, directory name) based on the specific task.
+**Key**: The skill should tell the parent agent to write this anvil-repl code itself — the SKILL.md provides the pattern, not a hardcoded script. This lets the parent adapt the loop parameters (max iterations, limitPercent, directory name) based on the specific task.
 
 ### `breadcrumb` (sub-agent only, NOT user-invocable)
 
-**File**: `plugins/mort/skills/breadcrumb/SKILL.md`
+**File**: `plugins/anvil/skills/breadcrumb/SKILL.md`
 
 This skill is NOT user-invocable (`user-invocable: false`). It gets referenced in the child agent's prompt so the agent knows how to behave. The child agent doesn't invoke it — the instructions are embedded directly in the prompt the parent constructs.
 
@@ -177,14 +177,14 @@ This plan depends on the `contextShortCircuit` option from `plans/context-short-
 
 | File | Change |
 | --- | --- |
-| `plugins/mort/skills/breadcrumb-loop/SKILL.md` | New skill — user-invocable, instructs parent to set up breadcrumb dir and mort-repl loop |
-| `plugins/mort/skills/breadcrumb/SKILL.md` | New skill — NOT user-invocable, defines the child agent breadcrumb protocol |
+| `plugins/anvil/skills/breadcrumb-loop/SKILL.md` | New skill — user-invocable, instructs parent to set up breadcrumb dir and anvil-repl loop |
+| `plugins/anvil/skills/breadcrumb/SKILL.md` | New skill — NOT user-invocable, defines the child agent breadcrumb protocol |
 
-**No code changes needed** — both skills are pure SKILL.md prompt files. The actual orchestration logic is written by the parent agent at runtime using mort-repl (same as the orchestrate skill pattern). The `contextShortCircuit` API changes are covered by the separate context-short-circuit plan.
+**No code changes needed** — both skills are pure SKILL.md prompt files. The actual orchestration logic is written by the parent agent at runtime using anvil-repl (same as the orchestrate skill pattern). The `contextShortCircuit` API changes are covered by the separate context-short-circuit plan.
 
 ## Phases
 
-- [x] Write `breadcrumb-loop/SKILL.md` — user-invocable skill with mort-repl loop pattern, goal.md setup, iteration/completion logic
+- [x] Write `breadcrumb-loop/SKILL.md` — user-invocable skill with anvil-repl loop pattern, goal.md setup, iteration/completion logic
 - [x] Write `breadcrumb/SKILL.md` — sub-agent protocol: read breadcrumbs, work, write progress, completion signal
 - [ ] Test end-to-end with a real task (requires context-short-circuit to be implemented first)
 
@@ -207,7 +207,7 @@ Children need the handoff protocol from the start — they need to know where to
 The child should read goal.md itself. This keeps the prompt small, lets the child decide how much context to pull in, and avoids the parent's interpretation filtering the original goal. The child reads the source of truth directly.
 
 ### Why `BREADCRUMB_COMPLETE` as a signal?
-Simple string matching in the parent's mort-repl loop. No structured output parsing needed. The child includes it in its final message only when it has **100% confidence** the goal is fully met — all acceptance criteria satisfied, tests passing, no remaining work. The bar is intentionally high: it's better to run one extra iteration than to prematurely signal completion. If in doubt, don't signal — the next agent will verify and complete.
+Simple string matching in the parent's anvil-repl loop. No structured output parsing needed. The child includes it in its final message only when it has **100% confidence** the goal is fully met — all acceptance criteria satisfied, tests passing, no remaining work. The bar is intentionally high: it's better to run one extra iteration than to prematurely signal completion. If in doubt, don't signal — the next agent will verify and complete.
 
 ### Max iterations safety valve
 Without a cap, a confused agent could loop forever. Default 100 gives ample runway for large tasks — most tasks should complete well before hitting the cap. The parent can adjust based on task scope.

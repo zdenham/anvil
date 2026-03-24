@@ -12,7 +12,7 @@ Remove CLI task commands and legacy Tauri commands that could cause runtime erro
 
 ### 1. Remove CLI Task Commands
 
-**File:** `agents/src/cli/mort.ts`
+**File:** `agents/src/cli/anvil.ts`
 
 Remove the entire task CLI section:
 - [ ] Delete placeholder types (lines 8-21)
@@ -48,7 +48,7 @@ export const openTask = async (
 
 ### 3. Remove Rust Backend Command
 
-**File:** `src-tauri/src/mort_commands.rs` (or similar)
+**File:** `src-tauri/src/anvil_commands.rs` (or similar)
 
 - [ ] Find the `open_task` Tauri command
 - [ ] Remove it from Rust backend
@@ -69,7 +69,7 @@ rg "openTask|open_task" --type ts --type rust
 
 ## Success Criteria
 
-- [ ] CLI `mort tasks` command removed or returns helpful error
+- [ ] CLI `anvil tasks` command removed or returns helpful error
 - [ ] No `openTask` function in hotkey-service.ts
 - [ ] No `open_task` command in Rust backend
 - [ ] All tests pass

@@ -65,7 +65,7 @@ Search and update all files that reference the renamed types:
 - [ ] `src/lib/persistence.ts`
 - [ ] `core/services/repository/settings-service.test.ts`
 - [ ] `core/services/worktree/worktree-service.test.ts`
-- [ ] `agents/src/testing/services/test-mort-directory.ts`
+- [ ] `agents/src/testing/services/test-anvil-directory.ts`
 - [ ] `core/types/__tests__/thread-plan-types.test.ts`
 - [ ] `src/entities/threads/__tests__/utils.test.ts`
 

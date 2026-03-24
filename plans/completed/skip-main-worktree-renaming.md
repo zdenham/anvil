@@ -47,9 +47,9 @@ Add a new helper function in `simple-runner-strategy.ts` that determines if a wo
  *
  * @returns true if this is the main worktree, false otherwise (including on any errors)
  */
-function isMainWorktree(mortDir: string, repoId: string, worktreeId: string): boolean {
+function isMainWorktree(anvilDir: string, repoId: string, worktreeId: string): boolean {
   try {
-    const reposDir = join(mortDir, "repositories");
+    const reposDir = join(anvilDir, "repositories");
     if (!existsSync(reposDir)) {
       return false;
     }
@@ -110,10 +110,10 @@ Modify the worktree naming check in the `setup()` method to also skip if this is
 
 **Current code:**
 ```typescript
-const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
+const alreadyRenamed = isWorktreeRenamed(anvilDir, repoId, worktreeId);
 if (!alreadyRenamed) {
   emitLog("INFO", `[worktree_rename] New thread created, worktree not yet renamed - initiating worktree naming for worktreeId=${worktreeId}`);
-  this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
+  this.initiateWorktreeNaming(worktreeId, repoId, prompt, anvilDir);
 } else {
   emitLog("INFO", `[worktree_rename] Skipping worktree naming - worktree already renamed (worktreeId=${worktreeId})`);
 }
@@ -121,14 +121,14 @@ if (!alreadyRenamed) {
 
 **Updated code:**
 ```typescript
-const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
-const mainWorktree = isMainWorktree(mortDir, repoId, worktreeId);
+const alreadyRenamed = isWorktreeRenamed(anvilDir, repoId, worktreeId);
+const mainWorktree = isMainWorktree(anvilDir, repoId, worktreeId);
 
 if (mainWorktree) {
   emitLog("INFO", `[worktree_rename] Skipping worktree naming - this is the main worktree (worktreeId=${worktreeId})`);
 } else if (!alreadyRenamed) {
   emitLog("INFO", `[worktree_rename] New thread created, worktree not yet renamed - initiating worktree naming for worktreeId=${worktreeId}`);
-  this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
+  this.initiateWorktreeNaming(worktreeId, repoId, prompt, anvilDir);
 } else {
   emitLog("INFO", `[worktree_rename] Skipping worktree naming - worktree already renamed (worktreeId=${worktreeId})`);
 }
@@ -143,7 +143,7 @@ An alternative is to compare `cwd` (the working directory passed to the agent) w
 This is simpler but requires passing `cwd` to the check:
 
 ```typescript
-function isMainWorktree(mortDir: string, repoId: string, cwd: string): boolean {
+function isMainWorktree(anvilDir: string, repoId: string, cwd: string): boolean {
   // ... similar repo lookup logic ...
   const normalizedCwd = cwd.replace(/\/$/, '');
   const normalizedSourcePath = settings.sourcePath.replace(/\/$/, '');

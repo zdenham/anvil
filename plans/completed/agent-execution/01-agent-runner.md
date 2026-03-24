@@ -71,7 +71,7 @@ agents/
 
 ```json
 {
-  "name": "@mort/agents",
+  "name": "@anvil/agents",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -194,7 +194,7 @@ async function main() {
   mkdirSync(args.conversationPath, { recursive: true });
 
   // Create and checkout task branch (use conversationId as branch identifier)
-  const taskBranch = `mort/${args.conversationId}`;
+  const taskBranch = `anvil/${args.conversationId}`;
   createTaskBranch(args.cwd, taskBranch);
 
   // Initialize dual output (stdout + file)
@@ -775,17 +775,17 @@ Cache persists through:
 
    ```bash
    # First create the conversation directory (simulates what conversationService.create() does)
-   mkdir -p /path/to/repo/.mort/conversations/test-conv-123
+   mkdir -p /path/to/repo/.anvil/conversations/test-conv-123
 
    ANTHROPIC_API_KEY=xxx node agents/dist/runner.js \
      --agent simplifier \
      --cwd /path/to/repo \
      --prompt "Simplify the auth module" \
      --conversation-id test-conv-123 \
-     --conversation-path /path/to/repo/.mort/conversations/test-conv-123
+     --conversation-path /path/to/repo/.anvil/conversations/test-conv-123
    ```
 
 3. Verify stdout outputs JSONL messages
-4. Verify `/path/to/repo/.mort/conversations/test-conv-123/messages.jsonl` is created and matches stdout
-5. Verify git branch `mort/test-conv-123` is created and checked out
+4. Verify `/path/to/repo/.anvil/conversations/test-conv-123/messages.jsonl` is created and matches stdout
+5. Verify git branch `anvil/test-conv-123` is created and checked out
 6. Verify exit code is 0 on success, 1 on error

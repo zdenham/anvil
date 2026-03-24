@@ -154,7 +154,7 @@ let output = shell::command("git")
     .output()
     .map_err(|e| format!("Failed to run git: {}", e))?;
 
-// Similarly for fs_git_worktree_remove, delete_git_branch, list_mort_branches
+// Similarly for fs_git_worktree_remove, delete_git_branch, list_anvil_branches
 ```
 
 ### Step 4: Update git_commands.rs

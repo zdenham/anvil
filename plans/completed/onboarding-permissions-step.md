@@ -2,15 +2,15 @@
 
 ## Overview
 
-Add a new permissions step to the onboarding flow that appears after the "Begin" welcome step. This step requests document permissions before bootstrapping the `.mort` directory, providing a better first-time user experience by explaining why permissions are needed before showing the system popup.
+Add a new permissions step to the onboarding flow that appears after the "Begin" welcome step. This step requests document permissions before bootstrapping the `.anvil` directory, providing a better first-time user experience by explaining why permissions are needed before showing the system popup.
 
 ## Problem
 
-Currently, `bootstrapMortDirectory()` is called in `main.tsx` immediately on app startup, which triggers a "open Documents" system permission popup. For first-time users, this is jarring because they haven't been informed about what the app needs or why.
+Currently, `bootstrapAnvilDirectory()` is called in `main.tsx` immediately on app startup, which triggers a "open Documents" system permission popup. For first-time users, this is jarring because they haven't been informed about what the app needs or why.
 
 ## Solution
 
-1. Delay the `.mort` directory bootstrap until after the user grants document permissions during onboarding
+1. Delay the `.anvil` directory bootstrap until after the user grants document permissions during onboarding
 2. Add a new "Permissions" step after "Welcome" with two numbered link-style buttons
 3. Keep automatic bootstrap for already-onboarded users (existing behavior)
 
@@ -21,7 +21,7 @@ The permissions step displays:
 ```
 Permissions
 
-Mort needs access to your Documents folder to store task data and configurations.
+Anvil needs access to your Documents folder to store task data and configurations.
 
 1. Grant Documents access (required)
    [link button: "Open Documents folder"]
@@ -64,16 +64,16 @@ pub fn fs_check_documents_access() -> Result<bool, String> {
     }
 }
 
-/// Request access to Documents by opening the .mort directory (triggers permission prompt)
+/// Request access to Documents by opening the .anvil directory (triggers permission prompt)
 #[tauri::command]
 pub fn fs_request_documents_access() -> Result<bool, String> {
     let documents_dir = dirs::document_dir()
         .ok_or_else(|| "Could not find Documents directory".to_string())?;
 
-    let mort_dir = documents_dir.join(".mort");
+    let anvil_dir = documents_dir.join(".anvil");
 
     // Creating the directory will trigger the permission prompt
-    match std::fs::create_dir_all(&mort_dir) {
+    match std::fs::create_dir_all(&anvil_dir) {
         Ok(_) => Ok(true),
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => Ok(false),
         Err(e) => Err(e.to_string()),
@@ -171,7 +171,7 @@ export const PermissionsStep = ({
         Permissions
       </h2>
       <p className="text-lg text-surface-300">
-        Mort needs access to your Documents folder to store task data and configurations.
+        Anvil needs access to your Documents folder to store task data and configurations.
       </p>
 
       <ol className="space-y-4 list-decimal list-inside">
@@ -227,7 +227,7 @@ Modify `src/components/onboarding/OnboardingFlow.tsx`:
 2. Import and use `PermissionsStep`
 3. Add state for `documentsGranted`
 4. Update step flow: welcome -> permissions -> hotkey -> ...
-5. Call `bootstrapMortDirectory()` after documents permission granted
+5. Call `bootstrapAnvilDirectory()` after documents permission granted
 6. Update `canProceed()` to check `documentsGranted` for permissions step
 7. Update `getButtonText()` to return "Permissions granted ↵" for permissions step
 
@@ -235,7 +235,7 @@ Key changes:
 
 ```typescript
 import { PermissionsStep } from "./steps/PermissionsStep";
-import { bootstrapMortDirectory } from "@/lib/mort-bootstrap";
+import { bootstrapAnvilDirectory } from "@/lib/anvil-bootstrap";
 
 type OnboardingStepName = 'welcome' | 'permissions' | 'hotkey' | 'spotlight' | 'repository';
 
@@ -245,8 +245,8 @@ const [documentsGranted, setDocumentsGranted] = useState(false);
 // Handler for when documents access is granted
 const handleDocumentsGranted = useCallback(async () => {
   setDocumentsGranted(true);
-  // Bootstrap the .mort directory now that we have permission
-  await bootstrapMortDirectory();
+  // Bootstrap the .anvil directory now that we have permission
+  await bootstrapAnvilDirectory();
 }, []);
 
 // Update step navigation
@@ -285,16 +285,16 @@ Modify `src/main.tsx`:
 
 ```typescript
 import { invoke } from "@tauri-apps/api/core";
-import { bootstrapMortDirectory } from "./lib/mort-bootstrap";
+import { bootstrapAnvilDirectory } from "./lib/anvil-bootstrap";
 
 // Only bootstrap if already onboarded (permission already granted)
 invoke<boolean>("is_onboarded").then((onboarded) => {
   if (onboarded) {
-    bootstrapMortDirectory().catch((error) => {
-      logger.error("Failed to bootstrap .mort directory:", error);
+    bootstrapAnvilDirectory().catch((error) => {
+      logger.error("Failed to bootstrap .anvil directory:", error);
     });
   }
-  // If not onboarded, the OnboardingFlow will call bootstrapMortDirectory
+  // If not onboarded, the OnboardingFlow will call bootstrapAnvilDirectory
   // after the user grants Documents permission in the permissions step
 }).catch((error) => {
   logger.error("Failed to check onboarding status:", error);
@@ -360,4 +360,4 @@ const getStepProgress = () => {
 
 - The accessibility permission is optional and doesn't block progression
 - Document permission is required because the app cannot function without it
-- The `.mort` directory is created in Documents, which requires explicit permission on macOS
+- The `.anvil` directory is created in Documents, which requires explicit permission on macOS

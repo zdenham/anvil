@@ -15,7 +15,7 @@ Planning → Execution → Review → QA → Merge
 | `agents/src/agent-types/qa.ts` | **New file** - QA agent definition |
 | `agents/src/agent-types/index.ts` | Register qa agent |
 | `agents/src/agent-types/shared-prompts.ts` | Add qa to HUMAN_REVIEW_TOOL table |
-| `agents/src/cli/mort.ts` | Add "qa" to VALID_AGENT_TYPES |
+| `agents/src/cli/anvil.ts` | Add "qa" to VALID_AGENT_TYPES |
 | `agents/src/agent-types/review.ts` | Update routing: review → qa instead of review → merge |
 
 ## Implementation Steps
@@ -28,7 +28,7 @@ Create new file with:
 import type { AgentConfig } from "./index.js";
 import {
   TASK_CONTEXT,
-  MORT_CLI_CORE,
+  ANVIL_CLI_CORE,
   EXPLORATION_TOOLS,
   HUMAN_REVIEW_TOOL,
   composePrompt,
@@ -135,7 +135,7 @@ export const qa: AgentConfig = {
     TESTING_CHECKLIST,
     DEV_SERVER_PATTERNS,
     REPORT_FORMAT,
-    MORT_CLI_CORE,
+    ANVIL_CLI_CORE,
     EXPLORATION_TOOLS,
     HUMAN_REVIEW_TOOL,
     GUIDELINES
@@ -171,7 +171,7 @@ Update common patterns:
 - QA passing: `--on-approve merge --on-feedback execution`
 ```
 
-### Step 4: Update `agents/src/cli/mort.ts`
+### Step 4: Update `agents/src/cli/anvil.ts`
 
 Line 60:
 ```typescript

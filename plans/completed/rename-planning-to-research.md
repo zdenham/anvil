@@ -48,12 +48,12 @@ The research agent should:
 
 ### 3. CLI Valid Agent Types
 
-**`agents/src/cli/mort.ts` (Line 75-76)**
+**`agents/src/cli/anvil.ts` (Line 75-76)**
 - Change: `["planning", "execution", "review", "merge"]` → `["research", "execution", "review", "merge"]`
 
 ### 4. Rust Backend
 
-**`src-tauri/src/mort_commands.rs` (Line 463)**
+**`src-tauri/src/anvil_commands.rs` (Line 463)**
 - Change: `vec!["planning", "execution", "review", "merge"]` → `vec!["research", "execution", "review", "merge"]`
 
 ### 5. TypeScript Type Definition
@@ -121,9 +121,9 @@ The research agent should:
    - [ ] Update `index.ts` imports
 
 2. **Phase 2: Backend**
-   - [ ] Update Rust `mort_commands.rs`
+   - [ ] Update Rust `anvil_commands.rs`
    - [ ] Update TypeScript types (`threads/types.ts`)
-   - [ ] Update CLI valid types (`mort.ts`)
+   - [ ] Update CLI valid types (`anvil.ts`)
 
 3. **Phase 3: Frontend**
    - [ ] Update `threads-list.tsx` switch cases
@@ -168,9 +168,9 @@ You are strictly a READ-ONLY agent. Your purpose is research and planning, not i
 - Request human review when done
 
 ### The ONLY file you write to:
-`{{mortDir}}/tasks/{{slug}}/content.md`
+`{{anvilDir}}/tasks/{{slug}}/content.md`
 
-This is in the Mort data directory, NOT the code repository. All research, context, and implementation plans go here for the execution agent to read.
+This is in the Anvil data directory, NOT the code repository. All research, context, and implementation plans go here for the execution agent to read.
 ```
 
 ## Acceptance Criteria

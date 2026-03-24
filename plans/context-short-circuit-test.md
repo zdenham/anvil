@@ -16,13 +16,13 @@ The existing unit test (`message-handler.test.ts:49-80`) masks this by sending a
 
 ```ts
 // MessageHandler constructor change:
-constructor(mortDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager, defaultContextWindow?: number) {
+constructor(anvilDir?: string, accumulator?: StreamAccumulator, drainManager?: DrainManager, defaultContextWindow?: number) {
   // ...existing...
   if (defaultContextWindow) this.contextWindow = defaultContextWindow;
 }
 
 // In runAgentLoop (shared.ts), where handler is created:
-const handler = new MessageHandler(config.mortDir, accumulator, drainManager, 200_000);
+const handler = new MessageHandler(config.anvilDir, accumulator, drainManager, 200_000);
 ```
 
 ## Test Design
@@ -47,7 +47,7 @@ The default `buildArgs` doesn't pass `--context-short-circuit`. We need a custom
 
 ```ts
 const shortCircuitRunnerConfig = createRunnerConfig({
-  buildArgs: (opts, mortDirPath, repoCwd) => {
+  buildArgs: (opts, anvilDirPath, repoCwd) => {
     const threadId = opts.threadId ?? randomUUID();
     const repoId = opts.repoId ?? randomUUID();
     const worktreeId = opts.worktreeId ?? randomUUID();
@@ -62,7 +62,7 @@ const shortCircuitRunnerConfig = createRunnerConfig({
       "--thread-id", threadId,
       "--repo-id", repoId,
       "--worktree-id", worktreeId,
-      "--mort-dir", mortDirPath,
+      "--anvil-dir", anvilDirPath,
       "--cwd", opts.cwd ?? repoCwd,
       "--context-short-circuit", JSON.stringify(shortCircuit),
     ];
@@ -159,7 +159,7 @@ import type { LogMessage } from "../../lib/hub/types.js";
 const describeWithApi = process.env.ANTHROPIC_API_KEY ? describe : describe.skip;
 
 const shortCircuitRunnerConfig = createRunnerConfig({
-  buildArgs: (opts, mortDirPath, repoCwd) => {
+  buildArgs: (opts, anvilDirPath, repoCwd) => {
     const threadId = opts.threadId ?? randomUUID();
     const repoId = opts.repoId ?? randomUUID();
     const worktreeId = opts.worktreeId ?? randomUUID();
@@ -174,7 +174,7 @@ const shortCircuitRunnerConfig = createRunnerConfig({
       "--thread-id", threadId,
       "--repo-id", repoId,
       "--worktree-id", worktreeId,
-      "--mort-dir", mortDirPath,
+      "--anvil-dir", anvilDirPath,
       "--cwd", opts.cwd ?? repoCwd,
       "--context-short-circuit", JSON.stringify(shortCircuit),
     ];

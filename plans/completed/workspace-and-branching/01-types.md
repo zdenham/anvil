@@ -13,8 +13,8 @@
 ```typescript
 // Used by: 03-workspace-service, 04-runner-updates, 05-agent-service
 export interface TaskBranchInfo {
-  branch: string;           // e.g., "mort/task-abc123"
-  baseBranch: string;       // e.g., "main" or "mort/task-parent"
+  branch: string;           // e.g., "anvil/task-abc123"
+  baseBranch: string;       // e.g., "main" or "anvil/task-parent"
   mergeBase: string;        // Commit hash at branch creation
   parentTaskId?: string;    // For subtasks
   createdAt: number;
@@ -67,10 +67,10 @@ Add the following type definitions:
  * Stored in repository settings, keyed by task ID.
  */
 export interface TaskBranchInfo {
-  /** Branch name, e.g., "mort/task-abc123" */
+  /** Branch name, e.g., "anvil/task-abc123" */
   branch: string;
 
-  /** Base branch this was created from, e.g., "main" or "mort/task-parent" */
+  /** Base branch this was created from, e.g., "main" or "anvil/task-parent" */
   baseBranch: string;
 
   /** Commit hash at branch creation - used for accurate diffs */
@@ -116,7 +116,7 @@ export interface WorktreeState {
 
 /**
  * Repository settings file structure.
- * Location: ~/.mort/repositories/{repo-slug}/settings.json
+ * Location: ~/.anvil/repositories/{repo-slug}/settings.json
  */
 export interface RepositorySettings {
   /** Schema version for migrations */
@@ -134,7 +134,7 @@ export interface RepositorySettings {
   /** Whether worktrees are enabled for this repo */
   useWorktrees: boolean;
 
-  /** When this repo was added to mort */
+  /** When this repo was added to anvil */
   createdAt: number;
 
   /** Pool of available worktrees */
@@ -161,7 +161,7 @@ export type ConversationStatus = "running" | "completed" | "error" | "paused";
 
 /**
  * Conversation metadata stored in:
- * ~/.mort/conversations/{conversation-id}/metadata.json
+ * ~/.anvil/conversations/{conversation-id}/metadata.json
  */
 export interface ConversationMetadata {
   /** Unique conversation identifier */
@@ -192,7 +192,7 @@ export interface ConversationMetadata {
 ### Storage Location
 
 ```
-~/.mort/conversations/
+~/.anvil/conversations/
 ├── conv-abc123/
 │   ├── metadata.json      # ConversationMetadata
 │   ├── history.jsonl      # Message history
@@ -218,9 +218,9 @@ The runner reads merge base from repository settings via the task ID, not from c
 
   "worktrees": [
     {
-      "path": "/Users/zac/.mort/repositories/my-app/my-app-1",
+      "path": "/Users/zac/.anvil/repositories/my-app/my-app-1",
       "version": 1,
-      "currentBranch": "mort/task-abc123",
+      "currentBranch": "anvil/task-abc123",
       "claim": {
         "conversationId": "conv-xyz789",
         "taskId": "task-abc123",
@@ -228,7 +228,7 @@ The runner reads merge base from repository settings via the task ID, not from c
       }
     },
     {
-      "path": "/Users/zac/.mort/repositories/my-app/my-app-2",
+      "path": "/Users/zac/.anvil/repositories/my-app/my-app-2",
       "version": 2,
       "currentBranch": "main",
       "claim": null
@@ -237,14 +237,14 @@ The runner reads merge base from repository settings via the task ID, not from c
 
   "taskBranches": {
     "task-abc123": {
-      "branch": "mort/task-abc123",
+      "branch": "anvil/task-abc123",
       "baseBranch": "main",
       "mergeBase": "a1b2c3d4e5f6",
       "createdAt": 1703180000000
     },
     "task-sub-1": {
-      "branch": "mort/task-sub-1",
-      "baseBranch": "mort/task-abc123",
+      "branch": "anvil/task-sub-1",
+      "baseBranch": "anvil/task-abc123",
       "mergeBase": "f6e5d4c3b2a1",
       "parentTaskId": "task-abc123",
       "createdAt": 1703182000000

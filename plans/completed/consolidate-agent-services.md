@@ -78,7 +78,7 @@ async function getRunnerPaths(): Promise<{
     return {
       runnerPath: `${__PROJECT_ROOT__}/agents/dist/runner.js`,
       nodeModulesPath: `${__PROJECT_ROOT__}/agents/node_modules`,
-      cliPath: `${__PROJECT_ROOT__}/agents/dist/cli/mort.js`,
+      cliPath: `${__PROJECT_ROOT__}/agents/dist/cli/anvil.js`,
     };
   }
   const runnerPath = await resolveResource("_up_/agents/dist/runner.js");
@@ -87,7 +87,7 @@ async function getRunnerPaths(): Promise<{
   return {
     runnerPath,
     nodeModulesPath: await join(agentsDir, "node_modules"),
-    cliPath: await join(agentsDistDir, "cli", "mort.js"),
+    cliPath: await join(agentsDistDir, "cli", "anvil.js"),
   };
 }
 ```
@@ -105,7 +105,7 @@ Create new function that:
 export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promise<void> {
   logger.info("[agent-service] spawnSimpleAgent START");
 
-  const mortDir = await fs.getDataDir();
+  const anvilDir = await fs.getDataDir();
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
   const shellPath = await getShellPath();
 
@@ -116,14 +116,14 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     "--thread-id", options.threadId,
     "--cwd", options.sourcePath,
     "--prompt", options.prompt,
-    "--mort-dir", mortDir,
+    "--anvil-dir", anvilDir,
   ];
 
   const command = Command.create("node", commandArgs, {
     cwd: options.sourcePath,
     env: {
       NODE_PATH: nodeModulesPath,
-      MORT_DATA_DIR: mortDir,
+      ANVIL_DATA_DIR: anvilDir,
       PATH: shellPath,
     },
   });
@@ -224,12 +224,12 @@ export async function resumeSimpleAgent(
   prompt: string,
   sourcePath: string,
 ): Promise<void> {
-  const mortDir = await fs.getDataDir();
+  const anvilDir = await fs.getDataDir();
   const { runnerPath, nodeModulesPath } = await getRunnerPaths();
   const shellPath = await getShellPath();
 
   // State path matches SimpleRunnerStrategy: simple-tasks/{threadId}/state.json
-  const stateFilePath = await join(mortDir, "simple-tasks", threadId, "state.json");
+  const stateFilePath = await join(anvilDir, "simple-tasks", threadId, "state.json");
 
   const commandArgs = [
     runnerPath,
@@ -237,7 +237,7 @@ export async function resumeSimpleAgent(
     "--thread-id", threadId,
     "--cwd", sourcePath,
     "--prompt", prompt,
-    "--mort-dir", mortDir,
+    "--anvil-dir", anvilDir,
     "--history-file", stateFilePath,
   ];
 
@@ -247,7 +247,7 @@ export async function resumeSimpleAgent(
     cwd: sourcePath,
     env: {
       NODE_PATH: nodeModulesPath,
-      MORT_DATA_DIR: mortDir,
+      ANVIL_DATA_DIR: anvilDir,
       PATH: shellPath,
     },
   });
@@ -321,7 +321,7 @@ SimpleRunnerStrategy expects these args (see `agents/src/runners/simple-runner-s
 | `--agent simple` | Yes | Selects SimpleRunnerStrategy |
 | `--cwd <path>` | Yes | Working directory (must exist) |
 | `--thread-id <uuid>` | Yes | Thread identifier |
-| `--mort-dir <path>` | Yes | Data directory |
+| `--anvil-dir <path>` | Yes | Data directory |
 | `--prompt <string>` | Yes | User prompt |
 | `--history-file <path>` | No | For resuming with prior messages |
 

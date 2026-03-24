@@ -53,7 +53,7 @@ There is **no shared `findTaskDir` helper** that both frontend and agents can us
 
 | Line | Operation | Current Behavior | Risk |
 |------|-----------|------------------|------|
-| 305 | `const taskDir = join(args.mortDir, "tasks", taskSlug)` | Constructs path from resolved slug | If slug resolution fails, path is wrong |
+| 305 | `const taskDir = join(args.anvilDir, "tasks", taskSlug)` | Constructs path from resolved slug | If slug resolution fails, path is wrong |
 | 315 | `const threadPath = join(taskDir, "threads", threadFolderName)` | Depends on taskDir being correct | Cascading failure from above |
 | 330-331 | `readFileSync(metadataPath)` | Assumes thread exists at computed path | No fallback if thread moved |
 | 403 | `writeFileSync(metadataPath, ...)` | Writes to computed path | Could create orphan if path wrong |
@@ -279,7 +279,7 @@ The key insight: **pass hint paths through the call chain, let the writer handle
 ```typescript
 // At startup: create resolution service and writer
 const fsAdapter = new NodeFSAdapter();
-const resolution = new ResolutionService(fsAdapter, join(args.mortDir, "tasks"));
+const resolution = new ResolutionService(fsAdapter, join(args.anvilDir, "tasks"));
 const threadWriter = new ThreadWriter(resolution, fsAdapter, args.threadId);
 
 // Resolve task with hint from args (O(1) if hint correct)
@@ -423,9 +423,9 @@ async function getThreadPath(
 
 | File | Line | Current Call | Change To |
 |------|------|--------------|-----------|
-| `agents/src/cli/mort.ts:388` | `persistence.findTaskBySlug(slug)` | User CLI input - acceptable |
-| `agents/src/cli/mort.ts:399` | `persistence.getTaskContent(task.slug)` | `getTaskContent(task.id)` |
-| `agents/src/runner.ts:305` | `join(args.mortDir, "tasks", taskSlug)` | Use resolution service |
+| `agents/src/cli/anvil.ts:388` | `persistence.findTaskBySlug(slug)` | User CLI input - acceptable |
+| `agents/src/cli/anvil.ts:399` | `persistence.getTaskContent(task.slug)` | `getTaskContent(task.id)` |
+| `agents/src/runner.ts:305` | `join(args.anvilDir, "tasks", taskSlug)` | Use resolution service |
 
 ### File Watcher Exceptions
 

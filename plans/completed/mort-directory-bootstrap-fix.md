@@ -1,10 +1,10 @@
-# Plan: Fix .mort Directory Bootstrapping
+# Plan: Fix .anvil Directory Bootstrapping
 
 ## Problem
 
-The thread-plan-architecture specification (`02-storage-layer.md`) defines a specific directory structure for the `.mort` directory, but the current bootstrapping does not create the full structure upfront.
+The thread-plan-architecture specification (`02-storage-layer.md`) defines a specific directory structure for the `.anvil` directory, but the current bootstrapping does not create the full structure upfront.
 
-The current `bootstrapMortDirectory()` function in `src/lib/mort-bootstrap.ts` only ensures:
+The current `bootstrapAnvilDirectory()` function in `src/lib/anvil-bootstrap.ts` only ensures:
 - `tasks/` (legacy directory that should be removed)
 - `repositories/` (via repos.bootstrap())
 
@@ -26,7 +26,7 @@ All other directories are created lazily by services on first use rather than at
 ## Target Directory Structure
 
 ```
-~/.mort/
+~/.anvil/
 ├── threads/{threadId}/
 │   ├── metadata.json
 │   └── state.json
@@ -46,12 +46,12 @@ All other directories are created lazily by services on first use rather than at
 
 ## Implementation Steps
 
-### Step 1: Update `bootstrapMortDirectory()` in `src/lib/mort-bootstrap.ts`
+### Step 1: Update `bootstrapAnvilDirectory()` in `src/lib/anvil-bootstrap.ts`
 
 Replace the legacy `tasks` directory bootstrapping with the new structure:
 
 ```typescript
-export async function bootstrapMortDirectory(): Promise<MortStores> {
+export async function bootstrapAnvilDirectory(): Promise<AnvilStores> {
   const fs = new FilesystemClient();
   const repos = new RepoStoreClient(fs);
   const settings = new SettingsStoreClient(fs);
@@ -96,16 +96,16 @@ Ensure the archive functionality for plans and relations uses the new archive di
 
 ## Files to Modify
 
-1. `src/lib/mort-bootstrap.ts` - Main bootstrap function
+1. `src/lib/anvil-bootstrap.ts` - Main bootstrap function
 2. `src/entities/plans/service.ts` - Add archive constants and archive functionality
 3. `src/entities/relations/service.ts` - Add archive constants and archive functionality
-4. Tests for mort-bootstrap and affected services
+4. Tests for anvil-bootstrap and affected services
 
 ## Verification
 
 After implementation:
 1. Run existing tests to ensure nothing breaks
-2. Delete local `.mort` directory and restart app - verify all directories are created:
+2. Delete local `.anvil` directory and restart app - verify all directories are created:
    - `threads/`
    - `plans/`
    - `plan-thread-edges/`
@@ -119,24 +119,24 @@ After implementation:
 
 - Services will continue to call `ensureDir()` for their specific paths - this is fine as it's idempotent
 - The bootstrap ensures a consistent initial state without relying on lazy creation
-- This aligns with the "greenfield implementation" approach from the architecture docs where users can delete their `.mort` directory and start fresh
+- This aligns with the "greenfield implementation" approach from the architecture docs where users can delete their `.anvil` directory and start fresh
 - Archive structure mirrors active structure, making it easy to restore entities if needed
 
 ## Files to Modify
 
-1. `src/lib/mort-bootstrap.ts` - Main bootstrap function
-2. Tests for mort-bootstrap if they exist
+1. `src/lib/anvil-bootstrap.ts` - Main bootstrap function
+2. Tests for anvil-bootstrap if they exist
 3. Potentially `src/lib/persistence.ts` if directory constant definitions need updating
 
 ## Verification
 
 After implementation:
 1. Run existing tests to ensure nothing breaks
-2. Delete local `.mort` directory and restart app - verify all directories are created
+2. Delete local `.anvil` directory and restart app - verify all directories are created
 3. Confirm services still work correctly (threads, plans, relations can be created/archived)
 
 ## Notes
 
 - Services will continue to call `ensureDir()` for their specific paths - this is fine as it's idempotent
 - The bootstrap ensures a consistent initial state without relying on lazy creation
-- This aligns with the "greenfield implementation" approach from the architecture docs where users can delete their `.mort` directory and start fresh
+- This aligns with the "greenfield implementation" approach from the architecture docs where users can delete their `.anvil` directory and start fresh

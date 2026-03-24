@@ -2,32 +2,32 @@
 
 ## Summary
 
-Connect Claude CLI sessions (spawned in PTY by `plans/claude-tui-content-pane.md`) back to Mort's sidecar via the Mort plugin system. The plugin (`~/.mort/`) provides HTTP hooks that POST events to the sidecar, enabling lifecycle tracking, tool deny/allow decisions, and transcript-based state extraction — with full code sharing between SDK agent runs and CLI TUI runs.
+Connect Claude CLI sessions (spawned in PTY by `plans/claude-tui-content-pane.md`) back to Anvil's sidecar via the Anvil plugin system. The plugin (`~/.anvil/`) provides HTTP hooks that POST events to the sidecar, enabling lifecycle tracking, tool deny/allow decisions, and transcript-based state extraction — with full code sharing between SDK agent runs and CLI TUI runs.
 
 **Depends on**: `plans/claude-tui-content-pane.md` (Phases 1-3 for PTY spawning and thread schema)
 
 ## Problem
 
-Mort's SDK-managed threads emit rich lifecycle events: tool calls, permission requests, file changes, sub-agent spawns, token usage, etc. A Claude CLI process in a PTY is a black box — Mort can see terminal output bytes but has no structured understanding of what's happening.
+Anvil's SDK-managed threads emit rich lifecycle events: tool calls, permission requests, file changes, sub-agent spawns, token usage, etc. A Claude CLI process in a PTY is a black box — Anvil can see terminal output bytes but has no structured understanding of what's happening.
 
 ## Architecture
 
 ### Plugin-based approach
 
-The Mort plugin at `~/.mort/` already provides skills to both SDK and CLI sessions. This plan extends it with hooks via `~/.mort/hooks/hooks.json` (auto-discovered by the plugin system). The hooks use the **HTTP hook type** to POST events to the sidecar, which already runs a WebSocket server on a TCP port for the frontend.
+The Anvil plugin at `~/.anvil/` already provides skills to both SDK and CLI sessions. This plan extends it with hooks via `~/.anvil/hooks/hooks.json` (auto-discovered by the plugin system). The hooks use the **HTTP hook type** to POST events to the sidecar, which already runs a WebSocket server on a TCP port for the frontend.
 
 ```
 ┌─────────────────────┐     HTTP POST        ┌──────────────────┐
 │   Claude CLI (PTY)  │ ───────────────────► │  Sidecar          │
 │                     │    hook events        │  (HTTP + WS)      │
 │  loads plugin at    │ ◄─────────────────── │                   │
-│  ~/.mort/           │    JSON response      │  evaluator logic  │
+│  ~/.anvil/           │    JSON response      │  evaluator logic  │
 └─────────────────────┘                       │  + hub relay      │
                                               └────────┬─────────┘
                                                        │ broadcast
                                                        ▼
                                               ┌──────────────────┐
-                                              │  Mort Frontend    │
+                                              │  Anvil Frontend    │
                                               │  (permission UI)  │
                                               └──────────────────┘
 ```
@@ -41,11 +41,11 @@ Claude Code supports both `command` hooks (subprocess per invocation, stdin/stdo
 - The sidecar is already running on a TCP port — just add HTTP routes alongside WebSocket
 - Zero subprocess overhead per hook invocation
 - Same connection handles all hook types (PreToolUse, PostToolUse, Stop, SessionStart)
-- Thread identification via `X-Mort-Thread-Id` header (env var interpolation in hooks.json)
+- Thread identification via `X-Anvil-Thread-Id` header (env var interpolation in hooks.json)
 
 ### Fail-open design
 
-Claude runs with `--dangerously-skip-permissions`. If the sidecar is unreachable (e.g., user runs `claude --plugin local:~/.mort` outside of Mort), HTTP hooks fail and Claude proceeds unblocked. The hooks are a convenience/safety layer, not a security boundary.
+Claude runs with `--dangerously-skip-permissions`. If the sidecar is unreachable (e.g., user runs `claude --plugin local:~/.anvil` outside of Anvil), HTTP hooks fail and Claude proceeds unblocked. The hooks are a convenience/safety layer, not a security boundary.
 
 HTTP hook type from the SDK:
 
@@ -81,7 +81,7 @@ core/lib/transcript/              ← Transcript parser (defensive, Zod safePars
 
 agents/src/hooks/                 ← SDK adapters (in-process callbacks for query() options)
   safe-git-hook.ts                  thin wrapper → git-safety.evaluateGitCommand()
-  repl-hook.ts                      agent-runner-only (MortReplRunner/ChildSpawner)
+  repl-hook.ts                      agent-runner-only (AnvilReplRunner/ChildSpawner)
   comment-resolution-hook.ts        thin wrapper → comment-resolution.parse() + emitEvent()
 
 sidecar/src/hooks/                ← HTTP adapter (sidecar route handler for CLI hooks)
@@ -96,9 +96,9 @@ Hook events are **triggers** ("something happened"). The transcript `.jsonl` fil
 
 ### Hook lifecycle (HTTP)
 
-1. Claude CLI loads the Mort plugin at `~/.mort/`
+1. Claude CLI loads the Anvil plugin at `~/.anvil/`
 2. Plugin's `hooks/hooks.json` registers HTTP hooks for PreToolUse, PostToolUse, Stop, SessionStart (URLs have sidecar port baked in)
-3. When an event fires, Claude CLI POSTs the event JSON to `http://localhost:{port}/hooks/<event>` with `X-Mort-Thread-Id: $MORT_THREAD_ID` header
+3. When an event fires, Claude CLI POSTs the event JSON to `http://localhost:{port}/hooks/<event>` with `X-Anvil-Thread-Id: $ANVIL_THREAD_ID` header
 4. Sidecar handler calls the appropriate evaluator(s) — same functions used by SDK hooks
 5. For PreToolUse: evaluator returns allow/deny decision → sidecar responds with JSON → CLI proceeds or blocks
 6. For lifecycle events: sidecar emits to frontend via broadcaster, persists to event log → responds with `{ continue: true }`
@@ -106,9 +106,9 @@ Hook events are **triggers** ("something happened"). The transcript `.jsonl` fil
 
 ## Plugin configuration
 
-### `~/.mort/hooks/hooks.json` (dynamically generated)
+### `~/.anvil/hooks/hooks.json` (dynamically generated)
 
-**Generated by the sidecar on startup** with the resolved port baked in. Not a static file — the sidecar writes this on every startup so the URL always matches its actual port. `$MORT_THREAD_ID` remains an env var since it varies per PTY session.
+**Generated by the sidecar on startup** with the resolved port baked in. Not a static file — the sidecar writes this on every startup so the URL always matches its actual port. `$ANVIL_THREAD_ID` remains an env var since it varies per PTY session.
 
 ```json
 {
@@ -117,10 +117,10 @@ Hook events are **triggers** ("something happened"). The transcript `.jsonl` fil
       "hooks": [{
         "type": "http",
         "url": "http://localhost:9603/hooks/session-start",
-        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
-        "allowedEnvVars": ["MORT_THREAD_ID"],
+        "headers": { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" },
+        "allowedEnvVars": ["ANVIL_THREAD_ID"],
         "timeout": 10,
-        "statusMessage": "Connecting to Mort..."
+        "statusMessage": "Connecting to Anvil..."
       }]
     }
   ],
@@ -129,10 +129,10 @@ Hook events are **triggers** ("something happened"). The transcript `.jsonl` fil
       "hooks": [{
         "type": "http",
         "url": "http://localhost:9603/hooks/pre-tool-use",
-        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
-        "allowedEnvVars": ["MORT_THREAD_ID"],
+        "headers": { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" },
+        "allowedEnvVars": ["ANVIL_THREAD_ID"],
         "timeout": 10,
-        "statusMessage": "Checking with Mort..."
+        "statusMessage": "Checking with Anvil..."
       }]
     }
   ],
@@ -141,8 +141,8 @@ Hook events are **triggers** ("something happened"). The transcript `.jsonl` fil
       "hooks": [{
         "type": "http",
         "url": "http://localhost:9603/hooks/post-tool-use",
-        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
-        "allowedEnvVars": ["MORT_THREAD_ID"],
+        "headers": { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" },
+        "allowedEnvVars": ["ANVIL_THREAD_ID"],
         "timeout": 10
       }]
     }
@@ -152,8 +152,8 @@ Hook events are **triggers** ("something happened"). The transcript `.jsonl` fil
       "hooks": [{
         "type": "http",
         "url": "http://localhost:9603/hooks/stop",
-        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
-        "allowedEnvVars": ["MORT_THREAD_ID"],
+        "headers": { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" },
+        "allowedEnvVars": ["ANVIL_THREAD_ID"],
         "timeout": 10
       }]
     }
@@ -170,20 +170,20 @@ The content pane plan's `buildSpawnConfig()` is extended to include:
 ```typescript
 args: [
   "--dangerously-skip-permissions",
-  "--plugin", `local:${mortDir}`,
+  "--plugin", `local:${anvilDir}`,
   "--model", model,
 ],
 env: {
-  MORT_THREAD_ID: threadId,                 // Session identity — sent as X-Mort-Thread-Id header
-  MORT_DATA_DIR: mortDir,                   // For disk persistence
+  ANVIL_THREAD_ID: threadId,                 // Session identity — sent as X-Anvil-Thread-Id header
+  ANVIL_DATA_DIR: anvilDir,                   // For disk persistence
 }
 ```
 
-Note: `MORT_SIDECAR_URL` is not needed — the sidecar port is baked into `hooks.json` at sidecar startup.
+Note: `ANVIL_SIDECAR_URL` is not needed — the sidecar port is baked into `hooks.json` at sidecar startup.
 
 ### `SessionStart` hook for system prompt injection
 
-The `SessionStart` hook returns `additionalContext` to inject **only Mort-specific context** that Claude can't auto-discover. Claude CLI already handles `CLAUDE.md`, git status, and env context natively — duplicating these wastes context window.
+The `SessionStart` hook returns `additionalContext` to inject **only Anvil-specific context** that Claude can't auto-discover. Claude CLI already handles `CLAUDE.md`, git status, and env context natively — duplicating these wastes context window.
 
 Injected via `additionalContext`:
 
@@ -205,7 +205,7 @@ function handleSessionStart(input: SessionStartHookInput, threadId: string): Hoo
   return {
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      additionalContext: buildMortContext({
+      additionalContext: buildAnvilContext({
         threadId: thread.id,
         parentThreadId: thread.parentThreadId,
         planContext: thread.planContext,
@@ -311,21 +311,21 @@ Add HTTP routes to the sidecar's existing TCP server (same port as WebSocket):
 - `POST /hooks/post-tool-use` → file changes + tool completion + transcript sync
 - `POST /hooks/stop` → session end + final transcript sync + thread status update
 
-Thread identification via `X-Mort-Thread-Id` header (injected by `allowedEnvVars` + header interpolation in hooks.json).
+Thread identification via `X-Anvil-Thread-Id` header (injected by `allowedEnvVars` + header interpolation in hooks.json).
 
 ---
 
 ## Phase 3: Dynamic hooks.json generation in sidecar
 
-### Sidecar writes `~/.mort/hooks/hooks.json` on startup
+### Sidecar writes `~/.anvil/hooks/hooks.json` on startup
 
-Instead of a static file synced from `plugins/mort/`, the sidecar **dynamically generates** `hooks.json` on startup with its actual port baked into the URLs. This eliminates the need for `MORT_SIDECAR_URL` env var interpolation.
+Instead of a static file synced from `plugins/anvil/`, the sidecar **dynamically generates** `hooks.json` on startup with its actual port baked into the URLs. This eliminates the need for `ANVIL_SIDECAR_URL` env var interpolation.
 
 ### `sidecar/src/hooks/hooks-writer.ts`
 
 ```typescript
-function writeHooksJson(mortDir: string, port: number): void {
-  const hooksDir = path.join(mortDir, "hooks");
+function writeHooksJson(anvilDir: string, port: number): void {
+  const hooksDir = path.join(anvilDir, "hooks");
   mkdirSync(hooksDir, { recursive: true });
   const baseUrl = `http://localhost:${port}`;
   const hooks = buildHooksConfig(baseUrl);  // Returns the JSON structure above
@@ -349,7 +349,7 @@ Extend the args builder from the content pane plan:
 
 ```typescript
 function buildSpawnConfig(options: {
-  mortDir: string;
+  anvilDir: string;
   threadId: string;
   sessionId?: string;
   model?: string;
@@ -357,18 +357,18 @@ function buildSpawnConfig(options: {
   return {
     args: [
       "--dangerously-skip-permissions",
-      "--plugin", `local:${options.mortDir}`,
+      "--plugin", `local:${options.anvilDir}`,
       "--model", options.model ?? "claude-sonnet-4-6",
     ],
     env: {
-      MORT_THREAD_ID: options.threadId,
-      MORT_DATA_DIR: options.mortDir,
+      ANVIL_THREAD_ID: options.threadId,
+      ANVIL_DATA_DIR: options.anvilDir,
     },
   };
 }
 ```
 
-Note: No `MORT_SIDECAR_URL` needed — the sidecar port is baked into `~/.mort/hooks/hooks.json` at sidecar startup (Phase 3).
+Note: No `ANVIL_SIDECAR_URL` needed — the sidecar port is baked into `~/.anvil/hooks/hooks.json` at sidecar startup (Phase 3).
 
 ---
 
@@ -376,7 +376,7 @@ Note: No `MORT_SIDECAR_URL` needed — the sidecar port is baked into `~/.mort/h
 
 ### Thread state from hooks + transcript
 
-The sidecar writes `ThreadState` to `~/.mort/threads/{id}/state.json` and broadcasts updates to the frontend. The frontend can display:
+The sidecar writes `ThreadState` to `~/.anvil/threads/{id}/state.json` and broadcasts updates to the frontend. The frontend can display:
 
 - **Tool activity**: Currently running tools (from PreToolUse), recently completed tools (from PostToolUse)
 - **File changes**: Files modified by the TUI session (extracted from PostToolUse tool_input)
@@ -408,7 +408,7 @@ function getTuiThreadStatus(thread: ThreadMetadata): StatusDotVariant {
 
 ### Event persistence
 
-Events are written to `~/.mort/threads/{id}/events.jsonl` (append-only log). Enables post-session review, cost tracking, and file change tracking.
+Events are written to `~/.anvil/threads/{id}/events.jsonl` (append-only log). Enables post-session review, cost tracking, and file change tracking.
 
 ---
 
@@ -425,24 +425,24 @@ Events are written to `~/.mort/threads/{id}/events.jsonl` (append-only log). Ena
 | `sidecar/src/hooks/hook-handler.ts` | Sidecar HTTP handler for hook events |
 | `sidecar/src/hooks/thread-state-writer.ts` | ThreadState via threadReducer |
 | `sidecar/src/hooks/transcript-reader.ts` | Incremental transcript → state sync |
-| `plugins/mort/hooks/hooks.json` | Plugin hook config (HTTP hooks) |
+| `plugins/anvil/hooks/hooks.json` | Plugin hook config (HTTP hooks) |
 | `src/lib/claude-tui-args-builder.ts` | Extended with `--plugin` and env vars |
 
 ## Resolved decisions
 
 1. **Fail-open**: If sidecar is unreachable, hooks fail and Claude proceeds unblocked. Users chose `--dangerously-skip-permissions` knowingly. Hooks are a convenience/safety layer, not a security boundary.
-2. **Thread ID propagation**: Via `X-Mort-Thread-Id` header using env var interpolation (`$MORT_THREAD_ID`) in hooks.json. Stateless, no session-to-thread mapping needed.
+2. **Thread ID propagation**: Via `X-Anvil-Thread-Id` header using env var interpolation (`$ANVIL_THREAD_ID`) in hooks.json. Stateless, no session-to-thread mapping needed.
 3. **HTTP endpoint location**: Sidecar's existing TCP port (same as WebSocket). No new port needed.
 4. **State architecture**: Hooks are triggers, transcript `.jsonl` is the data source. No per-thread Terminal Runner process needed — the sidecar reads the transcript incrementally on hook events to extract messages, usage, and thinking blocks. See `plans/tui-runner-state-architecture.md`.
 5. **Shared helper location**: `core/lib/hooks/` (not `agents/src/hooks/lib/`) — importable by both `agents/` and `sidecar/`.
-6. **SessionStart context**: Inject only Mort-specific context (thread ID, parent thread ID, plan context, worktree path). Claude auto-discovers [CLAUDE.md](http://CLAUDE.md), git, env natively — no duplication.
+6. **SessionStart context**: Inject only Anvil-specific context (thread ID, parent thread ID, plan context, worktree path). Claude auto-discovers [CLAUDE.md](http://CLAUDE.md), git, env natively — no duplication.
 7. **PreToolUse timeout**: 10s for all hooks. Current hooks are stateless and sub-millisecond. Increase later if/when REPL or permission gating is added.
-8. **hooks.json generation**: Dynamically generated by sidecar on startup with resolved port baked into URLs. Not a static file synced from `plugins/mort/`. Eliminates need for `MORT_SIDECAR_URL` env var.
+8. **hooks.json generation**: Dynamically generated by sidecar on startup with resolved port baked into URLs. Not a static file synced from `plugins/anvil/`. Eliminates need for `ANVIL_SIDECAR_URL` env var.
 9. **Concurrent hook requests**: Per-thread async mutex in `ThreadStateWriter`. Parallel tool calls for different threads are fully concurrent; same-thread calls are serialized.
 
 ## Open questions
 
 1. **Plugin hooks vs user hooks**: If the user has their own hooks configured, both sets run. Need to verify hook ordering (plugin hooks vs project hooks).
 2. **Graceful degradation**: When sidecar isn't running, hooks.json points to a dead port → fail-open. Acceptable?
-3. **REPL hook for TUI**: Deferred. `MortReplRunner` + `ChildSpawner` need process-local state. When needed, either run in sidecar or spawn per-thread process.
+3. **REPL hook for TUI**: Deferred. `AnvilReplRunner` + `ChildSpawner` need process-local state. When needed, either run in sidecar or spawn per-thread process.
 4. **Transcript write timing**: Does Claude CLI flush transcript lines before firing hooks? If racy, add retry with backoff in transcript reader.

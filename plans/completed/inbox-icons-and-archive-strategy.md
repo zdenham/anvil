@@ -52,19 +52,19 @@ In `src/components/inbox/inbox-item.tsx` (lines 44-54), each inbox row displays 
 ### Current State
 
 **Threads** already have archive functionality:
-- `threadService.archive(threadId)` moves thread from `~/.mort/threads/{id}/` to `~/.mort/archive/threads/{id}/`
+- `threadService.archive(threadId)` moves thread from `~/.anvil/threads/{id}/` to `~/.anvil/archive/threads/{id}/`
 - Emits `THREAD_ARCHIVED` event
 - Relations are marked as `archived: true` (preserved, not deleted)
 
 **Plans** do NOT have archive functionality yet:
-- Metadata stored in `~/.mort/plans/{id}/metadata.json`
+- Metadata stored in `~/.anvil/plans/{id}/metadata.json`
 - Markdown files stored in repo at `{repoRoot}/plans/{relativePath}`
 - No archive directory or method exists
 
 ### Archive Strategy Design
 
 #### Thread Archive (Already Implemented)
-- Moves thread directory to `~/.mort/archive/threads/{threadId}/`
+- Moves thread directory to `~/.anvil/archive/threads/{threadId}/`
 - Removes from mission control inbox (store is updated)
 - Emits event for relation archival
 
@@ -79,8 +79,8 @@ When archiving a plan, two operations must happen in sequence:
 - For nested plans (directories), move the entire directory
 
 **Step 2: Move metadata mirror to archive directory AND update relativePath**
-- Source: `~/.mort/plans/{id}/metadata.json`
-- Destination: `~/.mort/archive/plans/{id}/metadata.json`
+- Source: `~/.anvil/plans/{id}/metadata.json`
+- Destination: `~/.anvil/archive/plans/{id}/metadata.json`
 - Update `relativePath` field to reflect new location: `completed/{originalPath}`
 - This ensures archived metadata still correctly references the file
 
@@ -377,7 +377,7 @@ export function DeleteButton({ onDelete }: DeleteButtonProps) {
 
 **Plan Archive (new):**
 - Markdown file moves to `plans/completed/` in repo
-- Metadata moves to `~/.mort/archive/plans/`
+- Metadata moves to `~/.anvil/archive/plans/`
 - `relativePath` updated to `completed/{original}`
 - Plan removed from inbox/store
 - Relations marked as archived

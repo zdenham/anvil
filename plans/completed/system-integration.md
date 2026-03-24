@@ -36,7 +36,7 @@ The three core systems:
                                                    │ + appends to files
                                                    ▼
                                            ┌──────────────────┐
-                                           │ .mort/           │
+                                           │ .anvil/           │
                                            │ conversations/   │
                                            │ {id}/            │
                                            │ ├── messages.jsonl
@@ -245,7 +245,7 @@ export type { ContentBlock, TextBlock, ToolUseBlock, ThinkingBlock };
 
 A conversation can have multiple "turns" - back-and-forth exchanges between user and agent. Each turn represents one agent run within the conversation.
 
-**`.mort/conversations/{id}/metadata.json`**:
+**`.anvil/conversations/{id}/metadata.json`**:
 
 ```typescript
 export interface ConversationMetadata {
@@ -461,9 +461,9 @@ function useConversation(conversationId: string | null): ConversationState {
   return { messages, fileChanges, status };
 }
 
-// Helper to load from .mort/conversations/{id}/
+// Helper to load from .anvil/conversations/{id}/
 async function loadPersistedState(conversationId) {
-  const basePath = `.mort/conversations/${conversationId}`;
+  const basePath = `.anvil/conversations/${conversationId}`;
 
   // Read messages.jsonl (JSONL format)
   const messages = await readJsonLines(`${basePath}/messages.jsonl`);
@@ -570,7 +570,7 @@ interface ConversationStore {
 }
 
 // On app startup
-await conversationStore.loadAll(); // Scans .mort/conversations/*/metadata.json
+await conversationStore.loadAll(); // Scans .anvil/conversations/*/metadata.json
 ```
 
 **Loading from disk**:
@@ -578,7 +578,7 @@ await conversationStore.loadAll(); // Scans .mort/conversations/*/metadata.json
 ```typescript
 async loadAll() {
   // Scan conversation directories
-  const dirs = await readDir(".mort/conversations")
+  const dirs = await readDir(".anvil/conversations")
 
   for (const dir of dirs) {
     const metadata = await readJson(`${dir.path}/metadata.json`)
@@ -592,7 +592,7 @@ async loadAll() {
 ## File System Layout
 
 ```
-.mort/
+.anvil/
 ├── tasks/                          # Task metadata (existing)
 │   └── {task-name}-{id}/
 │       ├── metadata.json           # Now includes conversationIds array

@@ -110,7 +110,7 @@ export async function startAgent(
   // 2. Create directory for message streams
   const conversationPath = await join(
     options.workingDirectory,
-    ".mort",
+    ".anvil",
     "conversations",
     conversation.id
   );
@@ -363,7 +363,7 @@ export function useConversationMessages(
         // Build path to messages.jsonl based on conversation's working directory
         const messagesPath = await join(
           conversation!.workingDirectory,
-          ".mort",
+          ".anvil",
           "conversations",
           conversationId!,
           "messages.jsonl"

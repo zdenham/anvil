@@ -29,7 +29,7 @@ Repos and worktrees should be nestable inside root-level folders. Users should b
 Worktrees don't currently have `visualSettings`. Options:
 
 1. **Add** `visualSettings` **to worktree metadata** — consistent with how threads/plans/folders work, but requires changes to core types and worktree service
-2. **Separate mapping file** (e.g., `~/.mort/ui/worktree-parents.json`) — maps worktree IDs to folder parents, avoids touching core types
+2. **Separate mapping file** (e.g., `~/.anvil/ui/worktree-parents.json`) — maps worktree IDs to folder parents, avoids touching core types
 3. **Store on folder side** — folders have a `children` array of worktree IDs
 
 **Recommendation**: Option 1 (`visualSettings` on worktree info) is simplest and most consistent. Requires adding visual settings support to the repo-worktree-lookup store or a parallel store.

@@ -160,7 +160,7 @@ await spawnAgentWithOrchestration({
 #### 3. Remove Brittle Parsing Functions
 
 DELETE these functions from `src/lib/agent-service.ts`:
-- `detectMortMutations()` (lines 56-66)
+- `detectAnvilMutations()` (lines 56-66)
 - `tryRefreshFromToolResult()` (lines 73-122)
 
 #### 4. Add Typed Event Handler
@@ -261,7 +261,7 @@ await command.spawn();
 - [ ] Update `SpawnAgentWithOrchestrationOptions` to require `taskId`
 - [ ] Update call site in `spotlight.tsx` to pass `task.id`
 - [ ] Update call site in `task-workspace.tsx` to pass `task.id`
-- [ ] Remove `detectMortMutations()` function
+- [ ] Remove `detectAnvilMutations()` function
 - [ ] Remove `tryRefreshFromToolResult()` function
 - [ ] Implement `handleAgentEvent()` dispatcher
 - [ ] Update stdout parsing to use `parseAgentOutput()`

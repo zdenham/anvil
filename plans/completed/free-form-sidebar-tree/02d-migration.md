@@ -14,7 +14,7 @@ This migration lives in the **standalone TypeScript migration runner** (`migrati
 
 ## Disk Layout Reference
 
-All paths are relative to `$MORT_DATA_DIR` (typically `~/.mort` or `~/.mort-dev`).
+All paths are relative to `$ANVIL_DATA_DIR` (typically `~/.anvil` or `~/.anvil-dev`).
 
 | Entity | Disk path pattern | Schema key for domain parent | `worktreeId` field |
 | --- | --- | --- | --- |
@@ -211,7 +211,7 @@ export const migrations: Migration[] = [
 
 ### 3. How Idempotency Works
 
-The migration runner (`migrations/src/runner.ts`) reads `migration_version` from `~/.mort/settings/app-config.json`. After this migration runs successfully, it writes `migration_version: 3`. On subsequent startups, the runner sees `currentVersion >= 3` and skips this migration entirely.
+The migration runner (`migrations/src/runner.ts`) reads `migration_version` from `~/.anvil/settings/app-config.json`. After this migration runs successfully, it writes `migration_version: 3`. On subsequent startups, the runner sees `currentVersion >= 3` and skips this migration entirely.
 
 Within a single run, the migration also guards per-entity: it checks `entity.visualSettings !== undefined` and skips any entity that already has the field. This means even if the version check were somehow bypassed, re-running is safe.
 
@@ -238,7 +238,7 @@ This compiles `src/migrations/002-visual-settings-backfill.ts` to `dist/migratio
 
 ### 6. What About Worktrees?
 
-`WorktreeState` entities live inside `~/.mort/repositories/{repo-slug}/settings.json` as entries in a `worktrees[]` array. Worktree nodes are tree roots (their `visualSettings.parentId` is `undefined`), so **no backfill is needed** for worktrees. The tree builder treats `undefined` parentId as "root-level node", which is the correct default for worktrees.
+`WorktreeState` entities live inside `~/.anvil/repositories/{repo-slug}/settings.json` as entries in a `worktrees[]` array. Worktree nodes are tree roots (their `visualSettings.parentId` is `undefined`), so **no backfill is needed** for worktrees. The tree builder treats `undefined` parentId as "root-level node", which is the correct default for worktrees.
 
 ### 7. What About Terminals?
 
@@ -255,7 +255,7 @@ Terminal sessions are currently runtime-only (no disk persistence). Sub-plan 02a
 - [ ] PRs have `visualSettings.parentId` = their `worktreeId`
 - [ ] Legacy threads at `tasks/*/threads/*/metadata.json` are also backfilled
 - [ ] Migration is idempotent: running it on already-migrated data changes nothing
-- [ ] `migration_version` in `~/.mort/settings/app-config.json` is set to `3` after success
+- [ ] `migration_version` in `~/.anvil/settings/app-config.json` is set to `3` after success
 - [ ] Migration logs entity counts (threads, plans, PRs migrated)
 - [ ] `cd migrations && pnpm build` succeeds with no TypeScript errors
 
@@ -267,7 +267,7 @@ Terminal sessions are currently runtime-only (no disk persistence). Sub-plan 02a
 
 - [x] Build: `cd migrations && pnpm build` — verify it compiles
 
-- [ ] Test manually: create a test `~/.mort-dev/` directory with sample thread/plan/PR metadata files (some with `visualSettings`, some without), run `MORT_DATA_DIR=~/.mort-dev MORT_TEMPLATE_DIR=core/sdk/template MORT_SDK_TYPES_PATH=core/sdk/dist/index.d.ts node migrations/dist/runner.js`, verify JSON files are updated and logs show correct counts
+- [ ] Test manually: create a test `~/.anvil-dev/` directory with sample thread/plan/PR metadata files (some with `visualSettings`, some without), run `ANVIL_DATA_DIR=~/.anvil-dev ANVIL_TEMPLATE_DIR=core/sdk/template ANVIL_SDK_TYPES_PATH=core/sdk/dist/index.d.ts node migrations/dist/runner.js`, verify JSON files are updated and logs show correct counts
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

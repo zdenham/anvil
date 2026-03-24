@@ -5,7 +5,7 @@
 When left or right side panels open, they visibly "jump" between two widths. This happens because `ResizablePanel` has **two competing width calculations**:
 
 1. **Frame 1 (synchronous)**: `useState(() => getInitialWidth(defaultWidth, minWidth))` — renders at a computed default (e.g., `window.innerWidth / 3` for left panel, `250px` for right panel)
-2. **Frame 2+ (async)**: A `useEffect` reads persisted width from `~/.mort/ui/layout.json` via `appData.readJson()`, then calls `setWidth()` with the persisted value
+2. **Frame 2+ (async)**: A `useEffect` reads persisted width from `~/.anvil/ui/layout.json` via `appData.readJson()`, then calls `setWidth()` with the persisted value
 
 The async disk read in the `useEffect` always fires *after* the first paint, causing a visible width jump.
 

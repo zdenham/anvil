@@ -54,10 +54,10 @@ pub async fn validate_repository(source_path: String) -> Result<RepoValidation, 
 #[tauri::command]
 pub async fn remove_repository_data(
     repo_slug: String,
-    mort_dir: String,
+    anvil_dir: String,
 ) -> Result<(), String> {
-    // Remove ~/.mort/repositories/{repo_slug} folder
-    let repo_settings_path = Path::new(&mort_dir)
+    // Remove ~/.anvil/repositories/{repo_slug} folder
+    let repo_settings_path = Path::new(&anvil_dir)
         .join("repositories")
         .join(&repo_slug);
 
@@ -103,8 +103,8 @@ export async function validateRepository(sourcePath: string): Promise<RepoValida
 }
 
 export async function removeRepositoryData(repoSlug: string): Promise<void> {
-  const mortDir = await getMortDir(); // however you get this
-  return invoke("remove_repository_data", { repoSlug, mortDir });
+  const anvilDir = await getAnvilDir(); // however you get this
+  return invoke("remove_repository_data", { repoSlug, anvilDir });
 }
 ```
 
@@ -123,8 +123,8 @@ pub struct RepoWorktreeInfo {
 }
 
 #[tauri::command]
-pub async fn list_all_worktrees(mort_dir: String) -> Result<Vec<RepoWorktreeInfo>, String> {
-    // Iterate ~/.mort/repositories/*/settings.json
+pub async fn list_all_worktrees(anvil_dir: String) -> Result<Vec<RepoWorktreeInfo>, String> {
+    // Iterate ~/.anvil/repositories/*/settings.json
     // Aggregate worktrees from all repos
     // Sort by lastAccessedAt descending
 }

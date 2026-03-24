@@ -27,7 +27,7 @@ The current "no NSToolbar" setup isn't intentional — it's just Tauri's default
 Create a new function `attach_toolbar(window)` following the same pattern as `enable_fullscreen_button` (lines 54-82):
 
 1. Get the NSWindow from the raw window handle via `HasWindowHandle` → `NSView` → `.window()`
-2. Create an empty `NSToolbar` with identifier `"mort-main-toolbar"`
+2. Create an empty `NSToolbar` with identifier `"anvil-main-toolbar"`
 3. Set `toolbarStyle` to `NSWindowToolbarStyle::Unified` (merges with titlebar area)
 4. Set `titleVisibility` to `NSWindowTitleVisibility::Hidden` (no title string)
 5. Attach via `setToolbar:`

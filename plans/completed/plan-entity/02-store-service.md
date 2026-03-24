@@ -5,7 +5,7 @@
 
 ## Design Decisions
 
-- **Storage Location**: Plans are stored in `plans/{id}/metadata.json` within the `.mort` data directory
+- **Storage Location**: Plans are stored in `plans/{id}/metadata.json` within the `.anvil` data directory
 - **Persistence Pattern**: Use `persistence.readJson/writeJson/glob` (NOT `window.api` - that pattern doesn't exist in this codebase)
 - **Store Pattern**: Use plain Zustand without immer middleware (matching existing thread/task stores)
 - **UUID Generation**: Use native `crypto.randomUUID()` (NOT uuid package)

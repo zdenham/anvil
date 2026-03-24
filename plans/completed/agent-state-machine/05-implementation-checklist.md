@@ -59,7 +59,7 @@
 - `src/entities/tasks/types.ts` - Uses existing `TaskStatus`
 - `src/entities/tasks/service.ts` - No changes
 - Agent runner - No changes
-- mort CLI - No changes
+- anvil CLI - No changes
 
 ## Testing Flow
 

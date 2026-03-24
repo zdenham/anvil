@@ -23,8 +23,8 @@ This is the same class of bug as [tauri#11897](https://github.com/tauri-apps/tau
 The update script runs:
 
 ```bash
-killall mort                    # kill app (from backgrounded sh -c "curl|bash &")
-open /Applications/Mort.app     # relaunch
+killall anvil                    # kill app (from backgrounded sh -c "curl|bash &")
+open /Applications/Anvil.app     # relaunch
 ```
 
 The `open` command is executed from a **backgrounded shell process** (`sh -c "curl ... | bash &"` spawned by `shell.rs`). When macOS processes this:
@@ -124,13 +124,13 @@ force_app_activation();
 In `scripts/installation/distribute_internally.sh`, replace the bare `open` with an activation sequence:
 
 ```bash
-echo "Opening Mort..."
-open /Applications/Mort.app
+echo "Opening Anvil..."
+open /Applications/Anvil.app
 
 # Force activation - `open` from a backgrounded shell process doesn't
 # reliably activate the app, leaving WKWebView in a broken focus state
 sleep 2
-osascript -e 'tell application "Mort" to activate' 2>/dev/null || true
+osascript -e 'tell application "Anvil" to activate' 2>/dev/null || true
 
 echo "Done!"
 ```
@@ -138,8 +138,8 @@ echo "Done!"
 Also add quarantine removal before launch to avoid Gatekeeper delays:
 
 ```bash
-xattr -rd com.apple.quarantine /Applications/Mort.app 2>/dev/null || true
-open /Applications/Mort.app
+xattr -rd com.apple.quarantine /Applications/Anvil.app 2>/dev/null || true
+open /Applications/Anvil.app
 ```
 
 **Note**: Phase 1 should make Phase 2 unnecessary since the Rust code will self-activate on startup. But the script fix is good defense-in-depth, and also helps if there's a race where the activation fires before the webview is loaded.
@@ -149,7 +149,7 @@ open /Applications/Mort.app
 The `show_main_window()` function (`lib.rs:329`) is also called from:
 
 - `RunEvent::Reopen` (clicking dock icon)
-- Tray menu "Open Mort"
+- Tray menu "Open Anvil"
 - Menu bar items
 
 Add `force_app_activation()` there too:
@@ -176,7 +176,7 @@ This ensures proper activation regardless of how the window is shown.
 Before implementing, you can verify the diagnosis with this terminal command while the broken app is open:
 
 ```bash
-osascript -e 'tell application "Mort" to activate'
+osascript -e 'tell application "Anvil" to activate'
 ```
 
 If this immediately fixes the hover/focus/caret, the diagnosis is confirmed and the fix will work.

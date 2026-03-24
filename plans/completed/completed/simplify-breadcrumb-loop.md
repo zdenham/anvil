@@ -51,8 +51,8 @@ The new loop is radically simpler. The REPL code should be ~15 lines:
 
 ```
 1. Create task slug + breadcrumb directory + readme.md (same as today)
-2. Run mort-repl with a simple loop:
-   - mort.spawn({ prompt: "/breadcrumb plans/<slug> <i>" }) with contextShortCircuit
+2. Run anvil-repl with a simple loop:
+   - anvil.spawn({ prompt: "/breadcrumb plans/<slug> <i>" }) with contextShortCircuit
    - Check result for BREADCRUMB_COMPLETE
    - Break or continue
 3. Return summary

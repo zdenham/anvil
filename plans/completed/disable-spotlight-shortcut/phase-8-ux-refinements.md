@@ -4,7 +4,7 @@ This plan addresses feedback items to improve the user experience of the auto-di
 
 ## Changes Overview
 
-1. **Kill System Settings and refocus Mort window after success**
+1. **Kill System Settings and refocus Anvil window after success**
 2. **Conditionally show manual steps behind a "Show manual steps" link**
 3. **Add accessibility API disclaimer to the quick option card**
 4. **5 second timeout with Promise.race for the auto-disable operation**
@@ -32,7 +32,7 @@ async fn kill_system_settings() -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn focus_mort_window(window: tauri::Window) -> Result<(), String> {
+async fn focus_anvil_window(window: tauri::Window) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 ```
@@ -66,9 +66,9 @@ const handleAutoDisable = async () => {
       timeoutPromise
     ]);
 
-    // Cleanup: kill System Settings and refocus Mort
+    // Cleanup: kill System Settings and refocus Anvil
     await invoke('kill_system_settings');
-    await invoke('focus_mort_window');
+    await invoke('focus_anvil_window');
 
     setStatus('success');
   } catch (err) {
@@ -133,7 +133,7 @@ Delete this entire block:
 
 | File | Changes |
 |------|---------|
-| `src-tauri/src/lib.rs` | Add `kill_system_settings` and `focus_mort_window` commands |
+| `src-tauri/src/lib.rs` | Add `kill_system_settings` and `focus_anvil_window` commands |
 | `src/components/onboarding/steps/SpotlightStep.tsx` | Timeout, collapsible manual steps, disclaimer, remove success text |
 
 ---
@@ -144,7 +144,7 @@ Delete this entire block:
 2. Operation runs with 5 second timeout (Promise.race)
 3. **On success:**
    - System Settings is killed via `pkill`
-   - Mort window is refocused
+   - Anvil window is refocused
    - Success checkmark shown inline (no extra success card)
 4. **On timeout/error:**
    - Error message shown
@@ -158,7 +158,7 @@ Delete this entire block:
 1. Test auto-disable completes within 5 seconds
 2. Test timeout triggers after 5 seconds if operation hangs
 3. Verify System Settings closes after success
-4. Verify Mort window regains focus
+4. Verify Anvil window regains focus
 5. Verify manual steps hidden by default, shown on "Show manual steps" click
 6. Verify manual steps auto-show on error
 7. Verify disclaimer text appears in quick option card

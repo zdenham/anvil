@@ -12,11 +12,11 @@ Create a script that automates the internal distribution process:
 ## Current State
 
 - **Version locations**: `package.json` and `src-tauri/tauri.conf.json` (both at `v0.0.1`)
-- **Build output**: `src-tauri/target/release/bundle/macos/mort.app`
-- **Cloudflare bucket**: `mort-builds` (public URL: `pub-484a71c5f2f240489aee02d684dbb550.r2.dev`)
+- **Build output**: `src-tauri/target/release/bundle/macos/anvil.app`
+- **Cloudflare bucket**: `anvil-builds` (public URL: `pub-484a71c5f2f240489aee02d684dbb550.r2.dev`)
 - **Expected paths**:
-  - `/mort-builds/{version}.zip` - the app bundle
-  - `/mort-installation-scripts/version` - plain text version string
+  - `/anvil-builds/{version}.zip` - the app bundle
+  - `/anvil-installation-scripts/version` - plain text version string
 - **Credentials**: `CLOUDFLARE_USER_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env`
 
 ## Implementation
@@ -115,7 +115,7 @@ echo "Building application..."
 pnpm build
 
 # --- 3. Zip the Bundle ---
-APP_PATH="src-tauri/target/release/bundle/macos/mort.app"
+APP_PATH="src-tauri/target/release/bundle/macos/anvil.app"
 ZIP_NAME="${NEW_VERSION}.zip"
 ZIP_PATH="src-tauri/target/release/bundle/macos/${ZIP_NAME}"
 
@@ -126,7 +126,7 @@ fi
 
 echo "Creating zip archive: ${ZIP_NAME}..."
 cd src-tauri/target/release/bundle/macos
-zip -r -q "${ZIP_NAME}" mort.app
+zip -r -q "${ZIP_NAME}" anvil.app
 cd - > /dev/null
 
 echo "Zip created: ${ZIP_PATH}"
@@ -134,12 +134,12 @@ echo "Zip created: ${ZIP_PATH}"
 # --- 4. Upload to Cloudflare R2 ---
 echo "Uploading to Cloudflare R2..."
 
-# Upload the zip to mort-builds/
-npx wrangler r2 object put "mort-builds/mort-builds/${ZIP_NAME}" \
+# Upload the zip to anvil-builds/
+npx wrangler r2 object put "anvil-builds/anvil-builds/${ZIP_NAME}" \
   --file="${ZIP_PATH}" \
   --content-type="application/zip"
 
-echo "Uploaded ${ZIP_NAME} to mort-builds/"
+echo "Uploaded ${ZIP_NAME} to anvil-builds/"
 
 # --- 5. Update Version File ---
 echo "Updating version file..."
@@ -149,7 +149,7 @@ VERSION_FILE=$(mktemp)
 echo -n "${NEW_VERSION}" > "$VERSION_FILE"
 
 # Upload version file
-npx wrangler r2 object put "mort-builds/mort-installation-scripts/version" \
+npx wrangler r2 object put "anvil-builds/anvil-installation-scripts/version" \
   --file="$VERSION_FILE" \
   --content-type="text/plain"
 
@@ -163,11 +163,11 @@ echo "=========================================="
 echo "  Build pipeline complete!"
 echo "  Version: ${NEW_VERSION}"
 echo "  Zip: ${ZIP_PATH}"
-echo "  R2 path: mort-builds/${ZIP_NAME}"
+echo "  R2 path: anvil-builds/${ZIP_NAME}"
 echo "=========================================="
 echo ""
 echo "Users can install with:"
-echo "  curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh | bash"
+echo "  curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-installation-scripts/distribute_internally.sh | bash"
 ```
 
 ### Usage
@@ -202,8 +202,8 @@ The script uses wrangler CLI which reads credentials from environment variables 
 After running the script:
 1. Check version in `package.json` and `tauri.conf.json` match
 2. Verify zip exists at `src-tauri/target/release/bundle/macos/{version}.zip`
-3. Confirm R2 upload: `curl -I https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-builds/{version}.zip`
-4. Confirm version file: `curl https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/version`
+3. Confirm R2 upload: `curl -I https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-builds/{version}.zip`
+4. Confirm version file: `curl https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-installation-scripts/version`
 5. Test installation script on a clean machine
 
 ## Considerations

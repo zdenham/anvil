@@ -360,7 +360,7 @@ export function ReadToolBlock({
 
 ## Registration in Tool Registry
 
-After implementation, add to `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/index.ts`:
+After implementation, add to `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/index.ts`:
 
 ```tsx
 import { ReadToolBlock } from "./read-tool-block";

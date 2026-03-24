@@ -802,10 +802,10 @@ Please address the following code review comments on this branch:
 > Missing error handling for the API call
 
 For each comment, make the requested change. After addressing a comment, mark it resolved:
-mort-resolve-comment "abc-123,def-456"
+anvil-resolve-comment "abc-123,def-456"
 ```
 
-Note: The `mort-resolve-comment` CLI is intercepted by the agent's PreToolUse hook (see `agent.md`). The prompt format must include comment IDs so the agent can reference them in the resolution command.
+Note: The `anvil-resolve-comment` CLI is intercepted by the agent's PreToolUse hook (see `agent.md`). The prompt format must include comment IDs so the agent can reference them in the resolution command.
 
 ### Message Delivery
 

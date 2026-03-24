@@ -29,7 +29,7 @@ Agent writes to plans/foo.md
     ↓
 PostToolUse hook detects plan path
     ↓
-Agent creates plan via NodePersistence (writes ~/.mort/plans/{id}/metadata.json)
+Agent creates plan via NodePersistence (writes ~/.anvil/plans/{id}/metadata.json)
     ↓
 Agent emits PLAN_DETECTED event { planId }
     ↓
@@ -60,12 +60,12 @@ PLAN_DETECTED = "plan:detected"
 
 **File:** `agents/src/core/persistence.ts`
 
-Add plan operations to `MortPersistence` (similar to task operations):
+Add plan operations to `AnvilPersistence` (similar to task operations):
 
 ```typescript
 const PLANS_DIR = "plans";
 
-// In MortPersistence class:
+// In AnvilPersistence class:
 
 /**
  * Create or update a plan.
@@ -243,7 +243,7 @@ Add PLAN_DETECTED to the bridged events array so all windows see plan detections
 | File | Change |
 |------|--------|
 | `core/types/events.ts` | Add PLAN_DETECTED event name and payload type |
-| `agents/src/core/persistence.ts` | Add plan CRUD operations to MortPersistence |
+| `agents/src/core/persistence.ts` | Add plan CRUD operations to AnvilPersistence |
 | `agents/src/runners/shared.ts` | Add plan detection + persistence in PostToolUse hook |
 | `src/lib/agent-service.ts` | Handle PLAN_DETECTED in event switch |
 | `src/entities/plans/listeners.ts` | New file - event listener that refreshes from disk |
@@ -262,7 +262,7 @@ The `use-plan-detection.ts` hook can be deleted since detection now happens via 
 ## Key Pattern
 
 This follows the established pattern used for tasks:
-1. **Agent writes to disk** using `MortPersistence` (shared between Node and Tauri)
+1. **Agent writes to disk** using `AnvilPersistence` (shared between Node and Tauri)
 2. **Agent emits event** with just the entity ID
 3. **Frontend refreshes from disk** using the service's `refreshById()` method
 
@@ -275,7 +275,7 @@ This ensures:
 ## Testing
 
 1. Start agent, ask it to create a plan file
-2. Verify plan metadata written to `~/.mort/plans/{id}/metadata.json`
+2. Verify plan metadata written to `~/.anvil/plans/{id}/metadata.json`
 3. Verify PLAN_DETECTED event is emitted with planId
 4. Verify plan appears in plan list UI after refresh
 5. Verify updates to existing plan file mark it as unread

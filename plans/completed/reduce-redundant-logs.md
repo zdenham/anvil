@@ -40,7 +40,7 @@ These are clearly development-time logs left in production code. All should be r
 - **Line 281**: `logger.info("[FC-DEBUG] Adding new file change, new count will be ...")` — per-update detail.
 
 ### agents/src/runners/shared.ts — `[SKILL-DEBUG]`
-- **Lines 1210-1230**: Six consecutive `logger.info("[SKILL-DEBUG] ...")` logs dumping plugin config, mortDir, JSON paths, directory existence, and skills found on every run.
+- **Lines 1210-1230**: Six consecutive `logger.info("[SKILL-DEBUG] ...")` logs dumping plugin config, anvilDir, JSON paths, directory existence, and skills found on every run.
 
 ### agents/src/runners/shared.ts — Hook debug blocks (console.log)
 - **Lines 729-735**: PreToolUse:Task hook debug block with `console.log` and JSON pretty-printing.
@@ -247,7 +247,7 @@ Lines 97-117 and 166-186 contain identical logging for Enter key vs handleNext b
 - `agents/src/runners/shared.ts:729-735, 859-864, 1149-1154`: Remove `console.log` debug blocks entirely (covered in Phase 1).
 
 ### core/ — console.warn → logger
-- `core/lib/mort-dir.ts:11`: `console.warn("[getMortDir] ...")` → `logger.warn(...)`. Also consider removing entirely (redundant fallback log for expected behavior).
+- `core/lib/anvil-dir.ts:11`: `console.warn("[getAnvilDir] ...")` → `logger.warn(...)`. Also consider removing entirely (redundant fallback log for expected behavior).
 
 ### src/ — console.error → logger
 - `src/lib/event-bridge.ts:122, 129, 136`: `console.error(...)` → `logger.error(...)` (in dev-only guard).
@@ -257,7 +257,7 @@ Lines 97-117 and 166-186 contain identical logging for Enter key vs handleNext b
 - `src-tauri/src/logging/config.rs:42-45`: `eprintln!` → `tracing::warn!`.
 - `src-tauri/src/logging/log_server.rs:85, 145, 159`: `eprintln!` → `tracing::error!`/`tracing::info!`.
 - `src-tauri/src/logging/mod.rs:407, 415`: `eprintln!` → `tracing::warn!`.
-- Note: `eprintln!` in test binaries (`mort-test/`) and accessibility debug functions is acceptable.
+- Note: `eprintln!` in test binaries (`anvil-test/`) and accessibility debug functions is acceptable.
 
 ---
 

@@ -31,7 +31,7 @@ const drainManager = new DrainManager(getHubClient());
 Pass to `MessageHandler`:
 
 ```typescript
-const handler = new MessageHandler(config.mortDir, accumulator, drainManager);
+const handler = new MessageHandler(config.anvilDir, accumulator, drainManager);
 ```
 
 Hooks access `drainManager` via closure (it's created in the same scope as the hook definitions).

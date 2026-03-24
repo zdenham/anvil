@@ -2,8 +2,8 @@
 
 ## Problem Statement
 
-Plans in Mort consist of two parts:
-1. **Metadata** stored in `~/.mort/plans/{id}/metadata.json` (managed by us)
+Plans in Anvil consist of two parts:
+1. **Metadata** stored in `~/.anvil/plans/{id}/metadata.json` (managed by us)
 2. **Markdown content** stored in `{repo}/plans/{relativePath}` (user-controlled)
 
 Since users can delete, move, or rename plan files outside of our application, we need to handle these cases gracefully.

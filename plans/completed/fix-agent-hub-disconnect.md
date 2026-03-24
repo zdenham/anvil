@@ -9,9 +9,9 @@ Messages sent to the agent are not receiving responses. The agent connects to th
 ### Observed Behavior (from logs)
 
 ```
-[18:40:30.463] [INFO ] [mort_lib::agent_hub] Agent registered
-[18:40:30.463] [DEBUG] [mort_lib::agent_hub] Error reading from agent socket
-[18:40:30.463] [INFO ] [mort_lib::agent_hub] Agent disconnected and removed
+[18:40:30.463] [INFO ] [anvil_lib::agent_hub] Agent registered
+[18:40:30.463] [DEBUG] [anvil_lib::agent_hub] Error reading from agent socket
+[18:40:30.463] [INFO ] [anvil_lib::agent_hub] Agent disconnected and removed
 ```
 
 All three events happen at the exact same millisecond. The agent:

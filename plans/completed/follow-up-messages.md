@@ -35,7 +35,7 @@ export async function resumeAgent(
 
 This function should:
 1. Look up the conversation metadata via `conversationService.get(conversationId)`
-2. Get the state file path: `${mortDir}/conversations/${conversationId}/state.json`
+2. Get the state file path: `${anvilDir}/conversations/${conversationId}/state.json`
 3. Add a new turn via `conversationService.addTurn(conversationId, prompt)`
 4. Mark conversation as running via `conversationService.markRunning(conversationId)`
 5. Spawn the runner with `--history-file` pointing to state.json

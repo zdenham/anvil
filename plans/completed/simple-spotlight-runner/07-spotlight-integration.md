@@ -142,5 +142,5 @@ pnpm build
 
 | Shortcut | Flow | Where it runs | Storage |
 |----------|------|---------------|---------|
-| **Enter** | Simple | Source repo | `~/.mort/simple-tasks/` |
-| **⌘+Enter** | Full | Allocated worktree | `~/.mort/tasks/` |
+| **Enter** | Simple | Source repo | `~/.anvil/simple-tasks/` |
+| **⌘+Enter** | Full | Allocated worktree | `~/.anvil/tasks/` |

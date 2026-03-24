@@ -11,7 +11,7 @@ Implement a VS Code-like draggable multi-pane system that allows users to split 
 - **Resizable panels**: `ResizablePanel` component exists for drag-based width resizing
 - **@dnd-kit installed**: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` already in dependencies
 - **Per-pane UUID tracking**: Each pane has a unique ID, view state, and independent lifecycle
-- **Layout persistence**: `~/.mort/ui/layout.json` stores panel widths via Zod-validated schema
+- **Layout persistence**: `~/.anvil/ui/layout.json` stores panel widths via Zod-validated schema
 
 ## Design Goals
 
@@ -183,7 +183,7 @@ src/
 
 ### 5. Persistence
 
-**Decision**: Persist to `~/.mort/ui/pane-layout.json` (separate from existing files).
+**Decision**: Persist to `~/.anvil/ui/pane-layout.json` (separate from existing files).
 
 **Rationale**:
 - Clear separation from `layout.json` (tree panel width) and `content-panes.json`

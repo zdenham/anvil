@@ -96,7 +96,7 @@ getCurrentBranch: (repoId: string, worktreeId: string) => string | null;
 
 **Option B: Use git commands at fetch time.** Use `gitCommands.getDefaultBranch(worktreePath)` (already exists in `src/lib/tauri-commands.ts`) for the default branch, and `invoke("git_get_current_branch", { workingDirectory })` for the current branch. This requires adding a `git_get_current_branch` Rust command to Phase 1 (running `git rev-parse --abbrev-ref HEAD`). More accurate but adds a Phase 1 dependency.
 
-**Note**: `WorktreeState.currentBranch` is stored in `settings.json` and may be stale if the branch changed outside Mort. For the initial implementation, Option A is sufficient. If accuracy is critical later, Option B can be layered on.
+**Note**: `WorktreeState.currentBranch` is stored in `settings.json` and may be stale if the branch changed outside Anvil. For the initial implementation, Option A is sufficient. If accuracy is critical later, Option B can be layered on.
 
 ### Merge base resolution logic (critical)
 

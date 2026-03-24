@@ -1,8 +1,8 @@
-# Hybrid Audit Logging for .mort Directory
+# Hybrid Audit Logging for .anvil Directory
 
 ## Overview
 
-Implement a hybrid approach to tracking history in the `.mort` directory that combines:
+Implement a hybrid approach to tracking history in the `.anvil` directory that combines:
 
 1. **Structured audit logs** - Queryable JSON arrays per entity for UI display
 2. **Git tracking** - Full content history with commit references in audit entries
@@ -24,7 +24,7 @@ This gives us the best of both worlds: easy-to-query structured data for the UI,
 ## Architecture
 
 ```
-~/.mort/
+~/.anvil/
 ├── .git/                          # Git repo for full history
 ├── tasks/
 │   ├── {task-id}.json             # TaskMetadata (current state)
@@ -126,7 +126,7 @@ interface AuditLog {
 
 ## Implementation
 
-### 1. Initialize Git in .mort Directory
+### 1. Initialize Git in .anvil Directory
 
 **File: `src/lib/persistence.ts`**
 
@@ -138,8 +138,8 @@ async initGitRepo(): Promise<void> {
   if (await this.exists(gitDir)) return;
 
   await this.runGit(["init"]);
-  await this.runGit(["config", "user.name", "Mort"]);
-  await this.runGit(["config", "user.email", "mort@local"]);
+  await this.runGit(["config", "user.name", "Anvil"]);
+  await this.runGit(["config", "user.email", "anvil@local"]);
 
   // Create .gitignore for files we don't want to track
   await this.writeText(".gitignore", [
@@ -150,7 +150,7 @@ async initGitRepo(): Promise<void> {
     "*.tmp",
   ].join("\n"));
 
-  await this.commitAll("Initialize .mort directory");
+  await this.commitAll("Initialize .anvil directory");
 }
 
 async commitAll(message: string): Promise<string | null> {
@@ -168,7 +168,7 @@ async commitAll(message: string): Promise<string | null> {
 }
 
 private async runGit(args: string[]): Promise<string> {
-  // Run git command in .mort directory
+  // Run git command in .anvil directory
   // Use Tauri command or child_process
 }
 ```

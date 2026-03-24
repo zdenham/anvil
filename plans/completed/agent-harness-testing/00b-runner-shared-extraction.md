@@ -99,7 +99,7 @@ export function buildSystemPrompt(
     slug?: string;
     branchName?: string;
     cwd: string;
-    mortDir: string;
+    anvilDir: string;
     parentTaskId?: string;
   }
 ): string {
@@ -108,7 +108,7 @@ export function buildSystemPrompt(
   prompt = prompt.replace(/\{\{taskId\}\}/g, context.taskId ?? "none");
   prompt = prompt.replace(/\{\{slug\}\}/g, context.slug ?? "none");
   prompt = prompt.replace(/\{\{branchName\}\}/g, context.branchName ?? "none");
-  prompt = prompt.replace(/\{\{mortDir\}\}/g, context.mortDir);
+  prompt = prompt.replace(/\{\{anvilDir\}\}/g, context.anvilDir);
   prompt = prompt.replace(/\{\{threadId\}\}/g, context.threadId ?? "none");
 
   // Build runtime context
@@ -182,7 +182,7 @@ export async function runAgentLoop(
     slug: context.task?.slug,
     branchName: context.task?.branch,
     cwd: context.workingDir,
-    mortDir: config.mortDir,
+    anvilDir: config.anvilDir,
   });
 
   logger.info(
@@ -245,7 +245,7 @@ export async function runAgentLoop(
     prompt: config.prompt,
     options: {
       cwd: context.workingDir,
-      additionalDirectories: [config.mortDir],
+      additionalDirectories: [config.anvilDir],
       model: agentConfig.model ?? "claude-opus-4-5-20251101",
       systemPrompt: {
         type: "preset",

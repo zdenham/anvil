@@ -87,7 +87,7 @@ These bring cc-teams down from 7.9 to 7.4 in my assessment. Still solidly #2, bu
 My agent found three showstopper bugs:
 
 - `shell_spawn` processes never tracked — orphaned on sidecar exit
-- Sidecar path hardcoded to `~/.mort/sidecar/dist/server.js` — breaks in packaged apps
+- Sidecar path hardcoded to `~/.anvil/sidecar/dist/server.js` — breaks in packaged apps
 - Shutdown handler calls `process.exit(0)` without killing any children
 
 The independent review scored baseline at 7.25 with only 2 bugs flagged as blockers. My agent found that the entire process lifecycle model is broken — no spawned process (terminal, agent, shell) survives a graceful shutdown. This is worse than a single missing feature; it's a systemic gap.

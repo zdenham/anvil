@@ -6,7 +6,7 @@
 ```json
 {
   "productName": "desktop",
-  "identifier": "com.getmort.app",
+  "identifier": "com.getanvil.app",
   "build": {
     "devUrl": "http://localhost:1420"
   }
@@ -25,8 +25,8 @@ server: {
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `MORT_APP_SUFFIX` | Appended to app ID and name (baked at build time) | _(none)_ |
-| `MORT_VITE_PORT` | Vite dev server port | `1420` |
+| `ANVIL_APP_SUFFIX` | Appended to app ID and name (baked at build time) | _(none)_ |
+| `ANVIL_VITE_PORT` | Vite dev server port | `1420` |
 
 ## Implementation
 
@@ -37,8 +37,8 @@ We use Tauri's `--config` flag with overlay files for each instance. This is sim
 **Create**: `src-tauri/tauri.conf.dev.json` (example for "dev" suffix)
 ```json
 {
-  "productName": "Mort Dev",
-  "identifier": "com.getmort.app.dev",
+  "productName": "Anvil Dev",
+  "identifier": "com.getanvil.app.dev",
   "build": {
     "devUrl": "http://localhost:1421"
   },
@@ -46,7 +46,7 @@ We use Tauri's `--config` flag with overlay files for each instance. This is sim
     "windows": [
       {
         "label": "main",
-        "title": "Mort Dev"
+        "title": "Anvil Dev"
       }
     ]
   },
@@ -74,8 +74,8 @@ cargo tauri build --config src-tauri/tauri.conf.dev.json
 ```typescript
 import { defineConfig } from "vite";
 
-const vitePort = parseInt(process.env.MORT_VITE_PORT || '1420', 10);
-const appSuffix = process.env.MORT_APP_SUFFIX || '';
+const vitePort = parseInt(process.env.ANVIL_VITE_PORT || '1420', 10);
+const appSuffix = process.env.ANVIL_APP_SUFFIX || '';
 
 export default defineConfig(async () => ({
   server: {
@@ -86,8 +86,8 @@ export default defineConfig(async () => ({
       : undefined,
   },
   define: {
-    __MORT_APP_SUFFIX__: JSON.stringify(appSuffix),
-    __MORT_VITE_PORT__: JSON.stringify(vitePort),
+    __ANVIL_APP_SUFFIX__: JSON.stringify(appSuffix),
+    __ANVIL_VITE_PORT__: JSON.stringify(vitePort),
   },
 }));
 ```
@@ -100,17 +100,17 @@ export default defineConfig(async () => ({
 
 ```rust
 fn main() {
-    // Bake MORT_APP_SUFFIX into the binary at compile time
-    let suffix = std::env::var("MORT_APP_SUFFIX").unwrap_or_default();
-    println!("cargo:rustc-env=MORT_APP_SUFFIX={}", suffix);
+    // Bake ANVIL_APP_SUFFIX into the binary at compile time
+    let suffix = std::env::var("ANVIL_APP_SUFFIX").unwrap_or_default();
+    println!("cargo:rustc-env=ANVIL_APP_SUFFIX={}", suffix);
 
     // Bake default hotkeys
-    let spotlight_hotkey = std::env::var("MORT_SPOTLIGHT_HOTKEY")
+    let spotlight_hotkey = std::env::var("ANVIL_SPOTLIGHT_HOTKEY")
         .unwrap_or_else(|_| "Command+Space".to_string());
-    let clipboard_hotkey = std::env::var("MORT_CLIPBOARD_HOTKEY")
+    let clipboard_hotkey = std::env::var("ANVIL_CLIPBOARD_HOTKEY")
         .unwrap_or_else(|_| "Command+Option+C".to_string());
-    println!("cargo:rustc-env=MORT_SPOTLIGHT_HOTKEY={}", spotlight_hotkey);
-    println!("cargo:rustc-env=MORT_CLIPBOARD_HOTKEY={}", clipboard_hotkey);
+    println!("cargo:rustc-env=ANVIL_SPOTLIGHT_HOTKEY={}", spotlight_hotkey);
+    println!("cargo:rustc-env=ANVIL_CLIPBOARD_HOTKEY={}", clipboard_hotkey);
 
     tauri_build::build()
 }
@@ -123,13 +123,13 @@ fn main() {
 //! These are set during `cargo build` via build.rs and cannot be changed at runtime.
 
 /// App suffix baked at build time (e.g., "dev", "feature-xyz", or "" for production)
-pub const APP_SUFFIX: &str = env!("MORT_APP_SUFFIX");
+pub const APP_SUFFIX: &str = env!("ANVIL_APP_SUFFIX");
 
 /// Default spotlight hotkey baked at build time
-pub const DEFAULT_SPOTLIGHT_HOTKEY: &str = env!("MORT_SPOTLIGHT_HOTKEY");
+pub const DEFAULT_SPOTLIGHT_HOTKEY: &str = env!("ANVIL_SPOTLIGHT_HOTKEY");
 
 /// Default clipboard hotkey baked at build time
-pub const DEFAULT_CLIPBOARD_HOTKEY: &str = env!("MORT_CLIPBOARD_HOTKEY");
+pub const DEFAULT_CLIPBOARD_HOTKEY: &str = env!("ANVIL_CLIPBOARD_HOTKEY");
 
 /// Check if this is a non-production build
 pub const fn is_alternate_build() -> bool {
@@ -158,7 +158,7 @@ pub fn display_suffix() -> &'static str {
 | `src-tauri/tauri.conf.dev.json` | **NEW**: Config overlay for dev build |
 | `src-tauri/src/build_info.rs` | **NEW**: Build-time constants module |
 | `src-tauri/build.rs` | **MODIFY**: Bake suffix and hotkeys into binary |
-| `vite.config.ts` | **MODIFY**: Read `MORT_VITE_PORT`, `MORT_APP_SUFFIX` |
+| `vite.config.ts` | **MODIFY**: Read `ANVIL_VITE_PORT`, `ANVIL_APP_SUFFIX` |
 | `src-tauri/src/lib.rs` | **MODIFY**: Add `mod build_info;` |
 
 ## Verification
@@ -166,16 +166,16 @@ pub fn display_suffix() -> &'static str {
 ```bash
 # Build production (no env vars needed)
 pnpm build
-# Check: identifier = com.getmort.app
+# Check: identifier = com.getanvil.app
 
 # Build dev variant (uses shell script preset)
 pnpm build:dev
-# Check: identifier = com.getmort.app.dev
+# Check: identifier = com.getanvil.app.dev
 
 # Verify both can be installed side-by-side
-mdls -name kMDItemCFBundleIdentifier /Applications/Mort.app
-mdls -name kMDItemCFBundleIdentifier /Applications/Mort\ Dev.app
+mdls -name kMDItemCFBundleIdentifier /Applications/Anvil.app
+mdls -name kMDItemCFBundleIdentifier /Applications/Anvil\ Dev.app
 
 # Verify baked values in binary
-strings "src-tauri/target/release/bundle/macos/Mort Dev.app/Contents/MacOS/Mort Dev" | grep -i "mort"
+strings "src-tauri/target/release/bundle/macos/Anvil Dev.app/Contents/MacOS/Anvil Dev" | grep -i "anvil"
 ```

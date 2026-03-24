@@ -41,7 +41,7 @@ Update `src/entities/threads/service.ts`:
 **Key changes:**
 - Remove all task-related logic (taskId index, task slug resolution, task-scoped paths)
 - Add `repoId` and `worktreeId` parameters (both required per decision #12)
-- Update path resolution to use new top-level thread storage path: `~/.mort/threads/{threadId}/`
+- Update path resolution to use new top-level thread storage path: `~/.anvil/threads/{threadId}/`
 - Working directory is derived from repo/worktree lookup, not stored on ThreadMetadata
 
 **Updated create method signature:**
@@ -70,10 +70,10 @@ async create(params: {
 **Path resolution changes:**
 ```typescript
 // Old path (task-scoped):
-// ~/.mort/tasks/{taskSlug}/threads/{agentType}-{threadId}/
+// ~/.anvil/tasks/{taskSlug}/threads/{agentType}-{threadId}/
 
 // New path (top-level):
-// ~/.mort/threads/{threadId}/
+// ~/.anvil/threads/{threadId}/
 function getThreadPath(threadId: string): string {
   return `threads/${threadId}`;
 }
@@ -163,7 +163,7 @@ Ensure clear separation:
 - Updated ThreadMetadata type (no taskId, no agentType, no workingDirectory, required repoId/worktreeId)
 
 **Consumes from 02-storage-layer.md:**
-- Thread path resolution (`~/.mort/threads/{threadId}/`)
+- Thread path resolution (`~/.anvil/threads/{threadId}/`)
 - Archive support
 - Updated hydrate methods
 
@@ -178,7 +178,7 @@ Ensure clear separation:
 - [ ] Thread store has `getThreadsByRepo()` and `getThreadsByWorktree()` selectors
 - [ ] Thread store keeps `Record<string, ThreadMetadata>` and `_apply*` methods with rollback functions
 - [ ] Thread service uses existing `persistence` layer directly (no new storage service classes)
-- [ ] Thread paths are top-level: `~/.mort/threads/{threadId}/`
+- [ ] Thread paths are top-level: `~/.anvil/threads/{threadId}/`
 - [ ] Working directory is derived from repo/worktree lookup, not stored
 - [ ] task-changes.tsx renamed to thread-changes.tsx
 - [ ] use-navigate-to-next-task.ts renamed and updated
@@ -215,7 +215,7 @@ The implementation agent must write and pass all of the following tests before c
 1. **Create method tests:**
    - `create({ repoId, worktreeId })` creates thread with both IDs set
    - `create({ repoId, worktreeId, git })` creates thread with git info attached
-   - Created thread is persisted to `~/.mort/threads/{threadId}/metadata.json`
+   - Created thread is persisted to `~/.anvil/threads/{threadId}/metadata.json`
    - Created thread metadata does NOT contain `taskId`, `agentType`, or `workingDirectory` fields
 
 2. **Query method tests:**

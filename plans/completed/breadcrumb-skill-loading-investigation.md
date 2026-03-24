@@ -12,7 +12,7 @@ The agent used these tools: `Agent, Bash, Edit, Glob, Grep, Read, TodoWrite, Wri
 
 ### 2. The SKILL.md was never read
 
-The agent never read `~/.mort/skills/breadcrumb/SKILL.md` (or any other SKILL.md path). It read the breadcrumb `readme.md`, the plan file, `docs/agents.md`, and various source files — but never the skill specification itself.
+The agent never read `~/.anvil/skills/breadcrumb/SKILL.md` (or any other SKILL.md path). It read the breadcrumb `readme.md`, the plan file, `docs/agents.md`, and various source files — but never the skill specification itself.
 
 ### 3. The agent "winged it" and got close enough
 
@@ -29,18 +29,18 @@ This worked because the breadcrumb concept is intuitive and the readme.md provid
 The agent runner configures the SDK with:
 ```ts
 // agents/src/runners/shared.ts:1420
-plugins: [{ type: "local" as const, path: config.mortDir }],
+plugins: [{ type: "local" as const, path: config.anvilDir }],
 ```
 
-This tells the Claude Code SDK to discover skills from `~/.mort/skills/`. The SDK registers them with a `mort:` namespace prefix and lists them in a system-reminder:
+This tells the Claude Code SDK to discover skills from `~/.anvil/skills/`. The SDK registers them with a `anvil:` namespace prefix and lists them in a system-reminder:
 ```
-- mort:breadcrumb: Pick up a long-running task from a breadcrumb directory...
+- anvil:breadcrumb: Pick up a long-running task from a breadcrumb directory...
 ```
 
-But the prompt says `/breadcrumb` (no `mort:` prefix). The SDK instruction says:
+But the prompt says `/breadcrumb` (no `anvil:` prefix). The SDK instruction says:
 > When users reference a "/<something>", they are referring to a skill. Use this tool to invoke it.
 
-The agent likely saw `/breadcrumb` in the prompt but the available skill listed as `mort:breadcrumb`. It either:
+The agent likely saw `/breadcrumb` in the prompt but the available skill listed as `anvil:breadcrumb`. It either:
 1. Didn't match the two (prefix mismatch)
 2. Decided to interpret the prompt directly rather than invoke the Skill tool
 
@@ -52,7 +52,7 @@ The thread's `state.json` only stores user and assistant messages — no tool re
 
 ## Impact
 
-The breadcrumb skill's specific instructions are **not being loaded** when invoked via `mort.spawn()`. The agent is operating on vibes rather than the actual skill specification. This means:
+The breadcrumb skill's specific instructions are **not being loaded** when invoked via `anvil.spawn()`. The agent is operating on vibes rather than the actual skill specification. This means:
 
 - The `BREADCRUMB_COMPLETE` signal rules (including our new "never mention" rule) won't be followed
 - Progress file format/naming conventions may drift
@@ -63,13 +63,13 @@ The breadcrumb skill's specific instructions are **not being loaded** when invok
 
 The breadcrumb-loop SKILL.md spawns the child with:
 ```js
-const result = await mort.spawn({
+const result = await anvil.spawn({
   prompt: `/breadcrumb ${DIR} ${i}`,
   ...
 });
 ```
 
-This passes `/breadcrumb` as a raw prompt. The child agent is expected to recognize this as a skill invocation and call the `Skill` tool. But the `mort:` namespace prefix creates ambiguity, and the agent chose the direct interpretation path instead.
+This passes `/breadcrumb` as a raw prompt. The child agent is expected to recognize this as a skill invocation and call the `Skill` tool. But the `anvil:` namespace prefix creates ambiguity, and the agent chose the direct interpretation path instead.
 
 ## Options
 
@@ -79,28 +79,28 @@ Instead of passing `/breadcrumb ${DIR} ${i}` and relying on the child agent to i
 
 The breadcrumb-loop SKILL.md would change to something like:
 ```js
-const skillContent = await mort.readFile("plugins/mort/skills/breadcrumb/SKILL.md");
-const result = await mort.spawn({
+const skillContent = await anvil.readFile("plugins/anvil/skills/breadcrumb/SKILL.md");
+const result = await anvil.spawn({
   prompt: `${skillContent}\n\n## Arguments\n\n${DIR} ${i}`,
   ...
 });
 ```
 
 **Pro**: Guarantees the skill content is in context, no dependency on Skill tool behavior.
-**Con**: Requires `mort.readFile()` or similar SDK method. Couples the loop to the skill file path.
+**Con**: Requires `anvil.readFile()` or similar SDK method. Couples the loop to the skill file path.
 
 ### B. Use the fully-qualified skill name in the prompt
 
-Change the spawn prompt to `/mort:breadcrumb ${DIR} ${i}` so the child agent sees a direct match to the available skill listing.
+Change the spawn prompt to `/anvil:breadcrumb ${DIR} ${i}` so the child agent sees a direct match to the available skill listing.
 
 **Pro**: Simple one-line change. Lets the SDK handle skill expansion naturally.
 **Con**: Still relies on the agent choosing to invoke the Skill tool rather than interpreting directly.
 
-### C. Add a `skill` option to `mort.spawn()`
+### C. Add a `skill` option to `anvil.spawn()`
 
 Add a first-class `skill` parameter to the spawn options that pre-expands the skill content server-side before the agent sees the prompt:
 ```js
-const result = await mort.spawn({
+const result = await anvil.spawn({
   skill: "breadcrumb",
   args: `${DIR} ${i}`,
   ...
@@ -119,6 +119,6 @@ Add to the agent's system prompt: "When your prompt starts with /, always invoke
 
 ## Recommendation
 
-**Option B** is the quickest fix — change `/breadcrumb` to `/mort:breadcrumb` in the breadcrumb-loop SKILL.md. Test whether this causes the child agent to invoke the Skill tool.
+**Option B** is the quickest fix — change `/breadcrumb` to `/anvil:breadcrumb` in the breadcrumb-loop SKILL.md. Test whether this causes the child agent to invoke the Skill tool.
 
 If that doesn't reliably trigger Skill tool invocation, escalate to **Option C** which makes skill expansion deterministic rather than relying on model behavior.

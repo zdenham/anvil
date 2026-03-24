@@ -82,12 +82,12 @@ These may still contain "conversation" and that's OK:
 
 ### 4. Agent Execution
 - [ ] Agent spawns correctly
-- [ ] Agent writes to correct directory (~/.mort/threads/)
+- [ ] Agent writes to correct directory (~/.anvil/threads/)
 - [ ] Agent events received by frontend
 
 ### 5. Data Migration (if existing data)
-- [ ] Old ~/.mort/conversations/ data is inaccessible (expected)
-- [ ] New threads created in ~/.mort/threads/
+- [ ] Old ~/.anvil/conversations/ data is inaccessible (expected)
+- [ ] New threads created in ~/.anvil/threads/
 
 ## Rollback Plan
 

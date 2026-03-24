@@ -150,6 +150,6 @@ No need to duplicate this logic.
 - [x] `//` inserts literal `/` (escape sequence)
 - [x] `/` in URLs (e.g., `http://`) does NOT trigger dropdown
 - [x] Skills searchable by name and description
-- [x] Source label shown (Personal, Project, Mort)
+- [x] Source label shown (Personal, Project, Anvil)
 - [x] Selecting skill inserts `/<slug> ` with trailing space
 - [x] Dropdown refreshes skill list on each trigger

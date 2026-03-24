@@ -34,9 +34,9 @@ if (/^BREADCRUMB_COMPLETE$/m.test(result)) {
 
 Both changes together (strict prompt + robust check) provide defense in depth.
 
-## Problem 2: Loop agent confusion after mort-repl completes
+## Problem 2: Loop agent confusion after anvil-repl completes
 
-The breadcrumb sub-agents commit their work directly to the branch. When the mort-repl loop finishes (or is interrupted), the parent agent doesn't realize this — it checked `git diff` and saw nothing changed, then wrongly concluded "the breadcrumb agent didn't actually implement anything." It then attempted to redo all the work before eventually noticing the code was already there.
+The breadcrumb sub-agents commit their work directly to the branch. When the anvil-repl loop finishes (or is interrupted), the parent agent doesn't realize this — it checked `git diff` and saw nothing changed, then wrongly concluded "the breadcrumb agent didn't actually implement anything." It then attempted to redo all the work before eventually noticing the code was already there.
 
 **Fix — add post-loop instructions to breadcrumb-loop [SKILL.md](http://SKILL.md):**
 
@@ -52,9 +52,9 @@ After the loop code block, add a section like:
 
 ## Phases
 
-- [x] Update `plugins/mort/skills/breadcrumb/SKILL.md` — add strict rule about never mentioning the signal string unless signaling
+- [x] Update `plugins/anvil/skills/breadcrumb/SKILL.md` — add strict rule about never mentioning the signal string unless signaling
 
-- [x] Update `plugins/mort/skills/breadcrumb-loop/SKILL.md` — tighten the detection check and add post-loop instructions
+- [x] Update `plugins/anvil/skills/breadcrumb-loop/SKILL.md` — tighten the detection check and add post-loop instructions
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 

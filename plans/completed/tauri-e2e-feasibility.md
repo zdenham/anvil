@@ -2,7 +2,7 @@
 
 ## Context
 
-Mort is a Tauri app where the frontend communicates with a Rust backend via `invoke()` IPC. This couples frontend development to the Tauri build cycle — every Rust change requires a recompile, and the UI can only run inside the WKWebView.
+Anvil is a Tauri app where the frontend communicates with a Rust backend via `invoke()` IPC. This couples frontend development to the Tauri build cycle — every Rust change requires a recompile, and the UI can only run inside the WKWebView.
 
 The goal: **decouple the transport layer** so the frontend can run in any browser (Chrome, Playwright) while still talking to the real Rust backend. This enables:
 - Developing the frontend in Chrome with devtools (no Tauri rebuild for UI changes)
@@ -45,7 +45,7 @@ Transport Layer (src/lib/invoke.ts)
 
 **Data commands** (~94, route over WebSocket):
 - Filesystem: `fs_read_file`, `fs_write_file`, `fs_list_dir`, etc. (12)
-- Git: `git_diff_files`, `git_list_mort_branches`, `git_grep`, etc. (25+)
+- Git: `git_diff_files`, `git_list_anvil_branches`, `git_grep`, etc. (25+)
 - Threads: `get_thread_status`, `get_thread`, `search_threads` (3)
 - Locks: `lock_acquire_repo`, `lock_release_repo` (2)
 - Agent hub: `send_to_agent`, `list_connected_agents`, `get_agent_socket_path` (3)
@@ -268,7 +268,7 @@ export function listen<T>(event: string, handler: (event: { payload: T }) => voi
 
 ### With Transport Layer
 
-No new scripts. `pnpm dev` continues to work exactly as today — it runs `./scripts/dev-mort.sh dev`, which starts the Rust backend (via `tauri dev`) and the Vite dev server (port 1420, or `MORT_VITE_PORT`). The only change is the Rust backend now also starts a WS server on `localhost:9600`.
+No new scripts. `pnpm dev` continues to work exactly as today — it runs `./scripts/dev-anvil.sh dev`, which starts the Rust backend (via `tauri dev`) and the Vite dev server (port 1420, or `ANVIL_VITE_PORT`). The only change is the Rust backend now also starts a WS server on `localhost:9600`.
 
 ```bash
 # Same as today — starts Rust backend (now with WS on :9600) + Vite on :1420
@@ -294,7 +294,7 @@ When developing in the Tauri WebView (unchanged from today):
 
 ```bash
 # Start the app normally (WS server runs on :9600)
-MORT_DATA_DIR=/tmp/mort-e2e pnpm dev &
+ANVIL_DATA_DIR=/tmp/anvil-e2e pnpm dev &
 
 # Run Playwright against the Vite dev server
 npx playwright test
@@ -308,7 +308,7 @@ Decomposed into three sequential sub-plans in [tauri-e2e-feasibility/](./tauri-e
 
 1. **[ws-server.md](./tauri-e2e-feasibility/ws-server.md)** — Rust WS server on `:9600`, ~10 proof-of-concept commands, HTTP file serving
 2. **[frontend-transport.md](./tauri-e2e-feasibility/frontend-transport.md)** — `invoke.ts`/`events.ts` wrappers, migrate ~25 files, browser window stubs
-3. **[full-coverage-e2e.md](./tauri-e2e-feasibility/full-coverage-e2e.md)** — Route all ~93 commands, WS push events, Playwright, delete `mort-test`, first E2E test
+3. **[full-coverage-e2e.md](./tauri-e2e-feasibility/full-coverage-e2e.md)** — Route all ~93 commands, WS push events, Playwright, delete `anvil-test`, first E2E test
 
 ---
 
@@ -319,7 +319,7 @@ Decomposed into three sequential sub-plans in [tauri-e2e-feasibility/](./tauri-e
 | Domain | Commands | Needs State<T>? |
 |--------|----------|:-:|
 | Filesystem | `fs_write_file`, `fs_read_file`, `fs_mkdir`, `fs_exists`, `fs_remove`, `fs_remove_dir_all`, `fs_list_dir`, `fs_move`, `fs_copy_file`, `fs_copy_directory`, `fs_is_git_repo` | No |
-| Git | `git_grep`, `git_fetch`, `git_get_default_branch`, `git_create_branch`, `git_checkout_branch`, `git_delete_branch`, `git_list_mort_branches`, `git_diff_files`, `git_diff_commit`, `git_diff_range`, `git_diff_uncommitted`, `git_get_merge_base`, `git_show_file`, `git_rm`, ... (25+) | No |
+| Git | `git_grep`, `git_fetch`, `git_get_default_branch`, `git_create_branch`, `git_checkout_branch`, `git_delete_branch`, `git_list_anvil_branches`, `git_diff_files`, `git_diff_commit`, `git_diff_range`, `git_diff_uncommitted`, `git_get_merge_base`, `git_show_file`, `git_rm`, ... (25+) | No |
 | Threads | `get_thread_status`, `get_thread` | No |
 | Search | `grep`, `search_threads` | No |
 | Paths | `fs_get_repo_dir`, `fs_get_repo_source_path`, `fs_get_home_dir`, `get_paths_info`, `get_agent_types` | No |
@@ -365,4 +365,4 @@ Decomposed into three sequential sub-plans in [tauri-e2e-feasibility/](./tauri-e
 
 The previous tiered approach (Tier 1: mocked IPC, Tier 1.5: `tauri-remote-ui`, Tier 2: WebDriver) is superseded by this. Instead of mocking the backend for tests, we connect to the real one. Instead of depending on `tauri-remote-ui` (19 stars, alpha), we own the transport. The WebSocket server is straightforward Rust, and the frontend wrapper is ~100 lines of TypeScript.
 
-**`mort-test` is deleted.** The native accessibility test binary (`src-tauri/src/bin/mort-test/`) is unmaintained and adds build complexity. With Playwright covering the real backend via WebSocket, there's no reason to keep a separate native test harness. Native-only concerns (global hotkeys, multi-window visibility, macOS permissions) are better tested manually or with focused unit tests on the Rust side. Remove `mort-test` entirely: delete the binary source, remove references from `docs/testing.md`, and drop any Cargo build targets.
+**`anvil-test` is deleted.** The native accessibility test binary (`src-tauri/src/bin/anvil-test/`) is unmaintained and adds build complexity. With Playwright covering the real backend via WebSocket, there's no reason to keep a separate native test harness. Native-only concerns (global hotkeys, multi-window visibility, macOS permissions) are better tested manually or with focused unit tests on the Rust side. Remove `anvil-test` entirely: delete the binary source, remove references from `docs/testing.md`, and drop any Cargo build targets.

@@ -1,11 +1,11 @@
 # Global File Content Search (Cmd+Shift+F)
 
-VS Code-style content search across all files in the active worktree. Replaces the file browser panel on the right side. Searches git-tracked files using `git grep` on the Rust side for speed and automatic .gitignore/binary exclusion. Also searches thread conversation content via a separate Rust command that greps `~/.mort/threads/`. File results are displayed VS Code-style: grouped by file with collapsible match lines underneath. Thread content matches appear first, followed by file results in git grep order.
+VS Code-style content search across all files in the active worktree. Replaces the file browser panel on the right side. Searches git-tracked files using `git grep` on the Rust side for speed and automatic .gitignore/binary exclusion. Also searches thread conversation content via a separate Rust command that greps `~/.anvil/threads/`. File results are displayed VS Code-style: grouped by file with collapsible match lines underneath. Thread content matches appear first, followed by file results in git grep order.
 
 ## Context
 
 - **Trigger:** Cmd+Shift+F opens the search panel (replaces file browser if open)
-- **Scope:** Searches file contents via `git grep` and thread conversation content via filesystem grep of `~/.mort/threads/`. File search is on by default. Supports include/exclude glob patterns (VS Code-style).
+- **Scope:** Searches file contents via `git grep` and thread conversation content via filesystem grep of `~/.anvil/threads/`. File search is on by default. Supports include/exclude glob patterns (VS Code-style).
 - **Backend:** `git grep` via a new Tauri command (fast, respects .gitignore, only tracked files)
 - **Display:** Right-side panel (same slot as file browser), VS Code-style tree with file headers and collapsible match lines. Thread content matches at top, then file results in git grep order.
 - **Navigation:** Click a match → opens file in content pane, scrolled to the matching line. If match is in `plans/` and plan is non-archived, opens plan view instead of raw markdown.
@@ -34,9 +34,9 @@ VS Code-style content search across all files in the active worktree. Replaces t
 
 **Threads** are always searched by content across all worktrees:
 
-- Thread content lives at `~/.mort/threads/{threadId}/state.json` (JSON, up to ~9MB each)
-- `~/.mort/` is **not** a git repo, so `git grep` cannot be used — need a separate Rust command
-- New Tauri command `search_threads` greps `~/.mort/threads/*/state.json` for the query
+- Thread content lives at `~/.anvil/threads/{threadId}/state.json` (JSON, up to ~9MB each)
+- `~/.anvil/` is **not** a git repo, so `git grep` cannot be used — need a separate Rust command
+- New Tauri command `search_threads` greps `~/.anvil/threads/*/state.json` for the query
 - Searches user prompts, assistant text, and tool results within the state.json files
 - Results are matched to thread metadata (name, worktreeId) from the in-memory store
 - Thread results are displayed grouped by thread (thread name header → indented match lines)
@@ -62,9 +62,9 @@ VS Code-style content search across all files in the active worktree. Replaces t
 [User types query / changes worktree / toggles checkbox / edits patterns / toggles case]
     → debounce 300ms, bump request counter, discard any stale responses
     ├── Always (if query.length >= 2):
-    │       → invoke("search_threads", { mortDir, query, maxResults: 100, caseSensitive })
+    │       → invoke("search_threads", { anvilDir, query, maxResults: 100, caseSensitive })
     │               ↓
-    │       Rust: grep ~/.mort/threads/*/state.json (fixed-string, ±case-insensitive)
+    │       Rust: grep ~/.anvil/threads/*/state.json (fixed-string, ±case-insensitive)
     │               ↓
     │       Parse matches → Vec<ThreadContentMatch>
     │               ↓
@@ -278,7 +278,7 @@ Implementation:
 
 ### 1B: `search_threads` — thread content search (`src-tauri/src/search.rs`, new file)
 
-Thread content lives at `~/.mort/threads/{threadId}/state.json`. These are large JSON files (up to ~9MB) containing conversation messages, tool results, etc. `~/.mort/` is **not** a git repository, so `git grep` cannot be used.
+Thread content lives at `~/.anvil/threads/{threadId}/state.json`. These are large JSON files (up to ~9MB) containing conversation messages, tool results, etc. `~/.anvil/` is **not** a git repository, so `git grep` cannot be used.
 
 ```rust
 #[derive(Serialize)]
@@ -298,7 +298,7 @@ pub struct ThreadSearchResponse {
 
 #[tauri::command]
 pub async fn search_threads(
-    mort_dir: String,        // ~/.mort path, passed explicitly from TS
+    anvil_dir: String,        // ~/.anvil path, passed explicitly from TS
     query: String,
     max_results: Option<u32>,
     case_sensitive: Option<bool>,  // default: false (case-insensitive)
@@ -306,14 +306,14 @@ pub async fn search_threads(
 ```
 
 Implementation:
-- Shell out to `grep -r -F [-i] -l --include="state.json" <query> <mort_dir>/threads/`
+- Shell out to `grep -r -F [-i] -l --include="state.json" <query> <anvil_dir>/threads/`
   - `-r` recursive
   - `-F` fixed-string (literal match)
   - `-i` case-insensitive (added when `case_sensitive` is false/None — the default)
   - `-l` list matching files only (first pass — identify which threads match)
   - `--include="state.json"` only search state files, skip metadata.json
 - Then for each matching file, re-run `grep -F [-i] -n <query>` to get line matches with context
-- Search scope: `<mort_dir>/threads/` only — do NOT search `<mort_dir>/archive/`
+- Search scope: `<anvil_dir>/threads/` only — do NOT search `<anvil_dir>/archive/`
 - Searches entire state.json content (user prompts, assistant text, tool inputs/results, etc.)
 - Extract `threadId` from the directory path (`threads/{threadId}/state.json`)
 - **Snippet extraction:** strip JSON syntax from matched lines (remove leading `"key": "` prefixes, trailing `"` and commas), then trim to ~200 chars centered on the match, add `...` ellipsis at boundaries
@@ -345,12 +345,12 @@ grep: (repoPath: string, query: string, opts?: {
     caseSensitive: opts?.caseSensitive,
   }),
 
-searchThreads: (mortDir: string, query: string, opts?: {
+searchThreads: (anvilDir: string, query: string, opts?: {
   maxResults?: number;
   caseSensitive?: boolean;
 }) =>
   invoke<ThreadSearchResponse>("search_threads", {
-    mortDir,
+    anvilDir,
     query,
     maxResults: opts?.maxResults,
     caseSensitive: opts?.caseSensitive,
@@ -610,4 +610,4 @@ const handleFileNavigate = useCallback(
 - Search-and-replace
 - Thread content indexing (search is brute-force grep over state.json files; indexing could come later if perf degrades)
 - Separate plan search (plans are files on disk — git grep finds them naturally)
-- Searching archived threads (only `~/.mort/threads/` is searched, not `~/.mort/archive/`)
+- Searching archived threads (only `~/.anvil/threads/` is searched, not `~/.anvil/archive/`)

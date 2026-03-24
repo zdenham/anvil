@@ -5,14 +5,14 @@
 On app startup, entity hydration fails for every repository with:
 
 ```
-[entities:hydrate] Failed to ensure gateway channel for mortician: TypeError: Load failed
+[entities:hydrate] Failed to ensure gateway channel for anvil: TypeError: Load failed
 ```
 
 The error appears in all three webview windows (spotlight, control-panel, main), indicating a systemic failure rather than a transient network issue.
 
 ## Root Cause
 
-The `GatewayChannelService.create()` method (`src/entities/gateway-channels/service.ts:85`) uses the browser's native `fetch()` to POST to `https://mort-server.fly.dev/gateway/channels`.
+The `GatewayChannelService.create()` method (`src/entities/gateway-channels/service.ts:85`) uses the browser's native `fetch()` to POST to `https://anvil-server.fly.dev/gateway/channels`.
 
 **Tauri v2 blocks external `fetch()` requests from the webview by default.** The app is missing the `@tauri-apps/plugin-http` Tauri plugin, which is required to make HTTP requests to external origins from the frontend.
 
@@ -73,7 +73,7 @@ pnpm add @tauri-apps/plugin-http
 {
   "identifier": "http:default",
   "allow": [
-    { "url": "https://mort-server.fly.dev/*" }
+    { "url": "https://anvil-server.fly.dev/*" }
   ]
 }
 ```

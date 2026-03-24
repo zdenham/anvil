@@ -553,7 +553,7 @@ const commandArgs = [
   "--thread-id", threadId,
   "--cwd", sourcePath,
   "--prompt", prompt,
-  "--mort-dir", mortDir,
+  "--anvil-dir", anvilDir,
   "--agent-mode", agentMode,  // ADD THIS
   "--history-file", stateFilePath,
 ];
@@ -1178,7 +1178,7 @@ describe("parseArgs", () => {
       "--task-id", "task-123",
       "--thread-id", "thread-456",
       "--cwd", "/tmp/test",
-      "--mort-dir", "/tmp/mort",
+      "--anvil-dir", "/tmp/anvil",
       "--prompt", "test prompt",
       "--agent-mode", "auto-accept",
     ]);
@@ -1193,7 +1193,7 @@ describe("parseArgs", () => {
       "--task-id", "task-123",
       "--thread-id", "thread-456",
       "--cwd", "/tmp/test",
-      "--mort-dir", "/tmp/mort",
+      "--anvil-dir", "/tmp/anvil",
       "--prompt", "test prompt",
     ]);
 

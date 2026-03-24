@@ -30,7 +30,7 @@ Created comprehensive tests in `agents/src/runners/thread-history.test.ts`:
 2. **Frontend constructs history path**
    ```typescript
    // agent-service.ts:710
-   const stateFilePath = await join(mortDir, "tasks", taskId, "threads", `simple-${threadId}`, "state.json");
+   const stateFilePath = await join(anvilDir, "tasks", taskId, "threads", `simple-${threadId}`, "state.json");
    ```
 
 3. **Runner spawned with history**
@@ -51,9 +51,9 @@ Created comprehensive tests in `agents/src/runners/thread-history.test.ts`:
    ```
 
 ### Path Consistency Verified
-- **Frontend**: `{mortDir}/tasks/{taskId}/threads/simple-{threadId}/state.json`
-- **Runner**: `{mortDir}/tasks/{taskId}/threads/simple-{threadId}/state.json`
-- Both use same mortDir (passed via `--mort-dir`)
+- **Frontend**: `{anvilDir}/tasks/{taskId}/threads/simple-{threadId}/state.json`
+- **Runner**: `{anvilDir}/tasks/{taskId}/threads/simple-{threadId}/state.json`
+- Both use same anvilDir (passed via `--anvil-dir`)
 - Both use same taskId/threadId (consistent IDs from backend)
 
 ## Test Results

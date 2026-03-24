@@ -40,22 +40,22 @@ This refactor is decomposed into sub-plans optimized for **maximum parallel exec
 ### Phase 1: Foundation (Sequential)
 ```bash
 # Run first - establishes type foundation
-mort run 00-type-fixes.md
+anvil run 00-type-fixes.md
 ```
 
 ### Phase 2: Parallel Implementation
 ```bash
 # Run these three in parallel
-mort run 01-control-panel-window.md &
-mort run 02-quick-actions.md &
-mort run 03-inbox-wiring.md &
+anvil run 01-control-panel-window.md &
+anvil run 02-quick-actions.md &
+anvil run 03-inbox-wiring.md &
 wait
 ```
 
 ### Phase 3: Integration (Sequential)
 ```bash
 # Run last - ties everything together
-mort run 04-integration.md
+anvil run 04-integration.md
 ```
 
 ## Why This Decomposition?

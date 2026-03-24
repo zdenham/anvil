@@ -20,7 +20,7 @@ This protocol is broken into parallelizable implementation tracks:
 | Plan | Description | Dependencies |
 |------|-------------|--------------|
 | [01-types](./01-types.md) | Add TypeScript types for `pendingReview` and `action-requested` event | None |
-| [02-cli-command](./02-cli-command.md) | Implement `mort request-review` CLI command | 01-types |
+| [02-cli-command](./02-cli-command.md) | Implement `anvil request-review` CLI command | 01-types |
 | [03-action-pane](./03-action-pane.md) | Update frontend action pane to handle pending reviews | 01-types |
 
 ### Parallelization
@@ -42,7 +42,7 @@ Once types are complete, CLI and action pane work can proceed in parallel.
    └─ Agent #1 starts working
 
 2. Agent #1 researches, creates plan
-   └─ Calls: mort request-review --task <id> --default "Start implementation" --markdown "..."
+   └─ Calls: anvil request-review --task <id> --default "Start implementation" --markdown "..."
    └─ Agent #1 terminates
 
 3. Action pane shows markdown, placeholder shows "Start implementation"
@@ -52,14 +52,14 @@ Once types are complete, CLI and action pane work can proceed in parallel.
    └─ Agent #2 implements the feature
 
 5. Agent #2 finishes implementation
-   └─ Calls: mort request-review --task <id> --default "Approve" --markdown "..."
+   └─ Calls: anvil request-review --task <id> --default "Approve" --markdown "..."
    └─ Agent #2 terminates
 
 6. User reviews, types "also add rate limiting"
    └─ New agent #3 spawned with task context + "also add rate limiting"
 
 7. Agent #3 implements rate limiting
-   └─ Calls: mort request-review --task <id> --default "Approve and close" --markdown "..."
+   └─ Calls: anvil request-review --task <id> --default "Approve and close" --markdown "..."
    └─ Agent #3 terminates
 
 8. User presses Enter

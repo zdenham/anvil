@@ -2,13 +2,13 @@
 
 ## Summary
 
-Replace the minimal "Welcome to Mort" empty pane content with a useful guide page that shows users how to use the app — keyboard shortcuts, features, permission modes, and core concepts.
+Replace the minimal "Welcome to Anvil" empty pane content with a useful guide page that shows users how to use the app — keyboard shortcuts, features, permission modes, and core concepts.
 
 ## Context
 
 The current `EmptyPaneContent` (`src/components/content-pane/empty-pane-content.tsx`) shows:
 
-- "Welcome to Mort" heading
+- "Welcome to Anvil" heading
 - "Type a message below to get started" subtext
 - A `ThreadInputSection` pinned to the bottom
 
@@ -16,13 +16,13 @@ This is the default view when no thread/plan/terminal is selected (the `{ type: 
 
 ## Design
 
-The guide content should appear **above the input** in the empty pane, replacing the centered "Welcome to Mort" text. It should be scrollable and styled consistently with the app's `surface-*` color palette.
+The guide content should appear **above the input** in the empty pane, replacing the centered "Welcome to Anvil" text. It should be scrollable and styled consistently with the app's `surface-*` color palette.
 
 ### Content Sections
 
 **1. Getting Started**
 
-- Brief description of Mort: orchestrate parallel Claude Code agents from your desktop
+- Brief description of Anvil: orchestrate parallel Claude Code agents from your desktop
 - Mention the Spotlight bar for quick access from anywhere
 
 **2. Keyboard Shortcuts**

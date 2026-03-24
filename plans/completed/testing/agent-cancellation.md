@@ -173,7 +173,7 @@ const result = useMockMode
       prompt: config.prompt,
       options: {
         cwd: context.workingDir,
-        additionalDirectories: [config.mortDir],
+        additionalDirectories: [config.anvilDir],
         model: agentConfig.model ?? "claude-opus-4-5-20251101",
         systemPrompt: {
           type: "preset",
@@ -262,8 +262,8 @@ Update main() to create AbortController and handle abort:
 
 ```typescript
 async function main(): Promise<void> {
-  // Set up `mort` command before anything else
-  setupMortCommand();
+  // Set up `anvil` command before anything else
+  setupAnvilCommand();
 
   let strategy: RunnerStrategy | undefined;
   let context: OrchestrationContext | undefined;

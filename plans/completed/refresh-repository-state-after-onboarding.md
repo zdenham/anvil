@@ -6,7 +6,7 @@ After completing onboarding and calling `createFromFolder()` to set up a reposit
 
 1. The repository does not appear in the Settings page
 2. Task creation fails with "no repository" error
-3. The repository exists on disk (visible in mort-dev directory)
+3. The repository exists on disk (visible in anvil-dev directory)
 
 ## Root Cause Analysis
 

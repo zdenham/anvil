@@ -145,7 +145,7 @@ Note: We spread the `NetworkEvent` fields into the socket message rather than ne
 Add near the existing diagnostic config initialization (around line ~237-244 pattern), before `runAgentLoop()`:
 
 ```ts
-if (process.env.MORT_NETWORK_DEBUG === "1") {
+if (process.env.ANVIL_NETWORK_DEBUG === "1") {
   const { NetworkInterceptor } = await import("@/lib/network-interceptor.js");
   const interceptor = new NetworkInterceptor((event) => {
     hub?.send({
@@ -164,17 +164,17 @@ Use dynamic `import()` so the module is only loaded when the flag is set.
 
 ### `src/lib/agent-service.ts` — Pass env var
 
-Follow the existing `MORT_DIAGNOSTIC_LOGGING` pattern (lines ~772-783). Add `MORT_NETWORK_DEBUG` to the env vars block:
+Follow the existing `ANVIL_DIAGNOSTIC_LOGGING` pattern (lines ~772-783). Add `ANVIL_NETWORK_DEBUG` to the env vars block:
 
 ```ts
 // After the existing diagnosticEnv block:
 const networkDebug = useSettingsStore.getState().workspace.networkDebugger;
 if (networkDebug) {
-  envVars.MORT_NETWORK_DEBUG = "1";
+  envVars.ANVIL_NETWORK_DEBUG = "1";
 }
 ```
 
-If there's no `networkDebugger` setting in the workspace settings yet, use a simpler approach — check if the debug panel's network tab has ever been activated, or just hardcode it as enabled when the debug panel is open. The simplest approach: always set `MORT_NETWORK_DEBUG=1` when `diagnosticLogging` is enabled, since network debugging is a diagnostic feature.
+If there's no `networkDebugger` setting in the workspace settings yet, use a simpler approach — check if the debug panel's network tab has ever been activated, or just hardcode it as enabled when the debug panel is open. The simplest approach: always set `ANVIL_NETWORK_DEBUG=1` when `diagnosticLogging` is enabled, since network debugging is a diagnostic feature.
 
 **Fallback if no settings field exists:** Just set it unconditionally for now. The interceptor has near-zero overhead and the hub socket handles the volume fine. A settings toggle can be added later.
 
@@ -193,7 +193,7 @@ If there's no `networkDebugger` setting in the workspace settings yet, use a sim
 |------|--------|
 | `agents/src/lib/hub/types.ts` | Add `NetworkMessage` interface |
 | `agents/src/runner.ts` | Add interceptor init block (~8 lines) |
-| `src/lib/agent-service.ts` | Add `MORT_NETWORK_DEBUG` env var (~3 lines) |
+| `src/lib/agent-service.ts` | Add `ANVIL_NETWORK_DEBUG` env var (~3 lines) |
 
 ### Verification
 

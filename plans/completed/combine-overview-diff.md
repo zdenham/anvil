@@ -186,7 +186,7 @@ The agent writes to `content.md` as it runs (research findings, implementation p
 
 1. **Content is cached**: `taskService.getContent()` stores content in `taskStore.taskContent[id]` and returns the cached value on subsequent calls without re-fetching
 2. **No file watching**: There's no mechanism to detect when `content.md` changes on disk
-3. **Agent uses Write tool directly**: The agent writes to `~/.mort/tasks/{slug}/content.md` via the Write tool
+3. **Agent uses Write tool directly**: The agent writes to `~/.anvil/tasks/{slug}/content.md` via the Write tool
 
 ### Solution: React to Write Tool Calls
 
@@ -201,7 +201,7 @@ From the Anthropic SDK, tool_use blocks have:
   id: string,
   name: string,           // e.g., "Write"
   input: {
-    file_path: string,    // e.g., "~/.mort/tasks/{slug}/content.md"
+    file_path: string,    // e.g., "~/.anvil/tasks/{slug}/content.md"
     content: string
   }
 }
@@ -223,9 +223,9 @@ import type { MessageParam, ContentBlock } from "@anthropic-ai/sdk/resources/mes
  */
 function isContentMdPath(filePath: string): boolean {
   // Match paths like:
-  // ~/.mort/tasks/{slug}/content.md
-  // /Users/.../Documents/.mort/tasks/{slug}/content.md
-  return filePath.includes(".mort/tasks/") && filePath.endsWith("/content.md");
+  // ~/.anvil/tasks/{slug}/content.md
+  // /Users/.../Documents/.anvil/tasks/{slug}/content.md
+  return filePath.includes(".anvil/tasks/") && filePath.endsWith("/content.md");
 }
 
 /**

@@ -708,11 +708,11 @@ describe("NotebookEditToolBlock", () => {
 
 ## Related Files
 
-- **Main plan:** `/Users/zac/Documents/juice/mort/mortician/plans/tool-result-rendering-overhaul.md`
-- **BashToolBlock reference:** `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/bash-tool-block.tsx`
-- **Reusable UI components:** `/Users/zac/Documents/juice/mort/mortician/src/components/ui/`
-- **Tool block registry:** `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/index.ts`
-- **Expand state store:** `/Users/zac/Documents/juice/mort/mortician/src/stores/tool-expand-store.ts`
+- **Main plan:** `/Users/zac/Documents/juice/anvil/anvil/plans/tool-result-rendering-overhaul.md`
+- **BashToolBlock reference:** `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/bash-tool-block.tsx`
+- **Reusable UI components:** `/Users/zac/Documents/juice/anvil/anvil/src/components/ui/`
+- **Tool block registry:** `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/index.ts`
+- **Expand state store:** `/Users/zac/Documents/juice/anvil/anvil/src/stores/tool-expand-store.ts`
 
 ---
 

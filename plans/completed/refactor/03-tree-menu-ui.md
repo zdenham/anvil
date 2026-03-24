@@ -18,17 +18,17 @@ This plan covers building the visual tree menu components that display repo/work
 Before starting implementation, read these files to understand existing patterns:
 
 ### Status and Styling Patterns
-- [ ] `/Users/zac/Documents/juice/mort/mortician/src/components/ui/status-dot.tsx` - Reusable status dot component (8x8px, variants: running/unread/read/stale)
-- [ ] `/Users/zac/Documents/juice/mort/mortician/src/components/ui/status-legend.tsx` - Legend explaining dot colors
-- [ ] `/Users/zac/Documents/juice/mort/mortician/src/utils/thread-colors.ts` - `getThreadStatusVariant()` and `getPlanStatusVariant()` helpers
+- [ ] `/Users/zac/Documents/juice/anvil/anvil/src/components/ui/status-dot.tsx` - Reusable status dot component (8x8px, variants: running/unread/read/stale)
+- [ ] `/Users/zac/Documents/juice/anvil/anvil/src/components/ui/status-legend.tsx` - Legend explaining dot colors
+- [ ] `/Users/zac/Documents/juice/anvil/anvil/src/utils/thread-colors.ts` - `getThreadStatusVariant()` and `getPlanStatusVariant()` helpers
 
 ### Existing Item Patterns
-- [ ] `/Users/zac/Documents/juice/mort/mortician/src/components/inbox/inbox-item.tsx` - Current inbox item row (reference for click handling, status dot usage)
-- [ ] `/Users/zac/Documents/juice/mort/mortician/src/components/inbox/unified-inbox.tsx` - Current unified list rendering
+- [ ] `/Users/zac/Documents/juice/anvil/anvil/src/components/inbox/inbox-item.tsx` - Current inbox item row (reference for click handling, status dot usage)
+- [ ] `/Users/zac/Documents/juice/anvil/anvil/src/components/inbox/unified-inbox.tsx` - Current unified list rendering
 
 ### Type Definitions
-- [ ] `/Users/zac/Documents/juice/mort/mortician/core/types/threads.ts` - ThreadMetadata schema (id, name, status, isRead, repoId, worktreeId)
-- [ ] `/Users/zac/Documents/juice/mort/mortician/src/entities/plans/types.ts` - PlanMetadata structure
+- [ ] `/Users/zac/Documents/juice/anvil/anvil/core/types/threads.ts` - ThreadMetadata schema (id, name, status, isRead, repoId, worktreeId)
+- [ ] `/Users/zac/Documents/juice/anvil/anvil/src/entities/plans/types.ts` - PlanMetadata structure
 
 ### Store Patterns (from Phase 2)
 - [ ] `src/stores/tree-menu-store.ts` (created in Phase 2) - expansion state, selection, actions
@@ -713,7 +713,7 @@ className={cn(
 
 ### Functional Requirements
 - [ ] Tree menu renders repo/worktree sections grouped by repo+worktree combination
-- [ ] Each section displays as `"repoName/worktreeName"` (e.g., "mortician/main")
+- [ ] Each section displays as `"repoName/worktreeName"` (e.g., "anvil/main")
 - [ ] Horizontal dividers appear between sections (not before first)
 - [ ] Clicking +/- icon toggles section expansion (not clicking header text)
 - [ ] Plus icon shown when collapsed, minus icon when expanded

@@ -11,9 +11,9 @@ This plan adds code signing and notarization to the existing `internal-build.sh`
 ```
 pnpm release:internal [patch|minor|major]
     ↓
-Verify Cloudflare auth → Bump version → pnpm build → Zip Mort.app
+Verify Cloudflare auth → Bump version → pnpm build → Zip Anvil.app
     ↓
-Upload to R2: mort-builds/{VERSION}.zip
+Upload to R2: anvil-builds/{VERSION}.zip
     ↓
 Update version file → Users install via curl | bash
 ```
@@ -26,7 +26,7 @@ Verify Cloudflare auth → Load signing credentials → Bump version
     ↓
 pnpm tauri build (with APPLE_* env vars for auto-signing + notarization)
     ↓
-Verify signature → Zip Mort.app → Upload to R2
+Verify signature → Zip Anvil.app → Upload to R2
     ↓
 Update version file → Users install via curl | bash (no quarantine removal needed)
 ```
@@ -39,7 +39,7 @@ Update version file → Users install via curl | bash (no quarantine removal nee
 
 ### Key Requirements for Permission Persistence
 For macOS to preserve user-granted permissions across app updates:
-1. **Same bundle identifier** - Must remain `com.mort.app` across all versions
+1. **Same bundle identifier** - Must remain `com.anvil.app` across all versions
 2. **Same code signing identity** - Must use the same Team ID / Developer ID certificate
 
 ---
@@ -85,7 +85,7 @@ Add the entitlements reference to the existing `bundle` section:
 
 ### 1.3 Create Signing Credentials File
 
-Create `~/.mort/signing.env` with your Apple Developer credentials:
+Create `~/.anvil/signing.env` with your Apple Developer credentials:
 
 ```bash
 # macOS Code Signing Configuration
@@ -116,11 +116,11 @@ Modify `scripts/internal-build.sh` to add signing. Changes are minimal:
 ```bash
 # --- Preflight Check: Load Signing Credentials ---
 echo "Loading signing credentials..."
-if [ -f "$HOME/.mort/signing.env" ]; then
-  source "$HOME/.mort/signing.env"
+if [ -f "$HOME/.anvil/signing.env" ]; then
+  source "$HOME/.anvil/signing.env"
   echo "Signing credentials loaded."
 else
-  echo "Warning: No signing config at ~/.mort/signing.env"
+  echo "Warning: No signing config at ~/.anvil/signing.env"
   echo "Build will proceed unsigned (Gatekeeper will block)."
   read -p "Continue anyway? [y/N] " -n 1 -r
   echo
@@ -221,11 +221,11 @@ echo "Cloudflare auth verified."
 
 # --- Preflight Check: Load Signing Credentials ---
 echo "Loading signing credentials..."
-if [ -f "$HOME/.mort/signing.env" ]; then
-  source "$HOME/.mort/signing.env"
+if [ -f "$HOME/.anvil/signing.env" ]; then
+  source "$HOME/.anvil/signing.env"
   echo "Signing credentials loaded."
 else
-  echo "Warning: No signing config at ~/.mort/signing.env"
+  echo "Warning: No signing config at ~/.anvil/signing.env"
   echo "Build will proceed unsigned (Gatekeeper will block)."
   read -p "Continue anyway? [y/N] " -n 1 -r
   echo
@@ -324,7 +324,7 @@ export APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
 pnpm build
 
 # --- 3. Locate and Verify App Bundle ---
-APP_PATH="src-tauri/target/release/bundle/macos/Mort.app"
+APP_PATH="src-tauri/target/release/bundle/macos/Anvil.app"
 
 if [ ! -d "$APP_PATH" ]; then
   echo "Error: App bundle not found at ${APP_PATH}"
@@ -358,7 +358,7 @@ ZIP_PATH="src-tauri/target/release/bundle/macos/${ZIP_NAME}"
 
 echo "Creating zip archive: ${ZIP_NAME}..."
 cd src-tauri/target/release/bundle/macos
-zip -r -q "${ZIP_NAME}" Mort.app
+zip -r -q "${ZIP_NAME}" Anvil.app
 cd - > /dev/null
 
 echo "Zip created: ${ZIP_PATH}"
@@ -366,13 +366,13 @@ echo "Zip created: ${ZIP_PATH}"
 # --- 5. Upload to Cloudflare R2 ---
 echo "Uploading to Cloudflare R2..."
 
-# Upload the zip to mort-builds/
-npx wrangler r2 object put "mort-builds/mort-builds/${ZIP_NAME}" \
+# Upload the zip to anvil-builds/
+npx wrangler r2 object put "anvil-builds/anvil-builds/${ZIP_NAME}" \
   --file="${ZIP_PATH}" \
   --content-type="application/zip" \
   --remote
 
-echo "Uploaded ${ZIP_NAME} to mort-builds/"
+echo "Uploaded ${ZIP_NAME} to anvil-builds/"
 
 # --- 6. Update Version File ---
 echo "Updating version file..."
@@ -382,7 +382,7 @@ VERSION_FILE=$(mktemp)
 echo -n "${NEW_VERSION}" > "$VERSION_FILE"
 
 # Upload version file
-npx wrangler r2 object put "mort-builds/mort-installation-scripts/version" \
+npx wrangler r2 object put "anvil-builds/anvil-installation-scripts/version" \
   --file="$VERSION_FILE" \
   --content-type="text/plain" \
   --remote
@@ -402,11 +402,11 @@ else
 echo "  Signed:  No (unsigned build)"
 fi
 echo "  Zip: ${ZIP_PATH}"
-echo "  R2 path: mort-builds/${ZIP_NAME}"
+echo "  R2 path: anvil-builds/${ZIP_NAME}"
 echo "=========================================="
 echo ""
 echo "Users can install with:"
-echo "  curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh | bash"
+echo "  curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-installation-scripts/distribute_internally.sh | bash"
 ```
 
 ---
@@ -418,7 +418,7 @@ Once apps are properly signed and notarized, the `xattr -d com.apple.quarantine`
 **Remove these lines:**
 ```bash
 echo "Removing quarantine..."
-xattr -d com.apple.quarantine ~/Downloads/Mort.app
+xattr -d com.apple.quarantine ~/Downloads/Anvil.app
 ```
 
 The signed + notarized app will pass Gatekeeper automatically—no quarantine removal needed.
@@ -432,36 +432,36 @@ cat << 'EOF'
      █ ◠◡◠ █
       ▀▄▄▄▀
 
-  mortician inbound...
+  anvil inbound...
 
 EOF
 
-VERSION=$(curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/version)
+VERSION=$(curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-installation-scripts/version)
 
-echo "Installing Mort ${VERSION}..."
+echo "Installing Anvil ${VERSION}..."
 
-echo "Quitting existing Mort..."
-killall mort 2>/dev/null || true
+echo "Quitting existing Anvil..."
+killall anvil 2>/dev/null || true
 
 echo "Cleaning up old files..."
-rm -rf ~/Downloads/Mort.zip ~/Downloads/Mort.app /Applications/Mort.app
+rm -rf ~/Downloads/Anvil.zip ~/Downloads/Anvil.app /Applications/Anvil.app
 
-echo "Downloading Mort ${VERSION}..."
-curl -fL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-builds/${VERSION}.zip -o ~/Downloads/Mort.zip
+echo "Downloading Anvil ${VERSION}..."
+curl -fL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-builds/${VERSION}.zip -o ~/Downloads/Anvil.zip
 
-if [ ! -f ~/Downloads/Mort.zip ]; then
-    echo "Error: Failed to download Mort ${VERSION}. Build may not exist."
+if [ ! -f ~/Downloads/Anvil.zip ]; then
+    echo "Error: Failed to download Anvil ${VERSION}. Build may not exist."
     exit 1
 fi
 
 echo "Extracting..."
-unzip -o -q ~/Downloads/Mort.zip -d ~/Downloads/ -x "__MACOSX/*"
+unzip -o -q ~/Downloads/Anvil.zip -d ~/Downloads/ -x "__MACOSX/*"
 
 echo "Moving to Applications..."
-mv ~/Downloads/Mort.app /Applications/
+mv ~/Downloads/Anvil.app /Applications/
 
-echo "Opening Mort..."
-open /Applications/Mort.app
+echo "Opening Anvil..."
+open /Applications/Anvil.app
 
 echo "Done!"
 ```
@@ -476,15 +476,15 @@ After running `pnpm release:internal`, verify the signature:
 
 ```bash
 # Check code signature details
-codesign -dv --verbose=4 src-tauri/target/release/bundle/macos/Mort.app
+codesign -dv --verbose=4 src-tauri/target/release/bundle/macos/Anvil.app
 
 # Verify Gatekeeper approval (should show "accepted" + "Notarized Developer ID")
-spctl -a -t exec -vv src-tauri/target/release/bundle/macos/Mort.app
+spctl -a -t exec -vv src-tauri/target/release/bundle/macos/Anvil.app
 ```
 
 Expected output for a properly signed and notarized app:
 ```
-src-tauri/target/release/bundle/macos/Mort.app: accepted
+src-tauri/target/release/bundle/macos/Anvil.app: accepted
 source=Notarized Developer ID
 ```
 
@@ -493,7 +493,7 @@ source=Notarized Developer ID
 ## Part 5: Troubleshooting
 
 ### "App is damaged and can't be opened"
-- Ensure all `APPLE_*` variables are in `~/.mort/signing.env`
+- Ensure all `APPLE_*` variables are in `~/.anvil/signing.env`
 - Verify certificate is valid: `security find-identity -v -p codesigning`
 - Check notarization succeeded in the build output
 
@@ -504,7 +504,7 @@ source=Notarized Developer ID
 - Check notarization history: `xcrun notarytool history --apple-id $APPLE_ID --team-id $APPLE_TEAM_ID`
 
 ### Permissions re-prompted after update
-- Verify bundle identifier is `com.mort.app` in `tauri.conf.json`
+- Verify bundle identifier is `com.anvil.app` in `tauri.conf.json`
 - Verify you're signing with the **same Team ID** every time
 
 ### Build works but signature fails
@@ -520,10 +520,10 @@ source=Notarized Developer ID
 |----------|--------|-------------|
 | `CLOUDFLARE_API_TOKEN` | `.env` | Cloudflare API token for R2 uploads |
 | `CLOUDFLARE_ACCOUNT_ID` | `.env` | Cloudflare account ID |
-| `APPLE_SIGNING_IDENTITY` | `~/.mort/signing.env` | Full signing identity (e.g., `Developer ID Application: Name (TEAMID)`) |
-| `APPLE_ID` | `~/.mort/signing.env` | Apple ID email for notarization |
-| `APPLE_PASSWORD` | `~/.mort/signing.env` | App-specific password for notarization |
-| `APPLE_TEAM_ID` | `~/.mort/signing.env` | 10-character team ID |
+| `APPLE_SIGNING_IDENTITY` | `~/.anvil/signing.env` | Full signing identity (e.g., `Developer ID Application: Name (TEAMID)`) |
+| `APPLE_ID` | `~/.anvil/signing.env` | Apple ID email for notarization |
+| `APPLE_PASSWORD` | `~/.anvil/signing.env` | App-specific password for notarization |
+| `APPLE_TEAM_ID` | `~/.anvil/signing.env` | 10-character team ID |
 
 ---
 
@@ -531,7 +531,7 @@ source=Notarized Developer ID
 
 This plan integrates code signing into the existing workflow with minimal changes:
 
-1. **One-time setup:** Create `entitlements.plist`, update `tauri.conf.json`, create `~/.mort/signing.env`
+1. **One-time setup:** Create `entitlements.plist`, update `tauri.conf.json`, create `~/.anvil/signing.env`
 2. **Modified `internal-build.sh`:** Load signing credentials → export to Tauri → verify after build
 3. **Same R2 upload flow:** Zip and upload remain unchanged
 4. **Same install flow:** `curl | bash` still works, but now without quarantine removal
@@ -543,5 +543,5 @@ This plan integrates code signing into the existing workflow with minimal change
 
 **What stays the same:**
 - `pnpm release:internal [patch|minor|major]` command
-- R2 bucket structure (`mort-builds/{VERSION}.zip`)
+- R2 bucket structure (`anvil-builds/{VERSION}.zip`)
 - Installation URL (`curl -sL ... | bash`)

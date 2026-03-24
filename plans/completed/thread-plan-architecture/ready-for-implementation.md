@@ -27,7 +27,7 @@ Generated: 2026-01-22
 **Status: Ready | Confidence: High**
 
 All gaps resolved:
-- ✅ No migration needed - fresh start by deleting `.mort` directory (Q1)
+- ✅ No migration needed - fresh start by deleting `.anvil` directory (Q1)
 - ✅ Thread folder names use just the thread ID (Q2)
 - ✅ Relation precedence uses automatic resolution (Q10)
 
@@ -165,7 +165,7 @@ The following questions have been answered to resolve the gaps above.
 
 **Question:** How should we handle existing `RepositorySettings` and `WorktreeState` entries that lack the new required `id` fields?
 
-**Decision:** No migration needed. All users will have a fresh start by deleting their `.mort` directory.
+**Decision:** No migration needed. All users will have a fresh start by deleting their `.anvil` directory.
 
 ---
 

@@ -1,8 +1,8 @@
-# Simplify `mort.spawn()` API
+# Simplify `anvil.spawn()` API
 
 ## Problem
 
-`mort.spawn()` previously accepted 4 options (`prompt`, `agentType`, `cwd`, `permissionMode`). Three were dead weight:
+`anvil.spawn()` previously accepted 4 options (`prompt`, `agentType`, `cwd`, `permissionMode`). Three were dead weight:
 
 - `agentType` — only one agent config exists, runner ignores it
 - `permissionMode` — always inherited from parent, hub propagation handles changes
@@ -12,7 +12,7 @@
 
 ```typescript
 // Before
-const result = await mort.spawn({
+const result = await anvil.spawn({
   prompt: "Fix the failing auth tests",
   agentType: "general-purpose",
   cwd: "/path/to/dir",
@@ -20,7 +20,7 @@ const result = await mort.spawn({
 });
 
 // After
-const result = await mort.spawn({ prompt: "Fix the failing auth tests" });
+const result = await anvil.spawn({ prompt: "Fix the failing auth tests" });
 ```
 
 ## Phases

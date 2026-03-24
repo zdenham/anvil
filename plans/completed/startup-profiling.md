@@ -34,7 +34,7 @@ tracing::info!(elapsed_ms = t0.elapsed().as_millis(), "startup: <step name>");
 ```
 
 Steps to instrument (in order of execution):
-- `ensure_mort_directories()`
+- `ensure_anvil_directories()`
 - `hub.start()` (AgentHub socket)
 - `logging::set_app_handle()`
 - `config::initialize()`
@@ -65,8 +65,8 @@ async function bootstrap() {
   logger.info(`[startup] window.setSize: ${(performance.now() - tResize).toFixed(0)}ms`);
 
   const tBootstrap = performance.now();
-  await bootstrapMortDirectory();
-  logger.info(`[startup] bootstrapMortDirectory: ${(performance.now() - tBootstrap).toFixed(0)}ms`);
+  await bootstrapAnvilDirectory();
+  logger.info(`[startup] bootstrapAnvilDirectory: ${(performance.now() - tBootstrap).toFixed(0)}ms`);
 
   const tHydrate = performance.now();
   await hydrateEntities();
@@ -128,7 +128,7 @@ await timed("core entities (parallel)", () => Promise.all([
 ## Phase 4: Skill sync timing (`src/lib/skill-sync.ts`)
 
 Inside `syncManagedSkills()` (lines 14–41):
-- Time `getBundledPluginPath()` + `getMortDir()` resolution
+- Time `getBundledPluginPath()` + `getAnvilDir()` resolution
 - Time plugin.json copy
 - Time the entire skills directory loop + each `copySkillDirectory()` call with the skill name
 
@@ -146,7 +146,7 @@ After `setIsHydrated(true)` in `App.tsx`, log a summary:
 [startup] === STARTUP COMPLETE ===
 [startup] checkInitialState: Xms
 [startup] bootstrap total: Xms
-[startup]   bootstrapMortDirectory: Xms
+[startup]   bootstrapAnvilDirectory: Xms
 [startup]   hydrateEntities: Xms
 [startup]   setupEntityListeners: Xms
 ```

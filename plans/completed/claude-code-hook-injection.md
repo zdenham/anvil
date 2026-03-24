@@ -2,7 +2,7 @@
 
 ## Goal
 
-Detect when a terminal session launches Claude Code in a Mort-managed project directory, and inject Mort's runner hooks into that session. This would let users interact with Mort through Claude Code's native terminal UI instead of (or alongside) the thread UI.
+Detect when a terminal session launches Claude Code in a Anvil-managed project directory, and inject Anvil's runner hooks into that session. This would let users interact with Anvil through Claude Code's native terminal UI instead of (or alongside) the thread UI.
 
 ---
 
@@ -10,7 +10,7 @@ Detect when a terminal session launches Claude Code in a Mort-managed project di
 
 - [x] Research Claude Code hooks system and plugin architecture
 - [ ] Design hook injection architecture
-- [ ] Implement SessionStart detection and Mort bridge
+- [ ] Implement SessionStart detection and Anvil bridge
 - [ ] Implement PreToolUse/PostToolUse hook bridge
 - [ ] Implement permission flow bridging
 - [ ] End-to-end testing with real Claude Code session
@@ -42,17 +42,17 @@ Sources:
 
 ### Relevant Hook Events
 
-| Event | Use for Mort | Matcher |
+| Event | Use for Anvil | Matcher |
 |-------|-------------|---------|
-| **SessionStart** | Detect CC launch, register with Mort backend, inject context | `startup`, `resume` |
-| **PreToolUse** | Intercept tool calls, apply Mort permission evaluation | Tool name regex |
-| **PostToolUse** | Capture results, track file changes, forward to Mort | Tool name regex |
+| **SessionStart** | Detect CC launch, register with Anvil backend, inject context | `startup`, `resume` |
+| **PreToolUse** | Intercept tool calls, apply Anvil permission evaluation | Tool name regex |
+| **PostToolUse** | Capture results, track file changes, forward to Anvil | Tool name regex |
 | **PostToolUseFailure** | Error tracking | Tool name regex |
-| **PermissionRequest** | Bridge to Mort's permission gate UI | Tool name regex |
+| **PermissionRequest** | Bridge to Anvil's permission gate UI | Tool name regex |
 | **Stop** | Detect session completion, sync final state | No matcher |
 | **SubagentStart/Stop** | Track child agent threads | Agent type |
-| **SessionEnd** | Cleanup, deregister from Mort backend | Reason matcher |
-| **UserPromptSubmit** | Capture user prompts for Mort thread history | No matcher |
+| **SessionEnd** | Cleanup, deregister from Anvil backend | Reason matcher |
+| **UserPromptSubmit** | Capture user prompts for Anvil thread history | No matcher |
 
 ### Hook Handler Types
 
@@ -60,7 +60,7 @@ Sources:
 2. **Prompt hooks** (`type: "prompt"`) — single-turn LLM evaluation
 3. **Agent hooks** (`type: "agent"`) — multi-turn subagent with tool access
 
-For Mort integration, **command hooks** are the right choice — they can communicate with the Mort backend via HTTP/sockets while hooks run.
+For Anvil integration, **command hooks** are the right choice — they can communicate with the Anvil backend via HTTP/sockets while hooks run.
 
 ### Hook Communication Protocol
 
@@ -98,7 +98,7 @@ For Mort integration, **command hooks** are the right choice — they can commun
 Claude Code has a **plugin system** (public beta) that bundles hooks, MCP servers, skills, and agents:
 
 ```
-mort-plugin/
+anvil-plugin/
   .claude-plugin/
     plugin.json          # Plugin manifest
   hooks/
@@ -109,7 +109,7 @@ mort-plugin/
   .mcp.json              # Optional MCP server config
 ```
 
-Install: `/plugin install mort-plugin@/path/to/plugin`
+Install: `/plugin install anvil-plugin@/path/to/plugin`
 
 Plugin hooks use `${CLAUDE_PLUGIN_ROOT}` for portable path references. This is the cleanest distribution mechanism.
 
@@ -124,7 +124,7 @@ Sources:
 
 ### Option A: Project `.claude/settings.json` Hooks
 
-**How it works**: Add hook entries to the project's `.claude/settings.json` (or `.claude/settings.local.json`). When any developer opens Claude Code in this directory, Mort's hooks fire automatically.
+**How it works**: Add hook entries to the project's `.claude/settings.json` (or `.claude/settings.local.json`). When any developer opens Claude Code in this directory, Anvil's hooks fire automatically.
 
 ```json
 {
@@ -133,21 +133,21 @@ Sources:
       "matcher": "startup|resume",
       "hooks": [{
         "type": "command",
-        "command": "mort-hook session-start",
+        "command": "anvil-hook session-start",
         "timeout": 10
       }]
     }],
     "PreToolUse": [{
       "hooks": [{
         "type": "command",
-        "command": "mort-hook pre-tool-use",
+        "command": "anvil-hook pre-tool-use",
         "timeout": 3600
       }]
     }],
     "PostToolUse": [{
       "hooks": [{
         "type": "command",
-        "command": "mort-hook post-tool-use",
+        "command": "anvil-hook post-tool-use",
         "timeout": 30
       }]
     }]
@@ -160,26 +160,26 @@ Sources:
 
 ### Option B: Claude Code Plugin (Recommended)
 
-**How it works**: Package Mort hooks as a Claude Code plugin. Users install it once. The plugin's `hooks.json` defines all hook handlers. Hook scripts communicate with the running Mort backend over HTTP or Unix socket.
+**How it works**: Package Anvil hooks as a Claude Code plugin. Users install it once. The plugin's `hooks.json` defines all hook handlers. Hook scripts communicate with the running Anvil backend over HTTP or Unix socket.
 
 **Pros**: Clean separation, installable/removable, portable, uses `${CLAUDE_PLUGIN_ROOT}`
 **Cons**: Plugin system is still in beta, requires plugin manifest
 
 ### Option C: Global `~/.claude/settings.json` Hooks
 
-**How it works**: Install hooks globally. SessionStart checks if the cwd is a Mort-managed directory (e.g., has `.mort/` or is registered in `~/.mort/repositories/`). If so, activate; otherwise no-op.
+**How it works**: Install hooks globally. SessionStart checks if the cwd is a Anvil-managed directory (e.g., has `.anvil/` or is registered in `~/.anvil/repositories/`). If so, activate; otherwise no-op.
 
 **Pros**: Works everywhere without per-project setup
 **Cons**: Fires for ALL Claude Code sessions (perf concern), detection logic needed
 
 ### Option D: MCP Server Bridge
 
-**How it works**: Run Mort as an MCP server. Claude Code connects via `.mcp.json`. Mort exposes custom tools (ask-question, check-permission, etc.) that Claude Code can call.
+**How it works**: Run Anvil as an MCP server. Claude Code connects via `.mcp.json`. Anvil exposes custom tools (ask-question, check-permission, etc.) that Claude Code can call.
 
 **Pros**: Rich bidirectional communication, custom tools
 **Cons**: Doesn't intercept native tool calls (Bash, Edit, etc.), supplemental only
 
-**Recommendation**: **Option B (Plugin)** as the primary distribution, with **Option C (Global hooks)** as an alternative for development. Option D (MCP) is complementary for exposing Mort-specific capabilities.
+**Recommendation**: **Option B (Plugin)** as the primary distribution, with **Option C (Global hooks)** as an alternative for development. Option D (MCP) is complementary for exposing Anvil-specific capabilities.
 
 ---
 
@@ -187,20 +187,20 @@ Sources:
 
 ### Core Concept: Hook Bridge Process
 
-Mort's agent runner currently builds hooks as in-process TypeScript callbacks inside `runAgentLoop()`. For Claude Code integration, we need a **bridge** that translates between:
+Anvil's agent runner currently builds hooks as in-process TypeScript callbacks inside `runAgentLoop()`. For Claude Code integration, we need a **bridge** that translates between:
 
 - **Claude Code hooks** (shell commands receiving JSON on stdin/stdout)
-- **Mort backend** (HTTP/WebSocket API running in Tauri process or standalone)
+- **Anvil backend** (HTTP/WebSocket API running in Tauri process or standalone)
 
 ```
 ┌─────────────────────┐     stdin/stdout      ┌──────────────────┐
-│    Claude Code       │ ──────────────────── │  mort-hook CLI    │
+│    Claude Code       │ ──────────────────── │  anvil-hook CLI    │
 │    (terminal UI)     │    (JSON protocol)    │  (bridge script)  │
 └─────────────────────┘                       └────────┬─────────┘
                                                        │ HTTP/WS
                                                        ▼
                                               ┌──────────────────┐
-                                              │   Mort Backend    │
+                                              │   Anvil Backend    │
                                               │  (Tauri/Node)     │
                                               │                   │
                                               │ • PermissionGate  │
@@ -211,23 +211,23 @@ Mort's agent runner currently builds hooks as in-process TypeScript callbacks in
                                               └──────────────────┘
 ```
 
-### `mort-hook` CLI Bridge
+### `anvil-hook` CLI Bridge
 
 A lightweight executable (Node.js script or compiled binary) that:
 
 1. Reads JSON from stdin (Claude Code hook input)
-2. Sends it to the Mort backend via HTTP or Unix socket
+2. Sends it to the Anvil backend via HTTP or Unix socket
 3. Waits for the response (permission decision, updated input, etc.)
 4. Outputs JSON to stdout and exits with appropriate code
 
 ```bash
 #!/usr/bin/env node
-// mort-hook — bridge between Claude Code hooks and Mort backend
-import { readStdin, sendToMort, formatOutput } from './bridge-lib';
+// anvil-hook — bridge between Claude Code hooks and Anvil backend
+import { readStdin, sendToAnvil, formatOutput } from './bridge-lib';
 
 const event = process.argv[2]; // "session-start", "pre-tool-use", etc.
 const input = await readStdin();
-const result = await sendToMort(event, input);
+const result = await sendToAnvil(event, input);
 process.stdout.write(JSON.stringify(formatOutput(result)));
 process.exit(result.exitCode);
 ```
@@ -236,27 +236,27 @@ process.exit(result.exitCode);
 
 #### 1. SessionStart — Register Session
 ```
-Claude Code starts → SessionStart hook fires → mort-hook session-start
-  → Mort backend creates a thread (or links to existing)
+Claude Code starts → SessionStart hook fires → anvil-hook session-start
+  → Anvil backend creates a thread (or links to existing)
   → Returns context to inject (CLAUDE.md content, project info)
   → Sets session_id ↔ thread_id mapping
 ```
 
-The SessionStart hook can inject Mort context via stdout (added to Claude's context) and persist env vars via `$CLAUDE_ENV_FILE`:
+The SessionStart hook can inject Anvil context via stdout (added to Claude's context) and persist env vars via `$CLAUDE_ENV_FILE`:
 ```bash
-echo "MORT_THREAD_ID=$THREAD_ID" >> "$CLAUDE_ENV_FILE"
-echo "MORT_SESSION_URL=http://localhost:$PORT" >> "$CLAUDE_ENV_FILE"
+echo "ANVIL_THREAD_ID=$THREAD_ID" >> "$CLAUDE_ENV_FILE"
+echo "ANVIL_SESSION_URL=http://localhost:$PORT" >> "$CLAUDE_ENV_FILE"
 ```
 
 #### 2. PreToolUse — Permission Evaluation
 ```
-Claude wants to run tool → PreToolUse hook fires → mort-hook pre-tool-use
-  → Mort backend evaluates permissions (PermissionEvaluator)
-  → If needs user approval: PermissionGate waits for Mort UI decision
+Claude wants to run tool → PreToolUse hook fires → anvil-hook pre-tool-use
+  → Anvil backend evaluates permissions (PermissionEvaluator)
+  → If needs user approval: PermissionGate waits for Anvil UI decision
   → Returns: allow/deny/ask + optional updatedInput
 ```
 
-**Critical**: The PreToolUse hook timeout must be set high (3600s) to support waiting for user approval in the Mort UI, matching the current runner behavior.
+**Critical**: The PreToolUse hook timeout must be set high (3600s) to support waiting for user approval in the Anvil UI, matching the current runner behavior.
 
 **AskUserQuestion special case**: For AskUserQuestion, the hook can use the same two-phase pattern currently in the runner:
 1. PreToolUse hook stashes the question, returns `permissionDecision: "ask"`
@@ -265,27 +265,27 @@ Claude wants to run tool → PreToolUse hook fires → mort-hook pre-tool-use
 
 However, with Claude Code's terminal UI, AskUserQuestion has a native elicitation dialog. The hook could:
 - Let it pass through (user answers in terminal) → PostToolUse captures answers
-- Or intercept and redirect to Mort UI for answering
+- Or intercept and redirect to Anvil UI for answering
 
 #### 3. PostToolUse — State Tracking
 ```
-Tool completes → PostToolUse hook fires → mort-hook post-tool-use
-  → Mort backend records: file changes, tool results, plan detection
+Tool completes → PostToolUse hook fires → anvil-hook post-tool-use
+  → Anvil backend records: file changes, tool results, plan detection
   → No blocking needed (exit 0 immediately)
   → Can use async: true for fire-and-forget
 ```
 
 #### 4. SubagentStart — Child Thread Tracking
 ```
-Claude spawns Task agent → SubagentStart hook fires → mort-hook subagent-start
-  → Mort backend creates child thread
+Claude spawns Task agent → SubagentStart hook fires → anvil-hook subagent-start
+  → Anvil backend creates child thread
   → Maps subagent to thread hierarchy
 ```
 
 #### 5. SessionEnd — Cleanup
 ```
-Claude Code exits → SessionEnd hook fires → mort-hook session-end
-  → Mort backend marks thread complete
+Claude Code exits → SessionEnd hook fires → anvil-hook session-end
+  → Anvil backend marks thread complete
   → Final state sync
 ```
 
@@ -303,7 +303,7 @@ Claude Code exits → SessionEnd hook fires → mort-hook session-end
 
 ### Backend API Surface
 
-The Mort backend needs to expose an API for the hook bridge. Since the Tauri app already runs a local server, this could be additional endpoints:
+The Anvil backend needs to expose an API for the hook bridge. Since the Tauri app already runs a local server, this could be additional endpoints:
 
 ```
 POST /api/hooks/session-start     { session_id, cwd, model }
@@ -321,18 +321,18 @@ POST /api/hooks/:event_name       { ...hook_input }
 
 ### Open Questions
 
-1. **Mort running or not?** If the Mort desktop app isn't running when Claude Code starts, what happens? Options:
-   - Hook exits with code 0 (no-op, CC continues without Mort)
-   - Hook launches Mort in the background
-   - Hook blocks with exit 2 and tells Claude "Mort not available"
+1. **Anvil running or not?** If the Anvil desktop app isn't running when Claude Code starts, what happens? Options:
+   - Hook exits with code 0 (no-op, CC continues without Anvil)
+   - Hook launches Anvil in the background
+   - Hook blocks with exit 2 and tells Claude "Anvil not available"
 
-2. **Dual-mode sessions**: Can a session be viewed in both Claude Code terminal AND Mort thread UI simultaneously? This requires real-time state sync.
+2. **Dual-mode sessions**: Can a session be viewed in both Claude Code terminal AND Anvil thread UI simultaneously? This requires real-time state sync.
 
-3. **Transcript bridging**: Claude Code writes transcripts to `~/.claude/projects/.../transcript.jsonl`. Should Mort read these directly, or should hooks forward all messages?
+3. **Transcript bridging**: Claude Code writes transcripts to `~/.claude/projects/.../transcript.jsonl`. Should Anvil read these directly, or should hooks forward all messages?
 
-4. **Permission mode conflicts**: If Claude Code is running in `bypassPermissions` mode, Mort's permission hooks still fire (confirmed by prior research). But if CC is in `default` mode, both CC's native permissions AND Mort's hooks apply. Need to decide who owns permission decisions.
+4. **Permission mode conflicts**: If Claude Code is running in `bypassPermissions` mode, Anvil's permission hooks still fire (confirmed by prior research). But if CC is in `default` mode, both CC's native permissions AND Anvil's hooks apply. Need to decide who owns permission decisions.
 
-5. **AskUserQuestion UX**: In terminal, CC has native elicitation dialogs. Should Mort intercept these (redirect to Mort UI) or let the terminal handle them? If intercepted, the user can't answer in the terminal.
+5. **AskUserQuestion UX**: In terminal, CC has native elicitation dialogs. Should Anvil intercept these (redirect to Anvil UI) or let the terminal handle them? If intercepted, the user can't answer in the terminal.
 
 ---
 

@@ -54,14 +54,14 @@ WorktreeState {
 
 | Location | Dead Code | Why It's Dead |
 |----------|-----------|---------------|
-| `src-tauri/src/mort_commands.rs:287-366` | `clear_all_worktree_claims()` function | Claims don't exist in new schema |
+| `src-tauri/src/anvil_commands.rs:287-366` | `clear_all_worktree_claims()` function | Claims don't exist in new schema |
 | `src-tauri/src/lib.rs:856` | Call to `clear_all_worktree_claims()` | Function does nothing useful |
 | `src-tauri/src/lib.rs:764` | Comment "stale claim detection" | No more claims to detect |
 
 ### Proposed Fix
 
 **Step 1: Remove dead Rust code**
-1. Delete `clear_all_worktree_claims()` function from `mort_commands.rs`
+1. Delete `clear_all_worktree_claims()` function from `anvil_commands.rs`
 2. Remove the call to it from `lib.rs` startup
 3. Update comments to remove claim references
 
@@ -73,7 +73,7 @@ The existing `migrateWorktreeState()` in `settings-service.ts` already strips de
 ## Issue 1: Source Repository Should Be Listed as "main" Worktree
 
 ### Problem Statement
-When a repository is connected, the source repository itself (e.g., `/Users/zac/Documents/juice/mort/mortician`) should appear as the "main" worktree. Currently, the worktrees list is empty until the user manually creates worktrees.
+When a repository is connected, the source repository itself (e.g., `/Users/zac/Documents/juice/anvil/anvil`) should appear as the "main" worktree. Currently, the worktrees list is empty until the user manually creates worktrees.
 
 ### Current Behavior
 - `createFromFolder()` sets `worktrees: []` in settings.json
@@ -128,17 +128,17 @@ The repository dropdown in the Worktrees page shows repositories, but selecting 
 ### Root Cause Analysis
 
 **The flow:**
-1. Frontend gets repository names from store: `Object.keys(repositoriesMap)` → e.g., `"mortician"`
-2. Frontend calls `worktreeService.list("mortician")`
+1. Frontend gets repository names from store: `Object.keys(repositoriesMap)` → e.g., `"anvil"`
+2. Frontend calls `worktreeService.list("anvil")`
 3. Tauri command `worktree_list` uses `repo_name` directly as path: `paths::repositories_dir().join(repo_name)`
-4. This looks for `~/.mort/repositories/mortician/settings.json`
+4. This looks for `~/.anvil/repositories/anvil/settings.json`
 
 **The problem:**
 - The repository **name** (display name) may differ from the **slug** (directory name)
 - Example: A repo named "My Project" has slug "my-project"
 - The frontend passes the name, but Rust expects the slug
 
-**Current workaround for "mortician":**
+**Current workaround for "anvil":**
 - Name and slug are the same, so it works by coincidence
 - But for any repo with spaces/special characters, it will fail
 
@@ -184,7 +184,7 @@ fn load_settings(repo_name: &str) -> Result<serde_json::Value, String> {
 ## Issue 3 (New): Supporting Existing Git Worktrees
 
 ### Problem Statement
-Users may have existing git worktrees created outside of Mort (via `git worktree add`). These should be discoverable and manageable.
+Users may have existing git worktrees created outside of Anvil (via `git worktree add`). These should be discoverable and manageable.
 
 ### Proposed Solution
 
@@ -217,7 +217,7 @@ pub async fn worktree_sync(repo_name: String) -> Result<Vec<WorktreeState>, Stri
 
 | File | Change | Priority |
 |------|--------|----------|
-| `src-tauri/src/mort_commands.rs` | Remove dead `clear_all_worktree_claims()` function | High |
+| `src-tauri/src/anvil_commands.rs` | Remove dead `clear_all_worktree_claims()` function | High |
 | `src-tauri/src/lib.rs` | Remove call to `clear_all_worktree_claims()` and stale comments | High |
 | `src/entities/repositories/service.ts` | Add "main" worktree for source repo in `createFromFolder()` | High |
 | `src-tauri/src/worktree_commands.rs` | Slugify repo_name before path lookup | High |

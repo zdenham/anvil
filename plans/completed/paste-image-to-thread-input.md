@@ -37,7 +37,7 @@ Add `fs_write_binary` command to the Rust backend (or a more specific `fs_save_c
 - Hook that attaches a `paste` event listener to a ref'd element
 - On paste: check `clipboardData.items` for `image/*` types
 - Read the image as a blob, convert to base64
-- Generate a temp path: `~/.mort/tmp/paste-{timestamp}-{random}.png`
+- Generate a temp path: `~/.anvil/tmp/paste-{timestamp}-{random}.png`
 - Call `fsCommands.writeBinaryFile(tempPath, base64Data)`
 - Call the provided `onPaste(tempPath)` callback
 
@@ -56,13 +56,13 @@ Add `fs_write_binary` command to the Rust backend (or a more specific `fs_save_c
 - Paste with no image data: ignore, let default paste behavior handle text
 - Multiple images: clipboard typically only has one, but handle array if present
 - Large images: base64 encoding doubles size; consider a size limit (e.g., 10MB) and warn
-- Temp file cleanup: files in `~/.mort/tmp/` can be cleaned up periodically or on app exit
+- Temp file cleanup: files in `~/.anvil/tmp/` can be cleaned up periodically or on app exit
 
 ## Phases
 
 - [x] Add `fs_write_binary` Tauri command (Rust backend)
 
-- [x] Add `writeBinaryFile` to `fsCommands` and ensure `~/.mort/tmp` directory setup
+- [x] Add `writeBinaryFile` to `fsCommands` and ensure `~/.anvil/tmp` directory setup
 
 - [x] Create `use-image-paste` hook
 

@@ -80,7 +80,7 @@ In the `PostToolUseFailure` hook, after `markToolComplete`, add child thread sta
 if (input.tool_name === "Task" || input.tool_name === "Agent") {
   const childThreadId = toolUseIdToChildThreadId.get(input.tool_use_id);
   if (childThreadId) {
-    const childThreadPath = join(config.mortDir, "threads", childThreadId);
+    const childThreadPath = join(config.anvilDir, "threads", childThreadId);
     const metadataPath = join(childThreadPath, "metadata.json");
     if (existsSync(metadataPath)) {
       const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
@@ -123,8 +123,8 @@ it("child thread actions are emitted via socket and replay to valid state", asyn
   assertAgent(output).succeeded();
 
   // Find child thread ID from metadata on disk
-  const mortDir = harness.tempDirPath!;
-  const threadsDir = join(mortDir, "threads");
+  const anvilDir = harness.tempDirPath!;
+  const threadsDir = join(anvilDir, "threads");
   const threadDirs = readdirSync(threadsDir);
   let childThreadId: string | undefined;
   for (const dir of threadDirs) {

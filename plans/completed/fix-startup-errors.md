@@ -82,7 +82,7 @@ async function copySkillDirectory(src: string, dst: string): Promise<void> {
 
 ### Phase 3: Gate `syncManagedSkills` to main window only
 
-In `src/entities/index.ts`, move `syncManagedSkills()` inside the existing `isMainWindow` guard. Only one window needs to write skill files to disk — all windows read from the same `~/.mort/skills/` directory. The settings UI re-sync (`src/components/main-window/settings/skills-settings.tsx:25`) is fine since it only runs from the main window on user action.
+In `src/entities/index.ts`, move `syncManagedSkills()` inside the existing `isMainWindow` guard. Only one window needs to write skill files to disk — all windows read from the same `~/.anvil/skills/` directory. The settings UI re-sync (`src/components/main-window/settings/skills-settings.tsx:25`) is fine since it only runs from the main window on user action.
 
 ```typescript
 // In hydrateEntities(), move line 212 inside the isMainWindow block:

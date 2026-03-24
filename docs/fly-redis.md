@@ -1,5 +1,6 @@
 # Fly Redis
 
+<!-- TODO(anvil-rename): update when infra is migrated -->
 The gateway uses a Redis instance hosted on Fly (`mort-redis` app, `sjc` region).
 
 ## Proxying to Local
@@ -40,5 +41,6 @@ redis-cli -p 16380
 If started in the foreground, `Ctrl+C`. If backgrounded:
 
 ```bash
+# TODO(anvil-rename): update when infra is migrated
 pkill -f "fly proxy.*mort-redis"
 ```

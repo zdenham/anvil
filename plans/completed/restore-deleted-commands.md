@@ -47,7 +47,7 @@ These were deleted but are not called anywhere in the frontend:
 - `list_control_panel_window_instances`
 - `list_repositories`
 - `delete_git_branch`
-- `list_mort_branches`
+- `list_anvil_branches`
 - `delete_clipboard_entry`
 - `clear_clipboard_history`
 - `show_clipboard_manager`

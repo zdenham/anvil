@@ -1,6 +1,6 @@
 # Use Claude Login Credentials
 
-Allow Mort users to authenticate using their existing `claude login` credentials instead of requiring a separate API key. Scoped to Claude Code OAuth credentials only — BYOK API key is handled separately.
+Allow Anvil users to authenticate using their existing `claude login` credentials instead of requiring a separate API key. Scoped to Claude Code OAuth credentials only — BYOK API key is handled separately.
 
 **Prerequisite:** `bring-your-own-api-key.md` is implemented first. This plan builds on that work — specifically the existing `api-key-settings.tsx` component and the already-fixed `isConfigured()` (which only checks `repository !== null`).
 
@@ -109,7 +109,7 @@ const authMethod = settings.authMethod ?? "default";
 
 const envVars: Record<string, string> = {
   NODE_PATH: nodeModulesPath,
-  MORT_DATA_DIR: mortDir,
+  ANVIL_DATA_DIR: anvilDir,
   PATH: shellPath,
 };
 
@@ -215,12 +215,12 @@ export function AuthSettings() {
   };
 
   return (
-    <SettingsSection title="Authentication" description="How Mort authenticates with Claude">
+    <SettingsSection title="Authentication" description="How Anvil authenticates with Claude">
       <div className="space-y-3">
         {/* Radio: Default */}
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input type="radio" checked={authMethod === "default"} onChange={() => handleChange("default")} />
-          <span>Default (Mort built-in key)</span>
+          <span>Default (Anvil built-in key)</span>
         </label>
 
         {/* Radio: Claude Login */}

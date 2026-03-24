@@ -6,7 +6,7 @@ Create a runner configuration interface that defines how agents are spawned with
 
 ## Dependencies
 
-- Phase 1 complete (test services: `01a-test-types.md`, `01b-test-mort-directory.md`, `01c-test-repository.md`)
+- Phase 1 complete (test services: `01a-test-types.md`, `01b-test-anvil-directory.md`, `01c-test-repository.md`)
 
 ## Parallel With
 
@@ -40,14 +40,14 @@ export interface RunnerConfig {
    *
    * @param opts - Test options including agent type, prompt, and optional overrides
    * @param task - Task metadata (used by task-based agents for orchestration)
-   * @param mortDirPath - Absolute path to the mort directory
+   * @param anvilDirPath - Absolute path to the anvil directory
    * @param repoCwd - Working directory for the agent (repo path or custom cwd)
    * @returns Array of CLI arguments to pass to the runner
    */
   buildArgs: (
     opts: AgentTestOptions,
     task: TaskMetadata,
-    mortDirPath: string,
+    anvilDirPath: string,
     repoCwd: string
   ) => string[];
 
@@ -68,7 +68,7 @@ export interface RunnerConfig {
 export const defaultRunnerConfig: RunnerConfig = {
   runnerPath: "runner.js",
 
-  buildArgs: (opts, task, mortDirPath, repoCwd) => {
+  buildArgs: (opts, task, anvilDirPath, repoCwd) => {
     const threadId = opts.threadId ?? randomUUID();
 
     // Common args shared by all agent types
@@ -76,7 +76,7 @@ export const defaultRunnerConfig: RunnerConfig = {
       "--agent", opts.agent,
       "--prompt", opts.prompt,
       "--thread-id", threadId,
-      "--mort-dir", mortDirPath,
+      "--anvil-dir", anvilDirPath,
     ];
 
     if (opts.agent === "simple") {
@@ -105,7 +105,7 @@ export const defaultRunnerConfig: RunnerConfig = {
  * @example
  * // Custom arg builder for special test scenarios
  * const config = createRunnerConfig({
- *   buildArgs: (opts, task, mortDir, cwd) => [
+ *   buildArgs: (opts, task, anvilDir, cwd) => [
  *     "--agent", opts.agent,
  *     "--debug",
  *     "--task-slug", task.slug,
@@ -155,7 +155,7 @@ const envHarness = new AgentTestHarness({
 // Fully custom arg builder for edge cases
 const specialHarness = new AgentTestHarness({
   runnerConfig: createRunnerConfig({
-    buildArgs: (opts, task, mortDir, cwd) => [
+    buildArgs: (opts, task, anvilDir, cwd) => [
       "--agent", opts.agent,
       "--prompt", opts.prompt,
       "--custom-flag", "value",
@@ -173,7 +173,7 @@ This config is consumed by `AgentTestHarness.spawnAgent()` (defined in `02b-agen
 // In agent-harness.ts (simplified)
 private spawnAgent(opts: AgentTestOptions, task: TaskMetadata): Promise<AgentRunOutput> {
   const runnerPath = join(distDir, this.runnerConfig.runnerPath);
-  const args = this.runnerConfig.buildArgs(opts, task, mortDir, repoCwd);
+  const args = this.runnerConfig.buildArgs(opts, task, anvilDir, repoCwd);
 
   return spawn("node", [runnerPath, ...args], {
     env: { ...process.env, ...this.runnerConfig.env, ...opts.env },

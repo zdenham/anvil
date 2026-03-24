@@ -1,4 +1,4 @@
-# Mort Presentation: Slide-by-Slide Outline
+# Anvil Presentation: Slide-by-Slide Outline
 
 ## Phases
 
@@ -15,7 +15,7 @@
 
 *[Show logo.png — pixel skull with sine wave smile]*
 
-# mort
+# anvil
 
 **AI agent orchestrator for software teams**
 
@@ -45,7 +45,7 @@
 - We all spend most of our time writing code
 - If we build tooling that makes us measurably faster, we are better at our jobs
 - Better tooling = competitive advantage. The teams that figure out agent-assisted development first win.
-- This isn't theoretical — we're already using it daily to ship Mort itself
+- This isn't theoretical — we're already using it daily to ship Anvil itself
 
 ---
 
@@ -96,7 +96,7 @@ Features to demonstrate:
 1. **Spotlight** — Global hotkey (Cmd+Shift+Space) from any app, search threads/plans/repos
 2. **Live Streaming** — Real-time text, token meters, context pressure gauge
 3. **Permission Modes** — Plan / Implement / Approve, switch with Shift+Tab mid-conversation
-4. **Plan Detection** — Write `## Phases` in markdown, Mort auto-detects and tracks completion
+4. **Plan Detection** — Write `## Phases` in markdown, Anvil auto-detects and tracks completion
 5. **Sub-agents** — Agent spawns child threads via Task tool, routed through AgentHub
 6. **Control Panel** — Quick actions (Archive, Respond, Follow-up), plan view, git diffs
 7. **Clipboard Manager** — Full history in SQLite, global hotkey, smart paste to any app
@@ -144,7 +144,7 @@ Features to demonstrate:
 │                               │                                    │
 │       ┌───────────────────────┴───────────────────────┐            │
 │       │              AgentHub (Rust)                    │            │
-│       │         Unix Socket: ~/.mort/agent-hub.sock    │            │
+│       │         Unix Socket: ~/.anvil/agent-hub.sock    │            │
 │       │                                                │            │
 │       │  • Bidirectional message routing (any → any)   │            │
 │       │  • Pipeline stamping (timestamps at every hop) │            │
@@ -172,7 +172,7 @@ Features to demonstrate:
 │  └───────────────────────────────────────────────────────────────┘  │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    ~/.mort/ (Disk as Truth)                    │  │
+│  │                    ~/.anvil/ (Disk as Truth)                    │  │
 │  │  threads/  plans/  plan-edges/  repos/  settings/  databases/ │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -228,7 +228,7 @@ Agent Process                    AgentHub (Rust)                Tauri Frontend
 ### Storage — Disk as Truth
 
 ```
-~/.mort/
+~/.anvil/
 ├── agent-hub.sock              # Unix socket (runtime)
 ├── threads/{id}/
 │   ├── metadata.json           # Status, git info, timestamps
@@ -311,7 +311,7 @@ Agent Process                    AgentHub (Rust)                Tauri Frontend
   Phases complete → merge worktrees → quality gate → done
 ```
 
-- User defines the plan, Mort distributes phases to agents
+- User defines the plan, Anvil distributes phases to agents
 - Each agent gets appropriate permission mode
 - Parallel work on isolated worktrees
 - Human stays in the loop via Approve mode on final review
@@ -532,7 +532,7 @@ MI = MAX(0, (171 - 5.2 * ln(HV) - 0.23 * CC - 16.2 * ln(LOC)) * 100 / 171)
 │                         YOUR MACHINE (local)                        │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                  Mort Desktop App (same as v1)                 │  │
+│  │                  Anvil Desktop App (same as v1)                 │  │
 │  │  UI Layer · Claude Agent SDK · AgentHub · Drains · Disk       │  │
 │  │                                                               │  │
 │  │  Localhost dev servers run HERE                                │  │
@@ -597,7 +597,7 @@ MI = MAX(0, (171 - 5.2 * ln(HV) - 0.23 * CC - 16.2 * ln(LOC)) * 100 / 171)
 
 ## Slide 20 — Closing / What's Next
 
-- Mort is a platform for exploring these questions, not just a tool
+- Anvil is a platform for exploring these questions, not just a tool
 - We're building the feedback loop: agents write → quality is measured → agents improve
 - Next steps:
   - Distributed agent orchestration (buffer + CRDT + secrets manager)

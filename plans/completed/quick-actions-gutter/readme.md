@@ -4,7 +4,7 @@ Coordinated plan for the bottom status bar (VS Code-style gutter) and the quick 
 
 ## Context
 
-Quick actions are user-defined scripts in `~/.mort/quick-actions/`. They need two improvements:
+Quick actions are user-defined scripts in `~/.anvil/quick-actions/`. They need two improvements:
 
 1. **Auto-build** — Currently users must manually `pnpm build` + click "Reload Actions". We want the app to build on startup and the settings button to trigger a real build.
 2. **Bottom gutter** — Quick actions are currently disabled in the UI (commented out in `ThreadInputSection`). We want them in a thin VS Code-style status bar at the bottom of the main window, alongside the status legend.

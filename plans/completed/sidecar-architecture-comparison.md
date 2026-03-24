@@ -52,7 +52,7 @@ All 5 implementations share the same high-level architecture. The refactor moves
 │                    │  │                   │  misc      → Catch   │  │ │
 │  ┌─────────────┐  │  │                   └──────────────────────┘  │ │
 │  │ Port File   │  │  │                                              │ │
-│  │ ~/.mort/    │  │  /ws/agent ────────► Agent Hub                  │ │
+│  │ ~/.anvil/    │  │  /ws/agent ────────► Agent Hub                  │ │
 │  │  sidecar-   │  │                      ┌─────────────────────┐   │ │
 │  │  {hash}.port│  │                      │ register/relay/drain│   │ │
 │  └─────────────┘  │                      │ pipeline stamping   │   │ │
@@ -113,13 +113,13 @@ Relay:     { relay: true, event: string, payload: unknown }
 
 | Decision | baseline | cc-teams | vanilla-orchestrate | decompose | breadcrumb-loop |
 | --- | --- | --- | --- | --- | --- |
-| **Port file path** | `~/.mort/sidecar-{hash}.port` | `~/.mort/sidecar-{hash}.port` | `~/.mort/sidecar-{hash}.port` | `~/.mort/sidecar-{hash}.port` | `~/.mort/sidecar-{hash}.port` |
+| **Port file path** | `~/.anvil/sidecar-{hash}.port` | `~/.anvil/sidecar-{hash}.port` | `~/.anvil/sidecar-{hash}.port` | `~/.anvil/sidecar-{hash}.port` | `~/.anvil/sidecar-{hash}.port` |
 | **Hash algorithm (Node)** | simpleHash (custom) | SHA-256 (12 chars) | SHA-256 (12 chars) | SHA-256 (12 chars) | SHA-256 (12 chars) |
 | **Hash algorithm (Rust)** | simpleHash (matching) | build_info + port file | build_info + port file | **DefaultHasher (SipHash)** | build_info + env var |
 | **Hash mismatch?** | No | No | No | **YES — showstopper** | No |
 | **Rust readiness check** | None (fire & forget) | None (no readiness probe) | None | Polls port file 15s | None |
-| **Port passed to Node via** | CLI `--port` | CLI `--port` + env | env `MORT_WS_PORT` | CLI `--port` + `--project` | env `MORT_SIDECAR_PORT` |
-| **Port baked in frontend** | `__MORT_WS_PORT__` (Vite) | `__MORT_WS_PORT__` (Vite) | `__MORT_WS_PORT__` (Vite) | `__MORT_WS_PORT__` (Vite) | `__MORT_WS_PORT__` (Vite) |
+| **Port passed to Node via** | CLI `--port` | CLI `--port` + env | env `ANVIL_WS_PORT` | CLI `--port` + `--project` | env `ANVIL_SIDECAR_PORT` |
+| **Port baked in frontend** | `__ANVIL_WS_PORT__` (Vite) | `__ANVIL_WS_PORT__` (Vite) | `__ANVIL_WS_PORT__` (Vite) | `__ANVIL_WS_PORT__` (Vite) | `__ANVIL_WS_PORT__` (Vite) |
 
 ### C. Command Dispatch
 
@@ -174,7 +174,7 @@ Relay:     { relay: true, event: string, payload: unknown }
 | **Readiness check** | None | None | None | Port file poll (15s) | None |
 | **Rust crates removed** | Minimal | **axum, portable-pty, tokio/rt-multi-thread, 6+ more** | Minimal | Minimal | ws crate removed |
 | **Rust commands kept** | All native + fallback | Native only | All (fallback) | Native + stubs | Native only |
-| **Port in [build.rs](http://build.rs)** | `MORT_WS_PORT` env | `MORT_WS_PORT` env | `MORT_WS_PORT` env | `MORT_WS_PORT` env | `MORT_WS_PORT` env |
+| **Port in [build.rs](http://build.rs)** | `ANVIL_WS_PORT` env | `ANVIL_WS_PORT` env | `ANVIL_WS_PORT` env | `ANVIL_WS_PORT` env | `ANVIL_WS_PORT` env |
 
 ### G. Frontend Transport (invoke.ts)
 
@@ -431,8 +431,8 @@ Every implementation made these same choices:
 
  1. Express (or raw http) + `ws` library with `noServer` mode
  2. Two WS endpoints: `/ws` (frontend) + `/ws/agent` (agents)
- 3. Port 9600 default with `MORT_WS_PORT` env override
- 4. Port file at `~/.mort/sidecar-{hash}.port`
+ 3. Port 9600 default with `ANVIL_WS_PORT` env override
+ 4. Port file at `~/.anvil/sidecar-{hash}.port`
  5. Same wire protocol: `{ id, cmd, args }` → `{ id, result/error }`
  6. Same push event protocol: `{ event, payload }`
  7. Relay events via `{ relay: true, event, payload }`

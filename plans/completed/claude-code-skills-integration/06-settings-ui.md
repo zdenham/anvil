@@ -109,7 +109,7 @@ export function SkillsSettings() {
     s.source === 'project' || s.source === 'project_command'
   );
   const personalSkills = skills.filter(s =>
-    s.source === 'personal' || s.source === 'personal_command' || s.source === 'mort'
+    s.source === 'personal' || s.source === 'personal_command' || s.source === 'anvil'
   );
 
   return (
@@ -122,7 +122,7 @@ export function SkillsSettings() {
         <div className="text-sm text-muted-foreground space-y-2">
           <p>Create skills in these locations:</p>
           <ul className="list-disc list-inside space-y-1 text-xs font-mono">
-            <li>~/.mort/skills/&lt;name&gt;/SKILL.md (Mort-specific)</li>
+            <li>~/.anvil/skills/&lt;name&gt;/SKILL.md (Anvil-specific)</li>
             <li>~/.claude/skills/&lt;name&gt;/SKILL.md (Personal)</li>
             <li>&lt;repo&gt;/.claude/skills/&lt;name&gt;/SKILL.md (Project)</li>
             <li>~/.claude/commands/&lt;name&gt;.md (Legacy)</li>

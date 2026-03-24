@@ -5,10 +5,10 @@
 Gateway channel code reads `device_id` from a nonexistent `identity.json` file:
 
 ```
-[ERROR] [entities:hydrate] Failed to ensure gateway channel for mortician: Error: Identity file not found (identity.json)
+[ERROR] [entities:hydrate] Failed to ensure gateway channel for anvil: Error: Identity file not found (identity.json)
 ```
 
-The `device_id` was moved to `~/.mort/settings/app-config.json` (managed by Rust `AppConfig` in `src-tauri/src/config.rs`), but two TypeScript files still look for the old `identity.json` path.
+The `device_id` was moved to `~/.anvil/settings/app-config.json` (managed by Rust `AppConfig` in `src-tauri/src/config.rs`), but two TypeScript files still look for the old `identity.json` path.
 
 ## Root Cause
 

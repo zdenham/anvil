@@ -225,7 +225,7 @@ const renderHistoryEntry = (entry: PromptHistoryEntry) => {
 
 ## Future Enhancements
 
-1. **Cross-Session Draft Sync**: Sync drafts across multiple Mortician instances
+1. **Cross-Session Draft Sync**: Sync drafts across multiple Anvil instances
 2. **Draft Search**: Allow searching within draft prompts
 3. **Draft Folders**: Organize drafts by topic/project
 4. **Draft Templates**: Save commonly used prompt patterns as templates

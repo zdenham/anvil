@@ -6,10 +6,10 @@
 
 When you run `pnpm dev`:
 
-1. `dev-mort.sh dev` sources `scripts/env-presets/dev.sh` setting:
-   - `MORT_VITE_PORT=1421`
-   - `MORT_APP_SUFFIX=dev`
-   - `MORT_SKIP_MAIN_WINDOW=1`
+1. `dev-anvil.sh dev` sources `scripts/env-presets/dev.sh` setting:
+   - `ANVIL_VITE_PORT=1421`
+   - `ANVIL_APP_SUFFIX=dev`
+   - `ANVIL_SKIP_MAIN_WINDOW=1`
 2. Sets `TAURI_ARGS="--config src-tauri/tauri.conf.dev.json"`
 3. Runs `pnpm dev:run` which uses `concurrently` to start:
    - `pnpm dev:agents` (watches agents/)
@@ -36,7 +36,7 @@ hmr: disableHmr
       : undefined,
 ```
 
-When `MORT_VITE_PORT=1421` (the dev preset):
+When `ANVIL_VITE_PORT=1421` (the dev preset):
 - `TAURI_DEV_HOST` is NOT set → skips the first branch
 - `vitePort !== 1420` is TRUE → takes the second branch
 - HMR is configured with **only** `{ port: 1422 }` — no `host` or `protocol` specified
@@ -59,7 +59,7 @@ This branch was likely added to handle the case where a non-default port is used
 - **CSP**: `tauri.conf.json` has `"csp": null` — no content security restrictions.
 - **HTTPS mixed content**: Desktop dev mode loads from `http://localhost:1421`, not `https://tauri.localhost`. Not applicable.
 - **File watcher**: `watch.ignored` only ignores `**/src-tauri/**`, which is correct.
-- **Environment variable propagation**: `concurrently` inherits the parent environment, so `MORT_VITE_PORT=1421` reaches the `vite` command.
+- **Environment variable propagation**: `concurrently` inherits the parent environment, so `ANVIL_VITE_PORT=1421` reaches the `vite` command.
 
 ---
 

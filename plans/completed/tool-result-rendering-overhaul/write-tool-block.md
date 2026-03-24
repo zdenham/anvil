@@ -419,7 +419,7 @@ const setDiffOutputExpanded = (expanded: boolean) => setOutputExpanded(threadId,
 
 ### File Location
 
-`/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/write-tool-block.tsx`
+`/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/write-tool-block.tsx`
 
 ### Complete Implementation Structure
 
@@ -611,7 +611,7 @@ function extractErrorMessage(result: string | undefined): string {
 
 ## Registration
 
-Update `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/index.ts`:
+Update `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/index.ts`:
 
 ```typescript
 import { WriteToolBlock } from "./write-tool-block";
@@ -628,7 +628,7 @@ export { BashToolBlock, WriteToolBlock };
 
 ## Testing
 
-Create tests at `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/write-tool-block.test.tsx`:
+Create tests at `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/write-tool-block.test.tsx`:
 
 **Test cases:**
 1. Renders "Write file" header with FilePlus icon

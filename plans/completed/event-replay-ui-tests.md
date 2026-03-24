@@ -37,7 +37,7 @@ Only the Tauri `invoke()` boundary is mocked. Everything above it is production 
 - `setup-ui.ts` `afterEach` calls `TestEvents.clearAllListeners()` → no leaks
 - `mockInvoke` handles `fs_exists`, `fs_read_file`, `fs_write_file`, `fs_list_dir_names`
 - `mockFileSystem` (Map) backs the virtual disk
-- `VirtualFS` helper writes to the right paths under `MOCK_MORT_DIR`
+- `VirtualFS` helper writes to the right paths under `MOCK_ANVIL_DIR`
 - `TestStores.clear()` resets Zustand state between tests
 
 ### What's missing
@@ -80,7 +80,7 @@ Add to `src/test/mocks/tauri-api.ts` in the `mockInvoke` switch:
 
 ```typescript
 case "get_paths_info":
-  return { data_dir: MOCK_MORT_DIR, app_suffix: null };
+  return { data_dir: MOCK_ANVIL_DIR, app_suffix: null };
 ```
 
 This unblocks `appData.readJson()` / `appData.exists()` in any test that goes through `threadService`.
@@ -95,7 +95,7 @@ import { eventBus } from "@/entities/events";
 import { EventName } from "@core/types/events";
 import { threadReducer, type ThreadAction } from "@core/lib/thread-reducer";
 import { VirtualFS } from "./virtual-fs";
-import { MOCK_MORT_DIR } from "../mocks/tauri-api";
+import { MOCK_ANVIL_DIR } from "../mocks/tauri-api";
 import { waitForReact } from "./event-emitter";
 import type { CapturedEvent } from "@/stores/event-debugger-store";
 import type { ThreadState } from "@core/types/events";
@@ -172,7 +172,7 @@ export class ReplayHarness {
 
   /** Seed VirtualFS so threadService reads succeed */
   private seedVirtualDisk(): void {
-    const dir = `${MOCK_MORT_DIR}/threads/${this.threadId}`;
+    const dir = `${MOCK_ANVIL_DIR}/threads/${this.threadId}`;
     VirtualFS.seed({
       [`${dir}/metadata.json`]: this.diskMetadata,
       [`${dir}/state.json`]: this.diskState,

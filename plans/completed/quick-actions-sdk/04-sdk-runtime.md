@@ -65,7 +65,7 @@ getHeadCommit(repoPath: string): string {
 SDK factory that creates the runtime instance:
 
 ```typescript
-import type { MortSDK } from '../types.js';
+import type { AnvilSDK } from '../types.js';
 import { createGitService } from './services/git.js';
 import { createThreadService } from './services/threads.js';
 import { createPlanService } from './services/plans.js';
@@ -75,17 +75,17 @@ import { createLogService } from './services/log.js';
 export type EmitEvent = (event: string, payload: unknown) => void;
 
 export interface SDKConfig {
-  mortDir: string;
+  anvilDir: string;
   emitEvent: EmitEvent;
 }
 
-export function createSDK(config: SDKConfig): MortSDK {
-  const { mortDir, emitEvent } = config;
+export function createSDK(config: SDKConfig): AnvilSDK {
+  const { anvilDir, emitEvent } = config;
 
   return {
     git: createGitService(),
-    threads: createThreadService(mortDir, emitEvent),
-    plans: createPlanService(mortDir, emitEvent),
+    threads: createThreadService(anvilDir, emitEvent),
+    plans: createPlanService(anvilDir, emitEvent),
     ui: createUIService(emitEvent),
     log: createLogService(emitEvent),
   };
@@ -141,7 +141,7 @@ export function createGitService(): GitService {
 
 ### `core/sdk/runtime/services/threads.ts`
 
-Thread service that reads from .mort and emits events for writes:
+Thread service that reads from .anvil and emits events for writes:
 
 ```typescript
 import * as fs from 'fs/promises';
@@ -149,8 +149,8 @@ import * as path from 'path';
 import type { ThreadService, ThreadInfo } from '../../types.js';
 import type { EmitEvent } from '../index.js';
 
-export function createThreadService(mortDir: string, emitEvent: EmitEvent): ThreadService {
-  const threadsDir = path.join(mortDir, 'threads');
+export function createThreadService(anvilDir: string, emitEvent: EmitEvent): ThreadService {
+  const threadsDir = path.join(anvilDir, 'threads');
 
   async function readThreadMeta(threadId: string): Promise<ThreadInfo | null> {
     try {
@@ -239,8 +239,8 @@ interface PlansIndexEntry {
   updatedAt: number;
 }
 
-export function createPlanService(mortDir: string, emitEvent: EmitEvent): PlanService {
-  const plansIndexPath = path.join(mortDir, 'plans-index.json');
+export function createPlanService(anvilDir: string, emitEvent: EmitEvent): PlanService {
+  const plansIndexPath = path.join(anvilDir, 'plans-index.json');
 
   async function readPlansIndex(): Promise<Record<string, PlansIndexEntry>> {
     try {
@@ -303,7 +303,7 @@ export function createPlanService(mortDir: string, emitEvent: EmitEvent): PlanSe
 
 ### `core/sdk/runtime/services/ui.ts`
 
-UI service that emits events for Mort to handle:
+UI service that emits events for Anvil to handle:
 
 ```typescript
 import type { UIService } from '../../types.js';
@@ -352,18 +352,18 @@ export function createUIService(emitEvent: EmitEvent): UIService {
 
 ### `core/sdk/runtime/services/log.ts`
 
-Log service that routes to Mort's logger. Interface matches `Logger` from `core/adapters/types.ts`:
+Log service that routes to Anvil's logger. Interface matches `Logger` from `core/adapters/types.ts`:
 
 ```typescript
 import type { LogService } from '../../types.js';
 import type { EmitEvent } from '../index.js';
 
 /**
- * Creates a LogService that emits log events to Mort.
+ * Creates a LogService that emits log events to Anvil.
  *
  * Design notes:
  * - Interface matches Logger from core/adapters/types.ts (DRY)
- * - Log events are routed to Mort's main logging infrastructure
+ * - Log events are routed to Anvil's main logging infrastructure
  */
 export function createLogService(emitEvent: EmitEvent): LogService {
   return {
@@ -440,7 +440,7 @@ function createTimeoutPromise(ms: number): Promise<never> {
  * Wraps action execution with a timeout using Promise.race().
  * If the action doesn't complete within ACTION_TIMEOUT_MS, the promise rejects.
  * Note: This doesn't kill the action's async operations, but the process will exit
- * with an error, and Mort (the parent process) should kill this Node process.
+ * with an error, and Anvil (the parent process) should kill this Node process.
  */
 async function executeWithTimeout<T>(
   actionPromise: Promise<T>,
@@ -456,17 +456,17 @@ const { values } = parseArgs({
   options: {
     action: { type: 'string' },    // Path to built JS file
     context: { type: 'string' },   // JSON context
-    'mort-dir': { type: 'string' }, // Path to .mort directory
+    'anvil-dir': { type: 'string' }, // Path to .anvil directory
   },
 });
 
 async function main() {
   const actionPath = values.action;
-  const mortDir = values['mort-dir'];
+  const anvilDir = values['anvil-dir'];
   const contextJson = values.context;
 
-  if (!actionPath || !mortDir || !contextJson) {
-    throw new Error('Missing required arguments: --action, --mort-dir, --context');
+  if (!actionPath || !anvilDir || !contextJson) {
+    throw new Error('Missing required arguments: --action, --anvil-dir, --context');
   }
 
   // Validate context from CLI args (trust boundary - requires Zod validation)
@@ -474,7 +474,7 @@ async function main() {
 
   // Create SDK with event emitter that writes to stdout
   const sdk = createSDK({
-    mortDir,
+    anvilDir,
     emitEvent: (event, payload) => {
       console.log(JSON.stringify({ event, payload }));
     },
@@ -510,10 +510,10 @@ main().catch((err) => {
 ## Design Decisions Referenced
 
 - **#10 SDK Communication**: Events emitted via stdout JSON
-- **#12 SDK Data Access**: Reads directly from .mort directory
-- **#15 Logging**: Log calls route to Mort's main logger via events
-- **#24 State Sync via Events**: Write operations emit events, Mort handles disk writes
-- **#25 Action Timeout**: 30-second timeout using Promise.race(); Mort kills process on timeout
+- **#12 SDK Data Access**: Reads directly from .anvil directory
+- **#15 Logging**: Log calls route to Anvil's main logger via events
+- **#24 State Sync via Events**: Write operations emit events, Anvil handles disk writes
+- **#25 Action Timeout**: 30-second timeout using Promise.race(); Anvil kills process on timeout
 - **#33 SDK Write Operations**: SDK emits events only, does NOT write directly to disk
 
 ## DRY Implementation Summary
@@ -552,7 +552,7 @@ main().catch((err) => {
 
 ### Design Decisions Not Yet Addressed
 
-1. **#5 Node.js Detection**: Decision #5 states Mort should detect if Node.js is missing and provide a helpful error message. This is handled at the Mort layer (not SDK), but the implementation should be coordinated.
+1. **#5 Node.js Detection**: Decision #5 states Anvil should detect if Node.js is missing and provide a helpful error message. This is handled at the Anvil layer (not SDK), but the implementation should be coordinated.
 
 ### Schema Requirements
 
@@ -582,11 +582,11 @@ Create a test file to verify SDK types are correctly exported and match expected
 
 ```typescript
 // core/sdk/__tests__/sdk-types.test.ts
-import type { MortSDK, GitService, ThreadService, PlanService, UIService, LogService } from '../types.js';
+import type { AnvilSDK, GitService, ThreadService, PlanService, UIService, LogService } from '../types.js';
 import { createSDK } from '../runtime/index.js';
 
-// Verify createSDK returns MortSDK type
-const sdk: MortSDK = createSDK({ mortDir: '/test/.mort', emitEvent: () => {} });
+// Verify createSDK returns AnvilSDK type
+const sdk: AnvilSDK = createSDK({ anvilDir: '/test/.anvil', emitEvent: () => {} });
 
 // Verify all services are present
 const git: GitService = sdk.git;
@@ -648,7 +648,7 @@ describe('SDK Runtime', () => {
   describe('createSDK', () => {
     it('creates SDK with all services', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       expect(sdk.git).toBeDefined();
       expect(sdk.threads).toBeDefined();
@@ -661,7 +661,7 @@ describe('SDK Runtime', () => {
   describe('UI Service Events', () => {
     it('emits ui:setInput event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.ui.setInputContent('test content');
 
@@ -670,7 +670,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:navigate event for thread', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.ui.navigateToThread('thread-123');
 
@@ -679,7 +679,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:toast event with default type', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.ui.showToast('Success!');
 
@@ -688,7 +688,7 @@ describe('SDK Runtime', () => {
 
     it('emits ui:toast event with explicit type', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.ui.showToast('Error!', 'error');
 
@@ -699,7 +699,7 @@ describe('SDK Runtime', () => {
   describe('Thread Service Events', () => {
     it('emits thread:archive event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.threads.archive('thread-456');
 
@@ -708,7 +708,7 @@ describe('SDK Runtime', () => {
 
     it('emits thread:markRead event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.threads.markRead('thread-789');
 
@@ -717,7 +717,7 @@ describe('SDK Runtime', () => {
 
     it('emits thread:markUnread event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.threads.markUnread('thread-abc');
 
@@ -728,7 +728,7 @@ describe('SDK Runtime', () => {
   describe('Plan Service Events', () => {
     it('emits plan:archive event', async () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       await sdk.plans.archive('plan-xyz');
 
@@ -739,7 +739,7 @@ describe('SDK Runtime', () => {
   describe('Log Service Events', () => {
     it('emits log event with info level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       sdk.log.info('Test message', { key: 'value' });
 
@@ -752,7 +752,7 @@ describe('SDK Runtime', () => {
 
     it('emits log event with warn level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       sdk.log.warn('Warning message');
 
@@ -765,7 +765,7 @@ describe('SDK Runtime', () => {
 
     it('emits log event with error level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       sdk.log.error('Error message', { code: 500 });
 
@@ -778,7 +778,7 @@ describe('SDK Runtime', () => {
 
     it('emits log event with debug level', () => {
       const emitEvent = vi.fn();
-      const sdk = createSDK({ mortDir: '/test/.mort', emitEvent });
+      const sdk = createSDK({ anvilDir: '/test/.anvil', emitEvent });
 
       sdk.log.debug('Debug message');
 
@@ -868,7 +868,7 @@ EOF
 # Run the runner with test context
 node core/sdk/runner.js \
   --action /tmp/test-action.js \
-  --mort-dir ~/.mort \
+  --anvil-dir ~/.anvil \
   --context '{"contextType":"empty","repository":null,"worktree":null}'
 ```
 
@@ -884,7 +884,7 @@ Expected stdout output (JSON lines):
 # Test invalid context is rejected
 node core/sdk/runner.js \
   --action /tmp/test-action.js \
-  --mort-dir ~/.mort \
+  --anvil-dir ~/.anvil \
   --context '{"contextType":"invalid"}'
 
 # Expected: Process exits with code 1, stderr contains JSON error about Zod validation
@@ -908,7 +908,7 @@ EOF
 # Run the runner - should timeout after 30 seconds
 time node core/sdk/runner.js \
   --action /tmp/slow-action.js \
-  --mort-dir ~/.mort \
+  --anvil-dir ~/.anvil \
   --context '{"contextType":"empty","repository":null,"worktree":null}'
 
 # Expected:
@@ -1038,7 +1038,7 @@ All emitted events must be valid JSON on a single line. Verify no multiline outp
 ```bash
 node core/sdk/runner.js \
   --action /tmp/test-action.js \
-  --mort-dir ~/.mort \
+  --anvil-dir ~/.anvil \
   --context '{"contextType":"empty","repository":null,"worktree":null}' \
   | while read line; do
     echo "$line" | jq . > /dev/null || echo "INVALID JSON: $line"
@@ -1069,8 +1069,8 @@ node core/sdk/runner.js \
 15. [ ] All files compile with `tsc --noEmit`
 16. [ ] `createSDK` returns object with all 5 services
 17. [ ] Git service methods delegate to `NodeGitAdapter` (no shell string interpolation)
-18. [ ] Thread service reads from `{mortDir}/threads/{threadId}/meta.json`
-19. [ ] Plan service reads from `{mortDir}/plans-index.json`
+18. [ ] Thread service reads from `{anvilDir}/threads/{threadId}/meta.json`
+19. [ ] Plan service reads from `{anvilDir}/plans-index.json`
 20. [ ] Plan `readContent` reads from `{worktreePath}/{relativePath}`
 21. [ ] UI service methods emit correct event names
 22. [ ] Thread/Plan service write methods emit correct events

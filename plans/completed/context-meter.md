@@ -104,7 +104,7 @@ Agent Process                   Unix Socket              Rust AgentHub          
 ```
 
 Key files in the IPC chain:
-- `agents/src/lib/hub/client.ts` — `HubClient` connects to `~/.mort/agent-hub.sock`
+- `agents/src/lib/hub/client.ts` — `HubClient` connects to `~/.anvil/agent-hub.sock`
 - `agents/src/output.ts` — `emitState()` writes disk first, then `hubClient.sendState(payload)`
 - `src/lib/agent-service.ts` — Tauri `listen<AgentSocketMessage>("agent:message", ...)` routes to eventBus
 

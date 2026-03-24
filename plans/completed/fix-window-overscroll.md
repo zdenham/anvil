@@ -2,7 +2,7 @@
 
 ## Problem
 
-The entire Mort window can be overscrolled (elastic/rubber-band bounce effect on macOS). This is unexpected behavior for a desktop app — the window frame itself should never scroll or bounce.
+The entire Anvil window can be overscrolled (elastic/rubber-band bounce effect on macOS). This is unexpected behavior for a desktop app — the window frame itself should never scroll or bounce.
 
 ## Root Cause
 

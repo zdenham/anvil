@@ -1,15 +1,15 @@
-# Fix: mort-resolve-comment still executes a dummy Bash command
+# Fix: anvil-resolve-comment still executes a dummy Bash command
 
 ## Problem
 
-When the agent addresses comments and runs `mort-resolve-comment "id1,id2"`, the PreToolUse hook in `comment-resolution-hook.ts` correctly:
+When the agent addresses comments and runs `anvil-resolve-comment "id1,id2"`, the PreToolUse hook in `comment-resolution-hook.ts` correctly:
 1. Intercepts the command
 2. Emits `COMMENT_RESOLVED` events (comments get resolved)
 3. Rewrites the command to `echo "Resolved N comment(s): id1, id2"`
 
 But step 3 means a **Bash tool call still executes** — the `echo` command runs and shows up in the thread UI as a visible tool block. The user sees a Bash execution of `echo "Resolved..."` which is confusing and unnecessary.
 
-Thread reference: `8203ad39-2bed-4467-a793-d264e19c7391` in mort-dev.
+Thread reference: `8203ad39-2bed-4467-a793-d264e19c7391` in anvil-dev.
 
 ## Root Cause
 
@@ -24,7 +24,7 @@ The current approach chose `allow` + echo rewrite as a compromise: the agent see
 
 Switch from `allow` + echo rewrite to `deny` + a clear success message. The key insight: `deny` with `permissionDecisionReason` sends the reason text back to the agent as the tool error message. If we make the reason clearly indicate success (not failure), the agent will understand the comments were resolved and won't retry.
 
-To reinforce this, also update the prompt in `formatAddressPrompt()` to tell the agent that `mort-resolve-comment` is a virtual command that gets intercepted — a "deny" response with a success message is expected behavior.
+To reinforce this, also update the prompt in `formatAddressPrompt()` to tell the agent that `anvil-resolve-comment` is a virtual command that gets intercepted — a "deny" response with a success message is expected behavior.
 
 ### Why this works
 - No Bash tool execution at all — nothing shows in the thread UI
@@ -82,10 +82,10 @@ In `src/components/diff-viewer/address-comments-button.tsx` and `floating-addres
 
 ```diff
      "For each comment, make the requested change. After addressing a comment, mark it resolved:",
--    `mort-resolve-comment "${commentIds.join(",")}"`,
-+    `mort-resolve-comment "${commentIds.join(",")}"`,
+-    `anvil-resolve-comment "${commentIds.join(",")}"`,
++    `anvil-resolve-comment "${commentIds.join(",")}"`,
 +    "",
-+    "Note: mort-resolve-comment is a virtual command intercepted by the system. It will appear as \"denied\" in the tool output but the comments ARE resolved — this is expected behavior, do not retry.",
++    "Note: anvil-resolve-comment is a virtual command intercepted by the system. It will appear as \"denied\" in the tool output but the comments ARE resolved — this is expected behavior, do not retry.",
 ```
 
 ### 3. Update tests in `agents/src/hooks/__tests__/comment-resolution-hook.test.ts`

@@ -11,7 +11,7 @@ Name: **`orb`**
 ## Directory Structure
 
 ```
-mortician/
+anvil/
 └── observability/
     └── orb/
         ├── index.ts          # Entry point, CLI argument parsing
@@ -132,7 +132,7 @@ pnpm orb --help
 
 ## Log Schema
 
-The tool will query logs with this schema (tailored for mortician desktop app):
+The tool will query logs with this schema (tailored for anvil desktop app):
 
 | Field | Type | Description |
 |-------|------|-------------|

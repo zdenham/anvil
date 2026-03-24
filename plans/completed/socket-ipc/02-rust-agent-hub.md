@@ -5,7 +5,7 @@ Implement the socket server in Rust that acts as the central communication hub f
 ## Context
 
 The AgentHub is a Unix socket server owned by Tauri that:
-- Creates socket at `~/.mort/agent-hub.sock` on app startup
+- Creates socket at `~/.anvil/agent-hub.sock` on app startup
 - Accepts connections from all agents (root + bash-based sub-agents)
 - Routes messages between agents and the frontend via Tauri events
 - Cleans up on app exit
@@ -102,7 +102,7 @@ impl AgentHub {
             // Try to connect - if it succeeds, another instance is running
             match StdUnixStream::connect(&self.socket_path) {
                 Ok(_) => {
-                    return Err("Another Mort instance is already running".to_string());
+                    return Err("Another Anvil instance is already running".to_string());
                 }
                 Err(_) => {
                     // Stale socket, safe to remove
@@ -201,8 +201,8 @@ In `main.rs` or `lib.rs` setup:
 
 ```rust
 fn main() {
-    let mort_dir = dirs::home_dir().unwrap().join(".mort");
-    let socket_path = mort_dir.join("agent-hub.sock").to_string_lossy().to_string();
+    let anvil_dir = dirs::home_dir().unwrap().join(".anvil");
+    let socket_path = anvil_dir.join("agent-hub.sock").to_string_lossy().to_string();
 
     let hub = Arc::new(AgentHub::new(socket_path));
     let hub_cleanup = hub.clone();
@@ -232,7 +232,7 @@ fn main() {
 
 ## Acceptance Criteria
 
-- [x] Socket created at `~/.mort/agent-hub.sock` on app start
+- [x] Socket created at `~/.anvil/agent-hub.sock` on app start
 - [x] Multiple agents can connect simultaneously
 - [x] Agent registration stores threadId → writer mapping
 - [x] Messages from agents are emitted via `emit("agent:message", ...)` (using Tauri 2.x API)
@@ -377,19 +377,19 @@ async fn test_agent_connection_lifecycle() {
 After starting the Tauri app:
 ```bash
 # Check socket exists
-ls -la ~/.mort/agent-hub.sock
+ls -la ~/.anvil/agent-hub.sock
 
 # Expected output:
-# srwxr-xr-x  1 user  staff  0 [date] /Users/[user]/.mort/agent-hub.sock
+# srwxr-xr-x  1 user  staff  0 [date] /Users/[user]/.anvil/agent-hub.sock
 ```
 
 **2. Test Socket Connection with netcat/socat**
 ```bash
 # Connect to socket and send a registration message
-echo '{"senderId":"test-agent","threadId":"manual-test-1","type":"register"}' | socat - UNIX-CONNECT:~/.mort/agent-hub.sock
+echo '{"senderId":"test-agent","threadId":"manual-test-1","type":"register"}' | socat - UNIX-CONNECT:~/.anvil/agent-hub.sock
 
 # Or interactively:
-socat - UNIX-CONNECT:~/.mort/agent-hub.sock
+socat - UNIX-CONNECT:~/.anvil/agent-hub.sock
 # Then type: {"senderId":"test","threadId":"test-thread","type":"register"}
 ```
 
@@ -400,7 +400,7 @@ const net = require('net');
 const path = require('path');
 const os = require('os');
 
-const socketPath = path.join(os.homedir(), '.mort', 'agent-hub.sock');
+const socketPath = path.join(os.homedir(), '.anvil', 'agent-hub.sock');
 
 const client = net.createConnection(socketPath, () => {
     console.log('Connected to AgentHub');
@@ -438,33 +438,33 @@ Run with: `node test-agent-connection.js`
 **4. Verify Stale Socket Cleanup**
 ```bash
 # Create a fake stale socket
-touch ~/.mort/agent-hub.sock
+touch ~/.anvil/agent-hub.sock
 
 # Start the Tauri app
 # The app should remove the stale file and create a real socket
 
 # Verify it's now a real socket (not a regular file)
-file ~/.mort/agent-hub.sock
-# Expected: /Users/[user]/.mort/agent-hub.sock: socket
+file ~/.anvil/agent-hub.sock
+# Expected: /Users/[user]/.anvil/agent-hub.sock: socket
 ```
 
 **5. Verify Socket Cleanup on Exit**
 ```bash
 # With app running, verify socket exists
-ls ~/.mort/agent-hub.sock
+ls ~/.anvil/agent-hub.sock
 
 # Close the app (Cmd+Q or equivalent)
 
 # Verify socket is removed
-ls ~/.mort/agent-hub.sock
-# Expected: ls: /Users/[user]/.mort/agent-hub.sock: No such file or directory
+ls ~/.anvil/agent-hub.sock
+# Expected: ls: /Users/[user]/.anvil/agent-hub.sock: No such file or directory
 ```
 
 ### Expected Outputs/Behaviors
 
 | Test | Expected Outcome |
 |------|------------------|
-| Socket file creation | `~/.mort/agent-hub.sock` exists as socket type (not regular file) |
+| Socket file creation | `~/.anvil/agent-hub.sock` exists as socket type (not regular file) |
 | Agent registration | Agent appears in internal HashMap, no errors logged |
 | Message from agent | Tauri emits `agent:message` event with correct payload |
 | `send_to_agent` command | Message arrives at correct agent's socket connection |
@@ -472,5 +472,5 @@ ls ~/.mort/agent-hub.sock
 | Agent disconnect | Agent removed from HashMap, no memory leak |
 | Stale socket on startup | Old file deleted, new socket created successfully |
 | App exit | Socket file deleted, no orphan processes |
-| Multiple instance detection | Second instance fails with "Another Mort instance is already running" |
+| Multiple instance detection | Second instance fails with "Another Anvil instance is already running" |
 | Malformed JSON | Logged but doesn't crash server, connection remains open |

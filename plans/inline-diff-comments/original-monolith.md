@@ -24,7 +24,7 @@ Add the ability to leave inline comments on any line in a diff view, persist the
 
 Comments are a new entity scoped to a **worktree** with an optional **thread association**. Since threads always live inside a worktree, `worktreeId` is the primary key — this means comments work in both thread diff views (where a threadId is available) and the standalone worktree changes view (where there's no thread).
 
-Comments are persisted on disk at `~/.mort/comments/{worktreeId}.json` following the disk-as-truth pattern used by all other entities. The service uses `appData.readJson()` / `appData.writeJson()` with relative paths (e.g., `comments/{worktreeId}.json`).
+Comments are persisted on disk at `~/.anvil/comments/{worktreeId}.json` following the disk-as-truth pattern used by all other entities. The service uses `appData.readJson()` / `appData.writeJson()` with relative paths (e.g., `comments/{worktreeId}.json`).
 
 ### Data Flow
 
@@ -144,7 +144,7 @@ if (lineNumber === null) return;
 
 For deletions, `newLineNumber` is null so we fall back to `oldLineNumber`. For additions, `oldLineNumber` is null so `newLineNumber` is used. For unchanged lines, both are present and we prefer `newLineNumber`.
 
-**Disk format:** `~/.mort/comments/{worktreeId}.json` (relative to `appData` root)
+**Disk format:** `~/.anvil/comments/{worktreeId}.json` (relative to `appData` root)
 
 ```json
 {

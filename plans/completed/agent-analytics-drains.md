@@ -113,7 +113,7 @@ Agent (Node.js)                        Tauri (Rust)
 └──────────────────┘                  └───────────────────────────────┘
 ```
 
-The `SQLiteLayer` filters on `target.starts_with("drain::")`. System logs (`mort::*`, `web`, etc.) are unaffected.
+The `SQLiteLayer` filters on `target.starts_with("drain::")`. System logs (`anvil::*`, `web`, etc.) are unaffected.
 
 ---
 

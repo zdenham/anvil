@@ -16,9 +16,9 @@ All GitHub data is fetched via the `gh` CLI, leveraging the user's existing GitH
 
 ## Phase 1: Create-PR Skill
 
-### File: `plugins/mort/skills/create-pr/SKILL.md`
+### File: `plugins/anvil/skills/create-pr/SKILL.md`
 
-A bundled skill shipped with Mort, living in `plugins/mort/skills/` alongside `commit` and `simplify-code`. On startup, `syncManagedSkills()` (in `src/lib/skill-sync.ts`) copies the entire `plugins/mort/skills/` directory to `~/.mort/skills/`, making the skill available at runtime. No changes to the sync mechanism are required -- the existing `syncManagedSkills()` already iterates all subdirectories in `plugins/mort/skills/` and copies them.
+A bundled skill shipped with Anvil, living in `plugins/anvil/skills/` alongside `commit` and `simplify-code`. On startup, `syncManagedSkills()` (in `src/lib/skill-sync.ts`) copies the entire `plugins/anvil/skills/` directory to `~/.anvil/skills/`, making the skill available at runtime. No changes to the sync mechanism are required -- the existing `syncManagedSkills()` already iterates all subdirectories in `plugins/anvil/skills/` and copies them.
 
 The skill is granted `bash,read,grep,glob` tools. The agent needs `read`, `grep`, and `glob` to examine the codebase and write good PR descriptions (commit history, changed files, code context), and `bash` to run git and `gh` CLI commands. It intentionally does NOT have `edit` or `write` tools since the create-pr agent should not modify code.
 
@@ -70,9 +70,9 @@ When the agent SDK resolves the `/create-pr` slash command, skill lookup follows
 
 1. **Project skills**: `<repo>/.claude/skills/create-pr/` -- highest priority, repo-specific overrides
 2. **Personal skills**: `~/.claude/skills/create-pr/` -- user-level customization
-3. **Mort skills**: `~/.mort/skills/create-pr/` -- the bundled default (synced from `plugins/mort/skills/`)
+3. **Anvil skills**: `~/.anvil/skills/create-pr/` -- the bundled default (synced from `plugins/anvil/skills/`)
 
-Users can customize PR creation by placing their own `create-pr/SKILL.md` in their project's `.claude/skills/` directory. This lets teams enforce their own PR conventions (required sections, template formats, label assignment, reviewer assignment) without modifying Mort's bundled skill.
+Users can customize PR creation by placing their own `create-pr/SKILL.md` in their project's `.claude/skills/` directory. This lets teams enforce their own PR conventions (required sections, template formats, label assignment, reviewer assignment) without modifying Anvil's bundled skill.
 
 ---
 
@@ -241,7 +241,7 @@ async function getBranchInfo(worktreePath: string): Promise<{
 
 ### Gateway Channel Pre-Existence
 
-Gateway channels are created for **all repos by default** when a repo is added to Mort or on every app mount (idempotently). The `ensureGatewayChannelForRepo` function runs during entity hydration for every repo, ensuring channels survive app restarts, failed creates, and reinstalls. This means:
+Gateway channels are created for **all repos by default** when a repo is added to Anvil or on every app mount (idempotently). The `ensureGatewayChannelForRepo` function runs during entity hydration for every repo, ensuring channels survive app restarts, failed creates, and reinstalls. This means:
 
 - The webhook is already installed when "Create pull request" is clicked
 - PRs created via the agent **and** PRs created manually in any terminal are both detected
@@ -397,7 +397,7 @@ eventBus.on(EventName.GITHUB_WEBHOOK_EVENT, async ({ channelId, githubEventType,
 This webhook-based detection catches PRs created via both paths:
 
 1. **Agent-driven (plus menu)**: User clicks "Create pull request" -> agent thread spawns with `/create-pr` skill -> agent runs `gh pr create` -> GitHub fires `pull_request.opened` -> gateway delivers event -> PR entity created -> blue icon appears in side panel
-2. **Manual (terminal)**: User runs `gh pr create` in any Mort terminal -> same webhook flow -> PR entity created (as long as a gateway channel exists for the repo, which it does by default)
+2. **Manual (terminal)**: User runs `gh pr create` in any Anvil terminal -> same webhook flow -> PR entity created (as long as a gateway channel exists for the repo, which it does by default)
 
 In both cases, the PR item appears with a loading skeleton briefly while the title and status are fetched via `gh pr view --json`. The skeleton resolves quickly since PR details are queried immediately on entity creation.
 
@@ -434,9 +434,9 @@ src/lib/
   pr-actions.ts                  NEW: handleCreatePr action flow
   gh-cli.ts                      FROM pr-entity plan (Phase 2)
 
-plugins/mort/skills/create-pr/
+plugins/anvil/skills/create-pr/
   SKILL.md                       NEW: bundled create-pr skill
-                                 (synced to ~/.mort/skills/ by syncManagedSkills)
+                                 (synced to ~/.anvil/skills/ by syncManagedSkills)
 ```
 
 ### Files NOT Needed

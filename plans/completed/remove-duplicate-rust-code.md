@@ -17,7 +17,7 @@ The Node.js sidecar now handles all "data commands" (filesystem, git, worktree m
 | `filesystem.rs` | `fs_read_file`, `fs_write_file`, `fs_write_binary`, `fs_mkdir`, `fs_exists`, `fs_remove`, `fs_remove_dir_all`, `fs_move`, `fs_copy_file`, `fs_copy_directory`, `fs_list_dir`, `fs_is_git_repo`, `fs_git_worktree_add`, `fs_git_worktree_remove`, `fs_grep`, `fs_bulk_read` | `dispatch-fs.ts` |
 | `git_commands.rs` | All 26 git commands (`git_fetch`, `git_diff_*`, `git_create_branch`, `git_list_worktrees`, etc.) | `dispatch-git.ts` |
 | `worktree_commands.rs` | `worktree_create`, `worktree_delete`, `worktree_rename`, `worktree_touch`, `worktree_sync` | `dispatch-worktree.ts` |
-| `mort_commands.rs` | `fs_get_repo_dir`, `fs_get_repo_source_path`, `fs_get_home_dir`, `fs_list_dir_names`, `lock_acquire_repo`, `lock_release_repo`, `get_paths_info`, `get_agent_types` | `dispatch-misc.ts` + `paths.ts` |
+| `anvil_commands.rs` | `fs_get_repo_dir`, `fs_get_repo_source_path`, `fs_get_home_dir`, `fs_list_dir_names`, `lock_acquire_repo`, `lock_release_repo`, `get_paths_info`, `get_agent_types` | `dispatch-misc.ts` + `paths.ts` |
 | `thread_commands.rs` | `get_thread_status`, `get_thread` | `dispatch-misc.ts` |
 | `search.rs` | `search_threads` | `dispatch-misc.ts` |
 | `repo_commands.rs` | `validate_repository`, `remove_repository_data` | `dispatch-misc.ts` |
@@ -84,7 +84,7 @@ Delete these files entirely:
 - `src-tauri/src/filesystem.rs` (\~300 lines)
 - `src-tauri/src/git_commands.rs` (\~800 lines)
 - `src-tauri/src/worktree_commands.rs` (\~250 lines)
-- `src-tauri/src/mort_commands.rs` (\~200 lines)
+- `src-tauri/src/anvil_commands.rs` (\~200 lines)
 - `src-tauri/src/thread_commands.rs` (\~80 lines)
 - `src-tauri/src/search.rs` (\~100 lines)
 - `src-tauri/src/repo_commands.rs` (\~50 lines)

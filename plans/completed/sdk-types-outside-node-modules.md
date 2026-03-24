@@ -2,23 +2,23 @@
 
 ## Goal
 
-Make `@mort/sdk` types immune to `pnpm install` by placing them outside `node_modules` and using TypeScript path mapping.
+Make `@anvil/sdk` types immune to `pnpm install` by placing them outside `node_modules` and using TypeScript path mapping.
 
 ## Current State
 
 ```
-~/.mort/quick-actions/
+~/.anvil/quick-actions/
 ├── package.json
 ├── tsconfig.json
 ├── build.ts
 ├── src/
 │   └── actions/
-│       └── *.ts          # import { defineAction } from '@mort/sdk'
+│       └── *.ts          # import { defineAction } from '@anvil/sdk'
 └── node_modules/
     ├── esbuild/
     ├── tsx/
     ├── typescript/
-    └── @mort/
+    └── @anvil/
         └── sdk/
             ├── package.json
             └── types.d.ts   # <-- DELETED by pnpm install
@@ -27,20 +27,20 @@ Make `@mort/sdk` types immune to `pnpm install` by placing them outside `node_mo
 ## Target State
 
 ```
-~/.mort/quick-actions/
+~/.anvil/quick-actions/
 ├── package.json
 ├── tsconfig.json          # Updated with paths mapping
 ├── build.ts
-├── .mort/                  # New directory for Mort-managed files
+├── .anvil/                  # New directory for Anvil-managed files
 │   └── sdk.d.ts           # Types live here, safe from pnpm
 ├── src/
 │   └── actions/
-│       └── *.ts           # import { defineAction } from '@mort/sdk' (unchanged)
+│       └── *.ts           # import { defineAction } from '@anvil/sdk' (unchanged)
 └── node_modules/
     ├── esbuild/
     ├── tsx/
     └── typescript/
-    # No @mort/sdk here anymore
+    # No @anvil/sdk here anymore
 ```
 
 ## Implementation Steps
@@ -63,7 +63,7 @@ Make `@mort/sdk` types immune to `pnpm install` by placing them outside `node_mo
     "declaration": false,
     "baseUrl": ".",
     "paths": {
-      "@mort/sdk": ["./.mort/sdk.d.ts"]
+      "@anvil/sdk": ["./.anvil/sdk.d.ts"]
     }
   },
   "include": ["src/**/*"],
@@ -73,7 +73,7 @@ Make `@mort/sdk` types immune to `pnpm install` by placing them outside `node_mo
 
 **Key changes:**
 - Added `"baseUrl": "."` (required for paths to work)
-- Added `"paths"` mapping `@mort/sdk` to `.mort/sdk.d.ts`
+- Added `"paths"` mapping `@anvil/sdk` to `.anvil/sdk.d.ts`
 
 ### Step 2: Update quick-actions-init.ts
 
@@ -85,7 +85,7 @@ Make `@mort/sdk` types immune to `pnpm install` by placing them outside `node_mo
 const SDK_VERSION = '1.1.0';  // Bump version to trigger migration
 const QUICK_ACTIONS_DIR = 'quick-actions';
 const TYPES_FILE = 'sdk.d.ts';
-const MORT_TYPES_DIR = '.mort';  // New: types directory name
+const ANVIL_TYPES_DIR = '.anvil';  // New: types directory name
 ```
 
 #### 2b: Update copyTemplate()
@@ -100,15 +100,15 @@ async function copyTemplate(projectPath: string): Promise<void> {
   // Create project directory structure
   await fs.mkdir(projectPath);
 
-  // Create .mort directory for SDK types (safe from pnpm install)
-  const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
-  await fs.mkdir(mortTypesDir);
+  // Create .anvil directory for SDK types (safe from pnpm install)
+  const anvilTypesDir = fs.joinPath(projectPath, ANVIL_TYPES_DIR);
+  await fs.mkdir(anvilTypesDir);
 
   // Copy template files (excluding node_modules - user will run pnpm install)
   await copyDirExcluding(templatePath, projectPath, ['node_modules', 'dist']);
 
-  // Copy SDK types to .mort directory (DD #4 and #22)
-  const typesDestPath = fs.joinPath(mortTypesDir, TYPES_FILE);
+  // Copy SDK types to .anvil directory (DD #4 and #22)
+  const typesDestPath = fs.joinPath(anvilTypesDir, TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
   // Create SDK version file for tracking
@@ -117,7 +117,7 @@ async function copyTemplate(projectPath: string): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   await fs.writeJsonFile(
-    fs.joinPath(mortTypesDir, 'version.json'),
+    fs.joinPath(anvilTypesDir, 'version.json'),
     versionFile
   );
 }
@@ -128,16 +128,16 @@ async function copyTemplate(projectPath: string): Promise<void> {
 ```typescript
 async function readSdkVersion(projectPath: string): Promise<string | null> {
   try {
-    // Try new location first (.mort/version.json)
-    const newPath = fs.joinPath(projectPath, MORT_TYPES_DIR, 'version.json');
+    // Try new location first (.anvil/version.json)
+    const newPath = fs.joinPath(projectPath, ANVIL_TYPES_DIR, 'version.json');
     if (await fs.exists(newPath)) {
       const data = await fs.readJsonFile<{ version?: string }>(newPath);
       return data.version ?? null;
     }
 
-    // Fall back to old location (node_modules/@mort/sdk/package.json)
+    // Fall back to old location (node_modules/@anvil/sdk/package.json)
     // This enables migration from old structure
-    const oldPath = fs.joinPath(projectPath, 'node_modules', '@mort', 'sdk', 'package.json');
+    const oldPath = fs.joinPath(projectPath, 'node_modules', '@anvil', 'sdk', 'package.json');
     if (await fs.exists(oldPath)) {
       const pkg = await fs.readJsonFile<{ version?: string }>(oldPath);
       return pkg.version ?? null;
@@ -155,13 +155,13 @@ async function readSdkVersion(projectPath: string): Promise<string | null> {
 ```typescript
 async function updateSdkTypes(projectPath: string): Promise<void> {
   const sdkTypesPath = await getSdkTypesPath();
-  const mortTypesDir = fs.joinPath(projectPath, MORT_TYPES_DIR);
+  const anvilTypesDir = fs.joinPath(projectPath, ANVIL_TYPES_DIR);
 
-  // Ensure .mort directory exists
-  await fs.mkdir(mortTypesDir);
+  // Ensure .anvil directory exists
+  await fs.mkdir(anvilTypesDir);
 
   // Update sdk.d.ts
-  const typesDestPath = fs.joinPath(mortTypesDir, TYPES_FILE);
+  const typesDestPath = fs.joinPath(anvilTypesDir, TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
   // Update version file
@@ -170,12 +170,12 @@ async function updateSdkTypes(projectPath: string): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   await fs.writeJsonFile(
-    fs.joinPath(mortTypesDir, 'version.json'),
+    fs.joinPath(anvilTypesDir, 'version.json'),
     versionFile
   );
 
   // Clean up old location if it exists (migration)
-  const oldSdkDir = fs.joinPath(projectPath, 'node_modules', '@mort');
+  const oldSdkDir = fs.joinPath(projectPath, 'node_modules', '@anvil');
   if (await fs.exists(oldSdkDir)) {
     await fs.removeDir(oldSdkDir);
     logger.info('Removed old SDK location from node_modules');
@@ -207,8 +207,8 @@ if (!currentVersion || needsUpdate(currentVersion, SDK_VERSION)) {
 
 ```typescript
 /**
- * Ensure tsconfig.json has the correct paths mapping for @mort/sdk.
- * This migrates existing projects from node_modules to .mort directory.
+ * Ensure tsconfig.json has the correct paths mapping for @anvil/sdk.
+ * This migrates existing projects from node_modules to .anvil directory.
  */
 async function updateTsConfig(projectPath: string): Promise<void> {
   const tsconfigPath = fs.joinPath(projectPath, 'tsconfig.json');
@@ -222,7 +222,7 @@ async function updateTsConfig(projectPath: string): Promise<void> {
 
   // Check if paths already configured correctly
   const paths = compilerOptions.paths as Record<string, string[]> | undefined;
-  if (paths?.['@mort/sdk']?.[0] === './.mort/sdk.d.ts') {
+  if (paths?.['@anvil/sdk']?.[0] === './.anvil/sdk.d.ts') {
     return;  // Already correct
   }
 
@@ -230,23 +230,23 @@ async function updateTsConfig(projectPath: string): Promise<void> {
   compilerOptions.baseUrl = compilerOptions.baseUrl ?? '.';
   compilerOptions.paths = {
     ...(paths ?? {}),
-    '@mort/sdk': ['./.mort/sdk.d.ts'],
+    '@anvil/sdk': ['./.anvil/sdk.d.ts'],
   };
   tsconfig.compilerOptions = compilerOptions;
 
   await fs.writeJsonFile(tsconfigPath, tsconfig);
-  logger.info('Updated tsconfig.json with @mort/sdk path mapping');
+  logger.info('Updated tsconfig.json with @anvil/sdk path mapping');
 }
 ```
 
 ### Step 4: Update Template File Structure
 
 **Remove from template:**
-- `core/sdk/template/node_modules/@mort/` (entire directory)
+- `core/sdk/template/node_modules/@anvil/` (entire directory)
 
 **Add to template:**
-- `core/sdk/template/.mort/sdk.d.ts` (copy of types)
-- `core/sdk/template/.mort/version.json`:
+- `core/sdk/template/.anvil/sdk.d.ts` (copy of types)
+- `core/sdk/template/.anvil/version.json`:
   ```json
   {
     "version": "1.1.0",
@@ -271,7 +271,7 @@ Add a function that can be called before action discovery to ensure types are pr
  */
 export async function ensureSdkTypesPresent(): Promise<boolean> {
   const projectPath = await getQuickActionsProjectPath();
-  const typesPath = fs.joinPath(projectPath, MORT_TYPES_DIR, TYPES_FILE);
+  const typesPath = fs.joinPath(projectPath, ANVIL_TYPES_DIR, TYPES_FILE);
 
   if (!await fs.exists(typesPath)) {
     logger.warn('SDK types missing, attempting recovery');
@@ -286,31 +286,31 @@ export async function ensureSdkTypesPresent(): Promise<boolean> {
 
 ## Migration Behavior
 
-When a user with an existing quick-actions project launches the updated Mort:
+When a user with an existing quick-actions project launches the updated Anvil:
 
 1. `initializeQuickActionsProject()` is called
 2. `projectExists()` returns `true` (project exists)
-3. `readSdkVersion()` checks `.mort/version.json` first (not found)
-4. Falls back to `node_modules/@mort/sdk/package.json`:
+3. `readSdkVersion()` checks `.anvil/version.json` first (not found)
+4. Falls back to `node_modules/@anvil/sdk/package.json`:
    - If found: Returns old version (e.g., "1.0.0")
    - If deleted by pnpm: Returns `null`
 5. Either way, `!currentVersion || needsUpdate()` triggers update
 6. `updateSdkTypes()`:
-   - Creates `.mort/` directory
+   - Creates `.anvil/` directory
    - Copies `sdk.d.ts` to new location
-   - Removes old `node_modules/@mort/` directory
+   - Removes old `node_modules/@anvil/` directory
 7. `updateTsConfig()`:
    - Adds `baseUrl` and `paths` mapping
-8. User's existing actions continue to work with `import { defineAction } from '@mort/sdk'`
+8. User's existing actions continue to work with `import { defineAction } from '@anvil/sdk'`
 
 ## Testing Checklist
 
-- [ ] Fresh project creation places types in `.mort/sdk.d.ts`
+- [ ] Fresh project creation places types in `.anvil/sdk.d.ts`
 - [ ] tsconfig.json has correct `paths` mapping
-- [ ] `import { defineAction } from '@mort/sdk'` resolves correctly in IDE
+- [ ] `import { defineAction } from '@anvil/sdk'` resolves correctly in IDE
 - [ ] `pnpm install` in quick-actions directory does NOT delete types
 - [ ] Existing project is migrated on app startup
-- [ ] Old `node_modules/@mort/` is cleaned up after migration
+- [ ] Old `node_modules/@anvil/` is cleaned up after migration
 - [ ] Version tracking works in new location
 - [ ] SDK version upgrade triggers type update
 - [ ] Types missing triggers recovery (null version case)
@@ -330,15 +330,15 @@ If issues are discovered:
 | File | Changes |
 |------|---------|
 | `core/sdk/template/tsconfig.json` | Add baseUrl and paths |
-| `core/sdk/template/.mort/sdk.d.ts` | New file (copy of types) |
-| `core/sdk/template/.mort/version.json` | New file (version tracking) |
-| `core/sdk/template/node_modules/@mort/` | Remove directory |
+| `core/sdk/template/.anvil/sdk.d.ts` | New file (copy of types) |
+| `core/sdk/template/.anvil/version.json` | New file (version tracking) |
+| `core/sdk/template/node_modules/@anvil/` | Remove directory |
 | `src/lib/quick-actions-init.ts` | Update all SDK paths logic |
 | `src/lib/paths.ts` | No changes needed |
 
 ## Timeline
 
-1. **Template changes**: Update tsconfig and add .mort directory
+1. **Template changes**: Update tsconfig and add .anvil directory
 2. **Init logic changes**: Update quick-actions-init.ts
 3. **Testing**: Verify fresh install and migration
 4. **Cleanup**: Remove any dead code

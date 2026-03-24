@@ -32,7 +32,7 @@ Phase 3 (Spotlight Disabler)
     ├──────────────────┬──────────────────┐
     ▼                  ▼                  ▼
 Phase 4            Phase 5            Phase 6
-(Tauri Commands)   (mort-test CLI)    (SpotlightStep UI)
+(Tauri Commands)   (anvil-test CLI)    (SpotlightStep UI)
     │                  │                  │
     └──────────────────┴──────────────────┘
                        │
@@ -49,7 +49,7 @@ Phase 4            Phase 5            Phase 6
 | 2 | `phase-2-system-settings-navigator.md` | System Settings navigation helper | Phase 1 |
 | 3 | `phase-3-spotlight-disabler.md` | Core disable logic | Phase 2 |
 | 4 | `phase-4-tauri-commands.md` | Tauri command wrappers | Phase 3 |
-| 5 | `phase-5-mort-test-cli.md` | CLI testing commands | Phase 3 |
+| 5 | `phase-5-anvil-test-cli.md` | CLI testing commands | Phase 3 |
 | 6 | `phase-6-spotlight-step-ui.md` | Onboarding UI button | Phase 4 |
 | 7 | `phase-7-permission-handling.md` | Accessibility permission flow | Phase 4, 5, 6 |
 
@@ -64,9 +64,9 @@ Phase 4            Phase 5            Phase 6
 
 ## Success Criteria
 
-- [ ] `mort-test disable-spotlight --dry-run` reports shortcut status
-- [ ] `mort-test disable-spotlight` successfully disables the shortcut
-- [ ] `mort-test check-accessibility` reports permission status
+- [ ] `anvil-test disable-spotlight --dry-run` reports shortcut status
+- [ ] `anvil-test disable-spotlight` successfully disables the shortcut
+- [ ] `anvil-test check-accessibility` reports permission status
 - [ ] SpotlightStep.tsx has working "Auto-disable" button
 - [ ] Works on macOS 13, 14, 15
 - [ ] Graceful fallback when permission denied

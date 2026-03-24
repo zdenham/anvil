@@ -20,7 +20,7 @@ Integrate the orchestration services into the Node runner, enabling worktree all
 ```
 --agent         Agent type (planning, execution, etc.)
 --prompt        User's query
---mort-dir      Data directory (~/.mort)
+--anvil-dir      Data directory (~/.anvil)
 --task-slug     Task slug - task must exist on disk
 --thread-id     UUID - Node will create the thread entity
 ```
@@ -78,7 +78,7 @@ import { getThreadFolderName } from '@/entities/threads/types';
 interface RunnerArgs {
   agent: string;
   prompt: string;
-  mortDir: string;
+  anvilDir: string;
   taskSlug: string;
   threadId: string;
 }
@@ -100,12 +100,12 @@ export function orchestrate(args: RunnerArgs): OrchestrationResult {
   const pathLock = new NodePathLock();
 
   // Create services
-  const settingsService = new RepositorySettingsService(args.mortDir, fs);
+  const settingsService = new RepositorySettingsService(args.anvilDir, fs);
   const mergeBaseService = new MergeBaseService(git);
-  const taskMetadataService = new TaskMetadataService(args.mortDir, fs);
-  const threadService = new ThreadService(args.mortDir, fs);
+  const taskMetadataService = new TaskMetadataService(args.anvilDir, fs);
+  const threadService = new ThreadService(args.anvilDir, fs);
   const allocationService = new WorktreeAllocationService(
-    args.mortDir,
+    args.anvilDir,
     settingsService,
     mergeBaseService,
     git,
@@ -155,7 +155,7 @@ export function orchestrate(args: RunnerArgs): OrchestrationResult {
 }
 
 export function setupCleanup(
-  mortDir: string,
+  anvilDir: string,
   repoName: string,
   threadId: string
 ): void {
@@ -164,10 +164,10 @@ export function setupCleanup(
       const fs = new NodeFileSystemAdapter();
       const git = new NodeGitAdapter();
       const pathLock = new NodePathLock();
-      const settingsService = new RepositorySettingsService(mortDir, fs);
+      const settingsService = new RepositorySettingsService(anvilDir, fs);
       const mergeBaseService = new MergeBaseService(git);
       const allocationService = new WorktreeAllocationService(
-        mortDir,
+        anvilDir,
         settingsService,
         mergeBaseService,
         git,
@@ -203,13 +203,13 @@ const args = parseArgs(process.argv);
 const result = orchestrate({
   agent: args.agent,
   prompt: args.prompt,
-  mortDir: args.mortDir,
+  anvilDir: args.anvilDir,
   taskSlug: args.taskSlug,
   threadId: args.threadId,
 });
 
 // Setup cleanup handlers
-setupCleanup(args.mortDir, result.repoName, args.threadId);
+setupCleanup(args.anvilDir, result.repoName, args.threadId);
 
 // Run agent with orchestrated cwd and merge base
 runAgent({
@@ -269,7 +269,7 @@ node runner.js \
   --task-slug fix-login-bug \
   --thread-id def-456 \
   --prompt "Fix the login bug" \
-  --mort-dir ~/.mort
+  --anvil-dir ~/.anvil
 ```
 
 ## Verification

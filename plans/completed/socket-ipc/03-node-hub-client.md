@@ -502,7 +502,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { HubClient } from "./client.js";
 
 vi.mock("@core/lib/socket.js", () => ({
-  getHubSocketPath: vi.fn().mockReturnValue("/tmp/mort-hub.sock"),
+  getHubSocketPath: vi.fn().mockReturnValue("/tmp/anvil-hub.sock"),
 }));
 
 vi.mock("./connection.js", () => ({
@@ -682,14 +682,14 @@ describe("HubClient Integration", () => {
 
 #### 1. Build and Type Check
 ```bash
-cd /Users/zac/Documents/juice/mort/mortician/agents
+cd /Users/zac/Documents/juice/anvil/anvil/agents
 npm run build
 # Expected: No TypeScript errors in hub/ directory
 ```
 
 #### 2. Run Unit Tests
 ```bash
-cd /Users/zac/Documents/juice/mort/mortician/agents
+cd /Users/zac/Documents/juice/anvil/anvil/agents
 npm test -- --grep "hub"
 # or
 npx vitest run src/lib/hub/
@@ -698,7 +698,7 @@ npx vitest run src/lib/hub/
 
 #### 3. Verify Module Exports
 ```bash
-cd /Users/zac/Documents/juice/mort/mortician/agents
+cd /Users/zac/Documents/juice/anvil/anvil/agents
 node -e "
 const hub = require('./dist/lib/hub/index.js');
 console.log('Exports:', Object.keys(hub));

@@ -428,7 +428,7 @@ The SDK provides an automatic "Other" option that lets users type a custom respo
 
 ### Persistence — lean on thread state
 
-Thread messages (including full tool_use blocks with `toolInput`) are already persisted to disk in `~/.mort/threads/{threadId}/state.json`. The question data (questions array, options, etc.) is stored as part of the `messages` array. **No separate question persistence needed.**
+Thread messages (including full tool_use blocks with `toolInput`) are already persisted to disk in `~/.anvil/threads/{threadId}/state.json`. The question data (questions array, options, etc.) is stored as part of the `messages` array. **No separate question persistence needed.**
 
 The question store is **memory-only** (Zustand, no disk backing):
 - Tracks only the currently-pending question's `requestId`, `toolUseId`, `threadId`, and `status`.

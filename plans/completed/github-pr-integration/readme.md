@@ -1,10 +1,10 @@
 # GitHub Pull Request Integration
 
-First-class pull request support in Mort: a new PR entity, side panel item type, content pane, and event-driven automation via the buffered event gateway.
+First-class pull request support in Anvil: a new PR entity, side panel item type, content pane, and event-driven automation via the buffered event gateway.
 
 ## Problem
 
-Developers working in Mort have no visibility into their pull requests. They must context-switch to the browser to check CI status, read review comments, and address feedback. We want to:
+Developers working in Anvil have no visibility into their pull requests. They must context-switch to the browser to check CI status, read review comments, and address feedback. We want to:
 
 1. Surface PRs in the side panel alongside threads, plans, and terminals
 2. Display PR details (description, CI checks, review status) in a content pane
@@ -56,7 +56,7 @@ Developers working in Mort have no visibility into their pull requests. They mus
 
              Gateway Event Flow (when auto-address ON):
 
-GitHub ──webhook──▶ Gateway ──SSE──▶ Mort Client
+GitHub ──webhook──▶ Gateway ──SSE──▶ Anvil Client
                                         │
                                         ▼
                               Event Handler (signal only)
@@ -178,7 +178,7 @@ Wave 3 (3 agents in parallel):
 
 14. **Auto-address permission mode is a user setting, default "approve".** Users can configure the permission mode for auto-address agents in Settings. Default is "approve" (agents wait for user approval on each tool call). Users who want hands-free automation can change this.
 
-15. **All bundled skills live in `plugins/mort/skills/`.** The `create-pr`, `address-pr-comment`, and `fix-ci` skills are all defined in `plugins/mort/skills/` and synced to `~/.mort/skills/` via `syncManagedSkills()` on startup, consistent with `commit` and `simplify-code`.
+15. **All bundled skills live in `plugins/anvil/skills/`.** The `create-pr`, `address-pr-comment`, and `fix-ci` skills are all defined in `plugins/anvil/skills/` and synced to `~/.anvil/skills/` via `syncManagedSkills()` on startup, consistent with `commit` and `simplify-code`.
 
 16. **Concurrent agents are not queued — skills warn about concurrency instead.** When multiple events fire for the same PR (e.g., CI failure + review comment), multiple agents may run in the same worktree simultaneously. The skills include a concurrency warning instructing agents to check `git status`, stash if needed, and pull before pushing.
 

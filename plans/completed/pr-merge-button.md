@@ -4,7 +4,7 @@ Add a "Merge" button to the PR view that merges the pull request via `gh pr merg
 
 ## Context
 
-The PR view (`src/components/content-pane/pull-request-content.tsx`) currently shows info, description, checks, comments, and an auto-address toggle. There is no way to merge the PR from within Mort — users must open GitHub in the browser.
+The PR view (`src/components/content-pane/pull-request-content.tsx`) currently shows info, description, checks, comments, and an auto-address toggle. There is no way to merge the PR from within Anvil — users must open GitHub in the browser.
 
 The `gh` CLI is already allowed in the Tauri shell scope and all PR operations use `GhCli` + `execGh` from `src/lib/gh-cli/`.
 

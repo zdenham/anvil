@@ -36,7 +36,7 @@ The sidebar tree renders threads, plans, terminals, PRs, and folders. It derives
 
 ### Architecture: File-Watched Pane Layout with Shared Core Logic
 
-The pane layout is **already persisted** to `~/.mort/ui/pane-layout.json` on every mutation (tab open, close, switch, split, move) by `pane-layout/service.ts → persistState()`. The file contains the full split-tree with all groups and their active tabs — everything needed to derive visible thread IDs.
+The pane layout is **already persisted** to `~/.anvil/ui/pane-layout.json` on every mutation (tab open, close, switch, split, move) by `pane-layout/service.ts → persistState()`. The file contains the full split-tree with all groups and their active tabs — everything needed to derive visible thread IDs.
 
 #### Shared extraction logic in `core/`
 
@@ -58,7 +58,7 @@ Instead of polling with a cached TTL, the agent process uses `fs.watch()` on `pa
 
 #### Flow
 
-1. **Agent process watches `~/.mort/ui/pane-layout.json`** — `fs.watch()` fires on layout mutations. On change: read file, parse with `PaneLayoutPersistedStateSchema`, extract visible set via `extractVisibleThreadIds()`. Cache the `Set<string>` in memory.
+1. **Agent process watches `~/.anvil/ui/pane-layout.json`** — `fs.watch()` fires on layout mutations. On change: read file, parse with `PaneLayoutPersistedStateSchema`, extract visible set via `extractVisibleThreadIds()`. Cache the `Set<string>` in memory.
 
 2. **Initial read on HubClient connect** — Parse the file once at startup to populate the initial visible set before any events are sent.
 

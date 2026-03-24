@@ -4,9 +4,9 @@ Running list of feedback items and bugs for the breadcrumb skill system.
 
 ## Feedback Items
 
-### 1. `run_in_background` denial not working for mort-repl
+### 1. `run_in_background` denial not working for anvil-repl
 
-**Observed**: Thread `31e1729e` invoked `mort-repl` twice — first with `run_in_background: true`, then again without. Both ended with `status: "error"` and generic "Tool execution was interrupted" — no repl-hook denial message recorded.
+**Observed**: Thread `31e1729e` invoked `anvil-repl` twice — first with `run_in_background: true`, then again without. Both ended with `status: "error"` and generic "Tool execution was interrupted" — no repl-hook denial message recorded.
 
 **Research findings** (2026-03-15):
 
@@ -29,7 +29,7 @@ Running list of feedback items and bugs for the breadcrumb skill system.
 | 4\. FG_CANARY in PostToolUse result | PASS — `fgToolExecuted: true` |
 | 5\. Final flags consistent | PASS — all flags match expectations |
 
-**Conclusion**: The repl-hook's deny pattern (`reason` + `hookSpecificOutput` with `permissionDecision: "deny"`) **does work** for `run_in_background: true` Bash calls. The thread `31e1729e` failure was caused by something else — likely an abort signal or context exhaustion that interrupted the tool before the hook had a chance to fire, or the command wasn't recognized as mort-repl by `runner.extractCode()`.
+**Conclusion**: The repl-hook's deny pattern (`reason` + `hookSpecificOutput` with `permissionDecision: "deny"`) **does work** for `run_in_background: true` Bash calls. The thread `31e1729e` failure was caused by something else — likely an abort signal or context exhaustion that interrupted the tool before the hook had a chance to fire, or the command wasn't recognized as anvil-repl by `runner.extractCode()`.
 
 **No hook fix needed** — the existing code at `agents/src/hooks/repl-hook.ts:44-61` is correct and functional. The skill prompt changes (item #2) are still valuable as defense-in-depth.
 
@@ -47,14 +47,14 @@ So the UI will correctly show the denied tool as failed with the denial reason t
 
 > **Note on thread** `31e1729e`: If the denial had fired, the tool state would show `status: "error"` with the repl-hook's denial message. Instead, both tools showed `status: "error"` with generic "Tool execution was interrupted" — this confirms the denial never fired in that thread. The most likely explanation is an abort signal or context exhaustion that killed the tool before the hook ran, or the command format didn't match `extractCode()`.
 
-### 2. Skill prompts should explicitly forbid `run_in_background` for mort-repl
+### 2. Skill prompts should explicitly forbid `run_in_background` for anvil-repl
 
 **Problem**: Neither `breadcrumb-loop/SKILL.md` nor `orchestrate/SKILL.md` instructs the model to avoid `run_in_background`. The hook works, but defense-in-depth means the model shouldn't attempt it at all.
 
 **Files to change**:
 
-- `plugins/mort/skills/breadcrumb-loop/SKILL.md` — add warning before the `## Loop` section
-- `plugins/mort/skills/orchestrate/SKILL.md` — add warning in the `## Notes` section
+- `plugins/anvil/skills/breadcrumb-loop/SKILL.md` — add warning before the `## Loop` section
+- `plugins/anvil/skills/orchestrate/SKILL.md` — add warning in the `## Notes` section
 
 **Exact additions**:
 
@@ -63,13 +63,13 @@ In `breadcrumb-loop/SKILL.md`, add before `## Loop`:
 ```markdown
 ## Important
 
-**Do NOT use `run_in_background: true`** when invoking `mort-repl`. The REPL manages long-running execution internally via child agent processes. Always run it in the foreground.
+**Do NOT use `run_in_background: true`** when invoking `anvil-repl`. The REPL manages long-running execution internally via child agent processes. Always run it in the foreground.
 ```
 
 In `orchestrate/SKILL.md`, add as the first bullet in `## Notes`:
 
 ```markdown
-- **Do NOT use `run_in_background: true`** when invoking `mort-repl`. The REPL manages long-running execution internally. Always run in the foreground.
+- **Do NOT use `run_in_background: true`** when invoking `anvil-repl`. The REPL manages long-running execution internally. Always run in the foreground.
 ```
 
 ### 3. Breadcrumb folder should use `-breadcrumb-log` suffix
@@ -139,8 +139,8 @@ The SDK spawns a `claude` subprocess which refuses to start inside another claud
 | `agents/src/hooks/repl-hook.ts` | The `run_in_background` deny guard (lines 44-61) — **confirmed working** |
 | `agents/src/runners/shared.ts` | Hook registration (lines 560-582) — correctly registered |
 | `agents/src/runners/message-handler.ts` | Tool result handling (line 218) — correctly calls `markToolComplete` for tool_results |
-| `plugins/mort/skills/breadcrumb-loop/SKILL.md` | Needs `run_in_background` warning + folder naming update |
-| `plugins/mort/skills/breadcrumb/SKILL.md` | Needs folder naming example update |
-| `plugins/mort/skills/orchestrate/SKILL.md` | Needs `run_in_background` warning |
+| `plugins/anvil/skills/breadcrumb-loop/SKILL.md` | Needs `run_in_background` warning + folder naming update |
+| `plugins/anvil/skills/breadcrumb/SKILL.md` | Needs folder naming example update |
+| `plugins/anvil/skills/orchestrate/SKILL.md` | Needs `run_in_background` warning |
 | `agents/src/experimental/bg-deny-runner.ts` | Spike runner — confirmed deny works |
 | `agents/src/experimental/__tests__/bg-deny.integration.test.ts` | Spike test — all 5 assertions pass |

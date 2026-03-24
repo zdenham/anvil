@@ -39,7 +39,7 @@ Replace the `WORKTREE_POLICY` constant with:
 ```typescript
 export const WORKTREE_POLICY = `## Worktree Policy
 
-Do NOT use the \`EnterWorktree\` tool — it is disabled. Mort manages worktree creation.
+Do NOT use the \`EnterWorktree\` tool — it is disabled. Anvil manages worktree creation.
 If your task requires a new worktree, inform the user and they will create one from the sidebar.
 
 If you absolutely must create a worktree via Bash, follow this flow to match the UI:

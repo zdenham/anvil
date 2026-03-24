@@ -2,7 +2,7 @@
 
 Redesign the guide shown in empty panes to communicate Anvil's value proposition and consolidate the two separate states (no-repo welcome vs. guide reference) into one unified view.
 
-**Current state:** `empty-pane-content.tsx` renders either a bare "Welcome to Mort / Add a project" screen (no repo) or `GuideContent` (shortcuts + orchestration + modes). These should be one view.
+**Current state:** `empty-pane-content.tsx` renders either a bare "Welcome to Anvil / Add a project" screen (no repo) or `GuideContent` (shortcuts + orchestration + modes). These should be one view.
 
 ## Design
 

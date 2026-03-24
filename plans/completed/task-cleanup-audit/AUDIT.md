@@ -20,7 +20,7 @@ This document provides a comprehensive audit of remaining "task" references in t
 
 ### 1. CLI Task Commands
 
-**File:** `agents/src/cli/mort.ts`
+**File:** `agents/src/cli/anvil.ts`
 
 The CLI still has placeholder task commands that throw errors. These should be removed entirely.
 
@@ -88,7 +88,7 @@ export type TaskBranchInfo = z.infer<typeof TaskBranchInfoSchema>;
 - `src/lib/persistence.ts`
 - `core/services/repository/settings-service.test.ts`
 - `core/services/worktree/worktree-service.test.ts`
-- `agents/src/testing/services/test-mort-directory.ts`
+- `agents/src/testing/services/test-anvil-directory.ts`
 - `core/types/__tests__/thread-plan-types.test.ts`
 - `src/entities/threads/__tests__/utils.test.ts`
 
@@ -195,7 +195,7 @@ export interface OpenTasksResult {
 }
 
 // Update ActionResult union (line 48)
-export type ActionResult = OpenRepoResult | OpenMortResult | OpenTasksResult | RefreshResult;
+export type ActionResult = OpenRepoResult | OpenAnvilResult | OpenTasksResult | RefreshResult;
 
 // Update SpotlightResult union (line 67)
 | { type: "task"; data: TaskResult }
@@ -263,7 +263,7 @@ These files have comments mentioning "task" that should be updated for consisten
 ## Cleanup Order
 
 ### Phase 1: Breaking Changes (Do First)
-1. Remove CLI task commands from `agents/src/cli/mort.ts`
+1. Remove CLI task commands from `agents/src/cli/anvil.ts`
 2. Verify and remove `openTask` from hotkey-service.ts
 3. Remove corresponding Rust commands if needed
 

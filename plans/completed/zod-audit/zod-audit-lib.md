@@ -18,27 +18,27 @@ The `src/lib` directory contains 38 TypeScript files that handle:
 Before adding Zod schemas, consolidate duplicate types. The codebase has several type definitions that should be unified using `z.infer<typeof Schema>`:
 
 ### 1. `RepositoryMetadata` - defined in TWO places with DIFFERENT signatures
-- `/Users/zac/Documents/juice/mort/mortician/src/lib/repo-store-client.ts` - uses `createdAt: string`
-- `/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/types.ts` - uses `createdAt: number`
+- `/Users/zac/Documents/juice/anvil/anvil/src/lib/repo-store-client.ts` - uses `createdAt: string`
+- `/Users/zac/Documents/juice/anvil/anvil/src/entities/repositories/types.ts` - uses `createdAt: number`
 
 **Action**: Delete the `repo-store-client.ts` version, create a schema in `entities/repositories/types.ts`, use `z.infer`.
 
 ### 2. `RepositoryVersion` - defined in TWO places with DIFFERENT signatures
-- `/Users/zac/Documents/juice/mort/mortician/src/lib/repo-store-client.ts` - uses `createdAt: string`
-- `/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/types.ts` - uses `createdAt: number`
+- `/Users/zac/Documents/juice/anvil/anvil/src/lib/repo-store-client.ts` - uses `createdAt: string`
+- `/Users/zac/Documents/juice/anvil/anvil/src/entities/repositories/types.ts` - uses `createdAt: number`
 
 **Action**: Same as above - consolidate.
 
 ### 3. `ThreadStatus` - defined in THREE places
-- `/Users/zac/Documents/juice/mort/mortician/src/lib/tauri-commands.ts` - `"running" | "completed" | "error" | "paused"`
-- `/Users/zac/Documents/juice/mort/mortician/src/entities/threads/types.ts` - `"idle" | "running" | "completed" | "error" | "paused"`
-- `/Users/zac/Documents/juice/mort/mortician/core/types/events.ts` - `ThreadStatusType` with same values as threads/types.ts
+- `/Users/zac/Documents/juice/anvil/anvil/src/lib/tauri-commands.ts` - `"running" | "completed" | "error" | "paused"`
+- `/Users/zac/Documents/juice/anvil/anvil/src/entities/threads/types.ts` - `"idle" | "running" | "completed" | "error" | "paused"`
+- `/Users/zac/Documents/juice/anvil/anvil/core/types/events.ts` - `ThreadStatusType` with same values as threads/types.ts
 
 **Action**: Keep single definition in `src/entities/threads/types.ts`, import everywhere else. The tauri-commands.ts version is missing "idle" which may cause runtime bugs.
 
 ### 4. `ThreadMetadata` - defined in TWO places with DIFFERENT signatures
-- `/Users/zac/Documents/juice/mort/mortician/src/lib/tauri-commands.ts` - minimal version (id, taskId, status)
-- `/Users/zac/Documents/juice/mort/mortician/src/entities/threads/types.ts` - full version with all fields
+- `/Users/zac/Documents/juice/anvil/anvil/src/lib/tauri-commands.ts` - minimal version (id, taskId, status)
+- `/Users/zac/Documents/juice/anvil/anvil/src/entities/threads/types.ts` - full version with all fields
 
 **Action**: Delete tauri-commands.ts version, import from entities/threads/types.ts.
 
@@ -46,7 +46,7 @@ Before adding Zod schemas, consolidate duplicate types. The codebase has several
 
 ### Files That SHOULD Use Zod (trust boundary data)
 
-#### 1. `/Users/zac/Documents/juice/mort/mortician/src/lib/tauri-commands.ts`
+#### 1. `/Users/zac/Documents/juice/anvil/anvil/src/lib/tauri-commands.ts`
 
 **Current state**: Defines `WorktreeInfo`, `ThreadStatus`, `ThreadMetadata` as plain TypeScript interfaces. Uses `invoke<T>()` generic for IPC calls.
 
@@ -87,7 +87,7 @@ listWorktrees: async (repoPath: string) => {
 
 ---
 
-#### 2. `/Users/zac/Documents/juice/mort/mortician/src/lib/agent-output-parser.ts`
+#### 2. `/Users/zac/Documents/juice/anvil/anvil/src/lib/agent-output-parser.ts`
 
 **Current state**: Has hand-written validation functions (`parseEventMessage`, `parseStateMessage`, `parseLogMessage`) with manual type checking. Uses type assertions after validation.
 
@@ -122,7 +122,7 @@ function parseStateMessage(obj: unknown): AgentStateMessage | null {
 
 ---
 
-#### 3. `/Users/zac/Documents/juice/mort/mortician/src/lib/persistence.ts`
+#### 3. `/Users/zac/Documents/juice/anvil/anvil/src/lib/persistence.ts`
 
 **Current state**: Uses `readJson<T>()` with generic type parameter - no runtime validation. Casts JSON directly to the expected type.
 
@@ -153,13 +153,13 @@ async readJson<T>(path: string, schema?: z.ZodType<T>): Promise<T | null> {
 
 ---
 
-#### 4. `/Users/zac/Documents/juice/mort/mortician/src/lib/repo-store-client.ts`
+#### 4. `/Users/zac/Documents/juice/anvil/anvil/src/lib/repo-store-client.ts`
 
 **Current state**: Defines `RepositoryMetadata`, `RepositoryVersion`, `Repository`, `CreateRepositoryOptions` as plain interfaces. Reads/writes JSON with no validation.
 
 **Issue**:
 1. Reads `metadata.json` from disk - trust boundary.
-2. **Type duplication**: `RepositoryMetadata` and `RepositoryVersion` are ALSO defined in `/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/types.ts` with DIFFERENT signatures (entities uses `number` for timestamps, this file uses `string`).
+2. **Type duplication**: `RepositoryMetadata` and `RepositoryVersion` are ALSO defined in `/Users/zac/Documents/juice/anvil/anvil/src/entities/repositories/types.ts` with DIFFERENT signatures (entities uses `number` for timestamps, this file uses `string`).
 
 **Recommended action**:
 1. **Delete duplicate types** from this file
@@ -199,7 +199,7 @@ import {
 
 ---
 
-#### 5. `/Users/zac/Documents/juice/mort/mortician/src/lib/prompt-history-service.ts`
+#### 5. `/Users/zac/Documents/juice/anvil/anvil/src/lib/prompt-history-service.ts`
 
 **Current state**: Defines `PromptHistoryEntry` and `PromptHistoryData` as plain interfaces. Reads/writes to `prompt-history.json`.
 
@@ -224,7 +224,7 @@ const PromptHistoryDataSchema = z.object({
 
 ---
 
-#### 6. `/Users/zac/Documents/juice/mort/mortician/src/lib/workspace-settings-service.ts`
+#### 6. `/Users/zac/Documents/juice/anvil/anvil/src/lib/workspace-settings-service.ts`
 
 **Current state**: Defines `WorkspaceSettings` as plain interface. Uses `SettingsStoreClient` to read/write JSON.
 
@@ -244,7 +244,7 @@ export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 
 ---
 
-#### 7. `/Users/zac/Documents/juice/mort/mortician/src/lib/settings-store-client.ts`
+#### 7. `/Users/zac/Documents/juice/anvil/anvil/src/lib/settings-store-client.ts`
 
 **Current state**: Generic key-value settings store using `readJsonFile<T>()` with no runtime validation.
 
@@ -279,7 +279,7 @@ async get<T>(key: string, schema?: z.ZodType<T>): Promise<T | null> {
 
 ---
 
-#### 8. `/Users/zac/Documents/juice/mort/mortician/src/lib/filesystem-client.ts`
+#### 8. `/Users/zac/Documents/juice/anvil/anvil/src/lib/filesystem-client.ts`
 
 **Current state**: Defines `DirEntry` and `PathsInfo` as plain interfaces. Uses `invoke<T>()` for IPC responses.
 
@@ -330,7 +330,7 @@ These files define internal types that don't cross trust boundaries:
 | `optimistic.ts` | Generic utility function |
 | `logger-client.ts` | Simple logging wrapper |
 | `hotkey-service.ts` | Thin IPC wrapper (returns primitives) |
-| `mort-bootstrap.ts` | Orchestration only |
+| `anvil-bootstrap.ts` | Orchestration only |
 | `constants.ts` | Compile-time constants |
 | `calculator-service.ts` | Internal service |
 

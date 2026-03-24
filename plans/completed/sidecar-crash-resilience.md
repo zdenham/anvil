@@ -29,7 +29,7 @@ Harden the sidecar WebSocket server against unhandled errors and add persistent 
 
 ### Persistent log file
 
-Add a `writeToLogFile(entry: LogEntry)` function in `logger.ts` that appends JSON lines to `~/.mort/logs/sidecar.log` (or `$MORT_DATA_DIR/logs/sidecar.log`). Use `appendFileSync` for crash-safety — async writes may not flush before exit.
+Add a `writeToLogFile(entry: LogEntry)` function in `logger.ts` that appends JSON lines to `~/.anvil/logs/sidecar.log` (or `$ANVIL_DATA_DIR/logs/sidecar.log`). Use `appendFileSync` for crash-safety — async writes may not flush before exit.
 
 - Create the directory on first write if it doesn't exist
 - Each line is a JSON-serialized `LogEntry`

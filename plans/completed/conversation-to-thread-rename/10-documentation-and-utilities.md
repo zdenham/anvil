@@ -14,7 +14,7 @@ Update the Conversation section:
 
 A user's interaction with an agent. Threads are ephemeral but persisted for context.
 
-**Storage**: `~/.mort/threads/` (standard Anthropic message format)
+**Storage**: `~/.anvil/threads/` (standard Anthropic message format)
 
 **Properties**:
 - Associated with a Task (typically, but not required)

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan outlines the implementation of seamless multi-repository support in Mort. The codebase already has a solid foundation for multiple repositories (UUID-based identification, per-repo settings, multi-repo store), but the UI and workflows currently assume a single repository context.
+This plan outlines the implementation of seamless multi-repository support in Anvil. The codebase already has a solid foundation for multiple repositories (UUID-based identification, per-repo settings, multi-repo store), but the UI and workflows currently assume a single repository context.
 
 **Key Design Principle**: Repository/worktree selection uses a **flat MRU (Most Recently Used) list**. The existing left/right arrow keys cycle through repo+worktree combinations sorted by recency. No "default repository" concept - just MRU ordering.
 
@@ -12,7 +12,7 @@ This plan outlines the implementation of seamless multi-repository support in Mo
 - **Data structures**: `Record<string, Repository>` store, per-repo settings.json, UUID-based identification
 - **Worktree tracking**: Per-repository worktree arrays with UUIDs
 - **Thread context**: Agents already receive `repoId` and `worktreeId` when spawned
-- **Hydration**: `repoService.hydrate()` loads all repositories from `~/.mort/repositories/`
+- **Hydration**: `repoService.hydrate()` loads all repositories from `~/.anvil/repositories/`
 - **Backend**: Rust worktree commands accept repo name parameter
 - **Arrow key navigation**: Left/right arrows already cycle through worktrees
 

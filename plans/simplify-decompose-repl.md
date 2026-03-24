@@ -2,11 +2,11 @@
 
 ## Problem
 
-The `/decompose` skill contains a ~100-line mort-repl template (SKILL.md lines 92-189) that does file parsing, topological sorting, status tracking, and wave execution all in JavaScript. When agents use the skill, they copy this template nearly verbatim, producing bloated REPL code that:
+The `/decompose` skill contains a ~100-line anvil-repl template (SKILL.md lines 92-189) that does file parsing, topological sorting, status tracking, and wave execution all in JavaScript. When agents use the skill, they copy this template nearly verbatim, producing bloated REPL code that:
 
 1. **Duplicates agent capabilities** — regex-parsing markdown tables and computing topological order are things the LLM can do natively by reading the file
 2. **Is fragile** — programmatic markdown parsing breaks on formatting variations
-3. **Misuses the REPL** — the REPL should be a thin orchestration layer for `mort.spawn()`, not a general-purpose scripting environment
+3. **Misuses the REPL** — the REPL should be a thin orchestration layer for `anvil.spawn()`, not a general-purpose scripting environment
 4. **Obscures intent** — the actual task (spawn N agents in parallel) is buried under infrastructure code
 
 ## Desired Behavior
@@ -14,42 +14,42 @@ The `/decompose` skill contains a ~100-line mort-repl template (SKILL.md lines 9
 The agent should:
 1. Read the `readme.md` dependency table itself
 2. Determine the topological waves using its own reasoning
-3. For each wave, write a minimal REPL script that's just a `Promise.all` of `mort.spawn()` calls
+3. For each wave, write a minimal REPL script that's just a `Promise.all` of `anvil.spawn()` calls
 4. Between waves, the agent updates status in the readme.md using its normal file editing tools
 5. Sub-agents get `/decompose <path>` in their prompt
 
 Example of what a wave execution should look like:
 
 ```bash
-mort-repl <<'MORT_REPL'
+anvil-repl <<'ANVIL_REPL'
 const results = await Promise.all([
-  mort.spawn({ prompt: "Use /decompose to execute: plans/my-task/01-setup.md" }),
-  mort.spawn({ prompt: "Use /decompose to execute: plans/my-task/02-auth.md" }),
+  anvil.spawn({ prompt: "Use /decompose to execute: plans/my-task/01-setup.md" }),
+  anvil.spawn({ prompt: "Use /decompose to execute: plans/my-task/02-auth.md" }),
 ]);
 return results.map((r, i) => `Task ${i + 1}: ${r.slice(0, 200)}`).join("\n");
-MORT_REPL
+ANVIL_REPL
 ```
 
 That's it. No file parsing, no topological sort in JS, no status update helpers. The agent handles everything else.
 
 ## Changes
 
-### 1. Rewrite `plugins/mort/skills/decompose/SKILL.md`
+### 1. Rewrite `plugins/anvil/skills/decompose/SKILL.md`
 
 **Remove:**
-- The entire mort-repl template (Step 4, lines 84-191)
+- The entire anvil-repl template (Step 4, lines 84-191)
 - All programmatic parsing logic, topological sort code, status update helpers
 
 **Replace with:**
 - Instructions telling the agent to read the dependency table, determine waves by reasoning, and execute one wave at a time
-- A minimal REPL example showing just `Promise.all` + `mort.spawn()`
+- A minimal REPL example showing just `Promise.all` + `anvil.spawn()`
 - Clear guidance: "Do NOT write file-parsing or graph-sorting code in the REPL. You can read and reason about the dependency table yourself."
 - Instructions that the agent should update the readme.md status and write .result.md files using its own tools (Read/Edit/Write), not from within the REPL
 
-### 2. Update `plugins/mort/skills/orchestrate/SKILL.md`
+### 2. Update `plugins/anvil/skills/orchestrate/SKILL.md`
 
 Add a **"Keep REPL code minimal"** principle to the Notes section:
-- REPL scripts should be thin orchestration glue — primarily `mort.spawn()` calls with `Promise.all`
+- REPL scripts should be thin orchestration glue — primarily `anvil.spawn()` calls with `Promise.all`
 - Avoid writing business logic, file parsing, or complex algorithms in REPL code
 - If you need to read files, reason about data, or edit files, do that as the agent (using your normal tools), not programmatically in the REPL
 

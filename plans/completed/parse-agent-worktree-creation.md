@@ -2,11 +2,11 @@
 
 ## Problem
 
-Agents can create worktrees in two ways that bypass Mort's control:
-1. **`EnterWorktree` tool** — Claude Code's built-in tool creates worktrees under `.claude/worktrees/`. Mort has zero visibility.
+Agents can create worktrees in two ways that bypass Anvil's control:
+1. **`EnterWorktree` tool** — Claude Code's built-in tool creates worktrees under `.claude/worktrees/`. Anvil has zero visibility.
 2. **`git worktree add` via Bash** — Agent runs raw git commands. Same visibility problem.
 
-We want Mort to **own** worktree creation. The agent should never create worktrees on its own — it should request that Mort create one, or at minimum Mort should discover what was created and sync its state.
+We want Anvil to **own** worktree creation. The agent should never create worktrees on its own — it should request that Anvil create one, or at minimum Anvil should discover what was created and sync its state.
 
 ## Strategy: Two Layers of Defense
 
@@ -18,7 +18,7 @@ Use the SDK's `disallowedTools` option to remove `EnterWorktree` from the agent'
 
 ### Layer 2: Detect `git worktree add` via Bash PostToolUse (detect + sync)
 
-We can't block `git worktree add` in Bash without also blocking legitimate git commands. Instead, detect it **after** execution in PostToolUse and trigger a `worktree_sync` so Mort discovers the new worktree.
+We can't block `git worktree add` in Bash without also blocking legitimate git commands. Instead, detect it **after** execution in PostToolUse and trigger a `worktree_sync` so Anvil discovers the new worktree.
 
 Also add system prompt guidance telling the agent not to create worktrees directly, so it avoids the pattern in the first place.
 
@@ -47,7 +47,7 @@ tools: agentConfig.tools,
 disallowedTools: ["EnterWorktree", "EnterWorktree"],
 ```
 
-Note: `EnterWorktree` is the SDK tool name. We list it to ensure the agent never sees it. The `EnterWorktree` tool creates worktrees under `.claude/worktrees/` which Mort doesn't manage.
+Note: `EnterWorktree` is the SDK tool name. We list it to ensure the agent never sees it. The `EnterWorktree` tool creates worktrees under `.claude/worktrees/` which Anvil doesn't manage.
 
 ### 2. Permission Evaluator Safety Net (agents/src/lib/permission-evaluator.ts)
 
@@ -59,7 +59,7 @@ export const GLOBAL_OVERRIDES: PermissionRule[] = [
   {
     toolPattern: "^EnterWorktree$",
     decision: "deny",
-    reason: "Worktree creation is managed by Mort. Use the Bash tool with `git worktree add` if you need a worktree, or ask the user to create one from the sidebar.",
+    reason: "Worktree creation is managed by Anvil. Use the Bash tool with `git worktree add` if you need a worktree, or ask the user to create one from the sidebar.",
   },
 ];
 ```
@@ -73,7 +73,7 @@ Add a section to the appended system prompt:
 ```markdown
 ## Worktree Policy
 
-Do NOT use the `EnterWorktree` tool — it is disabled. Mort manages worktree creation.
+Do NOT use the `EnterWorktree` tool — it is disabled. Anvil manages worktree creation.
 If your task requires a new worktree, inform the user and they will create one from the sidebar.
 If you absolutely must create a worktree, use `git worktree add` via the Bash tool.
 ```
@@ -149,7 +149,7 @@ We could add a permission rule to deny Bash commands matching `git worktree add`
 - The command could be in a shell script or piped
 - Blocking legitimate git operations is risky
 
-Instead, we **detect and sync** — the worktree gets created, Mort discovers it immediately, and the sidebar reflects reality. The system prompt guidance reduces the frequency of this path.
+Instead, we **detect and sync** — the worktree gets created, Anvil discovers it immediately, and the sidebar reflects reality. The system prompt guidance reduces the frequency of this path.
 
 ### 9. `EnterWorktree` via Sub-Agents
 

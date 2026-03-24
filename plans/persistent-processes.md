@@ -23,7 +23,7 @@ After:
 A small Node script (`sidecar/src/pty-holder.ts`) that:
 
 1. **Spawns the PTY** using `node-pty` (same setup as current `TerminalManager.spawn()`)
-2. **Starts a WebSocket server** on a random port, writes the port to a well-known path (`~/.mort/pty/{id}.json`)
+2. **Starts a WebSocket server** on a random port, writes the port to a well-known path (`~/.anvil/pty/{id}.json`)
 3. **Relays bidirectionally** — PTY output → WS broadcast, WS messages → PTY stdin
 4. **Maintains a scrollback ring buffer** (\~5000 lines) so reconnecting clients can catch up
 5. **Exits when the shell exits** — self-cleaning, like agent runners
@@ -32,7 +32,7 @@ A small Node script (`sidecar/src/pty-holder.ts`) that:
 The holder writes a manifest file on startup:
 
 ```typescript
-// ~/.mort/pty/{id}.json
+// ~/.anvil/pty/{id}.json
 {
   id: number,
   pid: number,
@@ -63,7 +63,7 @@ const ws = new WebSocket(`ws://127.0.0.1:${port}`);
 ws.on("message", (data) => broadcaster.broadcast("terminal:output", { id, data }));
 ```
 
-On sidecar startup, `TerminalManager` scans `~/.mort/pty/` for existing manifests, validates that each PID is still alive, and reconnects to surviving holders. Dead manifests are cleaned up.
+On sidecar startup, `TerminalManager` scans `~/.anvil/pty/` for existing manifests, validates that each PID is still alive, and reconnects to surviving holders. Dead manifests are cleaned up.
 
 ### Data Flow
 
@@ -103,7 +103,7 @@ Simple JSON messages:
 
 - [ ] Phase 4: PID registry and process discovery
 
-- [ ] Phase 5: Kill safeguards (`mort kill-all`)
+- [ ] Phase 5: Kill safeguards (`anvil kill-all`)
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
@@ -126,7 +126,7 @@ Accepts CLI args: `--id`, `--cols`, `--rows`, `--cwd`, `--shell`, `--data-dir`, 
    - Handle `write`, `resize`, `kill` messages
 5. On PTY exit: broadcast `exit` message, clean up manifest file, `process.exit()`
 6. Idle timeout: if no WS client for 30 min and PTY still alive, self-terminate
-7. Set `process.title = "mort-pty:{id}"`
+7. Set `process.title = "anvil-pty:{id}"`
 
 ### Build integration
 
@@ -182,7 +182,7 @@ interface TerminalSession {
 
 On `TerminalManager` construction (or a new `reconnect()` method called from server startup):
 
-1. Read all files in `~/.mort/pty/*.json`
+1. Read all files in `~/.anvil/pty/*.json`
 2. For each manifest, check if PID is alive (`process.kill(pid, 0)`)
 3. If alive, connect to the holder's WS port
 4. Holder sends `scrollback` message with buffered output
@@ -201,11 +201,11 @@ Ring buffer of \~5000 lines. On new WS client connection, send the full buffer a
 
 ## Phase 4: PID Registry and Process Discovery
 
-**Goal:** Track all mort-spawned processes for discovery and cleanup.
+**Goal:** Track all anvil-spawned processes for discovery and cleanup.
 
 ### Environment variable tagging
 
-Every process spawned by mort gets `MORT_SESSION_ID`:
+Every process spawned by anvil gets `ANVIL_SESSION_ID`:
 
 ```typescript
 const SESSION_ID = existingSessionId ?? nanoid();
@@ -222,18 +222,18 @@ Applied to:
 
 ```typescript
 // sidecar/src/server.ts
-process.title = "mort-sidecar";
+process.title = "anvil-sidecar";
 
 // agents/src/runner.ts
-process.title = `mort-agent:${threadId}`;
+process.title = `anvil-agent:${threadId}`;
 
 // sidecar/src/pty-holder.ts
-process.title = `mort-pty:${id}`;
+process.title = `anvil-pty:${id}`;
 ```
 
 ### PID registry on disk
 
-File: `~/.mort/pids.json`
+File: `~/.anvil/pids.json`
 
 ```typescript
 interface PidRegistry {
@@ -247,41 +247,41 @@ Writers: sidecar on startup, `AgentProcessManager.spawn()`, `TerminalManager.spa
 
 ## Phase 5: Kill Safeguards
 
-**Goal:** User can always kill all mort processes, even if UI is broken.
+**Goal:** User can always kill all anvil processes, even if UI is broken.
 
-### CLI: `mort kill-all`
+### CLI: `anvil kill-all`
 
 ```bash
 #!/bin/bash
-MORT_DIR="${MORT_DATA_DIR:-$HOME/.mort}"
+ANVIL_DIR="${ANVIL_DATA_DIR:-$HOME/.anvil}"
 
-echo "Killing all mort processes..."
+echo "Killing all anvil processes..."
 
 # Kill agents (most autonomous)
-for pid in $(jq -r '.agents | to_entries[].value.pid' "$MORT_DIR/pids.json" 2>/dev/null); do
+for pid in $(jq -r '.agents | to_entries[].value.pid' "$ANVIL_DIR/pids.json" 2>/dev/null); do
   kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
 done
 
 # Kill PTY holders
-for pid in $(jq -r '.terminals | to_entries[].value.pid' "$MORT_DIR/pids.json" 2>/dev/null); do
+for pid in $(jq -r '.terminals | to_entries[].value.pid' "$ANVIL_DIR/pids.json" 2>/dev/null); do
   kill -TERM "$pid" 2>/dev/null
 done
 
 sleep 3
 
 # Kill sidecar last
-sidecar_pid=$(jq -r '.sidecar.pid' "$MORT_DIR/pids.json" 2>/dev/null)
+sidecar_pid=$(jq -r '.sidecar.pid' "$ANVIL_DIR/pids.json" 2>/dev/null)
 [ "$sidecar_pid" != "null" ] && kill -TERM "$sidecar_pid" 2>/dev/null
 
 # Fallback: kill by process title
 sleep 2
-pkill -f "mort-agent:" 2>/dev/null
-pkill -f "mort-pty:" 2>/dev/null
-pkill -f "mort-sidecar" 2>/dev/null
+pkill -f "anvil-agent:" 2>/dev/null
+pkill -f "anvil-pty:" 2>/dev/null
+pkill -f "anvil-sidecar" 2>/dev/null
 
 # Clean up
-rm -f "$MORT_DIR/pids.json"
-rm -f "$MORT_DIR/pty/"*.json
+rm -f "$ANVIL_DIR/pids.json"
+rm -f "$ANVIL_DIR/pty/"*.json
 echo "Done."
 ```
 
@@ -295,12 +295,12 @@ Settings/debug panel button that sends `kill-all` command to sidecar. Sidecar ki
 | --- | --- |
 | New: `sidecar/src/pty-holder.ts` | Standalone PTY holder process with WS server |
 | `sidecar/src/managers/terminal-manager.ts` | Refactor from in-process PTY to WS client connecting to holders |
-| `sidecar/src/managers/agent-process-manager.ts` | Add `MORT_SESSION_ID` env, write to PID registry |
+| `sidecar/src/managers/agent-process-manager.ts` | Add `ANVIL_SESSION_ID` env, write to PID registry |
 | `sidecar/tsup.config.ts` | Add `pty-holder` entry point |
 | `sidecar/src/server.ts` | Set `process.title`, startup reconnection scan |
 | `agents/src/runner.ts` | Set `process.title` |
 | New: `sidecar/src/managers/pid-registry.ts` | PID registry read/write/clean logic |
-| New: `~/.mort/bin/mort-kill` | CLI kill-all script |
+| New: `~/.anvil/bin/anvil-kill` | CLI kill-all script |
 | Frontend reconnection | Hydrate terminal sessions from sidecar inventory on connect |
 
 ## Open Questions

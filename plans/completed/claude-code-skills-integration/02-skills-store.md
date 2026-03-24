@@ -59,7 +59,7 @@ interface SkillsState {
 const SOURCE_PRIORITY: Record<SkillSource, number> = {
   project: 0,
   project_command: 1,
-  mort: 2,
+  anvil: 2,
   personal: 3,
   personal_command: 4,
 };

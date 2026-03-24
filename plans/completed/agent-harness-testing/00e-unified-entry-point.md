@@ -109,7 +109,7 @@ node runner.js \
   --agent research|execution|merge \
   --task-slug <slug> \
   --thread-id <uuid> \
-  --mort-dir <path> \
+  --anvil-dir <path> \
   --prompt "<task description>"
 ```
 
@@ -117,7 +117,7 @@ node runner.js \
 - `--agent` - Agent type: `research`, `execution`, or `merge`
 - `--task-slug` - Task identifier (e.g., `add-dark-mode`)
 - `--thread-id` - UUID for the thread
-- `--mort-dir` - Path to the `.mort` directory
+- `--anvil-dir` - Path to the `.anvil` directory
 - `--prompt` - Task description/instructions
 
 ### Simple Agent
@@ -127,7 +127,7 @@ node runner.js \
   --agent simple \
   --cwd <path> \
   --thread-id <uuid> \
-  --mort-dir <path> \
+  --anvil-dir <path> \
   --prompt "<task description>"
 ```
 
@@ -135,7 +135,7 @@ node runner.js \
 - `--agent` - Must be `simple`
 - `--cwd` - Working directory for the agent
 - `--thread-id` - UUID for the thread
-- `--mort-dir` - Path to the `.mort` directory
+- `--anvil-dir` - Path to the `.anvil` directory
 - `--prompt` - Task description/instructions
 
 ### Stdout Protocol

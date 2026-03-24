@@ -6,7 +6,7 @@ Restructure the storage layout so threads live inside their parent task director
 
 **Current structure:**
 ```
-.mort/
+.anvil/
 ├── tasks/{taskId}/
 │   ├── metadata.json
 │   └── content.md
@@ -17,7 +17,7 @@ Restructure the storage layout so threads live inside their parent task director
 
 **New structure:**
 ```
-.mort/tasks/{taskId}/
+.anvil/tasks/{taskId}/
 ├── metadata.json
 ├── content.md
 └── threads/
@@ -364,7 +364,7 @@ interface Args {
   prompt: string;
   threadId: string;
   taskId: string;  // CHANGED - now required, not nullable
-  mortDir: string;
+  anvilDir: string;
   // ... rest unchanged
 }
 
@@ -381,7 +381,7 @@ function parseArgs(argv: string[]): Args {
 ```ts
 // Use task-based path structure
 const threadFolderName = `${args.agentType}-${args.threadId}`;
-const threadPath = join(args.mortDir, "tasks", args.taskId, "threads", threadFolderName);
+const threadPath = join(args.anvilDir, "tasks", args.taskId, "threads", threadFolderName);
 const metadataPath = join(threadPath, "metadata.json");
 ```
 
@@ -432,7 +432,7 @@ export async function resumeAgent(
   // Use new path structure - thread.taskId is now guaranteed non-null
   const threadFolderName = `${thread.agentType}-${threadId}`;
   const stateFilePath = fs.joinPath(
-    mortDir,
+    anvilDir,
     "tasks",
     thread.taskId,
     "threads",
@@ -581,12 +581,12 @@ const threads = useTaskThreads(task.id);
 
 Since we're not worried about backwards compatibility:
 
-1. Delete existing `.mort/threads/` directory
-2. Delete existing `.mort/tasks/` directory (or keep task content, regenerate)
+1. Delete existing `.anvil/threads/` directory
+2. Delete existing `.anvil/tasks/` directory (or keep task content, regenerate)
 3. Start fresh with new structure
 
 Or for a cleaner dev experience:
-1. Change data directory from `.mort` to `.mort-v2` temporarily
+1. Change data directory from `.anvil` to `.anvil-v2` temporarily
 2. All new data uses new structure
 3. No migration code needed
 

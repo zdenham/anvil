@@ -8,7 +8,7 @@ This plan makes terminals persistent and self-healing: each worktree always has 
 
 ## Current Lifecycle (Investigation Summary)
 
-1. **Creation**: `terminalSessionService.create()` → `invoke("spawn_terminal")` (Rust PTY) → writes `~/.mort/terminal-sessions/{uuid}/metadata.json` → adds to Zustand store
+1. **Creation**: `terminalSessionService.create()` → `invoke("spawn_terminal")` (Rust PTY) → writes `~/.anvil/terminal-sessions/{uuid}/metadata.json` → adds to Zustand store
 2. **Hydration on restart**: `terminalSessionService.hydrate()` loads metadata from disk, sets `isAlive: false`, `ptyId: null` on every session (PTY is gone)
 3. **App exit**: Rust `TerminalManager::kill_all()` kills every PTY process. Metadata files survive on disk.
 4. **Sidebar display**: Dead terminals show `(exited)` text and a dimmer icon. Still clickable, but opens a dead xterm view.
@@ -202,7 +202,7 @@ async cleanupStaleTerminals(): Promise<void> {
 
 ## Edge Cases
 
-- **Worktree path no longer exists** (e.g., user deleted the directory outside Mort): `revive()` will fail when Rust tries to spawn a PTY with a missing `cwd`. We should catch this error and show a notification rather than crashing. Could also auto-archive the terminal.
+- **Worktree path no longer exists** (e.g., user deleted the directory outside Anvil): `revive()` will fail when Rust tries to spawn a PTY with a missing `cwd`. We should catch this error and show a notification rather than crashing. Could also auto-archive the terminal.
 - **Multiple terminals per worktree**: Fully supported. `ensureTerminalsForWorktrees` only creates one if **zero** exist. Users can create additional terminals via Cmd+T.
 - **Terminal revive while content pane is already open**: If `TerminalContent` is already mounted showing the dead terminal, the revive will update the store (`isAlive: true`), but the xterm instance was initialized with the old buffer and exit message. The simplest fix: force a remount of `TerminalContent` by keying it on a combination of `terminalId` + `isAlive` status, or by clearing the buffer and letting the effect re-run. Clearing the buffer in `revive()` + using `terminalId` as key should work since React won't remount for the same key. Best approach: add a `reviveCount` or `sessionEpoch` to the terminal metadata that increments on revive, and use `terminalId + epoch` as the React key.
 - **Sidebar should not show "(exited)" for placeholder terminals**: Since placeholders are created with `isAlive: false`, `terminalToNode` would show them as exited. Add a check: if a terminal has never been alive (no `lastCommand`, freshly created), don't show "(exited)". Alternatively, add a `isPlaceholder` flag or just check `ptyId === null && !lastCommand`.

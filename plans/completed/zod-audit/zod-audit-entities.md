@@ -34,7 +34,7 @@ This ensures the TypeScript type always matches the runtime validation schema.
 
 ## Files That Need Changes
 
-### 1. `/Users/zac/Documents/juice/mort/mortician/src/entities/settings/types.ts`
+### 1. `/Users/zac/Documents/juice/anvil/anvil/src/entities/settings/types.ts`
 
 **Current State**: Plain TypeScript interfaces
 
@@ -82,7 +82,7 @@ const settings = raw ? WorkspaceSettingsSchema.parse(raw) : null;
 
 ---
 
-### 2. `/Users/zac/Documents/juice/mort/mortician/src/entities/repositories/types.ts`
+### 2. `/Users/zac/Documents/juice/anvil/anvil/src/entities/repositories/types.ts`
 
 **Current State**: Plain TypeScript interfaces
 
@@ -168,7 +168,7 @@ const settings = raw ? RepositorySettingsSchema.parse(raw) : null;
 
 ---
 
-### 3. `/Users/zac/Documents/juice/mort/mortician/src/entities/threads/types.ts`
+### 3. `/Users/zac/Documents/juice/anvil/anvil/src/entities/threads/types.ts`
 
 **Current State**: Plain TypeScript interfaces
 
@@ -247,7 +247,7 @@ const metadata = raw ? ThreadMetadataSchema.parse(raw) : null;
 
 ---
 
-### 4. `/Users/zac/Documents/juice/mort/mortician/src/entities/logs/types.ts`
+### 4. `/Users/zac/Documents/juice/anvil/anvil/src/entities/logs/types.ts`
 
 **Current State**: Plain TypeScript interfaces
 
@@ -294,7 +294,7 @@ export interface LogFilter { ... }
 
 ---
 
-### 5. `/Users/zac/Documents/juice/mort/mortician/core/types/tasks.ts`
+### 5. `/Users/zac/Documents/juice/anvil/anvil/core/types/tasks.ts`
 
 **Note**: This file is in `core/types/` but is re-exported by `src/entities/tasks/types.ts`. Schemas should be defined here (single source of truth) and re-exported.
 
@@ -398,7 +398,7 @@ const metadata = raw ? TaskMetadataSchema.parse(raw) : null;
 
 ---
 
-### 6. `/Users/zac/Documents/juice/mort/mortician/core/types/events.ts`
+### 6. `/Users/zac/Documents/juice/anvil/anvil/core/types/events.ts`
 
 **Note**: This file contains types used for IPC between Node agents and the Tauri frontend. Agent stdout messages are parsed as JSON and should be validated.
 
@@ -503,29 +503,29 @@ const message = AgentOutputSchema.parse(JSON.parse(line));
 
 ## Files That Are Correctly Plain TypeScript (No Changes Needed)
 
-### `/Users/zac/Documents/juice/mort/mortician/src/entities/events.ts`
+### `/Users/zac/Documents/juice/anvil/anvil/src/entities/events.ts`
 
 All types here are internal event bus types used within the TypeScript runtime:
 - `AppEvents` - Internal mapped type extending core event payloads (line 17-21)
 - `eventBus` - mitt instance (runtime object, not data) (line 24)
 
-### `/Users/zac/Documents/juice/mort/mortician/src/entities/tasks/types.ts`
+### `/Users/zac/Documents/juice/anvil/anvil/src/entities/tasks/types.ts`
 
 This file only re-exports from `core/types/tasks.ts` - no additional types defined here.
 
-### `/Users/zac/Documents/juice/mort/mortician/core/types/resolution.ts`
+### `/Users/zac/Documents/juice/anvil/anvil/core/types/resolution.ts`
 
 Internal types for path resolution within TypeScript runtime:
 - `TaskResolution` - Internal convenience type (line 4-13)
 - `ThreadResolution` - Internal convenience type (line 18-29)
 
-### `/Users/zac/Documents/juice/mort/mortician/core/types/index.ts`
+### `/Users/zac/Documents/juice/anvil/anvil/core/types/index.ts`
 
 Re-exports and simple type aliases:
 - `TaskId`, `ThreadId`, `RepoPath` - Simple type aliases (line 6-8)
 - `THREADS_DIR`, `TASKS_DIR`, `STATE_FILE` - Constants (line 14-16)
 
-### `/Users/zac/Documents/juice/mort/mortician/src/entities/*/store.ts` files
+### `/Users/zac/Documents/juice/anvil/anvil/src/entities/*/store.ts` files
 
 Store interfaces define Zustand state and actions - these are code structure, not persisted data:
 - `SettingsState`, `SettingsActions` (settings/store.ts)
@@ -534,7 +534,7 @@ Store interfaces define Zustand state and actions - these are code structure, no
 - `TaskState`, `TaskActions` (tasks/store.ts)
 - `LogState`, `LogActions` (logs/store.ts)
 
-### `/Users/zac/Documents/juice/mort/mortician/src/entities/*/service.ts` files
+### `/Users/zac/Documents/juice/anvil/anvil/src/entities/*/service.ts` files
 
 Services contain business logic functions - not data types. These files are **consumers** of the schemas defined in types.ts files.
 

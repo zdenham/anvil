@@ -4,7 +4,7 @@ Recover accidentally archived threads via a new "Archived Threads" pane accessib
 
 ## Context
 
-Threads are easily archived (single hover-click + confirm) but there's no way to recover them. Archived threads already persist on disk at `~/.mort/archive/threads/{id}/metadata.json` — we just need UI to list them and move them back.
+Threads are easily archived (single hover-click + confirm) but there's no way to recover them. Archived threads already persist on disk at `~/.anvil/archive/threads/{id}/metadata.json` — we just need UI to list them and move them back.
 
 ## Phases
 

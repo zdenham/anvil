@@ -2,7 +2,7 @@
 
 ## Finding: `git stash` + failed pop + `git stash drop` destroyed accumulated work
 
-The original hypothesis was that `git checkout --force` (from Tauri's `git_checkout_branch` or `git_checkout_commit`) destroyed uncommitted modifications. **This is not what happened.** A thorough search of the drain database and all thread state files found **no evidence** of any agent calling `git checkout --force`, `git reset --hard`, or any other destructive checkout on the mortician repo.
+The original hypothesis was that `git checkout --force` (from Tauri's `git_checkout_branch` or `git_checkout_commit`) destroyed uncommitted modifications. **This is not what happened.** A thorough search of the drain database and all thread state files found **no evidence** of any agent calling `git checkout --force`, `git reset --hard`, or any other destructive checkout on the anvil repo.
 
 ### Actual Root Cause
 

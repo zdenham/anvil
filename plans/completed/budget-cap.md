@@ -1,4 +1,4 @@
-# Budget Cap for mort-repl
+# Budget Cap for anvil-repl
 
 ## Summary
 
@@ -26,7 +26,7 @@ Cost metrics (`totalCostUsd`, `cumulativeCostUsd`, `budgetCapUsd`) live **exclus
 
 - [x] Integrate budget gate into `ChildSpawner.spawn()`
 
-- [x] Add `budgetCapUsd` to spawn options and `mort` SDK
+- [x] Add `budgetCapUsd` to spawn options and `anvil` SDK
 
 - [x] Tests
 
@@ -96,7 +96,7 @@ When a child completes, add its full tree cost `(totalCostUsd + cumulativeCostUs
 - Total tree cost = `totalCostUsd + cumulativeCostUsd`
 - Budget check: `budgetRoot.totalCostUsd + budgetRoot.cumulativeCostUsd >= budgetRoot.budgetCapUsd`
 
-### 2a. mort-repl path: `child-spawner.ts`
+### 2a. anvil-repl path: `child-spawner.ts`
 
 After child exits in `waitForResult()`, read child's metadata (which has `totalCostUsd` from Phase 1) and roll up to parent:
 
@@ -107,14 +107,14 @@ private rollUpCostToParent(childThreadPath: string): void {
     const childTreeCost = (childMeta.totalCostUsd ?? 0) + (childMeta.cumulativeCostUsd ?? 0);
     if (childTreeCost <= 0) return;
 
-    const parentPath = join(this.context.mortDir, "threads", this.context.threadId, "metadata.json");
+    const parentPath = join(this.context.anvilDir, "threads", this.context.threadId, "metadata.json");
     if (!existsSync(parentPath)) return;
     const parentMeta = JSON.parse(readFileSync(parentPath, "utf-8"));
     parentMeta.cumulativeCostUsd = (parentMeta.cumulativeCostUsd ?? 0) + childTreeCost;
     parentMeta.updatedAt = Date.now();
     writeFileSync(parentPath, JSON.stringify(parentMeta, null, 2));
   } catch (err) {
-    logger.warn(`[mort-repl] Failed to roll up cost to parent: ${err}`);
+    logger.warn(`[anvil-repl] Failed to roll up cost to parent: ${err}`);
   }
 }
 ```
@@ -127,13 +127,13 @@ The SDK Task tool already emits `costUsd` in AGENT_COMPLETED. Add the same roll-
 
 ### Timing
 
-For mort-repl: Phase 1 writes `totalCostUsd` to child's metadata inside the child process (via `complete()` in `output.ts`). The parent waits for child exit, then reads metadata. Safe ordering.
+For anvil-repl: Phase 1 writes `totalCostUsd` to child's metadata inside the child process (via `complete()` in `output.ts`). The parent waits for child exit, then reads metadata. Safe ordering.
 
 For SDK Task: The SDK gives us `taskResponse.total_cost_usd` directly.
 
 ## Phase 3: Add `budgetCapUsd` and ancestor-walk check
 
-**New file**: `agents/src/lib/mort-repl/budget.ts`
+**New file**: `agents/src/lib/anvil-repl/budget.ts`
 
 ```ts
 export interface BudgetCheckResult {
@@ -143,7 +143,7 @@ export interface BudgetCheckResult {
   spentUsd?: number;
 }
 
-export function isOverBudget(threadId: string, mortDir: string): BudgetCheckResult {
+export function isOverBudget(threadId: string, anvilDir: string): BudgetCheckResult {
   // Walk up parent pointers, read metadata.json per ancestor
   // If any ancestor has budgetCapUsd, check totalCostUsd + cumulativeCostUsd >= cap
   // Nearest budget root wins (stop at first cap found)
@@ -155,18 +155,18 @@ O(depth) — just walk up parent pointers, one metadata read per ancestor.
 
 ## Phase 4: Integrate into `ChildSpawner.spawn()`
 
-At the top of `spawn()`, call `isOverBudget()`. If over budget, throw an Error that surfaces as `mort.spawn()` rejection.
+At the top of `spawn()`, call `isOverBudget()`. If over budget, throw an Error that surfaces as `anvil.spawn()` rejection.
 
-## Phase 5: Add `budgetCapUsd` to spawn options and mort SDK
+## Phase 5: Add `budgetCapUsd` to spawn options and anvil SDK
 
 - Add `budgetCapUsd?: number` to `SpawnOptions` in `types.ts`
 - Write to child metadata in `createThreadOnDisk()`
-- Pass through in `mort-sdk.ts` `spawn()`
-- Add `mort.setBudgetCap(usd)` for self-budgeting (writes to current thread's metadata.json)
+- Pass through in `anvil-sdk.ts` `spawn()`
+- Add `anvil.setBudgetCap(usd)` for self-budgeting (writes to current thread's metadata.json)
 
 ## Phase 6: Tests
 
-**New file**: `agents/src/lib/mort-repl/__tests__/budget.test.ts`
+**New file**: `agents/src/lib/anvil-repl/__tests__/budget.test.ts`
 
 ### `isOverBudget` unit tests:
 
@@ -197,12 +197,12 @@ Use tmp dirs with mock metadata.json files.
 | `core/types/events.ts` | Make `totalCostUsd` optional in persisted `ResultMetrics` |
 | `core/lib/thread-reducer.ts` | Strip `totalCostUsd` from metrics in COMPLETE reducer |
 | `agents/src/output.ts` | Write `totalCostUsd` to metadata.json on completion |
-| `agents/src/lib/mort-repl/child-spawner.ts` | Read child cost + roll up to parent + budget gate + `budgetCapUsd` passthrough |
+| `agents/src/lib/anvil-repl/child-spawner.ts` | Read child cost + roll up to parent + budget gate + `budgetCapUsd` passthrough |
 | `agents/src/runners/shared.ts` | Roll up SDK Task child cost to parent metadata |
-| `agents/src/lib/mort-repl/budget.ts` | **New** — `isOverBudget()` ancestor walk |
-| `agents/src/lib/mort-repl/types.ts` | Add `budgetCapUsd` to `SpawnOptions` |
-| `agents/src/lib/mort-repl/mort-sdk.ts` | Pass through `budgetCapUsd`, add `setBudgetCap()` |
-| `agents/src/lib/mort-repl/__tests__/budget.test.ts` | **New** — tests |
+| `agents/src/lib/anvil-repl/budget.ts` | **New** — `isOverBudget()` ancestor walk |
+| `agents/src/lib/anvil-repl/types.ts` | Add `budgetCapUsd` to `SpawnOptions` |
+| `agents/src/lib/anvil-repl/anvil-sdk.ts` | Pass through `budgetCapUsd`, add `setBudgetCap()` |
+| `agents/src/lib/anvil-repl/__tests__/budget.test.ts` | **New** — tests |
 
 ## Edge Cases
 

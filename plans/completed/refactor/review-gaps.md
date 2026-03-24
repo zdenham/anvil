@@ -38,8 +38,8 @@ The refactor plans are comprehensive but contain **systemic pattern violations**
 
 | Phase | File | Missing Schema |
 |-------|------|----------------|
-| 01 | `resizable-panel.tsx` | `LayoutStateSchema` for `~/.mort/ui/layout.json` |
-| 02 | `tree-menu-store.ts` | `TreeMenuPersistedStateSchema` for `~/.mort/ui/tree-menu.json` |
+| 01 | `resizable-panel.tsx` | `LayoutStateSchema` for `~/.anvil/ui/layout.json` |
+| 02 | `tree-menu-store.ts` | `TreeMenuPersistedStateSchema` for `~/.anvil/ui/tree-menu.json` |
 | 04 | `content-panes-store.ts` | `ContentPanesPersistedStateSchema` |
 | 04 | `layout-store.ts` | `LayoutPersistedStateSchema` |
 

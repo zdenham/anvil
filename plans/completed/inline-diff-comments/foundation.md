@@ -66,7 +66,7 @@ if (lineNumber === null) return;
 
 For deletions, `newLineNumber` is null so we fall back to `oldLineNumber`. For additions, `oldLineNumber` is null so `newLineNumber` is used. For unchanged lines, both are present and we prefer `newLineNumber`.
 
-**Disk format:** `~/.mort/comments/{worktreeId}.json` (relative to `appData` root)
+**Disk format:** `~/.anvil/comments/{worktreeId}.json` (relative to `appData` root)
 
 ```json
 {

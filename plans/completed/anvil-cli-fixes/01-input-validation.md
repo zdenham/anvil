@@ -1,6 +1,6 @@
 # Input Validation
 
-**File:** `agents/src/cli/mort.ts`
+**File:** `agents/src/cli/anvil.ts`
 **Parallel:** Yes (no dependencies)
 
 ## Problem
@@ -66,7 +66,7 @@ if (tagsArg !== undefined) updates.tags = parseTags(tagsArg);
 ## Verification
 
 ```bash
-mort tasks update --id=xxx --type=invalid  # Should error
-mort tasks update --id=xxx --status=bad    # Should error
-mort tasks update --id=xxx --tags=""       # Should result in []
+anvil tasks update --id=xxx --type=invalid  # Should error
+anvil tasks update --id=xxx --status=bad    # Should error
+anvil tasks update --id=xxx --tags=""       # Should result in []
 ```

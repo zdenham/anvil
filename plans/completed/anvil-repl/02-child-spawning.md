@@ -1,10 +1,10 @@
 # Phase 2: Child Spawning
 
-Implement `mort.spawn()` so the REPL can create and wait for child agent processes.
+Implement `anvil.spawn()` so the REPL can create and wait for child agent processes.
 
 ## Implementation
 
-### 1. `agents/src/lib/mort-repl/child-spawner.ts`
+### 1. `agents/src/lib/anvil-repl/child-spawner.ts`
 
 `ChildSpawner` class handles the full lifecycle:
 
@@ -31,7 +31,7 @@ class ChildSpawner {
 
 Reuses exact same pattern as `shared.ts:734-782` (PreToolUse:Task hook):
 - Generate `childThreadId = crypto.randomUUID()`
-- Create `~/.mort/threads/{childThreadId}/metadata.json` with:
+- Create `~/.anvil/threads/{childThreadId}/metadata.json` with:
   - `parentThreadId: context.threadId`
   - `parentToolUseId` (the Bash call's tool_use_id)
   - `agentType` from options
@@ -63,7 +63,7 @@ const child = spawn("node", [
   "--worktree-id", this.context.worktreeId,
   "--cwd", options.cwd ?? this.context.workingDir,
   "--prompt", options.prompt,
-  "--mort-dir", this.context.mortDir,
+  "--anvil-dir", this.context.anvilDir,
   "--parent-id", this.context.threadId,
   ...(permissionMode ? ["--permission-mode", permissionMode] : []),
   "--skip-naming",  // parent handles naming via thread-naming-service
@@ -85,7 +85,7 @@ const exitCode = await new Promise<number>((resolve) => {
 #### Step 5: Read result
 
 ```typescript
-const statePath = join(this.context.mortDir, "threads", childThreadId, "state.json");
+const statePath = join(this.context.anvilDir, "threads", childThreadId, "state.json");
 const state = JSON.parse(readFileSync(statePath, "utf-8"));
 
 // Extract last assistant message
@@ -99,12 +99,12 @@ const resultText = lastAssistant?.content
   ?.join("\n") ?? "";
 ```
 
-### 2. `agents/src/lib/mort-repl/mort-sdk.ts`
+### 2. `agents/src/lib/anvil-repl/anvil-sdk.ts`
 
-Wire `ChildSpawner` into the `MortReplSdk`:
+Wire `ChildSpawner` into the `AnvilReplSdk`:
 
 ```typescript
-class MortReplSdk {
+class AnvilReplSdk {
   private spawner: ChildSpawner;
   private _logs: string[] = [];
 
@@ -118,7 +118,7 @@ class MortReplSdk {
 
   log(message: string): void {
     this._logs.push(message);
-    logger.info(`[mort-repl] ${message}`);
+    logger.info(`[anvil-repl] ${message}`);
   }
 
   get context(): ReplContext {

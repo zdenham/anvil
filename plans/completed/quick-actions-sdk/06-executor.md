@@ -18,7 +18,7 @@ import { treeMenuService } from '@/stores/tree-menu/service.js';
 import { useInputStore } from '@/stores/input-store.js';
 import { toast } from '@/components/ui/toast.js';
 import { logger } from '@/lib/logger.js';
-import { getMortDir, getRunnerPath } from '@/lib/paths.js';
+import { getAnvilDir, getRunnerPath } from '@/lib/paths.js';
 import * as path from 'path';
 
 const ACTION_TIMEOUT_MS = 30_000; // 30 seconds
@@ -122,7 +122,7 @@ export async function executeQuickAction(
   action: ResolvedQuickAction,
   execContext: QuickActionExecutionContext
 ): Promise<QuickActionResult> {
-  const mortDir = await getMortDir();
+  const anvilDir = await getAnvilDir();
   const runnerPath = await getRunnerPath();
 
   // Resolve path to the built JS file
@@ -133,7 +133,7 @@ export async function executeQuickAction(
     runnerPath,
     '--action', actionJsPath,
     '--context', JSON.stringify(execContext),
-    '--mort-dir', mortDir,
+    '--anvil-dir', anvilDir,
   ]);
 
   let child: Child;
@@ -533,7 +533,7 @@ export function useQuickActionExecutor() {
 - **#25 Action Timeout**: 30-second Promise.race() timeout
 - **#26 Error Detail Level**: Shows message and stack trace
 - **#29 navigateToNextUnread() Empty Case**: Navigates to empty state
-- **#33 SDK Write Operations**: SDK emits events, Mort handles writes
+- **#33 SDK Write Operations**: SDK emits events, Anvil handles writes
 - **#15 Logging**: SDK logs route to main logger
 
 ### Additional Considerations
@@ -676,8 +676,8 @@ grep -n "setContent\|appendContent\|clearContent\|requestFocus" src/stores/input
 ### 7. Path Module Verification
 
 ```bash
-# Verify getMortDir and getRunnerPath exist and are exported
-grep -n "export.*getMortDir\|export.*getRunnerPath" src/lib/paths.ts
+# Verify getAnvilDir and getRunnerPath exist and are exported
+grep -n "export.*getAnvilDir\|export.*getRunnerPath" src/lib/paths.ts
 ```
 
 ### 8. Toast Function Verification

@@ -2,7 +2,7 @@
 
 ## Problem Description
 
-When creating a new thread in mortician and the input is selected/focused:
+When creating a new thread in anvil and the input is selected/focused:
 1. **No visible focus outline/ring** - The input doesn't show any visual indication it's focused
 2. **No visible cursor (caret)** - The text cursor is not visible in the input
 

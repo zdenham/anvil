@@ -2,7 +2,7 @@
 
 ## Problem
 
-When the user cancels a parent thread, child threads spawned by mort-repl remain in "running" status in the UI. The cancel signal (SIGTERM) reaches the children via process group signaling, so the child processes do die — but no one reliably emits `THREAD_STATUS_CHANGED` or `AGENT_COMPLETED` events to update the frontend.
+When the user cancels a parent thread, child threads spawned by anvil-repl remain in "running" status in the UI. The cancel signal (SIGTERM) reaches the children via process group signaling, so the child processes do die — but no one reliably emits `THREAD_STATUS_CHANGED` or `AGENT_COMPLETED` events to update the frontend.
 
 ### Root Cause
 
@@ -44,7 +44,7 @@ This must be called **before** the hub disconnects. The best integration point i
 - The ChildSpawner is currently created per-hook-invocation (ephemeral). We need to make it accessible to the runner for cancellation cleanup.
 - Option: The repl hook factory should expose a `cancelAll()` method that delegates to the ChildSpawner.
 
-`agents/src/lib/mort-repl/child-spawner.ts`
+`agents/src/lib/anvil-repl/child-spawner.ts`
 
 - Add a `cancelAll()` method that, for each active child:
   - Writes "cancelled" status to metadata.json on disk first (source of truth)
@@ -146,11 +146,11 @@ const handleStatusChanged = async ({ threadId }: EventPayloads[typeof EventName.
 
 ## Phase 3: Test coverage
 
-`agents/src/lib/mort-repl/__tests__/child-spawner.test.ts`
+`agents/src/lib/anvil-repl/__tests__/child-spawner.test.ts`
 
 - Add test for `cancelAll()` method: verifies SIGTERM sent, events emitted, metadata written
 - Verify `cancelAll()` clears `activeChildren` map
 
 **Integration test consideration:**
 
-- The existing `mort-repl.integration.test.ts` could be extended to test the cancellation path, but this requires live API calls. A unit test for `cancelAll()` with mocked emitEvent is sufficient.
+- The existing `anvil-repl.integration.test.ts` could be extended to test the cancellation path, but this requires live API calls. A unit test for `cancelAll()` with mocked emitEvent is sufficient.

@@ -97,7 +97,7 @@ Update 04-thread-refactor.md and 06-relations.md to use the persistence layer di
 ### 7. Relations Storage Location & Format
 **Plans involved:** 06-relations.md, parent plan
 
-**Decision:** Store relations in `~/.mort/plan-thread-edges/` with the following format:
+**Decision:** Store relations in `~/.anvil/plan-thread-edges/` with the following format:
 
 **File naming:** `{planId}-{threadId}.json`
 

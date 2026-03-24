@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the new data model for Mortician, replacing the current Task-centric architecture with a simpler Thread + Plan model. This is a breaking change with no backwards compatibility.
+This document describes the new data model for Anvil, replacing the current Task-centric architecture with a simpler Thread + Plan model. This is a breaking change with no backwards compatibility.
 
 ## Philosophy
 
@@ -50,7 +50,7 @@ type ThreadStatus = 'running' | 'completed' | 'error';
 
 **Storage:**
 ```
-~/.mort/threads/
+~/.anvil/threads/
   └── {threadId}/
       ├── metadata.json     # Small, loaded for inbox listings (~1KB)
       └── state.json        # Large, loaded only when viewing thread (10KB - 10MB+)
@@ -72,7 +72,7 @@ This separation enables memory-efficient inbox rendering - we can show hundreds 
 
 ### Plan
 
-A markdown file in the repository's configured plans directory. Users configure their plans directory when adding a repository to Mortician.
+A markdown file in the repository's configured plans directory. Users configure their plans directory when adding a repository to Anvil.
 
 ```typescript
 interface PlanMetadata {
@@ -94,7 +94,7 @@ interface PlanMetadata {
 
 **Storage:**
 ```
-~/.mort/plans/
+~/.anvil/plans/
   └── {planId}/
       └── metadata.json
 ```
@@ -103,7 +103,7 @@ Plan content lives at the derived absolute path in the repository (e.g., `{repo}
 
 **Plan hierarchy:**
 - Parent-child relationships are determined by file structure in the repository
-- The metadata in `~/.mort/plans/` mirrors the repository's plan directory structure
+- The metadata in `~/.anvil/plans/` mirrors the repository's plan directory structure
 - `parentPlanId` is derived from the file hierarchy and stored in metadata
 
 **Naming conventions:**
@@ -131,7 +131,7 @@ type RelationType =
 
 **Storage:**
 ```
-~/.mort/plan-thread-edges/
+~/.anvil/plan-thread-edges/
   └── {planId}-{threadId}.json
 ```
 
@@ -147,7 +147,7 @@ Each relation is its own JSON file, named with the pattern `{planId}-{threadId}.
 
 ## Repository Configuration
 
-When adding a repository to Mortician, users configure:
+When adding a repository to Anvil, users configure:
 
 ```typescript
 interface RepositoryConfig {
@@ -157,7 +157,7 @@ interface RepositoryConfig {
 }
 ```
 
-This configuration is stored per-repository and determines where Mortician looks for plan files.
+This configuration is stored per-repository and determines where Anvil looks for plan files.
 
 ## Removed Entities
 
@@ -175,7 +175,7 @@ The `Task` entity is completely removed:
 
 ### Before (Current)
 ```
-~/.mort/
+~/.anvil/
   ├── tasks/
   │   └── {taskSlug}/
   │       ├── metadata.json
@@ -191,7 +191,7 @@ The `Task` entity is completely removed:
 
 ### After (New)
 ```
-~/.mort/
+~/.anvil/
   ├── threads/
   │   └── {threadId}/
   │       ├── metadata.json
@@ -214,7 +214,7 @@ The `Task` entity is completely removed:
 ```
 
 **Archive structure:**
-- The `archive/` directory mirrors the main `.mort/` structure
+- The `archive/` directory mirrors the main `.anvil/` structure
 - When archiving, items move to their respective folder in `archive/`
 - Entity fetching services can easily switch between active and archive queries by changing the base path
 
@@ -227,7 +227,7 @@ The inbox shows two types of items: Threads and Plans.
 Both threads and plans have:
 - **Unread**: New or updated, user hasn't reviewed
 - **Read**: User has seen it
-- **Archived**: Out of active view (moved to `~/.mort/archive/`)
+- **Archived**: Out of active view (moved to `~/.anvil/archive/`)
 
 ### Inbox Views
 
@@ -288,14 +288,14 @@ When viewing a plan:
 ### Archiving
 
 **Archiving a Thread:**
-- Thread directory moves from `~/.mort/threads/{id}/` to `~/.mort/archive/threads/{id}/`
-- Related edges move from `~/.mort/plan-thread-edges/` to `~/.mort/archive/plan-thread-edges/`
+- Thread directory moves from `~/.anvil/threads/{id}/` to `~/.anvil/archive/threads/{id}/`
+- Related edges move from `~/.anvil/plan-thread-edges/` to `~/.anvil/archive/plan-thread-edges/`
 - Relations preserved (can still query "threads that touched this plan" from archive)
 - Diffs preserved in archived thread state
 
 **Archiving a Plan (Plan Completion):**
 - Plan file moves from `{plansDirectory}/` to `{completedDirectory}/` in the repository
-- Plan metadata directory moves from `~/.mort/plans/{id}/` to `~/.mort/archive/plans/{id}/`
+- Plan metadata directory moves from `~/.anvil/plans/{id}/` to `~/.anvil/archive/plans/{id}/`
 - Plan metadata's `relativePath` updated to reflect new location within completed directory
 - Related edges move to archive as well
 
@@ -361,7 +361,7 @@ RELATION_UPDATED
 
 1. **Relation storage format**: Individual JSON files per relation
    - File naming: `{planId}-{threadId}.json`
-   - Stored in `~/.mort/plan-thread-edges/`
+   - Stored in `~/.anvil/plan-thread-edges/`
    - Simple glob queries for lookups in either direction
 
 2. **Plan parent detection**: File path hierarchy in repository
@@ -375,7 +375,7 @@ RELATION_UPDATED
 
 4. **Plan completion**: Moving to completed directory
    - Plan file moves from `{plansDirectory}/` to `{completedDirectory}/` in repo
-   - Metadata moves to `~/.mort/archive/plans/`
+   - Metadata moves to `~/.anvil/archive/plans/`
    - Clear, file-system-based completion signal
 
 5. **Relation creation**: System detection
@@ -493,7 +493,7 @@ The main tab in the UI becomes **Mission Control**.
 
 | File | Changes |
 |------|---------|
-| `src-tauri/src/mort_commands.rs` | Remove `update_task()` command |
+| `src-tauri/src/anvil_commands.rs` | Remove `update_task()` command |
 | `src-tauri/src/lib.rs` | Remove `open_task()`, `hide_task()`, `show_tasks_panel()`, `hide_tasks_panel()`; rename simple-task to control-panel |
 | `src-tauri/src/panels.rs` | Remove `hide_task()`, `hide_tasks_list()` |
 | `src-tauri/src/config.rs` | Remove task navigation hotkeys (task_navigation_down_hotkey, task_navigation_up_hotkey, etc.) |
@@ -534,7 +534,7 @@ The main tab in the UI becomes **Mission Control**.
 
 | Path | Action |
 |------|--------|
-| `~/.mort/tasks/` | Backup to `~/.mort/tasks-backup-{date}/`, then delete |
+| `~/.anvil/tasks/` | Backup to `~/.anvil/tasks-backup-{date}/`, then delete |
 
 ### Summary
 

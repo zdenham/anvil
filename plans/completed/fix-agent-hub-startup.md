@@ -3,27 +3,27 @@
 ## Problem
 
 ```
-18:19:38.981 ERROR [mort_lib] Failed to start AgentHub
+18:19:38.981 ERROR [anvil_lib] Failed to start AgentHub
 ```
 
-Mort has **two server components**, both with startup reliability issues:
+Anvil has **two server components**, both with startup reliability issues:
 
 | Component | Transport | Address | Purpose |
 |---|---|---|---|
-| **AgentHub** | Unix domain socket | `~/.mort/agent-hub.sock` | Agent processes → Rust backend |
+| **AgentHub** | Unix domain socket | `~/.anvil/agent-hub.sock` | Agent processes → Rust backend |
 | **WS server** | TCP WebSocket | `127.0.0.1:9600` (hardcoded) | Frontend → Rust backend (browser mode) |
 
 Agents connect to the **Unix socket** via `HubClient` (`agents/src/lib/hub/client.ts`). The WS server bridges AgentHub events to browser clients. Both failures are silently swallowed — the app runs but things don't work.
 
 ### AgentHub failure causes
 
-1. **Stale socket file** — previous instance crashed without cleaning up `~/.mort/agent-hub.sock`. The `cleanup_stale_socket()` connect-based check is fragile — a dying process can briefly accept connections
-2. **Another Mort instance running** — connect succeeds → returns error
+1. **Stale socket file** — previous instance crashed without cleaning up `~/.anvil/agent-hub.sock`. The `cleanup_stale_socket()` connect-based check is fragile — a dying process can briefly accept connections
+2. **Another Anvil instance running** — connect succeeds → returns error
 3. **Race on restart** — old socket hasn't been cleaned up yet
 
 ### WS server failure causes
 
-1. **Port 9600 already in use** — another Mort instance or unrelated process bound to the port
+1. **Port 9600 already in use** — another Anvil instance or unrelated process bound to the port
 2. **No dynamic port fallback** — hardcoded `const BIND_ADDR: &str = "127.0.0.1:9600"`
 
 ### Silent failure (both)
@@ -45,11 +45,11 @@ Both `lib.rs:1033` (AgentHub) and `lib.rs:775` (WS server) log errors and contin
 
 The connect-based stale detection is fragile. Replace with PID-based locking.
 
-**Approach:** Write `~/.mort/agent-hub.pid` on startup containing the current PID. On next startup:
+**Approach:** Write `~/.anvil/agent-hub.pid` on startup containing the current PID. On next startup:
 
 1. Read PID file if it exists
 2. Check if that PID is still alive (`libc::kill(pid, 0)`)
-3. If alive → error "Another Mort instance is already running (PID: X)"
+3. If alive → error "Another Anvil instance is already running (PID: X)"
 4. If dead → stale, remove socket + PID file and continue
 5. Write new PID file before binding
 
@@ -65,7 +65,7 @@ Replace the hardcoded `127.0.0.1:9600` with dynamic port selection, and write th
 **Approach:**
 
 1. Bind to `127.0.0.1:0` (OS picks an available port) with a preference for 9600
-2. Write the actual bound port to `~/.mort/ws-port` (or equivalent)
+2. Write the actual bound port to `~/.anvil/ws-port` (or equivalent)
 3. Frontend reads the port file on startup to know where to connect
 4. Clean up port file on shutdown
 

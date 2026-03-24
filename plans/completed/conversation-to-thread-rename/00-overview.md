@@ -232,7 +232,7 @@ conversation_get_status → thread_get_status
 conversation_id → thread_id
 ```
 
-### File: `src-tauri/src/mort_commands.rs`
+### File: `src-tauri/src/anvil_commands.rs`
 
 ```rust
 // Rename function
@@ -373,7 +373,7 @@ Update hook exports.
 
 ## Data Migration
 
-The `~/.mort/conversations/` directory will need to be renamed to `~/.mort/threads/`. This can be handled:
+The `~/.anvil/conversations/` directory will need to be renamed to `~/.anvil/threads/`. This can be handled:
 
 1. **Option A**: Add a one-time migration on app startup that renames the directory
 2. **Option B**: Document as a breaking change (acceptable since app hasn't launched)

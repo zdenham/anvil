@@ -2,7 +2,7 @@
 
 ## Problem Summary
 
-When spawning agents from the spotlight, the repository **name** (e.g., "mortician") is being passed instead of the repository **UUID**. This causes Zod validation failures because `ThreadMetadataSchema` now requires `repoId` and `worktreeId` to be valid UUIDs.
+When spawning agents from the spotlight, the repository **name** (e.g., "anvil") is being passed instead of the repository **UUID**. This causes Zod validation failures because `ThreadMetadataSchema` now requires `repoId` and `worktreeId` to be valid UUIDs.
 
 ### Error from logs:
 ```
@@ -25,7 +25,7 @@ Invalid thread metadata during cleanup: [
 **File:** `src/components/spotlight/spotlight.tsx:245`
 ```typescript
 await spawnSimpleAgent({
-  repoId: repo.name,  // BUG: "mortician" instead of UUID
+  repoId: repo.name,  // BUG: "anvil" instead of UUID
   threadId,
   prompt: content,
   sourcePath: workingDir,
@@ -66,15 +66,15 @@ export interface SpawnSimpleAgentOptions {
 ```
 Spotlight Controller (spotlight.tsx)
     ↓
-    repo.name ("mortician") → spawnSimpleAgent()
+    repo.name ("anvil") → spawnSimpleAgent()
     ↓
 Agent Service (agent-service.ts)
     ↓
-    --repo-id mortician → Runner CLI
+    --repo-id anvil → Runner CLI
     ↓
 Simple Runner Strategy (simple-runner-strategy.ts)
     ↓
-    worktreeId = repoId ("mortician")
+    worktreeId = repoId ("anvil")
     ↓
 Thread Metadata Creation
     ↓
@@ -108,7 +108,7 @@ const commandArgs = [
   "--thread-id", options.threadId,
   "--cwd", options.sourcePath,
   "--prompt", options.prompt,
-  "--mort-dir", mortDir,
+  "--anvil-dir", anvilDir,
 ];
 ```
 
@@ -124,7 +124,7 @@ interface SimpleRunnerArgs {
   threadId: string;
   cwd: string;
   prompt: string;
-  mortDir: string;
+  anvilDir: string;
 }
 ```
 

@@ -110,7 +110,7 @@ export function SubAgentBlock({ ... }: SubAgentBlockProps) {
 1. **Thread Hierarchy**: Add `parentThreadId` to thread metadata
 2. **Storage**: Sub-agent threads stored at:
    ```
-   ~/.mort/tasks/{slug}/threads/
+   ~/.anvil/tasks/{slug}/threads/
      execution-{parentId}/           # Parent thread
      subagent-{childId}/             # Child thread (new)
        metadata.json                 # Has parentThreadId field

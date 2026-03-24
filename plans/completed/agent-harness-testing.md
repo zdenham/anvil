@@ -4,7 +4,7 @@
 
 Create a testing framework to run agents independently of the UI by capturing and validating stdout output. This enables:
 1. Verification of event emissions and state transitions
-2. Regression testing of the mort CLI within agent context
+2. Regression testing of the anvil CLI within agent context
 3. Future benchmark/eval infrastructure for agent intelligence
 
 ---
@@ -21,7 +21,7 @@ This is **acceptance testing** (sometimes called "system testing"):
 ┌─────────────────────────────────────────────────────────────┐
 │                     Test Pyramid                             │
 ├─────────────────────────────────────────────────────────────┤
-│  UI E2E Tests (mort-test CLI)         ← existing plan       │
+│  UI E2E Tests (anvil-test CLI)         ← existing plan       │
 │  Agent Acceptance Tests               ← THIS PLAN           │
 │  Orchestration Tests (--bypass-agent) ← existing plan       │
 │  Integration Tests (service level)                          │
@@ -38,7 +38,7 @@ This is **acceptance testing** (sometimes called "system testing"):
 │                    Test Runner                               │
 │                 (agent-harness.ts)                          │
 ├─────────────────────────────────────────────────────────────┤
-│  1. Create isolated mort directory                          │
+│  1. Create isolated anvil directory                          │
 │  2. Set up test repository + task                           │
 │  3. Spawn agent runner as subprocess                        │
 │  4. Capture stdout in real-time                             │
@@ -118,7 +118,7 @@ node runner.js \
   --agent <type>       # "research" | "execution" | "merge" | "simple"
   --prompt <string>    # The task prompt
   --thread-id <uuid>   # Thread identifier
-  --mort-dir <path>    # Path to mort directory (instead of ~/.mort)
+  --anvil-dir <path>    # Path to anvil directory (instead of ~/.anvil)
   --task-slug <slug>   # Task slug (required for task-based agents)
   --cwd <path>         # Working directory (required for simple agent)
 ```
@@ -275,7 +275,7 @@ export interface AgentOutput {
 export interface AgentTestOptions {
   agent: "research" | "execution" | "merge" | "simple";
   prompt: string;
-  mortDir?: string;
+  anvilDir?: string;
   taskSlug?: string;
   repositoryName?: string;
   threadId?: string;
@@ -290,9 +290,9 @@ export interface AgentTestOptions {
 
 Reusable services for creating isolated test environments. These can be used independently by other test layers (orchestration tests, UI E2E tests, etc.).
 
-### 1. TestMortDirectory
+### 1. TestAnvilDirectory
 
-Creates an isolated mort-like directory structure with full orchestration support.
+Creates an isolated anvil-like directory structure with full orchestration support.
 
 **Critical**: This must create the complete infrastructure that `orchestration.ts` expects:
 - Repository settings at `repositories/{name}/settings.json`
@@ -300,7 +300,7 @@ Creates an isolated mort-like directory structure with full orchestration suppor
 - Worktree pool configuration
 
 ```typescript
-// agents/src/testing/services/test-mort-directory.ts
+// agents/src/testing/services/test-anvil-directory.ts
 
 import { mkdirSync, rmSync, writeFileSync, existsSync, cpSync } from "fs";
 import { join } from "path";
@@ -310,18 +310,18 @@ import type { TaskMetadata } from "@core/types/tasks";
 import type { RepositorySettings } from "@/entities/repositories/types";
 import { generateTaskId } from "@core/types/tasks";
 
-export interface TestMortDirectoryOptions {
+export interface TestAnvilDirectoryOptions {
   /** Keep directory after cleanup for debugging */
   keepOnCleanup?: boolean;
 }
 
-export class TestMortDirectory {
+export class TestAnvilDirectory {
   public readonly path: string;
   private cleaned = false;
   private registeredRepos: Map<string, TestRepository> = new Map();
 
-  constructor(private options: TestMortDirectoryOptions = {}) {
-    this.path = join(tmpdir(), `mort-test-${randomUUID()}`);
+  constructor(private options: TestAnvilDirectoryOptions = {}) {
+    this.path = join(tmpdir(), `anvil-test-${randomUUID()}`);
   }
 
   /**
@@ -433,7 +433,7 @@ export class TestMortDirectory {
 
     const shouldKeep = this.options.keepOnCleanup || process.env.KEEP_TEMP || failed;
     if (shouldKeep) {
-      console.log(`[TestMortDirectory] Keeping temp dir for debugging: ${this.path}`);
+      console.log(`[TestAnvilDirectory] Keeping temp dir for debugging: ${this.path}`);
       return;
     }
 
@@ -458,7 +458,7 @@ import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 
 export interface TestRepositoryOptions {
-  /** Repository name (used when adding to TestMortDirectory) */
+  /** Repository name (used when adding to TestAnvilDirectory) */
   name?: string;
   /** Keep directory after cleanup for debugging */
   keepOnCleanup?: boolean;
@@ -577,23 +577,23 @@ The harness composes these services:
 
 ```typescript
 // Example usage in AgentTestHarness
-const mortDir = new TestMortDirectory().init();
+const anvilDir = new TestAnvilDirectory().init();
 const repo = new TestRepository({ fixture: "minimal" }).init();
 
 // Register repository - creates settings.json with sourcePath pointing to repo
-mortDir.registerRepository(repo);
+anvilDir.registerRepository(repo);
 
 // Create task - creates full TaskMetadata with all required fields
-const task = mortDir.createTask({ repositoryName: repo.name });
+const task = anvilDir.createTask({ repositoryName: repo.name });
 
 // Run agent against this isolated environment
-// Agent will use: mortDir.path as --mort-dir, task.slug as --task-slug
+// Agent will use: anvilDir.path as --anvil-dir, task.slug as --task-slug
 // The repo.path is the cwd for simple agents, or sourcePath for worktree allocation
 // ...
 
 // Cleanup
 repo.cleanup();
-mortDir.cleanup();
+anvilDir.cleanup();
 ```
 
 ---
@@ -604,7 +604,7 @@ mortDir.cleanup();
 
 The harness uses composition to allow flexible test configurations. Each component is a separate concern:
 
-1. **Environment Setup** - `TestMortDirectory`, `TestRepository` (already composable)
+1. **Environment Setup** - `TestAnvilDirectory`, `TestRepository` (already composable)
 2. **Runner Configuration** - `RunnerConfig` interface for spawning different runners
 3. **Output Capture** - `StdoutCapture` for parsing JSON lines
 4. **Assertions** - `AgentAssertions` for validating output
@@ -626,9 +626,9 @@ const customHarness = new AgentTestHarness({
 // Inject custom environment setup
 const harness = new AgentTestHarness({
   setupEnvironment: async () => {
-    const mortDir = new TestMortDirectory().init();
+    const anvilDir = new TestAnvilDirectory().init();
     // Custom setup...
-    return { mortDir, repo, task };
+    return { anvilDir, repo, task };
   },
 });
 ```
@@ -645,7 +645,7 @@ import type { TaskMetadata } from "@core/types/tasks";
 export interface AgentTestOptions {
   agent: "research" | "execution" | "merge" | "simple";
   prompt: string;
-  mortDir?: string;
+  anvilDir?: string;
   taskSlug?: string;
   threadId?: string;
   timeout?: number;
@@ -663,7 +663,7 @@ export interface RunnerConfig {
   runnerPath: string;
 
   /** Build CLI arguments for the runner */
-  buildArgs: (opts: AgentTestOptions, task: TaskMetadata, mortDirPath: string, repoCwd: string) => string[];
+  buildArgs: (opts: AgentTestOptions, task: TaskMetadata, anvilDirPath: string, repoCwd: string) => string[];
 
   /** Additional environment variables */
   env?: Record<string, string>;
@@ -675,7 +675,7 @@ export interface RunnerConfig {
  */
 export const defaultRunnerConfig: RunnerConfig = {
   runnerPath: "runner.js",
-  buildArgs: (opts, task, mortDirPath, repoCwd) => {
+  buildArgs: (opts, task, anvilDirPath, repoCwd) => {
     const threadId = opts.threadId ?? randomUUID();
 
     // Common args for all agent types
@@ -683,7 +683,7 @@ export const defaultRunnerConfig: RunnerConfig = {
       "--agent", opts.agent,
       "--prompt", opts.prompt,
       "--thread-id", threadId,
-      "--mort-dir", mortDirPath,
+      "--anvil-dir", anvilDirPath,
     ];
 
     if (opts.agent === "simple") {
@@ -714,7 +714,7 @@ import { spawn } from "child_process";
 import { createInterface as createReadlineInterface } from "readline";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { TestMortDirectory } from "./services/test-mort-directory";
+import { TestAnvilDirectory } from "./services/test-anvil-directory";
 import { TestRepository } from "./services/test-repository";
 import { RunnerConfig, defaultRunnerConfig, AgentTestOptions } from "./runner-config";
 import type { AgentOutput, LogMessage, EventMessage, StateMessage } from "./types";
@@ -724,14 +724,14 @@ export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
   /** Custom runner configuration */
   runnerConfig?: RunnerConfig;
   /** Custom environment setup function */
-  setupEnvironment?: () => Promise<{ mortDir: TestMortDirectory; repo: TestRepository; task: TaskMetadata }>;
+  setupEnvironment?: () => Promise<{ anvilDir: TestAnvilDirectory; repo: TestRepository; task: TaskMetadata }>;
 }
 
 export class AgentTestHarness {
-  private mortDir: TestMortDirectory | null = null;
+  private anvilDir: TestAnvilDirectory | null = null;
   private repo: TestRepository | null = null;
   private runnerConfig: RunnerConfig;
-  private customSetup?: () => Promise<{ mortDir: TestMortDirectory; repo: TestRepository; task: TaskMetadata }>;
+  private customSetup?: () => Promise<{ anvilDir: TestAnvilDirectory; repo: TestRepository; task: TaskMetadata }>;
 
   constructor(private options: AgentTestHarnessOptions = {}) {
     this.runnerConfig = options.runnerConfig ?? defaultRunnerConfig;
@@ -742,7 +742,7 @@ export class AgentTestHarness {
    * Get the temp directory path (for testing the harness itself).
    */
   get tempDirPath(): string | null {
-    return this.mortDir?.path ?? null;
+    return this.anvilDir?.path ?? null;
   }
 
   /**
@@ -757,18 +757,18 @@ export class AgentTestHarness {
     if (this.customSetup) {
       // Use custom environment setup
       const setup = await this.customSetup();
-      this.mortDir = setup.mortDir;
+      this.anvilDir = setup.anvilDir;
       this.repo = setup.repo;
       task = setup.task;
     } else {
       // Default environment setup
-      this.mortDir = new TestMortDirectory().init();
+      this.anvilDir = new TestAnvilDirectory().init();
       this.repo = new TestRepository({ fixture: "minimal" }).init();
 
       // Register repository with settings.json (required for orchestration)
-      this.mortDir.registerRepository(this.repo);
+      this.anvilDir.registerRepository(this.repo);
 
-      task = this.mortDir.createTask({
+      task = this.anvilDir.createTask({
         repositoryName: this.repo.name,
         slug: opts.taskSlug,
       });
@@ -786,7 +786,7 @@ export class AgentTestHarness {
    */
   cleanup(failed = false): void {
     this.repo?.cleanup(failed);
-    this.mortDir?.cleanup(failed);
+    this.anvilDir?.cleanup(failed);
   }
 
   private spawnAgent(opts: AgentTestOptions, task: TaskMetadata): Promise<AgentOutput> {
@@ -798,7 +798,7 @@ export class AgentTestHarness {
     const repoCwd = opts.cwd ?? this.repo?.path ?? process.cwd();
 
     // Build args using configured builder
-    const cliArgs = this.runnerConfig.buildArgs(opts, task, this.mortDir!.path, repoCwd);
+    const cliArgs = this.runnerConfig.buildArgs(opts, task, this.anvilDir!.path, repoCwd);
     const args = [runnerPath, ...cliArgs];
 
     const logs: LogMessage[] = [];
@@ -1022,7 +1022,7 @@ import { randomUUID } from "crypto";
  * Environment variable to enable mock LLM mode.
  * When set, agent uses scripted responses instead of calling Claude API.
  */
-export const MOCK_LLM_VAR = "MORT_MOCK_LLM_PATH";
+export const MOCK_LLM_VAR = "ANVIL_MOCK_LLM_PATH";
 
 /**
  * Mock response script format.
@@ -1052,7 +1052,7 @@ export function createMockScript(script: MockScript): string {
 }
 ```
 
-**Implementation note**: Adding mock LLM support requires modifying `runner.ts` to check `MORT_MOCK_LLM_PATH` and use a mock SDK client. This is optional for v1.
+**Implementation note**: Adding mock LLM support requires modifying `runner.ts` to check `ANVIL_MOCK_LLM_PATH` and use a mock SDK client. This is optional for v1.
 
 ---
 
@@ -1174,7 +1174,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { existsSync } from "fs";
 import { AgentTestHarness } from "../agent-harness";
 import { assertAgent } from "../assertions";
-import { TestMortDirectory } from "../services/test-mort-directory";
+import { TestAnvilDirectory } from "../services/test-anvil-directory";
 import { TestRepository } from "../services/test-repository";
 import { AgentOutput } from "../types";
 
@@ -1186,31 +1186,31 @@ const describeWithApi = process.env.ANTHROPIC_API_KEY
   : describe.skip;
 
 describe("AgentTestHarness Self-Verification", () => {
-  describe("TestMortDirectory service", () => {
+  describe("TestAnvilDirectory service", () => {
     it("creates directory structure on init", () => {
-      const mortDir = new TestMortDirectory().init();
+      const anvilDir = new TestAnvilDirectory().init();
 
-      expect(existsSync(mortDir.path)).toBe(true);
-      expect(existsSync(`${mortDir.path}/repositories`)).toBe(true);
-      expect(existsSync(`${mortDir.path}/tasks`)).toBe(true);
-      expect(existsSync(`${mortDir.path}/config.json`)).toBe(true);
+      expect(existsSync(anvilDir.path)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/repositories`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/tasks`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/config.json`)).toBe(true);
 
-      mortDir.cleanup();
-      expect(existsSync(mortDir.path)).toBe(false);
+      anvilDir.cleanup();
+      expect(existsSync(anvilDir.path)).toBe(false);
     });
 
     it("creates tasks with metadata", () => {
-      const mortDir = new TestMortDirectory().init();
-      const task = mortDir.createTask({
+      const anvilDir = new TestAnvilDirectory().init();
+      const task = anvilDir.createTask({
         repositoryName: "test-repo",
         title: "Test Task",
       });
 
       expect(task.slug).toMatch(/^test-task-/);
       expect(task.repositoryName).toBe("test-repo");
-      expect(existsSync(`${mortDir.path}/tasks/${task.slug}/metadata.json`)).toBe(true);
+      expect(existsSync(`${anvilDir.path}/tasks/${task.slug}/metadata.json`)).toBe(true);
 
-      mortDir.cleanup();
+      anvilDir.cleanup();
     });
   });
 
@@ -1257,7 +1257,7 @@ describe("AgentTestHarness Self-Verification", () => {
       // After run() is called, tempDirPath should be set
       // (setup happens synchronously before the async spawn)
       expect(harness.tempDirPath).not.toBeNull();
-      expect(harness.tempDirPath).toMatch(/mort-test-/);
+      expect(harness.tempDirPath).toMatch(/anvil-test-/);
       expect(existsSync(harness.tempDirPath!)).toBe(true);
 
       // Let it complete or timeout
@@ -1436,7 +1436,7 @@ If verification fails, skip the actual agent tests (they'd give unreliable resul
 ### Phase 1: Test Services
 **Files:**
 - `agents/src/testing/types.ts` - TypeScript interfaces (re-exports from @core)
-- `agents/src/testing/services/test-mort-directory.ts` - Isolated mort directory with full orchestration setup
+- `agents/src/testing/services/test-anvil-directory.ts` - Isolated anvil directory with full orchestration setup
 - `agents/src/testing/services/test-repository.ts` - Local git repo with fixtures
 - `agents/src/testing/services/index.ts` - Service exports
 
@@ -1535,7 +1535,7 @@ agents/src/testing/
 ├── mock-llm.ts                    # Mock LLM utilities (Phase 5)
 ├── services/
 │   ├── index.ts                   # Service exports
-│   ├── test-mort-directory.ts     # Isolated mort directory
+│   ├── test-anvil-directory.ts     # Isolated anvil directory
 │   └── test-repository.ts         # Local git repo with fixtures
 ├── __tests__/
 │   ├── harness-self-test.ts       # Framework self-verification
@@ -1569,7 +1569,7 @@ The `services/` directory contains reusable test utilities that can be imported 
 ### Performance
 - [ ] Tests complete in <60s per scenario (simple agent)
 - [ ] Test isolation prevents cross-test interference
-- [ ] No `~/.mort` pollution (all tests use temp directories)
+- [ ] No `~/.anvil` pollution (all tests use temp directories)
 
 ---
 
@@ -1595,13 +1595,13 @@ This plan fills the gap between orchestration testing (no LLM) and UI testing (f
 
 3. ~~**CI Integration**: Should agent tests block PRs?~~ **Resolved**: Agent harness tests run locally only, not in CI. This avoids API costs and complexity.
 
-4. ~~**Runner CLI Support**: Does the agent runner currently support `--mort-dir`?~~ **Resolved**: Both runners support `--mort-dir`. Runner unification is Phase 0.
+4. ~~**Runner CLI Support**: Does the agent runner currently support `--anvil-dir`?~~ **Resolved**: Both runners support `--anvil-dir`. Runner unification is Phase 0.
 
 5. ~~**Runner Strategy**: Test both runners separately or unify first?~~ **Resolved**: Unify runners first (Phase 0 prerequisite). Single entry point with strategy pattern.
 
 6. ~~**Test Scope**: Protocol-only or live API tests?~~ **Resolved**: Include live API tests. Goal is to validate real agent behavior.
 
-7. ~~**Environment Setup**: Full orchestration or minimal mocks?~~ **Resolved**: Full orchestration setup. `TestMortDirectory` creates proper `settings.json`, task metadata, etc.
+7. ~~**Environment Setup**: Full orchestration or minimal mocks?~~ **Resolved**: Full orchestration setup. `TestAnvilDirectory` creates proper `settings.json`, task metadata, etc.
 
 8. ~~**Worktree Allocation**: Should task-based agent tests actually allocate worktrees?~~ **Resolved**: No, use `useWorktrees: false` for simplicity. Tests run in the test repository's sourcePath directly.
 

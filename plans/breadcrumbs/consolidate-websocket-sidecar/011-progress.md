@@ -18,7 +18,7 @@
 ## Remaining
 
 - All structural FRs are complete and verified. No remaining functional gaps identified.
-- `agents/src/bin/mort` has a local worktree path diff — this is an artifact of the detached HEAD worktree and should not be committed.
+- `agents/src/bin/anvil` has a local worktree path diff — this is an artifact of the detached HEAD worktree and should not be committed.
 
 ## Context
 

@@ -610,7 +610,7 @@ export interface SplitConfiguration {
 }
 
 /**
- * Root state persisted to ~/.mort/ui/content-panes.json
+ * Root state persisted to ~/.anvil/ui/content-panes.json
  */
 export const ContentPanesPersistedStateSchema = z.object({
   version: z.literal(1),

@@ -61,8 +61,8 @@ if (config.skipNaming) {
 } else {
   this.initiateThreadNaming(threadId, prompt, threadPath);
 
-  const alreadyRenamed = isWorktreeRenamed(mortDir, repoId, worktreeId);
-  const mainWorktree = isMainWorktree(mortDir, repoId, worktreeId);
+  const alreadyRenamed = isWorktreeRenamed(anvilDir, repoId, worktreeId);
+  const mainWorktree = isMainWorktree(anvilDir, repoId, worktreeId);
   // ... existing naming logic
 }
 ```
@@ -153,4 +153,4 @@ This reuses the existing `createThread` from `thread-creation-service.ts` which 
 - The setup thread passes `skipNaming: true` to prevent worktree renaming and branch creation from the setup prompt — the user's first real thread will name the worktree instead
 - The user can cancel the setup thread if needed — it's a normal thread in the UI
 - Small agent runner change needed: the `--skip-naming` flag threads through `agent-service.ts` → CLI args → `SimpleRunnerStrategy`
-- The prompt text is stored in `~/.mort/repositories/{slug}/settings.json` alongside other repo settings
+- The prompt text is stored in `~/.anvil/repositories/{slug}/settings.json` alongside other repo settings

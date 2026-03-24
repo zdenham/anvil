@@ -79,7 +79,7 @@ use crate::config;
 use crate::paths;
 use tracing::{info, warn};
 
-const IDENTITY_SERVER_URL: &str = "https://mort-server.fly.dev/identity";
+const IDENTITY_SERVER_URL: &str = "https://anvil-server.fly.dev/identity";
 
 /// Detect the GitHub handle via `gh` CLI and persist it.
 /// Returns the handle on success, or an error if `gh` is not authenticated.
@@ -186,7 +186,7 @@ identity::get_github_handle,
 
 - **`src-tauri/src/paths.rs`**: Remove `identity_file()` function
 - **`src-tauri/src/identity.rs`**: Remove `Identity` struct, `load_identity()`, `save_identity()` (all replaced by `AppConfig`)
-- **`identity.json` references**: The file at `~/.mort/settings/identity.json` is no longer written. Existing files on disk are harmless (ignored). No migration needed.
+- **`identity.json` references**: The file at `~/.anvil/settings/identity.json` is no longer written. Existing files on disk are harmless (ignored). No migration needed.
 - **Frontend**: No changes — `invoke("identify", ...)` was never called, and `get_github_handle` still works
 
 ---

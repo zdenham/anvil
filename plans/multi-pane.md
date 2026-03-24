@@ -112,7 +112,7 @@ interface LayoutTreeActions {
 }
 ```
 
-Service at `src/stores/layout-tree/service.ts` handles disk I/O to `~/.mort/ui/layout-tree.json`.
+Service at `src/stores/layout-tree/service.ts` handles disk I/O to `~/.anvil/ui/layout-tree.json`.
 
 ### Library Choice: `react-resizable-panels`
 
@@ -210,7 +210,7 @@ This is a tree transformation in the Zustand store — the recursive renderer re
 
 ### Persistence
 
-New file `~/.mort/ui/layout-tree.json`:
+New file `~/.anvil/ui/layout-tree.json`:
 
 ```json
 {
@@ -299,7 +299,7 @@ Validated with Zod on hydration. Falls back to single-pane layout if invalid. Th
 ### Phase 7: Persistence + hydration
 
 **Files to modify:**
-- `src/stores/layout-tree/service.ts` — Save to `~/.mort/ui/layout-tree.json` with debounce
+- `src/stores/layout-tree/service.ts` — Save to `~/.anvil/ui/layout-tree.json` with debounce
 - `src/stores/layout-tree/types.ts` — Zod schema for persisted layout tree
 - `src/components/main-window/main-window-layout.tsx` — Hydrate layout tree on startup, reconcile with content-panes store (handle stale paneIds)
 

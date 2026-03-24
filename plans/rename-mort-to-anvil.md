@@ -28,31 +28,31 @@ Exhaustive rename of all references from mort/Mort/mortician/Mortician to anvil/
 
 - [x] Phase 3: Package names — all package.json files (@mort/\* → @anvil/\*)
 
-- [ ] Phase 4: Environment variables and build constants — MORT\_\* → ANVIL\_*, \_MORT*\_\_ → *ANVIL\**\_
+- [x] Phase 4: Environment variables and build constants — MORT\_\* → ANVIL\_*, \_MORT*\_\_ → *ANVIL\**\_
 
-- [ ] Phase 5: Core library — core/lib/mort-dir.ts, core/types, core/sdk
+- [x] Phase 5: Core library — core/lib/mort-dir.ts, core/types, core/sdk
 
-- [ ] Phase 6: Agents — mort-repl rename, imports, string constants, hooks
+- [x] Phase 6: Agents — mort-repl rename, imports, string constants, hooks
 
-- [ ] Phase 7: Frontend source — src/lib/, src/components/, src/stores/, src/entities/
+- [x] Phase 7: Frontend source — src/lib/, src/components/, src/stores/, src/entities/
 
-- [ ] Phase 8: Plugins — plugins/mort/ → plugins/anvil/, plugin.json
+- [x] Phase 8: Plugins — plugins/mort/ → plugins/anvil/, plugin.json
 
-- [ ] Phase 9: Scripts — [build-mort.sh](http://build-mort.sh), [dev-mort.sh](http://dev-mort.sh), env presets, [internal-build.sh](http://internal-build.sh)
+- [x] Phase 9: Scripts — [build-mort.sh](http://build-mort.sh), [dev-mort.sh](http://dev-mort.sh), env presets, [internal-build.sh](http://internal-build.sh)
 
 - [ ] Phase 10: Documentation — docs/\*.md, [README.md](http://README.md)
 
 - [ ] Phase 11: Plans and completed plans — rename references in plans/\*\*/\*.md
 
-- [ ] Phase 12: Test fixtures and mocks — test-mort-directory.ts, mock files, vitest config
+- [x] Phase 12: Test fixtures and mocks — test-mort-directory.ts, mock files, vitest config
 
-- [ ] Phase 13: File and directory renames — git mv for files/dirs with "mort" in the name
+- [x] Phase 13: File and directory renames — git mv for files/dirs with "mort" in the name
 
-- [ ] Phase 14: Data migration strategy — handle existing \~/.mort → \~/.anvil for users
+- [x] Phase 14: Data migration strategy — handle existing \~/.mort → \~/.anvil for users
 
-- [ ] Phase 15: Infrastructure references — add TODO comments to infra URLs (deferred for manual update)
+- [x] Phase 15: Infrastructure references — add TODO comments to infra URLs (deferred for manual update)
 
-- [ ] Phase 16: Git branch convention — update mort/task-\* prefix references
+- [x] Phase 16: Git branch convention — update mort/task-\* prefix references
 
 - [ ] Phase 17: Verify build — ensure cargo build, pnpm build, and tests pass
 

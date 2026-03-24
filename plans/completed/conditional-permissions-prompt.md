@@ -143,7 +143,7 @@ export const PermissionsPrompt = ({
           Permissions Needed
         </h2>
         <p className="text-surface-300 mb-6">
-          Mort needs some permissions to work properly. You can grant them now or skip for later.
+          Anvil needs some permissions to work properly. You can grant them now or skip for later.
         </p>
 
         <div className="space-y-4">

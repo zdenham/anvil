@@ -347,7 +347,7 @@ The parent `useConversation` hook loads from files on mount:
 - **Real-time overlay**: stdout streaming during active runs (display only)
 
 ```
-.mort/conversations/{id}/
+.anvil/conversations/{id}/
 └── changes.jsonl         # JSONL of FileChangeMessage (one per line, append-only)
 ```
 

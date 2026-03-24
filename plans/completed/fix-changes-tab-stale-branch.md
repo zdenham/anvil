@@ -8,7 +8,7 @@ The changes tab summary header shows `main → origin/main` even when the curren
 return `${branchName} → origin/${defaultBranch ?? "main"}`;
 ```
 
-Where `branchName` comes from the `useRepoWorktreeLookupStore`'s `currentBranch` field — a value persisted in `~/.mort/repositories/{repo}/settings.json` and only refreshed during `worktree_sync`.
+Where `branchName` comes from the `useRepoWorktreeLookupStore`'s `currentBranch` field — a value persisted in `~/.anvil/repositories/{repo}/settings.json` and only refreshed during `worktree_sync`.
 
 ## Root Cause
 

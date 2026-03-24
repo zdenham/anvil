@@ -18,7 +18,7 @@ ${__PROJECT_ROOT__}/agents/dist/runner.js
 
 But `tsup --watch` may not have completed its initial build yet. The `agents/dist/` directory only contains a `.gitkeep` placeholder until tsup runs — the built files are gitignored (root `.gitignore` has `dist`).
 
-**Secondary issue**: `agents/dist/cli/mort.js` is also empty (the `cli/` dir exists but has no files), which would cause a similar failure for CLI-based agent operations.
+**Secondary issue**: `agents/dist/cli/anvil.js` is also empty (the `cli/` dir exists but has no files), which would cause a similar failure for CLI-based agent operations.
 
 ## Why it doesn't always happen
 
@@ -30,7 +30,7 @@ But `tsup --watch` may not have completed its initial build yet. The `agents/dis
 
 **Option A (recommended): Pre-build agents before starting concurrently**
 
-In `dev-mort.sh`, add an initial agents build before the concurrent `dev:run`:
+In `dev-anvil.sh`, add an initial agents build before the concurrent `dev:run`:
 
 ```bash
 # Build agents once so runner.js exists immediately

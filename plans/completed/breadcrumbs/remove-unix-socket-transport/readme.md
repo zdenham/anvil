@@ -10,7 +10,7 @@ Remove Unix socket support from the agent hub transport layer, making WebSocket 
 2. `HubConnection` has zero Unix socket code — no `net` imports, no buffer/framing, no socket fields
 3. `HubClient` has no `existsSync` check, no backpressure tracking, field renamed to `endpoint`
 4. `MockHubServer` uses `WebSocketServer` instead of Unix sockets
-5. `AgentTestHarness` passes `MORT_AGENT_HUB_WS_URL` instead of `MORT_HUB_SOCKET_PATH`
+5. `AgentTestHarness` passes `ANVIL_AGENT_HUB_WS_URL` instead of `ANVIL_HUB_SOCKET_PATH`
 6. All tests pass: `cd agents && pnpm test`
 7. Codebase-wide grep for `.sock`, `SOCKET_PATH`, `socketPath`, `from "net"`, `isWebSocketEndpoint` returns zero hits in `agents/` and `core/`
 

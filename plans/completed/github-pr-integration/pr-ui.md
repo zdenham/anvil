@@ -500,7 +500,7 @@ The `handleCreatePr` function (implemented in `src/lib/pr-actions.ts`, defined i
    - Fetch fresh details immediately
 
 3. **If no PR exists:**
-   - Spawn a new thread with the `/create-pr` skill. The `create-pr` skill lives in `plugins/mort/skills/create-pr/` and is synced to `~/.mort/skills/` via `syncManagedSkills()` on startup. Users can override it with their own version in `<repo>/.claude/skills/create-pr/`.
+   - Spawn a new thread with the `/create-pr` skill. The `create-pr` skill lives in `plugins/anvil/skills/create-pr/` and is synced to `~/.anvil/skills/` via `syncManagedSkills()` on startup. Users can override it with their own version in `<repo>/.claude/skills/create-pr/`.
    - The skill has `bash,read,grep,glob` tools (it needs to read code to write good PR descriptions, but should not modify code — no `edit`/`write`).
    - Skill invocation is handled by the agent SDK — when a thread is spawned with `prompt: "/create-pr"`, the SDK resolves the skill from the slash command. No special wiring needed.
    - Open thread content pane so the user watches the agent work

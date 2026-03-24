@@ -7,7 +7,7 @@
 
 ## Goal
 
-Implement the `mort request-review` CLI command that agents use to request human review.
+Implement the `anvil request-review` CLI command that agents use to request human review.
 
 ---
 
@@ -53,7 +53,7 @@ export const requestReviewCommand = new Command("request-review")
 
 ### 2. Register the command
 
-Add the command to the CLI entrypoint (likely `agents/src/cli/mort.ts` or similar).
+Add the command to the CLI entrypoint (likely `agents/src/cli/anvil.ts` or similar).
 
 ### 3. Implement stdin reading
 
@@ -75,13 +75,13 @@ async function readStdin(): Promise<string> {
 
 ```bash
 # With inline markdown
-mort request-review --task <task-id> --markdown "## Please Review" --default "Proceed"
+anvil request-review --task <task-id> --markdown "## Please Review" --default "Proceed"
 
 # With stdin
-echo "## Please Review\n\nThe plan is ready." | mort request-review --task <task-id> --default "Proceed"
+echo "## Please Review\n\nThe plan is ready." | anvil request-review --task <task-id> --default "Proceed"
 
 # Multiline markdown
-mort request-review --task $TASK_ID --default "Start implementation" --markdown "
+anvil request-review --task $TASK_ID --default "Start implementation" --markdown "
 ## Plan Ready for Review
 
 I've analyzed the codebase and created an implementation plan.
@@ -100,7 +100,7 @@ I've analyzed the codebase and created an implementation plan.
 
 ## Acceptance Criteria
 
-- [ ] `mort request-review` command exists and is registered
+- [ ] `anvil request-review` command exists and is registered
 - [ ] `--task` is required
 - [ ] `--markdown` accepts content or falls back to stdin
 - [ ] `--default` defaults to "Proceed"

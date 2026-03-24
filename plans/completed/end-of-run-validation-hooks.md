@@ -51,7 +51,7 @@ export interface ValidationResult {
 export interface ValidationContext {
   agentType: string;
   taskId: string | null;
-  mortDir: string;
+  anvilDir: string;
   cwd: string;
 }
 
@@ -69,7 +69,7 @@ export interface AgentValidator {
 
 **File:** `agents/src/validators/human-review.ts`
 
-Checks that the task has `pendingReview` set (meaning agent called `mort request-human`).
+Checks that the task has `pendingReview` set (meaning agent called `anvil request-human`).
 
 ```typescript
 import type { AgentValidator, ValidationContext, ValidationResult } from "./types.js";
@@ -85,7 +85,7 @@ export const humanReviewValidator: AgentValidator = {
       return { valid: true };
     }
 
-    const persistence = new NodePersistence(context.mortDir);
+    const persistence = new NodePersistence(context.anvilDir);
     const task = await persistence.getTask(context.taskId);
 
     if (!task) {
@@ -98,7 +98,7 @@ export const humanReviewValidator: AgentValidator = {
 
     return {
       valid: false,
-      systemMessage: `VALIDATION FAILED: You must request human review before completing. Use the \`mort request-human\` command to request review of your work. This is required for all agents.`,
+      systemMessage: `VALIDATION FAILED: You must request human review before completing. Use the \`anvil request-human\` command to request review of your work. This is required for all agents.`,
     };
   },
 };
@@ -139,7 +139,7 @@ export const planningNamingValidator: AgentValidator = {
       return { valid: true };
     }
 
-    const persistence = new NodePersistence(context.mortDir);
+    const persistence = new NodePersistence(context.anvilDir);
     const task = await persistence.getTask(context.taskId);
 
     if (!task) {
@@ -153,7 +153,7 @@ export const planningNamingValidator: AgentValidator = {
       if (pattern.test(title)) {
         return {
           valid: false,
-          systemMessage: `VALIDATION FAILED: The task title "${title}" is too generic. You must rename the task to something descriptive using \`mort tasks rename --id=${context.taskId} --title="Descriptive title here"\`. Good titles describe what the task accomplishes, e.g., "Add dark mode toggle to settings" or "Fix race condition in auth flow".`,
+          systemMessage: `VALIDATION FAILED: The task title "${title}" is too generic. You must rename the task to something descriptive using \`anvil tasks rename --id=${context.taskId} --title="Descriptive title here"\`. Good titles describe what the task accomplishes, e.g., "Add dark mode toggle to settings" or "Fix race condition in auth flow".`,
         };
       }
     }
@@ -162,7 +162,7 @@ export const planningNamingValidator: AgentValidator = {
     if (title.length < 10) {
       return {
         valid: false,
-        systemMessage: `VALIDATION FAILED: The task title "${title}" is too short. You must rename with a more descriptive title (at least 10 characters) using \`mort tasks rename --id=${context.taskId} --title="Descriptive title here"\`.`,
+        systemMessage: `VALIDATION FAILED: The task title "${title}" is too short. You must rename with a more descriptive title (at least 10 characters) using \`anvil tasks rename --id=${context.taskId} --title="Descriptive title here"\`.`,
       };
     }
 
@@ -171,7 +171,7 @@ export const planningNamingValidator: AgentValidator = {
     if (!slug || slug.length < 3) {
       return {
         valid: false,
-        systemMessage: `VALIDATION FAILED: The task slug "${slug}" is too short. The title "${title}" doesn't generate a good slug. You must rename with a title containing meaningful words using \`mort tasks rename --id=${context.taskId} --title="Descriptive title here"\`.`,
+        systemMessage: `VALIDATION FAILED: The task slug "${slug}" is too short. The title "${title}" doesn't generate a good slug. You must rename with a title containing meaningful words using \`anvil tasks rename --id=${context.taskId} --title="Descriptive title here"\`.`,
       };
     }
 
@@ -248,7 +248,7 @@ const result = query({
   prompt: args.prompt,
   options: {
     cwd: args.cwd,
-    additionalDirectories: [args.mortDir],
+    additionalDirectories: [args.anvilDir],
     model: agentConfig.model ?? "claude-opus-4-5-20251101",
     systemPrompt: {
       type: "preset",
@@ -291,7 +291,7 @@ const result = query({
               const result = await runValidators({
                 agentType: args.agentType,
                 taskId: args.taskId,
-                mortDir: args.mortDir,
+                anvilDir: args.anvilDir,
                 cwd: args.cwd,
               });
 
@@ -324,7 +324,7 @@ for await (const message of result) {
 ## Testing
 
 - [ ] Planning agent with generic title → validation fails → agent renames → passes
-- [ ] Agent without human review → validation fails → agent calls `mort request-human` → passes
+- [ ] Agent without human review → validation fails → agent calls `anvil request-human` → passes
 - [ ] No taskId (ephemeral) → validators skip → passes immediately
 - [ ] Max attempts (3) reached → allows stop with warning
 - [ ] Agent already compliant → passes on first attempt

@@ -40,7 +40,7 @@ export const humanReviewValidator: AgentValidator = {
       };
     }
 
-    const persistence = new NodePersistence(context.mortDir);
+    const persistence = new NodePersistence(context.anvilDir);
     const task = await persistence.getTask(context.taskId);
 
     if (!task) {
@@ -68,7 +68,7 @@ export const humanReviewValidator: AgentValidator = {
 
     return {
       valid: false,
-      systemMessage: `VALIDATION FAILED: You must request human review before completing. Use the \`mort request-human\` command to request review of your work. This is required for all agents.`,
+      systemMessage: `VALIDATION FAILED: You must request human review before completing. Use the \`anvil request-human\` command to request review of your work. This is required for all agents.`,
     };
   },
 };
@@ -81,7 +81,7 @@ The runner (`agents/src/runner.ts`) passes the validation context to validators.
 ```typescript
 // In runner.ts where ValidationContext is constructed:
 const validationContext: ValidationContext = {
-  mortDir: this.mortDir,
+  anvilDir: this.anvilDir,
   taskId: this.taskId,
   threadId: this.threadId,  // <-- Must be passed through
   agentType: this.agentType,

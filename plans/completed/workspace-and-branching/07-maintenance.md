@@ -215,7 +215,7 @@ Add to `src-tauri/src/filesystem_commands.rs`:
 #[tauri::command]
 pub async fn list_repositories() -> Result<Vec<String>, String> {
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    let repos_dir = home.join(".mort").join("repositories");
+    let repos_dir = home.join(".anvil").join("repositories");
 
     if !repos_dir.exists() {
         return Ok(Vec::new());
@@ -340,11 +340,11 @@ pub async fn delete_git_branch(
 }
 
 #[tauri::command]
-pub async fn list_mort_branches(repo_name: String) -> Result<Vec<String>, String> {
+pub async fn list_anvil_branches(repo_name: String) -> Result<Vec<String>, String> {
     let repo_path = get_repo_source_path(&repo_name)?;
 
     let output = Command::new("git")
-        .args(&["branch", "--list", "mort/*"])
+        .args(&["branch", "--list", "anvil/*"])
         .current_dir(&repo_path)
         .output()
         .map_err(|e| e.to_string())?;

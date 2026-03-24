@@ -4,14 +4,14 @@ Coordinated plan for the bottom status bar (VS Code-style gutter) and the quick 
 
 ## Context
 
-Quick actions are user-defined scripts in `~/.mort/quick-actions/`. They need two improvements:
+Quick actions are user-defined scripts in `~/.anvil/quick-actions/`. They need two improvements:
 
 1. **Auto-build** — Currently users must manually `pnpm build` + click "Reload Actions". We want the app to build on startup and the settings button to trigger a real build.
 2. **Bottom gutter** — Quick actions are currently disabled in the UI (commented out in `ThreadInputSection`). We want them in a thin VS Code-style status bar at the bottom of the main window, alongside the status legend.
 
 ### Current Auto-Build Flow
 1. `quick-actions-init.ts` copies the template project (excluding `node_modules`) on first launch
-2. User manually runs `pnpm install` + `pnpm build` in `~/.mort/quick-actions/`
+2. User manually runs `pnpm install` + `pnpm build` in `~/.anvil/quick-actions/`
 3. On app startup, `quickActionService.hydrate()` reads `dist/manifest.json` into the store
 4. Settings has a "Reload Actions" button that just re-reads the manifest (does not build)
 
@@ -122,7 +122,7 @@ const handleRebuild = async () => {
 };
 ```
 
-Update UI text: Button → "Rebuild Actions". Remove the manual `npm run build` instruction, replace with "Edit actions in `~/.mort/quick-actions/src/actions/`, then click Rebuild".
+Update UI text: Button → "Rebuild Actions". Remove the manual `npm run build` instruction, replace with "Edit actions in `~/.anvil/quick-actions/src/actions/`, then click Rebuild".
 
 ### 4. Handle `pnpm install` when `node_modules` is missing
 

@@ -48,9 +48,9 @@ export type {
 } from "./types";
 
 // Re-export services for convenience (from services/index.ts)
-export { TestMortDirectory, TestRepository } from "./services";
+export { TestAnvilDirectory, TestRepository } from "./services";
 export type {
-  TestMortDirectoryOptions,
+  TestAnvilDirectoryOptions,
   TestRepositoryOptions,
   FileFixture,
 } from "./services";
@@ -70,7 +70,7 @@ export type {
 import {
   AgentTestHarness,
   assertAgent,
-  TestMortDirectory,
+  TestAnvilDirectory,
   TestRepository,
   type AgentRunOutput,
 } from "@/testing";

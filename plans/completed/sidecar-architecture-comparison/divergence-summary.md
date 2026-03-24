@@ -21,8 +21,8 @@ Every implementation made these same choices:
 
  1. Express (or raw http) + `ws` library with `noServer` mode
  2. Two WS endpoints: `/ws` (frontend) + `/ws/agent` (agents)
- 3. Port 9600 default with `MORT_WS_PORT` env override
- 4. Port file at `~/.mort/sidecar-{hash}.port`
+ 3. Port 9600 default with `ANVIL_WS_PORT` env override
+ 4. Port file at `~/.anvil/sidecar-{hash}.port`
  5. Same wire protocol: `{ id, cmd, args }` → `{ id, result/error }`
  6. Same push event protocol: `{ event, payload }`
  7. Relay events via `{ relay: true, event, payload }`

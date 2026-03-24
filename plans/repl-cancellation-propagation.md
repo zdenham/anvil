@@ -70,12 +70,12 @@ Now `kill(-200, SIGTERM)` kills the entire tree without touching Rust.
 | `cancel_agent` (WS) | `src-tauri/src/ws_server/dispatch_agent.rs` | 191-226 |
 | `spawn_agent` (needs `process_group(0)`) | `src-tauri/src/ws_server/dispatch_agent.rs` | 50-70 |
 | AgentProcessMap type | `src-tauri/src/ws_server/dispatch_agent.rs` | 16-28 |
-| `ChildSpawner` class | `agents/src/lib/mort-repl/child-spawner.ts` | 25-282 |
+| `ChildSpawner` class | `agents/src/lib/anvil-repl/child-spawner.ts` | 25-282 |
 | `setupSignalHandlers` | `agents/src/runners/shared.ts` | 231-263 |
 | Cancel message handler (to remove) | `agents/src/runner.ts` | 250-253 |
 | `cancelAgent` (frontend) | `src/lib/agent-service.ts` | 1025-1045 |
 | `cancelAgentSocket` (frontend, to remove) | `src/lib/agent-service.ts` | 346-349 |
-| `SpawnOptions` type | `agents/src/lib/mort-repl/types.ts` | 25-28 |
+| `SpawnOptions` type | `agents/src/lib/anvil-repl/types.ts` | 25-28 |
 
 ---
 
@@ -200,7 +200,7 @@ Either way, the result is that `agent_cancel(childThreadId)` finds the child's P
 
 #### 3a. Add `timeoutMs` to SpawnOptions
 
-**File**: `agents/src/lib/mort-repl/types.ts`
+**File**: `agents/src/lib/anvil-repl/types.ts`
 
 ```typescript
 export interface SpawnOptions {
@@ -212,7 +212,7 @@ export interface SpawnOptions {
 
 #### 3b. Implement timeout in ChildSpawner.waitForResult
 
-**File**: `agents/src/lib/mort-repl/child-spawner.ts`
+**File**: `agents/src/lib/anvil-repl/child-spawner.ts`
 
 Wrap the exit promise with a timeout race:
 
@@ -227,7 +227,7 @@ private async waitForResult(
 
   const exitCode = await new Promise<number>((resolve) => {
     const timer = setTimeout(() => {
-      logger.warn(`[mort-repl] Child ${childThreadId} timed out after ${timeoutMs}ms, killing`);
+      logger.warn(`[anvil-repl] Child ${childThreadId} timed out after ${timeoutMs}ms, killing`);
       try { process.kill(child.pid!, "SIGTERM"); } catch { /* already exited */ }
       setTimeout(() => {
         try { process.kill(child.pid!, "SIGKILL"); } catch { /* already exited */ }
@@ -237,7 +237,7 @@ private async waitForResult(
     child.on("exit", (code) => { clearTimeout(timer); resolve(code ?? 1); });
     child.on("error", (err) => {
       clearTimeout(timer);
-      logger.error(`[mort-repl] Child process error: ${err}`);
+      logger.error(`[anvil-repl] Child process error: ${err}`);
       resolve(1);
     });
   });
@@ -255,7 +255,7 @@ return this.waitForResult(child, childThreadId, childThreadPath, options.timeout
 
 **Goal**: Fix the gap where children don't register their parent relationship with the hub, enabling future hub-based tree operations.
 
-**File**: `agents/src/lib/mort-repl/child-spawner.ts` — `spawnProcess`
+**File**: `agents/src/lib/anvil-repl/child-spawner.ts` — `spawnProcess`
 
 Add `--parent-id` to the args array:
 

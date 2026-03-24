@@ -2,16 +2,16 @@
 
 ## Overview
 
-Implement a higher-order function (HOF) that wraps mort CLI functions with `Promise.race` to ensure they timeout and don't cause agents to hang indefinitely.
+Implement a higher-order function (HOF) that wraps anvil CLI functions with `Promise.race` to ensure they timeout and don't cause agents to hang indefinitely.
 
 ## Problem Statement
 
-The mort CLI functions can hang indefinitely in several scenarios:
+The anvil CLI functions can hang indefinitely in several scenarios:
 1. **Stdin reading** - `readStdin()` blocks forever if stdin is piped but never closed
 2. **File I/O** - Synchronous file operations in `NodePersistence` can block on slow I/O
 3. **No timeout mechanism** - No existing safeguards against hanging operations
 
-When an agent calls `mort tasks get --id=...` and it hangs, the entire agent execution stalls with no recovery path.
+When an agent calls `anvil tasks get --id=...` and it hangs, the entire agent execution stalls with no recovery path.
 
 ---
 
@@ -83,8 +83,8 @@ export function withCliTimeout<TArgs extends unknown[]>(
     } catch (e) {
       if (e instanceof TimeoutError) {
         const argsStr = args.length > 0 ? JSON.stringify(args) : "none";
-        console.error(`[mort-cli] TIMEOUT: "${operationName}" exceeded ${CLI_TIMEOUT_MS}ms`);
-        console.error(`[mort-cli] TIMEOUT: Command args: ${argsStr}`);
+        console.error(`[anvil-cli] TIMEOUT: "${operationName}" exceeded ${CLI_TIMEOUT_MS}ms`);
+        console.error(`[anvil-cli] TIMEOUT: Command args: ${argsStr}`);
         console.log(JSON.stringify({
           error: `Timeout: ${operationName} took longer than ${CLI_TIMEOUT_MS}ms`,
           command: operationName,
@@ -101,7 +101,7 @@ export function withCliTimeout<TArgs extends unknown[]>(
 
 ### Step 3: Wrap All CLI Command Functions
 
-**File**: `agents/src/cli/mort.ts`
+**File**: `agents/src/cli/anvil.ts`
 
 Wrap each command handler with `withCliTimeout`:
 
@@ -134,7 +134,7 @@ switch (subcommand) {
 
 ### Step 4: Add Timeout to Stdin Reading
 
-**File**: `agents/src/cli/mort.ts`
+**File**: `agents/src/cli/anvil.ts`
 
 The `readStdin()` function is a primary hang point. Add a dedicated timeout:
 
@@ -149,7 +149,7 @@ async function readStdin(): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const timeout = setTimeout(() => {
-      console.error(`[mort-cli] TIMEOUT: readStdin exceeded ${STDIN_TIMEOUT_MS}ms`);
+      console.error(`[anvil-cli] TIMEOUT: readStdin exceeded ${STDIN_TIMEOUT_MS}ms`);
       process.stdin.destroy();
       reject(new TimeoutError("Reading stdin", STDIN_TIMEOUT_MS));
     }, STDIN_TIMEOUT_MS);
@@ -186,7 +186,7 @@ export { withCliTimeout } from "../cli/timeout-wrapper.js";
 |------|--------|
 | `agents/src/lib/timeout.ts` | **New** - Generic timeout HOF utility |
 | `agents/src/cli/timeout-wrapper.ts` | **New** - CLI-specific timeout wrapper |
-| `agents/src/cli/mort.ts` | **Modify** - Wrap all command functions with timeout |
+| `agents/src/cli/anvil.ts` | **Modify** - Wrap all command functions with timeout |
 | `agents/src/lib/index.ts` | **Modify** - Export timeout utilities |
 
 ---
@@ -198,7 +198,7 @@ export { withCliTimeout } from "../cli/timeout-wrapper.js";
 | Constant | Value | Location |
 |----------|-------|----------|
 | `CLI_TIMEOUT_MS` | `10000` (10s) | `timeout-wrapper.ts` |
-| `STDIN_TIMEOUT_MS` | `5000` (5s) | `mort.ts` |
+| `STDIN_TIMEOUT_MS` | `5000` (5s) | `anvil.ts` |
 
 ### Exit Codes
 
@@ -221,8 +221,8 @@ export { withCliTimeout } from "../cli/timeout-wrapper.js";
 Timeout errors are handled consistently with detailed logging:
 
 1. **Stderr logging** (two lines):
-   - `[mort-cli] TIMEOUT: "<operation>" exceeded <ms>ms`
-   - `[mort-cli] TIMEOUT: Command args: <args>`
+   - `[anvil-cli] TIMEOUT: "<operation>" exceeded <ms>ms`
+   - `[anvil-cli] TIMEOUT: Command args: <args>`
 2. **JSON output**:
    ```json
    {

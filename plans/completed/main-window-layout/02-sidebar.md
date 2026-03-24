@@ -35,7 +35,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
     <aside className="w-56 bg-slate-950 border-r border-slate-800 flex flex-col">
       <div className="p-4 border-b border-slate-800">
-        <h1 className="text-lg font-semibold text-slate-100">Mortician</h1>
+        <h1 className="text-lg font-semibold text-slate-100">Anvil</h1>
       </div>
       <nav className="flex-1 p-2">
         {navItems.map((item) => {

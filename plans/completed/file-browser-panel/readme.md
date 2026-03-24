@@ -14,7 +14,7 @@ Users need to browse the file tree for a worktree, but there's no good place to 
 
 ```
 ┌──────────┬─────────────────┬──────────────┐
-│ MORT     │  Thread view    │ src/ 🔄 ✕    │
+│ ANVIL     │  Thread view    │ src/ 🔄 ✕    │
 │──────────│                 │──────────────│
 │ ▾ wt     │                 │ 📁components/│
 │  📁Files │                 │ 📁stores/    │

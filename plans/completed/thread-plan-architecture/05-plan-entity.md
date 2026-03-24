@@ -61,7 +61,7 @@ interface PlanMetadata {
 **Note:** The `markPlanAsUnread(id)` method already exists. This is used by the relation system when a thread modifies a plan file, marking it as unread so users see it in their inbox.
 
 **Existing service methods:**
-- `hydrate()` - Load from `~/.mort/plans/{id}/metadata.json`
+- `hydrate()` - Load from `~/.anvil/plans/{id}/metadata.json`
 - `create(input)`, `update(id, input)`, `delete(id)`
 - `ensurePlanExists(absolutePath)` - Idempotent creation
 - `getPlanContent(planId)` - Read actual plan file content

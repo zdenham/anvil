@@ -1,6 +1,6 @@
 # Testing
 
-This document describes how to test the Mort codebase.
+This document describes how to test the Anvil codebase.
 
 ## Quick Reference
 
@@ -30,7 +30,7 @@ Each test workspace has a separate watch script for interactive development:
 
 ## Test Types
 
-Mort uses five distinct testing approaches, each serving a specific purpose in the verification pyramid.
+Anvil uses five distinct testing approaches, each serving a specific purpose in the verification pyramid.
 
 **Unit & Integration Tests** (`pnpm test`)
 - Test services and libraries in isolation using mock adapters.
@@ -53,7 +53,7 @@ Mort uses five distinct testing approaches, each serving a specific purpose in t
 **Quick Actions Integration Tests** (`cd core/sdk && pnpm test`)
 - Test quick actions by spawning the actual runner process.
 - Capture stdout JSON events and verify correctness.
-- Use temporary `.mort` directories for isolated test environments.
+- Use temporary `.anvil` directories for isolated test environments.
 - Tests live in `core/sdk/__tests__/integration/`.
 - See [Quick Actions Test Harness](#quick-actions-test-harness) below for details.
 
@@ -84,7 +84,7 @@ Logs are written to `logs/dev.log`. See [logs.md](./logs.md) for how to read the
 | Testing agent completes a task | Agent Functional |
 | Testing agent emits correct events | Agent Functional |
 | Testing quick action event emissions | Quick Actions Integration |
-| Testing quick action reads from .mort | Quick Actions Integration |
+| Testing quick action reads from .anvil | Quick Actions Integration |
 | Testing navigation works | E2E (Playwright) |
 | Testing content renders | E2E (Playwright) |
 | Testing full user workflows | E2E (Playwright) |
@@ -131,9 +131,9 @@ pnpm test:watch        # Watch mode
 
 The harness lives in `core/sdk/__tests__/harness/` and provides:
 
-**MortFixture** - Temporary `.mort` directory manager
+**AnvilFixture** - Temporary `.anvil` directory manager
 ```typescript
-const fixture = await createMortFixture();
+const fixture = await createAnvilFixture();
 await fixture.addThread('thread-123', { isRead: false, status: 'idle' });
 await fixture.addPlan('plan-456', { relativePath: 'plans/my-plan.md' });
 // ... run tests ...
@@ -145,7 +145,7 @@ await fixture.cleanup();
 const result = await runQuickAction({
   actionPath: getTemplateActionPath('archive'),
   context: { contextType: 'thread', threadId: 'thread-123' },
-  mortDir: fixture.mortDir,
+  anvilDir: fixture.anvilDir,
   timeout: 5000,
 });
 ```

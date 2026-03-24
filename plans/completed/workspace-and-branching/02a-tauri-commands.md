@@ -26,7 +26,7 @@ invoke("create_git_branch", { repoPath: string, branchName: string, baseBranch: 
 invoke("checkout_branch", { worktreePath: string, branch: string }): Promise<void>
 invoke("delete_git_branch", { repoPath: string, branch: string }): Promise<void>
 invoke("branch_exists", { repoPath: string, branch: string }): Promise<boolean>
-invoke("list_mort_branches", { repoPath: string }): Promise<string[]>
+invoke("list_anvil_branches", { repoPath: string }): Promise<string[]>
 
 // Worktree operations - used by: 03-workspace-service
 invoke("create_worktree", { repoPath: string, worktreePath: string, branch: string }): Promise<void>
@@ -244,11 +244,11 @@ pub async fn branch_exists(repo_path: String, branch: String) -> Result<bool, St
     Ok(output.status.success())
 }
 
-/// List all mort/* branches
+/// List all anvil/* branches
 #[tauri::command]
-pub async fn list_mort_branches(repo_path: String) -> Result<Vec<String>, String> {
+pub async fn list_anvil_branches(repo_path: String) -> Result<Vec<String>, String> {
     let output = Command::new("git")
-        .args(["branch", "--list", "mort/*"])
+        .args(["branch", "--list", "anvil/*"])
         .current_dir(&repo_path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -398,11 +398,11 @@ pub async fn write_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| format!("Failed to write {}: {}", path.display(), e))
 }
 
-/// Get the mort repository directory for a repo
+/// Get the anvil repository directory for a repo
 #[tauri::command]
 pub async fn get_repo_dir(repo_name: String) -> Result<String, String> {
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    let repo_dir = home.join(".mort").join("repositories").join(&repo_name);
+    let repo_dir = home.join(".anvil").join("repositories").join(&repo_name);
     Ok(repo_dir.to_string_lossy().to_string())
 }
 
@@ -576,7 +576,7 @@ pub struct ConversationMetadata {
 
 fn get_conversations_dir() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    Ok(home.join(".mort").join("conversations"))
+    Ok(home.join(".anvil").join("conversations"))
 }
 
 /// Get the status of a conversation
@@ -644,7 +644,7 @@ fn main() {
             git_commands::checkout_branch,
             git_commands::delete_git_branch,
             git_commands::branch_exists,
-            git_commands::list_mort_branches,
+            git_commands::list_anvil_branches,
             git_commands::create_worktree,
             git_commands::remove_worktree,
             git_commands::list_worktrees,
@@ -726,8 +726,8 @@ export const gitCommands = {
   branchExists: (repoPath: string, branch: string) =>
     invoke<boolean>("branch_exists", { repoPath, branch }),
 
-  listMortBranches: (repoPath: string) =>
-    invoke<string[]>("list_mort_branches", { repoPath }),
+  listAnvilBranches: (repoPath: string) =>
+    invoke<string[]>("list_anvil_branches", { repoPath }),
 
   createWorktree: (repoPath: string, worktreePath: string, branch: string) =>
     invoke<void>("create_worktree", { repoPath, worktreePath, branch }),

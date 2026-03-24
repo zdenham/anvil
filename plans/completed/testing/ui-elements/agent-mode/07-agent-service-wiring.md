@@ -51,7 +51,7 @@ const commandArgs = [
   "--thread-id", threadId,
   "--cwd", sourcePath,
   "--prompt", prompt,
-  "--mort-dir", mortDir,
+  "--anvil-dir", anvilDir,
   "--agent-mode", agentMode,  // ADD THIS
   "--history-file", stateFilePath,
 ];

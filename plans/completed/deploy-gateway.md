@@ -4,8 +4,8 @@ Deploy the gateway infrastructure (Redis + updated server) to Fly.io production,
 
 ## Phases
 
-- [x] Deploy Redis Fly app (`mort-redis`)
-- [x] Configure server secrets and deploy `mort-server`
+- [x] Deploy Redis Fly app (`anvil-redis`)
+- [x] Configure server secrets and deploy `anvil-server`
 - [x] Verify production deployment
 - [x] Adapt functional tests for remote execution
 
@@ -13,7 +13,7 @@ Deploy the gateway infrastructure (Redis + updated server) to Fly.io production,
 
 ---
 
-## Phase 1: Deploy Redis Fly app (`mort-redis`)
+## Phase 1: Deploy Redis Fly app (`anvil-redis`)
 
 The `redis/` directory already has a `fly.toml` and `Dockerfile`. However, there's a mismatch: `fly.toml` uses `image = 'redis:7-alpine'` (stock image) which **won't load the custom `redis.conf`** with AOF persistence. The Dockerfile handles this correctly by copying `redis.conf` into the image.
 
@@ -24,48 +24,48 @@ The `redis/` directory already has a `fly.toml` and `Dockerfile`. However, there
 2. **Create the Fly app** (if not already created):
    ```bash
    cd redis
-   fly apps create mort-redis
+   fly apps create anvil-redis
    ```
    If the app already exists, this will error harmlessly — skip to next step.
 
 3. **Create the persistent volume** (if not already created):
    ```bash
-   fly volumes create redis_data --region sjc --size 1 --app mort-redis
+   fly volumes create redis_data --region sjc --size 1 --app anvil-redis
    ```
-   If a volume already exists, skip. Check with `fly volumes list --app mort-redis`.
+   If a volume already exists, skip. Check with `fly volumes list --app anvil-redis`.
 
 4. **Deploy Redis**:
    ```bash
    cd redis
-   fly deploy --app mort-redis
+   fly deploy --app anvil-redis
    ```
 
 5. **Verify Redis is running**:
    ```bash
-   fly status --app mort-redis
+   fly status --app anvil-redis
    ```
    Confirm one machine is running in `sjc`.
 
 6. **Verify persistence config** (optional sanity check):
    ```bash
-   fly ssh console --app mort-redis -C "redis-cli CONFIG GET appendonly"
+   fly ssh console --app anvil-redis -C "redis-cli CONFIG GET appendonly"
    ```
    Should return `appendonly` → `yes`.
 
 ### Notes
-- Redis is internal-only (no `[http_service]` in fly.toml) — accessible only via `mort-redis.internal:6379` on Fly's private WireGuard mesh.
+- Redis is internal-only (no `[http_service]` in fly.toml) — accessible only via `anvil-redis.internal:6379` on Fly's private WireGuard mesh.
 - No authentication needed since it's not publicly routable.
 - 256MB shared CPU, 1GB persistent volume is plenty for ~500-event-per-device streams.
 
 ---
 
-## Phase 2: Configure server secrets and deploy `mort-server`
+## Phase 2: Configure server secrets and deploy `anvil-server`
 
 ### Steps
 
-1. **Set `REDIS_URL` secret on `mort-server`**:
+1. **Set `REDIS_URL` secret on `anvil-server`**:
    ```bash
-   fly secrets set REDIS_URL=redis://mort-redis.internal:6379 --app mort-server
+   fly secrets set REDIS_URL=redis://anvil-redis.internal:6379 --app anvil-server
    ```
    The server's `index.ts` reads `process.env.REDIS_URL ?? "redis://localhost:6379"` — setting this secret makes it connect to the Fly Redis instance.
 
@@ -77,13 +77,13 @@ The `redis/` directory already has a `fly.toml` and `Dockerfile`. However, there
 3. **Deploy the server**:
    ```bash
    cd server
-   fly deploy --app mort-server
+   fly deploy --app anvil-server
    ```
    The Dockerfile builds from repo root context (per commit `a121907`), compiles TypeScript, and starts the production server.
 
 4. **Verify deployment**:
    ```bash
-   fly status --app mort-server
+   fly status --app anvil-server
    ```
    Confirm at least one machine is running.
 
@@ -102,12 +102,12 @@ Smoke-test the live gateway endpoints using `curl` commands.
 
 1. **Health check** (existing endpoint):
    ```bash
-   curl -s https://mort-server.fly.dev/health
+   curl -s https://anvil-server.fly.dev/health
    ```
 
 2. **Register a test channel**:
    ```bash
-   curl -s -X POST https://mort-server.fly.dev/gateway/channels \
+   curl -s -X POST https://anvil-server.fly.dev/gateway/channels \
      -H "Content-Type: application/json" \
      -d '{"deviceId":"test-deploy-device","type":"github","label":"deploy-smoke-test"}' | jq .
    ```
@@ -116,7 +116,7 @@ Smoke-test the live gateway endpoints using `curl` commands.
 3. **Post a test webhook event**:
    ```bash
    # Use the channelId from step 2
-   curl -s -X POST https://mort-server.fly.dev/gateway/channels/<channelId>/events \
+   curl -s -X POST https://anvil-server.fly.dev/gateway/channels/<channelId>/events \
      -H "Content-Type: application/json" \
      -H "X-GitHub-Event: push" \
      -d '{"ref":"refs/heads/main","test":true}' | jq .
@@ -125,7 +125,7 @@ Smoke-test the live gateway endpoints using `curl` commands.
 
 4. **Read events via SSE** (verify end-to-end):
    ```bash
-   curl -s -N https://mort-server.fly.dev/gateway/devices/test-deploy-device/events
+   curl -s -N https://anvil-server.fly.dev/gateway/devices/test-deploy-device/events
    ```
    Should receive the buffered event as an SSE frame, then heartbeats.
 
@@ -140,7 +140,7 @@ Modify the test setup so tests can run against either a local server (default) o
 ### Environment variable
 
 ```
-GATEWAY_BASE_URL=https://mort-server.fly.dev
+GATEWAY_BASE_URL=https://anvil-server.fly.dev
 ```
 
 When set, tests use this URL directly instead of spinning up a local Fastify server. When unset (default), behavior is unchanged — tests start a local server with local Redis.
@@ -224,7 +224,7 @@ it("stores channel in Redis with correct key structure", async ({ skip }) => {
 cd server && pnpm test
 
 # Against production
-GATEWAY_BASE_URL=https://mort-server.fly.dev pnpm test
+GATEWAY_BASE_URL=https://anvil-server.fly.dev pnpm test
 ```
 
 ### Implementation details

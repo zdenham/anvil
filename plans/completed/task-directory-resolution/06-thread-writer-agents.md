@@ -95,7 +95,7 @@ import { ThreadWriter } from "./services/thread-writer";
 
 // Near top of run():
 const fsAdapter = new NodeFSAdapter();
-const resolution = new ResolutionService(fsAdapter, join(args.mortDir, "tasks"));
+const resolution = new ResolutionService(fsAdapter, join(args.anvilDir, "tasks"));
 const threadWriter = new ThreadWriter(resolution, fsAdapter, args.threadId);
 ```
 

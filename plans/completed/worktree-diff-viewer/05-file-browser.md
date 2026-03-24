@@ -170,7 +170,7 @@ function directoryContainsChangedFile(
 }
 ```
 
-**Path conversion**: The `changedFilePaths` in the store are **relative** to the worktree root (e.g., `src/foo.ts`). The `DirEntry.path` values are **absolute** (e.g., `/Users/zac/.mort/worktrees/abc/src/foo.ts`). Convert relative paths to absolute by prepending `rootPath + "/"` when building the `changedAbsolutePaths` set. Do this once in `FileBrowserPanel` (not inside the filter function) using a `useMemo`:
+**Path conversion**: The `changedFilePaths` in the store are **relative** to the worktree root (e.g., `src/foo.ts`). The `DirEntry.path` values are **absolute** (e.g., `/Users/zac/.anvil/worktrees/abc/src/foo.ts`). Convert relative paths to absolute by prepending `rootPath + "/"` when building the `changedAbsolutePaths` set. Do this once in `FileBrowserPanel` (not inside the filter function) using a `useMemo`:
 
 ```typescript
 const changedAbsolutePaths = useMemo(() => {

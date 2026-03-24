@@ -9,7 +9,7 @@ Introduce a new "plan" entity that represents markdown files in a repository's `
 1. **Plan Entity**: A plan is a markdown file in the `plans/` directory of a repository
 2. **Relationships**: Both tasks and threads can have an optional `planId` field
 3. **Detection**: When a thread creates/edits a file in `plans/` OR mentions a plan path in a user message, the thread should be associated with that plan
-4. **Persistence**: Plans stored in `.mort` layout like other entities
+4. **Persistence**: Plans stored in `.anvil` layout like other entities
 5. **Read/Unread Status**: Plans have read/unread status similar to threads
 6. **UI**: Third tab in simple-task view to show the associated plan with markdown rendering
 7. **Unified Navigation**: Extend existing task navigation to include unread plans in the same priority queue
@@ -72,17 +72,17 @@ planId: z.string().optional(),
 
 ## Persistence Layout
 
-Plans metadata stored in `.mort/plans/` directory:
+Plans metadata stored in `.anvil/plans/` directory:
 
 ```
-~/.mort/
+~/.anvil/
 ├── plans/
 │   ├── {plan-id}/
 │   │   └── metadata.json    # PlanMetadata
 │   └── ...
 ```
 
-Note: The actual plan content lives in the repository's `plans/` directory, not in `.mort`. We only store metadata (read status, relationships) in `.mort`.
+Note: The actual plan content lives in the repository's `plans/` directory, not in `.anvil`. We only store metadata (read status, relationships) in `.anvil`.
 
 ---
 
@@ -102,7 +102,7 @@ Note: The actual plan content lives in the repository's `plans/` directory, not 
    - Optimistic methods: `_applyCreate`, `_applyUpdate`, `_applyDelete`
 
 3. **Create plan service** (`src/entities/plans/service.ts`)
-   - Hydration: scan `.mort/plans/*/metadata.json`
+   - Hydration: scan `.anvil/plans/*/metadata.json`
    - CRUD operations with optimistic updates
    - `findByPath(repositoryName, path)` - lookup existing plan by repo + path
    - `ensurePlanExists(repositoryName, path)` - idempotent creation (looks up by path first, creates with new UUID if not found)

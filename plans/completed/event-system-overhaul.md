@@ -70,7 +70,7 @@ No optimistic update when user initiates agent:
 
 ```typescript
 // Current: Line-by-line JSON detection
-function detectMortMutations(result: ToolResult): void {
+function detectAnvilMutations(result: ToolResult): void {
   const lines = stdout.split("\n");
   for (const line of lines) {
     if (trimmed.startsWith("{")) {  // Fragile!
@@ -620,7 +620,7 @@ export const events = {
 
 **Goal**: Emit events after all CLI mutations.
 
-**File**: `agents/src/cli/mort.ts`
+**File**: `agents/src/cli/anvil.ts`
 
 ```typescript
 import { events } from "../lib/events.js";
@@ -793,7 +793,7 @@ interface SpawnAgentWithOrchestrationOptions {
 ```
 
 **Remove**:
-- `detectMortMutations()` function (lines 56-66)
+- `detectAnvilMutations()` function (lines 56-66)
 - `tryRefreshFromToolResult()` function (lines 73-122)
 
 **Add**:
@@ -1314,7 +1314,7 @@ export const eventBus = mitt<AppEvents>();
 - [ ] Update `SpawnAgentWithOrchestrationOptions` to require `taskId`
 - [ ] Update call sites in `spotlight.tsx` to pass `task.id`
 - [ ] Update call sites in `task-workspace.tsx` to pass `task.id`
-- [ ] Remove `detectMortMutations()` function
+- [ ] Remove `detectAnvilMutations()` function
 - [ ] Remove `tryRefreshFromToolResult()` function
 - [ ] Implement `handleAgentEvent()` dispatcher
 - [ ] Update stdout parsing to use `parseAgentOutput()`
@@ -1386,7 +1386,7 @@ export const eventBus = mitt<AppEvents>();
 | `core/types/index.ts` | Update | Add exports |
 | `agents/src/output.ts` | Update | Remove duplicate types, import from @core |
 | `agents/src/lib/events.ts` | Rewrite | Typed emitter with helpers |
-| `agents/src/cli/mort.ts` | Update | Add event emissions |
+| `agents/src/cli/anvil.ts` | Update | Add event emissions |
 | `agents/src/orchestration.ts` | Update | Replace logs with events |
 | `src/lib/agent-output-parser.ts` | Create | Typed parser |
 | `src/lib/agent-service.ts` | Refactor | Add taskId to options, remove brittle parsing, add handleAgentEvent |
@@ -1457,7 +1457,7 @@ Phase 1 (Shared Types)
 
 If issues arise during migration:
 
-1. Keep old `detectMortMutations()` code commented but available
+1. Keep old `detectAnvilMutations()` code commented but available
 2. Add feature flag `USE_NEW_EVENT_SYSTEM` defaulting to true
 3. Can switch between old parsing and new events via flag
 4. Monitor structured logs for unknown event names

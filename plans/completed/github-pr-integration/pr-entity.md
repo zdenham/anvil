@@ -1,6 +1,6 @@
 # A: PR Entity & Data Model
 
-Defines the pull request data model, entity service, Zustand store, gh CLI client, and event listeners. The PR entity is a lightweight binding between a GitHub PR and a Mort worktree. All GitHub data is fetched on-demand via the `gh` CLI (the user's existing credentials handle auth -- no OAuth, no tokens). The `gh` CLI is the source of truth for display data; we persist only the minimal metadata needed to maintain the binding.
+Defines the pull request data model, entity service, Zustand store, gh CLI client, and event listeners. The PR entity is a lightweight binding between a GitHub PR and a Anvil worktree. All GitHub data is fetched on-demand via the `gh` CLI (the user's existing credentials handle auth -- no OAuth, no tokens). The `gh` CLI is the source of truth for display data; we persist only the minimal metadata needed to maintain the binding.
 
 ## Phases
 
@@ -25,8 +25,8 @@ The PR entity stores minimal binding metadata. Display data is fetched on-demand
 import { z } from "zod";
 
 /**
- * Persisted PR metadata -- the binding between a GitHub PR and a Mort worktree.
- * Storage: ~/.mort/pull-requests/{id}/metadata.json
+ * Persisted PR metadata -- the binding between a GitHub PR and a Anvil worktree.
+ * Storage: ~/.anvil/pull-requests/{id}/metadata.json
  *
  * This is intentionally lightweight. The gh CLI is the source of truth for all
  * display data (title, description, checks, reviews). We only persist the fields
@@ -178,10 +178,10 @@ Each worktree can have at most one active PR (the branch's PR). The "Create pull
 ### Storage Location
 
 ```
-~/.mort/pull-requests/{id}/
+~/.anvil/pull-requests/{id}/
   metadata.json    <- PullRequestMetadata (Zod-validated on load)
 
-~/.mort/archive/pull-requests/{id}/
+~/.anvil/archive/pull-requests/{id}/
   metadata.json    <- Archived PR metadata
 ```
 
@@ -724,10 +724,10 @@ export const pullRequestService = {
 
 | Operation | Path | Pattern |
 |-----------|------|---------|
-| Create | `~/.mort/pull-requests/{id}/metadata.json` | Generate UUID, write JSON |
+| Create | `~/.anvil/pull-requests/{id}/metadata.json` | Generate UUID, write JSON |
 | Read | Same | Parse with `PullRequestMetadataSchema.safeParse()` at load |
 | Update | Same | Read-modify-write with optimistic store update |
-| Archive | Move to `~/.mort/archive/pull-requests/{id}/` | Copy metadata, remove original |
+| Archive | Move to `~/.anvil/archive/pull-requests/{id}/` | Copy metadata, remove original |
 | Delete | Remove directory | From either active or archive location |
 
 ---
@@ -1076,10 +1076,10 @@ src/entities/pull-requests/
 src/lib/
   gh-cli.ts                             <- GhCli typed client (or gh-cli/ directory if >250 lines)
 
-~/.mort/pull-requests/{id}/
+~/.anvil/pull-requests/{id}/
   metadata.json                         <- Persisted PR binding
 
-~/.mort/archive/pull-requests/{id}/
+~/.anvil/archive/pull-requests/{id}/
   metadata.json                         <- Archived PR metadata
 ```
 

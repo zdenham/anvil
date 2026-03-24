@@ -8,7 +8,7 @@ Detect the first user message in CLI/TUI sessions to generate thread names and w
 
 ## Problem
 
-SDK-managed threads call `generateThreadName(config.prompt)` and `generateWorktreeName(config.prompt)` because the prompt is known upfront. TUI threads spawn Claude CLI in a PTY — Mort doesn't know what the user types until after they submit it. Without naming, TUI threads show up as unnamed entries in the sidebar.
+SDK-managed threads call `generateThreadName(config.prompt)` and `generateWorktreeName(config.prompt)` because the prompt is known upfront. TUI threads spawn Claude CLI in a PTY — Anvil doesn't know what the user types until after they submit it. Without naming, TUI threads show up as unnamed entries in the sidebar.
 
 ## Approach: `UserPromptSubmit` HTTP Hook
 
@@ -55,10 +55,10 @@ Add `UserPromptSubmit` to the dynamically generated `hooks.json` (Phase 3 of `cl
       "hooks": [{
         "type": "http",
         "url": "http://localhost:{port}/hooks/user-prompt-submit",
-        "headers": { "X-Mort-Thread-Id": "$MORT_THREAD_ID" },
-        "allowedEnvVars": ["MORT_THREAD_ID"],
+        "headers": { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" },
+        "allowedEnvVars": ["ANVIL_THREAD_ID"],
         "timeout": 10,
-        "statusMessage": "Connecting to Mort..."
+        "statusMessage": "Connecting to Anvil..."
       }]
     }
   ]

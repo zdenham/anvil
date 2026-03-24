@@ -2,16 +2,16 @@
 
 > **NO MIGRATION. NO BACKWARDS COMPATIBILITY.**
 >
-> This is a clean break. Existing `.mort/threads/` data will be orphaned and ignored.
-> Users must delete their `.mort/threads/` directory before using the new version.
+> This is a clean break. Existing `.anvil/threads/` data will be orphaned and ignored.
+> Users must delete their `.anvil/threads/` directory before using the new version.
 > We have not launched yet, so there is no need to preserve old data.
 
 ## Problem Statement
 
-The `.mort/threads/` directory contains both flat JSON files and folders for threads:
+The `.anvil/threads/` directory contains both flat JSON files and folders for threads:
 
 ```
-.mort/threads/
+.anvil/threads/
 ├── c4f6f401-fb01-4a57-bf6f-9bf66773190f.json     # Flat file (frontend)
 ├── c4f6f401-fb01-4a57-bf6f-9bf66773190f/         # Folder (runner)
 │   ├── metadata.json
@@ -41,7 +41,7 @@ Called from `agent-service.ts:prepareAgent()` → `threadService.create()`
 
 ```typescript
 // runner.ts creates folder structure
-const threadPath = join(args.mortDir, "threads", args.threadId);
+const threadPath = join(args.anvilDir, "threads", args.threadId);
 mkdirSync(threadPath, { recursive: true });
 writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 ```
@@ -57,7 +57,7 @@ The runner also uses `output.ts` to write `state.json` with full message history
 const thread = await threadService.create({ ... });
 
 // Step 2: ALSO creates the folder (but no files yet)
-const threadPath = fs.joinPath(mortDir, "threads", thread.id);
+const threadPath = fs.joinPath(anvilDir, "threads", thread.id);
 await fs.mkdir(threadPath);
 ```
 
@@ -99,7 +99,7 @@ Neither is complete on its own.
 
 **Target Structure:**
 ```
-.mort/threads/{uuid}/
+.anvil/threads/{uuid}/
 ├── metadata.json    # Thread metadata (single source of truth, written by frontend only)
 └── state.json       # Message history + file changes (written by runner)
 ```
@@ -167,7 +167,7 @@ Clarify `state.json` ownership:
    - Remove redundant `fs.mkdir()` call
    - `threadService.create()` handles folder creation
 
-4. **Delete existing .mort/threads/ directory** (manual step for developers)
+4. **Delete existing .anvil/threads/ directory** (manual step for developers)
    - Old data is not migrated, just delete it
 
 ## Performance Considerations
@@ -288,7 +288,7 @@ writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
 ```typescript
 // Remove these lines (lines 144-149):
-// const threadPath = fs.joinPath(mortDir, "threads", thread.id);
+// const threadPath = fs.joinPath(anvilDir, "threads", thread.id);
 // await fs.mkdir(threadPath);
 
 // threadService.create() now handles folder creation

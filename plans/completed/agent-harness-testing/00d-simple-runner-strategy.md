@@ -25,14 +25,14 @@ import { emitEvent, emitLog } from "./shared";
 
 export class SimpleRunnerStrategy implements RunnerStrategy {
   parseArgs(args: string[]): RunnerConfig {
-    // Validate required args: --cwd, --thread-id, --mort-dir, --prompt
+    // Validate required args: --cwd, --thread-id, --anvil-dir, --prompt
     // Validate --cwd exists and is a directory
     // Return normalized config with agent: "simple"
   }
 
   async setup(config: RunnerConfig): Promise<OrchestrationContext> {
     // 1. Validate cwd exists and is accessible
-    // 2. Create simple-tasks/{threadId}/ directory in mort-dir
+    // 2. Create simple-tasks/{threadId}/ directory in anvil-dir
     // 3. Write initial metadata.json with status: "running"
     // 4. Emit thread:created event
     // 5. Return context with cwd as workingDir
@@ -54,7 +54,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
 --agent simple
 --cwd <path>           # Required: Working directory (must exist)
 --thread-id <uuid>     # Required: Unique thread identifier
---mort-dir <path>      # Required: Path to mort data directory
+--anvil-dir <path>      # Required: Path to anvil data directory
 --prompt <string>      # Required: Agent prompt/instructions
 ```
 
@@ -66,7 +66,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
    - Throw descriptive error if validation fails
 
 2. **Create metadata directory**:
-   - Create `{mortDir}/simple-tasks/{threadId}/` directory
+   - Create `{anvilDir}/simple-tasks/{threadId}/` directory
    - Use `mkdirSync` with `{ recursive: true }`
 
 3. **Write initial metadata**:
@@ -106,7 +106,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
 ### Metadata Schema
 
 ```typescript
-// Location: {mortDir}/simple-tasks/{threadId}/metadata.json
+// Location: {anvilDir}/simple-tasks/{threadId}/metadata.json
 interface SimpleTaskMetadata {
   /** Unique identifier (same as threadId for simple tasks) */
   id: string;

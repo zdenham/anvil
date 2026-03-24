@@ -2,9 +2,9 @@
 
 ## Problem
 
-When users first launch Mort, the app starts in "Accessory" activation policy mode, which hides it from the macOS dock. The main window appears for onboarding, but without a dock icon, users may find it confusing - the app doesn't feel like a "real" app and there's no visual anchor point to return to if they accidentally click away.
+When users first launch Anvil, the app starts in "Accessory" activation policy mode, which hides it from the macOS dock. The main window appears for onboarding, but without a dock icon, users may find it confusing - the app doesn't feel like a "real" app and there's no visual anchor point to return to if they accidentally click away.
 
-When users later search "mort" in Spotlight (or use the tray icon) to open the main window, the app becomes visible in the dock via `show_main_window()`, which temporarily switches to "Regular" activation policy.
+When users later search "anvil" in Spotlight (or use the tray icon) to open the main window, the app becomes visible in the dock via `show_main_window()`, which temporarily switches to "Regular" activation policy.
 
 ## Investigation Findings
 
@@ -52,7 +52,7 @@ When users later search "mort" in Spotlight (or use the tray icon) to open the m
 | `Accessory` | No | No | Background utilities, menu bar apps |
 | `Prohibited` | No | No | Agent apps that never appear |
 
-Mort uses Accessory mode to behave like a Spotlight-style utility that stays hidden until summoned. However, during onboarding, users expect a more traditional app experience.
+Anvil uses Accessory mode to behave like a Spotlight-style utility that stays hidden until summoned. However, during onboarding, users expect a more traditional app experience.
 
 ## Proposed Solution
 
@@ -113,16 +113,16 @@ This would apply to both onboarded and non-onboarded users. The tradeoff is that
 
 ## Testing
 
-1. **Fresh install simulation**: Delete `~/.mort/settings/config.json` to reset onboarding state
+1. **Fresh install simulation**: Delete `~/.anvil/settings/config.json` to reset onboarding state
 2. **Launch app**: Verify dock icon appears
 3. **Complete onboarding**: Verify dock icon remains while window is visible
 4. **Close window**: Verify dock icon disappears (Accessory mode)
 5. **Relaunch app**: Verify dock icon appears initially (onboarded users)
 6. **Use spotlight hotkey**: Verify spotlight panel works without dock icon
-7. **Search "Mort" in Spotlight**: Verify dock icon appears when main window opens
+7. **Search "Anvil" in Spotlight**: Verify dock icon appears when main window opens
 
 ## Future Considerations
 
-- Could add a user preference: "Keep Mort in Dock" that persists Regular mode
+- Could add a user preference: "Keep Anvil in Dock" that persists Regular mode
 - Could use dock icon badge to show active task count
 - Consider whether the app should remain in dock while tasks are running

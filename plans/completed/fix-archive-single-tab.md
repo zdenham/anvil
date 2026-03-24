@@ -2,7 +2,7 @@
 
 ## Problem
 
-When a user archives a thread from the sidebar and it's the only tab open, the next thread from the sidebar list gets opened and persists. Expected behavior: the tab should transition to the empty pane ("Welcome to Mort").
+When a user archives a thread from the sidebar and it's the only tab open, the next thread from the sidebar list gets opened and persists. Expected behavior: the tab should transition to the empty pane ("Welcome to Anvil").
 
 ## Diagnosis
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Integrate a terminal UI into Mort using **direct `portable-pty` integration** with xterm.js on the frontend. This approach gives us full control over PTY behavior while leveraging a battle-tested library (2.5M+ downloads, powers WezTerm).
+Integrate a terminal UI into Anvil using **direct `portable-pty` integration** with xterm.js on the frontend. This approach gives us full control over PTY behavior while leveraging a battle-tested library (2.5M+ downloads, powers WezTerm).
 
 **Stack**:
 - Backend: `portable-pty` (v0.9.0) with custom Tauri commands
@@ -10,7 +10,7 @@ Integrate a terminal UI into Mort using **direct `portable-pty` integration** wi
 - Integration: Terminal as a content pane type (aligned with main window refactor)
 
 **Why Direct Integration**:
-1. Mort already has shell infrastructure in `src-tauri/src/shell.rs` - established patterns for Tauri commands and environment handling
+1. Anvil already has shell infrastructure in `src-tauri/src/shell.rs` - established patterns for Tauri commands and environment handling
 2. Full control over data flow - integrates with existing event bridge architecture
 3. Fewer dependencies - no reliance on external plugin projects
 4. Battle-tested - portable-pty is part of WezTerm, actively maintained
@@ -65,7 +65,7 @@ Integrate a terminal UI into Mort using **direct `portable-pty` integration** wi
 
 16. **Multiple Terminals Same Worktree**: No special differentiation needed - last command display is sufficient.
 
-17. **Terminal Theming**: Hardcoded to match Mort's dark theme (not configurable initially).
+17. **Terminal Theming**: Hardcoded to match Anvil's dark theme (not configurable initially).
 
 18. **Keyboard Focus**: Terminal receives focus when pane opens and on click. No keyboard capture when focused elsewhere.
 
@@ -613,7 +613,7 @@ export type ContentPaneView =
 ### Phase 6: Polish ✅
 1. Debounced resize handling
 2. Copy/paste keyboard shortcuts (Cmd+C/V)
-3. Basic theming (match Mort dark theme)
+3. Basic theming (match Anvil dark theme)
 
 ### Phase 7: Advanced (Optional)
 1. Session persistence across app restart

@@ -10,7 +10,7 @@ Add an "Update" button in the Settings page that triggers an internal distributi
 2. Script must run backgrounded (`&`) because it will quit and restart the app
 3. Use the existing internal distribution script URL:
    ```
-   https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh
+   https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-installation-scripts/distribute_internally.sh
    ```
 
 ## Implementation Steps
@@ -26,7 +26,7 @@ Add to `src-tauri/src/shell.rs`:
 pub fn run_internal_update() -> Result<(), String> {
     use std::process::Stdio;
 
-    let script_url = "https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh";
+    let script_url = "https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/anvil-installation-scripts/distribute_internally.sh";
 
     // Use sh -c to run the pipeline, with & to background the entire operation
     // The script will quit and restart the app, so we don't wait for it
@@ -106,7 +106,7 @@ export function AboutSettings() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-surface-400">
           <Info size={16} />
-          <span>Mortician v{version}</span>
+          <span>Anvil v{version}</span>
         </div>
         <button
           onClick={handleUpdate}

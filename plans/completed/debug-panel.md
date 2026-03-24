@@ -19,7 +19,7 @@ Slide-in bottom panel toggled via `Cmd+Shift+D`. Wraps the existing `LogsPage` a
 
 - `Cmd+Shift+D` toggles open/closed
 - Panel slides up from the bottom, resizable via drag handle
-- Panel height persisted to `~/.mort/ui/debug-panel.json`
+- Panel height persisted to `~/.anvil/ui/debug-panel.json`
 - Not mounted when closed (zero cost)
 - Escape closes when panel has focus
 - Two tabs: **Logs** and **Diagnostics** — rendering the existing components directly
@@ -59,7 +59,7 @@ interface DebugPanelState {
 Actions: `toggle()`, `open(tab?)`, `close()`, `setActiveTab(tab)`, `setPanelHeight(h)`
 
 **Create** `src/stores/debug-panel/service.ts`
-- `hydrate()` — read from `~/.mort/ui/debug-panel.json`, validate with Zod
+- `hydrate()` — read from `~/.anvil/ui/debug-panel.json`, validate with Zod
 - `persist()` — debounced write (same pattern as layout service)
 
 ### Phase 2: Shell component with tabs

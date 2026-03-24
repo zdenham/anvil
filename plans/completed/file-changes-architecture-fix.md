@@ -29,7 +29,7 @@ The file changes system has architectural inconsistencies that cause bugs:
 **Worktree Consideration**:
 - Each thread has a `workingDirectory` that points to either the main repo or a worktree
 - File paths stored relative to `workingDirectory` work correctly in both cases
-- Example: A file at `/Users/x/.mort/repositories/myrepo/feature-branch/src/foo.ts` in a worktree would be stored as `src/foo.ts`
+- Example: A file at `/Users/x/.anvil/repositories/myrepo/feature-branch/src/foo.ts` in a worktree would be stored as `src/foo.ts`
 
 ### 2. Git Diff for Untracked Files
 
@@ -524,8 +524,8 @@ describe('ChangesTab with worktrees', () => {
   it('generates correct diff in worktree context', async () => {
     // Given: Thread running in a worktree
     const threadMetadata = {
-      workingDirectory: '/Users/x/.mort/repositories/myrepo/feature-branch',
-      worktreePath: '/Users/x/.mort/repositories/myrepo/feature-branch',
+      workingDirectory: '/Users/x/.anvil/repositories/myrepo/feature-branch',
+      worktreePath: '/Users/x/.anvil/repositories/myrepo/feature-branch',
       git: { initialCommitHash: 'abc123' },
       // ...
     };
@@ -540,7 +540,7 @@ describe('ChangesTab with worktrees', () => {
     // Then: Diff is generated correctly using worktree path
     await waitFor(() => {
       expect(mockGitCommands.diffFiles).toHaveBeenCalledWith(
-        '/Users/x/.mort/repositories/myrepo/feature-branch',
+        '/Users/x/.anvil/repositories/myrepo/feature-branch',
         'abc123',
         expect.any(Array)
       );

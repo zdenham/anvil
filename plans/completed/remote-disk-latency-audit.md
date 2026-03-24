@@ -61,7 +61,7 @@ These block app launch or new-thread creation. Users wait directly on these.
 | 17 | `src/lib/app-data-store.ts:179-246` | `AppDataStore.glob()` — recursive IPC per wildcard level | **Every hydration glob** | N Tauri IPC round-trips per glob level |
 
 **Refactoring needed:**
-- **(6-9, 13, 17)** Implement a **bulk read** Tauri command: `fs_read_batch(patterns: string[]) -> Map<path, content>`. One IPC round-trip instead of N+1. Alternatively, build a **manifest file** (`~/.mort/manifest.json`) that's an index of all metadata, updated on write — single file read to hydrate all stores.
+- **(6-9, 13, 17)** Implement a **bulk read** Tauri command: `fs_read_batch(patterns: string[]) -> Map<path, content>`. One IPC round-trip instead of N+1. Alternatively, build a **manifest file** (`~/.anvil/manifest.json`) that's an index of all metadata, updated on write — single file read to hydrate all stores.
 - **(14)** Cache repo settings in-memory in the agent process. Read once at process start, not per-thread.
 - **(15)** For remote disk: stream state.json rather than blocking read of entire file. Or keep a local LRU cache of recent state files.
 - **(16)** Already one read; acceptable if local. If remote, cache version in a local sidecar file.
@@ -89,7 +89,7 @@ These fire during agent operation but not on every single turn. Adding 200ms lat
 - **(18-19)** Cache plan file content + thread metadata in-memory during PostToolUse hook chain; don't re-read within same hook execution
 - **(20-22)** Already has Map cache for child state (22). Consider making (20-21) also use the same cache or an async write pattern
 - **(23)** Maintain an in-memory registry of running children (already tracked via task spawning). Don't scan disk.
-- **(24)** **Build a plan index file** (`~/.mort/plans-index.json`) mapping `repoId:relativePath -> planId`. Single read instead of O(N) scan. Update on plan creation/deletion.
+- **(24)** **Build a plan index file** (`~/.anvil/plans-index.json`) mapping `repoId:relativePath -> planId`. Single read instead of O(N) scan. Update on plan creation/deletion.
 - **(26)** Lock files should remain local even when data dir is remote. Consider a local lock sidecar.
 
 ---
@@ -150,7 +150,7 @@ The agent layer (`agents/src/`) uses `readFileSync` everywhere. This is the sing
 
 Replace N individual file reads at startup with a single manifest:
 ```
-~/.mort/manifest.json
+~/.anvil/manifest.json
 {
   threads: { [id]: metadata },
   plans: { [id]: metadata },

@@ -84,9 +84,9 @@ This document summarizes all refinements made to the agent harness testing plan 
 
 ---
 
-## 01b-test-mort-directory.md
+## 01b-test-anvil-directory.md
 
-- **Expanded the Overview section** to explain the purpose more clearly - added context about mirroring the `~/.mort` layout and enabling integration tests without affecting real data
+- **Expanded the Overview section** to explain the purpose more clearly - added context about mirroring the `~/.anvil` layout and enabling integration tests without affecting real data
 - **Added missing `description` field** to the `createTask` input and TaskMetadata output, aligning with the actual `TaskMetadata` interface in `core/types/tasks.ts`
 - **Added `defaultBranch` option** to `TestRepository` interface, making it configurable instead of hardcoded to "main", with the hardcoded default now using this parameter
 - **Replaced `console.log` with `logger`** in the cleanup method, following the project's logging guidelines from `docs/agents.md` which explicitly prohibits `console.log`
@@ -103,7 +103,7 @@ This document summarizes all refinements made to the agent harness testing plan 
 - **Added a conditional check before initial commit** to handle the edge case where `getFixtureFiles()` might return an empty array, preventing a git error when committing with no staged files
 - **Improved documentation throughout** by enhancing JSDoc comments (e.g., adding `@throws` to `git()` method), adding descriptions to fixture template sections, noting the fluent API pattern in Key Features, and adding a cleanup reminder to the usage example
 - **Expanded Acceptance Criteria** from 6 items to 10, making them more specific and testable (e.g., "verify with `git log`", explicit criteria for `git()` throwing on failure, separate criteria for each preservation mechanism)
-- **Added a new "Integration with TestMortDirectory" section** with a complete code example showing how to use both services together for full orchestration testing, improving the plan's practical utility
+- **Added a new "Integration with TestAnvilDirectory" section** with a complete code example showing how to use both services together for full orchestration testing, improving the plan's practical utility
 
 ---
 
@@ -161,7 +161,7 @@ This document summarizes all refinements made to the agent harness testing plan 
 
 - **Added proper cleanup handling with `afterEach` hooks**: The original tests called `cleanup()` inline within tests, which would leak resources if tests failed. Added `let` declarations for test subjects at describe scope with `afterEach` hooks to ensure cleanup happens even on test failures
 - **Added "Rationale" section explaining why self-verification tests matter**: This helps developers understand the purpose of testing the test framework itself - building trust in the infrastructure and providing fast feedback loops
-- **Expanded test coverage**: Added explicit cleanup verification tests for both `TestMortDirectory` and `TestRepository`, a new fluent chaining test for assertions, and a timeout handling test for live agent runs
+- **Expanded test coverage**: Added explicit cleanup verification tests for both `TestAnvilDirectory` and `TestRepository`, a new fluent chaining test for assertions, and a timeout handling test for live agent runs
 - **Improved documentation structure**: Added a table-based test categories section, included the package.json script definition that was missing, enhanced bash examples with a grep command for running only live tests, and added a Notes section with implementation guidance
 - **Made assertion tests more explicit**: Added regex matchers to verify specific error messages are thrown (e.g., `/Expected event "nonexistent:event" not found/`), ensuring tests validate both behavior and error quality
 

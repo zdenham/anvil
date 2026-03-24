@@ -2,7 +2,7 @@
 
 ## Objective
 
-Implement the full plan at `plans/consolidate-to-websocket-and-node-sidecar.md`. Serve a fully functional web version of Mort that runs entirely on Node.js — no Rust process required. A browser + the Node.js sidecar is all you need. The Tauri desktop app continues to work, but delegates all data communication to the same Node.js sidecar.
+Implement the full plan at `plans/consolidate-to-websocket-and-node-sidecar.md`. Serve a fully functional web version of Anvil that runs entirely on Node.js — no Rust process required. A browser + the Node.js sidecar is all you need. The Tauri desktop app continues to work, but delegates all data communication to the same Node.js sidecar.
 
 **All sidecar code is TypeScript** with strict typing — no `any`, no untyped JS files.
 
@@ -65,5 +65,5 @@ Every item must be **programmatically verified** — no manual testing deferred.
 - **No pnpm-workspace.yaml** — workspaces defined in package.json
 - **Existing adapters**: `core/adapters/` pattern for dependency injection
 - **Agent hub**: `src-tauri/src/agent_hub.rs` (31KB) — currently Unix socket based
-- **WS port env var**: `MORT_WS_PORT` (default 9600) already used across codebase
+- **WS port env var**: `ANVIL_WS_PORT` (default 9600) already used across codebase
 - **35 files** import `@tauri-apps/*`, 10 use `plugin-shell`, 6 use `plugin-dialog`

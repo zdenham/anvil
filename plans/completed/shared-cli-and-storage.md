@@ -13,7 +13,7 @@ Create a shared TypeScript architecture where:
 
 ## Current Problems
 
-1. **Duplicate implementations**: Rust CLI and TypeScript UI both write to `.mort/tasks/`
+1. **Duplicate implementations**: Rust CLI and TypeScript UI both write to `.anvil/tasks/`
 2. **No code sharing**: Task creation logic duplicated in Rust and TypeScript
 3. **Storage format inconsistency**: Flat JSON files vs folder-based structure
 4. **Kanban visibility**: Tasks with "draft" status excluded from kanban board
@@ -28,8 +28,8 @@ Create a shared TypeScript architecture where:
 │                                                                 │
 │  ┌─────────────┐    ┌─────────────────────────────────────────┐ │
 │  │ route skill │───▶│  CLI Tool (TypeScript)                  │ │
-│  │ (mort tasks │    │  - Uses MortPersistence (Node adapter)  │ │
-│  │  create)    │    │  - Writes to ~/.mort/tasks/             │ │
+│  │ (anvil tasks │    │  - Uses AnvilPersistence (Node adapter)  │ │
+│  │  create)    │    │  - Writes to ~/.anvil/tasks/             │ │
 │  └─────────────┘    │  - Outputs JSON to stdout               │ │
 │                     └──────────────────┬──────────────────────┘ │
 │                                        │                        │
@@ -50,13 +50,13 @@ Create a shared TypeScript architecture where:
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │  Agent Stream Handler                                       ││
 │  │  - Parses tool results                                      ││
-│  │  - Detects mort CLI calls (tasks.create, etc.)              ││
+│  │  - Detects anvil CLI calls (tasks.create, etc.)              ││
 │  │  - Triggers store refresh                                   ││
 │  └──────────────────────────┬──────────────────────────────────┘│
 │                             │                                   │
 │                             ▼                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │  Services (using MortPersistence - Tauri adapter)           ││
+│  │  Services (using AnvilPersistence - Tauri adapter)           ││
 │  │  - taskService.refreshTask(id) fetches single task from disk││
 │  │  - Store upserts/removes task, UI re-renders                ││
 │  └─────────────────────────────────────────────────────────────┘│
@@ -70,7 +70,7 @@ Create a shared TypeScript architecture where:
 Tasks stored as folders with separate metadata and content:
 
 ```
-.mort/tasks/
+.anvil/tasks/
 ├── fix-login-bug/
 │   ├── metadata.json    # TaskMetadata object
 │   └── content.md       # Task description/notes (optional)
@@ -124,8 +124,8 @@ export function resolveSlugConflict(baseSlug: string, existingSlugs: Set<string>
 // core/persistence.ts
 import { slugify, resolveSlugConflict } from "./slug.js";
 
-export abstract class MortPersistence {
-  protected abstract mortDir: string;
+export abstract class AnvilPersistence {
+  protected abstract anvilDir: string;
 
   // Core I/O operations
   abstract read<T>(path: string): Promise<T | null>;
@@ -264,41 +264,41 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, unlink
 import { join } from "path";
 import { homedir } from "os";
 
-export class NodePersistence extends MortPersistence {
+export class NodePersistence extends AnvilPersistence {
   // Default location - can be overridden via constructor or env var
-  // Uses ~/Documents/.mort to match Tauri app's document directory
-  protected mortDir: string;
+  // Uses ~/Documents/.anvil to match Tauri app's document directory
+  protected anvilDir: string;
 
-  constructor(mortDir?: string) {
+  constructor(anvilDir?: string) {
     super();
-    this.mortDir = mortDir ?? process.env.MORT_DIR ?? join(homedir(), "Documents", ".mort");
+    this.anvilDir = anvilDir ?? process.env.ANVIL_DIR ?? join(homedir(), "Documents", ".anvil");
   }
 
   async read<T>(path: string): Promise<T | null> {
-    const fullPath = join(this.mortDir, path);
+    const fullPath = join(this.anvilDir, path);
     if (!existsSync(fullPath)) return null;
     return JSON.parse(readFileSync(fullPath, "utf-8"));
   }
 
   async write(path: string, data: unknown): Promise<void> {
-    const fullPath = join(this.mortDir, path);
+    const fullPath = join(this.anvilDir, path);
     mkdirSync(join(fullPath, ".."), { recursive: true });
     writeFileSync(fullPath, JSON.stringify(data, null, 2));
   }
 
   async delete(path: string): Promise<void> {
-    const fullPath = join(this.mortDir, path);
+    const fullPath = join(this.anvilDir, path);
     if (existsSync(fullPath)) unlinkSync(fullPath);
   }
 
   async list(dir: string): Promise<string[]> {
-    const fullPath = join(this.mortDir, dir);
+    const fullPath = join(this.anvilDir, dir);
     if (!existsSync(fullPath)) return [];
     return readdirSync(fullPath);
   }
 
   async listDirs(dir: string): Promise<string[]> {
-    const fullPath = join(this.mortDir, dir);
+    const fullPath = join(this.anvilDir, dir);
     if (!existsSync(fullPath)) return [];
     return readdirSync(fullPath).filter(name => {
       const stat = statSync(join(fullPath, name));
@@ -307,26 +307,26 @@ export class NodePersistence extends MortPersistence {
   }
 
   async exists(path: string): Promise<boolean> {
-    return existsSync(join(this.mortDir, path));
+    return existsSync(join(this.anvilDir, path));
   }
 
   async mkdir(path: string): Promise<void> {
-    mkdirSync(join(this.mortDir, path), { recursive: true });
+    mkdirSync(join(this.anvilDir, path), { recursive: true });
   }
 
   async rmdir(path: string): Promise<void> {
-    const fullPath = join(this.mortDir, path);
+    const fullPath = join(this.anvilDir, path);
     if (existsSync(fullPath)) rmSync(fullPath, { recursive: true });
   }
 
   async writeText(path: string, content: string): Promise<void> {
-    const fullPath = join(this.mortDir, path);
+    const fullPath = join(this.anvilDir, path);
     mkdirSync(join(fullPath, ".."), { recursive: true });
     writeFileSync(fullPath, content);
   }
 
   async readText(path: string): Promise<string | null> {
-    const fullPath = join(this.mortDir, path);
+    const fullPath = join(this.anvilDir, path);
     if (!existsSync(fullPath)) return null;
     return readFileSync(fullPath, "utf-8");
   }
@@ -339,23 +339,23 @@ export class NodePersistence extends MortPersistence {
 // src/lib/persistence-tauri.ts
 import { FilesystemClient } from "./filesystem-client";
 
-export class TauriPersistence extends MortPersistence {
-  protected mortDir: string;
+export class TauriPersistence extends AnvilPersistence {
+  protected anvilDir: string;
   private fs = new FilesystemClient();
 
-  constructor(mortDir: string) {
+  constructor(anvilDir: string) {
     super();
-    this.mortDir = mortDir;
+    this.anvilDir = anvilDir;
   }
 
   async read<T>(path: string): Promise<T | null> {
-    const fullPath = this.fs.joinPath(this.mortDir, path);
+    const fullPath = this.fs.joinPath(this.anvilDir, path);
     if (!(await this.fs.exists(fullPath))) return null;
     return this.fs.readJsonFile<T>(fullPath);
   }
 
   async write(path: string, data: unknown): Promise<void> {
-    const fullPath = this.fs.joinPath(this.mortDir, path);
+    const fullPath = this.fs.joinPath(this.anvilDir, path);
     await this.fs.writeJsonFile(fullPath, data);
   }
 
@@ -368,7 +368,7 @@ export class TauriPersistence extends MortPersistence {
 ## CLI Implementation
 
 ```typescript
-// agents/src/cli/mort.ts
+// agents/src/cli/anvil.ts
 #!/usr/bin/env node
 import { NodePersistence } from "../lib/persistence-node.js";
 
@@ -499,7 +499,7 @@ main().catch(e => {
 
 ```typescript
 // src/lib/agent-service.ts (in stdout handler)
-function detectMortCliResult(output: string) {
+function detectAnvilCliResult(output: string) {
   try {
     const result = JSON.parse(output);
 
@@ -601,11 +601,11 @@ async migrateTasksToFolderFormat(): Promise<void> {
 agents/
   src/
     core/                      # Shared persistence layer
-      persistence.ts           # Abstract MortPersistence class
+      persistence.ts           # Abstract AnvilPersistence class
       types.ts                 # TaskMetadata, CreateTaskInput, etc.
       slug.ts                  # slugify, resolveSlugConflict
     cli/
-      mort.ts                  # CLI entry point
+      anvil.ts                  # CLI entry point
     lib/
       persistence-node.ts      # NodePersistence implementation (extends core)
 
@@ -638,7 +638,7 @@ src/
 2. Implement all abstract methods with Node.js fs
 
 ### Phase 4: Create TypeScript CLI
-1. Create `agents/src/cli/mort.ts`
+1. Create `agents/src/cli/anvil.ts`
 2. Implement tasks subcommands
 3. Add bin entry to `agents/package.json`
 4. Build and test
@@ -663,7 +663,7 @@ src/
 ## Verification
 
 1. Run migration on existing tasks
-2. Verify `.mort/tasks/` contains folders with `metadata.json` files
+2. Verify `.anvil/tasks/` contains folders with `metadata.json` files
 3. Create a new task via spotlight
 4. Verify new task creates folder structure
 5. Navigate to Tasks page → kanban view

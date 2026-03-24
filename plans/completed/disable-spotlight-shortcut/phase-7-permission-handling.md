@@ -134,9 +134,9 @@ const handleAutoDisable = async () => {
 )}
 ```
 
-### 4. Add mort-test Debug Commands
+### 4. Add anvil-test Debug Commands
 
-Add to `src-tauri/src/bin/mort-test/main.rs`:
+Add to `src-tauri/src/bin/anvil-test/main.rs`:
 
 ```rust
 Commands::CheckAccessibility => {
@@ -147,7 +147,7 @@ Commands::CheckAccessibility => {
         "has_accessibility_permission": has_permission,
         "executable": app_path.map(|p| p.display().to_string()),
         "note": if !has_permission {
-            Some("Run 'mort-test request-accessibility' to grant permission")
+            Some("Run 'anvil-test request-accessibility' to grant permission")
         } else {
             None
         }
@@ -202,8 +202,8 @@ export async function checkAccessibilityWithPrompt(prompt: boolean): Promise<boo
 ## Verification
 
 1. Test all scenarios above
-2. Run `mort-test check-accessibility` to verify CLI
-3. Run `mort-test disable-spotlight --debug` on different macOS versions
+2. Run `anvil-test check-accessibility` to verify CLI
+3. Run `anvil-test disable-spotlight --debug` on different macOS versions
 4. Verify error messages are helpful
 
 ## Success Criteria
@@ -220,4 +220,4 @@ export async function checkAccessibilityWithPrompt(prompt: boolean): Promise<boo
 - `AXIsProcessTrustedWithOptions` with prompt shows a system dialog
 - Error categorization helps users understand what went wrong
 - The retry count helps decide when to suggest alternatives
-- Debug output from mort-test is essential for supporting different macOS versions
+- Debug output from anvil-test is essential for supporting different macOS versions

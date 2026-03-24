@@ -1,6 +1,6 @@
-# Mortician API
+# Anvil API
 
-A basic Fastify server for the Mortician application.
+A basic Fastify server for the Anvil application.
 
 ## Getting Started
 

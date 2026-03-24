@@ -101,8 +101,8 @@ Route 8-10 stateless commands that exercise different domains. These commands ha
 | `fs_read_file` | filesystem.rs | Core FS — validates basic I/O |
 | `fs_exists` | filesystem.rs | Simple bool return |
 | `fs_list_dir` | filesystem.rs | Returns structured data (Vec) |
-| `get_paths_info` | mort_commands.rs | App path resolution |
-| `git_list_mort_branches` | git_commands.rs | Async git command |
+| `get_paths_info` | anvil_commands.rs | App path resolution |
+| `git_list_anvil_branches` | git_commands.rs | Async git command |
 | `git_diff_uncommitted` | git_commands.rs | Larger payload test |
 | `get_thread_status` | thread_commands.rs | Thread domain |
 | `validate_repository` | repo_commands.rs | Repo validation |

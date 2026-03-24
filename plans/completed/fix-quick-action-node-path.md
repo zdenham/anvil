@@ -6,7 +6,7 @@ Quick actions fail in production with `"No such file or directory (os error 2)"`
 
 **Root cause**: `quick-action-executor.ts` spawns `Command.create('node', [...], {})` with empty options — no `env.PATH`. On macOS, GUI apps launched from Finder/Dock don't inherit the user's shell PATH, so Tauri's shell plugin can't locate the `node` binary.
 
-The error is about finding the `node` executable itself, not about the action files. The action files live at `~/.mort/quick-actions/dist/<entryPoint>` (resolved via `action.projectPath` from the quick-actions service, which reads from `appData.getAbsolutePath(QUICK_ACTIONS_DIR)`). The runner script (`sdk-runner.js`) is bundled with the app and resolved via `resolveResource()`. Both paths are correct — the problem is purely that the OS can't find `node` to run them.
+The error is about finding the `node` executable itself, not about the action files. The action files live at `~/.anvil/quick-actions/dist/<entryPoint>` (resolved via `action.projectPath` from the quick-actions service, which reads from `appData.getAbsolutePath(QUICK_ACTIONS_DIR)`). The runner script (`sdk-runner.js`) is bundled with the app and resolved via `resolveResource()`. Both paths are correct — the problem is purely that the OS can't find `node` to run them.
 
 **Existing solution in codebase**: `agent-service.ts:290-295` already solves this by calling `invoke<string>("get_shell_path")` (Rust command that sources the user's login shell to capture PATH), caching it, and passing it as `env.PATH` in spawn options.
 
@@ -35,7 +35,7 @@ const command = Command.create('node', [
   runnerPath,
   '--action', actionJsPath,
   '--context', JSON.stringify(execContext),
-  '--mort-dir', dataDir,
+  '--anvil-dir', dataDir,
 ], { env: { PATH: shellPath } });
 ```
 

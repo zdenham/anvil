@@ -11,7 +11,7 @@ When a worktree is created, it should receive a random "real-sounding" name (max
 - **Client:** `src/entities/worktrees/service.ts` (TypeScript)
 - Worktrees currently require a user-provided name
 - Name validation: alphanumeric, hyphens, underscores only (`/^[a-zA-Z0-9_-]+$/`)
-- Stored in `~/.mort/repositories/{slug}/settings.json`
+- Stored in `~/.anvil/repositories/{slug}/settings.json`
 
 ### Thread Naming
 - **Service:** `agents/src/services/thread-naming-service.ts`

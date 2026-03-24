@@ -28,7 +28,7 @@ Agent PostToolUse hook detects plan file change
     ↓
 Agent reads file content, parses ## Phases section
     ↓
-Agent updates ~/.mort/plans/{id}/metadata.json with phaseInfo
+Agent updates ~/.anvil/plans/{id}/metadata.json with phaseInfo
     ↓
 Agent emits plan:detected event (existing) or plan:phases-updated event (new)
     ↓

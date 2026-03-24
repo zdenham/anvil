@@ -1,8 +1,8 @@
-# Phase 5: mort-test CLI Integration
+# Phase 5: anvil-test CLI Integration
 
 ## Goal
 
-Add commands to the mort-test CLI for testing the spotlight shortcut functionality independently of the main app.
+Add commands to the anvil-test CLI for testing the spotlight shortcut functionality independently of the main app.
 
 ## Prerequisites
 
@@ -10,17 +10,17 @@ Add commands to the mort-test CLI for testing the spotlight shortcut functionali
 
 ## Output
 
-**Modified File:** `src-tauri/src/bin/mort-test/main.rs`
+**Modified File:** `src-tauri/src/bin/anvil-test/main.rs`
 
 ## Implementation
 
-### Update mort-test/main.rs
+### Update anvil-test/main.rs
 
-First, the mort-test binary needs access to the spotlight_shortcut module. Since it's in the main crate, we need to make it accessible.
+First, the anvil-test binary needs access to the spotlight_shortcut module. Since it's in the main crate, we need to make it accessible.
 
 #### Option A: Use path attribute (simpler)
 
-Add to `src-tauri/src/bin/mort-test/main.rs`:
+Add to `src-tauri/src/bin/anvil-test/main.rs`:
 
 ```rust
 // At the top, include the modules from the parent crate
@@ -44,14 +44,14 @@ pub mod system_settings;
 pub mod spotlight_shortcut;
 ```
 
-Then in mort-test, use:
+Then in anvil-test, use:
 ```rust
-use mortician::{accessibility, spotlight_shortcut};
+use anvil::{accessibility, spotlight_shortcut};
 ```
 
 ### Add CLI Commands
 
-Update the `Commands` enum in `src-tauri/src/bin/mort-test/main.rs`:
+Update the `Commands` enum in `src-tauri/src/bin/anvil-test/main.rs`:
 
 ```rust
 #[derive(Subcommand)]
@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Check permission first
             if !accessibility::is_accessibility_trusted() {
                 eprintln!("Error: Accessibility permission not granted");
-                eprintln!("Run: mort-test request-accessibility");
+                eprintln!("Run: anvil-test request-accessibility");
                 std::process::exit(1);
             }
 
@@ -133,7 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
                 .spawn()?;
             eprintln!("Opened Accessibility settings");
-            eprintln!("Grant permission to mort-test, then try again");
+            eprintln!("Grant permission to anvil-test, then try again");
         }
     }
 
@@ -145,54 +145,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```bash
 # Check if accessibility permission is granted
-mort-test check-accessibility
+anvil-test check-accessibility
 # Output: {"has_accessibility_permission": true}
 # Exit code: 0 if granted, 1 if not
 
 # Request accessibility permission (opens System Settings)
-mort-test request-accessibility
+anvil-test request-accessibility
 
 # Check if Spotlight shortcut is enabled (dry run)
-mort-test disable-spotlight --dry-run
+anvil-test disable-spotlight --dry-run
 # Output: {"spotlight_shortcut_enabled": true}
 
 # Debug: print the System Settings UI tree
-mort-test disable-spotlight --debug
+anvil-test disable-spotlight --debug
 
 # Actually disable the Spotlight shortcut
-mort-test disable-spotlight
+anvil-test disable-spotlight
 # Output: Spotlight shortcut disabled successfully
 ```
 
 ## Build and Test
 
 ```bash
-# Build mort-test
-cargo build -p mortician --bin mort-test
+# Build anvil-test
+cargo build -p anvil --bin anvil-test
 
 # Run it (from target directory or with cargo run)
-cargo run -p mortician --bin mort-test -- check-accessibility
+cargo run -p anvil --bin anvil-test -- check-accessibility
 
 # Or after building:
-./target/debug/mort-test check-accessibility
+./target/debug/anvil-test check-accessibility
 ```
 
 ## Verification
 
-1. Build: `cargo build -p mortician --bin mort-test`
-2. Run `mort-test check-accessibility`
-3. If needed, run `mort-test request-accessibility` and grant permission
-4. Run `mort-test disable-spotlight --dry-run` to check status
-5. Run `mort-test disable-spotlight --debug` to see UI tree
-6. Run `mort-test disable-spotlight` to actually disable
+1. Build: `cargo build -p anvil --bin anvil-test`
+2. Run `anvil-test check-accessibility`
+3. If needed, run `anvil-test request-accessibility` and grant permission
+4. Run `anvil-test disable-spotlight --dry-run` to check status
+5. Run `anvil-test disable-spotlight --debug` to see UI tree
+6. Run `anvil-test disable-spotlight` to actually disable
 
 ## Success Criteria
 
-- [ ] `mort-test check-accessibility` reports permission status
-- [ ] `mort-test request-accessibility` opens the right Settings pane
-- [ ] `mort-test disable-spotlight --dry-run` returns current status
-- [ ] `mort-test disable-spotlight --debug` prints UI tree
-- [ ] `mort-test disable-spotlight` successfully disables the shortcut
+- [ ] `anvil-test check-accessibility` reports permission status
+- [ ] `anvil-test request-accessibility` opens the right Settings pane
+- [ ] `anvil-test disable-spotlight --dry-run` returns current status
+- [ ] `anvil-test disable-spotlight --debug` prints UI tree
+- [ ] `anvil-test disable-spotlight` successfully disables the shortcut
 - [ ] Clear error messages when permission is missing
 
 ## Notes

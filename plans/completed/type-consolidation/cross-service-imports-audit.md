@@ -55,7 +55,7 @@ The codebase has **significant layering violations** where both `core/` and `age
    - Imports: `getThreadFolderName`
    - From: `@/entities/threads/types.js`
 
-3. **agents/src/testing/services/test-mort-directory.ts**
+3. **agents/src/testing/services/test-anvil-directory.ts**
    - Imports: `RepositorySettings`
    - From: `@/entities/repositories/types.js`
 

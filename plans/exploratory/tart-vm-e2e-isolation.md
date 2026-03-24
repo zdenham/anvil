@@ -31,19 +31,19 @@ Tart provides:
 │                                                                      │
 │  ┌──────────────────────┐         ┌──────────────────────────────┐  │
 │  │   User Session       │         │        Tart VM               │  │
-│  │                      │         │     (mort-test-vm)           │  │
+│  │                      │         │     (anvil-test-vm)           │  │
 │  │  • VS Code           │         │                              │  │
-│  │  • Browser           │   SSH   │  • Mortician.app             │  │
-│  │  • Claude Code ──────────────────▶ • mort-test CLI            │  │
+│  │  • Browser           │   SSH   │  • Anvil.app             │  │
+│  │  • Claude Code ──────────────────▶ • anvil-test CLI            │  │
 │  │                      │         │  • Own display/keyboard      │  │
 │  │  (uninterrupted)     │         │  • Own clipboard             │  │
 │  │                      │         │                              │  │
 │  └──────────────────────┘         └──────────────────────────────┘  │
 │                                                                      │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  mort-test-vm wrapper                                         │   │
+│  │  anvil-test-vm wrapper                                         │   │
 │  │  • Ensures VM is running                                      │   │
-│  │  • Syncs latest Mortician build                               │   │
+│  │  • Syncs latest Anvil build                               │   │
 │  │  • Runs tests via SSH                                         │   │
 │  │  • Returns structured results                                 │   │
 │  └──────────────────────────────────────────────────────────────┘   │
@@ -81,17 +81,17 @@ Use Cirrus Labs' pre-built macOS images as a starting point:
 
 ```bash
 # Clone the base Sonoma image (~15GB download)
-tart clone ghcr.io/cirruslabs/macos-sonoma-base:latest mort-test-base
+tart clone ghcr.io/cirruslabs/macos-sonoma-base:latest anvil-test-base
 
 # Or for a minimal image (smaller, faster)
-tart clone ghcr.io/cirruslabs/macos-sonoma-vanilla:latest mort-test-base
+tart clone ghcr.io/cirruslabs/macos-sonoma-vanilla:latest anvil-test-base
 ```
 
 ### 1.2 Initial VM Configuration
 
 ```bash
 # Start the VM with GUI for initial setup
-tart run mort-test-base
+tart run anvil-test-base
 
 # Default credentials for Cirrus images:
 # Username: admin
@@ -120,7 +120,7 @@ defaults write com.apple.screensaver idleTime 0
 # Install dependencies
 brew install node pnpm
 
-# Create directory for Mortician builds
+# Create directory for Anvil builds
 mkdir -p ~/Applications
 ```
 
@@ -129,23 +129,23 @@ mkdir -p ~/Applications
 ```bash
 # Stop the VM first
 # Then create a snapshot we can restore to
-tart clone mort-test-base mort-test-clean
+tart clone anvil-test-base anvil-test-clean
 ```
 
 ---
 
-## Phase 2: Mortician Test Image
+## Phase 2: Anvil Test Image
 
 ### 2.1 Create Test-Specific Image
 
 ```bash
 # Clone from clean base
-tart clone mort-test-clean mort-test-vm
+tart clone anvil-test-clean anvil-test-vm
 ```
 
 ### 2.2 Sync Script
 
-Create a script to sync latest Mortician build to VM:
+Create a script to sync latest Anvil build to VM:
 
 **File: `scripts/sync-to-vm.sh`**
 
@@ -153,7 +153,7 @@ Create a script to sync latest Mortician build to VM:
 #!/bin/bash
 set -euo pipefail
 
-VM_NAME="${1:-mort-test-vm}"
+VM_NAME="${1:-anvil-test-vm}"
 VM_IP=$(tart ip "$VM_NAME" 2>/dev/null || echo "")
 
 if [ -z "$VM_IP" ]; then
@@ -165,22 +165,22 @@ fi
 
 echo "VM IP: $VM_IP"
 
-# Build Mortician if needed
-if [ ! -f "src-tauri/target/release/bundle/macos/Mortician.app" ]; then
-    echo "Building Mortician..."
+# Build Anvil if needed
+if [ ! -f "src-tauri/target/release/bundle/macos/Anvil.app" ]; then
+    echo "Building Anvil..."
     pnpm tauri build
 fi
 
 # Sync the app bundle
-echo "Syncing Mortician.app to VM..."
+echo "Syncing Anvil.app to VM..."
 rsync -avz --delete \
-    "src-tauri/target/release/bundle/macos/Mortician.app" \
+    "src-tauri/target/release/bundle/macos/Anvil.app" \
     "admin@$VM_IP:~/Applications/"
 
-# Sync mort-test binary (once built)
-if [ -f "src-tauri/target/release/mort-test" ]; then
+# Sync anvil-test binary (once built)
+if [ -f "src-tauri/target/release/anvil-test" ]; then
     rsync -avz \
-        "src-tauri/target/release/mort-test" \
+        "src-tauri/target/release/anvil-test" \
         "admin@$VM_IP:~/bin/"
 fi
 
@@ -195,7 +195,7 @@ echo "Sync complete!"
 #!/bin/bash
 set -euo pipefail
 
-VM_NAME="${1:-mort-test-vm}"
+VM_NAME="${1:-anvil-test-vm}"
 
 # Check if VM is already running
 if tart ip "$VM_NAME" &>/dev/null; then
@@ -238,13 +238,13 @@ exit 1
 
 ### 3.1 Isolated Test Command
 
-**File: `scripts/mort-test-isolated.sh`**
+**File: `scripts/anvil-test-isolated.sh`**
 
 ```bash
 #!/bin/bash
 set -euo pipefail
 
-VM_NAME="mort-test-vm"
+VM_NAME="anvil-test-vm"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 # Ensure VM is running
@@ -252,40 +252,40 @@ SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLeve
 
 VM_IP=$(tart ip "$VM_NAME")
 
-# Ensure Mortician is running in VM
+# Ensure Anvil is running in VM
 ssh $SSH_OPTS "admin@$VM_IP" bash <<'EOF'
     # Kill any existing instance
-    pkill -f Mortician || true
+    pkill -f Anvil || true
     sleep 1
 
-    # Start Mortician
-    open ~/Applications/Mortician.app
+    # Start Anvil
+    open ~/Applications/Anvil.app
     sleep 3
 
     # Verify it's running
-    if ! pgrep -f Mortician > /dev/null; then
-        echo "Failed to start Mortician"
+    if ! pgrep -f Anvil > /dev/null; then
+        echo "Failed to start Anvil"
         exit 1
     fi
-    echo "Mortician is running"
+    echo "Anvil is running"
 EOF
 
 # Run the test command
-echo "Running: mort-test $*"
-ssh $SSH_OPTS "admin@$VM_IP" "~/bin/mort-test $*"
+echo "Running: anvil-test $*"
+ssh $SSH_OPTS "admin@$VM_IP" "~/bin/anvil-test $*"
 ```
 
 ### 3.2 Usage Examples
 
 ```bash
 # Run a scenario
-./scripts/mort-test-isolated.sh scenario spotlight-search
+./scripts/anvil-test-isolated.sh scenario spotlight-search
 
 # Trigger a shortcut
-./scripts/mort-test-isolated.sh trigger "Command+Space"
+./scripts/anvil-test-isolated.sh trigger "Command+Space"
 
 # Check panel visibility
-./scripts/mort-test-isolated.sh check spotlight
+./scripts/anvil-test-isolated.sh check spotlight
 ```
 
 ---
@@ -314,14 +314,14 @@ jobs:
 
       - name: Pull VM Image
         run: |
-          tart clone ghcr.io/your-org/mort-test-vm:latest mort-test-vm
+          tart clone ghcr.io/your-org/anvil-test-vm:latest anvil-test-vm
 
       - name: Start VM
         run: |
-          tart run mort-test-vm --no-graphics &
+          tart run anvil-test-vm --no-graphics &
           sleep 30
 
-      - name: Build Mortician
+      - name: Build Anvil
         run: pnpm tauri build
 
       - name: Sync to VM
@@ -329,8 +329,8 @@ jobs:
 
       - name: Run E2E Tests
         run: |
-          ./scripts/mort-test-isolated.sh scenario spotlight-search
-          ./scripts/mort-test-isolated.sh scenario clipboard-paste
+          ./scripts/anvil-test-isolated.sh scenario spotlight-search
+          ./scripts/anvil-test-isolated.sh scenario clipboard-paste
 ```
 
 ### 4.2 Cirrus CI (Native Tart Support)
@@ -347,14 +347,14 @@ task:
 
   vm_cache:
     folder: ~/.tart
-    fingerprint_script: echo "mort-test-vm-v1"
+    fingerprint_script: echo "anvil-test-vm-v1"
     populate_script: |
-      tart clone ghcr.io/your-org/mort-test-vm:latest mort-test-vm
+      tart clone ghcr.io/your-org/anvil-test-vm:latest anvil-test-vm
 
   test_script:
     - ./scripts/start-test-vm.sh
     - ./scripts/sync-to-vm.sh
-    - ./scripts/mort-test-isolated.sh scenario spotlight-search
+    - ./scripts/anvil-test-isolated.sh scenario spotlight-search
 ```
 
 ---
@@ -364,18 +364,18 @@ task:
 ### 5.1 Build and Push Custom Image
 
 ```bash
-# After configuring mort-test-vm with all dependencies
+# After configuring anvil-test-vm with all dependencies
 # Push to GitHub Container Registry
 
-tart push mort-test-vm ghcr.io/your-org/mort-test-vm:latest
+tart push anvil-test-vm ghcr.io/your-org/anvil-test-vm:latest
 ```
 
 ### 5.2 Versioning Strategy
 
 ```bash
-# Tag images by Mortician version
-tart push mort-test-vm ghcr.io/your-org/mort-test-vm:v0.1.0
-tart push mort-test-vm ghcr.io/your-org/mort-test-vm:latest
+# Tag images by Anvil version
+tart push anvil-test-vm ghcr.io/your-org/anvil-test-vm:v0.1.0
+tart push anvil-test-vm ghcr.io/your-org/anvil-test-vm:latest
 ```
 
 ---
@@ -383,12 +383,12 @@ tart push mort-test-vm ghcr.io/your-org/mort-test-vm:latest
 ## Directory Structure
 
 ```
-mortician/
+anvil/
 ├── scripts/
 │   ├── start-test-vm.sh      # Start/ensure VM running
 │   ├── stop-test-vm.sh       # Stop VM
 │   ├── sync-to-vm.sh         # Sync build to VM
-│   ├── mort-test-isolated.sh # Run tests in VM
+│   ├── anvil-test-isolated.sh # Run tests in VM
 │   └── setup-vm.sh           # Initial VM configuration
 ├── .github/
 │   └── workflows/
@@ -396,7 +396,7 @@ mortician/
 └── src-tauri/
     └── src/
         └── bin/
-            └── mort-test/    # The test CLI (from e2e-testing-cli.md)
+            └── anvil-test/    # The test CLI (from e2e-testing-cli.md)
 ```
 
 ---
@@ -410,9 +410,9 @@ mortician/
 2. **Create sync and startup scripts** (~1 hour)
    - `sync-to-vm.sh`
    - `start-test-vm.sh`
-   - `mort-test-isolated.sh`
+   - `anvil-test-isolated.sh`
 
-3. **Build mort-test CLI** (from e2e-testing-cli.md plan)
+3. **Build anvil-test CLI** (from e2e-testing-cli.md plan)
    - Keyboard input module
    - Window observation module
 

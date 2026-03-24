@@ -37,7 +37,7 @@ export interface SpawnSimpleAgentOptions {
  * No worktree allocation, no branch management.
  */
 export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promise<void> {
-  const mortDir = await fs.getDataDir();
+  const anvilDir = await fs.getDataDir();
   const simpleRunnerPath = await getSimpleRunnerPath();
 
   const commandArgs = [
@@ -46,7 +46,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     "--thread-id", options.threadId,
     "--cwd", options.sourcePath,
     "--prompt", options.prompt,
-    "--mort-dir", mortDir,
+    "--anvil-dir", anvilDir,
   ];
 
   logger.info("[simple-agent-service] Spawning simple agent", { taskId: options.taskId });
@@ -83,18 +83,18 @@ export async function resumeSimpleAgent(
   threadId: string,
   prompt: string,
 ): Promise<void> {
-  const mortDir = await fs.getDataDir();
+  const anvilDir = await fs.getDataDir();
   const simpleRunnerPath = await getSimpleRunnerPath();
 
   const threadFolderName = `simple-${threadId}`;
-  const stateFilePath = await join(mortDir, "simple-tasks", taskId, "threads", threadFolderName, "state.json");
+  const stateFilePath = await join(anvilDir, "simple-tasks", taskId, "threads", threadFolderName, "state.json");
 
   const commandArgs = [
     simpleRunnerPath,
     "--task-id", taskId,
     "--thread-id", threadId,
     "--prompt", prompt,
-    "--mort-dir", mortDir,
+    "--anvil-dir", anvilDir,
     "--history-file", stateFilePath,
   ];
 

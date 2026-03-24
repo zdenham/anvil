@@ -89,7 +89,7 @@ import type { WorktreeState } from '@core/types/repositories.js';
  */
 export class WorktreeService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private settingsService: RepositorySettingsService,
     private git: GitAdapter,
     private pathLock: PathLock,
@@ -113,7 +113,7 @@ export class WorktreeService {
         throw new Error('Name can only contain letters, numbers, dashes, and underscores');
       }
 
-      const worktreePath = `${this.mortDir}/repositories/${repoName}/${name}`;
+      const worktreePath = `${this.anvilDir}/repositories/${repoName}/${name}`;
       this.git.createWorktree(settings.sourcePath, worktreePath);
 
       const worktree: WorktreeState = {
@@ -209,7 +209,7 @@ export class WorktreeService {
   }
 
   private withLock<T>(repoName: string, fn: () => T): T {
-    const lockPath = `${this.mortDir}/repositories/${repoName}/.lock`;
+    const lockPath = `${this.anvilDir}/repositories/${repoName}/.lock`;
     this.pathLock.acquire(lockPath);
     try {
       return fn();

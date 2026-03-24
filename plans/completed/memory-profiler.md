@@ -157,7 +157,7 @@ For full object-level heap profiling (closures, detached DOM trees, GC roots, et
 **How to connect:**
 
 1. Enable the Develop menu: Safari → Settings → Advanced → "Show features for web developers"
-2. Launch Mort in dev mode (`pnpm tauri dev`)
+2. Launch Anvil in dev mode (`pnpm tauri dev`)
 3. In Safari: Develop → _your machine name_ → `tauri://localhost` (the webview process)
 4. Go to the **Memory** tab in the inspector
 5. Click **"Take Heap Snapshot"** for a full object graph, or use **"Record"** for allocation timeline

@@ -98,7 +98,7 @@ import type { PhaseInfo } from "@/entities/plans/types";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Persisted State - Zod schema for disk validation
-// Location: ~/.mort/ui/tree-menu.json
+// Location: ~/.anvil/ui/tree-menu.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TreeMenuPersistedStateSchema = z.object({

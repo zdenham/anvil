@@ -315,7 +315,7 @@ Add to the `build.rollupOptions.input` object:
 Add to the `SpotlightResult` discriminated union:
 
 ```ts
-| { type: "action"; action: "open-mort" | "open-repo" | "open-tasks"; label: string }
+| { type: "action"; action: "open-anvil" | "open-repo" | "open-tasks"; label: string }
 ```
 
 **File: `src/components/spotlight/spotlight.tsx`**

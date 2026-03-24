@@ -392,7 +392,7 @@ mod tests {
 ## Verification
 
 1. Add `mod accessibility;` to `src-tauri/src/lib.rs`
-2. Run `cargo check -p mortician` to verify compilation
+2. Run `cargo check -p anvil` to verify compilation
 3. The module should compile without errors
 
 ## Success Criteria

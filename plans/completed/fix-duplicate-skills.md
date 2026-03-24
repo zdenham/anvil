@@ -51,12 +51,12 @@ Between check and act, another concurrent process could check the same slug and 
 Change `discover()` to build results in **local** Maps, then atomically assign them to instance fields at the end. This eliminates the race entirely — concurrent calls each build independent state and the last one to finish wins cleanly.
 
 ```typescript
-async discover(repoPath: string, homeDir: string, mortDataDir: string): Promise<SkillMetadata[]> {
+async discover(repoPath: string, homeDir: string, anvilDataDir: string): Promise<SkillMetadata[]> {
   const localSkills = new Map<string, SkillMetadata>();
   const localSlugIndex = new Map<string, string>();
 
   for (const location of SKILL_LOCATIONS) {
-    const dirPath = location.getPath(repoPath, homeDir, mortDataDir);
+    const dirPath = location.getPath(repoPath, homeDir, anvilDataDir);
     if (!await this.fs.exists(dirPath)) continue;
 
     try {

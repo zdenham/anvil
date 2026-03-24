@@ -38,8 +38,8 @@ The following issues from the initial review have been fixed across all sub-plan
 
 **Plan D1 (pr-gateway-channels):**
 - Timestamps corrected to `z.number()` (Unix epoch ms)
-- Gateway base URL corrected to `https://mort-server.fly.dev`
-- `getDeviceId()` implementation specified (reads `~/.mort/identity.json` via `IdentitySchema`)
+- Gateway base URL corrected to `https://anvil-server.fly.dev`
+- `getDeviceId()` implementation specified (reads `~/.anvil/identity.json` via `IdentitySchema`)
 - Explicit channel registration HTTP call added with field mapping (`channelId` → `id`)
 - `.js` extensions added to import paths
 

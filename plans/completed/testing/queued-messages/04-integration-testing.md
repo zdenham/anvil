@@ -300,7 +300,7 @@ Note: The current harness uses `spawn("tsx", args, {...})` without specifying `s
 
 ### 4. `agents/src/testing/__tests__/queued-messages.integration.test.ts`
 
-Note: Uses `MORT_MOCK_LLM_PATH` environment variable with `createMockScript()` helper, not a fixture file path. The mock LLM system works by creating temp files with scripted responses.
+Note: Uses `ANVIL_MOCK_LLM_PATH` environment variable with `createMockScript()` helper, not a fixture file path. The mock LLM system works by creating temp files with scripted responses.
 
 ```typescript
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -412,7 +412,7 @@ The mock script format uses `content` (not `text`) for response text:
 
 **IMPORTANT**: This project does NOT use Playwright for E2E testing. Instead, it uses:
 - **UI Isolation Tests** (`pnpm test:ui`) - Vitest + happy-dom for React component testing
-- **E2E Accessibility Tests** (`mort-test`) - Native macOS accessibility APIs
+- **E2E Accessibility Tests** (`anvil-test`) - Native macOS accessibility APIs
 
 Create `src/components/simple-task/queued-messages.ui.test.tsx`:
 
@@ -507,7 +507,7 @@ describe('SimpleTaskWindow queuing', () => {
 3. Run `pnpm test:ui` - all UI isolation tests pass
 4. Manual testing per checklist below
 
-**Note**: There is no `pnpm test:e2e` command. E2E testing uses the `mort-test` binary for accessibility-based testing, which is not applicable for this feature.
+**Note**: There is no `pnpm test:e2e` command. E2E testing uses the `anvil-test` binary for accessibility-based testing, which is not applicable for this feature.
 
 ## Manual Testing Checklist
 

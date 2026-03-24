@@ -12,7 +12,7 @@ Implements a system to spawn Node.js processes from Tauri that execute agents us
 
 - **Disk always wins**: All state is persisted to disk. Entity services (`src/entities/`) manage this persistence - they write JSON files that are the source of truth.
 - **State backed by entities**: All application state flows through entity services. The agent runner receives pre-created conversation IDs and paths from the frontend. Entity metadata is loaded from disk on app startup via `hydrateEntities()`.
-- **Entity persistence vs message logs**: Entity metadata (`ConversationMetadata`, `TaskMetadata`) is persisted via entity services to `.mort/*.json`. Raw message streams (`messages.jsonl`, `changes.jsonl`) are written directly by the agent runner to a subdirectory.
+- **Entity persistence vs message logs**: Entity metadata (`ConversationMetadata`, `TaskMetadata`) is persisted via entity services to `.anvil/*.json`. Raw message streams (`messages.jsonl`, `changes.jsonl`) are written directly by the agent runner to a subdirectory.
 - **Use Anthropic SDK types**: Install `@anthropic-ai/sdk` and use its types directly. Do NOT define custom types for concepts that already exist in the SDK (e.g., `ContentBlock`, `ToolUseBlock`, `TextBlock`). Only define custom types for app-specific concepts.
 - **Git required**: Working directories must be git repositories.
 
@@ -32,7 +32,7 @@ Implements a system to spawn Node.js processes from Tauri that execute agents us
 │  │  └──────────────────┘  └─────────────────────────────────────┘ │   │
 │  │           │                           │                        │   │
 │  │           ▼                           │ shell plugin: spawn    │   │
-│  │  .mort/{tasks,conversations}/*.json   │                        │   │
+│  │  .anvil/{tasks,conversations}/*.json   │                        │   │
 │  │                                       ▼                        │   │
 │  └───────────────────────────────────────────────────────────────┘   │
 │                                                                      │
@@ -144,7 +144,7 @@ The agent runner emits messages based on SDK types. App-specific message types (
 ### Storage Layout
 
 ```
-.mort/
+.anvil/
 ├── tasks/
 │   ├── {taskId}.json       # TaskMetadata (managed by taskService)
 │   └── {taskId}.md         # Task content
@@ -173,7 +173,7 @@ node runner.js \
 - `--conversation-path`: The path where the runner writes `messages.jsonl` and `changes.jsonl`
 
 The runner manages:
-- Creating and checking out a task branch (`mort/{conversation-id}`)
+- Creating and checking out a task branch (`anvil/{conversation-id}`)
 - Writing `messages.jsonl` and `changes.jsonl` to the conversation path
 - Emitting JSONL to stdout for real-time streaming
 

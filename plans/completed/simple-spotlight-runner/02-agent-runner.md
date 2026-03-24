@@ -61,7 +61,7 @@ export interface SimpleArgs {
   threadId: string;
   prompt: string;
   cwd: string;
-  mortDir: string;
+  anvilDir: string;
   historyFile?: string;
 }
 
@@ -82,8 +82,8 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
       case "--cwd":
         args.cwd = argv[++i];
         break;
-      case "--mort-dir":
-        args.mortDir = argv[++i];
+      case "--anvil-dir":
+        args.anvilDir = argv[++i];
         break;
       case "--history-file":
         args.historyFile = argv[++i];
@@ -96,10 +96,10 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
     !args.threadId ||
     !args.prompt ||
     !args.cwd ||
-    !args.mortDir
+    !args.anvilDir
   ) {
     logger.error(
-      "Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --mort-dir"
+      "Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --anvil-dir"
     );
     throw new Error("Missing required arguments");
   }
@@ -115,8 +115,8 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
 Key points:
 
 - Parse args via `parseSimpleArgs()`
-- Create task metadata in `~/.mort/simple-tasks/{taskId}/metadata.json`
-- Create thread directory: `~/.mort/simple-tasks/{taskId}/threads/simple-{threadId}/`
+- Create task metadata in `~/.anvil/simple-tasks/{taskId}/metadata.json`
+- Create thread directory: `~/.anvil/simple-tasks/{taskId}/threads/simple-{threadId}/`
 - Write `metadata.json` for thread
 - Use existing `output.ts` functions: `initState()`, `appendUserMessage()`, `appendAssistantMessage()`, etc.
 - Call `query()` from Claude Agent SDK with `claude_code` preset

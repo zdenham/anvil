@@ -13,19 +13,19 @@ Implement a Rust-native solution using the macOS Accessibility API (AXUIElement)
 1. Navigate System Settings programmatically
 2. Find UI elements by their accessibility labels directly
 3. Disable the Spotlight shortcut via a button in the existing onboarding `SpotlightStep`
-4. Support independent CLI execution via `mort-test` for testing and debugging
+4. Support independent CLI execution via `anvil-test` for testing and debugging
 
 ## Integration Requirements
 
 1. **UI Integration**: Add an "Auto-disable" button to the existing `SpotlightStep.tsx` onboarding pane (alongside the manual instructions)
-2. **Independent Testing**: The core Rust logic must be executable via `mort-test disable-spotlight` command for testing without running the full app
+2. **Independent Testing**: The core Rust logic must be executable via `anvil-test disable-spotlight` command for testing without running the full app
 3. **Tauri Command**: Expose as a Tauri command for the frontend button to invoke
 
 ## Technical Background
 
 ### Current Codebase
 - **CGEvent API**: Already used in `src-tauri/src/clipboard.rs` for keyboard synthesis (Cmd+V paste)
-- **CoreGraphics**: Used in `src-tauri/src/bin/mort-test/accessibility.rs` for window enumeration
+- **CoreGraphics**: Used in `src-tauri/src/bin/anvil-test/accessibility.rs` for window enumeration
 - **No AXUIElement usage**: The app doesn't currently use the Accessibility framework for UI automation
 
 ### Why AXUIElement?
@@ -193,9 +193,9 @@ async fn request_accessibility_permission() {
 }
 ```
 
-### Phase 5: mort-test CLI Integration
+### Phase 5: anvil-test CLI Integration
 
-**File**: `src-tauri/src/bin/mort-test/main.rs` (modify)
+**File**: `src-tauri/src/bin/anvil-test/main.rs` (modify)
 
 Add new subcommand for testing the spotlight disable functionality independently:
 
@@ -233,21 +233,21 @@ Commands::CheckAccessibility => {
 }
 ```
 
-**File**: `src-tauri/src/bin/mort-test/spotlight_shortcut.rs` (new - shared with main crate)
+**File**: `src-tauri/src/bin/anvil-test/spotlight_shortcut.rs` (new - shared with main crate)
 
 The core spotlight shortcut logic should be in a module that can be used by both:
 - The main Tauri app (via `src-tauri/src/spotlight_shortcut.rs`)
-- The mort-test CLI (imported or duplicated)
+- The anvil-test CLI (imported or duplicated)
 
 Option A: Shared library crate
 Option B: Symlink or include the module in both places
-Option C: Move to a workspace crate `mortician-core`
+Option C: Move to a workspace crate `anvil-core`
 
-Recommended: **Option B** for simplicity - the mort-test binary can import from the parent crate:
+Recommended: **Option B** for simplicity - the anvil-test binary can import from the parent crate:
 
 ```rust
-// In mort-test/main.rs
-use mortician::spotlight_shortcut;
+// In anvil-test/main.rs
+use anvil::spotlight_shortcut;
 ```
 
 ### Phase 6: SpotlightStep UI Enhancement
@@ -292,7 +292,7 @@ export const SpotlightStep = ({}: SpotlightStepProps) => {
         {hasAccessibilityPermission === false ? (
           <div className="space-y-2">
             <p className="text-sm text-surface-300">
-              Mortician needs Accessibility permission to auto-disable Spotlight.
+              Anvil needs Accessibility permission to auto-disable Spotlight.
             </p>
             <Button onClick={() => invoke('request_accessibility_permission')}>
               Grant Accessibility Permission
@@ -353,7 +353,7 @@ src-tauri/src/
 ├── spotlight_shortcut.rs      (NEW - Spotlight disable logic + permission checks)
 ├── lib.rs                     (MODIFY - add Tauri commands)
 └── bin/
-    └── mort-test/
+    └── anvil-test/
         └── main.rs            (MODIFY - add disable-spotlight and check-accessibility commands)
 
 src/components/onboarding/
@@ -375,7 +375,7 @@ src/components/onboarding/
 ## Testing Strategy
 
 1. **Unit tests**: Mock AXUIElement responses
-2. **Integration tests**: Use existing `mort-test` CLI infrastructure
+2. **Integration tests**: Use existing `anvil-test` CLI infrastructure
 3. **Manual testing**: Verify on different macOS versions (13, 14, 15)
 
 ## Risks & Mitigations
@@ -413,7 +413,7 @@ This is faster but:
 2. **Phase 2**: System Settings navigator (reusable)
 3. **Phase 3**: Spotlight disabler (core feature)
 4. **Phase 4**: Tauri commands (backend complete)
-5. **Phase 5**: mort-test CLI integration (independent testing)
+5. **Phase 5**: anvil-test CLI integration (independent testing)
 6. **Phase 6**: SpotlightStep UI enhancement (user-facing button)
 7. **Phase 7**: Permission handling (polish)
 
@@ -423,24 +423,24 @@ This is faster but:
 - [ ] Successfully disables shortcut on macOS 13, 14, 15
 - [ ] Graceful fallback if permission denied
 - [ ] **Button added to existing SpotlightStep.tsx onboarding pane**
-- [ ] **`mort-test disable-spotlight` works independently for testing**
-- [ ] **`mort-test disable-spotlight --dry-run` checks status without modifying**
-- [ ] **`mort-test check-accessibility` reports permission status**
+- [ ] **`anvil-test disable-spotlight` works independently for testing**
+- [ ] **`anvil-test disable-spotlight --dry-run` checks status without modifying**
+- [ ] **`anvil-test check-accessibility` reports permission status**
 - [ ] No AppleScript dependency
 
 ## CLI Usage Examples
 
 ```bash
 # Check if spotlight shortcut is enabled (dry run)
-mort-test disable-spotlight --dry-run
+anvil-test disable-spotlight --dry-run
 # Output: {"spotlight_enabled": true}
 
 # Disable the spotlight shortcut
-mort-test disable-spotlight
+anvil-test disable-spotlight
 # Output: Spotlight shortcut disabled successfully
 
 # Check accessibility permission
-mort-test check-accessibility
+anvil-test check-accessibility
 # Output: {"has_accessibility_permission": true}
 # Exit code: 0 if granted, 1 if not
 ```

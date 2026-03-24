@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-Agents are passing the task **slug** (e.g., `fix-auth-bug`) to `mort` CLI commands that expect the **task ID** (e.g., `task-m1abcdef-xyz123`), causing command failures.
+Agents are passing the task **slug** (e.g., `fix-auth-bug`) to `anvil` CLI commands that expect the **task ID** (e.g., `task-m1abcdef-xyz123`), causing command failures.
 
 ## Root Cause Analysis
 
@@ -14,8 +14,8 @@ Tasks have two identifiers (`core/types/tasks.ts:50-52`):
 
 The **slug** is used as the filesystem directory key:
 ```
-.mort/tasks/{slug}/metadata.json    # Contains both id and slug
-.mort/tasks/{slug}/content.md
+.anvil/tasks/{slug}/metadata.json    # Contains both id and slug
+.anvil/tasks/{slug}/content.md
 ```
 
 ### 2. Bug Location: `runner.ts:221`
@@ -54,22 +54,22 @@ The shared prompts (`agent-types/shared-prompts.ts:7-12`) tell agents:
 
 ```
 Task ID: {{taskId}}
-Use `mort tasks get --id={{taskId}}` to fetch current task state.
+Use `anvil tasks get --id={{taskId}}` to fetch current task state.
 ```
 
 So agents see:
 ```
 Task ID: fix-auth-bug
-Use `mort tasks get --id=fix-auth-bug` to fetch current task state.
+Use `anvil tasks get --id=fix-auth-bug` to fetch current task state.
 ```
 
-And run `mort tasks get --id=fix-auth-bug` which fails because `--id` expects the actual ID format.
+And run `anvil tasks get --id=fix-auth-bug` which fails because `--id` expects the actual ID format.
 
 ## Impact
 
-- `mort tasks get --id=<slug>` fails (scans all tasks, finds no matching ID)
-- `mort tasks update --id=<slug> --status=...` fails
-- `mort tasks rename --id=<slug> --title=...` fails
+- `anvil tasks get --id=<slug>` fails (scans all tasks, finds no matching ID)
+- `anvil tasks update --id=<slug> --status=...` fails
+- `anvil tasks rename --id=<slug> --title=...` fails
 - Any mutation command using `--id` with the slug fails
 
 ## Proposed Solutions
@@ -125,16 +125,16 @@ export const TASK_CONTEXT = `## Current Task Context
 Task Slug: {{slug}}
 Branch: {{branchName}}
 
-Use \`mort tasks get --slug={{slug}}\` to fetch current task state.`;
+Use \`anvil tasks get --slug={{slug}}\` to fetch current task state.`;
 
-export const MORT_CLI_CORE = `## Mort CLI Reference
+export const ANVIL_CLI_CORE = `## Anvil CLI Reference
 
 \`\`\`bash
 # Get task details (prefer --slug for efficiency)
-mort tasks get --slug=<task-slug>
+anvil tasks get --slug=<task-slug>
 
 # Update task status
-mort tasks update --slug=<task-slug> --status=<status>
+anvil tasks update --slug=<task-slug> --status=<status>
 ...
 ```
 
@@ -170,6 +170,6 @@ Option B could be a quick interim fix if needed immediately.
 ## Testing
 
 1. Start a new agent on a task
-2. Have agent run `mort tasks get --id={{taskId}}`
+2. Have agent run `anvil tasks get --id={{taskId}}`
 3. Verify the command succeeds with the real task ID
 4. Test task mutations (`update`, `rename`) work correctly

@@ -46,7 +46,7 @@ There are **three** codepaths that create plan metadata on disk:
 | # | Location | Description | Has domain `parentId`? |
 |---|----------|-------------|----------------------|
 | P1 | `src/entities/plans/service.ts` — `PlanService.create()` (line 193) | Frontend service, called by `ensurePlanExists()` and directly | Yes — computes via `detectParentPlan()` on line 202 |
-| P2 | `agents/src/core/persistence.ts` — `MortPersistence.createPlan()` (line 135) | Agent-side persistence, called by `ensurePlanExists()` | No — agent-side does not detect parent plans |
+| P2 | `agents/src/core/persistence.ts` — `AnvilPersistence.createPlan()` (line 135) | Agent-side persistence, called by `ensurePlanExists()` | No — agent-side does not detect parent plans |
 | P3 | `src/entities/plans/service.ts` — `PlanService.ensurePlanExists()` (line 168) | Wrapper that calls P1 for new plans | Delegates to P1 |
 
 ### Pull Request Creation Paths
@@ -180,7 +180,7 @@ This covers paths **P1** and **P3** (since P3 delegates to P1).
 ### 6. Plan — Agent Persistence (`agents/src/core/persistence.ts`)
 
 **File:** `agents/src/core/persistence.ts`
-**Method:** `MortPersistence.createPlan()` at line 135
+**Method:** `AnvilPersistence.createPlan()` at line 135
 **Insert into the `plan` object** (after `updatedAt: now,` on line 149):
 
 ```typescript
@@ -241,7 +241,7 @@ This covers paths **PR1**, **PR2**, and **PR3** (all go through this method).
 
 1. **Optimistic threads do NOT need seeding.** They are ephemeral in-memory placeholders. The real metadata arrives from the agent runner (T3/T4) via disk refresh. Seeding optimistic threads would be harmless but unnecessary.
 
-2. **Agent-side plan creation lacks parent detection.** `MortPersistence.createPlan()` does not call `detectParentPlan()`. The initial `visualSettings.parentId` defaults to `worktreeId`. The frontend's `refreshParentRelationships()` (called on hydration and file changes) will correct this. This is acceptable because the plan appears in the sidebar under the worktree initially, then moves to its correct parent when the frontend processes it.
+2. **Agent-side plan creation lacks parent detection.** `AnvilPersistence.createPlan()` does not call `detectParentPlan()`. The initial `visualSettings.parentId` defaults to `worktreeId`. The frontend's `refreshParentRelationships()` (called on hydration and file changes) will correct this. This is acceptable because the plan appears in the sidebar under the worktree initially, then moves to its correct parent when the frontend processes it.
 
 3. **`planService.update()` marks as unread** (line 245: `isRead: input.isRead ?? false`). When calling `planService.update()` for visualSettings changes in later sub-plans (03+), always pass `isRead: existingPlan.isRead` to preserve read state. This is NOT a concern for this sub-plan since we are only modifying `create()` methods, not `update()`.
 

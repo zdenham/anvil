@@ -30,7 +30,7 @@ envFilePath: z.string().optional(),
 envFileEnabled: z.boolean().optional(),
 ```
 
-No changes to `DEFAULT_WORKSPACE_SETTINGS` needed — both fields are optional and default to `undefined` (path defaults to `.mort/.env` in the UI, enabled defaults to `false`).
+No changes to `DEFAULT_WORKSPACE_SETTINGS` needed — both fields are optional and default to `undefined` (path defaults to `.anvil/.env` in the UI, enabled defaults to `false`).
 
 ## Phase 2: Settings UI Component
 
@@ -39,7 +39,7 @@ No changes to `DEFAULT_WORKSPACE_SETTINGS` needed — both fields are optional a
 A new `<EnvFileSettings />` section in the settings page with three controls:
 
 1. **Toggle** — Enable/disable env file loading (`envFileEnabled`)
-2. **Path input** — Text input showing the current path, with a file-picker button (use `@tauri-apps/plugin-dialog` `open()` like `repository-settings.tsx`). Defaults to displaying `.mort/.env` as placeholder when no custom path is set.
+2. **Path input** — Text input showing the current path, with a file-picker button (use `@tauri-apps/plugin-dialog` `open()` like `repository-settings.tsx`). Defaults to displaying `.anvil/.env` as placeholder when no custom path is set.
 3. **"Open" button** — Just calls `paneLayoutService.openFile(resolvedPath)`, same as the file explorer. If the file doesn't exist yet, create it first (empty) so the editor can open it.
 
 **File:** `src/components/main-window/settings-page.tsx`
@@ -48,7 +48,7 @@ Import and render `<EnvFileSettings />` in the settings page, placed after the A
 
 ### UI Behavior
 
-- When no path is set and the user enables the toggle, auto-populate with the default path (`{mortDir}/.env` resolved via `FilesystemClient.getDataDir()`).
+- When no path is set and the user enables the toggle, auto-populate with the default path (`{anvilDir}/.env` resolved via `FilesystemClient.getDataDir()`).
 - Show a subtle status indicator: "Active — N variables loaded" or "Disabled" based on toggle state.
 - The path input is editable regardless of toggle state (user can set up the path before enabling).
 
@@ -99,7 +99,7 @@ export function parseEnvFile(content: string): Record<string, string> {
 ### Merge Order in envVars
 
 ```
-1. Base vars (PATH, NODE_PATH, MORT_DATA_DIR)
+1. Base vars (PATH, NODE_PATH, ANVIL_DATA_DIR)
 2. .env file vars (merged here — can set ANTHROPIC_API_KEY, CLOUD_ML_REGION, etc.)
 3. Explicit overrides (ANTHROPIC_API_KEY from settings if set, diagnostic vars, proxy vars)
 ```

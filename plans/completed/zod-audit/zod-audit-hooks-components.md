@@ -164,11 +164,11 @@ export interface OpenRepoResult {
   action: "open-repo";
 }
 
-export interface OpenMortResult {
-  action: "open-mort";
+export interface OpenAnvilResult {
+  action: "open-anvil";
 }
 
-export type ActionResult = OpenRepoResult | OpenMortResult;
+export type ActionResult = OpenRepoResult | OpenAnvilResult;
 
 export type SpotlightResult =
   | { type: "app"; data: AppResult }

@@ -10,16 +10,16 @@ This plan tracks remaining TODOs from the thread-plan architecture implementatio
 
 ```bash
 # Phase 1: Runner Fix (sequential - unblocks agent spawning)
-mort run plans/thread-plan-architecture-completion/00-runner-fix.md
+anvil run plans/thread-plan-architecture-completion/00-runner-fix.md
 
 # Phase 2: Parallel Implementation (no file conflicts)
-mort run plans/thread-plan-architecture-completion/01-relations-wiring.md &
-mort run plans/thread-plan-architecture-completion/02-plan-view-header.md &
-mort run plans/thread-plan-architecture-completion/03-test-mocks.md &
+anvil run plans/thread-plan-architecture-completion/01-relations-wiring.md &
+anvil run plans/thread-plan-architecture-completion/02-plan-view-header.md &
+anvil run plans/thread-plan-architecture-completion/03-test-mocks.md &
 wait
 
 # Phase 3: Verification (sequential)
-mort run plans/thread-plan-architecture-completion/04-verification.md
+anvil run plans/thread-plan-architecture-completion/04-verification.md
 ```
 
 ## Sub-Plans

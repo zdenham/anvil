@@ -28,14 +28,14 @@ The current uncommitted working tree changes are **re-implementations** of the l
 
 ## Phase 1: Extract stash contents to temp directory
 
-Create `/tmp/mort-stash-recovery/` with two subdirectories:
+Create `/tmp/anvil-stash-recovery/` with two subdirectories:
 
 ### `files/` — full file versions from the stash
 
 ```bash
 git stash show 1b7f837 --name-only | while read f; do
-  mkdir -p "/tmp/mort-stash-recovery/files/$(dirname "$f")"
-  git show "1b7f837:$f" > "/tmp/mort-stash-recovery/files/$f" 2>/dev/null || echo "DELETED: $f"
+  mkdir -p "/tmp/anvil-stash-recovery/files/$(dirname "$f")"
+  git show "1b7f837:$f" > "/tmp/anvil-stash-recovery/files/$f" 2>/dev/null || echo "DELETED: $f"
 done
 ```
 
@@ -45,14 +45,14 @@ For each file, generate a diff showing what the stash version has that HEAD does
 
 ```bash
 git stash show 1b7f837 --name-only | while read f; do
-  mkdir -p "/tmp/mort-stash-recovery/diffs/$(dirname "$f")"
-  git diff HEAD 1b7f837 -- "$f" > "/tmp/mort-stash-recovery/diffs/${f}.diff" 2>/dev/null
+  mkdir -p "/tmp/anvil-stash-recovery/diffs/$(dirname "$f")"
+  git diff HEAD 1b7f837 -- "$f" > "/tmp/anvil-stash-recovery/diffs/${f}.diff" 2>/dev/null
 done
 ```
 
 ## Phase 2: Generate diff reports for triage
 
-Create `/tmp/mort-stash-recovery/TRIAGE.md` summarizing each file's status to guide selective recovery.
+Create `/tmp/anvil-stash-recovery/TRIAGE.md` summarizing each file's status to guide selective recovery.
 
 ### Category A: Already matching (4 files — no action needed)
 
@@ -142,7 +142,7 @@ for f in \
   src/components/thread/user-message.tsx \
   src/hooks/use-quick-action-hotkeys.ts \
   src/lib/browser-stubs.ts; do
-  cp "/tmp/mort-stash-recovery/files/$f" "$f"
+  cp "/tmp/anvil-stash-recovery/files/$f" "$f"
 done
 ```
 
@@ -173,7 +173,7 @@ for f in \
   src/entities/threads/listeners.ts \
   src/lib/agent-service.ts \
   src/stores/tree-menu/service.ts; do
-  cp "/tmp/mort-stash-recovery/files/$f" "$f"
+  cp "/tmp/anvil-stash-recovery/files/$f" "$f"
 done
 ```
 
@@ -183,7 +183,7 @@ After applying, verify:
 
 1. `pnpm check` / `pnpm build` passes (TypeScript errors would indicate the stash depends on something not yet in HEAD)
 2. Quick visual smoke test of the app
-3. If a stash file fails to compile, compare `diff /tmp/mort-stash-recovery/files/<path> <path>` and decide whether to keep stash, keep working tree, or merge manually
+3. If a stash file fails to compile, compare `diff /tmp/anvil-stash-recovery/files/<path> <path>` and decide whether to keep stash, keep working tree, or merge manually
 
 ### Skip
 

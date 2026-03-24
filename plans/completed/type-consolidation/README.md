@@ -66,7 +66,7 @@ Update all consumers to import from `@core/types/` instead of `@/entities/`:
 - 5 test files
 
 **Agents (5 files):**
-- 3 code files (orchestration.ts, task-runner-strategy.ts, test-mort-directory.ts)
+- 3 code files (orchestration.ts, task-runner-strategy.ts, test-anvil-directory.ts)
 - 2 test files (orchestration.test.ts, exports.test.ts)
 
 **Agents schema deduplication (simple-runner-strategy.ts):**

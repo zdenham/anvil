@@ -23,7 +23,7 @@ Implement VS Code-style multi-tab and multi-pane support: tabs within pane group
 └─────────────┴──────────────────────────┴─────────────────┘
 ```
 
-### Content Pane State (`~/.mort/ui/content-panes.json`)
+### Content Pane State (`~/.anvil/ui/content-panes.json`)
 
 ```typescript
 // Store: src/stores/content-panes/store.ts
@@ -191,7 +191,7 @@ const DEFAULT_STATE: PaneLayoutState = {
 
 No migration from the old `content-panes.json` format — we start fresh with default state.
 
-### Persistence (`~/.mort/ui/pane-layout.json`)
+### Persistence (`~/.anvil/ui/pane-layout.json`)
 
 ```json
 {

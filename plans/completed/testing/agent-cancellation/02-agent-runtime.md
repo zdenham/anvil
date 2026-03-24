@@ -86,7 +86,7 @@ const result = useMockMode
       prompt: config.prompt,
       options: {
         cwd: context.workingDir,
-        additionalDirectories: [config.mortDir],
+        additionalDirectories: [config.anvilDir],
         model: agentConfig.model ?? "claude-opus-4-5-20251101",
         systemPrompt: {
           type: "preset",
@@ -180,8 +180,8 @@ Update `main()` (lines 105-188) to create an AbortController and handle abort:
 import { cancelled } from "./output.js";
 
 async function main(): Promise<void> {
-  // Set up `mort` command before anything else
-  setupMortCommand();
+  // Set up `anvil` command before anything else
+  setupAnvilCommand();
 
   let strategy: RunnerStrategy | undefined;
   let context: OrchestrationContext | undefined;
@@ -202,8 +202,8 @@ async function main(): Promise<void> {
     // Parse args using strategy-specific logic
     const config = strategy.parseArgs(args);
 
-    // Set MORT_DATA_DIR env var so the `mort` CLI can find the correct data directory
-    process.env.MORT_DATA_DIR = config.mortDir;
+    // Set ANVIL_DATA_DIR env var so the `anvil` CLI can find the correct data directory
+    process.env.ANVIL_DATA_DIR = config.anvilDir;
 
     // Get agent configuration (model, tools, prompts)
     const agentConfig = getAgentConfig(config.agent);
@@ -357,7 +357,7 @@ Add a new method:
  */
 markCancelled(taskSlug: string, threadFolderName: string): void {
   const threadPath = join(
-    this.mortDir,
+    this.anvilDir,
     "tasks",
     taskSlug,
     "threads",
@@ -426,13 +426,13 @@ describe("cancellation", () => {
 
 ```bash
 # Start an agent
-pnpm agent:run --agent simple --task-id test --thread-id test-thread --cwd /tmp --mort-dir ~/.mort-dev --prompt "Hello"
+pnpm agent:run --agent simple --task-id test --thread-id test-thread --cwd /tmp --anvil-dir ~/.anvil-dev --prompt "Hello"
 
 # In another terminal, send SIGTERM
 kill -TERM <pid>
 
 # Check state.json has status: "cancelled"
-cat ~/.mort-dev/tasks/test/threads/simple-test-thread/state.json | jq .status
+cat ~/.anvil-dev/tasks/test/threads/simple-test-thread/state.json | jq .status
 # Should output: "cancelled"
 
 # Check exit code was 130

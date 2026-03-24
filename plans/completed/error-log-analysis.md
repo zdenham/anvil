@@ -19,7 +19,7 @@ console.error(appendedPrompt);  // <-- The entire system prompt is written to st
 console.error(`[runner] === ADDITIONAL INSTRUCTIONS END ===`);
 ```
 
-The system prompt (e.g., "## Role", "You are the planning agent for Mort...") is written to stderr via `console.error()`.
+The system prompt (e.g., "## Role", "You are the planning agent for Anvil...") is written to stderr via `console.error()`.
 
 **Why it shows as ERROR:**
 
@@ -28,7 +28,7 @@ In `src/lib/agent-service.ts:363-376`:
 command.stderr.on("data", (line: string) => {
   const isDebugMessage = line.startsWith("[runner]") ||
                          line.startsWith("[PostToolUse]") ||
-                         line.startsWith("[mort-cli]") ||
+                         line.startsWith("[anvil-cli]") ||
                          line.startsWith("[output]");
   if (isDebugMessage) {
     logger.debug(...);
@@ -64,10 +64,10 @@ if (isDevMode) {
 
 **Error message:**
 ```
-Error: ENOENT: no such file or directory, open '/Users/zac/.mort-dev/tasks/task-mjubgb33-3zn4en/threads/planning-1a79fd6a-ad89-4b79-9fb4-49543118f766/metadata.json'
+Error: ENOENT: no such file or directory, open '/Users/zac/.anvil-dev/tasks/task-mjubgb33-3zn4en/threads/planning-1a79fd6a-ad89-4b79-9fb4-49543118f766/metadata.json'
     at Object.openSync (node:fs:581:18)
     at writeFileSync (node:fs:2345:35)
-    at main (file:///Users/zac/Documents/juice/mort/mortician/agents/dist/runner.js:1466:5)
+    at main (file:///Users/zac/Documents/juice/anvil/anvil/agents/dist/runner.js:1466:5)
 ```
 
 **Location:** `agents/src/runner.ts:627`

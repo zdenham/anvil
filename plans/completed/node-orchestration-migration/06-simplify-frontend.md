@@ -34,7 +34,7 @@ Spotlight
     ├── 1. crypto.randomUUID() → taskId + threadId
     ├── 2. taskService.createDraft()
     ├── 3. openTask() (no thread yet)
-    ├── 4. spawn Node with (taskId, threadId, prompt, mortDir)
+    ├── 4. spawn Node with (taskId, threadId, prompt, anvilDir)
     └── 5. Handle events (thread:created, agent:state, etc.)
 ```
 
@@ -86,7 +86,7 @@ const command = await prepareAgent({
   taskId,
   threadId,
   prompt,
-  mortDir: getMortDir(),
+  anvilDir: getAnvilDir(),
   // NO cwd, NO mergeBase - Node computes these
 });
 
@@ -103,7 +103,7 @@ interface PrepareAgentArgs {
   taskId: string;
   threadId: string;
   prompt: string;
-  mortDir: string;
+  anvilDir: string;
   // REMOVED: cwd, mergeBase
 }
 
@@ -115,7 +115,7 @@ function prepareAgent(args: PrepareAgentArgs): string[] {
     '--task-id', args.taskId,
     '--thread-id', args.threadId,
     '--prompt', args.prompt,
-    '--mort-dir', args.mortDir,
+    '--anvil-dir', args.anvilDir,
     // REMOVED: --cwd, --merge-base
   ];
 }

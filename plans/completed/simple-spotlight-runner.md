@@ -52,7 +52,7 @@ Create a simplified agent spawn function that:
 - Skips worktree allocation entirely
 - Uses the repository's source path directly as `cwd`
 - Uses a generic agent type with Claude Code defaults
-- Stores task data in `~/.mort/simple-tasks/` (separate from full tasks)
+- Stores task data in `~/.anvil/simple-tasks/` (separate from full tasks)
 
 ```typescript
 import { Command } from "@tauri-apps/plugin-shell";
@@ -72,8 +72,8 @@ export interface SpawnSimpleAgentOptions {
 export async function spawnSimpleAgent(
   options: SpawnSimpleAgentOptions
 ): Promise<void> {
-  // Get mortDir via FilesystemClient (uses Tauri invoke internally)
-  const mortDir = await fs.getDataDir();
+  // Get anvilDir via FilesystemClient (uses Tauri invoke internally)
+  const anvilDir = await fs.getDataDir();
 
   // Build command args for simple runner
   // Note: uses simple-runner.js, NOT runner.js
@@ -87,8 +87,8 @@ export async function spawnSimpleAgent(
     options.sourcePath, // Direct path, no worktree allocation
     "--prompt",
     options.prompt,
-    "--mort-dir",
-    mortDir,
+    "--anvil-dir",
+    anvilDir,
   ];
   // ... spawn command via Tauri Command.create() - see agent-service.ts pattern
 }
@@ -99,10 +99,10 @@ export async function resumeSimpleAgent(
   prompt: string
 ): Promise<void> {
   // Get paths via FilesystemClient
-  const mortDir = await fs.getDataDir();
+  const anvilDir = await fs.getDataDir();
   const threadFolderName = `simple-${threadId}`;
   const stateFilePath = fs.joinPath(
-    mortDir,
+    anvilDir,
     "simple-tasks",
     taskId,
     "threads",
@@ -119,8 +119,8 @@ export async function resumeSimpleAgent(
     threadId,
     "--prompt",
     prompt,
-    "--mort-dir",
-    mortDir,
+    "--anvil-dir",
+    anvilDir,
     "--history-file",
     stateFilePath,
   ];
@@ -218,8 +218,8 @@ async function main() {
   const agentConfig = getAgentConfig("simple");
   const startTime = Date.now();
 
-  // Simple tasks use: ~/.mort/simple-tasks/{taskId}/threads/{agentType}-{threadId}/
-  const taskDir = join(args.mortDir, "simple-tasks", args.taskId);
+  // Simple tasks use: ~/.anvil/simple-tasks/{taskId}/threads/{agentType}-{threadId}/
+  const taskDir = join(args.anvilDir, "simple-tasks", args.taskId);
   const threadFolderName = `simple-${args.threadId}`;
   const threadPath = join(taskDir, "threads", threadFolderName);
 
@@ -305,7 +305,7 @@ async function main() {
     taskId: args.taskId,
     threadId: args.threadId,
     cwd: args.cwd,
-    mortDir: args.mortDir,
+    anvilDir: args.anvilDir,
   });
 
   try {
@@ -394,7 +394,7 @@ export interface SimpleArgs {
   threadId: string;
   prompt: string;
   cwd: string;
-  mortDir: string;
+  anvilDir: string;
   historyFile?: string;
 }
 
@@ -415,8 +415,8 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
       case "--cwd":
         args.cwd = argv[++i];
         break;
-      case "--mort-dir":
-        args.mortDir = argv[++i];
+      case "--anvil-dir":
+        args.anvilDir = argv[++i];
         break;
       case "--history-file":
         args.historyFile = argv[++i];
@@ -429,10 +429,10 @@ export function parseSimpleArgs(argv: string[]): SimpleArgs {
     !args.threadId ||
     !args.prompt ||
     !args.cwd ||
-    !args.mortDir
+    !args.anvilDir
   ) {
     logger.error(
-      "Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --mort-dir"
+      "Missing required arguments: --task-id, --thread-id, --prompt, --cwd, --anvil-dir"
     );
     throw new Error("Missing required arguments");
   }
@@ -636,7 +636,7 @@ async createSimpleTask(content: string, repo: Repository): Promise<void> {
     threadId,
     prompt: content,
     sourcePath: repo.sourcePath,
-    // Note: mortDir is obtained inside spawnSimpleAgent via FilesystemClient
+    // Note: anvilDir is obtained inside spawnSimpleAgent via FilesystemClient
   });
 }
 ```
@@ -723,8 +723,8 @@ Simple input component:
 2. Spotlight calls createSimpleTask()
 3. Opens simple-task window immediately (optimistic UI with prompt)
 4. Spawns simple-runner.js with --cwd (source path), --task-id, --thread-id
-5. Runner creates task metadata in ~/.mort/simple-tasks/{taskId}/metadata.json
-6. Runner creates thread dir: ~/.mort/simple-tasks/{taskId}/threads/simple-{threadId}/
+5. Runner creates task metadata in ~/.anvil/simple-tasks/{taskId}/metadata.json
+6. Runner creates thread dir: ~/.anvil/simple-tasks/{taskId}/threads/simple-{threadId}/
 7. Runner writes metadata.json and emits thread:created event via stdout
 8. Runner calls initState() from output.ts - creates state.json, emits initial state
 9. Runner starts query() with claude_code preset
@@ -758,11 +758,11 @@ This ensures the frontend can use the same parsing logic for both full and simpl
 ```
 1. User types prompt in Spotlight, presses Command+Enter
 2. Spotlight calls createTask() (existing flow)
-3. Creates draft task in ~/.mort/tasks/{slug}/
+3. Creates draft task in ~/.anvil/tasks/{slug}/
 4. Opens task window with threadId, taskId, prompt
 5. Spawns runner.js with --task-slug (orchestration)
 6. Runner allocates worktree, creates branch
-7. Runner creates thread in ~/.mort/tasks/{slug}/threads/{threadId}/
+7. Runner creates thread in ~/.anvil/tasks/{slug}/threads/{threadId}/
 8. ... continues with full orchestration flow
 ```
 
@@ -770,8 +770,8 @@ This ensures the frontend can use the same parsing logic for both full and simpl
 
 | Shortcut      | Flow   | Where it runs      | Storage                 |
 | ------------- | ------ | ------------------ | ----------------------- |
-| **Enter**     | Simple | Source repo        | `~/.mort/simple-tasks/` |
-| **Cmd+Enter** | Full   | Allocated worktree | `~/.mort/tasks/`        |
+| **Enter**     | Simple | Source repo        | `~/.anvil/simple-tasks/` |
+| **Cmd+Enter** | Full   | Allocated worktree | `~/.anvil/tasks/`        |
 
 ## Files to Create
 
@@ -960,7 +960,7 @@ This means:
 Simple tasks are stored in a **separate directory** from full tasks, but use the **same thread structure** (metadata.json + state.json):
 
 ```
-~/.mort/
+~/.anvil/
 ├── tasks/                    # Full tasks (with worktree orchestration)
 │   └── {task-slug}/
 │       ├── metadata.json
@@ -1017,5 +1017,5 @@ Simple tasks use **panels** (floating windows):
 4. **Agent runs in source repository** - No worktree allocation delay
 5. **Messages stream in real-time** - UI updates as agent works
 6. **User can respond** - Input enabled when agent completes or requests input
-7. **Separate storage** - Simple tasks in `~/.mort/simple-tasks/`, full tasks in `~/.mort/tasks/`
+7. **Separate storage** - Simple tasks in `~/.anvil/simple-tasks/`, full tasks in `~/.anvil/tasks/`
 8. **Task history preserved** - Simple tasks appear in task list (filterable by type)

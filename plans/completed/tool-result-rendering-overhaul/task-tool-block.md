@@ -544,9 +544,9 @@ Following BashToolBlock pattern:
 
 ## Related Files
 
-- **Main plan:** `/Users/zac/Documents/juice/mort/mortician/plans/tool-result-rendering-overhaul.md`
-- **Pilot implementation:** `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/bash-tool-block.tsx`
-- **Registry:** `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/index.ts`
+- **Main plan:** `/Users/zac/Documents/juice/anvil/anvil/plans/tool-result-rendering-overhaul.md`
+- **Pilot implementation:** `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/bash-tool-block.tsx`
+- **Registry:** `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/index.ts`
 - **UI Components:** `src/components/ui/` (CopyButton, ShimmerText, ExpandChevron, StatusIcon, CollapsibleOutputBlock)
 - **Store:** `src/stores/tool-expand-store.ts`
 - **Anthropic types reference:** `@anthropic-ai/sdk/resources/messages` (ToolUseBlock, ToolResultBlockParam, Usage)

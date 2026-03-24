@@ -85,7 +85,7 @@ This plan outlines a phased approach to refactoring the main window UI with the 
 - Each content pane has a **UUID** for identification and state management
 - Tree hierarchy: `repo/worktree` is a **single combined level** (not nested)
 - Horizontal dividers separate each repo/worktree section
-- All state managed via **Zustand with `~/.mort/` disk persistence** (following established patterns in `docs/data-models.md`)
+- All state managed via **Zustand with `~/.anvil/` disk persistence** (following established patterns in `docs/data-models.md`)
 - **No feature flags** - this is a full migration
 - **Architect for multi-pane from day one** - UUID-based pane system ready for future splits/tabs
 - **All threads/plans have worktree association** - this is an enforced invariant
@@ -208,7 +208,7 @@ export type TreeNode = RepoWorktreeSection | TreeItemNode;
 ```
 
 **Visual Structure:**
-- Each `RepoWorktreeSection` displays as `"repoName/worktreeName"` (e.g., "mortician/main")
+- Each `RepoWorktreeSection` displays as `"repoName/worktreeName"` (e.g., "anvil/main")
 - Horizontal line dividers separate sections
 - Items within a section are indented one level
 - Sections can be collapsed to hide their items
@@ -271,7 +271,7 @@ export type TreeNode = RepoWorktreeSection | TreeItemNode;
 
 **Tasks:**
 - [ ] Create `RepoWorktreeSection` component
-  - Displays as `"repoName/worktreeName"` (e.g., "mortician/main")
+  - Displays as `"repoName/worktreeName"` (e.g., "anvil/main")
   - Git branch icon or folder icon
   - Expand/collapse to show/hide items
   - Horizontal divider line above each section (except first)
@@ -505,7 +505,7 @@ export type TreeNode = RepoWorktreeSection | TreeItemNode;
 **Tasks:**
 - [ ] Design `ContentPaneContainer` that manages panes by UUID from the start
 - [ ] Each pane has its own `ContentPaneView` state stored by UUID
-- [ ] Store pane state in `~/.mort/ui/content-panes.json`
+- [ ] Store pane state in `~/.anvil/ui/content-panes.json`
 - [ ] Support single-pane initially, but data model ready for multiple
 - [ ] Consider using React context for pane-scoped state
 
@@ -561,19 +561,19 @@ This is a complete migration - no feature flags or incremental rollout. The old 
 
 ## Technical Considerations
 
-### State Management (Zustand + `~/.mort/` Disk Persistence)
+### State Management (Zustand + `~/.anvil/` Disk Persistence)
 
 **IMPORTANT:** Follow established persistence patterns from `docs/data-models.md` and `src/lib/persistence.ts`. Do NOT use `electron-store` or browser localStorage.
 
-All UI state is managed via Zustand stores with disk persistence via the `~/.mort/` directory:
+All UI state is managed via Zustand stores with disk persistence via the `~/.anvil/` directory:
 
 | State | Store | Persistence Location |
 |-------|-------|---------------------|
-| Tree expansion | `tree-menu-store` | `~/.mort/ui/tree-menu.json` |
-| Selected item | `tree-menu-store` | `~/.mort/ui/tree-menu.json` |
-| Content panes (by UUID) | `content-panes-store` | `~/.mort/ui/content-panes.json` |
-| Active pane ID | `content-panes-store` | `~/.mort/ui/content-panes.json` |
-| Panel width | `layout-store` | `~/.mort/ui/layout.json` |
+| Tree expansion | `tree-menu-store` | `~/.anvil/ui/tree-menu.json` |
+| Selected item | `tree-menu-store` | `~/.anvil/ui/tree-menu.json` |
+| Content panes (by UUID) | `content-panes-store` | `~/.anvil/ui/content-panes.json` |
+| Active pane ID | `content-panes-store` | `~/.anvil/ui/content-panes.json` |
+| Panel width | `layout-store` | `~/.anvil/ui/layout.json` |
 
 **Persistence Implementation (following established patterns):**
 ```typescript
@@ -656,7 +656,7 @@ async function persistTreeMenuState(state: TreeMenuState) {
 - Simplifies tree structure significantly
 
 ### 3. State Persistence
-**Decision:** Use `~/.mort/` directory conventions for ALL persistent state.
+**Decision:** Use `~/.anvil/` directory conventions for ALL persistent state.
 
 This is a **hard requirement**. Follow established patterns:
 - Disk as truth (events trigger disk re-reads)
@@ -664,7 +664,7 @@ This is a **hard requirement**. Follow established patterns:
 - Persistence layer (`src/lib/persistence.ts`) for all disk I/O
 - Reference: `docs/data-models.md` for directory structure conventions
 
-**DO NOT** use `electron-store` or browser localStorage for entity state. UI layout preferences (panel width, expansion state) should also follow `.mort` conventions where appropriate.
+**DO NOT** use `electron-store` or browser localStorage for entity state. UI layout preferences (panel width, expansion state) should also follow `.anvil` conventions where appropriate.
 
 ### 4. Search/Filter
 **Decision:** Defer. Use existing spotlight for now.
@@ -712,7 +712,7 @@ This is a **hard requirement**. Follow established patterns:
 - Click icon to toggle, not the entire section header
 
 ### 11. Section Expansion Persistence
-**Decision:** Persist tree expansion state in `~/.mort/ui/tree-menu.json`.
+**Decision:** Persist tree expansion state in `~/.anvil/ui/tree-menu.json`.
 
 - Remember collapsed/expanded state per repo/worktree section
 - Restore on app restart

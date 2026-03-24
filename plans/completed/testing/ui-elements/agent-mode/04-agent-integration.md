@@ -78,7 +78,7 @@ describe("parseArgs", () => {
       "--task-id", "task-123",
       "--thread-id", "thread-456",
       "--cwd", "/tmp/test",
-      "--mort-dir", "/tmp/mort",
+      "--anvil-dir", "/tmp/anvil",
       "--prompt", "test prompt",
       "--agent-mode", "auto-accept",
     ]);
@@ -93,7 +93,7 @@ describe("parseArgs", () => {
       "--task-id", "task-123",
       "--thread-id", "thread-456",
       "--cwd", "/tmp/test",
-      "--mort-dir", "/tmp/mort",
+      "--anvil-dir", "/tmp/anvil",
       "--prompt", "test prompt",
     ]);
 

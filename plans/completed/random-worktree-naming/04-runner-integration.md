@@ -71,7 +71,7 @@ this.initiateWorktreeNaming(worktreeId, repoId, prompt);
 
 **Option A (Simple - Recommended for now):** Always emit the event, let frontend decide whether to apply based on worktree's `isAutoNamed` flag.
 
-**Option B (Agent-side):** Check if this is the first thread by counting existing threads for this worktreeId. This would require reading thread metadata files in the mortDir.
+**Option B (Agent-side):** Check if this is the first thread by counting existing threads for this worktreeId. This would require reading thread metadata files in the anvilDir.
 
 For simplicity, start with Option A.
 

@@ -569,7 +569,7 @@ A generic resizable panel with drag handle and persistence.
 1. Support horizontal resizing (width)
 2. Min/max width constraints
 3. Drag handle with visual indicator
-4. Persist width to `~/.mort/ui/layout.json` with Zod validation
+4. Persist width to `~/.anvil/ui/layout.json` with Zod validation
 5. Snap-to-close behavior when dragged below threshold
 6. Works with any child content
 
@@ -591,7 +591,7 @@ Per the Zod at Boundaries pattern, disk reads MUST validate with Zod:
 import { z } from "zod";
 
 /**
- * Schema for ~/.mort/ui/layout.json
+ * Schema for ~/.anvil/ui/layout.json
  * Validates layout state loaded from disk.
  */
 export const LayoutStateSchema = z.object({
@@ -608,7 +608,7 @@ export type LayoutState = z.infer<typeof LayoutStateSchema>;
  * ResizablePanel
  *
  * A panel with a draggable edge for resizing.
- * Persists width to disk following ~/.mort/ conventions.
+ * Persists width to disk following ~/.anvil/ conventions.
  *
  * Usage:
  * <ResizablePanel
@@ -628,7 +628,7 @@ import { z } from "zod";
 import { persistence } from "@/lib/persistence";
 
 /**
- * Schema for ~/.mort/ui/layout.json
+ * Schema for ~/.anvil/ui/layout.json
  * Per Zod at Boundaries pattern - validate all disk reads.
  */
 const LayoutStateSchema = z.object({
@@ -646,7 +646,7 @@ interface ResizablePanelProps {
   maxWidth: number;
   /** Default width if no persisted value */
   defaultWidth: number;
-  /** Key for persisting width (stored in ~/.mort/ui/layout.json) */
+  /** Key for persisting width (stored in ~/.anvil/ui/layout.json) */
   persistKey: string;
   /** Threshold below which panel snaps closed */
   closeThreshold?: number;
@@ -784,7 +784,7 @@ export function ResizablePanel({
 
 **Acceptance Criteria:**
 - [ ] Panel resizes smoothly with drag
-- [ ] Width persists to `~/.mort/ui/layout.json` with Zod validation
+- [ ] Width persists to `~/.anvil/ui/layout.json` with Zod validation
 - [ ] Invalid/corrupted layout.json is handled gracefully (use defaults)
 - [ ] Min/max constraints are enforced
 - [ ] Snap-to-close works at threshold
@@ -1165,7 +1165,7 @@ The goal is NOT to replace the existing control panel components yet. Instead:
 
 ### Persistence Patterns
 
-All persistence follows established `~/.mort/` conventions:
+All persistence follows established `~/.anvil/` conventions:
 - Use `persistence.readJson()` and `persistence.writeJson()`
 - Store UI state in `ui/` subdirectory
 - No localStorage or electron-store

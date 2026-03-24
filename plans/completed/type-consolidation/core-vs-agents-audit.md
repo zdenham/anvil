@@ -15,7 +15,7 @@ The agents package is importing from `@/` (frontend paths), which violates layer
 | `agents/src/runners/task-runner-strategy.ts` | 26 | `from "@/entities/threads/types.js"` |
 | `agents/src/orchestration.ts` | 16 | `from "@/entities/threads/types.js"` |
 | `agents/src/orchestration.test.ts` | 5 | `from "@/entities/repositories/types.js"` |
-| `agents/src/testing/services/test-mort-directory.ts` | 6 | `from "@/entities/repositories/types.js"` |
+| `agents/src/testing/services/test-anvil-directory.ts` | 6 | `from "@/entities/repositories/types.js"` |
 
 ### 2. DUPLICATED TYPE DEFINITIONS
 
@@ -106,5 +106,5 @@ After creating `core/types/threads.ts` and `core/types/repositories.ts`:
 2. `agents/src/orchestration.test.ts` - update imports
 3. `agents/src/runners/task-runner-strategy.ts` - update imports
 4. `agents/src/runners/simple-runner-strategy.ts` - remove duplicated schemas
-5. `agents/src/testing/services/test-mort-directory.ts` - update imports
+5. `agents/src/testing/services/test-anvil-directory.ts` - update imports
 6. `agents/src/agent-types/merge-types.ts` - remove WorkflowMode duplication

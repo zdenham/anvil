@@ -22,7 +22,7 @@ Create `redis/` at the repo root with two files:
 
 **`redis/fly.toml`** — Fly app config for self-hosted Redis:
 ```toml
-app = 'mort-redis'
+app = 'anvil-redis'
 primary_region = 'sjc'
 
 [build]
@@ -51,7 +51,7 @@ appendonly yes
 dir /data
 ```
 
-No public services — Redis is accessible only via Fly internal networking (`mort-redis.internal:6379`).
+No public services — Redis is accessible only via Fly internal networking (`anvil-redis.internal:6379`).
 
 ---
 
@@ -83,7 +83,7 @@ export async function closeRedis(): Promise<void> {
 }
 ```
 
-The Redis URL comes from `REDIS_URL` env var (production: `redis://mort-redis.internal:6379`, dev/test: `redis://localhost:6379`).
+The Redis URL comes from `REDIS_URL` env var (production: `redis://anvil-redis.internal:6379`, dev/test: `redis://localhost:6379`).
 
 ---
 

@@ -178,7 +178,7 @@ export const PermissionsContent = ({
         Permissions
       </h2>
       <p className="text-surface-300">
-        Mort needs a few permissions to work at full capacity.
+        Anvil needs a few permissions to work at full capacity.
       </p>
 
       <div className="space-y-4">

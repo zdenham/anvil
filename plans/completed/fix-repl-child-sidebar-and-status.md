@@ -2,7 +2,7 @@
 
 ## Diagnosis
 
-Both bugs originate in `agents/src/lib/mort-repl/child-spawner.ts` — the REPL-specific spawning path. The SDK sub-agent path (`agents/src/runners/shared.ts` PreToolUse:SubAgent) handles both correctly. The REPL path was implemented separately and is missing two things the SDK path does.
+Both bugs originate in `agents/src/lib/anvil-repl/child-spawner.ts` — the REPL-specific spawning path. The SDK sub-agent path (`agents/src/runners/shared.ts` PreToolUse:SubAgent) handles both correctly. The REPL path was implemented separately and is missing two things the SDK path does.
 
 ### Bug 1: Child thread shows as sibling instead of nested child
 
@@ -60,7 +60,7 @@ The `AGENT_COMPLETED` listener (`src/entities/threads/listeners.ts:143-171`) has
 
 ## Phase 1: Fix `visualSettings`
 
-**File**: `agents/src/lib/mort-repl/child-spawner.ts`
+**File**: `agents/src/lib/anvil-repl/child-spawner.ts`
 
 In `createThreadOnDisk()`, add `visualSettings` to the metadata object (after `permissionMode` on line 102):
 
@@ -81,7 +81,7 @@ This matches the SDK path in `shared.ts:799-801`.
 
 ## Phase 2: Emit completion events after child exits
 
-**File**: `agents/src/lib/mort-repl/child-spawner.ts`
+**File**: `agents/src/lib/anvil-repl/child-spawner.ts`
 
 In `waitForResult()`, after the child exits and before returning the result text, emit completion events from the parent process:
 
@@ -103,16 +103,16 @@ private async waitForResult(...): Promise<string> {
 + this.emitEvent(
 +   EventName.THREAD_STATUS_CHANGED,
 +   { threadId: childThreadId, status },
-+   "mort-repl:child-complete",
++   "anvil-repl:child-complete",
 + );
 + this.emitEvent(
 +   EventName.AGENT_COMPLETED,
 +   { threadId: childThreadId, exitCode },
-+   "mort-repl:child-complete",
++   "anvil-repl:child-complete",
 + );
 
   logger.info(
-    `[mort-repl] Child ${childThreadId} exited with code ${exitCode} in ${durationMs}ms`,
+    `[anvil-repl] Child ${childThreadId} exited with code ${exitCode} in ${durationMs}ms`,
   );
 
   return resultText;
@@ -128,7 +128,7 @@ This mirrors what `shared.ts:1243-1254` does for SDK sub-agents. The `handleAgen
 
 ## Phase 3: Tests
 
-**File**: `agents/src/lib/mort-repl/__tests__/child-spawner.test.ts`
+**File**: `agents/src/lib/anvil-repl/__tests__/child-spawner.test.ts`
 
 Add two test cases:
 

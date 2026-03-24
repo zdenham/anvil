@@ -4,7 +4,7 @@
 
 This plan enables fast, deterministic UI testing without Tauri, Rust, or filesystem dependencies. Tests run in milliseconds using happy-dom, with all backend interactions mocked at module boundaries.
 
-**Why this matters:** The Mort UI depends heavily on Tauri IPC and filesystem state. Without isolation testing, UI changes require full app startup and manual verification. These tests enable confident refactoring and catch regressions before they reach E2E tests.
+**Why this matters:** The Anvil UI depends heavily on Tauri IPC and filesystem state. Without isolation testing, UI changes require full app startup and manual verification. These tests enable confident refactoring and catch regressions before they reach E2E tests.
 
 ## Success Criteria
 

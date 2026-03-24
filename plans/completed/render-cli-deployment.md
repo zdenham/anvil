@@ -4,7 +4,7 @@ Deploy the Fastify server (`server/`) to Render using the Render CLI with native
 
 ## Overview
 
-**Goal**: Manually deploy `mort-server` to Render using their CLI with native Node.js runtime.
+**Goal**: Manually deploy `anvil-server` to Render using their CLI with native Node.js runtime.
 
 **Server Details**:
 - Fastify server with ClickHouse connection
@@ -88,7 +88,7 @@ Use the Render CLI to create and configure the web service directly from your te
 
 ```bash
 render services create \
-  --name mort-server \
+  --name anvil-server \
   --type web \
   --runtime node \
   --region oregon \

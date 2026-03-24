@@ -1,6 +1,6 @@
 # Agent Guidelines
 
-Mort is a coding agent orchestrator built on Claude Code. It enables developers to run many parallel agents in isolated environments, accelerating development workflows at scale.
+Anvil is a coding agent orchestrator built on Claude Code. It enables developers to run many parallel agents in isolated environments, accelerating development workflows at scale.
 
 This document defines how you should write code for this codebase. Follow these guidelines strictly.
 

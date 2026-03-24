@@ -18,7 +18,7 @@ entrypoint → execution → review → (done)
 3. **Review**: Validates work against plan
 
 ### Current Flow
-1. Agent requests review via `mort request-review` → sets `pendingReview` on task
+1. Agent requests review via `anvil request-review` → sets `pendingReview` on task
 2. User responds in ActionPanel (Enter or custom message)
 3. `handleReviewSubmit()` clears `pendingReview` and calls `onSendMessage()`
 4. `handleSendMessage()` calls `resumeAgent()` with the message

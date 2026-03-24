@@ -7,7 +7,7 @@ Move all migrations from Rust to TypeScript, compiled to a standalone Node.js sc
 ## Current State
 
 - **Rust migrations** (`src-tauri/src/migrations/`): Version-tracked system with one migration (`_001_worktree_created_at.rs`). Invoked in `lib.rs` during app init.
-- **TypeScript migrations** (`src/bootstrap/migrations/`): Idempotent system with one migration (`quick-actions-project-v1.ts`). Currently invoked from `mort-bootstrap.ts` in the frontend.
+- **TypeScript migrations** (`src/bootstrap/migrations/`): Idempotent system with one migration (`quick-actions-project-v1.ts`). Currently invoked from `anvil-bootstrap.ts` in the frontend.
 
 ## Target Architecture
 
@@ -17,7 +17,7 @@ Move all migrations from Rust to TypeScript, compiled to a standalone Node.js sc
 │   └── paths::initialize()                                   │
 │   └── config::initialize()                                  │
 │   └── spawn: node migrations/dist/runner.js                 │
-│         ├── Receives: MORT_DATA_DIR env var                 │
+│         ├── Receives: ANVIL_DATA_DIR env var                 │
 │         └── Runs all TS migrations in order                 │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -45,8 +45,8 @@ migrations/
 ### 2. Implement runner.ts
 
 The runner should:
-- Read `MORT_DATA_DIR` from environment (passed by Rust)
-- Read current migration version from `$MORT_DATA_DIR/settings/app-config.json`
+- Read `ANVIL_DATA_DIR` from environment (passed by Rust)
+- Read current migration version from `$ANVIL_DATA_DIR/settings/app-config.json`
 - Run pending migrations in order
 - Update migration version on success
 - Exit with code 0 on success, non-zero on failure
@@ -54,7 +54,7 @@ The runner should:
 
 ```typescript
 // runner.ts pseudocode
-const dataDir = process.env.MORT_DATA_DIR;
+const dataDir = process.env.ANVIL_DATA_DIR;
 const configPath = path.join(dataDir, 'settings', 'app-config.json');
 const config = JSON.parse(fs.readFileSync(configPath));
 const currentVersion = config.migration_version ?? 0;
@@ -73,12 +73,12 @@ for (const migration of migrations) {
 Move `quick-actions-project-v1.ts` to `001-quick-actions-project.ts`:
 
 - Remove Tauri API dependencies (`@tauri-apps/api/path`)
-- Use `MORT_DATA_DIR` env var for paths
-- Template path: Use `__dirname` relative path or another env var (`MORT_TEMPLATE_DIR`)
+- Use `ANVIL_DATA_DIR` env var for paths
+- Template path: Use `__dirname` relative path or another env var (`ANVIL_TEMPLATE_DIR`)
 
 Rust will need to pass both:
-- `MORT_DATA_DIR` - the ~/.mort or ~/.mort-dev directory
-- `MORT_TEMPLATE_DIR` - path to bundled template (resolved via Tauri resource API before spawn)
+- `ANVIL_DATA_DIR` - the ~/.anvil or ~/.anvil-dev directory
+- `ANVIL_TEMPLATE_DIR` - path to bundled template (resolved via Tauri resource API before spawn)
 
 ### 4. Update Rust to spawn migration runner
 
@@ -102,8 +102,8 @@ fn run_migrations(app: &tauri::App) -> Result<(), String> {
 
     let output = Command::new("node")
         .arg(&runner_path)
-        .env("MORT_DATA_DIR", data_dir)
-        .env("MORT_TEMPLATE_DIR", template_dir)
+        .env("ANVIL_DATA_DIR", data_dir)
+        .env("ANVIL_TEMPLATE_DIR", template_dir)
         .env("PATH", paths::shell_path())
         .output()
         .map_err(|e| format!("Failed to spawn migration runner: {}", e))?;
@@ -135,7 +135,7 @@ Keep in `config.rs`:
 
 Remove:
 - `src/bootstrap/` directory entirely
-- `runMigrations()` call from `src/lib/mort-bootstrap.ts`
+- `runMigrations()` call from `src/lib/anvil-bootstrap.ts`
 - The import I just added
 
 ### 7. Update build process

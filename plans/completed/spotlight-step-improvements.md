@@ -3,14 +3,14 @@
 ## Summary
 
 Improve the SpotlightStep onboarding experience with:
-1. Better copy that explains Mort replaces Spotlight
+1. Better copy that explains Anvil replaces Spotlight
 2. Consistent styling for the "change hotkey" link
 3. Full-screen hotkey change UI instead of modal
 
 ## Current State
 
 - **Title**: "Disable MacOS Spotlight" (note: should use "macOS" per Apple style)
-- **Description**: Talks about conflicts, doesn't explain Mort replaces Spotlight
+- **Description**: Talks about conflicts, doesn't explain Anvil replaces Spotlight
 - **Change hotkey button**: Uses different styling (`text-sm text-surface-400`) vs "Show manual steps" (`text-xs text-surface-500`)
 - **Change hotkey flow**: Opens a modal overlay
 
@@ -20,11 +20,11 @@ Improve the SpotlightStep onboarding experience with:
 
 **Title change** (line 257):
 - From: `"Disable MacOS Spotlight"`
-- To: `"Make Mort Your Spotlight"`
+- To: `"Make Anvil Your Spotlight"`
 
 **Description change** (lines 259-261):
 - From: `"⌘ + Space conflicts with macOS Spotlight. We recommend disabling Spotlight's shortcut — it's worth it."`
-- To: `"Mort replaces macOS Spotlight. Disable the native shortcut to enable Mort."`
+- To: `"Anvil replaces macOS Spotlight. Disable the native shortcut to enable Anvil."`
 
 ### 2. Style "Change Hotkey" Link to Match "Show Manual Steps"
 
@@ -41,7 +41,7 @@ className="text-xs text-surface-500 hover:text-surface-400 underline decoration-
 
 **Text change**:
 - From: `"Don't want ⌘ + Space? Change hotkey"`
-- To: `"Change Mort hotkey"`
+- To: `"Change Anvil hotkey"`
 
 ### 3. Replace Modal with Full-Screen Hotkey Change View
 
@@ -59,7 +59,7 @@ Instead of showing a modal when editing the hotkey, we'll render a completely di
 
 1. When `isEditingHotkey` is true, render a full-screen hotkey change UI instead of the normal step content
 2. The UI will include:
-   - A title "Change Mort Hotkey"
+   - A title "Change Anvil Hotkey"
    - The HotkeyRecorder component
    - Back button (returns to spotlight step without saving)
    - Save button (saves and returns to spotlight step)
@@ -75,10 +75,10 @@ In the return statement, wrap the main content in a conditional:
   <div className="min-h-screen w-full bg-surface-900 p-6">
     <div className="space-y-2">
       <h2 className="text-2xl font-bold text-surface-100 font-mono">
-        Change Mort Hotkey
+        Change Anvil Hotkey
       </h2>
       <p className="text-surface-300">
-        Choose a keyboard shortcut to access Mort from anywhere.
+        Choose a keyboard shortcut to access Anvil from anywhere.
       </p>
     </div>
 
@@ -121,9 +121,9 @@ In the return statement, wrap the main content in a conditional:
 ## Implementation Steps
 
 1. Edit `SpotlightStep.tsx`:
-   - Line 257: Change title to "Make Mort Your Spotlight"
-   - Lines 259-261: Change description to "Mort replaces macOS Spotlight. Disable the native shortcut to enable Mort."
-   - Lines 293-298: Update button text to "Change Mort hotkey" and styling to match "Show manual steps"
+   - Line 257: Change title to "Make Anvil Your Spotlight"
+   - Lines 259-261: Change description to "Anvil replaces macOS Spotlight. Disable the native shortcut to enable Anvil."
+   - Lines 293-298: Update button text to "Change Anvil hotkey" and styling to match "Show manual steps"
 
 2. Edit `OnboardingFlow.tsx`:
    - Rename `showHotkeyModal` → `isEditingHotkey`

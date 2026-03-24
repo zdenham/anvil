@@ -170,7 +170,7 @@ interface SkillLocation {
 const SKILL_LOCATIONS: SkillLocation[] = [
   { getPath: (repo) => `${repo}/.claude/skills`, source: 'project', isLegacy: false },
   { getPath: (repo) => `${repo}/.claude/commands`, source: 'project_command', isLegacy: true },
-  { getPath: (_, home) => `${home}/.mort/skills`, source: 'mort', isLegacy: false },
+  { getPath: (_, home) => `${home}/.anvil/skills`, source: 'anvil', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/skills`, source: 'personal', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/commands`, source: 'personal_command', isLegacy: true },
 ];
@@ -270,7 +270,7 @@ export class SkillsService {
 
   getAll(): SkillMetadata[] {
     const order: Record<SkillSource, number> = {
-      project: 0, project_command: 1, mort: 2, personal: 3, personal_command: 4,
+      project: 0, project_command: 1, anvil: 2, personal: 3, personal_command: 4,
     };
     return Array.from(this.skills.values())
       .filter(s => s.userInvocable)

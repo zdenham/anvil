@@ -13,7 +13,7 @@ export interface ValidationContext {
   agentType: string;
   taskId: string | null;
   threadId: string | null;  // ADD: Current thread ID for review validation
-  mortDir: string;
+  anvilDir: string;
   cwd: string;
 }
 ```
@@ -27,7 +27,7 @@ const validationResult = await runValidators({
   agentType: args.agentType,
   taskId: taskId,
   threadId: args.threadId,  // ADD THIS
-  mortDir: args.mortDir,
+  anvilDir: args.anvilDir,
   cwd: cwd,
 });
 ```

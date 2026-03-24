@@ -11,7 +11,7 @@ Two issues with the PR view:
 ### 2. Base branch shows `main` instead of `origin/main`
 - `pr-actions.ts:130` strips the `origin/` prefix: `.replace("origin/", "")`
 - Webhook path (`pr-lifecycle-handler.ts:56`) gets bare `ref` from GitHub API (just `"main"`)
-- The ivory-dragonfly worktree's PR metadata confirms: `baseBranch: "main"` in `/Users/zac/.mort/pull-requests/5b13d519-.../metadata.json`
+- The ivory-dragonfly worktree's PR metadata confirms: `baseBranch: "main"` in `/Users/zac/.anvil/pull-requests/5b13d519-.../metadata.json`
 - User wants it displayed as `origin/main`
 
 ## Phases

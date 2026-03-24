@@ -1,10 +1,10 @@
 # 01: Socket Path Helper
 
-Add a utility function to get the hub socket path, built from the mort directory.
+Add a utility function to get the hub socket path, built from the anvil directory.
 
 ## Context
 
-The socket path `~/.mort/agent-hub.sock` needs to be deterministic and derivable from the mort directory. Both Rust and Node.js code need to agree on this path.
+The socket path `~/.anvil/agent-hub.sock` needs to be deterministic and derivable from the anvil directory. Both Rust and Node.js code need to agree on this path.
 
 ## Phases
 
@@ -21,14 +21,14 @@ The socket path `~/.mort/agent-hub.sock` needs to be deterministic and derivable
 
 ```typescript
 import { join } from "path";
-import { getMortDir } from "./mort-dir.js";
+import { getAnvilDir } from "./anvil-dir.js";
 
 /**
  * Get the path to the agent hub socket.
- * Built from the mort directory - no env vars needed.
+ * Built from the anvil directory - no env vars needed.
  */
 export function getHubSocketPath(): string {
-  return join(getMortDir(), "agent-hub.sock");
+  return join(getAnvilDir(), "agent-hub.sock");
 }
 ```
 
@@ -42,7 +42,7 @@ export { getHubSocketPath } from "./socket.js";
 
 ## Acceptance Criteria
 
-- [x] `getHubSocketPath()` returns `~/.mort/agent-hub.sock` (expanded)
+- [x] `getHubSocketPath()` returns `~/.anvil/agent-hub.sock` (expanded)
 - [x] Function is exported from `@core/lib`
 - [x] No external dependencies added
 
@@ -55,7 +55,7 @@ Create a test file at `core/lib/socket.test.ts`:
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getHubSocketPath } from "./socket.js";
-import * as mortDir from "./mort-dir.js";
+import * as anvilDir from "./anvil-dir.js";
 
 describe("getHubSocketPath", () => {
   // Test 1: Returns correct path structure
@@ -64,15 +64,15 @@ describe("getHubSocketPath", () => {
     expect(result).toMatch(/agent-hub\.sock$/);
   });
 
-  // Test 2: Path is built from mort directory
-  it("should build path from getMortDir()", () => {
-    const getMortDirSpy = vi.spyOn(mortDir, "getMortDir");
-    getMortDirSpy.mockReturnValue("/custom/mort/dir");
+  // Test 2: Path is built from anvil directory
+  it("should build path from getAnvilDir()", () => {
+    const getAnvilDirSpy = vi.spyOn(anvilDir, "getAnvilDir");
+    getAnvilDirSpy.mockReturnValue("/custom/anvil/dir");
 
     const result = getHubSocketPath();
 
-    expect(result).toBe("/custom/mort/dir/agent-hub.sock");
-    getMortDirSpy.mockRestore();
+    expect(result).toBe("/custom/anvil/dir/agent-hub.sock");
+    getAnvilDirSpy.mockRestore();
   });
 
   // Test 3: Returns absolute path (not relative)
@@ -97,8 +97,8 @@ describe("getHubSocketPath", () => {
 ```
 
 **Edge cases to test:**
-- Mort directory with spaces in path (mock `getMortDir` to return `/path with spaces/.mort`)
-- Mort directory with special characters
+- Anvil directory with spaces in path (mock `getAnvilDir` to return `/path with spaces/.anvil`)
+- Anvil directory with special characters
 - Verify no trailing slashes cause double-slash issues
 
 ### Manual Verification Commands
@@ -128,12 +128,12 @@ pnpm exec tsx -e "import { getHubSocketPath } from './core/lib/index.js'; consol
 |-------------------|-----------------|
 | Unit tests | All 5 tests pass |
 | TypeScript compilation | No type errors |
-| REPL socket path check | `Socket path: /Users/<username>/.mort/agent-hub.sock` (full expanded path) |
+| REPL socket path check | `Socket path: /Users/<username>/.anvil/agent-hub.sock` (full expanded path) |
 | Export verification | `Exported: function` |
-| Path structure | Path is absolute, ends with `agent-hub.sock`, contains `.mort` directory |
+| Path structure | Path is absolute, ends with `agent-hub.sock`, contains `.anvil` directory |
 
 **Success indicators:**
-1. `getHubSocketPath()` returns a string like `/Users/zac/.mort/agent-hub.sock`
+1. `getHubSocketPath()` returns a string like `/Users/zac/.anvil/agent-hub.sock`
 2. The path uses the OS path separator (forward slash on Unix)
 3. No `~` character in the returned path (fully expanded)
 4. The `agent-hub.sock` filename is appended correctly without double slashes

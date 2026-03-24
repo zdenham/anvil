@@ -2,7 +2,7 @@
 
 ## Problem
 
-We currently support two environments (dev and prod), but need to support arbitrarily many dev environments with port rotation, separate mort directories, and unique hotkeys. Each git worktree needs its own isolated dev environment.
+We currently support two environments (dev and prod), but need to support arbitrarily many dev environments with port rotation, separate anvil directories, and unique hotkeys. Each git worktree needs its own isolated dev environment.
 
 ## Current State
 
@@ -31,32 +31,32 @@ ENV_NAME="${1:-prod}"
 
 # If prod, use defaults
 if [ "$ENV_NAME" = "prod" ]; then
-  export MORT_ENV_NAME="prod"
-  export MORT_APP_SUFFIX=""
-  export MORT_VITE_PORT=1420
-  export MORT_DIR="$HOME/.mort"
-  export MORT_CONFIG_DIR="$HOME/.config/mortician"
-  export MORT_SPOTLIGHT_HOTKEY="Command+Space"
-  export MORT_CLIPBOARD_HOTKEY="Command+Option+C"
+  export ANVIL_ENV_NAME="prod"
+  export ANVIL_APP_SUFFIX=""
+  export ANVIL_VITE_PORT=1420
+  export ANVIL_DIR="$HOME/.anvil"
+  export ANVIL_CONFIG_DIR="$HOME/.config/anvil"
+  export ANVIL_SPOTLIGHT_HOTKEY="Command+Space"
+  export ANVIL_CLIPBOARD_HOTKEY="Command+Option+C"
 else
   # Derive port from hash of env name (deterministic, in range 1421-1499)
   PORT_OFFSET=$(echo -n "$ENV_NAME" | cksum | cut -d' ' -f1)
   PORT_OFFSET=$((PORT_OFFSET % 79 + 1))  # 1-79 range
 
-  export MORT_ENV_NAME="$ENV_NAME"
-  export MORT_APP_SUFFIX="$ENV_NAME"
-  export MORT_VITE_PORT=$((1420 + PORT_OFFSET))
-  export MORT_DIR="$HOME/.mort-$ENV_NAME"
-  export MORT_CONFIG_DIR="$HOME/.config/mortician-$ENV_NAME"
+  export ANVIL_ENV_NAME="$ENV_NAME"
+  export ANVIL_APP_SUFFIX="$ENV_NAME"
+  export ANVIL_VITE_PORT=$((1420 + PORT_OFFSET))
+  export ANVIL_DIR="$HOME/.anvil-$ENV_NAME"
+  export ANVIL_CONFIG_DIR="$HOME/.config/anvil-$ENV_NAME"
 
   # Hotkeys: use modifier combos based on env
   # Non-prod envs get shifted modifiers to avoid conflicts with prod
-  export MORT_SPOTLIGHT_HOTKEY="Command+Shift+Option+Space"
-  export MORT_CLIPBOARD_HOTKEY="Command+Shift+Control+C"
+  export ANVIL_SPOTLIGHT_HOTKEY="Command+Shift+Option+Space"
+  export ANVIL_CLIPBOARD_HOTKEY="Command+Shift+Control+C"
 fi
 
-export MORT_HMR_PORT=$((MORT_VITE_PORT + 1))
-export MORT_TAURI_DEV_URL="http://localhost:$MORT_VITE_PORT"
+export ANVIL_HMR_PORT=$((ANVIL_VITE_PORT + 1))
+export ANVIL_TAURI_DEV_URL="http://localhost:$ANVIL_VITE_PORT"
 ```
 
 ### 2. Auto-Detect Worktree Name
@@ -71,7 +71,7 @@ get_env_name() {
   local worktree_name=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")
 
   # Main repo = prod, worktrees = their directory name
-  if [ "$worktree_name" = "mortician" ]; then
+  if [ "$worktree_name" = "anvil" ]; then
     echo "prod"
   else
     echo "$worktree_name"
@@ -97,7 +97,7 @@ interface EnvDetails {
   appSuffix: string;
   vitePort: number;
   hmrPort: number;
-  mortDir: string;
+  anvilDir: string;
   configDir: string;
   spotlightHotkey: string;
   clipboardHotkey: string;
@@ -105,19 +105,19 @@ interface EnvDetails {
 }
 
 function getEnvDetails(): EnvDetails {
-  const vitePort = parseInt(process.env.MORT_VITE_PORT || '1420');
-  const envName = process.env.MORT_ENV_NAME || 'prod';
-  const suffix = process.env.MORT_APP_SUFFIX || '';
+  const vitePort = parseInt(process.env.ANVIL_VITE_PORT || '1420');
+  const envName = process.env.ANVIL_ENV_NAME || 'prod';
+  const suffix = process.env.ANVIL_APP_SUFFIX || '';
 
   return {
     envName,
     appSuffix: suffix,
     vitePort,
     hmrPort: vitePort + 1,
-    mortDir: process.env.MORT_DIR || `${process.env.HOME}/.mort${suffix ? `-${suffix}` : ''}`,
-    configDir: process.env.MORT_CONFIG_DIR || `${process.env.HOME}/.config/mortician${suffix ? `-${suffix}` : ''}`,
-    spotlightHotkey: process.env.MORT_SPOTLIGHT_HOTKEY || 'Command+Space',
-    clipboardHotkey: process.env.MORT_CLIPBOARD_HOTKEY || 'Command+Option+C',
+    anvilDir: process.env.ANVIL_DIR || `${process.env.HOME}/.anvil${suffix ? `-${suffix}` : ''}`,
+    configDir: process.env.ANVIL_CONFIG_DIR || `${process.env.HOME}/.config/anvil${suffix ? `-${suffix}` : ''}`,
+    spotlightHotkey: process.env.ANVIL_SPOTLIGHT_HOTKEY || 'Command+Space',
+    clipboardHotkey: process.env.ANVIL_CLIPBOARD_HOTKEY || 'Command+Option+C',
     tauriDevUrl: `http://localhost:${vitePort}`,
   };
 }
@@ -125,13 +125,13 @@ function getEnvDetails(): EnvDetails {
 function printHuman(details: EnvDetails): void {
   const lines = [
     '╔═══════════════════════════════════════════════════╗',
-    '║           Mort Environment Details                ║',
+    '║           Anvil Environment Details                ║',
     '╠═══════════════════════════════════════════════════╣',
     `║  ENV_NAME:      ${details.envName.padEnd(33)}║`,
     `║  APP_SUFFIX:    ${(details.appSuffix || '<none>').padEnd(33)}║`,
     `║  VITE_PORT:     ${String(details.vitePort).padEnd(33)}║`,
     `║  HMR_PORT:      ${String(details.hmrPort).padEnd(33)}║`,
-    `║  MORT_DIR:      ${details.mortDir.padEnd(33)}║`,
+    `║  ANVIL_DIR:      ${details.anvilDir.padEnd(33)}║`,
     `║  CONFIG_DIR:    ${details.configDir.padEnd(33)}║`,
     `║  SPOTLIGHT:     ${details.spotlightHotkey.padEnd(33)}║`,
     `║  CLIPBOARD:     ${details.clipboardHotkey.padEnd(33)}║`,
@@ -148,15 +148,15 @@ function printJson(details: EnvDetails): void {
 
 function printShell(details: EnvDetails): void {
   // Output that can be eval'd by shell scripts
-  console.log(`export MORT_ENV_NAME="${details.envName}"`);
-  console.log(`export MORT_APP_SUFFIX="${details.appSuffix}"`);
-  console.log(`export MORT_VITE_PORT="${details.vitePort}"`);
-  console.log(`export MORT_HMR_PORT="${details.hmrPort}"`);
-  console.log(`export MORT_DIR="${details.mortDir}"`);
-  console.log(`export MORT_CONFIG_DIR="${details.configDir}"`);
-  console.log(`export MORT_SPOTLIGHT_HOTKEY="${details.spotlightHotkey}"`);
-  console.log(`export MORT_CLIPBOARD_HOTKEY="${details.clipboardHotkey}"`);
-  console.log(`export MORT_TAURI_DEV_URL="${details.tauriDevUrl}"`);
+  console.log(`export ANVIL_ENV_NAME="${details.envName}"`);
+  console.log(`export ANVIL_APP_SUFFIX="${details.appSuffix}"`);
+  console.log(`export ANVIL_VITE_PORT="${details.vitePort}"`);
+  console.log(`export ANVIL_HMR_PORT="${details.hmrPort}"`);
+  console.log(`export ANVIL_DIR="${details.anvilDir}"`);
+  console.log(`export ANVIL_CONFIG_DIR="${details.configDir}"`);
+  console.log(`export ANVIL_SPOTLIGHT_HOTKEY="${details.spotlightHotkey}"`);
+  console.log(`export ANVIL_CLIPBOARD_HOTKEY="${details.clipboardHotkey}"`);
+  console.log(`export ANVIL_TAURI_DEV_URL="${details.tauriDevUrl}"`);
 }
 
 const details = getEnvDetails();
@@ -181,15 +181,15 @@ if (process.argv.includes('--json')) {
 
 set -e
 
-VITE_PORT="${MORT_VITE_PORT:-1420}"
-APP_SUFFIX="${MORT_APP_SUFFIX:-}"
+VITE_PORT="${ANVIL_VITE_PORT:-1420}"
+APP_SUFFIX="${ANVIL_APP_SUFFIX:-}"
 
 if [ -n "$APP_SUFFIX" ]; then
-  IDENTIFIER="com.juice.mort-$APP_SUFFIX"
-  PRODUCT_NAME="Mort ($APP_SUFFIX)"
+  IDENTIFIER="com.juice.anvil-$APP_SUFFIX"
+  PRODUCT_NAME="Anvil ($APP_SUFFIX)"
 else
-  IDENTIFIER="com.juice.mort"
-  PRODUCT_NAME="Mort"
+  IDENTIFIER="com.juice.anvil"
+  PRODUCT_NAME="Anvil"
 fi
 
 cat > src-tauri/tauri.conf.local.json << EOF
@@ -203,12 +203,12 @@ cat > src-tauri/tauri.conf.local.json << EOF
 }
 EOF
 
-echo "Generated src-tauri/tauri.conf.local.json for $MORT_ENV_NAME"
+echo "Generated src-tauri/tauri.conf.local.json for $ANVIL_ENV_NAME"
 ```
 
 ### 5. Updated Dev Script
 
-**File**: `scripts/dev-mort.sh` (modified)
+**File**: `scripts/dev-anvil.sh` (modified)
 
 ```bash
 #!/bin/bash
@@ -249,8 +249,8 @@ Add to `package.json`:
     "print-env": "tsx scripts/print-env.ts",
     "print-env:json": "tsx scripts/print-env.ts --json",
     "print-env:shell": "tsx scripts/print-env.ts --shell",
-    "dev": "./scripts/dev-mort.sh",
-    "dev:env": "./scripts/dev-mort.sh"
+    "dev": "./scripts/dev-anvil.sh",
+    "dev:env": "./scripts/dev-anvil.sh"
   }
 }
 ```
@@ -286,14 +286,14 @@ eval $(pnpm print-env:shell)
 
 ```
 ╔═══════════════════════════════════════════════════╗
-║           Mort Environment Details                ║
+║           Anvil Environment Details                ║
 ╠═══════════════════════════════════════════════════╣
 ║  ENV_NAME:      feature-auth                      ║
 ║  APP_SUFFIX:    feature-auth                      ║
 ║  VITE_PORT:     1447                              ║
 ║  HMR_PORT:      1448                              ║
-║  MORT_DIR:      /Users/zac/.mort-feature-auth     ║
-║  CONFIG_DIR:    ~/.config/mortician-feature-auth  ║
+║  ANVIL_DIR:      /Users/zac/.anvil-feature-auth     ║
+║  CONFIG_DIR:    ~/.config/anvil-feature-auth  ║
 ║  SPOTLIGHT:     Command+Shift+Option+Space        ║
 ║  CLIPBOARD:     Command+Shift+Control+C           ║
 ║  TAURI_DEV_URL: http://localhost:1447             ║
@@ -339,7 +339,7 @@ This ensures:
 | `scripts/detect-env.sh` | Create | Auto-detect env from worktree |
 | `scripts/print-env.ts` | Create | Human/JSON/shell output |
 | `scripts/generate-tauri-conf.sh` | Create | Dynamic tauri config |
-| `scripts/dev-mort.sh` | Modify | Use new resolver system |
+| `scripts/dev-anvil.sh` | Modify | Use new resolver system |
 | `package.json` | Modify | Add new scripts |
 | `.gitignore` | Modify | Add `src-tauri/tauri.conf.local.json` |
 
@@ -348,7 +348,7 @@ This ensures:
 ## Migration Path
 
 1. Create new scripts without removing old `env-presets/` system
-2. Update `dev-mort.sh` to use new system with fallback
+2. Update `dev-anvil.sh` to use new system with fallback
 3. Test with multiple worktrees
 4. Remove old `env-presets/` directory once stable
 

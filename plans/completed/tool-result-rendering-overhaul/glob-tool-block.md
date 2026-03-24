@@ -52,7 +52,7 @@ interface ToolResultBlockParam {
 ## Component Structure
 
 ### Component Location
-`/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/glob-tool-block.tsx`
+`/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/glob-tool-block.tsx`
 
 ### Props Interface
 
@@ -523,7 +523,7 @@ export { GlobToolBlock };
 
 ### Unit Tests
 
-Create `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/glob-tool-block.test.tsx`:
+Create `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/glob-tool-block.test.tsx`:
 
 ```typescript
 import { render, screen } from "@testing-library/react";

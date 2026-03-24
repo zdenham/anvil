@@ -82,7 +82,7 @@ Non-blocking send — drop if channel full (same as `log_server.rs:287-290`).
 
 ```rust
 fn open_db() -> rusqlite::Connection {
-    let db_path = /* ~/.mort/drain.sqlite3 */;
+    let db_path = /* ~/.anvil/drain.sqlite3 */;
     let conn = rusqlite::Connection::open(db_path).expect("Failed to open drain DB");
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;").unwrap();
     init_schema(&conn);
@@ -123,7 +123,7 @@ fn flush_batch(conn: &rusqlite::Connection, buffer: &mut Vec<DrainRow>) {
 
 ### DB path
 
-Use `~/.mort/drain.sqlite3` — same directory as other mort state. Get path from `mort_dir` env or `dirs::home_dir().join(".mort")`.
+Use `~/.anvil/drain.sqlite3` — same directory as other anvil state. Get path from `anvil_dir` env or `dirs::home_dir().join(".anvil")`.
 
 ### No retry logic needed
 
@@ -167,7 +167,7 @@ This bridges the hub socket protocol to the tracing subscriber, where `SQLiteLay
 Add `SQLiteLayer` to the subscriber registry at line ~428 (alongside `log_server_layer`).
 
 ```rust
-// SQLite drain layer — always enabled, writes to ~/.mort/drain.sqlite3
+// SQLite drain layer — always enabled, writes to ~/.anvil/drain.sqlite3
 let sqlite_drain_layer = sqlite_layer::SQLiteLayer::new();
 
 tracing_subscriber::registry()
@@ -184,4 +184,4 @@ Also add `pub mod sqlite_layer;` and `pub mod sqlite_worker;` to the module decl
 
 ### Filter
 
-The `SQLiteLayer` itself filters on `target == "drain"` — no need for an `EnvFilter` wrapper. Regular logs (mort::*, web, etc.) pass through the layer's `on_event()` but get rejected by the target check immediately.
+The `SQLiteLayer` itself filters on `target == "drain"` — no need for an `EnvFilter` wrapper. Regular logs (anvil::*, web, etc.) pass through the layer's `on_event()` but get rejected by the target check immediately.

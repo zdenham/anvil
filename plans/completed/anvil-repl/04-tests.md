@@ -2,14 +2,14 @@
 
 ## Unit Tests
 
-### `agents/src/lib/mort-repl/__tests__/repl-runner.test.ts`
+### `agents/src/lib/anvil-repl/__tests__/repl-runner.test.ts`
 
-Test `MortReplRunner`:
-- `extractCode()` — heredoc extraction, quoted string extraction, non-mort-repl passthrough returns null
-- `execute()` — simple return value, mort.log() capture, async code, error handling (syntax error, runtime error)
+Test `AnvilReplRunner`:
+- `extractCode()` — heredoc extraction, quoted string extraction, non-anvil-repl passthrough returns null
+- `execute()` — simple return value, anvil.log() capture, async code, error handling (syntax error, runtime error)
 - `formatResult()` — success formatting, error formatting, truncation at 50KB
 
-### `agents/src/lib/mort-repl/__tests__/child-spawner.test.ts`
+### `agents/src/lib/anvil-repl/__tests__/child-spawner.test.ts`
 
 Test `ChildSpawner` (mock `child_process.spawn` and filesystem):
 - Creates correct thread metadata on disk
@@ -22,14 +22,14 @@ Test `ChildSpawner` (mock `child_process.spawn` and filesystem):
 ### `agents/src/hooks/__tests__/repl-hook.test.ts`
 
 Test the PreToolUse hook:
-- Passes through non-mort-repl bash commands (`{ continue: true }`)
-- Intercepts mort-repl commands and returns deny with result
-- Handles invalid mort-repl syntax (no code body)
+- Passes through non-anvil-repl bash commands (`{ continue: true }`)
+- Intercepts anvil-repl commands and returns deny with result
+- Handles invalid anvil-repl syntax (no code body)
 - Formats error correctly when code execution fails
 
 ## Integration Test (optional, live API)
 
-### `agents/src/lib/mort-repl/__tests__/repl-integration.test.ts`
+### `agents/src/lib/anvil-repl/__tests__/repl-integration.test.ts`
 
 Guard with `process.env.ANTHROPIC_API_KEY`:
 - Spawn a real child agent with a trivial prompt ("respond with just 'hello'")

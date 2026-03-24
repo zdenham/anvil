@@ -2,7 +2,7 @@
 
 ## Overview
 
-This phase assembles the new main window layout by integrating components from Phases 1-3. We create the `TreePanelHeader` with icon buttons, wire up the `ContentPaneContainer` to manage panes by UUID, implement the content panes store with `~/.mort/` disk persistence following the Entity Stores pattern (service layer for I/O), and perform a complete rewrite of `main-window-layout.tsx`.
+This phase assembles the new main window layout by integrating components from Phases 1-3. We create the `TreePanelHeader` with icon buttons, wire up the `ContentPaneContainer` to manage panes by UUID, implement the content panes store with `~/.anvil/` disk persistence following the Entity Stores pattern (service layer for I/O), and perform a complete rewrite of `main-window-layout.tsx`.
 
 **Dependencies:** Phases 1-3 must be complete before starting this phase.
 - Phase 1: `ContentPane`, `ContentPaneView` type, `ResizablePanel`, tree primitives
@@ -21,16 +21,16 @@ Before implementing, read these files to understand current patterns:
 
 | File | Purpose |
 |------|---------|
-| `/Users/zac/Documents/juice/mort/mortician/src/components/main-window/main-window-layout.tsx` | Current layout (will be rewritten) |
-| `/Users/zac/Documents/juice/mort/mortician/src/components/main-window/sidebar.tsx` | Current sidebar with header icons pattern |
-| `/Users/zac/Documents/juice/mort/mortician/src/lib/persistence.ts` | Disk persistence API |
-| `/Users/zac/Documents/juice/mort/mortician/src/entities/threads/store.ts` | Zustand store patterns |
-| `/Users/zac/Documents/juice/mort/mortician/src/entities/threads/service.ts` | Service layer patterns |
-| `/Users/zac/Documents/juice/mort/mortician/src/entities/threads/listeners.ts` | Event listener patterns |
-| `/Users/zac/Documents/juice/mort/mortician/src/components/inbox/empty-inbox-state.tsx` | Empty state to reuse |
-| `/Users/zac/Documents/juice/mort/mortician/src/components/ui/status-legend.tsx` | StatusLegend component |
-| `/Users/zac/Documents/juice/mort/mortician/src/components/content-pane/types.ts` | Phase 1 ContentPaneView type |
-| `/Users/zac/Documents/juice/mort/mortician/docs/patterns/entity-stores.md` | Store pattern documentation |
+| `/Users/zac/Documents/juice/anvil/anvil/src/components/main-window/main-window-layout.tsx` | Current layout (will be rewritten) |
+| `/Users/zac/Documents/juice/anvil/anvil/src/components/main-window/sidebar.tsx` | Current sidebar with header icons pattern |
+| `/Users/zac/Documents/juice/anvil/anvil/src/lib/persistence.ts` | Disk persistence API |
+| `/Users/zac/Documents/juice/anvil/anvil/src/entities/threads/store.ts` | Zustand store patterns |
+| `/Users/zac/Documents/juice/anvil/anvil/src/entities/threads/service.ts` | Service layer patterns |
+| `/Users/zac/Documents/juice/anvil/anvil/src/entities/threads/listeners.ts` | Event listener patterns |
+| `/Users/zac/Documents/juice/anvil/anvil/src/components/inbox/empty-inbox-state.tsx` | Empty state to reuse |
+| `/Users/zac/Documents/juice/anvil/anvil/src/components/ui/status-legend.tsx` | StatusLegend component |
+| `/Users/zac/Documents/juice/anvil/anvil/src/components/content-pane/types.ts` | Phase 1 ContentPaneView type |
+| `/Users/zac/Documents/juice/anvil/anvil/docs/patterns/entity-stores.md` | Store pattern documentation |
 
 ---
 
@@ -73,7 +73,7 @@ src/components/
 - [ ] Create `src/stores/content-panes/index.ts` barrel export
 - [ ] Import `ContentPaneView` from Phase 1's `@/components/content-pane/types`
 - [ ] Add `ContentPanesPersistedStateSchema` Zod schema for disk validation
-- [ ] Implement disk persistence to `~/.mort/ui/content-panes.json`
+- [ ] Implement disk persistence to `~/.anvil/ui/content-panes.json`
 - [ ] Add default pane creation on first launch
 - [ ] Add listeners for `THREAD_ARCHIVED` and `PLAN_ARCHIVED` events
 
@@ -84,7 +84,7 @@ src/components/
 - [ ] Create `src/stores/layout/service.ts` for disk I/O with **debounced resize persistence**
 - [ ] Create `src/stores/layout/index.ts` barrel export
 - [ ] Add `LayoutPersistedStateSchema` Zod schema for disk validation
-- [ ] Implement persistence to `~/.mort/ui/layout.json`
+- [ ] Implement persistence to `~/.anvil/ui/layout.json`
 - [ ] Add debounced `persistWidth()` (200ms) for panel resize operations
 
 ### 4.3 Create TreePanelHeader Component
@@ -95,7 +95,7 @@ src/components/
 - [ ] Wire Logs icon to `contentPanesService.setActivePaneView({ type: "logs" })`
 - [ ] Wire Terminal icon (placeholder for terminal integration)
 - [ ] Wire New button with dropdown (New Thread, New Worktree)
-- [ ] Add MORT logo and title
+- [ ] Add ANVIL logo and title
 - [ ] Style to match existing sidebar header
 
 ### 4.4 Create ContentPaneContainer Component
@@ -188,7 +188,7 @@ export const ContentPaneSchema = z.object({
 
 /**
  * Schema for the persisted state read from disk.
- * Used to validate ~/.mort/ui/content-panes.json
+ * Used to validate ~/.anvil/ui/content-panes.json
  */
 export const ContentPanesPersistedStateSchema = z.object({
   panes: z.record(z.string(), ContentPaneSchema),
@@ -663,7 +663,7 @@ import { z } from "zod";
 
 /**
  * Schema for the persisted layout state.
- * Used to validate ~/.mort/ui/layout.json
+ * Used to validate ~/.anvil/ui/layout.json
  */
 export const LayoutPersistedStateSchema = z.object({
   treePanelWidth: z.number().min(0).max(1000).default(280),
@@ -930,7 +930,7 @@ export { layoutService } from "./service";
 ```tsx
 import { useState } from "react";
 import { Cog, ScrollText, Terminal, Plus, FolderGit2, MessageSquarePlus } from "lucide-react";
-import { MortLogo } from "../ui/mort-logo";
+import { AnvilLogo } from "../ui/anvil-logo";
 import { Tooltip } from "../ui/tooltip";
 import { contentPanesService } from "@/stores/content-panes";
 
@@ -973,8 +973,8 @@ export function TreePanelHeader({ onNewThread, onNewWorktree }: TreePanelHeaderP
   return (
     <div className="px-3 py-1.5 border-b border-surface-800 flex items-center gap-2.5">
       {/* Logo and title */}
-      <MortLogo size={4} />
-      <h1 className="font-semibold text-surface-100 font-mono text-sm">MORT</h1>
+      <AnvilLogo size={4} />
+      <h1 className="font-semibold text-surface-100 font-mono text-sm">ANVIL</h1>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -1351,7 +1351,7 @@ export function MainWindowLayout() {
 
 ## State Persistence Pattern
 
-All UI state follows the established `~/.mort/` disk persistence pattern with proper separation of concerns:
+All UI state follows the established `~/.anvil/` disk persistence pattern with proper separation of concerns:
 
 ### Architecture
 
@@ -1394,13 +1394,13 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
 
 | Store | Persistence Path |
 |-------|-----------------|
-| `contentPanesService` | `~/.mort/ui/content-panes.json` |
-| `layoutService` | `~/.mort/ui/layout.json` |
-| `useTreeMenuStore` | `~/.mort/ui/tree-menu.json` (from Phase 2) |
+| `contentPanesService` | `~/.anvil/ui/content-panes.json` |
+| `layoutService` | `~/.anvil/ui/layout.json` |
+| `useTreeMenuStore` | `~/.anvil/ui/tree-menu.json` (from Phase 2) |
 
 ### Example Persisted State
 
-**`~/.mort/ui/content-panes.json`:**
+**`~/.anvil/ui/content-panes.json`:**
 ```json
 {
   "panes": {
@@ -1413,7 +1413,7 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
 }
 ```
 
-**`~/.mort/ui/layout.json`:**
+**`~/.anvil/ui/layout.json`:**
 ```json
 {
   "treePanelWidth": 280,
@@ -1486,8 +1486,8 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
 │   ├─ _applySetView()                                                    │
 │   └─ _applySetActive()                                                  │
 │                                                                          │
-│   Persistence: ~/.mort/ui/content-panes.json                            │
-│   Persistence: ~/.mort/ui/layout.json                                   │
+│   Persistence: ~/.anvil/ui/content-panes.json                            │
+│   Persistence: ~/.anvil/ui/layout.json                                   │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -1519,7 +1519,7 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
 - Service handles all persistence logic
 
 ### First Launch
-- No `~/.mort/ui/` files exist
+- No `~/.anvil/ui/` files exist
 - Service creates default pane with `{ type: "empty" }`
 - Default panel width (280px) used from constants
 - Initial state written to disk after hydration
@@ -1551,7 +1551,7 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
   - Service handles all disk I/O
   - Zod validation on disk reads
 
-- [ ] **Content panes persist to `~/.mort/ui/content-panes.json`**
+- [ ] **Content panes persist to `~/.anvil/ui/content-panes.json`**
   - Pane state survives app restart
   - Active pane ID is restored
   - Invalid activePaneId references are corrected on load
@@ -1561,7 +1561,7 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
   - Debounced persistence for resize operations
   - Zod validation on disk reads
 
-- [ ] **Layout persists to `~/.mort/ui/layout.json`**
+- [ ] **Layout persists to `~/.anvil/ui/layout.json`**
   - Panel width survives app restart
   - Panel visibility survives app restart
 
@@ -1614,11 +1614,11 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
 ### Manual Testing Checklist
 
 1. **Fresh install test:**
-   - Delete `~/.mort/ui/` directory
+   - Delete `~/.anvil/ui/` directory
    - Launch app
    - Verify default pane created
    - Verify onboarding guide shown
-   - Verify `~/.mort/ui/content-panes.json` created
+   - Verify `~/.anvil/ui/content-panes.json` created
 
 2. **Persistence test:**
    - Select a thread
@@ -1656,7 +1656,7 @@ All UI state follows the established `~/.mort/` disk persistence pattern with pr
    - Same test for plans
 
 7. **Corrupted state recovery:**
-   - Manually corrupt `~/.mort/ui/content-panes.json`
+   - Manually corrupt `~/.anvil/ui/content-panes.json`
    - Launch app
    - Verify default pane created (graceful recovery)
    - Check console for Zod validation errors logged

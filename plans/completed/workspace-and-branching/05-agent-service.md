@@ -235,7 +235,7 @@ function generateConversationId(): string {
 
 /**
  * Persist conversation tracking info to recover after restart.
- * Stored in: ~/.mort/active-conversations/{conversationId}.json
+ * Stored in: ~/.anvil/active-conversations/{conversationId}.json
  */
 async function persistConversationTracking(
   conversationId: string,
@@ -259,7 +259,7 @@ async function removeConversationTracking(conversationId: string): Promise<void>
 
 async function getTrackingPath(conversationId: string): Promise<string> {
   const home = await invoke<string>("get_home_dir");
-  return `${home}/.mort/active-conversations/${conversationId}.json`;
+  return `${home}/.anvil/active-conversations/${conversationId}.json`;
 }
 
 /**
@@ -270,7 +270,7 @@ async function restoreActiveConversations(
   map: Map<string, ConversationTrackingInfo>
 ): Promise<void> {
   const home = await invoke<string>("get_home_dir");
-  const trackingDir = `${home}/.mort/active-conversations`;
+  const trackingDir = `${home}/.anvil/active-conversations`;
 
   try {
     const files = await invoke<string[]>("list_directory", { path: trackingDir });

@@ -70,7 +70,7 @@ conversation_id: String → thread_id: String
 // Update any internal variable names
 ```
 
-### 5. src-tauri/src/mort_commands.rs
+### 5. src-tauri/src/anvil_commands.rs
 
 ```rust
 // Rename function
@@ -101,7 +101,7 @@ cargo build
 - [ ] panels.rs - update constants, functions, strings
 - [ ] lib.rs - update module import, commands, registrations
 - [ ] process_commands.rs - update parameter names
-- [ ] mort_commands.rs - update function and paths
+- [ ] anvil_commands.rs - update function and paths
 - [ ] Rename conversation_commands.rs → thread_commands.rs
 - [ ] cargo check passes
 - [ ] cargo build passes

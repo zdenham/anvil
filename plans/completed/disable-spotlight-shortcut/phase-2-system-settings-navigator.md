@@ -315,8 +315,8 @@ mod tests {
 ## Verification
 
 1. Add `mod system_settings;` to `src-tauri/src/lib.rs`
-2. Run `cargo check -p mortician` to verify compilation
-3. Optionally test with `cargo test -p mortician -- --ignored test_find_system_settings`
+2. Run `cargo check -p anvil` to verify compilation
+3. Optionally test with `cargo test -p anvil -- --ignored test_find_system_settings`
 
 ## Success Criteria
 

@@ -25,7 +25,7 @@ const CLIPBOARD_HOTKEY: &str = "Command+Option+C";
 
 ### Conflict Issue
 
-Global hotkeys are OS-wide. If multiple Mort instances register the same hotkey:
+Global hotkeys are OS-wide. If multiple Anvil instances register the same hotkey:
 - Only one will work (last registered wins)
 - Switching between apps causes hotkey fights
 
@@ -103,7 +103,7 @@ pub fn get_spotlight_hotkey() -> Result<String, String> {
 
 Update onboarding UI to show appropriate defaults based on build.
 
-**Add Tauri command** (in `mort_commands.rs`):
+**Add Tauri command** (in `anvil_commands.rs`):
 ```rust
 use crate::build_info;
 
@@ -167,7 +167,7 @@ const { app_suffix, spotlight, clipboard } = await invoke<HotkeyDefaults>('get_d
 |------|--------|
 | `src-tauri/src/lib.rs` | **MODIFY**: Use `build_info::DEFAULT_*_HOTKEY` constants |
 | `src-tauri/src/config.rs` | **MODIFY**: Use `build_info::DEFAULT_SPOTLIGHT_HOTKEY` |
-| `src-tauri/src/mort_commands.rs` | **MODIFY**: Add `get_default_hotkeys` command |
+| `src-tauri/src/anvil_commands.rs` | **MODIFY**: Add `get_default_hotkeys` command |
 | `src/components/onboarding/*` | **MODIFY**: Query and display defaults |
 | `src/components/settings/*` | **MODIFY**: Display instance indicator |
 
@@ -177,11 +177,11 @@ const { app_suffix, spotlight, clipboard } = await invoke<HotkeyDefaults>('get_d
 
 ```bash
 # Production build
-open /Applications/Mort.app
+open /Applications/Anvil.app
 # Hotkeys: Cmd+Space, Cmd+Option+C
 
 # Dev build (different hotkeys baked in)
-open /Applications/Mort\ Dev.app
+open /Applications/Anvil\ Dev.app
 # Hotkeys: Cmd+Shift+Space, Cmd+Shift+Option+C
 ```
 
@@ -206,12 +206,12 @@ No env vars needed at runtime - the correct hotkeys are baked into each build.
 - If conflict exists, user must manually change in settings
 
 ### Hotkey Collision Detection
-Future enhancement: detect if another Mort instance has registered a hotkey:
+Future enhancement: detect if another Anvil instance has registered a hotkey:
 
 ```rust
 fn check_hotkey_available(hotkey: &str) -> bool {
     // Try to register temporarily
-    // If fails, another app (possibly another Mort) has it
+    // If fails, another app (possibly another Anvil) has it
     // Unregister and return result
 }
 ```

@@ -49,7 +49,7 @@ The agents package uses:
 Create `core/sdk/package.json`:
 ```json
 {
-  "name": "@mort/sdk-runner",
+  "name": "@anvil/sdk-runner",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -90,7 +90,7 @@ Update `dev:run` to build/watch SDK alongside agents:
 }
 ```
 
-### Step 5: Update scripts/dev-mort.sh
+### Step 5: Update scripts/dev-anvil.sh
 
 Add initial SDK build before dev server starts:
 ```bash
@@ -112,7 +112,7 @@ sdk-types.d.ts
 |------|--------|
 | `core/sdk/package.json` | Create new package.json with esbuild scripts |
 | `package.json` | Add `build:sdk`, `dev:sdk` scripts; update `build:frontend` |
-| `scripts/dev-mort.sh` | Add SDK build before dev server |
+| `scripts/dev-anvil.sh` | Add SDK build before dev server |
 | `.gitignore` | Add `sdk-runner.js` and `sdk-types.d.ts` |
 
 ## Verification

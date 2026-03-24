@@ -140,7 +140,7 @@ if (!settings.anthropicApiKey) {
 
 - The spawned process runs in the user's repository directory with full file system access. This is intentional - the agent needs to read/write files.
 - The `$HOME/**` scope in fs permissions allows conversation folders within any repository under home.
-- API key is stored in workspace settings, not committed to git (the `.mort/` folder should be in `.gitignore`).
+- API key is stored in workspace settings, not committed to git (the `.anvil/` folder should be in `.gitignore`).
 
 ## Testing
 

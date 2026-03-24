@@ -126,7 +126,7 @@ The original gave 7.0-10.0 for plan tracking. The independent analysis gave 6-9.
 | **cc-teams** | No sidecar readiness probe — Tauri connects before sidecar is listening | High |
 | **cc-teams** | `dist-sidecar/` not in `.gitignore` | Medium |
 | **vanilla-orchestrate** | Shutdown handler never calls `terminalManager.killAll()` / `watcherManager.closeAll()` | **Blocker** |
-| **vanilla-orchestrate** | `mortDir()`, `reposDir()`, `slugify()` copy-pasted between misc.ts and worktree.ts | Medium |
+| **vanilla-orchestrate** | `anvilDir()`, `reposDir()`, `slugify()` copy-pasted between misc.ts and worktree.ts | Medium |
 | **breadcrumb-loop** | `execFileSync` in `fsGitWorktreeAdd/Remove` blocks event loop up to 30s | High |
 | **breadcrumb-loop** | `AgentHubManager.hierarchy` map populated but never read (dead code) | Low |
 | **breadcrumb-loop** | `homeDir()` shim returns `"/"` instead of actual home directory | Medium |

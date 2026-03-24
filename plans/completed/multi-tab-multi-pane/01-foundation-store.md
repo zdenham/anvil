@@ -15,7 +15,7 @@ Create the `pane-layout` store, service, types, and Zod schemas that replace `co
 - `content-panes/service.ts` — Disk-as-truth service using `appData.readJson`/`writeJson`
 - `content-panes/types.ts` — Zod schemas for persistence validation
 
-**Persistence file**: `~/.mort/ui/pane-layout.json` (new file, not migrating from `content-panes.json`)
+**Persistence file**: `~/.anvil/ui/pane-layout.json` (new file, not migrating from `content-panes.json`)
 
 ## Files to Create
 
@@ -96,7 +96,7 @@ Zustand store with state + optimistic apply methods (same pattern as `content-pa
 
 Disk-as-truth service following `contentPanesService` pattern:
 
-- `hydrate()` — Read `~/.mort/ui/pane-layout.json`, validate with Zod, call `store.hydrate()`. On failure/missing, use default state.
+- `hydrate()` — Read `~/.anvil/ui/pane-layout.json`, validate with Zod, call `store.hydrate()`. On failure/missing, use default state.
 - `persistState()` — Write current store state to disk (strip ephemeral fields like `autoFocus`)
 - `openTab(view, groupId?)` — Create tab in group (or active group). Enforce max 5 (close leftmost if at cap). Persist + apply.
 - `closeTab(groupId, tabId)` — Remove tab. Activate left neighbor. If group empty, remove group + collapse split. If last group, reset to default. Persist + apply.

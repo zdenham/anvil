@@ -2,7 +2,7 @@
 
 ## Problem
 
-The SDK's `ExitPlanMode` tool teaches the agent "exit plan mode → start implementing." Mort's plan mode has no implementation phase — the agent's job ends when the plan file is written. The agent calls `ExitPlanMode`, thinks it can now write code, gets denied by Mort's permission rules, and spirals.
+The SDK's `ExitPlanMode` tool teaches the agent "exit plan mode → start implementing." Anvil's plan mode has no implementation phase — the agent's job ends when the plan file is written. The agent calls `ExitPlanMode`, thinks it can now write code, gets denied by Anvil's permission rules, and spirals.
 
 Current prompting is too quiet: `Mode: Plan — read all, write only to plans/` gets drowned out by the SDK's built-in tool descriptions.
 
@@ -57,7 +57,7 @@ const planContext = newMode.id === "plan"
 
 ## Open Question
 
-**Does the SDK's internal plan mode block Write/Edit even when Mort's hook allows it?**
+**Does the SDK's internal plan mode block Write/Edit even when Anvil's hook allows it?**
 
 If yes, denying `ExitPlanMode` would trap the agent — it couldn't write plan files either. Needs a manual test: enter plan mode → try `Write` to `plans/test.md` without calling `ExitPlanMode`. If the write succeeds, the deny approach works. If not, keep `ExitPlanMode` allowed and rely on prompt-only.
 

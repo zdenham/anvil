@@ -130,7 +130,7 @@ await agentService.startAgent({
 
 The TaskService handles:
 - Generating unique task IDs via `generateTaskId()`
-- Persisting task metadata to `~/.mort/tasks/`
+- Persisting task metadata to `~/.anvil/tasks/`
 - Setting initial status to `"pending"`
 
 ---

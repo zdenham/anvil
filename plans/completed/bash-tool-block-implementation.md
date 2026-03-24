@@ -41,7 +41,7 @@ Or without description:
 │ ▼ Run test suite                                   ⏳ Running
 │   $ npm test
 │
-│   > mortician@0.1.0 test
+│   > anvil@0.1.0 test
 │   > vitest run
 │
 │   Running tests...
@@ -70,7 +70,7 @@ Or without description:
 │ ▼ Run test suite                           1.2s  ✓ Exit 0  📋
 │   $ npm test
 │
-│   > mortician@0.1.0 test
+│   > anvil@0.1.0 test
 │   > vitest run
 │
 │    ✓ src/utils.test.ts (3 tests) 120ms
@@ -103,7 +103,7 @@ Or without description:
 │ ▼ Run test suite                           0.8s  ✗ Exit 1  📋
 │   $ npm test
 │
-│   > mortician@0.1.0 test
+│   > anvil@0.1.0 test
 │   > vitest run
 │
 │   FAIL  src/utils.test.ts
@@ -136,7 +136,7 @@ Or without description:
 │ ▼ Start development server             ⏳ Running  (bg: shell_abc)
 │   $ npm run dev
 │
-│   > mortician@0.1.0 dev
+│   > anvil@0.1.0 dev
 │   > vite
 │
 │   VITE v5.0.0  ready in 234ms

@@ -57,7 +57,7 @@ pub struct LogRow {
     pub timestamp: i64,              // DateTime64(3) as milliseconds since epoch
     pub level: String,               // TRACE, DEBUG, INFO, WARN, ERROR
     pub message: String,
-    pub target: String,              // Rust module path (e.g., "mort::clipboard")
+    pub target: String,              // Rust module path (e.g., "anvil::clipboard")
 
     // Instance identification (always present)
     pub version: String,             // From CARGO_PKG_VERSION

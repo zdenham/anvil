@@ -191,7 +191,7 @@ Layout: two-panel split
 #### Disk State Reader
 - Button: "Read Thread State from Disk"
 - Thread ID input (pre-filled from selected event's threadId)
-- Reads `~/.mort/threads/{threadId}/state.json` and `metadata.json`
+- Reads `~/.anvil/threads/{threadId}/state.json` and `metadata.json`
 - Displays in a collapsible JSON tree
 - Shows: message count, file changes, tool states, token usage, status
 

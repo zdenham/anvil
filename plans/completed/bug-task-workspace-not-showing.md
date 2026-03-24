@@ -331,7 +331,7 @@ function TaskHeader({ task }: { task: TaskMetadata }) {
 The agent needs to update task status. Add a Tauri command:
 
 ```rust
-// src-tauri/src/mort_commands.rs
+// src-tauri/src/anvil_commands.rs
 
 #[tauri::command]
 pub async fn update_task(
@@ -432,7 +432,7 @@ private async checkMeaningfulWork(draft: TaskMetadata): Promise<boolean> {
 | `src/thread-main.tsx` | Keep fallback for now, remove after migration |
 | `src/components/workspace/task-header.tsx` | Handle draft state display |
 | `src/lib/agent-service.ts` | Pass taskId to agent (no longer null) |
-| `src-tauri/src/mort_commands.rs` | Add `update_task` command |
+| `src-tauri/src/anvil_commands.rs` | Add `update_task` command |
 | `src/lib/event-bridge.ts` | Add listener for `task:update-from-agent` |
 
 ## Files to Delete (Later)

@@ -7,7 +7,7 @@ When a REPL child agent is spawned, the parent thread's sidebar item should auto
 ## Current Flow
 
 1. `ChildSpawner.spawn()` creates thread metadata on disk with `parentThreadId` set to the REPL parent's thread ID
-2. It emits `THREAD_CREATED` via `emitEvent()` with source `"mort-repl:child-spawn"`
+2. It emits `THREAD_CREATED` via `emitEvent()` with source `"anvil-repl:child-spawn"`
 3. Frontend `thread/listeners.ts` handles `THREAD_CREATED` → calls `threadService.refreshById(threadId)` (loads metadata from disk into store)
 4. Frontend `tree-menu/listeners.ts` handles `THREAD_CREATED` → calls `treeMenuService.refreshFromDisk()` (refreshes expansion state)
 5. `use-tree-data.ts` rebuilds the tree — the child thread gets `parentId = thread.visualSettings?.parentId ?? thread.worktreeId`
@@ -22,7 +22,7 @@ The cleanest approach is to handle this in the existing `THREAD_CREATED` listene
 **How to detect REPL children**: The `THREAD_CREATED` event payload currently only has `{ threadId, repoId, worktreeId }`. We can't distinguish REPL from sub-agent tool at the event level. Two options:
 
 - **Option A (simpler)**: After `refreshById()`, read the thread metadata from the store. If `parentThreadId` is set, always auto-expand the parent for any sub-agent. This is simpler but changes behavior for Agent tool sub-agents too.
-- **Option B (targeted)**: Add a `source` field to the `THREAD_CREATED` event payload so the frontend can check `source === "mort-repl:child-spawn"`. The source is already passed to `emitEvent()` in child-spawner.ts but isn't included in the event payload — it's metadata for the hub/socket layer only.
+- **Option B (targeted)**: Add a `source` field to the `THREAD_CREATED` event payload so the frontend can check `source === "anvil-repl:child-spawn"`. The source is already passed to `emitEvent()` in child-spawner.ts but isn't included in the event payload — it's metadata for the hub/socket layer only.
 
 **Recommendation**: Option B — add `source` to the event payload. This is surgical and only changes REPL behavior as requested.
 
@@ -54,7 +54,7 @@ Add optional `source` to the `THREAD_CREATED` payload:
 
 ### Phase 2: Verify source flows through
 
-The `emitEvent` in `child-spawner.ts:129-138` already passes `"mort-repl:child-spawn"` as the third arg to `emitEvent`. Need to verify how `emitEvent` is wired — check if the source parameter makes it into the event payload or if it's separate metadata.
+The `emitEvent` in `child-spawner.ts:129-138` already passes `"anvil-repl:child-spawn"` as the third arg to `emitEvent`. Need to verify how `emitEvent` is wired — check if the source parameter makes it into the event payload or if it's separate metadata.
 
 **File**: `agents/src/lib/events.ts` — check how `emitEvent` serializes source into the event payload. If source is currently discarded, include it in the payload object.
 
@@ -70,7 +70,7 @@ const handleCreated = async ({ threadId, source }: EventPayloads[typeof EventNam
     await threadService.refreshById(threadId);
 
     // Auto-expand parent when REPL spawns a child
-    if (source === "mort-repl:child-spawn") {
+    if (source === "anvil-repl:child-spawn") {
       const thread = threadService.get(threadId);
       if (thread?.parentThreadId) {
         await treeMenuService.expandSection(`thread:${thread.parentThreadId}`);
@@ -95,7 +95,7 @@ The expand key format is `thread:{parentThreadId}` — this matches the pattern 
 | --- | --- |
 | `core/types/events.ts` | Add `source?: string` to THREAD_CREATED payload |
 | `agents/src/lib/events.ts` | Ensure source flows into event payload (if not already) |
-| `agents/src/lib/mort-repl/child-spawner.ts` | May need to include source in payload object |
+| `agents/src/lib/anvil-repl/child-spawner.ts` | May need to include source in payload object |
 | `src/entities/threads/listeners.ts` | Add auto-expand logic in handleCreated |
 | Test files | New test for auto-expand behavior |
 

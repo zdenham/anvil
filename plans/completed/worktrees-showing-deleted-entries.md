@@ -115,7 +115,7 @@ Search for any other places that call `worktreeService.list()` and update them t
 ## Testing
 
 1. Create a worktree via the UI
-2. Manually delete the worktree directory via command line (`rm -rf ~/.mort/repositories/<slug>/<worktree-name>`)
+2. Manually delete the worktree directory via command line (`rm -rf ~/.anvil/repositories/<slug>/<worktree-name>`)
 3. Open Spotlight - should NOT show the deleted worktree
 4. Open Worktrees page - should NOT show the deleted worktree
 5. Verify settings.json no longer contains the deleted worktree entry

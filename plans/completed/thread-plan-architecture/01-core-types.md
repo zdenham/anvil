@@ -9,7 +9,7 @@ Define the new TypeScript types for the Thread + Plan architecture. All persiste
 
 ## Migration Note
 
-**No migration is needed.** All users will have a fresh start by deleting their `.mort` directory. This simplifies the implementation - we don't need to handle existing settings files that lack the new required `id` fields.
+**No migration is needed.** All users will have a fresh start by deleting their `.anvil` directory. This simplifies the implementation - we don't need to handle existing settings files that lack the new required `id` fields.
 
 ## Tasks
 
@@ -70,7 +70,7 @@ export type ThreadStatus = "idle" | "running" | "completed" | "error" | "paused"
 - `changedFilePaths` - Still needed for diff generation
 - Full `ThreadStatus` enum - Kept for backwards compatibility
 
-**Thread folder naming:** Thread folders are stored at `~/.mort/threads/{threadId}/`. The folder name is simply the thread's UUID - no timestamp or convention needed. Any utilities like `getThreadFolderName`/`parseThreadFolderName` should be updated to just use the thread ID directly.
+**Thread folder naming:** Thread folders are stored at `~/.anvil/threads/{threadId}/`. The folder name is simply the thread's UUID - no timestamp or convention needed. Any utilities like `getThreadFolderName`/`parseThreadFolderName` should be updated to just use the thread ID directly.
 
 ### 2. Update PlanMetadata schema
 
@@ -167,7 +167,7 @@ export function getHighestPrecedenceType(types: RelationType[]): RelationType {
 }
 ```
 
-**Storage:** `~/.mort/plan-thread-edges/{planId}-{threadId}.json`
+**Storage:** `~/.anvil/plan-thread-edges/{planId}-{threadId}.json`
 
 ### 4. Extend RepositorySettings for plans
 

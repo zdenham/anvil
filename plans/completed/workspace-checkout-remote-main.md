@@ -73,7 +73,7 @@ create(repoName: string, name: string): WorktreeState {
       `origin/${defaultBranch}`
     );
 
-    const worktreePath = `${this.mortDir}/repositories/${repoName}/${name}`;
+    const worktreePath = `${this.anvilDir}/repositories/${repoName}/${name}`;
 
     // Create worktree at the remote commit (detached HEAD)
     this.git.createWorktree(settings.sourcePath, worktreePath, {

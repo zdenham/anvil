@@ -35,7 +35,7 @@ const commandArgs = [
   "--thread-id", parsed.threadId,
   "--cwd", parsed.sourcePath,
   "--prompt", parsed.prompt,
-  "--mort-dir", mortDir,
+  "--anvil-dir", anvilDir,
   // ← NO --permission-mode
 ];
 ```
@@ -44,7 +44,7 @@ And `SpawnSimpleAgentOptions` (line 497) doesn't include `permissionMode` at all
 
 ### The race / overwrite sequence
 
-1. User selects "approve" → frontend calls `threadService.update()` → writes `permissionMode: "approve"` to `~/.mort/threads/{id}/metadata.json`
+1. User selects "approve" → frontend calls `threadService.update()` → writes `permissionMode: "approve"` to `~/.anvil/threads/{id}/metadata.json`
 2. User sends message → `spawnSimpleAgent()` is called (without permission mode)
 3. Agent process starts → `setup()` in `simple-runner-strategy.ts` runs
 4. For new threads, `setup()` writes a fresh `metadata.json` with `permissionMode: "plan"` — **overwriting** the frontend's file

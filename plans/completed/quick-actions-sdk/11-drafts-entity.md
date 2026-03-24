@@ -10,7 +10,7 @@ This implementation uses the `persistence` singleton from `@/lib/persistence.js`
 
 1. **Node.js path module is NOT available** in Tauri's renderer process (browser-like environment)
 2. **`@tauri-apps/plugin-fs` is NOT used** in this codebase - instead, all FS operations go through Tauri IPC commands via the `FilesystemClient`
-3. The `persistence` layer handles path resolution relative to the data directory (e.g., `~/.mort/`) and abstracts away platform differences
+3. The `persistence` layer handles path resolution relative to the data directory (e.g., `~/.anvil/`) and abstracts away platform differences
 
 Do NOT use `import * as path from 'path'` or `import * as fs from '@tauri-apps/plugin-fs'` in renderer process code.
 
@@ -99,7 +99,7 @@ import { persistence } from '@/lib/persistence.js';
 import { useDraftsStore } from './store.js';
 import { DraftsFileSchema, type DraftsFile } from './types.js';
 
-// Path relative to the data directory (e.g., ~/.mort/drafts.json)
+// Path relative to the data directory (e.g., ~/.anvil/drafts.json)
 const DRAFTS_PATH = 'drafts.json';
 
 async function readDraftsFile(): Promise<DraftsFile> {
@@ -376,7 +376,7 @@ function ThreadView({ threadId }: { threadId: string }) {
 
 ## Acceptance Criteria
 
-- [ ] Drafts persisted to `~/.mort/drafts.json`
+- [ ] Drafts persisted to `~/.anvil/drafts.json`
 - [ ] Draft saved when navigating away
 - [ ] Draft restored when navigating to context
 - [ ] Draft cleared after sending message
@@ -391,7 +391,7 @@ function ThreadView({ threadId }: { threadId: string }) {
 
 1. **Verify types compile without errors:**
    ```bash
-   cd /Users/zac/Documents/juice/mort/mortician && npx tsc --noEmit
+   cd /Users/zac/Documents/juice/anvil/anvil && npx tsc --noEmit
    ```
    Expected: No type errors related to drafts entity files.
 
@@ -447,10 +447,10 @@ function ThreadView({ threadId }: { threadId: string }) {
 ### Runtime Behavior Tests
 
 6. **Test file creation on first write:**
-   - Delete `~/.mort/drafts.json` if it exists
+   - Delete `~/.anvil/drafts.json` if it exists
    - Call `draftService.saveThreadDraft('test-id', 'test content')`
    - Wait 600ms (debounce delay + buffer)
-   - Verify `~/.mort/drafts.json` exists and contains:
+   - Verify `~/.anvil/drafts.json` exists and contains:
      ```json
      {
        "threads": { "test-id": "test content" },
@@ -519,7 +519,7 @@ function ThreadView({ threadId }: { threadId: string }) {
     // Test that persistence resolves paths correctly within the data directory
     const testPath = await persistence.getAbsolutePath('drafts.json');
     console.log('Drafts path:', testPath);
-    // Expected: /Users/<user>/.mort/drafts.json (or ~/.mort-dev/drafts.json in dev)
+    // Expected: /Users/<user>/.anvil/drafts.json (or ~/.anvil-dev/drafts.json in dev)
     ```
 
 13. **Verify debounce is self-contained:**
@@ -529,12 +529,12 @@ function ThreadView({ threadId }: { threadId: string }) {
 ### Edge Cases to Test
 
 14. **Malformed JSON handling:**
-    - Write invalid JSON to `~/.mort/drafts.json`
+    - Write invalid JSON to `~/.anvil/drafts.json`
     - Call `await draftService.hydrate()`
     - Should not throw, should return default empty state
 
 15. **Missing file handling:**
-    - Delete `~/.mort/drafts.json`
+    - Delete `~/.anvil/drafts.json`
     - Call `await draftService.hydrate()`
     - Should not throw, should initialize with empty state
 
@@ -549,4 +549,4 @@ function ThreadView({ threadId }: { threadId: string }) {
 - [ ] Navigate to empty state and back, verify empty draft preserved
 - [ ] Send a message and verify draft is cleared
 - [ ] Restart app and verify drafts are restored
-- [ ] Check `~/.mort/drafts.json` contains expected structure after various operations
+- [ ] Check `~/.anvil/drafts.json` contains expected structure after various operations

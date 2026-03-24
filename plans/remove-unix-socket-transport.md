@@ -4,7 +4,7 @@
 
 Remove Unix socket support from the agent hub transport layer, making WebSocket the sole transport. The dual-transport code is unnecessary complexity — the WebSocket path already works end-to-end via the sidecar's `/ws/agent` endpoint. Tauri daemon changes are out of scope.
 
-**Hard requirement**: When this work is complete, there must be ZERO references to Unix sockets anywhere in the codebase — no `.sock` file paths, no `net` module imports for socket purposes, no `MORT_HUB_SOCKET_PATH`, no `socketPath` variables, no `createServer`/`connect` from `net`, no newline-delimited framing logic, no socket-file cleanup. A `grep -r` for `\.sock`, `unix.*socket`, `SOCKET_PATH`, `socketPath`, `from "net"` (in agent/core code) should return nothing.
+**Hard requirement**: When this work is complete, there must be ZERO references to Unix sockets anywhere in the codebase — no `.sock` file paths, no `net` module imports for socket purposes, no `ANVIL_HUB_SOCKET_PATH`, no `socketPath` variables, no `createServer`/`connect` from `net`, no newline-delimited framing logic, no socket-file cleanup. A `grep -r` for `\.sock`, `unix.*socket`, `SOCKET_PATH`, `socketPath`, `from "net"` (in agent/core code) should return nothing.
 
 ## Context
 
@@ -36,13 +36,13 @@ The current `HubConnection` class supports both Unix socket and WebSocket, auto-
 
 **File**: `core/lib/socket.ts` (25 lines)
 
-Current logic checks three sources in order: `MORT_AGENT_HUB_WS_URL`, `MORT_HUB_SOCKET_PATH`, then defaults to `{mortDir}/agent-hub.sock`.
+Current logic checks three sources in order: `ANVIL_AGENT_HUB_WS_URL`, `ANVIL_HUB_SOCKET_PATH`, then defaults to `{anvilDir}/agent-hub.sock`.
 
 Change to:
 
-- Default to `ws://127.0.0.1:${MORT_WS_PORT || 9600}/ws/agent`
-- Keep `MORT_AGENT_HUB_WS_URL` override for custom URLs
-- Remove `MORT_HUB_SOCKET_PATH` env var support
+- Default to `ws://127.0.0.1:${ANVIL_WS_PORT || 9600}/ws/agent`
+- Keep `ANVIL_AGENT_HUB_WS_URL` override for custom URLs
+- Remove `ANVIL_HUB_SOCKET_PATH` env var support
 - Remove `isWebSocketEndpoint()` helper (no longer needed — everything is WebSocket)
 - Rename `getHubSocketPath()` → `getHubEndpoint()` since it's no longer a socket path
 
@@ -122,7 +122,7 @@ The public API stays the same (`sendToAgent`, `sendCancel`, `sendPermissionRespo
 - Change socket path construction (line 143) from:
 
   ```typescript
-  const socketPath = join(this.mortDir!.path, `test-hub-${threadId}.sock`);
+  const socketPath = join(this.anvilDir!.path, `test-hub-${threadId}.sock`);
   ```
 
   to constructing a `MockHubServer` with a random port.
@@ -130,20 +130,20 @@ The public API stays the same (`sendToAgent`, `sendCancel`, `sendPermissionRespo
 - Change env var passed to subprocess (line 153) from:
 
   ```typescript
-  MORT_HUB_SOCKET_PATH: socketPath,
+  ANVIL_HUB_SOCKET_PATH: socketPath,
   ```
 
   to:
 
   ```typescript
-  MORT_AGENT_HUB_WS_URL: this.mockHub.getEndpoint(),
+  ANVIL_AGENT_HUB_WS_URL: this.mockHub.getEndpoint(),
   ```
 
 - Update `getMockHub()` return type if the interface changes.
 
 ### 6. Update tests and verify
 
-**Files** (5 test files that reference `MockHubServer` or `MORT_HUB_SOCKET_PATH`):
+**Files** (5 test files that reference `MockHubServer` or `ANVIL_HUB_SOCKET_PATH`):
 
 - `agents/src/testing/__tests__/mock-hub-server.test.ts` — rewrite to test WebSocket mock
 - `agents/src/testing/__tests__/sub-agent.integration.test.ts` — should work via harness changes
@@ -166,7 +166,7 @@ Run full test suite: `cd agents && pnpm test`
 | `agents/src/lib/hub/connection.ts` | Major trim: remove Unix socket transport (\~180 lines deleted) |
 | `agents/src/lib/hub/client.ts` | Minor: remove `existsSync`, backpressure tracking, rename field |
 | `agents/src/testing/mock-hub-server.ts` | Rewrite: Unix socket → WebSocketServer |
-| `agents/src/testing/agent-harness.ts` | Minor: port-based mock, `MORT_AGENT_HUB_WS_URL` env var |
+| `agents/src/testing/agent-harness.ts` | Minor: port-based mock, `ANVIL_AGENT_HUB_WS_URL` env var |
 | `agents/src/testing/__tests__/mock-hub-server.test.ts` | Rewrite tests for WS mock |
 | `agents/src/testing/index.ts` | Update exports |
 

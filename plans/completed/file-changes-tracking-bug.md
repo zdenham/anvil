@@ -18,8 +18,8 @@ Files modified:
 Files being edited by the agent (Edit/Write tools) are not being tracked in the `fileChanges` array in `state.json`.
 
 ## Evidence
-Thread state at `/Users/zac/.mort-dev/tasks/0294860d-3bc7-409a-a062-8062ccdde41d/threads/simple-fe97bffb-6558-4ca4-bc5c-92725f98806a/state.json` shows:
-- `toolStates` correctly contains Edit tool completion with file path `/Users/zac/Documents/juice/mort/mortician/README.md`
+Thread state at `/Users/zac/.anvil-dev/tasks/0294860d-3bc7-409a-a062-8062ccdde41d/threads/simple-fe97bffb-6558-4ca4-bc5c-92725f98806a/state.json` shows:
+- `toolStates` correctly contains Edit tool completion with file path `/Users/zac/Documents/juice/anvil/anvil/README.md`
 - `fileChanges` is empty: `[]`
 
 The same pattern is observed across multiple threads.

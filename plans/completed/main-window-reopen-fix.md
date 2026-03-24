@@ -60,7 +60,7 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
             MAIN_WINDOW_LABEL,
             tauri::WebviewUrl::App("index.html".into())
         )
-        .title("Mort")
+        .title("Anvil")
         .inner_size(800.0, 600.0)
         .build()
         .map_err(|e| e.to_string())?;
@@ -82,6 +82,6 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
 
 1. User closes main window -> Window is hidden, not destroyed
 2. User triggers spotlight -> Opens spotlight panel
-3. User searches "Mort" and selects it -> `show_main_window()` is called
+3. User searches "Anvil" and selects it -> `show_main_window()` is called
 4. Main window reappears (it was just hidden)
 5. No terminal exec icon in dock

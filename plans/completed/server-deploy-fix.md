@@ -61,7 +61,7 @@ That's it. The deploy runs from `server/`, uses `server/Dockerfile` with server-
 ### Phase 3: Verify
 
 After deploy:
-1. `curl https://mort-server.fly.dev/health` — should return healthy
+1. `curl https://anvil-server.fly.dev/health` — should return healthy
 2. Restart the desktop app — the `paths::initialize()` tracing event at startup should now send `data_dir`, `config_dir`, `shell_path`, `app_suffix` as properties
 3. Query ClickHouse:
    ```sql

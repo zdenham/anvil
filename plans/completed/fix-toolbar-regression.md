@@ -44,7 +44,7 @@ fn attach_toolbar(window: &tauri::WebviewWindow) {
     // ... existing handle/view/window boilerplate ...
     if let Some(ns_window) = ns_view.window() {
         let mtm = unsafe { MainThreadMarker::new_unchecked() };
-        let identifier = NSString::from_str("mort-main-toolbar");
+        let identifier = NSString::from_str("anvil-main-toolbar");
         let toolbar = NSToolbar::initWithIdentifier(NSToolbar::alloc(mtm), &identifier);
         toolbar.setShowsBaselineSeparator(false);  // ← NEW: hide grey separator
         ns_window.setToolbar(Some(&toolbar));

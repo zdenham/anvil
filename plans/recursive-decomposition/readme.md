@@ -110,19 +110,19 @@ After decomposition, the orchestrating agent determines the topological wave ord
 2. **The agent writes a minimal REPL script** that spawns the wave in parallel:
 
 ```bash
-mort-repl <<'MORT_REPL'
+anvil-repl <<'ANVIL_REPL'
 const results = await Promise.all([
-  mort.spawn({ prompt: "Use /decompose to execute: plans/my-task/01-setup.md" }),
-  mort.spawn({ prompt: "Use /decompose to execute: plans/my-task/02-auth.md" }),
+  anvil.spawn({ prompt: "Use /decompose to execute: plans/my-task/01-setup.md" }),
+  anvil.spawn({ prompt: "Use /decompose to execute: plans/my-task/02-auth.md" }),
 ]);
 return results.map((r, i) => `Task ${i + 1}: ${r.slice(0, 200)}`).join("\n");
-MORT_REPL
+ANVIL_REPL
 ```
 
 3. **Between waves**, the agent uses its normal tools (Read/Edit/Write) to check results, write `.result.md` files, update statuses in `readme.md`, and decide if failures change the plan.
 4. **Repeat** for each subsequent wave.
 
-The wave structure makes the execution predictable: all tasks in wave N complete before any task in wave N+1 starts. Within a wave, everything runs in parallel. The REPL is only used for `mort.spawn()` calls — all file reading, status updates, and decision-making happen at the agent level.
+The wave structure makes the execution predictable: all tasks in wave N complete before any task in wave N+1 starts. Within a wave, everything runs in parallel. The REPL is only used for `anvil.spawn()` calls — all file reading, status updates, and decision-making happen at the agent level.
 
 ## Child Prompt
 
@@ -157,14 +157,14 @@ The dependency graph must be a DAG. The `topologicalSort` step validates this �
 
 | File | Change |
 |------|--------|
-| `plugins/mort/skills/decompose/SKILL.md` | New skill — the complete self-similar decomposition + execution protocol |
+| `plugins/anvil/skills/decompose/SKILL.md` | New skill — the complete self-similar decomposition + execution protocol |
 
-No code changes. The skill is a pure SKILL.md prompt. The agent reasons about dependencies and writes minimal REPL scripts (just `Promise.all` + `mort.spawn()`) for parallel execution.
+No code changes. The skill is a pure SKILL.md prompt. The agent reasons about dependencies and writes minimal REPL scripts (just `Promise.all` + `anvil.spawn()`) for parallel execution.
 
 ## Phases
 
-- [x] Research: review existing decomposed plan examples and the breadcrumb/orchestrate skills to confirm the mort-repl patterns work for nested spawning
-- [x] Write `plugins/mort/skills/decompose/SKILL.md` — the complete self-contained skill with: decompose protocol, dependency table format, mort-repl loop pattern, self-propagating child prompt template, failure/deadlock handling
+- [x] Research: review existing decomposed plan examples and the breadcrumb/orchestrate skills to confirm the anvil-repl patterns work for nested spawning
+- [x] Write `plugins/anvil/skills/decompose/SKILL.md` — the complete self-contained skill with: decompose protocol, dependency table format, anvil-repl loop pattern, self-propagating child prompt template, failure/deadlock handling
 - [ ] Smoke test: invoke `/decompose` on a medium-complexity task and verify the recursive decomposition + dependency-ordered execution works
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->

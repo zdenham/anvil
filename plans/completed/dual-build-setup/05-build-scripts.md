@@ -29,13 +29,13 @@
 **Create**: `scripts/env-presets/dev.sh`
 ```bash
 # Dev build preset
-export MORT_APP_SUFFIX=dev
-export MORT_VITE_PORT=1421
-export MORT_SPOTLIGHT_HOTKEY="Command+Shift+Space"
-export MORT_CLIPBOARD_HOTKEY="Command+Shift+Option+C"
+export ANVIL_APP_SUFFIX=dev
+export ANVIL_VITE_PORT=1421
+export ANVIL_SPOTLIGHT_HOTKEY="Command+Shift+Space"
+export ANVIL_CLIPBOARD_HOTKEY="Command+Shift+Option+C"
 ```
 
-**Create**: `scripts/dev-mort.sh`
+**Create**: `scripts/dev-anvil.sh`
 ```bash
 #!/bin/bash
 set -e
@@ -47,9 +47,9 @@ if [ -f "scripts/env-presets/${PRESET}.sh" ]; then
   source "scripts/env-presets/${PRESET}.sh"
 fi
 
-echo "Starting Mort with:"
-echo "  MORT_APP_SUFFIX=${MORT_APP_SUFFIX:-<production>}"
-echo "  MORT_VITE_PORT=${MORT_VITE_PORT:-1420}"
+echo "Starting Anvil with:"
+echo "  ANVIL_APP_SUFFIX=${ANVIL_APP_SUFFIX:-<production>}"
+echo "  ANVIL_VITE_PORT=${ANVIL_VITE_PORT:-1420}"
 
 # Pass remaining args and config flag if not production
 if [ "$PRESET" = "prod" ] || [ -z "$PRESET" ]; then
@@ -59,7 +59,7 @@ else
 fi
 ```
 
-**Create**: `scripts/build-mort.sh`
+**Create**: `scripts/build-anvil.sh`
 ```bash
 #!/bin/bash
 set -e
@@ -71,10 +71,10 @@ if [ -f "scripts/env-presets/${PRESET}.sh" ]; then
   source "scripts/env-presets/${PRESET}.sh"
 fi
 
-echo "Building Mort with:"
-echo "  MORT_APP_SUFFIX=${MORT_APP_SUFFIX:-<production>}"
-echo "  MORT_SPOTLIGHT_HOTKEY=${MORT_SPOTLIGHT_HOTKEY:-Command+Space}"
-echo "  MORT_CLIPBOARD_HOTKEY=${MORT_CLIPBOARD_HOTKEY:-Command+Option+C}"
+echo "Building Anvil with:"
+echo "  ANVIL_APP_SUFFIX=${ANVIL_APP_SUFFIX:-<production>}"
+echo "  ANVIL_SPOTLIGHT_HOTKEY=${ANVIL_SPOTLIGHT_HOTKEY:-Command+Space}"
+echo "  ANVIL_CLIPBOARD_HOTKEY=${ANVIL_CLIPBOARD_HOTKEY:-Command+Option+C}"
 
 pnpm build:frontend
 
@@ -93,10 +93,10 @@ echo "Build complete: src-tauri/target/release/bundle/macos/"
 ```json
 {
   "scripts": {
-    "dev": "./scripts/dev-mort.sh dev",
+    "dev": "./scripts/dev-anvil.sh dev",
     "dev:run": "mkdir -p logs && concurrently -n agents,tauri -c green,yellow \"pnpm dev:agents\" \"tauri dev\" 2>&1 | tee logs/dev.log",
 
-    "build": "./scripts/build-mort.sh",
+    "build": "./scripts/build-anvil.sh",
     "build:frontend": "pnpm build:agents && tsc && vite build"
   }
 }
@@ -115,7 +115,7 @@ To add a new instance (e.g., `feature-xyz`):
 
 1. Create preset: `scripts/env-presets/feature-xyz.sh`
 2. Create config overlay: `src-tauri/tauri.conf.feature-xyz.json`
-3. Optionally add script: `"dev:feature-xyz": "./scripts/dev-mort.sh feature-xyz"`
+3. Optionally add script: `"dev:feature-xyz": "./scripts/dev-anvil.sh feature-xyz"`
 
 ### Usage
 
@@ -133,8 +133,8 @@ pnpm build
 ```typescript
 import { defineConfig } from "vite";
 
-const vitePort = parseInt(process.env.MORT_VITE_PORT || '1420', 10);
-const appSuffix = process.env.MORT_APP_SUFFIX || '';
+const vitePort = parseInt(process.env.ANVIL_VITE_PORT || '1420', 10);
+const appSuffix = process.env.ANVIL_APP_SUFFIX || '';
 
 export default defineConfig(async () => ({
   server: {
@@ -145,31 +145,31 @@ export default defineConfig(async () => ({
       : undefined,
   },
   define: {
-    __MORT_APP_SUFFIX__: JSON.stringify(appSuffix),
+    __ANVIL_APP_SUFFIX__: JSON.stringify(appSuffix),
   },
 }));
 ```
 
 **Frontend usage** (`src/lib/constants.ts`):
 ```typescript
-declare const __MORT_APP_SUFFIX__: string;
-export const APP_SUFFIX = __MORT_APP_SUFFIX__;
+declare const __ANVIL_APP_SUFFIX__: string;
+export const APP_SUFFIX = __ANVIL_APP_SUFFIX__;
 export const IS_ALTERNATE_BUILD = APP_SUFFIX !== '';
 ```
 
 ## Workflow
 
-### Dogfooding: Using Mort to build Mort
+### Dogfooding: Using Anvil to build Anvil
 
 ```bash
-# One-time: Build and install stable Mort
+# One-time: Build and install stable Anvil
 pnpm build
-cp -r src-tauri/target/release/bundle/macos/Mort.app /Applications/
+cp -r src-tauri/target/release/bundle/macos/Anvil.app /Applications/
 
-# Daily: Use installed Mort.app as your daily driver
+# Daily: Use installed Anvil.app as your daily driver
 # Run dev instance for active development
 pnpm dev
-# This runs on port 1421, uses ~/.mort-dev directory, purple spotlight
+# This runs on port 1421, uses ~/.anvil-dev directory, purple spotlight
 ```
 
 ### Adding more instances (advanced)
@@ -177,17 +177,17 @@ pnpm dev
 ```bash
 # Create a new preset
 cat > scripts/env-presets/feature-xyz.sh << 'EOF'
-export MORT_APP_SUFFIX=feature-xyz
-export MORT_VITE_PORT=1423
-export MORT_SPOTLIGHT_HOTKEY="Command+Option+Space"
-export MORT_CLIPBOARD_HOTKEY="Command+Option+Shift+C"
+export ANVIL_APP_SUFFIX=feature-xyz
+export ANVIL_VITE_PORT=1423
+export ANVIL_SPOTLIGHT_HOTKEY="Command+Option+Space"
+export ANVIL_CLIPBOARD_HOTKEY="Command+Option+Shift+C"
 EOF
 
 # Create config overlay
 cat > src-tauri/tauri.conf.feature-xyz.json << 'EOF'
 {
-  "productName": "Mort Feature XYZ",
-  "identifier": "com.getmort.app.feature-xyz",
+  "productName": "Anvil Feature XYZ",
+  "identifier": "com.getanvil.app.feature-xyz",
   "build": {
     "devUrl": "http://localhost:1423"
   }
@@ -195,7 +195,7 @@ cat > src-tauri/tauri.conf.feature-xyz.json << 'EOF'
 EOF
 
 # Run it
-./scripts/dev-mort.sh feature-xyz
+./scripts/dev-anvil.sh feature-xyz
 ```
 
 ## CI/CD Considerations
@@ -213,7 +213,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mort
+          name: anvil
           path: src-tauri/target/release/bundle/
 ```
 
@@ -222,21 +222,21 @@ jobs:
 | File | Change |
 |------|--------|
 | `scripts/env-presets/dev.sh` | **NEW**: Dev preset env vars |
-| `scripts/dev-mort.sh` | **NEW**: Dev wrapper script |
-| `scripts/build-mort.sh` | **NEW**: Build wrapper script |
+| `scripts/dev-anvil.sh` | **NEW**: Dev wrapper script |
+| `scripts/build-anvil.sh` | **NEW**: Build wrapper script |
 | `package.json` | **MODIFY**: Update script aliases |
-| `vite.config.ts` | **MODIFY**: Read `MORT_VITE_PORT`, `MORT_APP_SUFFIX` env vars |
+| `vite.config.ts` | **MODIFY**: Read `ANVIL_VITE_PORT`, `ANVIL_APP_SUFFIX` env vars |
 | `src/lib/constants.ts` | **NEW**: Export `APP_SUFFIX` and `IS_ALTERNATE_BUILD` |
 
 ### Make Scripts Executable
 
 ```bash
-chmod +x scripts/dev-mort.sh scripts/build-mort.sh
+chmod +x scripts/dev-anvil.sh scripts/build-anvil.sh
 ```
 
 ## Verification
 
 1. Run `pnpm build` and install to /Applications
-2. Launch Mort.app from Finder (stable, port 1420, default hotkeys)
+2. Launch Anvil.app from Finder (stable, port 1420, default hotkeys)
 3. Run `pnpm dev` (dev instance, port 1421, purple spotlight)
 4. Both run simultaneously with different hotkeys and data directories

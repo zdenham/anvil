@@ -10,7 +10,7 @@ The proxy uses a self-signed CA cert that's only trusted via `NODE_EXTRA_CA_CERT
 
 ### Secondary issue
 
-`resumeSimpleAgent` doesn't set `MORT_NETWORK_DEBUG=1` at all, so the proxy is inconsistently applied — active on spawn, absent on resume.
+`resumeSimpleAgent` doesn't set `ANVIL_NETWORK_DEBUG=1` at all, so the proxy is inconsistently applied — active on spawn, absent on resume.
 
 ## Root Cause
 
@@ -19,14 +19,14 @@ The proxy uses a self-signed CA cert that's only trusted via `NODE_EXTRA_CA_CERT
 ```ts
 // Enable network debugging unconditionally — near-zero overhead,
 // hub socket handles the volume fine. Settings toggle can be added later.
-envVars.MORT_NETWORK_DEBUG = "1";
+envVars.ANVIL_NETWORK_DEBUG = "1";
 ```
 
 And `runner.ts:359-383` — when this flag is set, the proxy starts and injects `HTTPS_PROXY`/`HTTP_PROXY` into `process.env`, which all child processes (including Bash tool executions) inherit.
 
 ## Phases
 
-- [x] Phase 1: Wire existing Record button to control `MORT_NETWORK_DEBUG` via settings
+- [x] Phase 1: Wire existing Record button to control `ANVIL_NETWORK_DEBUG` via settings
 
 - [x] Phase 2: Auto-disable network debugger when debug panel closes
 
@@ -38,7 +38,7 @@ And `runner.ts:359-383` — when this flag is set, the proxy starts and injects 
 
 ---
 
-## Phase 1: Wire existing Record button to control `MORT_NETWORK_DEBUG` via settings
+## Phase 1: Wire existing Record button to control `ANVIL_NETWORK_DEBUG` via settings
 
 The debug panel's Network tab already has a Record/Stop button in `network-request-list.tsx:151-162` that toggles `isCapturing` in the network debugger store. Currently this is purely frontend state — it gates whether incoming hub messages are stored, but has no effect on whether the proxy is actually started for agent processes.
 
@@ -46,7 +46,7 @@ The debug panel's Network tab already has a Record/Stop button in `network-reque
 
 - **Record button**: `network-request-list.tsx` — toggles `useNetworkDebuggerStore.isCapturing`
 - **Store**: `stores/network-debugger/store.ts` — `isCapturing: false` by default, `toggleCapture()` flips it
-- **Agent spawn**: `agent-service.ts:751-753` — unconditionally sets `MORT_NETWORK_DEBUG=1`
+- **Agent spawn**: `agent-service.ts:751-753` — unconditionally sets `ANVIL_NETWORK_DEBUG=1`
 - **Settings**: `entities/settings/types.ts` — `WorkspaceSettingsSchema` has no network debugger field
 
 ### Changes
@@ -77,18 +77,18 @@ toggleCapture: () => {
 
 Import `settingsService` from `@/entities/settings`. Check how `settingsService.update()` works — it likely does a partial merge + persist.
 
-**3. Gate** `MORT_NETWORK_DEBUG` **on settings** — `src/lib/agent-service.ts`
+**3. Gate** `ANVIL_NETWORK_DEBUG` **on settings** — `src/lib/agent-service.ts`
 
 Replace the unconditional line 751-753:
 
 ```ts
 // Before (unconditional):
-envVars.MORT_NETWORK_DEBUG = "1";
+envVars.ANVIL_NETWORK_DEBUG = "1";
 
 // After (settings-gated):
 const networkDebugEnabled = useSettingsStore.getState().workspace.networkDebugEnabled;
 if (networkDebugEnabled) {
-  envVars.MORT_NETWORK_DEBUG = "1";
+  envVars.ANVIL_NETWORK_DEBUG = "1";
 }
 ```
 
@@ -130,7 +130,7 @@ Even when the proxy is enabled, it should NOT intercept traffic from non-Node to
 // runner.ts — instead of process.env mutation:
 let proxyConfig: { port: number; certPath: string } | undefined;
 
-if (process.env.MORT_NETWORK_DEBUG === "1") {
+if (process.env.ANVIL_NETWORK_DEBUG === "1") {
   // ... existing proxy setup ...
   const { port } = await proxy.start();
   proxyConfig = { port, certPath: certManager.certPath };
@@ -159,13 +159,13 @@ This is surgical — only the SDK's API calls go through the proxy. Bash tool ex
 
 ## Phase 4: Fix resume inconsistency
 
-`src/lib/agent-service.ts` — `resumeSimpleAgent` (line \~911) builds `resumeEnvVars` but never sets `MORT_NETWORK_DEBUG`. Apply the same settings-gated logic from Phase 1:
+`src/lib/agent-service.ts` — `resumeSimpleAgent` (line \~911) builds `resumeEnvVars` but never sets `ANVIL_NETWORK_DEBUG`. Apply the same settings-gated logic from Phase 1:
 
 ```ts
 // In resumeSimpleAgent, after building resumeEnvVars (around line 919):
 const networkDebugEnabled = useSettingsStore.getState().workspace.networkDebugEnabled;
 if (networkDebugEnabled) {
-  resumeEnvVars.MORT_NETWORK_DEBUG = "1";
+  resumeEnvVars.ANVIL_NETWORK_DEBUG = "1";
 }
 ```
 
@@ -175,7 +175,7 @@ if (networkDebugEnabled) {
 | --- | --- |
 | `src/entities/settings/types.ts` | Add `networkDebugEnabled: z.boolean().optional()` to schema |
 | `src/stores/network-debugger/store.ts` | Wire `toggleCapture` to persist `networkDebugEnabled` to settings |
-| `src/lib/agent-service.ts` | Gate `MORT_NETWORK_DEBUG` on `networkDebugEnabled` setting (spawn + resume) |
+| `src/lib/agent-service.ts` | Gate `ANVIL_NETWORK_DEBUG` on `networkDebugEnabled` setting (spawn + resume) |
 | `src/stores/debug-panel/service.ts` | Disable network capture on panel close |
 | `agents/src/runner.ts` | Stop mutating `process.env`, store proxy config in local var |
 | `agents/src/runners/shared.ts` | Accept proxy config, inject into SDK `query()` env only |

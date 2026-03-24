@@ -2,7 +2,7 @@
 
 ## Overview
 
-Create the SDK package files that get copied to `~/.mort/quick-actions/node_modules/@mort/sdk/`. This enables standard TypeScript resolution for user projects.
+Create the SDK package files that get copied to `~/.anvil/quick-actions/node_modules/@anvil/sdk/`. This enables standard TypeScript resolution for user projects.
 
 ## Files to Create
 
@@ -10,7 +10,7 @@ Create the SDK package files that get copied to `~/.mort/quick-actions/node_modu
 
 ```json
 {
-  "name": "@mort/sdk",
+  "name": "@anvil/sdk",
   "version": "1.0.0",
   "types": "index.d.ts",
   "main": "index.js",
@@ -52,7 +52,7 @@ export interface QuickActionExecutionContext {
 // SDK Services
 // ═══════════════════════════════════════════════════════════════════
 
-export interface MortSDK {
+export interface AnvilSDK {
   git: GitService;
   threads: ThreadService;
   plans: PlanService;
@@ -133,7 +133,7 @@ export interface LogService {
 
 export type QuickActionFn = (
   context: QuickActionExecutionContext,
-  sdk: MortSDK
+  sdk: AnvilSDK
 ) => Promise<void> | void;
 
 export interface QuickActionDefinition {
@@ -166,20 +166,20 @@ export function defineAction(def) {
 ## How It Works
 
 1. **At development time**: Users get TypeScript autocomplete and type checking via `index.d.ts`
-2. **At build time**: User's bundler (esbuild) marks `@mort/sdk` as external
-3. **At runtime**: Mort's runner imports the user's action and passes the real SDK implementation
+2. **At build time**: User's bundler (esbuild) marks `@anvil/sdk` as external
+3. **At runtime**: Anvil's runner imports the user's action and passes the real SDK implementation
 
 User code:
 ```typescript
-import { defineAction } from '@mort/sdk';
-import type { QuickActionExecutionContext, MortSDK } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
+import type { QuickActionExecutionContext, AnvilSDK } from '@anvil/sdk';
 
 export default defineAction({
   id: 'my-action',
   title: 'My Action',
   contexts: ['thread'],
-  execute(context: QuickActionExecutionContext, sdk: MortSDK) {
-    // sdk is injected at runtime by Mort's runner
+  execute(context: QuickActionExecutionContext, sdk: AnvilSDK) {
+    // sdk is injected at runtime by Anvil's runner
   }
 });
 ```
@@ -194,7 +194,7 @@ export default defineAction({
 - [ ] Package.json is valid and points to correct files
 - [ ] index.d.ts contains all exported types
 - [ ] index.js exports only the `defineAction` helper
-- [ ] TypeScript resolution works when copied to node_modules/@mort/sdk/
+- [ ] TypeScript resolution works when copied to node_modules/@anvil/sdk/
 - [ ] User can import types and defineAction without errors
 
 ## Verification & Testing
@@ -206,10 +206,10 @@ Create a temporary test file to verify the types compile correctly:
 ```bash
 # From the core/sdk/dist directory, create a test file
 cat > /tmp/sdk-type-test.ts << 'EOF'
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 import type {
   QuickActionExecutionContext,
-  MortSDK,
+  AnvilSDK,
   QuickActionDefinition,
   GitService,
   ThreadService,
@@ -219,7 +219,7 @@ import type {
   ThreadInfo,
   PlanInfo,
   QuickActionFn
-} from '@mort/sdk';
+} from '@anvil/sdk';
 
 // Verify QuickActionExecutionContext shape
 const ctx: QuickActionExecutionContext = {
@@ -234,7 +234,7 @@ const ctx: QuickActionExecutionContext = {
   }
 };
 
-// Verify MortSDK service interfaces exist
+// Verify AnvilSDK service interfaces exist
 type GitCheck = GitService['getCurrentBranch'];
 type ThreadCheck = ThreadService['archive'];
 type PlanCheck = PlanService['readContent'];
@@ -265,7 +265,7 @@ const allContextAction = defineAction({
 console.log('Type check passed');
 EOF
 
-# Run TypeScript compiler (must have @mort/sdk in node_modules)
+# Run TypeScript compiler (must have @anvil/sdk in node_modules)
 npx tsc --noEmit --strict --moduleResolution node /tmp/sdk-type-test.ts
 ```
 
@@ -283,8 +283,8 @@ if (missing.length) {
   console.error('Missing fields:', missing);
   process.exit(1);
 }
-if (pkg.name !== '@mort/sdk') {
-  console.error('Package name must be @mort/sdk');
+if (pkg.name !== '@anvil/sdk') {
+  console.error('Package name must be @anvil/sdk');
   process.exit(1);
 }
 if (pkg.types !== 'index.d.ts') {
@@ -343,7 +343,7 @@ grep -E "^export (interface|type|function)" core/sdk/dist/index.d.ts | sort
 - `export function defineAction`
 - `export interface GitService`
 - `export interface LogService`
-- `export interface MortSDK`
+- `export interface AnvilSDK`
 - `export interface PlanInfo`
 - `export interface PlanService`
 - `export interface QuickActionDefinition`
@@ -357,8 +357,8 @@ grep -E "^export (interface|type|function)" core/sdk/dist/index.d.ts | sort
 
 ```bash
 # Simulate the user's environment by copying to node_modules
-mkdir -p /tmp/sdk-test/node_modules/@mort/sdk
-cp core/sdk/dist/* /tmp/sdk-test/node_modules/@mort/sdk/
+mkdir -p /tmp/sdk-test/node_modules/@anvil/sdk
+cp core/sdk/dist/* /tmp/sdk-test/node_modules/@anvil/sdk/
 
 # Create a minimal tsconfig
 cat > /tmp/sdk-test/tsconfig.json << 'EOF'
@@ -375,7 +375,7 @@ EOF
 
 # Create test file that imports like a user would
 cat > /tmp/sdk-test/test.ts << 'EOF'
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'user-action',
@@ -402,7 +402,7 @@ Manual verification checklist:
 
 - [ ] **#4 SDK Distribution**: Confirm `index.d.ts` contains types only (no implementation logic)
 - [ ] **#22 SDK Types Distribution**: Confirm `index.js` only exports `defineAction` helper, no SDK implementation
-- [ ] **#13 SDK Versioning**: Verify `package.json` has a `version` field that can be read by Mort
+- [ ] **#13 SDK Versioning**: Verify `package.json` has a `version` field that can be read by Anvil
 - [ ] **#5 Runtime Dependency**: Verify `index.js` is vanilla JavaScript (no TypeScript, no tsx required)
 
 ### 7. ESM Import Syntax Check

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Serve a fully functional web version of Mort that runs entirely on Node.js — no Rust process required. A browser + the Node.js sidecar is all you need. The Tauri desktop app continues to work, but delegates all data communication to the same Node.js sidecar (Tauri keeps only IPC for native OS features).
+Serve a fully functional web version of Anvil that runs entirely on Node.js — no Rust process required. A browser + the Node.js sidecar is all you need. The Tauri desktop app continues to work, but delegates all data communication to the same Node.js sidecar (Tauri keeps only IPC for native OS features).
 
 To get there, we **delete** the Rust WebSocket server and all Rust command dispatch code that the sidecar replaces. This is not a deprecation — the replaced Rust code is removed from the codebase.
 
@@ -230,7 +230,7 @@ WS protocol identical to current Rust server (which it replaces): `{id, cmd, arg
 - Agent process (3): `agent_spawn`, `agent_kill`, `agent_cancel` — child_process lifecycle, stdout/stderr streaming
 - Agent hub routing (1+): `list_connected_agents`, `send_to_agent` — route through hub state
 
-**Wave 3 — Agent Hub WS transport (Phase C).** WS endpoint at `/ws/agent?threadId=xxx`. Same message types, pipeline stamping, hierarchy tracking. Agent client (`agents/src/lib/hub/`) gets dual-mode: WS when `MORT_AGENT_HUB_WS_URL` set, Unix socket fallback.
+**Wave 3 — Agent Hub WS transport (Phase C).** WS endpoint at `/ws/agent?threadId=xxx`. Same message types, pipeline stamping, hierarchy tracking. Agent client (`agents/src/lib/hub/`) gets dual-mode: WS when `ANVIL_AGENT_HUB_WS_URL` set, Unix socket fallback.
 
 ### B3. Shell Commands
 
@@ -238,7 +238,7 @@ WS protocol identical to current Rust server (which it replaces): `{id, cmd, arg
 
 ### B4. Port Selection
 
-CLI `--port` flag > `MORT_WS_PORT` env var (already used by Vite config, Rust server, and `browser-stubs.ts`) > default `9600`. Write `~/.mort/sidecar-{projectHash}.port` on startup, delete on clean shutdown. Web client derives WS URL from `window.location`. Agents get `MORT_AGENT_HUB_WS_URL` in env. Multi-instance / dynamic port discovery is deferred.
+CLI `--port` flag > `ANVIL_WS_PORT` env var (already used by Vite config, Rust server, and `browser-stubs.ts`) > default `9600`. Write `~/.anvil/sidecar-{projectHash}.port` on startup, delete on clean shutdown. Web client derives WS URL from `window.location`. Agents get `ANVIL_AGENT_HUB_WS_URL` in env. Multi-instance / dynamic port discovery is deferred.
 
 ---
 
@@ -246,7 +246,7 @@ CLI `--port` flag > `MORT_WS_PORT` env var (already used by Vite config, Rust se
 
 **C1.** Sidecar hub accepts agent WS connections on `/ws/agent`, routes to frontend WS broadcast, routes frontend→agent messages (permissions, cancels), tracks hierarchy + sequence numbers.
 
-**C2.** Agent hub client: check `MORT_AGENT_HUB_WS_URL` → WS; else → Unix socket. Keep both transports during transition.
+**C2.** Agent hub client: check `ANVIL_AGENT_HUB_WS_URL` → WS; else → Unix socket. Keep both transports during transition.
 
 **C3.** Verify full round-trip: frontend → sidecar → agent → sidecar → frontend.
 
@@ -258,7 +258,7 @@ CLI `--port` flag > `MORT_WS_PORT` env var (already used by Vite config, Rust se
 
 Delete `src-tauri/src/ws_server/` and all Rust command dispatch code the sidecar replaces. Remove WS server startup from `src-tauri/src/lib.rs`. Verify `cargo build` still succeeds.
 
-**Sidecar lifecycle from Tauri:** Tauri spawns the sidecar via `std::process::Command` (not Tauri's built-in sidecar management, which requires bundling a binary). On startup, Tauri runs `node <path-to-sidecar-entry> --project <project-root> --port <port>`, waits for the sidecar to write its port file (`~/.mort/sidecar-{projectHash}.port`), then connects. On app quit, Tauri sends SIGTERM to the sidecar child process. The sidecar entry point is resolved relative to the app's resources directory (Tauri build) or the workspace root (dev mode). The Node.js binary is assumed to be on the user's PATH.
+**Sidecar lifecycle from Tauri:** Tauri spawns the sidecar via `std::process::Command` (not Tauri's built-in sidecar management, which requires bundling a binary). On startup, Tauri runs `node <path-to-sidecar-entry> --project <project-root> --port <port>`, waits for the sidecar to write its port file (`~/.anvil/sidecar-{projectHash}.port`), then connects. On app quit, Tauri sends SIGTERM to the sidecar child process. The sidecar entry point is resolved relative to the app's resources directory (Tauri build) or the workspace root (dev mode). The Node.js binary is assumed to be on the user's PATH.
 
 ### D2. Build Scripts & Dev Workflows
 

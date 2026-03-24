@@ -12,7 +12,7 @@ Transform the left sidebar into a single user-organizable tree. Worktrees, threa
 4. **Big bang delivery** — implement on a branch, ship when complete. No feature flags or incremental compatibility layers.
 5. **Default view = current behavior** — when no `visualSettings` are set, the tree renders identically to today (worktrees sorted by most recent activity, items by `createdAt` descending within each worktree).
 6. **Visual parent is truth** — domain relationships (`parentThreadId`, `parentId`) are used only for *initial assignment* of `visualSettings.parentId` at entity creation time. Once set, `visualSettings.parentId` is the sole source of truth for visual placement. No fallback resolution chain in the tree builder.
-7. **Terminal metadata persisted to disk** — `TerminalSession` metadata is persisted at `~/.mort/terminal-sessions/{id}/metadata.json`. The PTY process itself is runtime-only (lost on restart), but metadata persistence enables `visualSettings` on terminals and sidebar organization. On app restart, persisted terminals with no live PTY show as "exited".
+7. **Terminal metadata persisted to disk** — `TerminalSession` metadata is persisted at `~/.anvil/terminal-sessions/{id}/metadata.json`. The PTY process itself is runtime-only (lost on restart), but metadata persistence enables `visualSettings` on terminals and sidebar organization. On app restart, persisted terminals with no live PTY show as "exited".
 
 ## Current State
 
@@ -41,7 +41,7 @@ Eliminate `RepoWorktreeSection` as a separate structural concept. Worktrees beco
 
 ```
 📁 Active Work              ← folder node
-  ├── mortician / main      ← worktree node
+  ├── anvil / main      ← worktree node
   │   ├── Thread A
   │   ├── 📁 Auth bugs      ← folder node (inside worktree)
   │   │   ├── Thread B
@@ -123,7 +123,7 @@ Worktree nodes become `TreeItemNode` with `type: "worktree"`. They display as `"
 ### Folder Entity
 
 ```
-~/.mort/folders/{id}/metadata.json
+~/.anvil/folders/{id}/metadata.json
 ```
 
 ```typescript
@@ -231,7 +231,7 @@ Currently `TerminalSession` is runtime-only — lives in a Zustand store, lost o
 **What gets persisted:** Only the lightweight metadata (`id`, `worktreeId`, `worktreePath`, `lastCommand`, `createdAt`, `isAlive`, `isArchived`, `visualSettings`). NOT the PTY process or scrollback buffer — those are inherently runtime-only.
 
 ```
-~/.mort/terminal-sessions/{id}/metadata.json
+~/.anvil/terminal-sessions/{id}/metadata.json
 ```
 
 ```typescript
@@ -247,7 +247,7 @@ export const TerminalSessionSchema = z.object({
 });
 ```
 
-**Hydration on startup:** Load all `~/.mort/terminal-sessions/*/metadata.json`. For each, check if the PTY is still alive (it won't be after restart) — mark `isAlive: false`. Exited terminals show in the sidebar as dimmed, same as today.
+**Hydration on startup:** Load all `~/.anvil/terminal-sessions/*/metadata.json`. For each, check if the PTY is still alive (it won't be after restart) — mark `isAlive: false`. Exited terminals show in the sidebar as dimmed, same as today.
 
 **Lifecycle:**
 - `terminalSessionService.create()` → write metadata to disk (same pattern as threads)
@@ -277,10 +277,10 @@ Archiving a node archives **all visual descendants** recursively:
 ## Phases
 
 - [ ] Add shared `VisualSettingsSchema` and `visualSettings` optional field to `WorktreeState`, `ThreadMetadata`, `PlanMetadata`, `PullRequestMetadata`, `TerminalSession` and their Zod schemas. Add shared `updateVisualSettings()` mutation helper.
-- [ ] Add terminal metadata disk persistence (`~/.mort/terminal-sessions/{id}/metadata.json`) — write on create, update on visualSettings change, delete on archive. Hydrate on startup with `isAlive: false` for stale sessions.
+- [ ] Add terminal metadata disk persistence (`~/.anvil/terminal-sessions/{id}/metadata.json`) — write on create, update on visualSettings change, delete on archive. Hydrate on startup with `isAlive: false` for stale sessions.
 - [ ] Set `visualSettings.parentId` at entity creation time in all creation codepaths: thread service (from `parentThreadId` or `worktreeId`), plan service (from `parentId` or `worktreeId`), terminal service (from `worktreeId`), PR service (from `worktreeId`).
 - [ ] One-time migration: on startup, scan entities without `visualSettings` and backfill `parentId` from domain relationships (`parentThreadId`, `parentId`) and `worktreeId`.
-- [ ] Create `FolderMetadata` entity type (with `worktreeId`), Zod schema, `useFolderStore`, folder service (CRUD + disk persistence at `~/.mort/folders/{id}/metadata.json`)
+- [ ] Create `FolderMetadata` entity type (with `worktreeId`), Zod schema, `useFolderStore`, folder service (CRUD + disk persistence at `~/.anvil/folders/{id}/metadata.json`)
 - [ ] Add `"worktree"` and `"folder"` to `TreeItemNode.type` union; remove `RepoWorktreeSection` type; migrate pin state from section IDs to worktree node IDs; drop hide
 - [ ] Rewrite tree builder as single unified recursion: one `addNodeAndChildren()` reading only `visualSettings.parentId` for placement (no fallback), fractional sort key ordering
 - [ ] Update all tree-menu rendering components to handle the flat node model (worktree rows replace section headers, folder rows with icons)

@@ -8,7 +8,7 @@
   - Status transitions (COMPLETE/ERROR/CANCELLED) also emit `THREAD_STATUS_CHANGED` for sidebar updates
   - Cleanup integrated into `cleanupAgentMessageListener()`
 - Phase 6: Lifecycle event emission and tracking (events.jsonl)
-  - `sidecar/src/hooks/event-writer.ts` — New EventWriter class, appends to `~/.mort/threads/{id}/events.jsonl`
+  - `sidecar/src/hooks/event-writer.ts` — New EventWriter class, appends to `~/.anvil/threads/{id}/events.jsonl`
   - Events: SESSION_STARTED, TOOL_STARTED, TOOL_COMPLETED, TOOL_DENIED, FILE_MODIFIED, SESSION_ENDED
   - Integrated into `hook-handler.ts` — all hook endpoints now emit lifecycle events
 - Tests: 7 new tests in `event-writer.test.ts`, 5 new tests in `hook-handler.test.ts` for events.jsonl — all passing

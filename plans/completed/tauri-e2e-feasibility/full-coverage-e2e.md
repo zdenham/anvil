@@ -1,11 +1,11 @@
 # Sub-Plan 3: Full Command Coverage + Playwright E2E + Cleanup
 
 **Prerequisite:** [frontend-transport.md](./frontend-transport.md) — transport wrappers in place, app works in Chrome with proof-of-concept commands
-**Delivers:** All ~93 data commands routed through WS, Playwright running real E2E tests, `mort-test` deleted
+**Delivers:** All ~93 data commands routed through WS, Playwright running real E2E tests, `anvil-test` deleted
 
 ## Context
 
-After sub-plans 1 and 2, the WS server handles ~10 commands and the frontend routes through the transport layer. This plan completes the coverage: all ~83 remaining data commands get WS handlers, Playwright connects to the real backend, and the unused `mort-test` binary is removed.
+After sub-plans 1 and 2, the WS server handles ~10 commands and the frontend routes through the transport layer. This plan completes the coverage: all ~83 remaining data commands get WS handlers, Playwright connects to the real backend, and the unused `anvil-test` binary is removed.
 
 ## Phases
 
@@ -13,7 +13,7 @@ After sub-plans 1 and 2, the WS server handles ~10 commands and the frontend rou
 - [x] Route remaining stateful commands (terminals, file watcher, profiling, diagnostics)
 - [x] Add WS push events for server-initiated messages (agent, terminal, file watcher)
 - [x] Playwright spike: install, configure, verify basic navigation against Vite + WS
-- [x] Delete `mort-test` binary and references
+- [x] Delete `anvil-test` binary and references
 - [x] First real E2E test: thread list loads, select thread, content pane renders
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
@@ -36,7 +36,7 @@ Already extracted pattern from ws-server.md phase 2. Same approach.
 
 All async, all stateless. The dispatch entries just deserialize args and call the function.
 
-**Mort commands (remaining ~4):**
+**Anvil commands (remaining ~4):**
 `fs_get_repo_dir`, `fs_get_repo_source_path`, `fs_get_home_dir`, `fs_list_dir_names`, `get_agent_types`
 
 **Other stateless (~6):**
@@ -73,7 +73,7 @@ echo '{"id":2,"cmd":"fs_read_file","args":{"path":"/tmp/ws-test.txt"}}' | websoc
 echo '{"id":3,"cmd":"fs_remove","args":{"path":"/tmp/ws-test.txt"}}' | websocat ws://127.0.0.1:9600
 
 # Test git
-echo '{"id":4,"cmd":"git_list_mort_branches","args":{"repo_path":"."}}' | websocat ws://127.0.0.1:9600
+echo '{"id":4,"cmd":"git_list_anvil_branches","args":{"repo_path":"."}}' | websocat ws://127.0.0.1:9600
 ```
 
 ## Phase 2: Remaining Stateful Commands
@@ -181,12 +181,12 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   use: {
-    baseURL: `http://localhost:${process.env.MORT_VITE_PORT ?? 1420}`,
+    baseURL: `http://localhost:${process.env.ANVIL_VITE_PORT ?? 1420}`,
     headless: true,
   },
   webServer: {
-    command: 'MORT_DATA_DIR=/tmp/mort-e2e pnpm dev',
-    port: parseInt(process.env.MORT_VITE_PORT ?? '1420'),
+    command: 'ANVIL_DATA_DIR=/tmp/anvil-e2e pnpm dev',
+    port: parseInt(process.env.ANVIL_VITE_PORT ?? '1420'),
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },
@@ -226,22 +226,22 @@ npx playwright test e2e/smoke.spec.ts --headed  # visual confirmation
 npx playwright test e2e/smoke.spec.ts            # headless CI mode
 ```
 
-## Phase 5: Delete `mort-test`
+## Phase 5: Delete `anvil-test`
 
 Remove the unused native test binary and its references.
 
 ### Files to delete
-- `src-tauri/src/bin/mort-test/` — entire directory
+- `src-tauri/src/bin/anvil-test/` — entire directory
 
 ### Files to update
-- `docs/testing.md` — remove references to mort-test
-- `src-tauri/Cargo.toml` — remove `[[bin]]` target for mort-test (if present)
-- Any CI config that builds or runs mort-test
+- `docs/testing.md` — remove references to anvil-test
+- `src-tauri/Cargo.toml` — remove `[[bin]]` target for anvil-test (if present)
+- Any CI config that builds or runs anvil-test
 
 ### Verification
-- `cargo build` succeeds without mort-test
+- `cargo build` succeeds without anvil-test
 - `pnpm dev` still works
-- No references to "mort-test" or "mort_test" remain in the codebase (grep check)
+- No references to "anvil-test" or "anvil_test" remain in the codebase (grep check)
 
 ## Phase 6: First Real E2E Test
 
@@ -254,7 +254,7 @@ import { setupTestRepo } from './helpers/test-repo';
 
 test.beforeAll(async () => {
   // Create a test repository with a known thread
-  await setupTestRepo('/tmp/mort-e2e/repos/test-repo');
+  await setupTestRepo('/tmp/anvil-e2e/repos/test-repo');
 });
 
 test('thread list loads and thread selection renders content', async ({ page }) => {
@@ -305,8 +305,8 @@ These are stable selectors that won't break with styling changes.
 | ~83 command extractions is a lot of mechanical Rust | Organize by domain, test each domain independently. Consider generating dispatch entries from a macro or build script if the boilerplate is excessive. |
 | Terminal event emission pattern change is non-trivial | The callback extraction in phase 2 is the riskiest change. Test terminal spawn/output thoroughly before and after. |
 | Playwright startup timing | Use `webServer` config with port wait. Add generous timeouts for initial load. |
-| Test data isolation | Use `MORT_DATA_DIR=/tmp/mort-e2e` to isolate from real user data. Clean up in `beforeAll`/`afterAll`. |
-| `mort-test` deletion breaks something | Grep for all references before deleting. It's described as unmaintained — unlikely to have hidden dependents. |
+| Test data isolation | Use `ANVIL_DATA_DIR=/tmp/anvil-e2e` to isolate from real user data. Clean up in `beforeAll`/`afterAll`. |
+| `anvil-test` deletion breaks something | Grep for all references before deleting. It's described as unmaintained — unlikely to have hidden dependents. |
 
 ## Output
 
@@ -314,5 +314,5 @@ After this plan completes:
 - **All ~93 data commands** are routable over WebSocket
 - **Server push events** work for agent messages, terminal output, and file changes
 - **Playwright** can run E2E tests against the real Rust backend via Chrome
-- **`mort-test`** is deleted
+- **`anvil-test`** is deleted
 - **One real E2E test** validates the end-to-end flow: app loads → threads list → content renders

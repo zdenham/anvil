@@ -1,10 +1,10 @@
 # Sub-Agent First-Class Display
 
-Sub-agents (Task tool invocations) are displayed as **first-class threads** in Mort. They use the existing thread infrastructure with one additional field (`parentThreadId`), reuse all existing events and stores, and appear nested under their parent in the tree menu.
+Sub-agents (Task tool invocations) are displayed as **first-class threads** in Anvil. They use the existing thread infrastructure with one additional field (`parentThreadId`), reuse all existing events and stores, and appear nested under their parent in the tree menu.
 
 ## Core Principles
 
-1. **Sub-agents ARE threads**: Same storage (`~/.mort/threads/`), same schema (with `parentThreadId`), same events, same store
+1. **Sub-agents ARE threads**: Same storage (`~/.anvil/threads/`), same schema (with `parentThreadId`), same events, same store
 2. **Same view, read-only**: Normal thread view with hidden input/cancel (no special "sub-agent view")
 3. **No inline expansion**: Parent shows a reference block with flashing indicator; click to open child thread
 4. **Tree nesting**: Sub-agents appear as children under parent thread, same pattern as nested plans

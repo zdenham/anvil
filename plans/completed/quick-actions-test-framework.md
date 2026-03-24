@@ -2,13 +2,13 @@
 
 ## Overview
 
-Implement a functional/integration testing framework for quick actions that spawns the actual runner process, captures stdout events, and verifies both the emitted events and disk state changes in a temporary `.mort` directory.
+Implement a functional/integration testing framework for quick actions that spawns the actual runner process, captures stdout events, and verifies both the emitted events and disk state changes in a temporary `.anvil` directory.
 
 ## Goals
 
 1. Test quick actions end-to-end by spawning the actual `runner.ts` process
 2. Capture and assert on stdout JSON events
-3. Provide a test fixture system with temporary `.mort` directories
+3. Provide a test fixture system with temporary `.anvil` directories
 4. Enable testing of disk reads (threads, plans) via pre-populated test data
 5. Support testing multiple actions in isolation
 
@@ -21,7 +21,7 @@ core/sdk/__tests__/
 ├── harness/
 │   ├── index.ts              # Main test harness exports
 │   ├── runner-spawn.ts       # Spawns runner process, captures stdout
-│   ├── mort-fixture.ts       # Creates/manages temp .mort directories
+│   ├── anvil-fixture.ts       # Creates/manages temp .anvil directories
 │   ├── event-collector.ts    # Parses JSON lines, provides assertions
 │   └── fixtures/             # Reusable test data templates
 │       ├── threads/          # Sample thread meta.json files
@@ -35,12 +35,12 @@ core/sdk/__tests__/
 
 ### Core Components
 
-#### 1. `MortFixture` - Temporary .mort Directory Manager
+#### 1. `AnvilFixture` - Temporary .anvil Directory Manager
 
 ```typescript
-interface MortFixture {
-  // Path to the temporary .mort directory
-  readonly mortDir: string;
+interface AnvilFixture {
+  // Path to the temporary .anvil directory
+  readonly anvilDir: string;
 
   // Setup methods
   addThread(threadId: string, meta: Partial<ThreadMeta>): void;
@@ -59,9 +59,9 @@ interface MortFixture {
 
 **Implementation details:**
 - Uses `os.tmpdir()` + unique suffix for isolation
-- Creates standard `.mort` structure: `threads/`, `plans-index.json`, etc.
+- Creates standard `.anvil` structure: `threads/`, `plans-index.json`, etc.
 - Auto-cleanup in `afterEach` or explicit `cleanup()`
-- Factory function: `createMortFixture()`
+- Factory function: `createAnvilFixture()`
 
 #### 2. `QuickActionRunner` - Process Spawner
 
@@ -69,7 +69,7 @@ interface MortFixture {
 interface RunnerOptions {
   actionPath: string;           // Path to compiled .js action
   context: QuickActionExecutionContext;
-  mortDir: string;
+  anvilDir: string;
   timeout?: number;             // Override default timeout
 }
 
@@ -85,7 +85,7 @@ async function runQuickAction(options: RunnerOptions): Promise<RunnerResult>;
 
 **Implementation details:**
 - Spawns `node` with the compiled runner
-- Passes `--action`, `--context`, `--mort-dir` args
+- Passes `--action`, `--context`, `--anvil-dir` args
 - Collects stdout line-by-line, parses JSON
 - Returns structured result with parsed events
 - Handles timeout/error cases
@@ -115,7 +115,7 @@ interface EventCollector {
 ```typescript
 // High-level test helper combining all components
 interface QuickActionTestContext {
-  fixture: MortFixture;
+  fixture: AnvilFixture;
 
   // Run action and return results
   run(actionSlug: string, context: Partial<QuickActionExecutionContext>): Promise<{
@@ -220,9 +220,9 @@ describe('action timeout', () => {
 ### Phase 1: Core Harness Infrastructure
 
 1. Create `core/sdk/__tests__/harness/` directory structure
-2. Implement `MortFixture` class
+2. Implement `AnvilFixture` class
    - Temp directory creation with unique naming
-   - Standard `.mort` structure initialization
+   - Standard `.anvil` structure initialization
    - Thread/plan fixture methods
    - Cleanup with proper error handling
 3. Implement `runQuickAction` spawner
@@ -271,7 +271,7 @@ core/sdk/
 ├── __tests__/
 │   ├── harness/
 │   │   ├── index.ts
-│   │   ├── mort-fixture.ts
+│   │   ├── anvil-fixture.ts
 │   │   ├── runner-spawn.ts
 │   │   ├── event-collector.ts
 │   │   └── fixtures/
@@ -313,7 +313,7 @@ From the SDK types, these events should be verified:
 
 ## Testing SDK Read Operations
 
-For actions that read from the `.mort` directory (e.g., `sdk.threads.list()`, `sdk.plans.get()`), the fixture system should support:
+For actions that read from the `.anvil` directory (e.g., `sdk.threads.list()`, `sdk.plans.get()`), the fixture system should support:
 
 1. **Thread fixtures**: Create `threads/{threadId}/meta.json` with proper structure
 2. **Plan fixtures**: Populate `plans-index.json` with entries
@@ -339,7 +339,7 @@ ctx.fixture.addThread('thread-3', { isRead: false });
 ## Success Criteria
 
 1. Can spawn runner process and capture all stdout events
-2. Can create isolated `.mort` fixtures per test
+2. Can create isolated `.anvil` fixtures per test
 3. Can verify both event emission AND file system reads work correctly
 4. Tests are fast (< 5s each) and isolated
 5. Clear assertion API for event verification

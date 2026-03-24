@@ -119,7 +119,7 @@ start();
 
 ```json
 {
-  "name": "mort-server",
+  "name": "anvil-server",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",

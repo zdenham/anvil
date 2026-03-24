@@ -132,7 +132,7 @@ Since the step may no longer always be about Spotlight, consider renaming:
 │             Disable macOS Spotlight Shortcut            │
 │                                                         │
 │   ⌘ + Space is also used by macOS Spotlight.           │
-│   Let's disable it so Mort can use this shortcut.      │
+│   Let's disable it so Anvil can use this shortcut.      │
 │                                                         │
 │          [Auto-disable Spotlight Shortcut]              │
 │                                                         │

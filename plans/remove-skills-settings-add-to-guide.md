@@ -1,12 +1,12 @@
 # Remove Skills from Settings, Show Built-in Skills in Guide
 
-Remove the skills settings section (low value — skills are invoked via `/name`, not configured) and surface the full set of built-in mort skills in the guide view where they're actually discoverable.
+Remove the skills settings section (low value — skills are invoked via `/name`, not configured) and surface the full set of built-in anvil skills in the guide view where they're actually discoverable.
 
 ## Current state
 
 - **Settings:** `SkillsSettings` in `settings-page.tsx` lists discovered skills with a re-sync button and creation instructions. Rarely useful — skills aren't toggled or configured, just invoked.
 - **Guide:** `guide-content.tsx` has an "Orchestration" section showing only `/decompose`, `/breadcrumb-loop`, `/orchestrate`.
-- **Built-in mort skills (10 total):** commit, create-pr, address-pr-comment, address-comments, fix-ci, simplify-code, decompose, orchestrate, breadcrumb-loop, breadcrumb.
+- **Built-in anvil skills (10 total):** commit, create-pr, address-pr-comment, address-comments, fix-ci, simplify-code, decompose, orchestrate, breadcrumb-loop, breadcrumb.
 
 ## Changes
 
@@ -23,7 +23,7 @@ Replace the current "Orchestration" section with a broader "Skills" section show
 
 - `/decompose` — Break a task into sub-plans, execute in parallel waves
 - `/breadcrumb-loop` — Run a task across multiple context windows via progress files
-- `/orchestrate` — Programmatic agent coordination with mort-repl
+- `/orchestrate` — Programmatic agent coordination with anvil-repl
 
 **Workflow**
 

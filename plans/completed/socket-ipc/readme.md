@@ -10,7 +10,7 @@ Current agent communication uses stdin/stdout piped through the frontend rendere
 
 ## Solution Summary
 
-Move agent communication to a Unix socket owned by the Rust backend at `~/.mort/agent-hub.sock`. All agents (root and bash-based sub-agents) connect as clients.
+Move agent communication to a Unix socket owned by the Rust backend at `~/.anvil/agent-hub.sock`. All agents (root and bash-based sub-agents) connect as clients.
 
 ## Sub-Plans
 

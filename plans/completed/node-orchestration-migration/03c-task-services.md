@@ -97,7 +97,7 @@ function slugify(title: string): string {
 
 export class TaskDraftService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private fs: FileSystemAdapter
   ) {}
 
@@ -135,7 +135,7 @@ export class TaskDraftService {
   }
 
   private getTaskDir(slug: string): string {
-    return path.join(this.mortDir, 'tasks', slug);
+    return path.join(this.anvilDir, 'tasks', slug);
   }
 }
 ```
@@ -150,7 +150,7 @@ import type { TaskMetadata, UpdateTaskInput } from '@core/types/tasks';
 
 export class TaskMetadataService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private fs: FileSystemAdapter
   ) {}
 
@@ -179,7 +179,7 @@ export class TaskMetadataService {
   }
 
   list(): string[] {
-    const tasksDir = path.join(this.mortDir, 'tasks');
+    const tasksDir = path.join(this.anvilDir, 'tasks');
     if (!this.fs.exists(tasksDir)) {
       return [];
     }
@@ -189,7 +189,7 @@ export class TaskMetadataService {
   }
 
   private getMetadataPath(taskSlug: string): string {
-    return path.join(this.mortDir, 'tasks', taskSlug, 'metadata.json');
+    return path.join(this.anvilDir, 'tasks', taskSlug, 'metadata.json');
   }
 }
 ```

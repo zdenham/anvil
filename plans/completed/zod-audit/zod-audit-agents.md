@@ -277,7 +277,7 @@ if (result.success) {
 
 ---
 
-### 6. `agents/src/core/persistence.ts` (MortPersistence class)
+### 6. `agents/src/core/persistence.ts` (AnvilPersistence class)
 
 **Current State:**
 ```typescript
@@ -498,7 +498,7 @@ Total: 47 files in `agents/src/` directory.
 - `core/types/events.ts` - `ThreadState`, `FileChange`, `ResultMetrics`, etc. (correct: emitted, not read)
 - `agents/src/core/slug.ts` - Utility functions only
 - `agents/src/core/types.ts` - Re-exports from core/types/tasks.ts
-- `agents/src/core/persistence.ts` - `MortPersistence` class (**consumers NEED ZOD**)
+- `agents/src/core/persistence.ts` - `AnvilPersistence` class (**consumers NEED ZOD**)
 
 ### agent-types/
 - simple.ts - No types, just config object
@@ -546,14 +546,14 @@ Total: 47 files in `agents/src/` directory.
 - agent-harness.ts - Test harness class
 - index.ts - Re-exports
 - services/test-repository.ts - Test service
-- services/test-mort-directory.ts - Test service
+- services/test-anvil-directory.ts - Test service
 - services/index.ts - Re-exports
 - __tests__/exports.test.ts - Tests
 - __tests__/harness-self-test.ts - Tests
 
 ### cli/
 - timeout-wrapper.ts - No new types
-- mort.ts - No new types, uses types from other files
+- anvil.ts - No new types, uses types from other files
 
 ### adapters/
 - node-fs-adapter.ts - `NodeFSAdapter` class (correct: adapter pattern)

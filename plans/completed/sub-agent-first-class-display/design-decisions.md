@@ -6,7 +6,7 @@
 Use the same thread ID convention as regular threads (UUID). The SDK's `agent_id` is not stored - we generate our own `threadId` on SubagentStart.
 
 ### Sub-Agent Storage
-Sub-agents persist as standalone threads in `~/.mort/threads/`. Same lifecycle as any thread - no special cleanup logic needed.
+Sub-agents persist as standalone threads in `~/.anvil/threads/`. Same lifecycle as any thread - no special cleanup logic needed.
 
 ### Sub-Agent Events
 Reuse existing thread events (THREAD_CREATED, THREAD_STATE, THREAD_STATUS_CHANGED). No new event types. Frontend detects sub-agents by checking `parentThreadId !== undefined`.
@@ -109,7 +109,7 @@ Discouraged via system prompt instruction. Not blocked by hook - soft enforcemen
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Sub-agent storage | Same as threads (`~/.mort/threads/`) | Maximum reuse |
+| Sub-agent storage | Same as threads (`~/.anvil/threads/`) | Maximum reuse |
 | Sub-agent events | Reuse THREAD_* events | No new event types |
 | Sub-agent store | Existing thread store | No new store |
 | Sub-agent naming | Existing thread-naming-service | No new service |

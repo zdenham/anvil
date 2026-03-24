@@ -61,7 +61,7 @@ function getResolution(): ResolutionService {
   if (!resolutionService) {
     resolutionService = new ResolutionService(
       new NodeFSAdapter(),
-      join(getMortDir(), "tasks")
+      join(getAnvilDir(), "tasks")
     );
   }
   return resolutionService;
@@ -90,7 +90,7 @@ export async function getTaskContent(taskId: string): Promise<string | null> {
 
 | File | Line | Current | Change To |
 |------|------|---------|-----------|
-| `agents/src/cli/mort.ts` | 399 | `getTaskContent(task.slug)` | `getTaskContent(task.id)` |
+| `agents/src/cli/anvil.ts` | 399 | `getTaskContent(task.slug)` | `getTaskContent(task.id)` |
 
 ---
 

@@ -22,7 +22,7 @@ const command = Command.create("node", commandArgs, {
   cwd: options.sourcePath,
   env: {
     NODE_PATH: nodeModulesPath,
-    MORT_DATA_DIR: mortDir,
+    ANVIL_DATA_DIR: anvilDir,
     PATH: shellPath,
   },
 });
@@ -51,7 +51,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
     env: {
       ANTHROPIC_API_KEY: apiKey,  // ADD THIS
       NODE_PATH: nodeModulesPath,
-      MORT_DATA_DIR: mortDir,
+      ANVIL_DATA_DIR: anvilDir,
       PATH: shellPath,
     },
   });

@@ -54,7 +54,7 @@ export class TerminalManager {
 
 ### Behavior (mirroring `terminal.rs`)
 
-`spawn`: Create a PTY via `node-pty`, spawn the user's `$SHELL` (default `/bin/zsh`) with `-l` flag. Set environment: `TERM=xterm-256color`, `COLORTERM=truecolor`, `LANG/LC_ALL=en_US.UTF-8`, propagate `HOME`, `USER`, `PATH`. For zsh, set `ZDOTDIR` to `~/.mort/data/shell-integration/zsh` (same as Rust). Wire `pty.onData()` to broadcast `terminal:output` with `{id, data}`. Wire `pty.onExit()` to broadcast `terminal:exit` with `{id}` and clean up the session. Return the session ID.
+`spawn`: Create a PTY via `node-pty`, spawn the user's `$SHELL` (default `/bin/zsh`) with `-l` flag. Set environment: `TERM=xterm-256color`, `COLORTERM=truecolor`, `LANG/LC_ALL=en_US.UTF-8`, propagate `HOME`, `USER`, `PATH`. For zsh, set `ZDOTDIR` to `~/.anvil/data/shell-integration/zsh` (same as Rust). Wire `pty.onData()` to broadcast `terminal:output` with `{id, data}`. Wire `pty.onExit()` to broadcast `terminal:exit` with `{id}` and clean up the session. Return the session ID.
 
 `write`: Get session by ID, call `pty.write(data)`. Throw if not found.
 

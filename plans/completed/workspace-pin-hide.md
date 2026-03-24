@@ -26,7 +26,7 @@ Implement the ability to "pin" a workspace to filter out all other workspaces, a
 
 ### 1. State Management
 
-Extend the existing `tree-menu` store pattern which already persists to `~/.mort/ui/tree-menu.json`.
+Extend the existing `tree-menu` store pattern which already persists to `~/.anvil/ui/tree-menu.json`.
 
 **File: `src/stores/tree-menu/types.ts`**
 
@@ -215,9 +215,9 @@ interface TreePanelHeaderProps {
 
 ```
 ┌─────────────────────────────────────┐
-│ MORT                    ↻ ⋮        │  ← "⋮" has "Show all workspaces" when hidden exist
+│ ANVIL                    ↻ ⋮        │  ← "⋮" has "Show all workspaces" when hidden exist
 ├─────────────────────────────────────┤
-│ ▼ mortician / main      3  📌 👁 + │  ← Pin/Hide visible on hover, Pin highlighted if active
+│ ▼ anvil / main      3  📌 👁 + │  ← Pin/Hide visible on hover, Pin highlighted if active
 │   ├─ Thread 1                      │
 │   ├─ Thread 2                      │
 │   └─ plan.md                       │

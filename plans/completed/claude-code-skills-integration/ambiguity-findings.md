@@ -75,7 +75,7 @@ This document consolidates findings from parallel analysis of all 8 sub-plans in
 - [ ] Where should canonical skill types live? `core/types/` or `src/entities/`?
 - [ ] Should `SkillsAdapter` be sync or async? Why different from other adapters?
 - [ ] How is skill `id` generated and is it stable across restarts?
-- [ ] What is the `~/.mort/` directory and does it need creation elsewhere?
+- [ ] What is the `~/.anvil/` directory and does it need creation elsewhere?
 
 ---
 
@@ -97,7 +97,7 @@ This document consolidates findings from parallel analysis of all 8 sub-plans in
    - Redundant or intentional safety?
 
 4. **Priority Order Undocumented**
-   - `project: 0, project_command: 1, mort: 2, personal: 3, personal_command: 4`
+   - `project: 0, project_command: 1, anvil: 2, personal: 3, personal_command: 4`
    - Why this ordering? Users won't understand shadowing
 
 5. **Repository Context Dependency**
@@ -238,13 +238,13 @@ This document consolidates findings from parallel analysis of all 8 sub-plans in
 
 5. **Missing `rootPath` Handling**
    - Returns empty when `!context.rootPath`
-   - But personal/mort skills don't need `rootPath`
+   - But personal/anvil skills don't need `rootPath`
 
 ### Questions to Resolve
 
 - [ ] Should `TriggerResult` interface be extended with `secondaryLabel`?
 - [ ] How should skill icons be rendered differently from file icons?
-- [ ] Should personal/mort skills be discoverable without a repo open?
+- [ ] Should personal/anvil skills be discoverable without a repo open?
 - [ ] What's the correct escape behavior for `//`?
 
 ---

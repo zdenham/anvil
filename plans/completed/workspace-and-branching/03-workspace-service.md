@@ -86,7 +86,7 @@ Multiple concurrent operations (e.g., two tasks starting simultaneously) could r
 Use a lock file per repository to serialize workspace operations:
 
 ```typescript
-// Lock file: ~/.mort/repositories/{repo-name}/.lock
+// Lock file: ~/.anvil/repositories/{repo-name}/.lock
 // Acquired before any settings read/write
 // Released after operation completes
 
@@ -217,7 +217,7 @@ export function createWorkspaceService(): WorkspaceService {
       const mergeBase = await getMergeBaseCommit(repoName, baseBranch);
 
       // Create branch in source repo
-      const branchName = `mort/task-${taskId}`;
+      const branchName = `anvil/task-${taskId}`;
       await createGitBranch(repoName, branchName, baseBranch);
 
       // Store in settings
@@ -436,7 +436,7 @@ async function createWorktree(
   const repoPath = await fsCommands.getRepoSourcePath(repoName);
   const repoDir = await fsCommands.getRepoDir(repoName);
 
-  // Generate worktree path: ~/.mort/repositories/{repo}/worktree-{n}
+  // Generate worktree path: ~/.anvil/repositories/{repo}/worktree-{n}
   const version = settings.worktrees.length + 1;
   const worktreePath = `${repoDir}/worktree-${version}`;
 

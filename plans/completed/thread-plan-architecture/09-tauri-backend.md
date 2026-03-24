@@ -11,7 +11,7 @@ Update the Rust/Tauri backend to remove task references and support new architec
 
 ### 1. Remove task commands
 
-Update `src-tauri/src/mort_commands.rs`:
+Update `src-tauri/src/anvil_commands.rs`:
 
 **Remove:**
 - `update_task()` command (lines 296-318) - this is the only task command that emits events (`task:update-from-agent`)
@@ -103,7 +103,7 @@ Update `src-tauri/src/lib.rs` `.invoke_handler(tauri::generate_handler![...])`:
 - `hide_task`
 - `show_tasks_panel`
 - `hide_tasks_panel`
-- `mort_commands::update_task`
+- `anvil_commands::update_task`
 - `save_task_navigation_down_hotkey`
 - `get_saved_task_navigation_down_hotkey`
 - `save_task_navigation_up_hotkey`
@@ -126,7 +126,7 @@ After removing task code, clean up any unused imports in:
 - `src-tauri/src/lib.rs`
 - `src-tauri/src/panels.rs`
 - `src-tauri/src/config.rs`
-- `src-tauri/src/mort_commands.rs`
+- `src-tauri/src/anvil_commands.rs`
 
 ## Note on Event Handling
 
@@ -149,7 +149,7 @@ cd src-tauri && cargo build
 
 ## Acceptance Criteria
 
-- [ ] `update_task` command removed from mort_commands.rs
+- [ ] `update_task` command removed from anvil_commands.rs
 - [ ] Task window functions removed from lib.rs (`open_task`, `hide_task`, `show_tasks_panel`, `hide_tasks_panel`)
 - [ ] Task panel structs, handlers, and functions removed from panels.rs
 - [ ] Task panel constants removed from panels.rs
@@ -203,9 +203,9 @@ test ! -f src-tauri/src/navigation_mode.rs && echo "PASS: File deleted"
 ```
 - Expected: "PASS: File deleted" output
 
-**Test: No update_task command in mort_commands.rs**
+**Test: No update_task command in anvil_commands.rs**
 ```bash
-grep -E "pub.*fn.*update_task|async.*fn.*update_task" src-tauri/src/mort_commands.rs
+grep -E "pub.*fn.*update_task|async.*fn.*update_task" src-tauri/src/anvil_commands.rs
 ```
 - Expected: No matches found (exit code 1, empty output)
 

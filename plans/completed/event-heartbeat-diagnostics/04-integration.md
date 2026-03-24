@@ -20,7 +20,7 @@ Wire the three layers together and verify end-to-end correctness. Each layer was
 - [x] Verify auto-enable on staleness: simulate staleness → diagnostics auto-enable → agents receive config update
 - [x] Verify disk recovery: simulate stale heartbeat → state.json polled → UI updates with disk state
 - [x] Verify reconnection: simulate hub disconnect → agent buffers → reconnect → flush queue → UI catches up
-- [x] Wire `MORT_DIAGNOSTIC_LOGGING` env var into agent spawn path (set from frontend diagnostic config when spawning new agents)
+- [x] Wire `ANVIL_DIAGNOSTIC_LOGGING` env var into agent spawn path (set from frontend diagnostic config when spawning new agents)
 - [x] Run existing test suite (`cd agents && pnpm test`) to ensure no regressions
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
@@ -31,10 +31,10 @@ Wire the three layers together and verify end-to-end correctness. Each layer was
 
 ### 1. Agent Spawn Path
 
-When the frontend spawns a new agent, it needs to pass the current diagnostic config as `MORT_DIAGNOSTIC_LOGGING` env var. Find where agent processes are spawned (likely in Rust or via Tauri command) and inject:
+When the frontend spawns a new agent, it needs to pass the current diagnostic config as `ANVIL_DIAGNOSTIC_LOGGING` env var. Find where agent processes are spawned (likely in Rust or via Tauri command) and inject:
 
 ```
-MORT_DIAGNOSTIC_LOGGING=<JSON string of current DiagnosticLoggingConfig>
+ANVIL_DIAGNOSTIC_LOGGING=<JSON string of current DiagnosticLoggingConfig>
 ```
 
 This ensures new agents start with the correct diagnostic settings without needing a relay message.
@@ -75,7 +75,7 @@ Ensure all new intervals/timers are properly cleaned up:
 
 | Action | File | Description |
 |--------|------|-------------|
-| Modify | `src/lib/agent-service.ts` | Inject `MORT_DIAGNOSTIC_LOGGING` env var in spawn + resume |
+| Modify | `src/lib/agent-service.ts` | Inject `ANVIL_DIAGNOSTIC_LOGGING` env var in spawn + resume |
 | Verify | `agents/src/runner.ts` | Heartbeat gating on root-level (already correct from Phase 1) |
 | Fix | `src/entities/threads/listeners.ts` | Fix diagnostic relay type mismatch (`diagnostic:config` → `diagnostic_config`), add Rust hub update call |
 | Fix | `src/components/diagnostics/diagnostic-panel.tsx` | Add `update_diagnostic_config` Tauri command calls to module toggles |

@@ -2,7 +2,7 @@
 
 ## Problem
 
-When Mort.app is opened from the Dock/Finder (not terminal), the Node.js sidecar fails to spawn, so the WebSocket server never starts and the client can't connect.
+When Anvil.app is opened from the Dock/Finder (not terminal), the Node.js sidecar fails to spawn, so the WebSocket server never starts and the client can't connect.
 
 ## Root Cause
 
@@ -105,6 +105,6 @@ Changes:
 
 ## Testing
 
-- Verify from terminal: `PATH=/usr/bin:/bin /Applications/Mort.app/Contents/MacOS/mort` (simulates Dock environment)
+- Verify from terminal: `PATH=/usr/bin:/bin /Applications/Anvil.app/Contents/MacOS/anvil` (simulates Dock environment)
 - Verify with nvm: ensure node is found when only installed via nvm
 - Verify fallback: ensure good error message when node genuinely isn't installed

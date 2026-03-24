@@ -207,7 +207,7 @@ src/components/ui/
 ├── tooltip.tsx               # Existing
 ├── status-dot.tsx            # Existing
 ├── status-legend.tsx         # Existing
-├── mort-logo.tsx             # Existing
+├── anvil-logo.tsx             # Existing
 └── BuildModeIndicator.tsx    # Existing
 ```
 

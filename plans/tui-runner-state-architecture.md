@@ -52,7 +52,7 @@ However, every hook input includes `transcript_path` pointing to a `.jsonl` tran
 | **Git safety evaluation** | `BANNED_COMMANDS` + regex matching → allow/deny | `agents/src/hooks/safe-git-hook.ts` (embedded in factory) |
 | **Tool deny list** | Check tool name against disallowed list → deny | `agents/src/runners/shared.ts:1452` (inline in `query()` config) |
 | **File change extraction** | Parse `tool_input` for file paths from Write/Edit/NotebookEdit → `FileChange` | `agents/src/runners/shared.ts` PostToolUse hook (inline) |
-| **Comment resolution** | Parse `mort-resolve-comment` command → extract IDs, emit events | `agents/src/hooks/comment-resolution-hook.ts` |
+| **Comment resolution** | Parse `anvil-resolve-comment` command → extract IDs, emit events | `agents/src/hooks/comment-resolution-hook.ts` |
 | **Tool state tracking** | PreToolUse → `markToolRunning()`, PostToolUse → `markToolComplete()` | `agents/src/runners/shared.ts` + `output.ts` |
 | **Plan detection + phase parsing** | Detect plan file writes, parse `## Phases` sections | `agents/src/runners/shared.ts` PostToolUse hook (inline) |
 | **Transcript parser** | Parse `.jsonl` transcript → messages, usage, thinking blocks | NEW: `core/lib/transcript/` |
@@ -67,7 +67,7 @@ However, every hook input includes `transcript_path` pointing to a `.jsonl` tran
 | MessageHandler (message routing) | Routes SDK message types. TUI has no SDK messages. |
 | HubClient / SocketMessageStream | Agent→Hub WebSocket transport. TUI uses HTTP hooks. |
 | QueuedAckManager | SDK message injection lifecycle. |
-| REPL hook | `MortReplRunner` + `ChildSpawner` need process-local state. Deferred for TUI. |
+| REPL hook | `AnvilReplRunner` + `ChildSpawner` need process-local state. Deferred for TUI. |
 
 ### Previously "Agent-Runner-Only" — Now Available via Transcript
 
@@ -407,10 +407,10 @@ Created on first hook request, cleaned up on Stop hook.
 
 1. **Transcript format stability** — The `.jsonl` format is internal to Claude CLI with no stability guarantees. Mitigation: Zod safeParse, version detection from init message, graceful degradation. But we should pin to a known-good CLI version range and test transcript parsing on upgrades.
 2. **Transcript write timing** — Does Claude CLI flush transcript lines synchronously before firing hooks, or could there be a race where the hook fires but the transcript hasn't been written yet? Needs empirical testing. If racy, add a short retry with backoff on `readTranscriptIncremental`.
-3. **Child thread ID propagation** — When TUI Claude spawns a sub-agent, how does the child get a `MORT_THREAD_ID`? May need self-registration via SessionStart hook. The `SubagentStop` hook includes `agent_transcript_path` which could be read separately.
+3. **Child thread ID propagation** — When TUI Claude spawns a sub-agent, how does the child get a `ANVIL_THREAD_ID`? May need self-registration via SessionStart hook. The `SubagentStop` hook includes `agent_transcript_path` which could be read separately.
 4. **Concurrent hook requests** — Parallel tools mean concurrent writes for the same thread. `ThreadStateWriter` needs per-thread serialization.
 5. **REPL hook for TUI** — Deferred. Needs process-local state. When needed, either run in sidecar or spawn per-thread process.
-6. **Streaming gap** — Hooks + transcript cannot provide streaming deltas. The TUI content pane shows PTY output for real-time text, so this may be acceptable. But it means Mort can't show structured "thinking in progress" state the way the SDK runner can.
+6. **Streaming gap** — Hooks + transcript cannot provide streaming deltas. The TUI content pane shows PTY output for real-time text, so this may be acceptable. But it means Anvil can't show structured "thinking in progress" state the way the SDK runner can.
 
 ## Phases
 

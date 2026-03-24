@@ -14,7 +14,7 @@ I audited every other prop in this chain (`threadId`, `isStreaming`, `toolStates
 
 ## Why the thread doesn't already have the path
 
-Thread metadata stores `repoId` (UUID) and `worktreeId` (UUID), but **not** the resolved filesystem path. The path lives in `RepositorySettings.worktrees[].path`, loaded from disk (`~/.mort/repositories/{slug}/settings.json`) via `loadSettings()`. The current `useWorkingDirectory` hook does this async lookup.
+Thread metadata stores `repoId` (UUID) and `worktreeId` (UUID), but **not** the resolved filesystem path. The path lives in `RepositorySettings.worktrees[].path`, loaded from disk (`~/.anvil/repositories/{slug}/settings.json`) via `loadSettings()`. The current `useWorkingDirectory` hook does this async lookup.
 
 The repo store (`useRepoStore`) is hydrated at startup with `Repository` objects (which have `sourcePath`), but the **full settings** — including the `worktrees` array with per-worktree paths — are not in any zustand store.
 

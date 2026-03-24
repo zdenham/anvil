@@ -14,7 +14,7 @@ Two related changes: (1) an identity table linking `device_id` to a GitHub handl
 - [x] Add ClickHouse `identities` table via SQL migration
 - [x] Add ClickHouse `log_properties` table via SQL migration
 - [x] Add Zod schemas and server endpoints for identity and log properties
-- [x] Add local identity storage (`~/.mort/settings/identity.json`)
+- [x] Add local identity storage (`~/.anvil/settings/identity.json`)
 - [x] Wire up Rust config to persist and expose identity locally
 - [x] Add client-side `identify` function (Tauri command + server POST)
 
@@ -24,7 +24,7 @@ Two related changes: (1) an identity table linking `device_id` to a GitHub handl
 
 ## Device ID Stability
 
-The `device_id` is a UUID v4 generated once on first app launch, persisted to `~/.mort/settings/app-config.json`, and never regenerated. The `#[serde(default = "generate_device_id")]` only fires if the field is missing from the file. The code saves immediately after generation. It is stable across restarts and suitable as a long-lived identity key.
+The `device_id` is a UUID v4 generated once on first app launch, persisted to `~/.anvil/settings/app-config.json`, and never regenerated. The `#[serde(default = "generate_device_id")]` only fires if the field is missing from the file. The code saves immediately after generation. It is stable across restarts and suitable as a long-lived identity key.
 
 ---
 
@@ -292,7 +292,7 @@ fastify.post<{ Body: unknown }>('/logs', async (request, reply) => {
 
 ## Phase 5: Local Identity Storage
 
-Store at `~/.mort/settings/identity.json`:
+Store at `~/.anvil/settings/identity.json`:
 
 ```json
 {
@@ -337,7 +337,7 @@ pub struct Identity {
 ```
 
 Functions:
-- `load_identity() -> Option<Identity>` — reads `~/.mort/settings/identity.json`
+- `load_identity() -> Option<Identity>` — reads `~/.anvil/settings/identity.json`
 - `save_identity(identity: &Identity) -> Result<(), String>` — writes it
 - `get_github_handle() -> Option<String>` — convenience accessor
 
@@ -357,7 +357,7 @@ Extends the `identity.rs` module from Phase 6 with an `identify` function expose
 use crate::config::get_device_id;
 use tracing::{info, warn};
 
-const IDENTITY_SERVER_URL: &str = "https://mort-server.fly.dev/identity";
+const IDENTITY_SERVER_URL: &str = "https://anvil-server.fly.dev/identity";
 
 /// Tauri command: link the current device to a GitHub handle.
 /// Persists locally and registers with the server.
@@ -401,7 +401,7 @@ fn register_with_server(device_id: &str, github_handle: &str) -> Result<(), Box<
 
 **Design decisions:**
 
-- **Local-first**: `save_identity` writes `~/.mort/settings/identity.json` before contacting the server. If the server is unreachable, the local identity is still usable. Follows the "disk as truth" pattern.
+- **Local-first**: `save_identity` writes `~/.anvil/settings/identity.json` before contacting the server. If the server is unreachable, the local identity is still usable. Follows the "disk as truth" pattern.
 - **Fire-and-forget server call**: `std::thread::spawn` keeps the Tauri command responsive. The `ReplacingMergeTree` on the server makes this idempotent — calling `identify` again just upserts.
 - **No background worker/channel**: Unlike `LogServerLayer` which handles high-throughput batched logs, `identify` is called once (during onboarding or settings). A simple thread spawn with a single POST is sufficient.
 - **Env var override**: `IDENTITY_SERVER_URL` allows pointing to a local dev server, same pattern as `LOG_SERVER_URL`.
@@ -452,10 +452,10 @@ Agents can read identity directly from disk without going through Tauri:
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
-import { IdentitySchema } from "@mort/core/types/identity";
+import { IdentitySchema } from "@anvil/core/types/identity";
 
 async function loadIdentity() {
-  const path = join(homedir(), ".mort", "settings", "identity.json");
+  const path = join(homedir(), ".anvil", "settings", "identity.json");
   const raw = JSON.parse(await readFile(path, "utf-8"));
   return IdentitySchema.parse(raw);
 }

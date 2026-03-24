@@ -20,7 +20,7 @@ When a thread's `parentId` (derived from `visualSettings.parentId ?? worktreeId`
 
 ### How threads become orphaned
 
-**Scenario A — Worktree sync removes a worktree**: `worktreeService.sync()` (Rust-side) "removes worktrees from settings that no longer exist on disk." If a git worktree is deleted externally (e.g., `git worktree remove` in terminal), sync removes it from `settings.json`, but **no cascade cleanup runs for the orphaned threads/plans**. On next hydration, threads load from `~/.mort-dev/threads/` with a `worktreeId` that no longer maps to any worktree node.
+**Scenario A — Worktree sync removes a worktree**: `worktreeService.sync()` (Rust-side) "removes worktrees from settings that no longer exist on disk." If a git worktree is deleted externally (e.g., `git worktree remove` in terminal), sync removes it from `settings.json`, but **no cascade cleanup runs for the orphaned threads/plans**. On next hydration, threads load from `~/.anvil-dev/threads/` with a `worktreeId` that no longer maps to any worktree node.
 
 **Scenario B — Worktree archive race conditions**: `handleArchiveWorktree` (`main-window-layout.tsx:571-654`) archives entities before deleting the worktree. It queries `threadService.getByWorktree(worktreeId)` at the *start* of the handler, then deletes the worktree and syncs. If a thread arrives between the query and the sync (e.g., a sub-agent just finished writing metadata), it gets orphaned.
 
@@ -46,18 +46,18 @@ When a thread's `parentId` (derived from `visualSettings.parentId ?? worktreeId`
 
 | Field | Value |
 | --- | --- |
-| `repoId` | `3631f90e` → `shortcut` **repo** (not `mortician`) |
+| `repoId` | `3631f90e` → `shortcut` **repo** (not `anvil`) |
 | `worktreeId` | `739e9568` → **does not exist** in any repo's worktree list |
 | `visualSettings.parentId` | `739e9568` (same as worktreeId) |
 
 **Current worktrees**:
 
 - `shortcut` repo: `['43cb2af8']` — only 1 worktree, `739e9568` is gone
-- `mortician` repo: `['4e6d4a15', 'da1e4394']`
+- `anvil` repo: `['4e6d4a15', 'da1e4394']`
 
 **Confirmed: Scenario A.** Worktree `739e9568` was removed from the `shortcut` repo (via sync or archive), but no entity cleanup ran for its 3 threads.
 
-**Additional finding — no repo scoping in tree**: `useTreeData()` (line 204) pulls `_threadsArray` from the global store without filtering by repoId. These `shortcut` repo threads render in the `mortician` sidebar because there's no repo boundary. The tree builder receives ALL threads across ALL repos.
+**Additional finding — no repo scoping in tree**: `useTreeData()` (line 204) pulls `_threadsArray` from the global store without filtering by repoId. These `shortcut` repo threads render in the `anvil` sidebar because there's no repo boundary. The tree builder receives ALL threads across ALL repos.
 
 **Bug path**: `hydrate()` loads all threads → `useTreeData()` passes all to `buildUnifiedTree()` → `threadToNode()` sets `parentId = 739e9568` → `buildChildrenMap()` can't find `739e9568` in nodeById → falls back to ROOT → thread renders at root level in wrong repo's sidebar.
 

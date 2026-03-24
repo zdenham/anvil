@@ -79,7 +79,7 @@ interface UpdateThreadInput {
 
 ## Storage Path
 
-**IMPORTANT**: Threads are stored at `~/.mort/tasks/{taskSlug}/threads/{agentType}-{id}/`
+**IMPORTANT**: Threads are stored at `~/.anvil/tasks/{taskSlug}/threads/{agentType}-{id}/`
 
 This matches the existing codebase structure where threads live inside their parent task directory.
 
@@ -100,7 +100,7 @@ import { getThreadFolderName } from '@/entities/threads/types';
 
 export class ThreadService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private fs: FileSystemAdapter
   ) {}
 
@@ -207,7 +207,7 @@ export class ThreadService {
   }
 
   list(taskSlug: string): string[] {
-    const threadsDir = path.join(this.mortDir, 'tasks', taskSlug, 'threads');
+    const threadsDir = path.join(this.anvilDir, 'tasks', taskSlug, 'threads');
     if (!this.fs.exists(threadsDir)) {
       return [];
     }
@@ -217,7 +217,7 @@ export class ThreadService {
   }
 
   private getThreadDir(taskSlug: string, folderName: string): string {
-    return path.join(this.mortDir, 'tasks', taskSlug, 'threads', folderName);
+    return path.join(this.anvilDir, 'tasks', taskSlug, 'threads', folderName);
   }
 
   private getMetadataPath(taskSlug: string, folderName: string): string {

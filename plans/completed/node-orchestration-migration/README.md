@@ -95,7 +95,7 @@ Plans in the same wave can be executed in parallel.
 
 ## Success Criteria
 
-- [ ] Runner accepts: `node runner.js --agent planning --task-id xxx --thread-id yyy --prompt "..." --mort-dir ~/.mort`
+- [ ] Runner accepts: `node runner.js --agent planning --task-id xxx --thread-id yyy --prompt "..." --anvil-dir ~/.anvil`
 - [ ] Node reads task metadata from disk to get repositoryName
 - [ ] Node allocates worktree without any frontend involvement
 - [ ] Node creates thread entity on disk and emits `thread:created` event

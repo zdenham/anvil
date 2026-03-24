@@ -2,12 +2,12 @@
 
 ## Goal
 
-Run **N separate instances** of Mort simultaneously:
+Run **N separate instances** of Anvil simultaneously:
 - **Production Build**: Stable version used as the daily driver
 - **Development Build**: Active development version being worked on
 - **Feature Builds**: Additional instances for testing specific features
 
-This enables "dogfooding" - using Mort to build Mort.
+This enables "dogfooding" - using Anvil to build Anvil.
 
 ## Environment Variables
 
@@ -15,18 +15,18 @@ Each configurable aspect has its own environment variable with sensible defaults
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MORT_APP_SUFFIX` | Suffix for app identifier and name | _(none)_ |
-| `MORT_DATA_DIR` | Data directory path | `~/.mort` |
-| `MORT_CONFIG_DIR` | Config directory path | `~/Library/Application Support/mortician` |
-| `MORT_VITE_PORT` | Vite dev server port | `1420` |
-| `MORT_SPOTLIGHT_HOTKEY` | Spotlight activation hotkey | `Command+Space` |
-| `MORT_CLIPBOARD_HOTKEY` | Clipboard panel hotkey | `Command+Option+C` |
+| `ANVIL_APP_SUFFIX` | Suffix for app identifier and name | _(none)_ |
+| `ANVIL_DATA_DIR` | Data directory path | `~/.anvil` |
+| `ANVIL_CONFIG_DIR` | Config directory path | `~/Library/Application Support/anvil` |
+| `ANVIL_VITE_PORT` | Vite dev server port | `1420` |
+| `ANVIL_SPOTLIGHT_HOTKEY` | Spotlight activation hotkey | `Command+Space` |
+| `ANVIL_CLIPBOARD_HOTKEY` | Clipboard panel hotkey | `Command+Option+C` |
 
 ### Derived Values
 
-When `MORT_APP_SUFFIX` is set (e.g., `dev`):
-- App Identifier: `com.getmort.app` → `com.getmort.app.dev`
-- App Name: `Mort` → `Mort Dev`
+When `ANVIL_APP_SUFFIX` is set (e.g., `dev`):
+- App Identifier: `com.getanvil.app` → `com.getanvil.app.dev`
+- App Name: `Anvil` → `Anvil Dev`
 - Window titles and UI labels update accordingly
 
 ### Usage
@@ -37,8 +37,8 @@ pnpm build            # Build stable app for /Applications
 ```
 
 **Typical workflow:**
-1. Build stable Mort once → install to `/Applications/Mort.app`
-2. Use installed Mort.app as your daily driver
+1. Build stable Anvil once → install to `/Applications/Anvil.app`
+2. Use installed Anvil.app as your daily driver
 3. Run `pnpm dev` for active development (hot reload, purple spotlight)
 
 See `05-build-scripts.md` for details.
@@ -80,17 +80,17 @@ See `05-build-scripts.md` for details.
 
 **Bake instance identity at build time, derive paths at runtime.**
 
-- `MORT_APP_SUFFIX` is read during `cargo build` and baked into the binary
+- `ANVIL_APP_SUFFIX` is read during `cargo build` and baked into the binary
 - At runtime, the app uses the baked suffix to derive default paths:
-  - Suffix `dev` → data dir `~/.mort-dev`, config dir `mortician-dev`
+  - Suffix `dev` → data dir `~/.anvil-dev`, config dir `anvil-dev`
 - This ensures installed apps work correctly without env vars
 - Env vars can still override at runtime for development flexibility
 
 ### Flow
 
-1. **Shell script** sets env vars including `MORT_APP_SUFFIX`
-2. **Vite** uses `MORT_VITE_PORT` for dev server
-3. **Cargo build.rs** bakes `MORT_APP_SUFFIX` and default hotkeys into binary
+1. **Shell script** sets env vars including `ANVIL_APP_SUFFIX`
+2. **Vite** uses `ANVIL_VITE_PORT` for dev server
+3. **Cargo build.rs** bakes `ANVIL_APP_SUFFIX` and default hotkeys into binary
 4. **Tauri build** uses config overlay (`--config tauri.conf.dev.json`)
 5. **At runtime**, app uses baked suffix to derive default paths
 6. **Runtime env vars** can still override for dev/testing flexibility

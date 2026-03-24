@@ -73,24 +73,24 @@ const allocation = allocationService.allocate(repoName, args.threadId, {
 
 ```bash
 # 1. Create a task and verify branch is created
-mort tasks create "Test branch attachment" --slug test-branch-attach
+anvil tasks create "Test branch attachment" --slug test-branch-attach
 
 # 2. Check the worktree is on the branch (not detached HEAD)
-git -C ~/.mort-dev/repositories/mortician/mortician-1 status
+git -C ~/.anvil-dev/repositories/anvil/anvil-1 status
 # Should show: On branch task/test-branch-attach
 
 # 3. Verify merge base is from origin/main
-git -C ~/.mort-dev/repositories/mortician fetch origin
+git -C ~/.anvil-dev/repositories/anvil fetch origin
 git log --oneline origin/main -1
 # The worktree should be based on this commit
 
 # 4. Make a commit via the agent and verify it's on the branch
-git -C ~/.mort-dev/repositories/mortician log --oneline task/test-branch-attach
+git -C ~/.anvil-dev/repositories/anvil log --oneline task/test-branch-attach
 # Should show the new commit
 
 # 5. Test multi-thread concurrent access
 # Spawn two threads for the same task
-cat ~/.mort-dev/repositories/mortician/settings.json | jq '.worktrees[] | select(.claim.taskId != null)'
+cat ~/.anvil-dev/repositories/anvil/settings.json | jq '.worktrees[] | select(.claim.taskId != null)'
 # Should show claim.threadIds: ["thread-1", "thread-2"]
 
 # 6. Test task affinity on re-open

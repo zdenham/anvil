@@ -87,7 +87,7 @@ Handle all edge cases, enforce constraints, and verify the full system works end
 ### 10. Persistence Round-Trip Verification
 
 **Verify**:
-- Save state to `~/.mort/ui/pane-layout.json`
+- Save state to `~/.anvil/ui/pane-layout.json`
 - Restart app → state hydrates correctly
 - All tabs, groups, splits, active states restored
 - Ephemeral fields (`autoFocus`) stripped on save

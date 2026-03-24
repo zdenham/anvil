@@ -1,12 +1,12 @@
 # Agent Harness Testing Framework
 
-This directory contains sub-plans for implementing a test harness that enables automated testing of Mort agents. The framework provides isolated test environments, subprocess management, and structured output capture for verifying agent behavior.
+This directory contains sub-plans for implementing a test harness that enables automated testing of Anvil agents. The framework provides isolated test environments, subprocess management, and structured output capture for verifying agent behavior.
 
 ## Overview
 
 The Agent Harness Testing Framework addresses a core challenge: testing agents that run as subprocesses with complex orchestration logic. The framework provides:
 
-- **Isolated test environments** - Temporary mort directories and git repositories
+- **Isolated test environments** - Temporary anvil directories and git repositories
 - **Subprocess management** - Spawn agents, capture structured output, handle timeouts
 - **Assertion helpers** - Verify agent output, file changes, and git state
 - **Unified runner** - Single entry point for all agent types (research, execution, merge, simple)
@@ -72,7 +72,7 @@ The Agent Harness Testing Framework addresses a core challenge: testing agents t
 │                ▼         ▼                                                    │
 │          ┌────────┐ ┌────────┐                                               │
 │          │  01b   │ │  01c   │                                               │
-│          │  mort  │ │  repo  │                                               │
+│          │  anvil  │ │  repo  │                                               │
 │          │  dir   │ │service │                                               │
 │          └────┬───┘ └───┬────┘                                               │
 │               │         │                                                     │
@@ -182,7 +182,7 @@ Within Phase 3, `03a` (harness self-test) must pass before `03b` (agent tests) b
 | File | Description | Dependencies |
 |------|-------------|--------------|
 | `01a-test-types.md` | Testing type definitions (`AgentRunOutput`, etc.) | Phase 0 |
-| `01b-test-mort-directory.md` | `TestMortDirectory` service for isolated mort dirs | 01a |
+| `01b-test-anvil-directory.md` | `TestAnvilDirectory` service for isolated anvil dirs | 01a |
 | `01c-test-repository.md` | `TestRepository` service for git test fixtures | 01a |
 | `01d-services-index.md` | Barrel exports for test services | 01b, 01c |
 

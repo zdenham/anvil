@@ -2,7 +2,7 @@
 
 ## Problem
 
-The app search index (`APP_INDEX` in `app-search.rs`) is built once at startup using `OnceLock` and never refreshed. When a user installs a new application, it doesn't appear in spotlight until Mort is restarted.
+The app search index (`APP_INDEX` in `app-search.rs`) is built once at startup using `OnceLock` and never refreshed. When a user installs a new application, it doesn't appear in spotlight until Anvil is restarted.
 
 ## Approach: Non-Recursive FS Watch with Long Debounce
 

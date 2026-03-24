@@ -7,7 +7,7 @@ Add a ThreadInput and QuickActionsPanel to the empty pane state, allowing users 
 ## Current State
 
 The `EmptyPaneContent` component (`src/components/content-pane/empty-pane-content.tsx`) currently displays:
-- "Welcome to Mort" heading
+- "Welcome to Anvil" heading
 - Instructions to use the spotlight (hotkey, type prompt, press Enter)
 
 The empty state has no interactive elements - users must use the spotlight to create threads.
@@ -205,7 +205,7 @@ export function EmptyPaneContent() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center text-surface-400">
           <h2 className="text-xl font-medium font-mono text-surface-100">
-            Welcome to Mort
+            Welcome to Anvil
           </h2>
           <p className="text-base mt-2">
             Type a message below to get started

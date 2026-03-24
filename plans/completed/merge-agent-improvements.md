@@ -134,7 +134,7 @@ async getSourceRepoPath(repoName: string): Promise<string> {
 
 **Behavior:**
 - Returns the absolute path to the original repository (e.g., `/Users/dev/projects/myrepo`)
-- This is NOT a mort-managed worktree - it's the user's actual repo
+- This is NOT a anvil-managed worktree - it's the user's actual repo
 - The base branch (main/master) is typically checked out here
 
 #### 1.5 Export from workspace-service
@@ -167,7 +167,7 @@ export function buildMergeAgentPrompt(context: MergeContext): string {
     buildStrategyInstructions(context),
     CONFLICT_HANDLING,
     SAFETY_GUIDELINES,
-    MORT_CLI_CORE,
+    ANVIL_CLI_CORE,
     HUMAN_REVIEW_TOOL,
     GUIDELINES
   );
@@ -316,12 +316,12 @@ function buildRebasePRInstructions(context: MergeContext): string {
    # If no PR exists, create one
    gh pr create --base ${baseBranch} --head ${taskBranch} \\
      --title "Merge ${taskBranch}" \\
-     --body "Automated merge from Mort task completion."
+     --body "Automated merge from Anvil task completion."
    \`\`\`
 
 5. **Store and report PR URL:**
    \`\`\`bash
-   mort tasks update --id $TASK_ID --pr-url <PR_URL> --json
+   anvil tasks update --id $TASK_ID --pr-url <PR_URL> --json
    \`\`\`
    - Report the PR URL and request human review`;
 }
@@ -356,12 +356,12 @@ function buildMergePRInstructions(context: MergeContext): string {
    # If no PR exists, create one
    gh pr create --base ${baseBranch} --head ${taskBranch} \\
      --title "Merge ${taskBranch}" \\
-     --body "Automated merge from Mort task completion."
+     --body "Automated merge from Anvil task completion."
    \`\`\`
 
 5. **Store and report PR URL:**
    \`\`\`bash
-   mort tasks update --id $TASK_ID --pr-url <PR_URL> --json
+   anvil tasks update --id $TASK_ID --pr-url <PR_URL> --json
    \`\`\`
    - Report the PR URL and request human review`;
 }
@@ -460,7 +460,7 @@ Then request human review with:
 This function should now only gather context, NOT build a prompt:
 
 ```typescript
-import { type MergeContext } from '@mort/agents';
+import { type MergeContext } from '@anvil/agents';
 
 /**
  * Builds the merge context for a task.
@@ -486,7 +486,7 @@ export async function buildMergeContextForTask(
       const repoPath = await fsCommands.getRepoSourcePath(task.repositoryName);
       const baseBranch = await gitCommands.getDefaultBranch(repoPath);
       branchInfo = {
-        branch: `mort/task-${task.id}`,
+        branch: `anvil/task-${task.id}`,
         baseBranch,
         mergeBase: "",
         createdAt: Date.now(),
@@ -581,7 +581,7 @@ Handle `--appended-prompt` arg and use it instead of the agent config's `appende
 When starting a merge agent:
 
 ```typescript
-import { buildMergeAgentPrompt } from '@mort/agents';
+import { buildMergeAgentPrompt } from '@anvil/agents';
 
 // 1. Gather context
 const context = await buildMergeContextForTask(task);
@@ -608,11 +608,11 @@ await startAgent({
 
 ```
 ## Role
-You are the merge agent for Mort. You integrate completed work into the target branch.
+You are the merge agent for Anvil. You integrate completed work into the target branch.
 
 ## Environment
-- Task Worktree: /Users/dev/.mort/repositories/myrepo/worktree-1
-  - Branch: mort/task-abc123
+- Task Worktree: /Users/dev/.anvil/repositories/myrepo/worktree-1
+  - Branch: anvil/task-abc123
 - Main Worktree: /Users/dev/projects/myrepo
   - Branch: main
 
@@ -634,9 +634,9 @@ You are the merge agent for Mort. You integrate completed work into the target b
 - Verify repository before changes
 - No force push without confirmation
 
-## Mort CLI
-- mort tasks update --status ...
-- mort review request ...
+## Anvil CLI
+- anvil tasks update --status ...
+- anvil review request ...
 
 ## Guidelines
 - Be concise

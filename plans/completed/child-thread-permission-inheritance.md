@@ -76,7 +76,7 @@ When the user changes a parent thread's mode, propagate the change to all runnin
 
 The propagation happens inside the parent's Node agent process, not the Rust backend. When the parent agent receives a `permission_mode_changed` message via the hub socket, it:
 
-1. Discovers child threads from disk (reads `~/.mort/threads/` and filters by `parentThreadId === context.threadId`)
+1. Discovers child threads from disk (reads `~/.anvil/threads/` and filters by `parentThreadId === context.threadId`)
 2. Sends a `permission_mode_changed` message to each child via the hub socket using `hubClient.send()`
 3. Updates each child's `metadata.json` on disk so the mode persists across restarts
 
@@ -110,7 +110,7 @@ async function propagateModeToChildren(
   modeId: PermissionModeId,
   hubClient: HubClient,
 ): Promise<void> {
-  const threadsDir = path.join(MORT_DIR, "threads");
+  const threadsDir = path.join(ANVIL_DIR, "threads");
   const entries = await fs.readdir(threadsDir, { withFileTypes: true });
 
   for (const entry of entries) {

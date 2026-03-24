@@ -138,63 +138,63 @@ Run these grep commands to confirm legacy code is removed:
 **Check StdinMessageStream is removed:**
 ```bash
 # Should return NO results
-grep -r "StdinMessageStream" /Users/zac/Documents/juice/mort/mortician/agents/src/
+grep -r "StdinMessageStream" /Users/zac/Documents/juice/anvil/anvil/agents/src/
 
 # These files should NOT exist
-ls /Users/zac/Documents/juice/mort/mortician/agents/src/runners/stdin-message-stream.ts 2>/dev/null && echo "FAIL: File still exists" || echo "PASS: File removed"
-ls /Users/zac/Documents/juice/mort/mortician/agents/src/runners/stdin-message-stream.test.ts 2>/dev/null && echo "FAIL: Test file still exists" || echo "PASS: Test file removed"
+ls /Users/zac/Documents/juice/anvil/anvil/agents/src/runners/stdin-message-stream.ts 2>/dev/null && echo "FAIL: File still exists" || echo "PASS: File removed"
+ls /Users/zac/Documents/juice/anvil/anvil/agents/src/runners/stdin-message-stream.test.ts 2>/dev/null && echo "FAIL: Test file still exists" || echo "PASS: Test file removed"
 ```
 
 **Check stdout event emission is removed (agents):**
 ```bash
 # Should return NO results for JSON event/state writes to stdout
-grep -r "process\.stdout\.write.*JSON\.stringify" /Users/zac/Documents/juice/mort/mortician/agents/src/
+grep -r "process\.stdout\.write.*JSON\.stringify" /Users/zac/Documents/juice/anvil/anvil/agents/src/
 
 # Check output.ts specifically - should NOT have stdout writes for state/events
-grep -n "stdout" /Users/zac/Documents/juice/mort/mortician/agents/src/output.ts
+grep -n "stdout" /Users/zac/Documents/juice/anvil/anvil/agents/src/output.ts
 # Expected: Empty or only debug-related logs
 ```
 
 **Check stdin reading is removed (agents):**
 ```bash
 # Should return NO results for stdin.on("data") handlers
-grep -r "process\.stdin\.on" /Users/zac/Documents/juice/mort/mortician/agents/src/
-grep -r "process\.stdin" /Users/zac/Documents/juice/mort/mortician/agents/src/
+grep -r "process\.stdin\.on" /Users/zac/Documents/juice/anvil/anvil/agents/src/
+grep -r "process\.stdin" /Users/zac/Documents/juice/anvil/anvil/agents/src/
 # Expected: No matches (or only comments/docs)
 ```
 
 **Check stdout JSONL parsing is removed (frontend):**
 ```bash
 # Should NOT find event parsing from stdout
-grep -n "JSON\.parse.*line" /Users/zac/Documents/juice/mort/mortician/src/lib/agent-service.ts
-grep -n "parseAgentOutput" /Users/zac/Documents/juice/mort/mortician/src/lib/agent-service.ts
+grep -n "JSON\.parse.*line" /Users/zac/Documents/juice/anvil/anvil/src/lib/agent-service.ts
+grep -n "parseAgentOutput" /Users/zac/Documents/juice/anvil/anvil/src/lib/agent-service.ts
 # Expected: No matches or only imports that are no longer used
 ```
 
 **Check stdin writing is removed (frontend):**
 ```bash
 # Should NOT find stdin.write patterns
-grep -r "\.write.*JSON\.stringify" /Users/zac/Documents/juice/mort/mortician/src/lib/agent-service.ts
-grep -n "stdin" /Users/zac/Documents/juice/mort/mortician/src/lib/agent-service.ts
+grep -r "\.write.*JSON\.stringify" /Users/zac/Documents/juice/anvil/anvil/src/lib/agent-service.ts
+grep -n "stdin" /Users/zac/Documents/juice/anvil/anvil/src/lib/agent-service.ts
 # Expected: No matches
 ```
 
 **Check HMR workaround is removed:**
 ```bash
 # Should return NO results
-grep -r "__agentServiceProcessMaps" /Users/zac/Documents/juice/mort/mortician/src/
+grep -r "__agentServiceProcessMaps" /Users/zac/Documents/juice/anvil/anvil/src/
 # Expected: No matches
 ```
 
 **Verify socket-based code is present:**
 ```bash
 # Should find HubClient usage in agents
-grep -r "HubClient" /Users/zac/Documents/juice/mort/mortician/agents/src/
+grep -r "HubClient" /Users/zac/Documents/juice/anvil/anvil/agents/src/
 # Expected: Matches in runner.ts, output.ts
 
 # Should find Tauri event listener in frontend
-grep -n "agent:message" /Users/zac/Documents/juice/mort/mortician/src/lib/agent-service.ts
-grep -n "send_to_agent" /Users/zac/Documents/juice/mort/mortician/src/lib/agent-service.ts
+grep -n "agent:message" /Users/zac/Documents/juice/anvil/anvil/src/lib/agent-service.ts
+grep -n "send_to_agent" /Users/zac/Documents/juice/anvil/anvil/src/lib/agent-service.ts
 # Expected: Matches showing socket-based communication
 ```
 
@@ -208,13 +208,13 @@ grep -n "send_to_agent" /Users/zac/Documents/juice/mort/mortician/src/lib/agent-
 echo "=== Socket IPC Migration Integration Test ==="
 
 # 1. Start the Tauri app in the background
-cd /Users/zac/Documents/juice/mort/mortician
+cd /Users/zac/Documents/juice/anvil/anvil
 pnpm tauri dev &
 TAURI_PID=$!
 sleep 10  # Wait for app to start
 
 # 2. Verify the socket exists
-SOCKET_PATH="$HOME/.mort/agent-hub.sock"
+SOCKET_PATH="$HOME/.anvil/agent-hub.sock"
 if [ -S "$SOCKET_PATH" ]; then
     echo "PASS: Socket exists at $SOCKET_PATH"
 else
@@ -224,12 +224,12 @@ else
 fi
 
 # 3. Run agent tests
-cd /Users/zac/Documents/juice/mort/mortician/agents
+cd /Users/zac/Documents/juice/anvil/anvil/agents
 pnpm test --passWithNoTests
 TEST_RESULT=$?
 
 # 4. Run frontend tests
-cd /Users/zac/Documents/juice/mort/mortician
+cd /Users/zac/Documents/juice/anvil/anvil
 pnpm test --passWithNoTests
 FRONTEND_TEST_RESULT=$?
 
@@ -248,11 +248,11 @@ fi
 **Component-Level Integration Tests:**
 ```bash
 # Run all agent-related tests
-cd /Users/zac/Documents/juice/mort/mortician/agents
+cd /Users/zac/Documents/juice/anvil/anvil/agents
 pnpm test
 
 # Run frontend agent service tests
-cd /Users/zac/Documents/juice/mort/mortician
+cd /Users/zac/Documents/juice/anvil/anvil
 pnpm test src/lib/agent-service
 
 # Run socket/hub-related tests specifically
@@ -264,7 +264,7 @@ pnpm test --grep "hub|socket|agent"
 **Step 1: Verify No Stdout Event Parsing**
 ```bash
 # 1. Start the Tauri app
-cd /Users/zac/Documents/juice/mort/mortician
+cd /Users/zac/Documents/juice/anvil/anvil
 pnpm tauri dev
 
 # 2. Open DevTools in the app (Cmd+Option+I or right-click > Inspect)
@@ -277,7 +277,7 @@ pnpm tauri dev
 **Step 2: Verify Socket Communication**
 ```bash
 # 1. With the app running, check the socket file:
-ls -la ~/.mort/agent-hub.sock
+ls -la ~/.anvil/agent-hub.sock
 # Expected: Socket file exists with srwxr-xr-x permissions
 
 # 2. Monitor socket connections (requires socat or similar):
@@ -342,7 +342,7 @@ ps aux | grep runner
 **Step 8: Verify Build and Test Suite**
 ```bash
 # Build the project
-cd /Users/zac/Documents/juice/mort/mortician
+cd /Users/zac/Documents/juice/anvil/anvil
 pnpm build
 
 # Build agents
@@ -350,7 +350,7 @@ cd agents
 pnpm build
 
 # Run full test suite
-cd /Users/zac/Documents/juice/mort/mortician
+cd /Users/zac/Documents/juice/anvil/anvil
 pnpm test
 
 # Run agent tests
@@ -365,7 +365,7 @@ pnpm test
 | `grep StdinMessageStream agents/src/` | No matches |
 | `grep process.stdin agents/src/` | No matches |
 | `grep __agentServiceProcessMaps src/` | No matches |
-| `ls ~/.mort/agent-hub.sock` | Socket file exists |
+| `ls ~/.anvil/agent-hub.sock` | Socket file exists |
 | Agent startup logs | "Connected to AgentHub" |
 | Tauri logs on agent connect | "Agent registered: <thread-id>" |
 | State update in UI | Received via Tauri event, not stdout |
@@ -384,7 +384,7 @@ Run this final verification checklist after migration:
 #!/bin/bash
 echo "=== Migration Verification Checklist ==="
 
-cd /Users/zac/Documents/juice/mort/mortician
+cd /Users/zac/Documents/juice/anvil/anvil
 
 # Check 1: StdinMessageStream removed
 echo -n "1. StdinMessageStream removed: "

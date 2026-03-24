@@ -105,7 +105,7 @@ export async function requestAccessibilityPermission(): Promise<void> {
 
 ## Verification
 
-1. Run `cargo check -p mortician`
+1. Run `cargo check -p anvil`
 2. Start the app in dev mode: `pnpm tauri dev`
 3. Open browser console and test:
    ```javascript

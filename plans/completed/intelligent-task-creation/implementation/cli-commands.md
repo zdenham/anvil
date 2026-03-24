@@ -8,17 +8,17 @@ Implement in `src-tauri/src/cli/tasks.rs`:
 
 | Command                     | Description             | Output                                                    |
 | --------------------------- | ----------------------- | --------------------------------------------------------- |
-| `mort tasks list`           | List all tasks          | JSON array of tasks                                       |
-| `mort tasks show <slug>`    | Show task details       | JSON task object                                          |
-| `mort tasks search <query>` | Search tasks by content | JSON array of matches                                     |
-| `mort tasks create`         | Create new task         | `{ "taskId": "...", "slug": "...", "branchName": "..." }` |
-| `mort tasks create-subtask` | Create subtask          | `{ "taskId": "...", "slug": "...", "parentId": "..." }`   |
-| `mort tasks associate`      | Link thread to task     | `{ "success": true, "taskId": "..." }`                    |
+| `anvil tasks list`           | List all tasks          | JSON array of tasks                                       |
+| `anvil tasks show <slug>`    | Show task details       | JSON task object                                          |
+| `anvil tasks search <query>` | Search tasks by content | JSON array of matches                                     |
+| `anvil tasks create`         | Create new task         | `{ "taskId": "...", "slug": "...", "branchName": "..." }` |
+| `anvil tasks create-subtask` | Create subtask          | `{ "taskId": "...", "slug": "...", "parentId": "..." }`   |
+| `anvil tasks associate`      | Link thread to task     | `{ "success": true, "taskId": "..." }`                    |
 
 ## Create Command Options
 
 ```bash
-mort tasks create \
+anvil tasks create \
   --title="Fix authentication bug" \
   --description="Users can't log in after password reset" \
   --tags=bug,auth \

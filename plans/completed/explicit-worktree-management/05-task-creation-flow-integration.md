@@ -98,7 +98,7 @@ export async function spawnAgent(options: SpawnAgentOptions): Promise<void> {
     "--task-slug", taskSlug,
     "--thread-id", threadId,
     "--prompt", prompt,
-    "--mort-dir", mortDir,
+    "--anvil-dir", anvilDir,
     "--cwd", worktreePath, // Always explicit - no allocation
   ];
 

@@ -76,4 +76,4 @@ Stages 1-2 are likely NOT the problem. Most likely culprits are stages 3-5 (Rust
 11. **Bounded reconnect retry**: 5 attempts with exponential backoff (~15s total).
 12. **Smart reconnect queue**: Buffer up to 50 messages. State messages deduplicated (only latest per thread).
 13. **Three-tier logging**: (a) Always-on: transitions, gaps, errors. (b) Per-module opt-in diagnostic. (c) Existing agent-side `DEBUG` env var.
-14. **Module config as JSON env var**: Agents receive `DiagnosticLoggingConfig` as JSON string in `MORT_DIAGNOSTIC_LOGGING`.
+14. **Module config as JSON env var**: Agents receive `DiagnosticLoggingConfig` as JSON string in `ANVIL_DIAGNOSTIC_LOGGING`.

@@ -63,7 +63,7 @@ Update all user-visible strings, labels, tooltips, aria-labels, placeholders, an
 `src/components/onboarding/steps/RepositoryStep.tsx`
 
 - "Select Your Repository" → "Select Your Project"
-- "mort will write code to this directory" → keep as-is (already generic)
+- "anvil will write code to this directory" → keep as-is (already generic)
 - "Existing Repository:" → "Existing Project:"
 - "Selected Repository:" → "Selected Project:"
 - "Browse for Repository" → "Browse for Project"
@@ -98,7 +98,7 @@ Update all user-visible strings, labels, tooltips, aria-labels, placeholders, an
 
 `src/components/tree-menu/worktree-item.tsx`
 
-- `"This worktree was not created by Mort"` → `"This workspace was not created by Mort"`
+- `"This worktree was not created by Anvil"` → `"This workspace was not created by Anvil"`
 
 ### Phase 4: Spotlight
 
@@ -135,7 +135,7 @@ Update all user-visible strings, labels, tooltips, aria-labels, placeholders, an
 `src/components/main-window/settings/sidebar-settings.tsx`
 
 - "Hide external worktrees" → "Hide external workspaces"
-- "Hide worktrees not created by Mort from the sidebar" → "Hide workspaces not created by Mort from the sidebar"
+- "Hide worktrees not created by Anvil from the sidebar" → "Hide workspaces not created by Anvil from the sidebar"
 
 ### Phase 6: Guide content & empty pane
 

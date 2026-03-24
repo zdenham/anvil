@@ -214,7 +214,7 @@ if (options.messageStream && ackManager) {
 }
 
 // Pass to handler
-const handler = new MessageHandler(config.mortDir, accumulator, drainManager, 200_000, ackManager);
+const handler = new MessageHandler(config.anvilDir, accumulator, drainManager, 200_000, ackManager);
 ```
 
 ## Phase 4: Remove dead code from MessageHandler

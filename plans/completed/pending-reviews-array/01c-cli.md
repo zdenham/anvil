@@ -1,6 +1,6 @@
 # Phase 2c: Update CLI
 
-**File:** `agents/src/cli/mort.ts`
+**File:** `agents/src/cli/anvil.ts`
 **Dependencies:** 00-types
 
 ## Changes
@@ -74,7 +74,7 @@ Update `buildAppendedPrompt()` to include threadId replacement:
 prompt = prompt.replace(/\{\{taskId\}\}/g, context.taskId ?? "none");
 prompt = prompt.replace(/\{\{slug\}\}/g, context.slug ?? "none");
 prompt = prompt.replace(/\{\{branchName\}\}/g, context.branchName ?? "none");
-prompt = prompt.replace(/\{\{mortDir\}\}/g, context.mortDir);
+prompt = prompt.replace(/\{\{anvilDir\}\}/g, context.anvilDir);
 prompt = prompt.replace(/\{\{threadId\}\}/g, context.threadId ?? "none");  // NEW
 ```
 
@@ -93,7 +93,7 @@ Update the template variable comment at the top:
 /**
  * Shared prompt sections for DRY agent system prompts.
  * Template variables: {{taskId}}, {{branchName}}, {{threadId}}  // ADD threadId
- * Commands: `mort` CLI is available in PATH (set by runner)
+ * Commands: `anvil` CLI is available in PATH (set by runner)
  */
 ```
 
@@ -103,7 +103,7 @@ export const HUMAN_REVIEW_TOOL = `## Human Review Tool
 
 Request review using:
 \`\`\`bash
-mort request-human --task={{taskId}} --thread={{threadId}} \\
+anvil request-human --task={{taskId}} --thread={{threadId}} \\
   --markdown "## Your review content" \\
   --default "Proceed" \\
   --on-approve <agentType> \\
@@ -123,7 +123,7 @@ mort request-human --task={{taskId}} --thread={{threadId}} \\
 
 ## Caller Updates
 
-Find where `mort request-human` is invoked and ensure `--thread` is passed:
+Find where `anvil request-human` is invoked and ensure `--thread` is passed:
 - Search for `request-human` in agent system prompts (covered by shared-prompts.ts update above)
 - Update any orchestration code that spawns this command
 

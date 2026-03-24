@@ -11,7 +11,7 @@ All files in `core/sdk/template/src/actions/`:
 ### `archive.ts`
 
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'archive',
@@ -34,7 +34,7 @@ export default defineAction({
 ### `mark-unread.ts`
 
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'mark-unread',
@@ -55,7 +55,7 @@ export default defineAction({
 ### `next-unread.ts`
 
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'next-unread',
@@ -73,7 +73,7 @@ export default defineAction({
 ### `archive-and-next.ts`
 
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'archive-and-next',
@@ -99,7 +99,7 @@ export default defineAction({
 ### `mark-read.ts`
 
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'mark-read',
@@ -119,7 +119,7 @@ export default defineAction({
 ### `close-panel.ts`
 
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'close-panel',
@@ -139,7 +139,7 @@ export default defineAction({
 Example action showing SDK patterns:
 
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'example',
@@ -218,28 +218,28 @@ These are left for users to implement as they require additional SDK capabilitie
 
 1. **Verify actions compile without errors**
    ```bash
-   cd ~/.mort/quick-actions && npm run build
+   cd ~/.anvil/quick-actions && npm run build
    ```
    Expected: Exit code 0, no TypeScript errors
 
 2. **Run type checking independently**
    ```bash
-   cd ~/.mort/quick-actions && npx tsc --noEmit
+   cd ~/.anvil/quick-actions && npx tsc --noEmit
    ```
    Expected: Exit code 0, no type errors
 
 3. **Verify dist/manifest.json exists after build**
    ```bash
-   test -f ~/.mort/quick-actions/dist/manifest.json && echo "PASS" || echo "FAIL"
+   test -f ~/.anvil/quick-actions/dist/manifest.json && echo "PASS" || echo "FAIL"
    ```
    Expected: "PASS"
 
 ### Type Definition Verification
 
 4. **Verify SDK types are importable**
-   Create a test file `~/.mort/quick-actions/src/type-test.ts`:
+   Create a test file `~/.anvil/quick-actions/src/type-test.ts`:
    ```typescript
-   import { defineAction, ActionContext, MortSDK } from '@mort/sdk';
+   import { defineAction, ActionContext, AnvilSDK } from '@anvil/sdk';
 
    // Verify defineAction accepts correct shape
    const testAction = defineAction({
@@ -247,7 +247,7 @@ These are left for users to implement as they require additional SDK capabilitie
      title: 'Test',
      description: 'Test action',
      contexts: ['thread', 'plan', 'empty'],
-     async execute(context: ActionContext, sdk: MortSDK) {
+     async execute(context: ActionContext, sdk: AnvilSDK) {
        // Verify context properties exist
        const _type: 'thread' | 'plan' | 'empty' = context.contextType;
        const _threadId: string | undefined = context.threadId;
@@ -272,7 +272,7 @@ These are left for users to implement as they require additional SDK capabilitie
 
 5. **Verify manifest contains all default actions**
    ```bash
-   cat ~/.mort/quick-actions/dist/manifest.json | jq '.actions | map(.id) | sort'
+   cat ~/.anvil/quick-actions/dist/manifest.json | jq '.actions | map(.id) | sort'
    ```
    Expected output (sorted):
    ```json
@@ -281,7 +281,7 @@ These are left for users to implement as they require additional SDK capabilitie
 
 6. **Verify each action has required fields**
    ```bash
-   cat ~/.mort/quick-actions/dist/manifest.json | jq '.actions[] | {id, title, description, contexts} | select(.id == null or .title == null or .contexts == null)'
+   cat ~/.anvil/quick-actions/dist/manifest.json | jq '.actions[] | {id, title, description, contexts} | select(.id == null or .title == null or .contexts == null)'
    ```
    Expected: Empty output (no actions missing required fields)
 
@@ -289,12 +289,12 @@ These are left for users to implement as they require additional SDK capabilitie
 
 7. **Verify context arrays are correctly set**
    ```bash
-   cat ~/.mort/quick-actions/dist/manifest.json | jq '.actions[] | select(.id == "mark-unread" or .id == "mark-read") | .contexts'
+   cat ~/.anvil/quick-actions/dist/manifest.json | jq '.actions[] | select(.id == "mark-unread" or .id == "mark-read") | .contexts'
    ```
    Expected: Both should show `["thread"]` only
 
    ```bash
-   cat ~/.mort/quick-actions/dist/manifest.json | jq '.actions[] | select(.id == "example") | .contexts'
+   cat ~/.anvil/quick-actions/dist/manifest.json | jq '.actions[] | select(.id == "example") | .contexts'
    ```
    Expected: `["thread", "plan", "empty"]`
 
@@ -303,7 +303,7 @@ These are left for users to implement as they require additional SDK capabilitie
 8. **Verify each action's entry point exists**
    ```bash
    for action in archive mark-unread next-unread archive-and-next mark-read close-panel example; do
-     test -f ~/.mort/quick-actions/dist/actions/$action.js && echo "$action: PASS" || echo "$action: FAIL"
+     test -f ~/.anvil/quick-actions/dist/actions/$action.js && echo "$action: PASS" || echo "$action: FAIL"
    done
    ```
    Expected: All actions show "PASS"
@@ -317,13 +317,13 @@ These are left for users to implement as they require additional SDK capabilitie
      console.log('archive:', typeof archiveAction.execute === 'function' ? 'PASS' : 'FAIL');
    " 2>/dev/null || echo "Module import failed"
    ```
-   Run from `~/.mort/quick-actions/` directory
+   Run from `~/.anvil/quick-actions/` directory
    Expected: "archive: PASS"
 
 ### Design Decision Compliance Checks
 
 10. **Verify no special code paths (DD #21)**
-    - Grep the Mort codebase for hardcoded action implementations:
+    - Grep the Anvil codebase for hardcoded action implementations:
     ```bash
     grep -r "archive\|markUnread\|markRead" src/ --include="*.ts" | grep -v "sdk\|SDK\|quick-actions" | head -20
     ```

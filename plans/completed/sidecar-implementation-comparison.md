@@ -210,7 +210,7 @@ All implementations share unbounded write queue weakness. vanilla-orchestrate an
 
 | Implementation | Blockers | High-severity |
 | --- | --- | --- |
-| **baseline** | Sidecar path hardcoded to \~/.mort/ (fragile) | No SIGKILL escalation; agent hub transport ambiguous |
+| **baseline** | Sidecar path hardcoded to \~/.anvil/ (fragile) | No SIGKILL escalation; agent hub transport ambiguous |
 | **cc-teams** | Duplicate shim directories; plan not updated; spike-b0/ clutter | Over-deleted Rust files; plugin-http throws instead of using native fetch; sidecar silent fail |
 | **vanilla-orchestrate** | **fsRemove bug** (rmdir on non-empty dirs) | 542-line misc.ts monolith; advisory-only LockManager; no sidecar health checks |
 | **decompose** | **Committed dist-web/ artifacts**; blocks 15s on port file | Missing global-shortcut shim; sync I/O (execSync); 633-line git.ts monolith |

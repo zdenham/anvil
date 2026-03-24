@@ -6,11 +6,11 @@
 
 | Data | Path | Defined In |
 |------|------|------------|
-| Repositories | `~/.mort/repositories/` | `mort_commands.rs` |
-| Threads | `~/.mort/threads/` | `mort_commands.rs` |
-| Config | `~/Library/Application Support/mortician/config.json` | `config.rs` |
-| Clipboard DB | `~/Library/Application Support/mortician/clipboard.db` | `clipboard_db.rs` |
-| Logs | `~/Library/Application Support/mortician/logs/` | `logging.rs` |
+| Repositories | `~/.anvil/repositories/` | `anvil_commands.rs` |
+| Threads | `~/.anvil/threads/` | `anvil_commands.rs` |
+| Config | `~/Library/Application Support/anvil/config.json` | `config.rs` |
+| Clipboard DB | `~/Library/Application Support/anvil/clipboard.db` | `clipboard_db.rs` |
+| Logs | `~/Library/Application Support/anvil/logs/` | `logging.rs` |
 | Icon Cache | Tauri `app_data_dir/icon-cache/` | `icons.rs` |
 
 ### Path Resolution Code
@@ -20,16 +20,16 @@
 fn config_dir() -> PathBuf {
     dirs::config_dir()  // ~/Library/Application Support on macOS
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("mortician")
+        .join("anvil")
 }
 ```
 
-**`mort_commands.rs`**:
+**`anvil_commands.rs`**:
 ```rust
-fn get_mort_dir() -> PathBuf {
+fn get_anvil_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".mort")
+        .join(".anvil")
 }
 ```
 
@@ -39,11 +39,11 @@ fn get_mort_dir() -> PathBuf {
 
 | Suffix | Data Dir | Config Dir |
 |--------|----------|------------|
-| _(none)_ | `~/.mort` | `~/Library/Application Support/mortician` |
-| `dev` | `~/.mort-dev` | `~/Library/Application Support/mortician-dev` |
-| `canary` | `~/.mort-canary` | `~/Library/Application Support/mortician-canary` |
+| _(none)_ | `~/.anvil` | `~/Library/Application Support/anvil` |
+| `dev` | `~/.anvil-dev` | `~/Library/Application Support/anvil-dev` |
+| `canary` | `~/.anvil-canary` | `~/Library/Application Support/anvil-canary` |
 
-Runtime env vars (`MORT_DATA_DIR`, `MORT_CONFIG_DIR`) can still override for development flexibility.
+Runtime env vars (`ANVIL_DATA_DIR`, `ANVIL_CONFIG_DIR`) can still override for development flexibility.
 
 ## Implementation
 
@@ -77,9 +77,9 @@ fn expand_path(path: &str) -> PathBuf {
 fn default_data_dir() -> PathBuf {
     let suffix = build_info::APP_SUFFIX;
     let dir_name = if suffix.is_empty() {
-        ".mort".to_string()
+        ".anvil".to_string()
     } else {
-        format!(".mort-{}", suffix)
+        format!(".anvil-{}", suffix)
     };
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -90,9 +90,9 @@ fn default_data_dir() -> PathBuf {
 fn default_config_dir() -> PathBuf {
     let suffix = build_info::APP_SUFFIX;
     let dir_name = if suffix.is_empty() {
-        "mortician".to_string()
+        "anvil".to_string()
     } else {
-        format!("mortician-{}", suffix)
+        format!("anvil-{}", suffix)
     };
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -104,14 +104,14 @@ fn default_config_dir() -> PathBuf {
 pub fn initialize() {
     // Data directory: env override or suffix-derived default
     DATA_DIR.get_or_init(|| {
-        env::var("MORT_DATA_DIR")
+        env::var("ANVIL_DATA_DIR")
             .map(|s| expand_path(&s))
             .unwrap_or_else(|_| default_data_dir())
     });
 
     // Config directory: env override or suffix-derived default
     CONFIG_DIR.get_or_init(|| {
-        env::var("MORT_CONFIG_DIR")
+        env::var("ANVIL_CONFIG_DIR")
             .map(|s| expand_path(&s))
             .unwrap_or_else(|_| default_config_dir())
     });
@@ -198,11 +198,11 @@ fn config_dir() -> &'static PathBuf {
 }
 ```
 
-**`mort_commands.rs`**:
+**`anvil_commands.rs`**:
 ```rust
 use crate::paths;
 
-fn get_mort_dir() -> &'static PathBuf {
+fn get_anvil_dir() -> &'static PathBuf {
     paths::data_dir()
 }
 
@@ -272,7 +272,7 @@ console.log(`App suffix: ${paths.app_suffix}`);
 | `src-tauri/src/paths.rs` | **NEW**: Centralized path module with suffix-based defaults |
 | `src-tauri/src/lib.rs` | **MODIFY**: Add `mod paths;`, call `paths::initialize()` |
 | `src-tauri/src/config.rs` | **MODIFY**: Use `paths::config_dir()` |
-| `src-tauri/src/mort_commands.rs` | **MODIFY**: Use `paths::data_dir()`, add `get_paths_info` command |
+| `src-tauri/src/anvil_commands.rs` | **MODIFY**: Use `paths::data_dir()`, add `get_paths_info` command |
 | `src-tauri/src/clipboard_db.rs` | **MODIFY**: Use `paths::clipboard_db()` |
 | `src-tauri/src/logging.rs` | **MODIFY**: Use `paths::logs_dir()` |
 
@@ -282,20 +282,20 @@ console.log(`App suffix: ${paths.app_suffix}`);
 
 ```bash
 # Production build (no env vars needed)
-open /Applications/Mort.app
-# Uses: ~/.mort, ~/Library/Application Support/mortician
+open /Applications/Anvil.app
+# Uses: ~/.anvil, ~/Library/Application Support/anvil
 
 # Dev build (suffix baked at build time)
-open /Applications/Mort\ Dev.app
-# Uses: ~/.mort-dev, ~/Library/Application Support/mortician-dev
+open /Applications/Anvil\ Dev.app
+# Uses: ~/.anvil-dev, ~/Library/Application Support/anvil-dev
 ```
 
 **Development overrides** - env vars can still override for testing:
 
 ```bash
 # Override paths during development
-MORT_DATA_DIR=~/test-data ./Mort\ Dev.app/Contents/MacOS/Mort\ Dev
-# Uses: ~/test-data instead of ~/.mort-dev
+ANVIL_DATA_DIR=~/test-data ./Anvil\ Dev.app/Contents/MacOS/Anvil\ Dev
+# Uses: ~/test-data instead of ~/.anvil-dev
 ```
 
 ## Verification
@@ -304,19 +304,19 @@ MORT_DATA_DIR=~/test-data ./Mort\ Dev.app/Contents/MacOS/Mort\ Dev
 2. Launch production app, create a repository
 3. Verify data appears in production paths:
    ```bash
-   ls ~/.mort/repositories/
-   ls ~/Library/Application\ Support/mortician/
+   ls ~/.anvil/repositories/
+   ls ~/Library/Application\ Support/anvil/
    ```
 4. Launch dev app, create a repository
 5. Verify data appears in dev paths (isolated):
    ```bash
-   ls ~/.mort-dev/repositories/
-   ls ~/Library/Application\ Support/mortician-dev/
+   ls ~/.anvil-dev/repositories/
+   ls ~/Library/Application\ Support/anvil-dev/
    ```
 6. Verify no cross-contamination of data
 
 ## Migration Notes
 
-- Existing users have data in `~/.mort/` - no migration needed for production
+- Existing users have data in `~/.anvil/` - no migration needed for production
 - Alternate instances start fresh with empty directories
 - Future enhancement: add "copy from production" utility for testing with real data

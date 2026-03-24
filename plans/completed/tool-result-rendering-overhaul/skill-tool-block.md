@@ -593,8 +593,8 @@ export function getSpecializedToolBlock(
 
 ## Related Files
 
-- Main plan: `/Users/zac/Documents/juice/mort/mortician/plans/tool-result-rendering-overhaul.md`
-- BashToolBlock reference: `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/bash-tool-block.tsx`
-- UI components: `/Users/zac/Documents/juice/mort/mortician/src/components/ui/`
-- Tool block registry: `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/index.ts`
+- Main plan: `/Users/zac/Documents/juice/anvil/anvil/plans/tool-result-rendering-overhaul.md`
+- BashToolBlock reference: `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/bash-tool-block.tsx`
+- UI components: `/Users/zac/Documents/juice/anvil/anvil/src/components/ui/`
+- Tool block registry: `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/index.ts`
 - Anthropic SDK types: `@anthropic-ai/sdk/resources/messages` (ToolUseBlock, ToolResultBlockParam)

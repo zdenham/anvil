@@ -20,12 +20,12 @@ The agent already emits a final status during `strategy.cleanup()` in `simple-ru
 
 The frontend receives this via `thread:status-changed` event. This is the signal.
 
-### Approach: Mort REPL SDK `archive()` method
+### Approach: Anvil REPL SDK `archive()` method
 
-Extend `MortReplSdk` with a `mort.archive(threadId)` method that emits a `thread:archived` event. The setup thread's prompt can end with a mort-repl call:
+Extend `AnvilReplSdk` with a `anvil.archive(threadId)` method that emits a `thread:archived` event. The setup thread's prompt can end with a anvil-repl call:
 
 ```
-mort-repl "await mort.archive(mort.context.threadId)"
+anvil-repl "await anvil.archive(anvil.context.threadId)"
 ```
 
 **Why this approach:**
@@ -41,15 +41,15 @@ Listen for `thread:status-changed` where `status === "completed"` and the thread
 
 ## Phases
 
-- [ ] Add `archive()` method to `MortReplSdk` that emits `thread:archived` event
+- [ ] Add `archive()` method to `AnvilReplSdk` that emits `thread:archived` event
 
 - [ ] Wire up the archive event in the repl hook context (ensure `emitEvent` is available)
 
 - [ ] Update the frontend `thread:archived` listener to handle agent-emitted archives (verify it works when the event comes from the agent process rather than a UI action)
 
-- [ ] Update the default `worktreeSetupPrompt` documentation/example to include the `mort-repl` archive call at the end
+- [ ] Update the default `worktreeSetupPrompt` documentation/example to include the `anvil-repl` archive call at the end
 
-- [ ] Add tests: unit test for `MortReplSdk.archive()`, integration test confirming the event flows through
+- [ ] Add tests: unit test for `AnvilReplSdk.archive()`, integration test confirming the event flows through
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
@@ -57,9 +57,9 @@ Listen for `thread:status-changed` where `status === "completed"` and the thread
 
 ## Implementation Details
 
-### Phase 1: `MortReplSdk.archive()`
+### Phase 1: `AnvilReplSdk.archive()`
 
-In `agents/src/lib/mort-repl/mort-sdk.ts`, add:
+In `agents/src/lib/anvil-repl/anvil-sdk.ts`, add:
 
 ```ts
 async archive(threadId?: string): Promise<void> {
@@ -71,15 +71,15 @@ async archive(threadId?: string): Promise<void> {
 
 The SDK needs access to `emitEvent`. The constructor already receives a `ChildSpawner` which has the context — but `emitEvent` is passed separately through `ReplHookDeps`. Thread it through:
 
-1. Add `emitEvent` to `MortReplSdk` constructor params (alongside spawner and context)
+1. Add `emitEvent` to `AnvilReplSdk` constructor params (alongside spawner and context)
 2. Store as private field, call from `archive()`
 
 ### Phase 2: Wire `emitEvent` into SDK
 
-In `agents/src/hooks/repl-hook.ts`, the `createReplHook` function already receives `deps.emitEvent`. Pass it to the `MortReplSdk` constructor:
+In `agents/src/hooks/repl-hook.ts`, the `createReplHook` function already receives `deps.emitEvent`. Pass it to the `AnvilReplSdk` constructor:
 
 ```ts
-const sdk = new MortReplSdk(spawner, deps.context, deps.emitEvent);
+const sdk = new AnvilReplSdk(spawner, deps.context, deps.emitEvent);
 ```
 
 ### Phase 3: Frontend listener compatibility
@@ -94,7 +94,7 @@ The event bridge (`src/lib/event-bridge.ts`) routes agent-emitted events to the 
 
 **Option A (recommended):** Have the frontend listener trigger the full `threadService.archive()` when it receives the event from the agent. This ensures disk state stays consistent.
 
-**Option B:** Have the SDK do the disk move itself (since the agent process has filesystem access). But this duplicates logic and the agent shouldn't need to know about `~/.mort` archive directory structure.
+**Option B:** Have the SDK do the disk move itself (since the agent process has filesystem access). But this duplicates logic and the agent shouldn't need to know about `~/.anvil` archive directory structure.
 
 ### Phase 4: Setup prompt example
 
@@ -102,10 +102,10 @@ Update the default example in `src/components/main-window/settings/repository-se
 
 ```
 Copy .env.example to .env, run npm install, then archive this thread:
-mort-repl "await mort.archive()"
+anvil-repl "await anvil.archive()"
 ```
 
 ### Phase 5: Tests
 
-- **Unit**: `MortReplSdk.archive()` calls `emitEvent` with correct event name and payload
-- **Integration**: Full flow — repl hook intercepts `mort-repl "await mort.archive()"`, SDK emits event, formatted result returned
+- **Unit**: `AnvilReplSdk.archive()` calls `emitEvent` with correct event name and payload
+- **Integration**: Full flow — repl hook intercepts `anvil-repl "await anvil.archive()"`, SDK emits event, formatted result returned

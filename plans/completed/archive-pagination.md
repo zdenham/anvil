@@ -231,7 +231,7 @@ async listArchived(opts?: { limit?: number; offset?: number }): Promise<{
 }
 
 function extractThreadIdFromPath(absPath: string): string | null {
-  // path: /Users/.../.mort/archive/threads/{id}/metadata.json
+  // path: /Users/.../.anvil/archive/threads/{id}/metadata.json
   const parts = absPath.split("/");
   const metaIdx = parts.lastIndexOf("metadata.json");
   return metaIdx > 0 ? parts[metaIdx - 1] : null;

@@ -226,7 +226,7 @@ export function QuickActionsSettings() {
 
       <div className="text-sm text-surface-400 bg-surface-800 rounded-md p-3">
         <p>
-          Actions are defined in <code className="text-accent-400">~/.mort/quick-actions/src/actions/</code>
+          Actions are defined in <code className="text-accent-400">~/.anvil/quick-actions/src/actions/</code>
         </p>
         <p className="mt-1">
           After editing, run <code className="text-accent-400">npm run build</code> then click "Reload Actions"
@@ -237,7 +237,7 @@ export function QuickActionsSettings() {
         <div className="text-center py-8 text-surface-400">
           <p>No actions found.</p>
           <p className="text-sm mt-1">
-            Add actions to <code>~/.mort/quick-actions/src/actions/</code>
+            Add actions to <code>~/.anvil/quick-actions/src/actions/</code>
           </p>
         </div>
       ) : (
@@ -635,7 +635,7 @@ npm test -- --grep "QuickAction"
 8. **Reload Actions**
    - Click "Reload Actions" button
    - Verify manifest is refreshed from disk
-   - Verify any changes to `~/.mort/quick-actions/dist/manifest.json` are reflected
+   - Verify any changes to `~/.anvil/quick-actions/dist/manifest.json` are reflected
 
 ### Automated Test Suggestions
 

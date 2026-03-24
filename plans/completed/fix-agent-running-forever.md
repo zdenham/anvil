@@ -22,7 +22,7 @@ Additionally, 2 archived threads have live processes that were never killed:
 - Thread `03b20d8a` has a runner PID alive but **no claude subprocess** — the SDK process may have exited/crashed while the runner hangs on the dead iterator
 - Archiving a thread moves the directory but does **not** kill the runner process — separate cleanup needed
 - 6 sub-agent threads (spawned by Task tool) completed correctly with consistent state — only parent runner threads are affected
-- All runner processes share PPID 98308 (the Tauri Mort app)
+- All runner processes share PPID 98308 (the Tauri Anvil app)
 
 ## Root Cause
 

@@ -4,7 +4,7 @@ Clean up plan-thread edge files that are no longer needed, and ensure archiving 
 
 ## Context
 
-**Current behavior**: When a plan is archived, the `PLAN_ARCHIVED` event listener calls `relationService.archiveByPlan(planId)`, which sets `archived: true` on each relation's JSON file. The files stay in `~/.mort/plan-thread-edges/` and continue to be loaded during every hydration. Same thing happens for `THREAD_ARCHIVED`.
+**Current behavior**: When a plan is archived, the `PLAN_ARCHIVED` event listener calls `relationService.archiveByPlan(planId)`, which sets `archived: true` on each relation's JSON file. The files stay in `~/.anvil/plan-thread-edges/` and continue to be loaded during every hydration. Same thing happens for `THREAD_ARCHIVED`.
 
 **Problems**:
 1. Archived relation files accumulate in the active directory indefinitely

@@ -1,4 +1,4 @@
-# Mort
+# Anvil
 
 A coding agent orchestrator built on Claude Code. Enables developers to run many parallel agents in isolated environments, accelerating development workflows at scale.
 
@@ -6,6 +6,7 @@ Built with Tauri + React + TypeScript.
 
 ## Internal Distribution
 
+<!-- TODO(anvil-rename): update when infra is migrated -->
 ```
 curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh | bash
 ```

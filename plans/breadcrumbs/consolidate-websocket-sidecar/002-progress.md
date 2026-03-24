@@ -1,7 +1,7 @@
 # Progress 002
 
 ## Done
-- Created `sidecar/` workspace: package.json (@mort/sidecar), tsconfig.json (strict), tsup.config.ts
+- Created `sidecar/` workspace: package.json (@anvil/sidecar), tsconfig.json (strict), tsup.config.ts
 - Built full WS server foundation: server.ts (express+ws on port 9600), ws-handler.ts, dispatch.ts (prefix router), push.ts (EventBroadcaster), types.ts, helpers.ts, state.ts
 - Implemented all ~91 command dispatchers across 5 domain files:
   - dispatch-fs.ts: 20 fs commands (read, write, mkdir, remove, grep, bulk_read, repo paths, etc.)
@@ -10,7 +10,7 @@
   - dispatch-agent.ts: 3 agent commands (spawn, kill, cancel)
   - dispatch-misc.ts: ~37 misc commands (paths, threads, repos, search, identity, locks, shell, logging, process, diagnostics, agent hub stubs)
 - Created managers: lock-manager.ts (file-based locks with expiry), agent-process-manager.ts (spawn/kill/cancel with SIGTERM→SIGKILL escalation)
-- Created paths.ts helper (MORT_DATA_DIR, config dir, repositories, threads)
+- Created paths.ts helper (ANVIL_DATA_DIR, config dir, repositories, threads)
 - Server includes /files HTTP endpoint, /health check, CORS, graceful shutdown
 
 ## Remaining

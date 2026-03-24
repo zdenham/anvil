@@ -49,7 +49,7 @@ After writing child state.json, also emit a `THREAD_UPDATED` event via the paren
 ```typescript
 private async emitChildThreadState(childThreadId: string, state: ThreadState): Promise<void> {
   state.timestamp = Date.now();
-  const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
+  const statePath = join(this.anvilDir!, "threads", childThreadId, "state.json");
   writeFileSync(statePath, JSON.stringify(state, null, 2));
 
   // Emit THREAD_UPDATED so frontend refreshes this child's metadata

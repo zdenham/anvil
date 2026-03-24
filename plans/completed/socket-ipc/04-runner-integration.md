@@ -284,7 +284,7 @@ process.on("exit", cleanup);
 1. **Verify hub client initialization**
    ```bash
    # Start the Tauri app (which runs the AgentHub)
-   cd /Users/zac/Documents/juice/mort/mortician
+   cd /Users/zac/Documents/juice/anvil/anvil
    pnpm tauri dev
 
    # In another terminal, manually run the agent runner

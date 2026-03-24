@@ -142,7 +142,7 @@ import type { StatusDotVariant } from "@/components/ui/status-dot";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Persisted State - Zod schema for disk validation
-// Location: ~/.mort/ui/tree-menu.json
+// Location: ~/.anvil/ui/tree-menu.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TreeMenuPersistedStateSchema = z.object({
@@ -845,7 +845,7 @@ export function setupEntityListeners(): void {
 
 - [ ] **Types compile:** `src/stores/tree-menu/types.ts` exports all types without errors
 - [ ] **Zod validation:** Persisted state is validated with Zod schema on hydration
-- [ ] **Store hydrates:** On app startup, `treeMenuService.hydrate()` loads state from `~/.mort/ui/tree-menu.json`
+- [ ] **Store hydrates:** On app startup, `treeMenuService.hydrate()` loads state from `~/.anvil/ui/tree-menu.json`
 - [ ] **Expansion persists:** Collapsing a section and restarting the app preserves the collapsed state
 - [ ] **Selection persists:** Selecting an item and restarting the app preserves the selection
 - [ ] **No direct disk I/O in store:** Store only has `_apply*` methods; service handles all disk operations
@@ -867,7 +867,7 @@ export function setupEntityListeners(): void {
 
 ### Manual Testing
 
-- [ ] Start app with no `~/.mort/ui/tree-menu.json` - store initializes with defaults
+- [ ] Start app with no `~/.anvil/ui/tree-menu.json` - store initializes with defaults
 - [ ] Toggle section expansion - state persists to disk
 - [ ] Restart app - expansion state is restored
 - [ ] Create a new thread - appears in correct section immediately

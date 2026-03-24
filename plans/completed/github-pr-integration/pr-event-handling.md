@@ -15,8 +15,8 @@ Implements the PR entity event listeners that consume `GITHUB_WEBHOOK_EVENT` eve
 | 1 | `src/entities/pull-requests/event-helpers.ts` | CREATE | `extractPrNumber`, `classifyGithubEvent`, `debounceAutoAddress`, `fetchFreshContext`, `buildAutoAddressPrompt` |
 | 2 | `src/entities/pull-requests/listeners.ts` | MODIFY | Add `GITHUB_WEBHOOK_EVENT` handler for display updates + auto-address agent spawning |
 | 3 | `src/entities/index.ts` | MODIFY | Ensure `setupPullRequestListeners()` is called (may already be wired from plan A) |
-| 4 | `plugins/mort/skills/address-pr-comment/SKILL.md` | CREATE | Skill for addressing review comments on a PR |
-| 5 | `plugins/mort/skills/fix-ci/SKILL.md` | CREATE | Skill for investigating and fixing CI failures |
+| 4 | `plugins/anvil/skills/address-pr-comment/SKILL.md` | CREATE | Skill for addressing review comments on a PR |
+| 5 | `plugins/anvil/skills/fix-ci/SKILL.md` | CREATE | Skill for investigating and fixing CI failures |
 | 6 | `core/types/pull-request.ts` | MODIFY | Ensure `autoAddressEnabled` and `gatewayChannelId` fields exist on `PullRequestMetadataSchema` (may already be there from plan A) |
 
 ## Phases
@@ -399,7 +399,7 @@ Also ensure `pullRequestService.hydrate()` is called in `hydrateEntities()` if n
 
 ## Phase 3: Address PR Comment Skill
 
-### File: `plugins/mort/skills/address-pr-comment/SKILL.md` (CREATE)
+### File: `plugins/anvil/skills/address-pr-comment/SKILL.md` (CREATE)
 
 ```markdown
 ---
@@ -450,7 +450,7 @@ CI while you address a review comment). Before committing:
 
 ## Phase 4: Fix CI Skill
 
-### File: `plugins/mort/skills/fix-ci/SKILL.md` (CREATE)
+### File: `plugins/anvil/skills/fix-ci/SKILL.md` (CREATE)
 
 ```markdown
 ---
@@ -603,7 +603,7 @@ After implementation, verify:
 
 2. **Debouncing works correctly:** Write a test that fires multiple events in quick succession and verifies only one callback executes after the debounce window.
 
-3. **Skills are synced:** After `syncManagedSkills()` runs, verify `~/.mort/skills/address-pr-comment/SKILL.md` and `~/.mort/skills/fix-ci/SKILL.md` exist.
+3. **Skills are synced:** After `syncManagedSkills()` runs, verify `~/.anvil/skills/address-pr-comment/SKILL.md` and `~/.anvil/skills/fix-ci/SKILL.md` exist.
 
 4. **End-to-end event flow (integration test):**
    - Emit a `GITHUB_WEBHOOK_EVENT` with type `pull_request_review_comment`, action `created`, and a valid PR number

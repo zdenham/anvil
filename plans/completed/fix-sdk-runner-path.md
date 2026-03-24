@@ -5,10 +5,10 @@
 Quick actions fail in production with:
 
 ```
-Error: Cannot find module '/Applications/Mort.app/Contents/Resources/sdk-runner.js'
+Error: Cannot find module '/Applications/Anvil.app/Contents/Resources/sdk-runner.js'
 ```
 
-The file actually exists at `/Applications/Mort.app/Contents/Resources/_up_/sdk-runner.js`.
+The file actually exists at `/Applications/Anvil.app/Contents/Resources/_up_/sdk-runner.js`.
 
 ## Root Cause
 

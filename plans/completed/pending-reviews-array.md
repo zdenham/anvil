@@ -64,7 +64,7 @@ export interface ValidationContext {
   agentType: string;
   taskId: string | null;
   threadId: string | null;  // ADD: Current thread ID
-  mortDir: string;
+  anvilDir: string;
   cwd: string;
 }
 ```
@@ -80,7 +80,7 @@ export const humanReviewValidator: AgentValidator = {
       return { valid: true };
     }
 
-    const persistence = new NodePersistence(context.mortDir);
+    const persistence = new NodePersistence(context.anvilDir);
     const task = await persistence.getTask(context.taskId);
 
     if (!task) {
@@ -98,13 +98,13 @@ export const humanReviewValidator: AgentValidator = {
 
     return {
       valid: false,
-      systemMessage: `VALIDATION FAILED: You must request human review before completing. Use the \`mort request-human\` command to request review of your work. This is required for all agents.`,
+      systemMessage: `VALIDATION FAILED: You must request human review before completing. Use the \`anvil request-human\` command to request review of your work. This is required for all agents.`,
     };
   },
 };
 ```
 
-### 4. Update CLI (`agents/src/cli/mort.ts`)
+### 4. Update CLI (`agents/src/cli/anvil.ts`)
 
 **Add `--thread` argument to `request-human` command:**
 
@@ -232,7 +232,7 @@ Alternatively, this could be handled via agent configuration if there's a mechan
 | `core/types/tasks.ts` | Update PendingReview, TaskMetadata, UpdateTaskInput |
 | `agents/src/validators/types.ts` | Add threadId to ValidationContext |
 | `agents/src/validators/human-review.ts` | Check current thread's review, skip for merge agent |
-| `agents/src/cli/mort.ts` | Add --thread flag, push to array |
+| `agents/src/cli/anvil.ts` | Add --thread flag, push to array |
 | `src/components/workspace/action-panel.tsx` | Show latest review, mark addressed |
 | `src/entities/tasks/service.ts` | Handle array in event emission |
 | Persistence layer (TBD) | Handle addPendingReview, addressPendingReview |

@@ -40,7 +40,7 @@ This codebase already has a mature storage architecture. **Do not create duplica
 
 ### Current Structure (threads nested under tasks)
 ```
-~/.mort/
+~/.anvil/
   ├── tasks/{taskSlug}/
   │   ├── metadata.json
   │   └── threads/{agentType}-{threadId}/
@@ -52,7 +52,7 @@ This codebase already has a mature storage architecture. **Do not create duplica
 
 ### New Structure (threads at top level, relations in separate table)
 ```
-~/.mort/
+~/.anvil/
   ├── threads/{threadId}/
   │   ├── metadata.json      # ThreadMetadata (no planId - use relations table)
   │   └── state.json
@@ -68,7 +68,7 @@ This codebase already has a mature storage architecture. **Do not create duplica
 
 ### 1. ThreadMetadata type changes
 
-**Per decision #1:** Thread-plan relationships are stored exclusively in the relations table (`~/.mort/plan-thread-edges/`). There is NO `planId` or `planIds` field on ThreadMetadata.
+**Per decision #1:** Thread-plan relationships are stored exclusively in the relations table (`~/.anvil/plan-thread-edges/`). There is NO `planId` or `planIds` field on ThreadMetadata.
 
 The ThreadMetadata type will be updated per 01-core-types.md:
 - Remove `taskId`, `agentType`, `workingDirectory`
@@ -127,7 +127,7 @@ async create(input: CreateThreadInput): Promise<ThreadMetadata> {
 }
 ```
 
-**Note:** Thread-plan associations are NOT stored on ThreadMetadata. Use the relations service (06-relations.md) to manage thread-plan relationships via the `~/.mort/plan-thread-edges/` directory.
+**Note:** Thread-plan associations are NOT stored on ThreadMetadata. Use the relations service (06-relations.md) to manage thread-plan relationships via the `~/.anvil/plan-thread-edges/` directory.
 
 ### 3. Update threadService.hydrate() for new structure
 

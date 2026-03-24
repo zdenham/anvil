@@ -174,10 +174,10 @@ export function createTaskService(): TaskService {
 
 ## Storage
 
-Tasks are stored in `~/.mort/tasks/` as individual JSON files:
+Tasks are stored in `~/.anvil/tasks/` as individual JSON files:
 
 ```
-~/.mort/tasks/
+~/.anvil/tasks/
 ├── task-abc123.json
 ├── task-def456.json
 └── task-sub-789.json
@@ -228,7 +228,7 @@ pub struct Task {
 
 fn get_tasks_dir() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    let tasks_dir = home.join(".mort").join("tasks");
+    let tasks_dir = home.join(".anvil").join("tasks");
     fs::create_dir_all(&tasks_dir).map_err(|e| e.to_string())?;
     Ok(tasks_dir)
 }

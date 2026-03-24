@@ -171,7 +171,7 @@ This starts both the Vite dev server and the Tauri application.
 
 Check that logs are being written to the console and JSON file:
 - Console output should show timestamped, colored logs
-- Check `~/.config/mortician/logs/structured.jsonl` for JSON log entries
+- Check `~/.config/anvil/logs/structured.jsonl` for JSON log entries
 
 #### Step 3: Navigate to Logs Tab
 

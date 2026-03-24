@@ -79,7 +79,7 @@ The API key is stored in the system keychain via Tauri's Stronghold plugin, keye
 
 **`core/types/gateway-events.ts`** — Change `ChannelSchema.type` from `z.literal("github")` to `z.enum(["github", "pylon"])`.
 
-**Gateway server** (mort-server) — Accept `type: "pylon"` when creating channels. The server already treats payloads as opaque (`payload: z.record()`), so Pylon webhook bodies will pass through unchanged. Add Pylon signature verification (`Pylon-Webhook-Signature` header, HMAC-SHA256 of `timestamp.payload` with channel secret).
+**Gateway server** (anvil-server) — Accept `type: "pylon"` when creating channels. The server already treats payloads as opaque (`payload: z.record()`), so Pylon webhook bodies will pass through unchanged. Add Pylon signature verification (`Pylon-Webhook-Signature` header, HMAC-SHA256 of `timestamp.payload` with channel secret).
 
 ## Phase 2: Pylon Webhook Listener & Event Routing
 
@@ -285,6 +285,6 @@ A minimal, generic settings section that works for Pylon (and future integration
 ## Resolved Questions
 
 1. **API key storage**: Using Tauri's Stronghold plugin (system keychain). API key never written to disk in plaintext.
-2. **Gateway server changes**: Confirmed — we'll add `type: "pylon"` support and Pylon signature verification to mort-server.
+2. **Gateway server changes**: Confirmed — we'll add `type: "pylon"` support and Pylon signature verification to anvil-server.
 3. **Webhook event types**: Resolved. Using Pylon's **Trigger-based webhooks** (not API destinations). The "Assignee changed" kickoff event targets assignment changes directly. The API destination event type list is not publicly documented, making triggers the better choice since we control the payload shape and can provide exact setup instructions to users.
 4. **Multi-channel**: Single Pylon channel for now. UI enforces one active Pylon integration.

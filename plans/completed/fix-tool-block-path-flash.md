@@ -10,7 +10,7 @@ Each tool block independently calls `useWorkspaceRoot(threadId)` → `useWorking
 
 1. `workspaceRoot = ""` (empty string)
 2. `toRelativePath("/Users/zac/.../src/foo.ts", "")` → returns the full absolute path
-3. After async `loadSettings` resolves → `workspaceRoot = "/Users/zac/.../mortician"`
+3. After async `loadSettings` resolves → `workspaceRoot = "/Users/zac/.../anvil"`
 4. Re-render: `toRelativePath(...)` → returns `"src/foo.ts"`
 
 This flash happens on **every** tool block mount — including when the virtualizer recycles items during scrolling.

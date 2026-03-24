@@ -100,7 +100,7 @@ export const events = {
 
 ## Phase 3: CLI Event Emissions
 
-### File: `agents/src/cli/mort.ts`
+### File: `agents/src/cli/anvil.ts`
 
 Add event emissions after all CLI mutations:
 

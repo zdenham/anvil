@@ -11,7 +11,7 @@ Create a TypeScript CLI tool (`orb`) for querying ClickHouse log data written by
 ## Directory Structure
 
 ```
-mortician/
+anvil/
 └── observability/
     └── orb/
         ├── index.ts          # Entry point, CLI argument parsing
@@ -657,7 +657,7 @@ export async function schemaCommand(ctx: CommandContext): Promise<void> {
  */
 export function helpCommand(): void {
   console.log(`
-orb - ClickHouse log query tool for mortician
+orb - ClickHouse log query tool for anvil
 
 USAGE:
   pnpm orb <command> [options]

@@ -12,12 +12,12 @@ Instrument the Node.js agent process to:
 3. Track connection health (write failures, backpressure)
 4. Reconnect to the hub on disconnect instead of dying via `process.exit(1)`
 
-All per-message diagnostic logging is opt-in via `MORT_DIAGNOSTIC_LOGGING` env var (JSON-encoded `DiagnosticLoggingConfig`). Always-on logging is limited to status transitions, errors, and a one-line session summary on completion.
+All per-message diagnostic logging is opt-in via `ANVIL_DIAGNOSTIC_LOGGING` env var (JSON-encoded `DiagnosticLoggingConfig`). Always-on logging is limited to status transitions, errors, and a one-line session summary on completion.
 
 ## Phases
 
 - [x] Add sequence counter and pipeline stamping to HubClient `send()`
-- [x] Add diagnostic config parsing from `MORT_DIAGNOSTIC_LOGGING` env var
+- [x] Add diagnostic config parsing from `ANVIL_DIAGNOSTIC_LOGGING` env var
 - [x] Add socket health diagnostic logging (write failures, backpressure, periodic stats)
 - [x] Create heartbeat module and integrate with HubClient
 - [x] Add connection health tracking to HubConnection (write failure counter, health getter)
@@ -43,7 +43,7 @@ All per-message diagnostic logging is opt-in via `MORT_DIAGNOSTIC_LOGGING` env v
 
 ### Diagnostic Config Parsing
 
-- Parse `process.env.MORT_DIAGNOSTIC_LOGGING` at HubClient construction (or a shared init point)
+- Parse `process.env.ANVIL_DIAGNOSTIC_LOGGING` at HubClient construction (or a shared init point)
 - Use Zod schema from `core/types/diagnostic-logging.ts` for safe parsing
 - If env var absent or invalid JSON, default all modules to `false`
 - Store parsed config as `private diagnosticConfig: DiagnosticLoggingConfig`
@@ -123,7 +123,7 @@ private async reconnect(): Promise<boolean> {
 
 - New `connectionState: 'connected' | 'reconnecting' | 'disconnected'` on HubClient
 - **Reconnect queue**: `reconnectQueue: SocketMessage[]`, max 50 messages. During `reconnecting`, `send()` pushes to queue. Smart dedup: only keep latest `state` message per threadId, but keep all `event` messages.
-- **Socket file check**: Before reconnect, check if `~/.mort/agent-hub.sock` exists. If gone, skip reconnect (app quit).
+- **Socket file check**: Before reconnect, check if `~/.anvil/agent-hub.sock` exists. If gone, skip reconnect (app quit).
 
 ### Runner Integration (`agents/src/runner.ts`)
 

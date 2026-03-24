@@ -1,8 +1,8 @@
-# Fix mort-repl Blocking Behavior
+# Fix anvil-repl Blocking Behavior
 
 ## Problem
 
-Thread `4392583d`: agent called `mort-repl` via Bash with `run_in_background: true`. The hook didn't intercept — shell got exit 127 ("command not found").
+Thread `4392583d`: agent called `anvil-repl` via Bash with `run_in_background: true`. The hook didn't intercept — shell got exit 127 ("command not found").
 
 ### Known gaps
 

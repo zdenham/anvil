@@ -2,7 +2,7 @@
 
 ## Goal
 
-Create an end-to-end testing infrastructure that enables Claude Code (AI agent) to programmatically interact with the Mortician application, observe behavior through logs, and validate functionality - all without interfering with the user's active session.
+Create an end-to-end testing infrastructure that enables Claude Code (AI agent) to programmatically interact with the Anvil application, observe behavior through logs, and validate functionality - all without interfering with the user's active session.
 
 ---
 
@@ -25,20 +25,20 @@ Create an end-to-end testing infrastructure that enables Claude Code (AI agent) 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Claude Code                               │
-│                   (uses mort-test CLI)                          │
+│                   (uses anvil-test CLI)                          │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                       mort-test CLI                             │
+│                       anvil-test CLI                             │
 │                       (Rust binary)                             │
 │                                                                 │
-│  mort-test trigger "Command+Space"   # Native hotkey trigger    │
-│  mort-test trigger "Command+Option+C" # Open clipboard         │
-│  mort-test type "cursor"             # Type search query        │
-│  mort-test key ArrowDown Enter       # Navigate and select      │
-│  mort-test observe panels            # Watch panel visibility   │
-│  mort-test wait panel:spotlight      # Block until visible      │
+│  anvil-test trigger "Command+Space"   # Native hotkey trigger    │
+│  anvil-test trigger "Command+Option+C" # Open clipboard         │
+│  anvil-test type "cursor"             # Type search query        │
+│  anvil-test key ArrowDown Enter       # Navigate and select      │
+│  anvil-test observe panels            # Watch panel visibility   │
+│  anvil-test wait panel:spotlight      # Block until visible      │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
           ┌─────────────────┴─────────────────┐
@@ -55,7 +55,7 @@ Create an end-to-end testing infrastructure that enables Claude Code (AI agent) 
           │                                   │
           ▼                                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│               Mortician App (NORMAL INSTANCE)                   │
+│               Anvil App (NORMAL INSTANCE)                   │
 │                                                                 │
 │  • Receives hotkey via tauri-plugin-global-shortcut            │
 │  • Shows/hides panels as normal                                 │
@@ -97,7 +97,7 @@ This approach works without interfering with the user's active session due to ho
 └─────────────────────┘       └───────────────────────────────┘
 ```
 
-When `mort-test trigger "Command+Space"` runs:
+When `anvil-test trigger "Command+Space"` runs:
 - CGEventPost creates a synthetic Cmd+Space at the HID layer
 - The window server sees this as a real keypress
 - `tauri-plugin-global-shortcut` catches it (registered global hotkey)
@@ -105,7 +105,7 @@ When `mort-test trigger "Command+Space"` runs:
 
 **2. NSPanel is designed for non-focus-stealing overlays**
 
-Mortician's panels use `NSPanel` (via `tauri-nspanel`) specifically because:
+Anvil's panels use `NSPanel` (via `tauri-nspanel`) specifically because:
 - Panels appear above other windows without becoming the "key window"
 - The previous app remains focused and receives keyboard input after panel closes
 - This is the same pattern used by macOS Spotlight, Alfred, Raycast
@@ -118,7 +118,7 @@ From `clipboard.rs:18-19`:
 
 **3. The CLI runs independently**
 
-The `mort-test` CLI can run from:
+The `anvil-test` CLI can run from:
 - A terminal window (even in background)
 - Claude Code's bash tool
 - A cron job or launchd service
@@ -127,7 +127,7 @@ The `mort-test` CLI can run from:
 It doesn't need to be focused to post events. The events are injected at the system level.
 
 **Requirements:**
-- Mortician must have **Accessibility permissions** (System Preferences → Privacy & Security → Accessibility)
+- Anvil must have **Accessibility permissions** (System Preferences → Privacy & Security → Accessibility)
 - This is likely already granted for clipboard monitoring
 
 ---
@@ -138,7 +138,7 @@ It doesn't need to be focused to post events. The events are injected at the sys
 
 Reuse the existing `CGEvent` pattern from `clipboard.rs` to trigger any keyboard shortcut:
 
-**File: `src-tauri/src/bin/mort-test/keyboard.rs`**
+**File: `src-tauri/src/bin/anvil-test/keyboard.rs`**
 
 ```rust
 use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};
@@ -274,15 +274,15 @@ pub fn type_string(text: &str) -> Result<(), String> {
 
 Use macOS Accessibility APIs to observe panel visibility:
 
-**File: `src-tauri/src/bin/mort-test/accessibility.rs`**
+**File: `src-tauri/src/bin/anvil-test/accessibility.rs`**
 
 ```rust
 use accessibility::{AXUIElement, AXUIElementAttributes};
 
-/// Find Mortician windows using Accessibility API
-pub fn get_mortician_windows() -> Vec<WindowInfo> {
-    let app = AXUIElement::application_with_bundle_identifier("com.mort.spotlight")
-        .or_else(|| AXUIElement::application_with_name("Mortician"));
+/// Find Anvil windows using Accessibility API
+pub fn get_anvil_windows() -> Vec<WindowInfo> {
+    let app = AXUIElement::application_with_bundle_identifier("com.anvil.spotlight")
+        .or_else(|| AXUIElement::application_with_name("Anvil"));
 
     let Some(app) = app else {
         return vec![];
@@ -302,7 +302,7 @@ pub fn get_mortician_windows() -> Vec<WindowInfo> {
 
 /// Check if a specific panel is visible
 pub fn is_panel_visible(panel_name: &str) -> bool {
-    get_mortician_windows()
+    get_anvil_windows()
         .iter()
         .any(|w| w.title.contains(panel_name) && w.visible)
 }
@@ -338,11 +338,11 @@ pub fn wait_for_panel_hidden(panel_name: &str, timeout_ms: u64) -> Result<(), St
 }
 ```
 
-### 3. CLI Tool (mort-test)
+### 3. CLI Tool (anvil-test)
 
 Standalone Rust binary that uses the above modules:
 
-**File: `src-tauri/src/bin/mort-test/main.rs`**
+**File: `src-tauri/src/bin/anvil-test/main.rs`**
 
 ```rust
 use clap::{Parser, Subcommand};
@@ -351,8 +351,8 @@ mod keyboard;
 mod accessibility;
 
 #[derive(Parser)]
-#[command(name = "mort-test")]
-#[command(about = "E2E testing CLI for Mortician using native macOS APIs")]
+#[command(name = "anvil-test")]
+#[command(about = "E2E testing CLI for Anvil using native macOS APIs")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -378,7 +378,7 @@ enum Commands {
         keys: Vec<String>,
     },
 
-    /// List visible Mortician windows
+    /// List visible Anvil windows
     Windows,
 
     /// Wait for a panel to become visible
@@ -427,7 +427,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::Windows => {
-            let windows = accessibility::get_mortician_windows();
+            let windows = accessibility::get_anvil_windows();
             println!("{}", serde_json::to_string_pretty(&windows)?);
         }
 
@@ -489,52 +489,52 @@ Example test scenarios the CLI should support:
 
 ```bash
 # Open spotlight with hotkey
-mort-test trigger "Command+Space"
+anvil-test trigger "Command+Space"
 
 # Wait for panel to appear
-mort-test wait spotlight --timeout 2000
+anvil-test wait spotlight --timeout 2000
 
 # Type search query
-mort-test type "cursor"
+anvil-test type "cursor"
 
 # Navigate and select result
 sleep 0.5
-mort-test key ArrowDown
-mort-test key Return
+anvil-test key ArrowDown
+anvil-test key Return
 
 # Verify panel closed
-mort-test wait spotlight --hidden --timeout 2000
+anvil-test wait spotlight --hidden --timeout 2000
 ```
 
 ### Scenario 2: Clipboard History
 
 ```bash
 # Open clipboard panel
-mort-test trigger "Command+Option+C"
+anvil-test trigger "Command+Option+C"
 
 # Wait for panel
-mort-test wait clipboard --timeout 2000
+anvil-test wait clipboard --timeout 2000
 
 # Navigate items
-mort-test key ArrowDown
-mort-test key ArrowDown
+anvil-test key ArrowDown
+anvil-test key ArrowDown
 
 # Select item (pastes to active app)
-mort-test key Return
+anvil-test key Return
 
 # Verify panel closed
-mort-test wait clipboard --hidden --timeout 2000
+anvil-test wait clipboard --hidden --timeout 2000
 ```
 
 ### Scenario 3: Full Scenario Runner
 
 ```bash
 # Run predefined scenario
-mort-test scenario spotlight-search
+anvil-test scenario spotlight-search
 # Output: ✓ Scenario complete: spotlight-search
 
 # Check current window state
-mort-test windows
+anvil-test windows
 # Output: [{"title": "Spotlight", "visible": false}, ...]
 ```
 
@@ -544,19 +544,19 @@ mort-test windows
 
 ### Phase 1: Core CLI & Keyboard Module
 
-1. Create `mort-test` Rust binary in `src-tauri/src/bin/`
+1. Create `anvil-test` Rust binary in `src-tauri/src/bin/`
 2. Implement CGEvent keyboard input module
 3. Add shortcut parsing (modifiers + key)
 4. Add `trigger` and `type` commands
 
 **Files:**
-- `src-tauri/src/bin/mort-test/main.rs` (new)
-- `src-tauri/src/bin/mort-test/keyboard.rs` (new)
+- `src-tauri/src/bin/anvil-test/main.rs` (new)
+- `src-tauri/src/bin/anvil-test/keyboard.rs` (new)
 
 **Commands:**
-- `mort-test trigger "Command+Space"`
-- `mort-test type "search query"`
-- `mort-test key ArrowDown Enter`
+- `anvil-test trigger "Command+Space"`
+- `anvil-test type "search query"`
+- `anvil-test key ArrowDown Enter`
 
 ### Phase 2: Window Observation (AXUIElement)
 
@@ -566,12 +566,12 @@ mort-test windows
 4. JSON output for window state
 
 **Files:**
-- `src-tauri/src/bin/mort-test/accessibility.rs` (new)
+- `src-tauri/src/bin/anvil-test/accessibility.rs` (new)
 
 **Commands:**
-- `mort-test windows`
-- `mort-test check spotlight`
-- `mort-test wait spotlight --timeout 5000`
+- `anvil-test windows`
+- `anvil-test check spotlight`
+- `anvil-test wait spotlight --timeout 5000`
 
 ### Phase 3: Test Scenarios
 
@@ -581,8 +581,8 @@ mort-test windows
 4. Add error handling and timeouts
 
 **Commands:**
-- `mort-test scenario spotlight-search`
-- `mort-test scenario clipboard-paste`
+- `anvil-test scenario spotlight-search`
+- `anvil-test scenario clipboard-paste`
 
 ### Phase 4: Documentation & CI
 
@@ -594,12 +594,12 @@ mort-test windows
 
 ## Success Criteria
 
-- [ ] `mort-test trigger` can invoke global hotkeys (Command+Space, etc.)
-- [ ] `mort-test type` can type text into the active panel
-- [ ] `mort-test key` can send navigation keys (arrows, enter, escape)
-- [ ] `mort-test windows` can list Mortician panels and their visibility
-- [ ] `mort-test wait` can block until a panel appears/disappears
-- [ ] `mort-test scenario` can run predefined test flows
+- [ ] `anvil-test trigger` can invoke global hotkeys (Command+Space, etc.)
+- [ ] `anvil-test type` can type text into the active panel
+- [ ] `anvil-test key` can send navigation keys (arrows, enter, escape)
+- [ ] `anvil-test windows` can list Anvil panels and their visibility
+- [ ] `anvil-test wait` can block until a panel appears/disappears
+- [ ] `anvil-test scenario` can run predefined test flows
 - [ ] Tests run without interfering with user's active session
 - [ ] Tests complete in reasonable time (<30s for typical scenarios)
 
@@ -613,7 +613,7 @@ This plan was superseded by the Playwright-based E2E test library (`plans/e2e-te
 
 **Networking (IPv6 gotcha):**
 - Vite dev server binds to IPv6 only → `127.0.0.1` fails from headless Chromium
-- Rust WS server (`mort`) binds to IPv4 → both `localhost` and `127.0.0.1` work
+- Rust WS server (`anvil`) binds to IPv4 → both `localhost` and `127.0.0.1` work
 - **Always use `localhost`** everywhere (playwright config, `src/lib/invoke.ts` WS_URL, test assertions) — it resolves to whichever IP version is available
 - Dev server runs on port **1421** (not 1420)
 

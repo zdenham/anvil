@@ -221,7 +221,7 @@ import type { WorktreeState } from '@core/types/repositories.js';
  */
 export class WorktreeService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private settingsService: RepositorySettingsService,
     private git: GitAdapter,
     private pathLock: PathLock,
@@ -245,7 +245,7 @@ export class WorktreeService {
         throw new Error('Name can only contain letters, numbers, dashes, and underscores');
       }
 
-      const worktreePath = `${this.mortDir}/repositories/${repoName}/${name}`;
+      const worktreePath = `${this.anvilDir}/repositories/${repoName}/${name}`;
       this.git.createWorktree(settings.sourcePath, worktreePath);
 
       const worktree: WorktreeState = {
@@ -345,7 +345,7 @@ export class WorktreeService {
   }
 
   private withLock<T>(repoName: string, fn: () => T): T {
-    const lockPath = `${this.mortDir}/repositories/${repoName}/.lock`;
+    const lockPath = `${this.anvilDir}/repositories/${repoName}/.lock`;
     this.pathLock.acquire(lockPath);
     try {
       return fn();
@@ -592,7 +592,7 @@ if (result.type === "task" && availableWorktrees.length > 0) {
 ```typescript
 if (result.type === "task") {
   return {
-    icon: <MortLogo size={7} />,
+    icon: <AnvilLogo size={7} />,
     title: "Create task",
     subtitle: result.data.selectedWorktree
       ? `Worktree: ${result.data.selectedWorktree.name} (→ to change)`
@@ -644,7 +644,7 @@ const commandArgs = [
   "--task-slug", options.taskSlug,
   "--thread-id", options.threadId,
   "--prompt", options.prompt,
-  "--mort-dir", mortDir,
+  "--anvil-dir", anvilDir,
   "--cwd", options.worktreePath,  // Always explicit
 ];
 ```
@@ -800,7 +800,7 @@ pub async fn worktree_touch(repo_name: String, worktree_path: String) -> Result<
     // ... update timestamp in settings only
 }
 
-// Helpers (follow pattern from mort_commands.rs)
+// Helpers (follow pattern from anvil_commands.rs)
 fn now_millis() -> u64 { /* SystemTime -> millis */ }
 fn load_settings(repo_name: &str) -> Result<serde_json::Value, String> { /* read settings.json */ }
 fn save_settings(repo_name: &str, settings: &serde_json::Value) -> Result<(), String> { /* write settings.json */ }
@@ -899,13 +899,13 @@ export async function createWorktreeTestFixture() {
   await execSync('git commit --allow-empty -m "Initial"', { cwd: tempDir });
 
   // Create mock settings
-  const mortDir = path.join(tempDir, '.mort');
-  const repoDir = path.join(mortDir, 'repositories', 'test-repo');
+  const anvilDir = path.join(tempDir, '.anvil');
+  const repoDir = path.join(anvilDir, 'repositories', 'test-repo');
   await fs.mkdir(repoDir, { recursive: true });
 
   return {
     tempDir,
-    mortDir,
+    anvilDir,
     repoName: 'test-repo',
     sourcePath: tempDir,
     cleanup: async () => fs.rm(tempDir, { recursive: true }),

@@ -6,15 +6,15 @@ Add a persistent unique identifier (device ID) generated at the Rust app level t
 
 ## Current State
 
-- **Logging infrastructure**: `src-tauri/src/logging/` handles dual-output logging (console + JSON file) and batches logs to `https://mort-server.fly.dev/logs`
+- **Logging infrastructure**: `src-tauri/src/logging/` handles dual-output logging (console + JSON file) and batches logs to `https://anvil-server.fly.dev/logs`
 - **Log schema**: Currently only has `timestamp`, `level`, `message` - no user identification
-- **Configuration persistence**: `src-tauri/src/config.rs` uses JSON file storage at `~/.mort/settings/app-config.json` (path resolved via `paths::app_config_file()`)
+- **Configuration persistence**: `src-tauri/src/config.rs` uses JSON file storage at `~/.anvil/settings/app-config.json` (path resolved via `paths::app_config_file()`)
 - **UUID support**: `uuid` crate already in `Cargo.toml` with v4 feature enabled
 - **ClickHouse migrations**: Located in `server/migrations/`, follow `NNN_description.sql` pattern
 
 ## Storage Location
 
-The device ID will be stored in `~/.mort/settings/app-config.json` alongside existing settings (hotkeys, onboarding state). This file persists across app restarts and updates.
+The device ID will be stored in `~/.anvil/settings/app-config.json` alongside existing settings (hotkeys, onboarding state). This file persists across app restarts and updates.
 
 ## Implementation Steps
 
@@ -143,7 +143,7 @@ Register in `lib.rs` if not already registered.
 
 ## Testing
 
-1. **Local testing**: Delete `~/.config/mortician/app-config.json`, restart app, verify new UUID is generated
+1. **Local testing**: Delete `~/.config/anvil/app-config.json`, restart app, verify new UUID is generated
 2. **Persistence check**: Restart app again, verify same UUID is retained
 3. **Log verification**: Check that logs sent to server include `device_id` field
 4. **Migration testing**: Run migration against ClickHouse, verify existing logs have empty string default

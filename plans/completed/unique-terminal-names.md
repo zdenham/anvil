@@ -18,7 +18,7 @@ PTYs have no command lifecycle hooks — they're just byte pipes. But shells do.
 
 ### How shell integration works
 
-1. **At PTY spawn**, Mort sets `ZDOTDIR` to a temp directory containing a tiny `.zshenv`
+1. **At PTY spawn**, Anvil sets `ZDOTDIR` to a temp directory containing a tiny `.zshenv`
 2. That `.zshenv` restores the original `ZDOTDIR` (so the user's normal config loads), then adds a `preexec` hook
 3. The `preexec` hook runs before every command and emits a custom OSC escape sequence: `\e]7727;cmd;<command_text>\a`
 4. **In the frontend**, xterm.js parses the OSC via `terminal.parser.registerOscHandler(7727, ...)` and calls `updateLastCommand()`
@@ -44,13 +44,13 @@ Three tiers, from highest to lowest:
 | --- | --- | --- | --- |
 | 1\. User override | `label` via sidebar rename | "My Server" | User calls `setLabel()` |
 | 2\. Last command | `lastCommand` via shell integration | "npm run dev" | Shell preexec hook fires |
-| 3\. Auto-generated | `worktree-name N` | "mortician 1" | Terminal created |
+| 3\. Auto-generated | `worktree-name N` | "anvil 1" | Terminal created |
 
 **Key rule**: User overrides always win. Once the user renames a terminal, commands no longer change the display name. This is tracked via `isUserLabel: true` on the session.
 
 ## Phases
 
-- [ ] Create zsh shell integration script and write it to `~/.mort/shell-integration/`
+- [ ] Create zsh shell integration script and write it to `~/.anvil/shell-integration/`
 
 - [ ] Inject ZDOTDIR override at PTY spawn in Rust
 
@@ -68,17 +68,17 @@ Three tiers, from highest to lowest:
 
 ### Phase 1: Shell integration script
 
-**Location**: Written to `~/.mort/shell-integration/zsh/.zshenv` by the terminal service on first use.
+**Location**: Written to `~/.anvil/shell-integration/zsh/.zshenv` by the terminal service on first use.
 
 ```zsh
-# Mort shell integration for zsh
+# Anvil shell integration for zsh
 # Restores original ZDOTDIR so user config loads normally,
 # then adds a minimal preexec hook for command tracking.
 
 # 1. Restore original ZDOTDIR
-if [[ -n "$MORT_ORIGINAL_ZDOTDIR" ]]; then
-  ZDOTDIR="$MORT_ORIGINAL_ZDOTDIR"
-  unset MORT_ORIGINAL_ZDOTDIR
+if [[ -n "$ANVIL_ORIGINAL_ZDOTDIR" ]]; then
+  ZDOTDIR="$ANVIL_ORIGINAL_ZDOTDIR"
+  unset ANVIL_ORIGINAL_ZDOTDIR
 else
   unset ZDOTDIR
 fi
@@ -87,13 +87,13 @@ fi
 [[ -f "${ZDOTDIR:-$HOME}/.zshenv" ]] && source "${ZDOTDIR:-$HOME}/.zshenv"
 
 # 3. Add preexec hook — emits OSC 7727 with the command text
-__mort_preexec() { printf '\e]7727;cmd;%s\a' "$1"; }
-preexec_functions+=(__mort_preexec)
+__anvil_preexec() { printf '\e]7727;cmd;%s\a' "$1"; }
+preexec_functions+=(__anvil_preexec)
 ```
 
 **Why** `.zshenv`**?** It's the first file zsh reads for any shell type (login, interactive, script). By the time `.zshrc` loads, ZDOTDIR is already restored and our hook is registered.
 
-**Implementation**: New file `src/entities/terminal-sessions/shell-integration.ts` with a function `ensureShellIntegration()` that writes the script to `~/.mort/shell-integration/zsh/.zshenv` if it doesn't exist (or if the content has changed). Called lazily from `create()`.
+**Implementation**: New file `src/entities/terminal-sessions/shell-integration.ts` with a function `ensureShellIntegration()` that writes the script to `~/.anvil/shell-integration/zsh/.zshenv` if it doesn't exist (or if the content has changed). Called lazily from `create()`.
 
 ### Phase 2: ZDOTDIR injection at PTY spawn
 
@@ -105,14 +105,14 @@ Add env vars before spawning:
 // Shell integration: redirect zsh's ZDOTDIR so our .zshenv loads first
 if shell.ends_with("zsh") {
     let original_zdotdir = std::env::var("ZDOTDIR").unwrap_or_default();
-    cmd.env("MORT_ORIGINAL_ZDOTDIR", &original_zdotdir);
-    // ~/.mort/shell-integration/zsh/ contains our .zshenv
-    let integration_dir = paths::mort_data_dir().join("shell-integration/zsh");
+    cmd.env("ANVIL_ORIGINAL_ZDOTDIR", &original_zdotdir);
+    // ~/.anvil/shell-integration/zsh/ contains our .zshenv
+    let integration_dir = paths::anvil_data_dir().join("shell-integration/zsh");
     cmd.env("ZDOTDIR", integration_dir.to_str().unwrap_or_default());
 }
 ```
 
-The `paths::mort_data_dir()` function already resolves `~/.mort`. Just need to construct the path.
+The `paths::anvil_data_dir()` function already resolves `~/.anvil`. Just need to construct the path.
 
 ### Phase 3: Parse OSC 7727 in frontend
 
@@ -188,14 +188,14 @@ const label = `${dirname} ${n}`;
 
 Set `isUserLabel: false` (or omit — undefined is treated as false).
 
-**Net result**: New terminal shows `mortician 1`. After `npm run dev`, shows `npm run dev`. User renames to "My Server" — stays "My Server" regardless of commands.
+**Net result**: New terminal shows `anvil 1`. After `npm run dev`, shows `npm run dev`. User renames to "My Server" — stays "My Server" regardless of commands.
 
 ## Files Changed
 
 | File | Change |
 | --- | --- |
-| `src/entities/terminal-sessions/shell-integration.ts` | New — writes zsh integration script to `~/.mort/shell-integration/` |
-| `src-tauri/src/terminal.rs` | Set `ZDOTDIR` + `MORT_ORIGINAL_ZDOTDIR` env vars for zsh |
+| `src/entities/terminal-sessions/shell-integration.ts` | New — writes zsh integration script to `~/.anvil/shell-integration/` |
+| `src-tauri/src/terminal.rs` | Set `ZDOTDIR` + `ANVIL_ORIGINAL_ZDOTDIR` env vars for zsh |
 | `src/components/content-pane/terminal-content.tsx` | Register OSC 7727 handler to capture commands |
 | `src/entities/terminal-sessions/types.ts` | Add `isUserLabel` boolean field |
 | `src/entities/terminal-sessions/service.ts` | Auto-generate labels, set `isUserLabel` in `setLabel()` |

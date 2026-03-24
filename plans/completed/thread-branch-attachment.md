@@ -7,12 +7,12 @@ When a thread is spawned, the worktree is checked out at a **detached HEAD** (me
 ### Evidence from Bug Investigation
 
 ```
-mortician-3: b202ed9 (detached HEAD)  <-- Has the commit!
-mortician-5: d409588 (detached HEAD)  <-- Merge agent couldn't find it
+anvil-3: b202ed9 (detached HEAD)  <-- Has the commit!
+anvil-5: d409588 (detached HEAD)  <-- Merge agent couldn't find it
 task branch: 7c4a7f1                  <-- Never updated
 ```
 
-The commit `b202ed9` was made on detached HEAD in `mortician-3` but the task branch was never updated to point to it.
+The commit `b202ed9` was made on detached HEAD in `anvil-3` but the task branch was never updated to point to it.
 
 ### Additional Bug: Stale Merge Base
 
@@ -476,7 +476,7 @@ export class WorktreePoolManager {
 
   private getWorktreePath(repoName: string, index: number): string {
     // Implementation depends on your path conventions
-    return `${process.env.HOME}/.mort-dev/repositories/${repoName}/worktrees/worktree-${index}`;
+    return `${process.env.HOME}/.anvil-dev/repositories/${repoName}/worktrees/worktree-${index}`;
   }
 }
 ```
@@ -1382,34 +1382,34 @@ git -C /path/to/source/repo fetch origin
 git log --oneline main..origin/main  # Shows commits we're missing locally
 
 # Create a task and spawn thread
-mort tasks create "test task" --slug test-branch-attach
+anvil tasks create "test task" --slug test-branch-attach
 
 # The worktree should be at origin/main, not stale local HEAD
-git -C ~/.mort-dev/repositories/mortician/worktrees/worktree-1 log -1 --oneline
+git -C ~/.anvil-dev/repositories/anvil/worktrees/worktree-1 log -1 --oneline
 # Should match origin/main, not local main
 
 # 2. Check the worktree is on the branch (not detached HEAD)
-git -C ~/.mort-dev/repositories/mortician/worktrees/worktree-1 status
+git -C ~/.anvil-dev/repositories/anvil/worktrees/worktree-1 status
 # Should show: On branch task/test-branch-attach
 
 # Make a commit via the agent, verify it's on the branch
-git -C ~/.mort-dev/repositories/mortician log --oneline task/test-branch-attach
+git -C ~/.anvil-dev/repositories/anvil log --oneline task/test-branch-attach
 # Should show the new commit
 
 # 3. Test multi-thread concurrent access
 # Spawn two threads for the same task
 # Both should be added to the same claim's threadIds[]
-cat ~/.mort-dev/repositories/mortician/settings.json | jq '.worktrees[] | select(.claim.taskId != null)'
+cat ~/.anvil-dev/repositories/anvil/settings.json | jq '.worktrees[] | select(.claim.taskId != null)'
 # Should show claim.threadIds: ["thread-1", "thread-2"]
 
 # 4. Test partial release (one thread exits, worktree stays claimed)
 # After thread-1 exits:
-cat ~/.mort-dev/repositories/mortician/settings.json | jq '.worktrees[0].claim.threadIds'
+cat ~/.anvil-dev/repositories/anvil/settings.json | jq '.worktrees[0].claim.threadIds'
 # Should show ["thread-2"] (not null)
 
 # 5. Test full release (last thread exits)
 # After thread-2 exits:
-cat ~/.mort-dev/repositories/mortician/settings.json | jq '.worktrees[0]'
+cat ~/.anvil-dev/repositories/anvil/settings.json | jq '.worktrees[0]'
 # claim should be null, lastTaskId should be set
 
 # 6. Test task affinity on re-open

@@ -377,10 +377,10 @@ Before testing, ensure:
 |-----------|-------------------|-----------|
 | [ ] Expanded sections persist | Restart app, same sections expanded | |
 | [ ] Collapsed sections persist | Restart app, same sections collapsed | |
-| [ ] Data stored in `~/.mort/ui/tree-menu.json` | File exists and has correct data | |
+| [ ] Data stored in `~/.anvil/ui/tree-menu.json` | File exists and has correct data | |
 | [ ] Malformed JSON handled gracefully | Invalid file resets to defaults | |
 
-**Zod Validation Check:** Manually corrupt `~/.mort/ui/tree-menu.json` with invalid JSON or missing required fields. App should reset to defaults without crashing.
+**Zod Validation Check:** Manually corrupt `~/.anvil/ui/tree-menu.json` with invalid JSON or missing required fields. App should reset to defaults without crashing.
 
 ### 7.2 Selection Persistence
 
@@ -396,10 +396,10 @@ Before testing, ensure:
 |-----------|-------------------|-----------|
 | [ ] Active pane ID persists | Restart shows same content | |
 | [ ] Pane view type persists | Thread/plan/settings remembered | |
-| [ ] Data stored in `~/.mort/ui/content-panes.json` | File exists and has correct data | |
+| [ ] Data stored in `~/.anvil/ui/content-panes.json` | File exists and has correct data | |
 | [ ] Malformed JSON handled gracefully | Invalid file resets to defaults | |
 
-**Zod Validation Check:** Manually corrupt `~/.mort/ui/content-panes.json`. App should reset to defaults without crashing.
+**Zod Validation Check:** Manually corrupt `~/.anvil/ui/content-panes.json`. App should reset to defaults without crashing.
 
 ### 7.4 Panel Width Persistence
 
@@ -407,7 +407,7 @@ Before testing, ensure:
 |-----------|-------------------|-----------|
 | [ ] Panel width persists | Restart app, same width | |
 | [ ] Collapsed state persists | Restart with panel hidden if was hidden | |
-| [ ] Data stored in layout JSON | `~/.mort/ui/layout.json` or similar | |
+| [ ] Data stored in layout JSON | `~/.anvil/ui/layout.json` or similar | |
 | [ ] Malformed JSON handled gracefully | Invalid file resets to defaults | |
 
 ### 7.5 Hydration Race Conditions
@@ -482,7 +482,7 @@ These tests verify that the UI correctly reflects disk state after external chan
 
 **Test Procedure for External Disk Edits:**
 1. Open app, select a thread
-2. In terminal, edit `~/.mort/threads/{threadId}/metadata.json` (e.g., change `isRead` to `false`)
+2. In terminal, edit `~/.anvil/threads/{threadId}/metadata.json` (e.g., change `isRead` to `false`)
 3. Trigger a refresh event (click another thread, then return)
 4. Verify UI shows updated state from disk
 
@@ -565,10 +565,10 @@ For rigorous visual regression testing, capture and diff screenshots:
 
 ```bash
 # Capture NSPanel thread view
-screencapture -l $(osascript -e 'tell app "System Events" to get id of window 1 of process "mort"') nspanel-thread.png
+screencapture -l $(osascript -e 'tell app "System Events" to get id of window 1 of process "anvil"') nspanel-thread.png
 
 # Capture main window thread view
-screencapture -l $(osascript -e 'tell app "System Events" to get id of window 2 of process "mort"') main-thread.png
+screencapture -l $(osascript -e 'tell app "System Events" to get id of window 2 of process "anvil"') main-thread.png
 
 # Diff images (requires ImageMagick)
 compare -metric AE nspanel-thread.png main-thread.png diff.png
@@ -702,7 +702,7 @@ rg "from ['\"].*agents" src/ --type ts --type tsx
 - Tree menu state hydrated
 - Content panes service created default pane
 - Layout service initialized
-- Persistence writing to `~/.mort/ui/content-panes.json`
+- Persistence writing to `~/.anvil/ui/content-panes.json`
 
 ### Test Fixes Applied
 
@@ -801,9 +801,9 @@ Document any known issues discovered during testing that need follow-up:
 **Component Sharing Requirement:** `ThreadContent` and `PlanContent` MUST be the same components used by both main window and NSPanel. If there are separate implementations, they must be unified before Phase 5.
 
 ### Persistence Files
-- `~/.mort/ui/tree-menu.json` - Tree expansion and selection
-- `~/.mort/ui/content-panes.json` - Content pane state
-- `~/.mort/ui/layout.json` - Panel width and visibility
+- `~/.anvil/ui/tree-menu.json` - Tree expansion and selection
+- `~/.anvil/ui/content-panes.json` - Content pane state
+- `~/.anvil/ui/layout.json` - Panel width and visibility
 
 ### Thread Status Types
 

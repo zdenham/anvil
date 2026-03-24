@@ -24,7 +24,7 @@ Two distinct visual jank issues that share a root cause pattern: **state transit
 2. `_applyDelete(id)` removes thread from store — tree re-renders, item vanishes (`store.ts:258-266`)
 3. `THREAD_ARCHIVED` event fires — content panes listener sets view to `{ type: "empty" }` (`content-panes/listeners.ts:19-21`)
 4. Tree selection (`selectedItemId`) still points to the deleted thread ID — orphaned reference
-5. Content pane briefly shows `EmptyPaneContent` (the "Welcome to Mort" screen)
+5. Content pane briefly shows `EmptyPaneContent` (the "Welcome to Anvil" screen)
 6. No auto-navigation to next/previous thread occurs
 
 **The flicker** is the 1-3 frames where:

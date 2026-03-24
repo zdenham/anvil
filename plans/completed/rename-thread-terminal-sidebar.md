@@ -22,7 +22,7 @@ className="bg-transparent border-b border-zinc-500 outline-none px-0 py-0 text-i
 
 **Threads**: Write to `thread.name` via `threadService.update(id, { name })`. This already does read-modify-write on disk (reads current disk state, merges the update, writes back) — no race condition.
 
-**Terminals**: Add an optional `label` field to `TerminalSession` schema. When set, display `label` instead of `lastCommand`. Terminals ARE persisted to disk (`~/.mort/terminal-sessions/{id}/metadata.json`), so `setLabel` must use the **read-modify-write** pattern to avoid clobbering concurrent writes from `updateLastCommand` or `markExited`.
+**Terminals**: Add an optional `label` field to `TerminalSession` schema. When set, display `label` instead of `lastCommand`. Terminals ARE persisted to disk (`~/.anvil/terminal-sessions/{id}/metadata.json`), so `setLabel` must use the **read-modify-write** pattern to avoid clobbering concurrent writes from `updateLastCommand` or `markExited`.
 
 ### Race Condition Safety
 

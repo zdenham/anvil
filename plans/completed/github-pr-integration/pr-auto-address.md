@@ -60,9 +60,9 @@ export type GatewayChannelMetadata = z.infer<typeof GatewayChannelMetadataSchema
 ### Storage
 
 ```
-~/.mort/gateway-channels/{channelId}/
+~/.anvil/gateway-channels/{channelId}/
   metadata.json    <- GatewayChannelMetadata (Zod-validated on read)
-~/.mort/gateway-channels/
+~/.anvil/gateway-channels/
   checkpoint       <- Last-Event-ID string for SSE replay on reconnect
 ```
 
@@ -249,7 +249,7 @@ const webhookId = await ghCli.createWebhook(webhookUrl, [
 await this.persistChannel({ ...channel, webhookId });
 ```
 
-On delete, if `webhookId` is set, clean up via `ghCli.deleteWebhook(webhookId)`. If cleanup fails (e.g., Mort crashed), orphaned webhooks can be removed manually via `gh api repos/{owner}/{repo}/hooks` or re-cleaned on next startup.
+On delete, if `webhookId` is set, clean up via `ghCli.deleteWebhook(webhookId)`. If cleanup fails (e.g., Anvil crashed), orphaned webhooks can be removed manually via `gh api repos/{owner}/{repo}/hooks` or re-cleaned on next startup.
 
 ### Events We Subscribe To
 
@@ -632,16 +632,16 @@ When a `pull_request.closed` event arrives (covers both close and merge), auto-a
 
 ### Skill Location and Sync
 
-All bundled skills live in `plugins/mort/skills/` alongside `commit/` and `simplify-code/`. The existing `syncManagedSkills()` in `src/lib/skill-sync.ts` copies them to `~/.mort/skills/` on every app startup. No changes needed to the sync mechanism.
+All bundled skills live in `plugins/anvil/skills/` alongside `commit/` and `simplify-code/`. The existing `syncManagedSkills()` in `src/lib/skill-sync.ts` copies them to `~/.anvil/skills/` on every app startup. No changes needed to the sync mechanism.
 
 Skill lookup follows the standard precedence:
 1. Project skills: `<repo>/.claude/skills/{skill-name}/`
 2. Personal skills: `~/.claude/skills/{skill-name}/`
-3. Mort skills: `~/.mort/skills/{skill-name}/`
+3. Anvil skills: `~/.anvil/skills/{skill-name}/`
 
 Users can override any bundled skill by placing their own version in the project or personal skills directory.
 
-### Skill: `plugins/mort/skills/address-pr-comment/SKILL.md`
+### Skill: `plugins/anvil/skills/address-pr-comment/SKILL.md`
 
 ```markdown
 ---
@@ -688,7 +688,7 @@ CI while you address a review comment). Before committing:
 3. Pull before pushing to avoid conflicts
 ```
 
-### Skill: `plugins/mort/skills/fix-ci/SKILL.md`
+### Skill: `plugins/anvil/skills/fix-ci/SKILL.md`
 
 ```markdown
 ---
@@ -862,9 +862,9 @@ Currently, if an agent pushes a CI fix that itself fails CI, a new `check_run` f
 
 1. **Webhook URL contains unguessable channelId** -- sufficient for v1 (per gateway design)
 2. **No webhook secret verification** -- deferred to v2 (per gateway design)
-3. **gh CLI auth** -- uses the user's existing GitHub credentials; no additional secrets stored by Mort
+3. **gh CLI auth** -- uses the user's existing GitHub credentials; no additional secrets stored by Anvil
 4. **Agent permission mode** -- auto-address agents default to "approve" mode; user must approve tool usage before the agent makes changes
-5. **Webhook cleanup** -- if Mort crashes before cleaning up, orphaned webhooks can be removed manually via `gh api repos/{owner}/{repo}/hooks` or re-cleaned on next startup
+5. **Webhook cleanup** -- if Anvil crashes before cleaning up, orphaned webhooks can be removed manually via `gh api repos/{owner}/{repo}/hooks` or re-cleaned on next startup
 
 ---
 
@@ -898,13 +898,13 @@ src/entities/index.ts            <- MODIFIED: import + call
                                     gatewayChannelService.hydrate(),
                                     ensureGatewayChannelForRepo()
 
-plugins/mort/skills/
+plugins/anvil/skills/
   address-pr-comment/SKILL.md    <- NEW: skill for addressing review comments
   fix-ci/SKILL.md                <- NEW: skill for fixing CI failures
 
-~/.mort/gateway-channels/{channelId}/
+~/.anvil/gateway-channels/{channelId}/
   metadata.json                  <- Persisted channel state
-~/.mort/gateway-channels/
+~/.anvil/gateway-channels/
   checkpoint                     <- Last-Event-ID for SSE replay
 ```
 
@@ -914,4 +914,4 @@ plugins/mort/skills/
 - ~~`src/lib/pr-auto-address.ts`~~ -- agent spawning handled by PR entity listeners
 - ~~`src/lib/gateway-integration.ts`~~ -- GatewayClient lifecycle owned by gateway-channels service
 - ~~`src/entities/pull-requests/webhook-registry.ts`~~ -- webhook tracking embedded in gateway-channels entity
-- ~~`~/.mort/pull-requests/webhook-registry.json`~~ -- webhook state lives in channel metadata
+- ~~`~/.anvil/pull-requests/webhook-registry.json`~~ -- webhook state lives in channel metadata

@@ -2,7 +2,7 @@
 
 ## Objective
 
-Implement the plan at `plans/claude-tui-hook-bridge.md` — connect Claude CLI sessions (spawned in PTY) back to Mort's sidecar via HTTP hooks. This enables lifecycle tracking, tool deny/allow decisions, and transcript-based state extraction for TUI threads.
+Implement the plan at `plans/claude-tui-hook-bridge.md` — connect Claude CLI sessions (spawned in PTY) back to Anvil's sidecar via HTTP hooks. This enables lifecycle tracking, tool deny/allow decisions, and transcript-based state extraction for TUI threads.
 
 See also `plans/tui-runner-state-architecture.md` for the state architecture details.
 
@@ -12,9 +12,9 @@ See also `plans/tui-runner-state-architecture.md` for the state architecture det
 
 2. **Phase 2**: HTTP hook endpoints added to sidecar (`/hooks/session-start`, `/hooks/pre-tool-use`, `/hooks/post-tool-use`, `/hooks/stop`). Thread state writer using `threadReducer`. Transcript reader for incremental parsing.
 
-3. **Phase 3**: Sidecar dynamically generates `~/.mort/hooks/hooks.json` on startup with resolved port baked into URLs.
+3. **Phase 3**: Sidecar dynamically generates `~/.anvil/hooks/hooks.json` on startup with resolved port baked into URLs.
 
-4. **Phase 4**: `buildSpawnConfig()` extended with `--plugin local:~/.mort` and env vars (`MORT_THREAD_ID`, `MORT_DATA_DIR`).
+4. **Phase 4**: `buildSpawnConfig()` extended with `--plugin local:~/.anvil` and env vars (`ANVIL_THREAD_ID`, `ANVIL_DATA_DIR`).
 
 5. **Phase 5**: Frontend integration for TUI thread state display via WebSocket broadcasts.
 
@@ -23,7 +23,7 @@ See also `plans/tui-runner-state-architecture.md` for the state architecture det
 ## Key Architecture Decisions
 
 - **Fail-open**: HTTP hooks fail silently if sidecar unreachable
-- **Thread ID**: Via `X-Mort-Thread-Id` header using env var interpolation in hooks.json
+- **Thread ID**: Via `X-Anvil-Thread-Id` header using env var interpolation in hooks.json
 - **HTTP on same port**: Sidecar's existing TCP port (Express + WebSocket)
 - **Hooks as triggers, transcript as data source**: Hooks fire events, transcript `.jsonl` provides rich message/usage data
 - **Shared helpers in** `core/lib/hooks/`: Importable by both `agents/` and `sidecar/`
@@ -37,7 +37,7 @@ See also `plans/tui-runner-state-architecture.md` for the state architecture det
 - `core/lib/thread-reducer.ts` — Existing thread reducer (used by thread state writer)
 - `sidecar/src/server.ts` — Existing Express server (add HTTP routes to)
 - `src/lib/claude-tui-args-builder.ts` — Existing spawn config (extend)
-- `plugins/mort/` — Plugin directory structure
+- `plugins/anvil/` — Plugin directory structure
 
 ## Coding Conventions
 

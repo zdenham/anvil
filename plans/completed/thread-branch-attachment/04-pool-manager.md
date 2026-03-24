@@ -178,7 +178,7 @@ describe('WorktreePoolManager', () => {
       createWorktree: vi.fn(),
     } as unknown as jest.Mocked<GitAdapter>;
 
-    manager = new WorktreePoolManager(mockGit, '/home/user/.mort-dev');
+    manager = new WorktreePoolManager(mockGit, '/home/user/.anvil-dev');
 
     settings = {
       sourcePath: '/path/to/source',
@@ -348,9 +348,9 @@ describe('WorktreePoolManager', () => {
 
       expect(mockGit.createWorktree).toHaveBeenCalledWith(
         settings.sourcePath,
-        '/home/user/.mort-dev/repositories/my-repo/my-repo-2'
+        '/home/user/.anvil-dev/repositories/my-repo/my-repo-2'
       );
-      expect(result.path).toBe('/home/user/.mort-dev/repositories/my-repo/my-repo-2');
+      expect(result.path).toBe('/home/user/.anvil-dev/repositories/my-repo/my-repo-2');
       expect(settings.worktrees).toHaveLength(2);
     });
   });

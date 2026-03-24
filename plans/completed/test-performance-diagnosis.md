@@ -23,16 +23,16 @@ Collect wall-clock and per-file timing for every test suite. We need hard number
 
 ```bash
 # Frontend unit/integration tests — verbose timing
-pnpm test -- --reporter=verbose 2>&1 | tee /tmp/mort-test-timing.log
+pnpm test -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-timing.log
 
 # UI isolation tests
-pnpm test:ui -- --reporter=verbose 2>&1 | tee /tmp/mort-test-ui-timing.log
+pnpm test:ui -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-ui-timing.log
 
 # Agent tests
-cd agents && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/mort-test-agents-timing.log
+cd agents && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-agents-timing.log
 
 # SDK tests
-cd core/sdk && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/mort-test-sdk-timing.log
+cd core/sdk && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-sdk-timing.log
 ```
 
 ### What to record
@@ -74,7 +74,7 @@ With timing data in hand, investigate the likely culprits below. Each is a known
 ### Suspect 5: SDK integration tests spawn processes
 
 - **Where**: `core/sdk/__tests__/integration/*.test.ts`
-- **Why slow**: `runQuickAction()` spawns a subprocess per test. Each creates a temp `.mort` directory, runs the action, captures stdout.
+- **Why slow**: `runQuickAction()` spawns a subprocess per test. Each creates a temp `.anvil` directory, runs the action, captures stdout.
 - **Investigate**: How many integration tests exist? What's their per-test overhead? Could fixtures be shared across tests in the same file?
 
 ### Suspect 6: Serial vs parallel execution
@@ -131,10 +131,10 @@ After applying fixes:
 
 ```bash
 # Re-run all suites, compare wall-clock times to Phase 1 baselines
-pnpm test -- --reporter=verbose 2>&1 | tee /tmp/mort-test-timing-after.log
-pnpm test:ui -- --reporter=verbose 2>&1 | tee /tmp/mort-test-ui-timing-after.log
-cd agents && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/mort-test-agents-timing-after.log
-cd core/sdk && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/mort-test-sdk-timing-after.log
+pnpm test -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-timing-after.log
+pnpm test:ui -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-ui-timing-after.log
+cd agents && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-agents-timing-after.log
+cd core/sdk && pnpm test -- --reporter=verbose 2>&1 | tee /tmp/anvil-test-sdk-timing-after.log
 ```
 
 Record improvements per suite. Target: **50%+ reduction in total test wall-clock time** for the suites the coding agent runs most often (`pnpm test` and `pnpm test:ui`).

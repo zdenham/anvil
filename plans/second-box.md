@@ -1,14 +1,14 @@
 # Second Box — Remote Dev Machine Content Pane
 
-A new content pane that lets users provision, manage, and connect to remote dev machines directly from the Mort UI — with zero ceremony. The user sees "a remote box"; all provider details (Fly Sprites) are hidden behind the Mort backend.
+A new content pane that lets users provision, manage, and connect to remote dev machines directly from the Anvil UI — with zero ceremony. The user sees "a remote box"; all provider details (Fly Sprites) are hidden behind the Anvil backend.
 
 ## Context
 
 **Backing provider** (server-side only): Fly Sprites — persistent Linux microVMs with 100GB storage, up to 8 CPU / 16GB RAM, WebSocket terminal access, auto-sleep after 30s idle, instant wake. Pre-installed: Claude Code, Python 3.13, Node 22.
 
-**Key constraint**: The Sprites API token lives on the server (`mort-server.fly.dev`) as an env var. The desktop app never sees it. All provisioning flows through the Mort backend, which proxies requests to Sprites. From the user's perspective, they're just creating a remote environment — no tokens, no provider config.
+**Key constraint**: The Sprites API token lives on the server (`anvil-server.fly.dev`) as an env var. The desktop app never sees it. All provisioning flows through the Anvil backend, which proxies requests to Sprites. From the user's perspective, they're just creating a remote environment — no tokens, no provider config.
 
-**Auth**: The desktop app already identifies itself via `device_id` (UUID from `~/.config/mortician/app-config.json`). Remote box API calls include this device_id so the server can scope boxes per device.
+**Auth**: The desktop app already identifies itself via `device_id` (UUID from `~/.config/anvil/app-config.json`). Remote box API calls include this device_id so the server can scope boxes per device.
 
 **Internal naming**: "remote box" / "second box" / `RemoteBox` — never "sprite".
 
@@ -27,7 +27,7 @@ A new content pane that lets users provision, manage, and connect to remote dev 
                        │ HTTP + WebSocket
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│  mort-server.fly.dev                                    │
+│  anvil-server.fly.dev                                    │
 │                                                         │
 │  /remote-boxes/* (new Fastify plugin)                   │
 │   ├─ POST   /remote-boxes          → create box         │
@@ -50,11 +50,11 @@ A new content pane that lets users provision, manage, and connect to remote dev 
 ```
 User clicks "Second Box" in three-dot menu
   → navigationService.navigateToView({ type: "second-box" })
-  → Content pane fetches box list from Mort backend
+  → Content pane fetches box list from Anvil backend
 
 User provisions a box → POST /remote-boxes { name, device_id }
   → Server calls provider.create() → returns metadata
-  → Client saves metadata to ~/.mort/remote-boxes/{name}.json
+  → Client saves metadata to ~/.anvil/remote-boxes/{name}.json
   → Auto-connect: open WebSocket terminal
 
 User connects → WS /remote-boxes/{name}/exec?device_id=...&rows=R&cols=C
@@ -212,13 +212,13 @@ export type RemoteBoxMetadata = z.infer<typeof RemoteBoxMetadataSchema>;
 
 `src/lib/remote-box-api.ts`
 
-- Talks to `https://mort-server.fly.dev/remote-boxes/*`
+- Talks to `https://anvil-server.fly.dev/remote-boxes/*`
 - All requests include `device_id` from app config (via Tauri `invoke("get_device_id")`)
 - `create(name: string)` → POST /remote-boxes
 - `destroy(name: string)` → DELETE /remote-boxes/:name
 - `list()` → GET /remote-boxes
 - `getStatus(name: string)` → GET /remote-boxes/:name
-- `buildExecWsUrl(name, opts: { rows, cols })` → builds `wss://mort-server.fly.dev/remote-boxes/{name}/exec?device_id=...&rows=...&cols=...`
+- `buildExecWsUrl(name, opts: { rows, cols })` → builds `wss://anvil-server.fly.dev/remote-boxes/{name}/exec?device_id=...&rows=...&cols=...`
 - `setup(name, opts: { publicKey, privateKey, gitUser, gitEmail })` → POST /remote-boxes/:name/setup
 
 No tokens stored client-side. The device_id is the only identifier needed.
@@ -228,7 +228,7 @@ No tokens stored client-side. The device_id is the only identifier needed.
 `src/entities/remote-boxes/service.ts`
 
 - `RemoteBoxService` class
-- `create(name: string)` — calls API client, saves metadata to `~/.mort/remote-boxes/{name}.json`
+- `create(name: string)` — calls API client, saves metadata to `~/.anvil/remote-boxes/{name}.json`
 - `destroy(name: string)` — calls API client, removes local metadata
 - `list()` — fetches from API, syncs with local metadata
 - `getStatus(name: string)` — fetches current status from API
@@ -302,12 +302,12 @@ No "no token configured" state needed — auth is automatic via device_id.
 
 When connected to a box:
 
-- Open WebSocket to `wss://mort-server.fly.dev/remote-boxes/{name}/exec?device_id=...&rows=R&cols=C`
+- Open WebSocket to `wss://anvil-server.fly.dev/remote-boxes/{name}/exec?device_id=...&rows=R&cols=C`
 - Server proxies to provider — client never sees provider details
 - Pipe: `ws.onmessage → terminal.write()`, `terminal.onData → ws.send()`
 - Resize: reconnect WebSocket with new dimensions (or in-band resize if server supports forwarding)
 - Auto-reconnect on WebSocket close with exponential backoff
-- Reuse `MORT_TERMINAL_THEME` and same xterm.js config as local terminals
+- Reuse `ANVIL_TERMINAL_THEME` and same xterm.js config as local terminals
 - Connection state overlay: "Waking box..." / "Connecting..." / "Connected"
 
 ### Register in ContentPane
@@ -362,9 +362,9 @@ On **first connection** to a box (when `setupComplete === false`):
 
 `src/lib/remote-box-ssh.ts`
 
-- `generateKeypair()` — runs `ssh-keygen -t ed25519 -f ~/.mort/remote-boxes/id_ed25519 -N "" -C "mort-second-box"` via Tauri shell
-- `getPublicKey()` — reads `~/.mort/remote-boxes/id_ed25519.pub`
-- `getPrivateKey()` — reads `~/.mort/remote-boxes/id_ed25519`
+- `generateKeypair()` — runs `ssh-keygen -t ed25519 -f ~/.anvil/remote-boxes/id_ed25519 -N "" -C "anvil-second-box"` via Tauri shell
+- `getPublicKey()` — reads `~/.anvil/remote-boxes/id_ed25519.pub`
+- `getPrivateKey()` — reads `~/.anvil/remote-boxes/id_ed25519`
 - Generated once, reused for all boxes
 
 ### Setup Flow
@@ -402,7 +402,7 @@ User sees "Setting up your box..." overlay for \~2 seconds, then drops into a re
 | `src/entities/remote-boxes/service.ts` | CRUD, lifecycle, disk persistence |
 | `src/entities/remote-boxes/store.ts` | Zustand store |
 | `src/entities/remote-boxes/index.ts` | Public exports |
-| `src/lib/remote-box-api.ts` | HTTP client to mort-server.fly.dev |
+| `src/lib/remote-box-api.ts` | HTTP client to anvil-server.fly.dev |
 | `src/lib/remote-box-ssh.ts` | SSH keypair generation + management |
 | `src/components/content-pane/second-box-content.tsx` | Content pane (list + terminal) |
 

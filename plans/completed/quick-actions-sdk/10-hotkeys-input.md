@@ -335,7 +335,7 @@ If the app uses a different input pattern (e.g., command palette), the input sto
 - #31 Unified Hotkey Pool: Single search through all actions for hotkey matches
 
 **Considerations:**
-- #32 Draft Persistence: The input store is in-memory only. Per design decision #32, drafts should persist to `~/.mort/drafts.json`. Either integrate with the draft persistence system or clarify that this input store is separate from draft persistence.
+- #32 Draft Persistence: The input store is in-memory only. Per design decision #32, drafts should persist to `~/.anvil/drafts.json`. Either integrate with the draft persistence system or clarify that this input store is separate from draft persistence.
 
 ## Verification & Testing
 

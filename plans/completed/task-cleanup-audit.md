@@ -17,7 +17,7 @@ Comprehensive audit of remaining "task" references in the codebase following the
 
 ## Phase 1: Breaking Changes - DELETE
 
-### CLI Task Commands - `agents/src/cli/mort.ts`
+### CLI Task Commands - `agents/src/cli/anvil.ts`
 
 **Action**: DELETE entire tasks CLI section
 
@@ -44,7 +44,7 @@ The CLI contains dead code with placeholder task implementations that need remov
 - `src/lib/persistence.ts` - Persistence layer
 - `core/services/repository/settings-service.test.ts` - Tests
 - `core/services/worktree/worktree-service.test.ts` - Tests
-- `agents/src/testing/services/test-mort-directory.ts` - Test infrastructure
+- `agents/src/testing/services/test-anvil-directory.ts` - Test infrastructure
 - `src/entities/threads/__tests__/utils.test.ts` - Tests
 
 **Renames required**:
@@ -156,7 +156,7 @@ These are valid uses of "task" that should NOT be changed:
 ## Implementation Checklist
 
 ### Phase 1: Breaking Changes
-- [ ] Delete all CLI task commands from `agents/src/cli/mort.ts`
+- [ ] Delete all CLI task commands from `agents/src/cli/anvil.ts`
 - [ ] Search for calls to deleted CLI functions and remove
 - [ ] Verify build succeeds
 

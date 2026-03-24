@@ -2,17 +2,17 @@
 
 ## Problem
 
-When port 9600 (or the configured `MORT_WS_PORT`) is already taken:
+When port 9600 (or the configured `ANVIL_WS_PORT`) is already taken:
 
-1. **Non-Mort process on the port**: Health check fails (connection refused or wrong response) → Rust spawns sidecar → `server.listen()` hits `EADDRINUSE` → sidecar crashes silently → frontend reconnects forever to nothing
-2. **Stale Mort sidecar from a previous session**: Health check returns 200 → Rust skips spawning → frontend connects to the old sidecar, which may have stale state or be from a different app-suffix/version
+1. **Non-Anvil process on the port**: Health check fails (connection refused or wrong response) → Rust spawns sidecar → `server.listen()` hits `EADDRINUSE` → sidecar crashes silently → frontend reconnects forever to nothing
+2. **Stale Anvil sidecar from a previous session**: Health check returns 200 → Rust skips spawning → frontend connects to the old sidecar, which may have stale state or be from a different app-suffix/version
 3. **No identity verification**: The `/health` endpoint returns `{ status: "ok", port: 9600 }` but nothing ties it to *this* Tauri instance
 
 The port is baked at build time in three places:
 
 - Rust: `build_info::WS_PORT` (compile-time `env!()`)
-- Frontend: `__MORT_WS_PORT__` (Vite `define`)
-- Agents: `MORT_WS_PORT` env var passed at spawn time
+- Frontend: `__ANVIL_WS_PORT__` (Vite `define`)
+- Agents: `ANVIL_WS_PORT` env var passed at spawn time
 
 This means dynamic port selection would require a runtime discovery mechanism.
 
@@ -30,11 +30,11 @@ Two complementary mechanisms:
 
 ### 1. App-Suffix Verification (dev vs prod differentiation)
 
-The primary real conflict scenario is a dev and prod Mort running simultaneously. We already have `MORT_APP_SUFFIX` baked at build time — we can use this to differentiate.
+The primary real conflict scenario is a dev and prod Anvil running simultaneously. We already have `ANVIL_APP_SUFFIX` baked at build time — we can use this to differentiate.
 
 **Sidecar side** (`server.ts`):
 
-- Read `MORT_APP_SUFFIX` from env (already available)
+- Read `ANVIL_APP_SUFFIX` from env (already available)
 - Include it in health check response: `{ status: "ok", port: 9600, appSuffix: "dev" }`
 
 **Rust health check** (`lib.rs`):
@@ -47,15 +47,15 @@ This is lightweight — no tokens to generate, store, or pass around. It solves 
 
 ### 2. Sequential Port Increment on EADDRINUSE
 
-When the preferred port is taken (either by a non-Mort process or a different app-suffix):
+When the preferred port is taken (either by a non-Anvil process or a different app-suffix):
 
 **Sidecar side** (`server.ts`):
 
 - Wrap `server.listen()` with EADDRINUSE error handling
 - On EADDRINUSE: increment port by 1 and retry (e.g. 9600 → 9601 → 9602 ...)
 - Cap retries at some reasonable limit (e.g. 10 attempts)
-- After successful listen, write actual port to a known file: `$MORT_DATA_DIR/sidecar-<app-suffix>.port` → `{ "port": 9601, "appSuffix": "dev", "pid": 12345 }`
-- Base port comes from `MORT_WS_PORT` env var, defaults to 9600 if not set
+- After successful listen, write actual port to a known file: `$ANVIL_DATA_DIR/sidecar-<app-suffix>.port` → `{ "port": 9601, "appSuffix": "dev", "pid": 12345 }`
+- Base port comes from `ANVIL_WS_PORT` env var, defaults to 9600 if not set
 
 **Rust side** (`lib.rs`):
 
@@ -67,7 +67,7 @@ When the preferred port is taken (either by a non-Mort process or a different ap
 
 **Frontend** (`invoke.ts`):
 
-- In Tauri mode: query actual port via IPC instead of using baked `__MORT_WS_PORT__`
+- In Tauri mode: query actual port via IPC instead of using baked `__ANVIL_WS_PORT__`
 - In web mode: try baked port first (web mode assumes default port is available)
 
 **Agents**:
@@ -92,7 +92,7 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 
 - [x] Add EADDRINUSE error handling to sidecar `server.ts` with sequential port increment (base port from env var, default 9600, retry up to 10 ports)
 
-- [x] Add `appSuffix` to sidecar `/health` response and port file write (`$MORT_DATA_DIR/sidecar-<app-suffix>.port`)
+- [x] Add `appSuffix` to sidecar `/health` response and port file write (`$ANVIL_DATA_DIR/sidecar-<app-suffix>.port`)
 
 - [x] Update Rust health check to verify `appSuffix` matches `build_info::APP_SUFFIX`, treat mismatch as port conflict
 

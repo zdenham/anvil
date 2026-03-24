@@ -320,7 +320,7 @@ cd src-tauri && cargo build
 | `src-tauri/src/logging/log_server.rs` | Add tracing spans |
 | `src-tauri/src/app-search.rs` | Add tracing spans |
 | `src-tauri/src/icons.rs` | Add tracing spans |
-| `src-tauri/src/mort_commands.rs` | Add `capture_cpu_profile` command |
+| `src-tauri/src/anvil_commands.rs` | Add `capture_cpu_profile` command |
 | `src-tauri/src/lib.rs` | Register new command |
 | `src/components/main-window/logs-toolbar.tsx` | Add profiling dropdown button (Phase 4) |
 
@@ -328,5 +328,5 @@ cd src-tauri && cargo build
 
 - **`perf` / `Instruments.app`**: Manual tools, not programmatic. Good for one-off investigation but can't be triggered from the app itself or automated.
 - **`tracing-flame`**: Outputs folded stacks for `inferno`. Similar to tracing-chrome but less visual. Chrome trace format is more universally useful.
-- **`tokio-console`**: Only profiles async Tokio tasks. Mort uses `std::thread` for most background work, so this misses the key threads.
-- **`samply`**: Excellent macOS sampling profiler. Could complement this work but requires manual invocation (`samply record ./mort`). Worth trying in addition to the built-in approach.
+- **`tokio-console`**: Only profiles async Tokio tasks. Anvil uses `std::thread` for most background work, so this misses the key threads.
+- **`samply`**: Excellent macOS sampling profiler. Could complement this work but requires manual invocation (`samply record ./anvil`). Worth trying in addition to the built-in approach.

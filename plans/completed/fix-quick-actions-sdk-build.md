@@ -2,15 +2,15 @@
 
 ## Problem
 
-When running `pnpm build` in the quick-actions directory, the build fails because `@mort/sdk` cannot be resolved at runtime during manifest generation.
+When running `pnpm build` in the quick-actions directory, the build fails because `@anvil/sdk` cannot be resolved at runtime during manifest generation.
 
 ## Root Cause
 
-The current design requires action files to `import { defineAction } from '@mort/sdk'`. This creates a module resolution problem:
+The current design requires action files to `import { defineAction } from '@anvil/sdk'`. This creates a module resolution problem:
 - TypeScript compilation works (via `tsconfig.json` paths)
-- esbuild marks `@mort/sdk` as external (correct - SDK is injected at runtime)
-- Manifest generation imports the built JS files, which still contain `import { defineAction } from "@mort/sdk"`
-- Node/tsx cannot resolve `@mort/sdk` because it doesn't exist as a real module
+- esbuild marks `@anvil/sdk` as external (correct - SDK is injected at runtime)
+- Manifest generation imports the built JS files, which still contain `import { defineAction } from "@anvil/sdk"`
+- Node/tsx cannot resolve `@anvil/sdk` because it doesn't exist as a real module
 
 ## Solution: Remove the Import Entirely
 
@@ -20,7 +20,7 @@ The `defineAction` function is an identity function - it just returns what you p
 
 **Before:**
 ```typescript
-import { defineAction } from '@mort/sdk';
+import { defineAction } from '@anvil/sdk';
 
 export default defineAction({
   id: 'archive',
@@ -48,12 +48,12 @@ The `satisfies` keyword provides full type checking and inference without needin
 
 ### Implementation Steps
 
-#### 1. Update `mort-types/sdk.d.ts` to be ambient
+#### 1. Update `anvil-types/sdk.d.ts` to be ambient
 
 Convert from a module declaration to a global ambient declaration:
 
 ```typescript
-// mort-types/sdk.d.ts
+// anvil-types/sdk.d.ts
 
 // Make types globally available (no import needed)
 declare global {
@@ -64,7 +64,7 @@ declare global {
     // ... rest of interface
   }
 
-  interface MortSDK {
+  interface AnvilSDK {
     git: GitService;
     threads: ThreadService;
     // ... rest of interface
@@ -75,7 +75,7 @@ declare global {
     title: string;
     description?: string;
     contexts: ('thread' | 'plan' | 'empty' | 'all')[];
-    execute: (context: QuickActionExecutionContext, sdk: MortSDK) => Promise<void> | void;
+    execute: (context: QuickActionExecutionContext, sdk: AnvilSDK) => Promise<void> | void;
   }
 
   // ... other interfaces
@@ -98,12 +98,12 @@ export {}; // Makes this a module (required for declare global)
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/**/*", "mort-types/**/*"],
+  "include": ["src/**/*", "anvil-types/**/*"],
   "exclude": ["node_modules", "dist"]
 }
 ```
 
-Remove the `paths` config since we no longer need `@mort/sdk` resolution.
+Remove the `paths` config since we no longer need `@anvil/sdk` resolution.
 
 #### 3. Update all action files
 
@@ -129,7 +129,7 @@ export default {
 
 #### 4. Update `build.ts` - simplify esbuild config
 
-Remove the `external: ['@mort/sdk']` since there's nothing to externalize:
+Remove the `external: ['@anvil/sdk']` since there's nothing to externalize:
 
 ```typescript
 await esbuild.build({
@@ -161,10 +161,10 @@ Update documentation to show the new pattern without imports.
 
 | File | Change |
 |------|--------|
-| `core/sdk/template/mort-types/sdk.d.ts` | Convert to ambient global declarations |
-| `core/sdk/template/tsconfig.json` | Remove paths, include mort-types |
+| `core/sdk/template/anvil-types/sdk.d.ts` | Convert to ambient global declarations |
+| `core/sdk/template/tsconfig.json` | Remove paths, include anvil-types |
 | `core/sdk/template/src/actions/*.ts` | Remove import, add `satisfies` |
-| `core/sdk/template/build.ts` | Remove `external: ['@mort/sdk']` |
+| `core/sdk/template/build.ts` | Remove `external: ['@anvil/sdk']` |
 | `core/sdk/types.ts` | Remove `defineAction` function |
 | `core/sdk/template/README.md` | Update examples |
 

@@ -62,7 +62,7 @@ Agent (Node.js) → Socket Write → AgentHub (Rust) → Tauri emit → Frontend
 
 All pipeline diagnostic logging is **opt-in** and controlled by per-module settings. Rather than a single boolean, diagnostic logging uses a **module map** — each subsystem can be independently toggled. This prevents noisy logs during normal operation while letting you enable exactly the diagnostic data you need.
 
-**Global setting**: `~/.mort/settings/diagnosticLogging.json`
+**Global setting**: `~/.anvil/settings/diagnosticLogging.json`
 - Value: `DiagnosticLoggingConfig` object (see below)
 - Persisted via existing `SettingsStoreClient` pattern (one JSON file per setting key)
 
@@ -90,8 +90,8 @@ export function isDiagnosticEnabled(config: DiagnosticLoggingConfig): boolean {
 
 **Readable from all three layers**:
 - **Frontend**: `settingsStoreClient.getOrDefault("diagnosticLogging", DEFAULT_DIAGNOSTIC_LOGGING)` — modules checked individually (`config.pipeline`, `config.heartbeat`, etc.)
-- **Agent (Node.js)**: Env var `MORT_DIAGNOSTIC_LOGGING` set to JSON string on spawn (e.g., `'{"pipeline":true,"heartbeat":false,...}'`). Parsed once at agent startup into a `DiagnosticLoggingConfig`. If env var is absent or invalid, all modules default to `false`.
-- **Rust AgentHub**: Read env var `MORT_DIAGNOSTIC_LOGGING` (same JSON string) at init. Store parsed config in Tauri managed state. Individual module checks via helper methods.
+- **Agent (Node.js)**: Env var `ANVIL_DIAGNOSTIC_LOGGING` set to JSON string on spawn (e.g., `'{"pipeline":true,"heartbeat":false,...}'`). Parsed once at agent startup into a `DiagnosticLoggingConfig`. If env var is absent or invalid, all modules default to `false`.
+- **Rust AgentHub**: Read env var `ANVIL_DIAGNOSTIC_LOGGING` (same JSON string) at init. Store parsed config in Tauri managed state. Individual module checks via helper methods.
 
 **Auto-enable on heartbeat drop detection**: When the frontend heartbeat monitor transitions a thread to `stale` status:
 1. Automatically enable **all modules** via `settingsStoreClient.set("diagnosticLogging", { pipeline: true, heartbeat: true, sequenceGaps: true, socketHealth: true })`
@@ -158,7 +158,7 @@ Each layer adds its stamp to a `pipeline` array on the message. By the time the 
 - Track `last_seq` per agent in the handler — if gap detected, always log a `tracing::warn` (gaps are rare enough to always surface)
 - After successful `app_handle.emit()`, append `{ stage: "hub:emitted", seq: <from msg>, ts: <now> }` to the pipeline array
 - If `emit()` returns Err, always log `tracing::warn` with the seq that was dropped
-- **When `pipeline` module is enabled** (from `MORT_DIAGNOSTIC_LOGGING` env var): `tracing::debug` every message's seq and type at both receive and emit points
+- **When `pipeline` module is enabled** (from `ANVIL_DIAGNOSTIC_LOGGING` env var): `tracing::debug` every message's seq and type at both receive and emit points
 - **When disabled**: Only gap warnings and emit errors are logged
 
 **Frontend** (`src/lib/agent-service.ts`):
@@ -217,7 +217,7 @@ Each layer adds its stamp to a `pipeline` array on the message. By the time the 
 ### 3. Disk-Based State Recovery
 
 When the frontend detects missed events (via heartbeat staleness or sequence gaps):
-- Read `~/.mort/threads/{threadId}/state.json` directly from disk
+- Read `~/.anvil/threads/{threadId}/state.json` directly from disk
 - Compare disk state timestamp with last received state timestamp
 - If disk is newer, emit a synthetic `AGENT_STATE` event with the disk state
 - This is the existing "disk as truth" pattern — heartbeat just triggers the recovery
@@ -365,7 +365,7 @@ private async reconnect(): Promise<boolean> {
 - Smart queue: only keep the latest `state` message per threadId, but keep all `event` messages
 
 **Socket file existence check**:
-- Before attempting reconnect, check if `~/.mort/agent-hub.sock` still exists
+- Before attempting reconnect, check if `~/.anvil/agent-hub.sock` still exists
 - If socket file is gone → Tauri app quit, skip reconnect, proceed to graceful exit
 - This avoids wasting retry time when the app is genuinely gone
 
@@ -403,4 +403,4 @@ private async reconnect(): Promise<boolean> {
 11. **Reconnection has a bounded retry**: 5 attempts with exponential backoff (~15s total). If the Tauri app restarted, the socket should be back within seconds. If it's gone for good, we stop trying quickly.
 12. **Smart reconnect queue**: During reconnection, buffer up to 50 messages. State messages are deduplicated (only latest per thread). This prevents a flood of stale state on reconnect while preserving event ordering.
 13. **Three-tier logging approach**: (a) Always-on: status transitions, gaps, errors — low volume, high signal. (b) Per-module opt-in diagnostic: each of the 4 modules independently toggled for targeted investigation. (c) Agent-side `DEBUG` env var: existing pattern for agent-internal debug, orthogonal to pipeline diagnostics.
-14. **Module config as JSON env var**: Rather than 4 separate env vars, agents receive the full `DiagnosticLoggingConfig` as a JSON string in `MORT_DIAGNOSTIC_LOGGING`. Parsed once at startup. This keeps the interface clean and makes it easy to add new modules later without changing the env var contract.
+14. **Module config as JSON env var**: Rather than 4 separate env vars, agents receive the full `DiagnosticLoggingConfig` as a JSON string in `ANVIL_DIAGNOSTIC_LOGGING`. Parsed once at startup. This keeps the interface clean and makes it easy to add new modules later without changing the env var contract.

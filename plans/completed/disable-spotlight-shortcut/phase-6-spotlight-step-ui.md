@@ -97,7 +97,7 @@ export const SpotlightStep = ({}: SpotlightStepProps) => {
           <div className="flex items-start gap-2">
             <Shield className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-surface-300">
-              Mortician needs Accessibility permission to auto-disable Spotlight.
+              Anvil needs Accessibility permission to auto-disable Spotlight.
               This is a one-time setup.
             </p>
           </div>

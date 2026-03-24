@@ -46,7 +46,7 @@ All 5 implementations share the same high-level architecture. The refactor moves
 │                    │  │                   │  misc      → Catch   │  │ │
 │  ┌─────────────┐  │  │                   └──────────────────────┘  │ │
 │  │ Port File   │  │  │                                              │ │
-│  │ ~/.mort/    │  │  /ws/agent ────────► Agent Hub                  │ │
+│  │ ~/.anvil/    │  │  /ws/agent ────────► Agent Hub                  │ │
 │  │  sidecar-   │  │                      ┌─────────────────────┐   │ │
 │  │  {hash}.port│  │                      │ register/relay/drain│   │ │
 │  └─────────────┘  │                      │ pipeline stamping   │   │ │

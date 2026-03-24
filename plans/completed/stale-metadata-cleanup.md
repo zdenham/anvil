@@ -2,10 +2,10 @@
 
 ## Issue
 
-**Problem:** When a plan is "decomposed" (the markdown file is deleted, typically replaced by a directory with sub-plans), the metadata in `~/.mort/plans/{id}/` is not being cleaned up. This causes a stale plan to linger in the left panel.
+**Problem:** When a plan is "decomposed" (the markdown file is deleted, typically replaced by a directory with sub-plans), the metadata in `~/.anvil/plans/{id}/` is not being cleaned up. This causes a stale plan to linger in the left panel.
 
 **Current Behavior:**
-1. User has `plans/auth.md` → metadata exists at `~/.mort/plans/{id}/metadata.json`
+1. User has `plans/auth.md` → metadata exists at `~/.anvil/plans/{id}/metadata.json`
 2. File is deleted (decomposed into `plans/auth/` directory with sub-plans)
 3. Metadata remains → plan shows as "stale" (amber dot) in left panel indefinitely
 

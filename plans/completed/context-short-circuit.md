@@ -2,7 +2,7 @@
 
 ## Summary
 
-Add an optional `contextShortCircuit` argument to `mort.spawn()` that nudges a child agent to save its progress when context pressure gets high, so another agent can continue with a fresh context window.
+Add an optional `contextShortCircuit` argument to `anvil.spawn()` that nudges a child agent to save its progress when context pressure gets high, so another agent can continue with a fresh context window.
 
 ## Motivation
 
@@ -13,7 +13,7 @@ Long-running agents eventually hit context limits and get auto-truncated or erro
 ### New Type: `ContextShortCircuit`
 
 ```ts
-// agents/src/lib/mort-repl/types.ts
+// agents/src/lib/anvil-repl/types.ts
 interface ContextShortCircuit {
   /** Percentage of context window (0-100) at which to start nudging */
   limitPercent: number;
@@ -24,10 +24,10 @@ interface ContextShortCircuit {
 
 ### How It Works
 
-1. **User specifies** `contextShortCircuit` on `mort.spawn()`:
+1. **User specifies** `contextShortCircuit` on `anvil.spawn()`:
 
    ```ts
-   await mort.spawn({
+   await anvil.spawn({
      prompt: "Implement the auth module",
      contextShortCircuit: {
        limitPercent: 80,
@@ -60,15 +60,15 @@ The existing phase-reminder system proves the pattern works:
 
 | File | Change |
 | --- | --- |
-| `agents/src/lib/mort-repl/types.ts` | Add `ContextShortCircuit` interface, add it to `SpawnOptions` |
-| `agents/src/lib/mort-repl/child-spawner.ts` | Pass `--context-short-circuit` CLI arg when spawning |
-| `agents/src/lib/mort-repl/mort-sdk.ts` | Update `spawn()` signature to accept `contextShortCircuit` |
+| `agents/src/lib/anvil-repl/types.ts` | Add `ContextShortCircuit` interface, add it to `SpawnOptions` |
+| `agents/src/lib/anvil-repl/child-spawner.ts` | Pass `--context-short-circuit` CLI arg when spawning |
+| `agents/src/lib/anvil-repl/anvil-sdk.ts` | Update `spawn()` signature to accept `contextShortCircuit` |
 | `agents/src/runners/types.ts` | Add `contextShortCircuit?` to `RunnerConfig` |
 | `agents/src/runners/message-handler.ts` | Add public \`getUtilization(): number |
 | `agents/src/runners/shared.ts` | Add PostToolUse hook that calls `handler.getUtilization()` and returns `additionalContext` when threshold crossed |
 | `agents/src/runners/simple-runner-strategy.ts` | Parse `--context-short-circuit` CLI arg into `RunnerConfig` |
-| `plugins/mort/skills/orchestrate/SKILL.md` | Brief mention of `contextShortCircuit` option (not encouraged — other skills will instruct its use) |
-| `agents/src/lib/mort-repl/__tests__/child-spawner.test.ts` | Test that CLI arg is passed through |
+| `plugins/anvil/skills/orchestrate/SKILL.md` | Brief mention of `contextShortCircuit` option (not encouraged — other skills will instruct its use) |
+| `agents/src/lib/anvil-repl/__tests__/child-spawner.test.ts` | Test that CLI arg is passed through |
 
 ## Phases
 
@@ -76,7 +76,7 @@ The existing phase-reminder system proves the pattern works:
 - [x] Add `getUtilization()` public method to `MessageHandler` (reuse existing `cumulativeInputTokens`/`contextWindow` fields)
 - [x] Add PostToolUse hook in `runAgentLoop` that calls `handler.getUtilization()` against config threshold and returns `additionalContext`
 - [x] Wire CLI: `simple-runner-strategy.ts` parses `--context-short-circuit`, `child-spawner.ts` passes it
-- [x] Update `MortReplSdk.spawn()` and `ChildSpawner.spawn()` to accept and forward `contextShortCircuit`
+- [x] Update `AnvilReplSdk.spawn()` and `ChildSpawner.spawn()` to accept and forward `contextShortCircuit`
 - [x] Brief mention in orchestrate SKILL.md (just document the option exists, don't encourage use)
 - [x] Add tests for `getUtilization()` and CLI arg forwarding
 
@@ -139,5 +139,5 @@ if (contextShortCircuit) {
 ## Non-Goals
 
 - **Hard stop**: This is a nudge, not an abort. The agent can ignore it.
-- **Automatic continuation**: The orchestration code in `mort-repl` decides whether/how to spawn a continuation agent. We just provide the mechanism.
-- **Built-in SDK agents (Task/Agent tool)**: This only applies to mort-repl spawned children for now. SDK sub-agents don't go through our runner.
+- **Automatic continuation**: The orchestration code in `anvil-repl` decides whether/how to spawn a continuation agent. We just provide the mechanism.
+- **Built-in SDK agents (Task/Agent tool)**: This only applies to anvil-repl spawned children for now. SDK sub-agents don't go through our runner.

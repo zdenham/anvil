@@ -278,7 +278,7 @@ settings.taskBranches[taskId] = {
 
 **Immediate fix for this task**: Delete the old branch and re-run:
 ```bash
-git -C /Users/zac/.mort-dev/repositories/mortician/mortician-2 branch -D task/add-hello-world-to-readme
+git -C /Users/zac/.anvil-dev/repositories/anvil/anvil-2 branch -D task/add-hello-world-to-readme
 ```
 
 **Code fix needed**: Update `branch-manager.ts` to handle existing branches - either rebase them or reset them to the new merge base.

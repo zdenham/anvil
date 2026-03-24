@@ -91,7 +91,7 @@ export class TauriFSAdapter implements FSAdapter {
 // Service accepts adapter via constructor
 export class ThreadService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private fs: FileSystemAdapter  // <-- injected
   ) {}
 
@@ -109,7 +109,7 @@ export class ThreadService {
 // In Node.js (agents/src/orchestration.ts)
 const fs = new NodeFileSystemAdapter();
 const git = new NodeGitAdapter();
-const threadService = new ThreadService(mortDir, fs);
+const threadService = new ThreadService(anvilDir, fs);
 
 // In Tauri (frontend)
 const fs = new TauriFSAdapter();
@@ -131,7 +131,7 @@ const mockFs: FileSystemAdapter = {
   exists: vi.fn((path) => mockStorage.has(path)),
   // ...
 };
-const service = new ThreadService(mortDir, mockFs);
+const service = new ThreadService(anvilDir, mockFs);
 ```
 
 ## Don't

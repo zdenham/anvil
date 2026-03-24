@@ -26,7 +26,7 @@ const command = Command.create("node", commandArgs, {
   env: {
     ANTHROPIC_API_KEY: apiKey,  // ADD THIS LINE
     NODE_PATH: nodeModulesPath,
-    MORT_DATA_DIR: mortDir,
+    ANVIL_DATA_DIR: anvilDir,
     PATH: shellPath,
   },
 });
@@ -969,7 +969,7 @@ export async function resumeSimpleAgent(
   sourcePath: string,
 ): Promise<void> {
   // Load any pending queued messages from crash
-  const threadPath = await path.join(mortDir, 'tasks', taskId, 'threads', `simple-${threadId}`);
+  const threadPath = await path.join(anvilDir, 'tasks', taskId, 'threads', `simple-${threadId}`);
   const pendingMessages = await loadPendingQueuedMessages(threadPath);
 
   // Combine with new prompt if there are pending messages

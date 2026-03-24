@@ -34,7 +34,7 @@ import { VisualSettingsSchema } from "./visual-settings.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Folder Entity Types - Zod schemas with derived types
-// Storage: ~/.mort/folders/{id}/metadata.json
+// Storage: ~/.anvil/folders/{id}/metadata.json
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
@@ -600,10 +600,10 @@ setupFolderListeners();
 ## Disk Persistence
 
 ```
-~/.mort/folders/{id}/metadata.json
+~/.anvil/folders/{id}/metadata.json
 ```
 
-Exact same pattern as `~/.mort/plans/{id}/metadata.json` and `~/.mort/threads/{id}/metadata.json`. Each folder gets its own directory with a single `metadata.json` file. The directory name is the folder UUID.
+Exact same pattern as `~/.anvil/plans/{id}/metadata.json` and `~/.anvil/threads/{id}/metadata.json`. Each folder gets its own directory with a single `metadata.json` file. The directory name is the folder UUID.
 
 ## ID Generation
 
@@ -635,7 +635,7 @@ This sub-plan provides the `folderService.updateVisualSettings()` method that th
 
 - [x] `useFolderStore` follows entity store patterns (Record + cached array + `_apply*` methods returning `Rollback`)
 
-- [x] CRUD operations persist to `~/.mort/folders/{id}/metadata.json`
+- [x] CRUD operations persist to `~/.anvil/folders/{id}/metadata.json`
 
 - [x] All disk writes use read-modify-write pattern (disk-as-truth)
 

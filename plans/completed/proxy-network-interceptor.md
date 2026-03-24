@@ -25,7 +25,7 @@ toggleCapture → store.isCapturing = true
 
 Agent spawned (spawnSimpleAgent)
     ↓
-agent-service.ts sets MORT_NETWORK_DEBUG=1 (already done)
+agent-service.ts sets ANVIL_NETWORK_DEBUG=1 (already done)
     ↓
 runner.ts starts ProxyServer on random loopback port
 runner.ts sets process.env.HTTPS_PROXY + NODE_EXTRA_CA_CERTS
@@ -59,14 +59,14 @@ Frontend store receives events (already working)
 - `agents/src/lib/proxy/cert-manager.ts` (~100 lines)
 - `agents/src/lib/proxy/der.ts` (~150 lines) — minimal DER/ASN.1 encoder
 
-Generate a self-signed CA cert on first run, cache it to `$MORT_DATA_DIR/proxy-ca/`. Reuse across sessions. **Zero external dependencies** — uses Node built-in `crypto` module with a small DER encoder for X.509 certificate construction.
+Generate a self-signed CA cert on first run, cache it to `$ANVIL_DATA_DIR/proxy-ca/`. Reuse across sessions. **Zero external dependencies** — uses Node built-in `crypto` module with a small DER encoder for X.509 certificate construction.
 
 ```typescript
 class CertManager {
   private caKeyPath: string;
   private caCertPath: string;
 
-  constructor(mortDir: string) { /* paths under mortDir/proxy-ca/ */ }
+  constructor(anvilDir: string) { /* paths under anvilDir/proxy-ca/ */ }
 
   /** Generate CA key + cert if not already on disk. Idempotent. */
   async ensureCA(): Promise<{ certPath: string; keyPath: string }>;
@@ -142,11 +142,11 @@ class ProxyServer {
 Replace the `diagnostics_channel` interceptor setup (lines 365-379) with proxy startup:
 
 ```typescript
-if (process.env.MORT_NETWORK_DEBUG === "1") {
+if (process.env.ANVIL_NETWORK_DEBUG === "1") {
   const { CertManager } = await import("./lib/proxy/cert-manager.js");
   const { ProxyServer } = await import("./lib/proxy/proxy-server.js");
 
-  const certManager = new CertManager(config.mortDir);
+  const certManager = new CertManager(config.anvilDir);
   await certManager.ensureCA();
 
   const proxy = new ProxyServer(certManager, (event) => {
@@ -168,7 +168,7 @@ if (process.env.MORT_NETWORK_DEBUG === "1") {
 
 **Key detail:** `shared.ts:1202` already does `env: { ...process.env }`, so the proxy env vars propagate to the SDK subprocess automatically. No changes needed in `shared.ts`.
 
-**Frontend changes: None.** The `agent-service.ts` already sets `MORT_NETWORK_DEBUG=1`. The store already gates on `isCapturing`. The Record button already toggles `isCapturing`. Everything just works — the proxy runs, events flow, and the UI shows/hides based on the existing toggle.
+**Frontend changes: None.** The `agent-service.ts` already sets `ANVIL_NETWORK_DEBUG=1`. The store already gates on `isCapturing`. The Record button already toggles `isCapturing`. Everything just works — the proxy runs, events flow, and the UI shows/hides based on the existing toggle.
 
 ## Phase 4: Response Body Streaming
 

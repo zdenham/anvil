@@ -147,7 +147,7 @@ export function emitEvent(event: string, payload: Record<string, unknown> = {}):
 - Audit actual console usage before proceeding
 - Make a definitive architectural decision:
   - Recommend: Dependency injection with `ILogger` interface
-  - Alternative: Environment detection (`process.env.MORT_AGENT_PROCESS`)
+  - Alternative: Environment detection (`process.env.ANVIL_AGENT_PROCESS`)
 - Define what "works correctly in frontend context" means
 
 ---

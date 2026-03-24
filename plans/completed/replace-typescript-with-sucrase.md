@@ -2,7 +2,7 @@
 
 ## Problem
 
-The `mort-repl` uses `ts.transpileModule()` to strip TypeScript type annotations from agent-written REPL code. This has two issues:
+The `anvil-repl` uses `ts.transpileModule()` to strip TypeScript type annotations from agent-written REPL code. This has two issues:
 
 1. **Broken in production** — `typescript` is marked as `external` in tsup.config.ts (because it uses dynamic `require("fs")` that breaks ESM bundling), but it's **not included** in the Tauri bundle resources (`tauri.conf.json` only bundles `@anthropic-ai/**/*` from node_modules)
 2. **Massive dependency** — TypeScript is 23MB in node_modules, just to strip type annotations
@@ -41,7 +41,7 @@ The `mort-repl` uses `ts.transpileModule()` to strip TypeScript type annotations
 
 ### Phase 1: Replace typescript with sucrase in repl-runner.ts
 
-**File:** `agents/src/lib/mort-repl/repl-runner.ts`
+**File:** `agents/src/lib/anvil-repl/repl-runner.ts`
 
 Before:
 ```typescript

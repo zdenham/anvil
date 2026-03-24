@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-Currently, the mortician app displays thread messages only after complete state snapshots are emitted by the agent and persisted to disk. Users cannot see the agent's thoughts or text as it streams in real-time, which is a common and useful UX pattern in other AI interfaces (Claude.ai, ChatGPT, etc.).
+Currently, the anvil app displays thread messages only after complete state snapshots are emitted by the agent and persisted to disk. Users cannot see the agent's thoughts or text as it streams in real-time, which is a common and useful UX pattern in other AI interfaces (Claude.ai, ChatGPT, etc.).
 
 The existing "disk as truth" architecture pattern writes complete `state.json` snapshots, and the UI reads from disk on `AGENT_STATE` events. This works well for persistence but introduces latency and doesn't support character-by-character streaming.
 
@@ -13,7 +13,7 @@ The existing "disk as truth" architecture pattern writes complete `state.json` s
 The codebase has migrated from stdout-based to **socket-based IPC**. All agent-to-frontend communication now flows through Unix sockets via the AgentHub (Rust backend).
 
 1. **Agent Hub (Rust) - `src-tauri/src/agent_hub.rs`**:
-   - Unix socket server at `~/.mort/agent-hub.sock`
+   - Unix socket server at `~/.anvil/agent-hub.sock`
    - Accepts connections from all agents (root + sub-agents)
    - Routes messages to frontend via `agent:message` Tauri events
    - JSON-line protocol with automatic buffering

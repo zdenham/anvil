@@ -7,7 +7,7 @@ When invoking `/simplify-code` from the UI, the agent logs:
 { "result": "Unknown skill: simplify-code" }
 ```
 
-The skill exists at both `~/.mort/skills/simplify-code/SKILL.md` and `~/.mort-dev/skills/simplify-code/SKILL.md`, with correct frontmatter and valid SKILL.md content. The plugin manifest at `~/.mort-dev/.claude-plugin/plugin.json` is also correct.
+The skill exists at both `~/.anvil/skills/simplify-code/SKILL.md` and `~/.anvil-dev/skills/simplify-code/SKILL.md`, with correct frontmatter and valid SKILL.md content. The plugin manifest at `~/.anvil-dev/.claude-plugin/plugin.json` is also correct.
 
 ## Diagnosis
 
@@ -18,33 +18,33 @@ This is the **same class of bug** as the previous `/commit` fix documented in `p
 #### Issue 1: SDK Plugin May Not Be Loading Skills Correctly
 
 **The flow:**
-1. `shared.ts:968` passes `plugins: [{ type: "local", path: config.mortDir }]` to `query()`
+1. `shared.ts:968` passes `plugins: [{ type: "local", path: config.anvilDir }]` to `query()`
 2. The SDK translates this to `--plugin-dir <path>` when spawning the CLI child process
 3. The CLI's `lY()` function discovers plugins from `--plugin-dir` paths
-4. Plugin skills get loaded via `Y0A()` → `lU7()` with names like `mort:simplify-code`
+4. Plugin skills get loaded via `Y0A()` → `lU7()` with names like `anvil:simplify-code`
 5. When user types `/simplify-code`, the SDK's `bb4()` function calls `hd("simplify-code", allCommands)`
-6. `hd()` checks: `K.name === "simplify-code"` (false — name is `mort:simplify-code`) OR `K.userFacingName() === "simplify-code"` (should be true from frontmatter `name: simplify-code`)
+6. `hd()` checks: `K.name === "simplify-code"` (false — name is `anvil:simplify-code`) OR `K.userFacingName() === "simplify-code"` (should be true from frontmatter `name: simplify-code`)
 
 **The `hd` check should pass** because `userFacingName()` returns the frontmatter `name` field ("simplify-code"). But it's failing, which means one of:
-- **The plugin isn't being loaded at all** — the SDK's `lY()` function might not find the plugin at `~/.mort-dev` (e.g., it doesn't look at `--plugin-dir` paths, or the path resolution fails)
+- **The plugin isn't being loaded at all** — the SDK's `lY()` function might not find the plugin at `~/.anvil-dev` (e.g., it doesn't look at `--plugin-dir` paths, or the path resolution fails)
 - **The skills loading from the plugin fails silently** — `Y0A()` catches errors and returns empty
 - **The command list (`cZ`) is cached before plugins finish loading** — timing issue where the `bb4` slash parser runs before async plugin discovery completes
 
 **Recommended debug step:** Add `DEBUG_CLAUDE_AGENT_SDK=1` as an env var when spawning the agent to see the SDK's internal debug output. This will show whether the plugin is being loaded and what commands are discovered.
 
-#### Issue 2: Frontend SkillsService Hardcoded to `~/.mort` (Not `~/.mort-dev`)
+#### Issue 2: Frontend SkillsService Hardcoded to `~/.anvil` (Not `~/.anvil-dev`)
 
 The `SkillsService` in `core/lib/skills/skills-service.ts` line 18 has:
 ```typescript
-{ getPath: (_, home) => `${home}/.mort/skills`, source: 'mort', isLegacy: false },
+{ getPath: (_, home) => `${home}/.anvil/skills`, source: 'anvil', isLegacy: false },
 ```
 
-This always looks at `~/.mort/skills`, never `~/.mort-dev/skills`. In dev mode, the actual data directory is `~/.mort-dev` (determined by `FilesystemClient.getDataDir()`). This is inconsistent:
+This always looks at `~/.anvil/skills`, never `~/.anvil-dev/skills`. In dev mode, the actual data directory is `~/.anvil-dev` (determined by `FilesystemClient.getDataDir()`). This is inconsistent:
 
-- **Skill sync** (`src/lib/skill-sync.ts`) correctly syncs to `~/.mort-dev/skills/` (via `getMortDir()` which returns the correct dev path)
-- **But SkillsService** looks at `~/.mort/skills` (hardcoded with `home` dir)
+- **Skill sync** (`src/lib/skill-sync.ts`) correctly syncs to `~/.anvil-dev/skills/` (via `getAnvilDir()` which returns the correct dev path)
+- **But SkillsService** looks at `~/.anvil/skills` (hardcoded with `home` dir)
 
-The skill files happen to exist at BOTH locations because some may have been manually placed or synced in a previous session. But this is fragile — any changes synced to `~/.mort-dev/skills/` won't be seen by the SkillsService.
+The skill files happen to exist at BOTH locations because some may have been manually placed or synced in a previous session. But this is fragile — any changes synced to `~/.anvil-dev/skills/` won't be seen by the SkillsService.
 
 **This issue affects UI autocomplete/discovery only, not the SDK invocation.** But it's a correctness bug.
 
@@ -52,13 +52,13 @@ The skill files happen to exist at BOTH locations because some may have been man
 
 The SDK's plugin discovery (`lY()`) scans for plugins matching a specific directory structure. The `--plugin-dir` argument specifies an additional plugin search directory. However, the SDK's internal plugin loader may require:
 
-1. The `.claude-plugin/plugin.json` to be **directly** inside the `--plugin-dir` path (i.e., `~/.mort-dev/.claude-plugin/plugin.json`) — this IS the case, so it should work
+1. The `.claude-plugin/plugin.json` to be **directly** inside the `--plugin-dir` path (i.e., `~/.anvil-dev/.claude-plugin/plugin.json`) — this IS the case, so it should work
 2. **OR** the plugin loader may have a bug where it doesn't scan `--plugin-dir` as a direct plugin root, but rather as a directory CONTAINING plugin directories
 
 If hypothesis 2 is correct, the SDK expects:
 ```
-~/.mort-dev/
-└── mort/              ← plugin dir
+~/.anvil-dev/
+└── anvil/              ← plugin dir
     ├── .claude-plugin/
     │   └── plugin.json
     └── skills/
@@ -67,7 +67,7 @@ If hypothesis 2 is correct, the SDK expects:
 
 But we have:
 ```
-~/.mort-dev/           ← passed as --plugin-dir, IS the plugin root
+~/.anvil-dev/           ← passed as --plugin-dir, IS the plugin root
 ├── .claude-plugin/
 │   └── plugin.json
 └── skills/
@@ -77,7 +77,7 @@ But we have:
 ## Phases
 
 - [x] Add SDK debug logging to diagnose plugin loading
-- [x] Fix SkillsService to use data dir instead of hardcoded `~/.mort`
+- [x] Fix SkillsService to use data dir instead of hardcoded `~/.anvil`
 - [ ] Implement correct fix based on debug findings
 - [ ] Test skill invocation end-to-end
 
@@ -90,8 +90,8 @@ But we have:
 ### Phase 1: Add Debug Logging
 
 Add `DEBUG_CLAUDE_AGENT_SDK=1` to the agent spawn env vars temporarily to see what the SDK's internal plugin discovery outputs. This will show:
-- Whether `--plugin-dir ~/.mort-dev` is being parsed
-- Whether the plugin at `~/.mort-dev` is being found by `lY()`
+- Whether `--plugin-dir ~/.anvil-dev` is being parsed
+- Whether the plugin at `~/.anvil-dev` is being found by `lY()`
 - What skills are loaded from the plugin
 - What the full commands list looks like when `hd` is called
 
@@ -100,7 +100,7 @@ Add `DEBUG_CLAUDE_AGENT_SDK=1` to the agent spawn env vars temporarily to see wh
 const envVars = {
   ANTHROPIC_API_KEY: apiKey,
   NODE_PATH: nodeModulesPath,
-  MORT_DATA_DIR: mortDir,
+  ANVIL_DATA_DIR: anvilDir,
   PATH: shellPath,
   DEBUG_CLAUDE_AGENT_SDK: "1",  // TEMPORARY: remove after diagnosis
 };
@@ -108,23 +108,23 @@ const envVars = {
 
 ### Phase 2: Fix SkillsService Hardcoded Path
 
-In `core/lib/skills/skills-service.ts`, change the hardcoded `~/.mort/skills` to accept the actual data directory:
+In `core/lib/skills/skills-service.ts`, change the hardcoded `~/.anvil/skills` to accept the actual data directory:
 
-**Option A (preferred):** Pass the mort data directory as a parameter to `discover()`:
+**Option A (preferred):** Pass the anvil data directory as a parameter to `discover()`:
 ```typescript
-async discover(repoPath: string, homeDir: string, mortDataDir?: string): Promise<SkillMetadata[]> {
+async discover(repoPath: string, homeDir: string, anvilDataDir?: string): Promise<SkillMetadata[]> {
 ```
 
-And use `mortDataDir` in the SKILL_LOCATIONS config:
+And use `anvilDataDir` in the SKILL_LOCATIONS config:
 ```typescript
-{ getPath: (_, __, mortDir) => mortDir ? `${mortDir}/skills` : `${home}/.mort/skills`, source: 'mort', isLegacy: false },
+{ getPath: (_, __, anvilDir) => anvilDir ? `${anvilDir}/skills` : `${home}/.anvil/skills`, source: 'anvil', isLegacy: false },
 ```
 
 **Option B (simpler):** Make the skill handler pass the data dir when calling discover:
 ```typescript
 // In skill-handler.ts
-const mortDir = await fs.getDataDir();
-await skillsService.discover(context.rootPath, homeDir, mortDir);
+const anvilDir = await fs.getDataDir();
+await skillsService.discover(context.rootPath, homeDir, anvilDir);
 ```
 
 ### Phase 3: Fix Based on Debug Findings
@@ -134,18 +134,18 @@ If the SDK's plugin discovery IS working but `hd` still fails → the issue is l
 ```typescript
 // Before passing to SDK query():
 // If prompt starts with /skill-name and we know it's a local plugin skill,
-// transform to /mort:skill-name so the SDK recognizes it
+// transform to /anvil:skill-name so the SDK recognizes it
 ```
 
-If the SDK's plugin discovery is NOT working → the issue is in how `--plugin-dir` is interpreted. The fix would be to restructure `~/.mort-dev` so the plugin is in a subdirectory:
+If the SDK's plugin discovery is NOT working → the issue is in how `--plugin-dir` is interpreted. The fix would be to restructure `~/.anvil-dev` so the plugin is in a subdirectory:
 ```
-~/.mort-dev/plugins/mort/  ← pass this as plugin-dir
+~/.anvil-dev/plugins/anvil/  ← pass this as plugin-dir
 ├── .claude-plugin/
 │   └── plugin.json
 └── skills/
 ```
 
-Or pass `--plugin-dir ~/.mort-dev` differently to match what the SDK expects.
+Or pass `--plugin-dir ~/.anvil-dev` differently to match what the SDK expects.
 
 ---
 
@@ -154,7 +154,7 @@ Or pass `--plugin-dir ~/.mort-dev` differently to match what the SDK expects.
 | File | Role |
 |------|------|
 | `agents/src/runners/shared.ts:968` | Passes `plugins` option to SDK `query()` |
-| `core/lib/skills/skills-service.ts:18` | Hardcoded `~/.mort/skills` path (Issue 2) |
+| `core/lib/skills/skills-service.ts:18` | Hardcoded `~/.anvil/skills` path (Issue 2) |
 | `src/lib/skill-sync.ts` | Syncs skills to correct data dir (working) |
 | `src/lib/triggers/handlers/skill-handler.ts` | Calls `discover()` for UI autocomplete |
 | `src/lib/agent-service.ts:696` | Agent spawn env vars (for debug logging) |

@@ -1,6 +1,6 @@
 # Remove Default Built-in API Key
 
-Users should only authenticate via their own API key (BYOK) or their own Claude login — the built-in Mort API key should be removed entirely from the codebase.
+Users should only authenticate via their own API key (BYOK) or their own Claude login — the built-in Anvil API key should be removed entirely from the codebase.
 
 ## Phases
 
@@ -43,7 +43,7 @@ With the type gone and key deleted, remove all code that referenced them.
 
 - `src/components/main-window/settings/auth-settings.tsx`:
   - Remove `"default"` from the local `AuthMethod` type (line \~8)
-  - Remove the "Default (Mort built-in key)" radio button (lines \~26-35)
+  - Remove the "Default (Anvil built-in key)" radio button (lines \~26-35)
   - Change the fallback from `?? "default"` to `?? "claude-login"` (line \~11)
   - Remove the `method === "default" ? undefined : method` ternary — just pass `method` directly (line \~19)
 - `src/lib/agent-service.ts`:

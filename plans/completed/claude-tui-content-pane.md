@@ -20,7 +20,7 @@ This means:
 - **No new entity, store, or service** — threads are threads
 - **Same tree menu item** — `thread-item.tsx` renders both kinds, differentiated by badge/prefix
 - **Same content pane route** — `{ type: "thread"; threadId }` — the thread content component checks `threadKind` to decide whether to render the message list or a terminal
-- **Same persistence** — `~/.mort/threads/{id}/metadata.json`
+- **Same persistence** — `~/.anvil/threads/{id}/metadata.json`
 - **Same archiving, naming, visual settings, drag-and-drop** — all just work
 
 ## Architecture Decision: PTY-based Claude Process
@@ -43,16 +43,16 @@ terminalSessionService.create({
 })
 ```
 
-This is an unmanaged Claude session — no hooks, no Mort observability, no permission bridging. The user gets a raw Claude TUI that Mort can display, name, archive, and resume. That's the scope of this plan.
+This is an unmanaged Claude session — no hooks, no Anvil observability, no permission bridging. The user gets a raw Claude TUI that Anvil can display, name, archive, and resume. That's the scope of this plan.
 
 ### Follow-up: Plugin + Hook bridge (`plans/claude-tui-hook-bridge.md`)
 
-The hook bridge plan will extend the spawn call with the Mort plugin (`--plugin local:~/.mort`) and env vars, enabling:
+The hook bridge plan will extend the spawn call with the Anvil plugin (`--plugin local:~/.anvil`) and env vars, enabling:
 
 | Concern | How (added by hook bridge plan) |
 | --- | --- |
-| **Skills** | Plugin auto-discovers `~/.mort/skills/` |
-| **Hooks** | Plugin auto-discovers `~/.mort/hooks/hooks.json` — HTTP hooks POST to hub server |
+| **Skills** | Plugin auto-discovers `~/.anvil/skills/` |
+| **Hooks** | Plugin auto-discovers `~/.anvil/hooks/hooks.json` — HTTP hooks POST to hub server |
 | **Disallowed tools** | PreToolUse hook returns `permissionDecision: "deny"` at runtime |
 | **System prompt context** | `SessionStart` hook returns `additionalContext` |
 | **Lifecycle events** | PostToolUse/Stop hooks emit events to hub |
@@ -263,7 +263,7 @@ TUI threads use the existing `"thread"` tree item type. The visual differentiati
 
 **Out of scope** — see `plans/claude-tui-hook-bridge.md`.
 
-Adds the Mort plugin (`--plugin local:~/.mort`) and env vars to the spawn call, enabling hooks, skills, lifecycle events, permission bridging, and system prompt injection via the plugin system. Extends `buildSpawnConfig()` from Phase 2.
+Adds the Anvil plugin (`--plugin local:~/.anvil`) and env vars to the spawn call, enabling hooks, skills, lifecycle events, permission bridging, and system prompt injection via the plugin system. Extends `buildSpawnConfig()` from Phase 2.
 
 ---
 
@@ -317,7 +317,7 @@ All thread creation surfaces flow through `createThread()` and automatically res
 
 - Prompt provided → pass via `--message "prompt text"` so Claude starts immediately
 - No prompt (Cmd+N) → spawn PTY with no `--message`, user types in terminal
-- Plan context → passed via env var (`MORT_PLAN_CONTEXT`), injected into Claude's context by the plugin's `SessionStart` hook `additionalContext`
+- Plan context → passed via env var (`ANVIL_PLAN_CONTEXT`), injected into Claude's context by the plugin's `SessionStart` hook `additionalContext`
 
 ### Override menu items (`src/components/tree-menu/worktree-menus.tsx`)
 
@@ -359,7 +359,7 @@ All thread creation surfaces flow through `createThread()` and automatically res
 
 ## Open questions
 
-1. **Model selection**: Default to same model as Mort threads, or let user pick?
+1. **Model selection**: Default to same model as Anvil threads, or let user pick?
 2. **Session persistence**: Capture Claude CLI session ID from TUI output for `--resume`?
 3. **Keyboard shortcut**: Keybinding for new Claude session?
 4. **Multiple sessions per worktree**: Unlimited or capped?

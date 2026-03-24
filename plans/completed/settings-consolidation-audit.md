@@ -2,16 +2,16 @@
 
 ## Decision
 
-**Approach**: Clean break - switch to unified `.mort` directory without data migration. Old data in `~/Library/Application Support/mortician/` will be abandoned.
+**Approach**: Clean break - switch to unified `.anvil` directory without data migration. Old data in `~/Library/Application Support/anvil/` will be abandoned.
 
 ## Current State
 
 ```
-~/Library/Application Support/mortician/
+~/Library/Application Support/anvil/
 ├── config.json                 # Main app config (hotkeys, onboarding)
 └── clipboard.db                # SQLite clipboard history
 
-~/.mort/
+~/.anvil/
 ├── settings/
 │   ├── workspace.json          # Workspace settings
 │   └── [other-settings].json   # Generic key-value settings
@@ -23,7 +23,7 @@
 ## Target State
 
 ```
-~/.mort/
+~/.anvil/
 ├── settings/
 │   ├── app-config.json         # Main app config (hotkeys, onboarding)
 │   ├── workspace.json          # Workspace settings
@@ -56,7 +56,7 @@ Update path functions:
 
 ### 4. `src-tauri/src/lib.rs` (if needed)
 
-- Ensure `.mort` directory bootstrap happens before config loading
+- Ensure `.anvil` directory bootstrap happens before config loading
 
 ## Implementation Steps
 
@@ -71,7 +71,7 @@ Update path functions:
 - Users will lose existing hotkey customizations (will reset to defaults)
 - Users will lose clipboard history (starts fresh)
 - Icon cache can stay in system cache directory - that's appropriate
-- Environment variable overrides (`MORT_DATA_DIR`) continue to work
+- Environment variable overrides (`ANVIL_DATA_DIR`) continue to work
 
 ---
 

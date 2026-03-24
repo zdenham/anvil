@@ -107,7 +107,7 @@ async function writeToTask(taskId: string, filename: string, content: string) {
 
 ```typescript
 // Before
-const statePath = await fs.joinPath(mortDir, "tasks", task.slug, "threads", threadFolder, "state.json");
+const statePath = await fs.joinPath(anvilDir, "tasks", task.slug, "threads", threadFolder, "state.json");
 
 // After
 const taskPath = await resolveTaskPath(task.id, task.slug);

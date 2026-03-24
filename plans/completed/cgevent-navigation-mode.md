@@ -53,9 +53,9 @@ The `core-graphics` crate provides two distinct capabilities:
 
 ### Implementation: `cgevent_test` CLI Command
 
-Add a new command to `mort-test` that validates CGEventTap functionality.
+Add a new command to `anvil-test` that validates CGEventTap functionality.
 
-**File**: `src-tauri/src/bin/mort-test/main.rs`
+**File**: `src-tauri/src/bin/anvil-test/main.rs`
 
 Add new command:
 ```rust
@@ -71,7 +71,7 @@ CgeventTest {
 }
 ```
 
-**New File**: `src-tauri/src/bin/mort-test/cgevent_listener.rs`
+**New File**: `src-tauri/src/bin/anvil-test/cgevent_listener.rs`
 
 ```rust
 //! CGEvent tap testing module
@@ -265,23 +265,23 @@ if let Err(error) = listen(callback) {
 
 1. **Build the test binary**:
    ```bash
-   cargo build --bin mort-test
+   cargo build --bin anvil-test
    ```
 
 2. **Ensure accessibility permission**:
    ```bash
-   ./target/debug/mort-test check-accessibility
+   ./target/debug/anvil-test check-accessibility
    # If not granted:
-   ./target/debug/mort-test request-accessibility
+   ./target/debug/anvil-test request-accessibility
    ```
 
 3. **Run the CGEventTap test**:
    ```bash
    # Test all key events for 5 seconds
-   ./target/debug/mort-test cgevent-test --duration 5
+   ./target/debug/anvil-test cgevent-test --duration 5
 
    # Test only modifier keys
-   ./target/debug/mort-test cgevent-test --duration 5 --modifiers-only
+   ./target/debug/anvil-test cgevent-test --duration 5 --modifiers-only
    ```
 
 4. **Validate output**:
@@ -863,7 +863,7 @@ tracing::info!("CGEventTap: Modifier released, opening task {}", index);
 ## Implementation Order
 
 1. **Phase 1** - CGEventTap Validation (BLOCKING)
-   - Add `cgevent-test` command to mort-test
+   - Add `cgevent-test` command to anvil-test
    - Validate we can detect modifier key releases
    - If this fails, investigate alternatives (rdev crate, IOKit, etc.)
 
@@ -917,12 +917,12 @@ The app already requires accessibility for clipboard paste. Ensure the same perm
 ## Files to Create/Modify
 
 ### New Files
-- `src-tauri/src/bin/mort-test/cgevent_listener.rs` - Phase 1 test code
+- `src-tauri/src/bin/anvil-test/cgevent_listener.rs` - Phase 1 test code
 - `src-tauri/src/navigation_mode.rs` - Phase 2 state machine
 - `src/hooks/use-navigation-mode.ts` - Phase 4 React hook
 
 ### Modified Files
-- `src-tauri/src/bin/mort-test/main.rs` - Add cgevent-test command
+- `src-tauri/src/bin/anvil-test/main.rs` - Add cgevent-test command
 - `src-tauri/Cargo.toml` - Potentially add dependencies
 - `src-tauri/src/lib.rs` - Add commands and hotkey registration
 - `src/entities/events.ts` - Add navigation event types

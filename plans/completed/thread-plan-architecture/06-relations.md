@@ -9,7 +9,7 @@ Implement the many-to-many relationship system between threads and plans using a
 
 ## Storage Format (Decision #7)
 
-**Location:** `~/.mort/plan-thread-edges/`
+**Location:** `~/.anvil/plan-thread-edges/`
 
 **File naming:** `{planId}-{threadId}.json`
 
@@ -905,7 +905,7 @@ These events are then received by the frontend via the event bridge and processe
 - [ ] Plan service has `getRelatedThreads` and `getRelatedThreadsIncludingArchived` methods
 - [ ] Entity system wired (listeners setup, hydration included)
 - [ ] TypeScript compiles
-- [ ] Relations persisted to `~/.mort/plan-thread-edges/{planId}-{threadId}.json`
+- [ ] Relations persisted to `~/.anvil/plan-thread-edges/{planId}-{threadId}.json`
 - [ ] **Plans marked unread when modified** - RELATION_CREATED with type='modified' marks plan as unread
 - [ ] **Plans marked unread on upgrade** - RELATION_UPDATED upgrading to 'modified' marks plan as unread
 
@@ -1219,7 +1219,7 @@ describe('Relation Persistence', () => {
     // Clean up temp directory
   });
 
-  it('should persist relation to ~/.mort/plan-thread-edges/{planId}-{threadId}.json', () => {});
+  it('should persist relation to ~/.anvil/plan-thread-edges/{planId}-{threadId}.json', () => {});
   it('should write valid JSON with all required fields', () => {});
   it('should read persisted relations on hydrate', () => {});
   it('should update existing file on relation upgrade', () => {});

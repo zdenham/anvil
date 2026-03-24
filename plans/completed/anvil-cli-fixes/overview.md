@@ -1,4 +1,4 @@
-# Mort CLI Fixes - Overview
+# Anvil CLI Fixes - Overview
 
 ## Parallel Execution Guide
 
@@ -18,7 +18,7 @@ These sub-plans can be executed **in parallel**:
 
 ## Current State
 
-The CLI at `agents/src/cli/mort.ts` has all required commands. Issues to fix:
+The CLI at `agents/src/cli/anvil.ts` has all required commands. Issues to fix:
 
 1. **Input Validation** - Invalid types/statuses silently default instead of erroring
 2. **Help Documentation** - No help system, bare command errors instead of showing help
@@ -28,7 +28,7 @@ The CLI at `agents/src/cli/mort.ts` has all required commands. Issues to fix:
 
 | File | Modified By |
 |------|-------------|
-| `agents/src/cli/mort.ts` | 01, 02 |
+| `agents/src/cli/anvil.ts` | 01, 02 |
 | `agents/src/agent-types/shared-prompts.ts` | 03 |
 
 ## Out of Scope

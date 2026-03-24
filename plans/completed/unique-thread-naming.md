@@ -42,7 +42,7 @@ async function getExistingThreadNamesInWorktree(
   // Read thread metadata from disk for all threads in worktree
   // This needs to scan the threads directory since agent process
   // doesn't have access to the frontend's Zustand store
-  const threadsDir = path.join(getMortPath(), 'threads');
+  const threadsDir = path.join(getAnvilPath(), 'threads');
   const threadIds = await fs.readdir(threadsDir).catch(() => []);
 
   const names = new Set<string>();

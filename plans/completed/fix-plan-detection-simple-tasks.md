@@ -2,7 +2,7 @@
 
 ## Problem
 
-Plan detection is not working for simple tasks launched from the spotlight, despite passing integration tests. When a simple agent creates/modifies a file in the `plans/` directory, no `PLAN_DETECTED` event is emitted and no plan metadata is saved to `.mort/plans/`.
+Plan detection is not working for simple tasks launched from the spotlight, despite passing integration tests. When a simple agent creates/modifies a file in the `plans/` directory, no `PLAN_DETECTED` event is emitted and no plan metadata is saved to `.anvil/plans/`.
 
 ## Root Cause
 
@@ -23,7 +23,7 @@ The **integration tests pass** because `AgentTestHarness` pre-creates task metad
 Task `dd54c0f0-f457-425d-8405-5ad5e6bbc374` shows:
 - Thread state confirms a plan file was created at `plans/hello-world.md`
 - Task metadata has no `repositoryName` field
-- No plan entity was created in `.mort/plans/`
+- No plan entity was created in `.anvil/plans/`
 
 ## Design Problems with Current Approach
 
@@ -32,7 +32,7 @@ Task `dd54c0f0-f457-425d-8405-5ad5e6bbc374` shows:
 **Current design**: Plans store `repositoryName` + relative `path`:
 ```json
 {
-  "repositoryName": "mortician",
+  "repositoryName": "anvil",
   "path": "plans/hello-world.md"
 }
 ```
@@ -45,8 +45,8 @@ Task `dd54c0f0-f457-425d-8405-5ad5e6bbc374` shows:
 ### 2. Worktrees complicate relative paths
 
 A plan at `plans/hello.md` could exist in:
-- Main repo: `/Users/zac/repos/mortician/plans/hello.md`
-- Worktree: `/Users/zac/repos/mortician-worktrees/feature-x/plans/hello.md`
+- Main repo: `/Users/zac/repos/anvil/plans/hello.md`
+- Worktree: `/Users/zac/repos/anvil-worktrees/feature-x/plans/hello.md`
 
 With relative paths, we need `repositoryName` to know which `sourcePath` to use. But the file might not exist in `sourcePath` if it was created in a worktree on a different branch.
 
@@ -54,7 +54,7 @@ With relative paths, we need `repositoryName` to know which `sourcePath` to use.
 
 When the Write tool creates a plan file, it has the **full absolute path**:
 ```
-/Users/zac/Documents/juice/mort/mortician/plans/hello-world.md
+/Users/zac/Documents/juice/anvil/anvil/plans/hello-world.md
 ```
 
 Converting this to a relative path + repositoryName adds complexity for no benefit.
@@ -181,8 +181,8 @@ After implementing:
 
 1. Create a simple task: "Create plans/test.md with content 'test'"
 2. Check that:
-   - Plan entity exists in `.mort/plans/`
-   - Plan has `absolutePath` field (e.g., `/Users/.../mortician/plans/test.md`)
+   - Plan entity exists in `.anvil/plans/`
+   - Plan has `absolutePath` field (e.g., `/Users/.../anvil/plans/test.md`)
    - `PLAN_DETECTED` event is emitted
    - Plan content is readable via `planService.getPlanContent()`
 

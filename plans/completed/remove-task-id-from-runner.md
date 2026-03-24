@@ -24,7 +24,7 @@ const commandArgs = [
   "--thread-id", options.threadId,
   "--cwd", options.sourcePath,
   "--prompt", options.prompt,
-  "--mort-dir", mortDir,
+  "--anvil-dir", anvilDir,
   "--agent-mode", agentMode,        // ← Dead: never used
 ];
 ```

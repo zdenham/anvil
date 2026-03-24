@@ -6,7 +6,7 @@ Remove all skill injection functionality that appends content to the system prom
 
 The current skill injection system:
 1. Detects skill invocations in user messages (e.g., `/commit fix bug`)
-2. Reads skill content from filesystem (`.claude/skills/`, `~/.mort/skills/`, etc.)
+2. Reads skill content from filesystem (`.claude/skills/`, `~/.anvil/skills/`, etc.)
 3. **Wraps skill content in `<skill-instruction>` tags with "MUST follow" language**
 4. **Appends these instructions to the system prompt**
 5. Transforms the user message to avoid SDK slash command rejection

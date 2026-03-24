@@ -130,7 +130,7 @@ private normalizeTask(task: TaskMetadata): TaskMetadata {
 
 ### 5. Add validation to CLI
 
-The CLI already validates via `validateStatus()` in `agents/src/cli/mort.ts:77`. No changes needed there.
+The CLI already validates via `validateStatus()` in `agents/src/cli/anvil.ts:77`. No changes needed there.
 
 ## Files to Modify
 
@@ -156,8 +156,8 @@ For existing tasks with invalid statuses, run a one-time migration:
 
 ```bash
 # Find tasks with invalid statuses
-find ~/.mort-dev/tasks -name "metadata.json" -exec grep -l '"status": "complete"' {} \;
+find ~/.anvil-dev/tasks -name "metadata.json" -exec grep -l '"status": "complete"' {} \;
 
-# Or fix via mort CLI after validation is added:
-mort tasks update --id=<task-id> --status=done
+# Or fix via anvil CLI after validation is added:
+anvil tasks update --id=<task-id> --status=done
 ```

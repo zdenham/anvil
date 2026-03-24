@@ -28,9 +28,9 @@ Create a single-responsibility service for loading and saving repository setting
 // From src/entities/repositories/types.ts
 
 interface TaskBranchInfo {
-  /** Branch name, e.g., "mort/task-abc123" */
+  /** Branch name, e.g., "anvil/task-abc123" */
   branch: string;
-  /** Base branch this was created from, e.g., "main" or "mort/task-parent" */
+  /** Base branch this was created from, e.g., "main" or "anvil/task-parent" */
   baseBranch: string;
   /** Commit hash at branch creation - used for accurate diffs */
   mergeBase: string;
@@ -71,7 +71,7 @@ interface RepositorySettings {
   sourcePath: string;
   /** Whether worktrees are enabled for this repo */
   useWorktrees: boolean;
-  /** When this repo was added to mort */
+  /** When this repo was added to anvil */
   createdAt: number;
   /** Pool of available worktrees */
   worktrees: WorktreeState[];
@@ -92,7 +92,7 @@ import type { RepositorySettings } from '@/entities/repositories/types';
 
 export class RepositorySettingsService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private fs: FileSystemAdapter
   ) {}
 
@@ -114,7 +114,7 @@ export class RepositorySettingsService {
   }
 
   private getSettingsPath(repoName: string): string {
-    return path.join(this.mortDir, 'repositories', repoName, 'settings.json');
+    return path.join(this.anvilDir, 'repositories', repoName, 'settings.json');
   }
 }
 ```

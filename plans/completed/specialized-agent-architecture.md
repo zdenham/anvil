@@ -19,15 +19,15 @@ Three independent agents, each kicked off by frontend/user:
 
 **Capabilities:**
 - Code exploration (Read, Glob, Grep)
-- Write access for planning docs (Write to `~/.mort/` directory and task `content.md`)
-- Arbitrary Bash for research (strongly encouraged to use mort CLI)
-- Mort CLI for task management (create, associate, update)
+- Write access for planning docs (Write to `~/.anvil/` directory and task `content.md`)
+- Arbitrary Bash for research (strongly encouraged to use anvil CLI)
+- Anvil CLI for task management (create, associate, update)
 
 **System Prompt Includes:**
 - Task routing logic (from current `route.md`)
 - Instructions to write plans to `content.md`
 - How to structure task descriptions
-- Strong encouragement to use mort CLI for task operations
+- Strong encouragement to use anvil CLI for task operations
 - When to recommend moving to execution
 
 **Model:** claude-opus-4
@@ -40,7 +40,7 @@ Three independent agents, each kicked off by frontend/user:
 
 **Capabilities:**
 - Full tool access (Read, Glob, Grep, Edit, Write, Bash)
-- Mort CLI for status updates
+- Anvil CLI for status updates
 - Git operations (commits per file)
 
 **System Prompt Includes:**
@@ -58,7 +58,7 @@ Three independent agents, each kicked off by frontend/user:
 **Capabilities:**
 - Read-only (Read, Glob, Grep, Bash)
 - Edit tool available for making fixes when requested
-- Mort CLI for status updates
+- Anvil CLI for status updates
 
 **System Prompt Includes:**
 - Code review checklist (correctness, style, edge cases)
@@ -74,8 +74,8 @@ Three independent agents, each kicked off by frontend/user:
 
 Rename `agents/src/agent-types/main.ts` to `entrypoint.ts` and rewrite:
 - Port task routing logic from `route.md` skill into system prompt
-- Add Write tool for `~/.mort/` directory access
-- Add mort CLI reference with strong encouragement to use it
+- Add Write tool for `~/.anvil/` directory access
+- Add anvil CLI reference with strong encouragement to use it
 - Set model to claude-opus-4
 
 ### Step 2: Create Execution Agent
@@ -164,7 +164,7 @@ Task ID: {{taskId}}
 Task Slug: {{taskSlug}}
 Branch: {{branchName}}
 
-Use \`mort tasks get --slug={{taskSlug}}\` to fetch current task state.
+Use \`anvil tasks get --slug={{taskSlug}}\` to fetch current task state.
 
 ## Capabilities
 [What tools are available and when to use them]
@@ -172,8 +172,8 @@ Use \`mort tasks get --slug={{taskSlug}}\` to fetch current task state.
 ## Workflow
 [Step-by-step process]
 
-## Mort CLI Reference
-[Commands this agent should use - STRONGLY PREFER using mort CLI for task operations]
+## Anvil CLI Reference
+[Commands this agent should use - STRONGLY PREFER using anvil CLI for task operations]
 
 ## Guidelines
 [Behavioral rules]
@@ -190,7 +190,7 @@ The current `injectTaskContext` hook reads task state from disk on each turn. Pr
 - Hook runs before agent sees its own changes
 
 Instead, pass task ID/slug in the system prompt template. The agent can:
-1. Query current state via `mort tasks get` when needed
+1. Query current state via `anvil tasks get` when needed
 2. See results of its own CLI calls (title changes, status updates, etc.)
 3. Have a dynamic, always-fresh view of task state
 
@@ -214,5 +214,5 @@ function buildSystemPrompt(config: AgentConfig, context: { taskId?: string, task
 - Runner interpolates these into the system prompt template
 - Thread metadata already has `agentType` field - this enables different agents per turn
 - Task `content.md` becomes the handoff mechanism between agents
-- Agents use `mort tasks get` to fetch fresh state when needed
+- Agents use `anvil tasks get` to fetch fresh state when needed
 - Agent handoff mechanism (how frontend knows when to switch agents) is future work

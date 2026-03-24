@@ -2,7 +2,7 @@
 
 Deep dive analysis of the second breadcrumb-loop run for the sidecar refactor.
 
-**Worktree:** `green-mosquito` (`/Users/zac/.mort/repositories/mortician/green-mosquito`)
+**Worktree:** `green-mosquito` (`/Users/zac/.anvil/repositories/anvil/green-mosquito`)
 **Branch:** Detached HEAD at `f985437`
 **Iterations:** 11 breadcrumb checkpoints (001–011)
 

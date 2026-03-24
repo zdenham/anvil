@@ -1,4 +1,4 @@
-# Mort Data Models - Implementation Guide
+# Anvil Data Models - Implementation Guide
 
 This document provides scaffolding for implementing entity stores and services. For complete type definitions, see the type files directly. For architectural context, see `system-integration.md`.
 
@@ -496,7 +496,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 /**
  * Low-level persistence via Tauri commands.
- * All paths are relative to .mort/ directory.
+ * All paths are relative to .anvil/ directory.
  */
 export const persistence = {
   async readJson<T>(path: string): Promise<T | null> {

@@ -97,23 +97,23 @@ description: A test skill
 
 ### Creating Temporary Directories for Integration Tests
 
-Use the existing `TestMortDirectory` and `TestRepository` services:
+Use the existing `TestAnvilDirectory` and `TestRepository` services:
 
 ```typescript
-import { TestMortDirectory } from "../services/test-mort-directory.js";
+import { TestAnvilDirectory } from "../services/test-anvil-directory.js";
 import { TestRepository } from "../services/test-repository.js";
 
 describe("skills integration", () => {
-  let mortDir: TestMortDirectory;
+  let anvilDir: TestAnvilDirectory;
   let repo: TestRepository;
 
   beforeEach(() => {
-    mortDir = new TestMortDirectory().init();
+    anvilDir = new TestAnvilDirectory().init();
     repo = new TestRepository({ fixture: "minimal" }).init();
-    mortDir.registerRepository(repo);
+    anvilDir.registerRepository(repo);
 
     // Create test skill fixture
-    const skillDir = join(mortDir.path, "skills", "test-skill");
+    const skillDir = join(anvilDir.path, "skills", "test-skill");
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(
       join(skillDir, "SKILL.md"),
@@ -128,7 +128,7 @@ description: Test skill
   afterEach((ctx) => {
     const failed = ctx.task.result?.state === "fail";
     repo.cleanup(failed);
-    mortDir.cleanup(failed);
+    anvilDir.cleanup(failed);
   });
 });
 ```
@@ -195,26 +195,26 @@ All integration tests should use `beforeEach`/`afterEach` hooks with proper clea
 
 ```typescript
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { TestMortDirectory } from "../services/test-mort-directory.js";
+import { TestAnvilDirectory } from "../services/test-anvil-directory.js";
 import { TestRepository } from "../services/test-repository.js";
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
 describe("skills integration tests", () => {
-  let mortDir: TestMortDirectory;
+  let anvilDir: TestAnvilDirectory;
   let repo: TestRepository;
 
   beforeEach(() => {
     // Initialize test directories
-    mortDir = new TestMortDirectory().init();
+    anvilDir = new TestAnvilDirectory().init();
     repo = new TestRepository({ fixture: "minimal" }).init();
-    mortDir.registerRepository(repo);
+    anvilDir.registerRepository(repo);
 
     // Create skill fixtures programmatically
-    createSkillFixture(mortDir.path, "test-mort", {
-      name: "test-mort",
-      description: "Test skill for Mort-specific functionality",
-      content: "# Test Mort Skill\n\nArguments received: $ARGUMENTS",
+    createSkillFixture(anvilDir.path, "test-anvil", {
+      name: "test-anvil",
+      description: "Test skill for Anvil-specific functionality",
+      content: "# Test Anvil Skill\n\nArguments received: $ARGUMENTS",
     });
   });
 
@@ -222,17 +222,17 @@ describe("skills integration tests", () => {
     // Preserve on failure for debugging
     const failed = context.task.result?.state === "fail";
     repo.cleanup(failed);
-    mortDir.cleanup(failed);
+    anvilDir.cleanup(failed);
   });
 });
 
 function createSkillFixture(
-  mortPath: string,
+  anvilPath: string,
   slug: string,
   options: { name: string; description: string; content: string; location?: string }
 ) {
   const location = options.location ?? "skills"; // skills | claude/skills | project/.claude/skills
-  const skillDir = join(mortPath, location, slug);
+  const skillDir = join(anvilPath, location, slug);
   mkdirSync(skillDir, { recursive: true });
   writeFileSync(
     join(skillDir, "SKILL.md"),
@@ -251,7 +251,7 @@ For tests that need real filesystem fixtures, use these locations:
 
 | Fixture Type | Directory | Description |
 |--------------|-----------|-------------|
-| Mort skills | `<tempDir>/skills/<slug>/SKILL.md` | Skills in ~/.mort/skills/ |
+| Anvil skills | `<tempDir>/skills/<slug>/SKILL.md` | Skills in ~/.anvil/skills/ |
 | Personal skills | `<tempDir>/claude/skills/<slug>/SKILL.md` | Skills in ~/.claude/skills/ |
 | Project skills | `<repoPath>/.claude/skills/<slug>/SKILL.md` | Project-level skills |
 | Legacy commands | `<tempDir>/claude/commands/<name>.md` | Legacy command files |
@@ -261,7 +261,7 @@ For tests that need real filesystem fixtures, use these locations:
 **Programmatic (preferred for tests):**
 - Use helper functions like `createSkillFixture()` above
 - Allows dynamic test data
-- Cleans up automatically via `TestMortDirectory`
+- Cleans up automatically via `TestAnvilDirectory`
 
 **Manual fixtures (for static test data):**
 - Create files in `agents/src/testing/fixtures/skills/`
@@ -272,17 +272,17 @@ For tests that need real filesystem fixtures, use these locations:
 
 Create test skills in appropriate locations:
 
-### ~/.mort/skills/test-mort/SKILL.md
+### ~/.anvil/skills/test-anvil/SKILL.md
 
 ```markdown
 ---
-name: test-mort
-description: Test skill for Mort-specific functionality
+name: test-anvil
+description: Test skill for Anvil-specific functionality
 ---
 
-# Test Mort Skill
+# Test Anvil Skill
 
-This is a test skill located in ~/.mort/skills/
+This is a test skill located in ~/.anvil/skills/
 
 Arguments received: $ARGUMENTS
 ```
@@ -353,7 +353,7 @@ This is a legacy command file. It should still work alongside modern skills.
 
 | Test | Expected |
 |------|----------|
-| `/test-mort hello world` | System prompt has skill content, `$ARGUMENTS` = "hello world" |
+| `/test-anvil hello world` | System prompt has skill content, `$ARGUMENTS` = "hello world" |
 | `/missing-skill` | No injection, message sent as-is |
 | Multiple skills | Both injected in order |
 | No skills | No system prompt append |
@@ -362,7 +362,7 @@ This is a legacy command file. It should still work alongside modern skills.
 
 | Test | Expected |
 |------|----------|
-| Message with `/test-mort args` | Skill chip rendered |
+| Message with `/test-anvil args` | Skill chip rendered |
 | Click chip | Expands to show content |
 | Delete skill file, reload | Chip shows "stale" |
 | Multiple skills | Multiple chips |
@@ -405,7 +405,7 @@ describe("path handling", () => {
   });
 
   it("handles home directory expansion", () => {
-    const expanded = expandPath("~/.mort/skills");
+    const expanded = expandPath("~/.anvil/skills");
     expect(expanded.startsWith(homedir())).toBe(true);
     expect(expanded).not.toContain("~");
   });
@@ -419,7 +419,7 @@ describe("skill slug case handling", () => {
   it("treats skill slugs case-insensitively for lookups", () => {
     // On case-insensitive filesystems (macOS HFS+, Windows NTFS default),
     // "My-Skill" and "my-skill" refer to the same directory
-    const skill1 = createSkillFixture(mortPath, "My-Skill", { ... });
+    const skill1 = createSkillFixture(anvilPath, "My-Skill", { ... });
 
     // Lookup should work with different casing
     const found = skillsService.getBySlug("my-skill");

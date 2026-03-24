@@ -7,7 +7,7 @@ Create the main `AgentTestHarness` class for spawning agent subprocesses and cap
 ## Dependencies
 
 - `02a-runner-config.md` (runner configuration interface)
-- Phase 1 complete (test services: TestMortDirectory, TestRepository, types)
+- Phase 1 complete (test services: TestAnvilDirectory, TestRepository, types)
 
 ## Parallel With
 
@@ -22,7 +22,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { createInterface as createReadlineInterface } from "readline";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { TestMortDirectory } from "./services/test-mort-directory";
+import { TestAnvilDirectory } from "./services/test-anvil-directory";
 import { TestRepository } from "./services/test-repository";
 import { RunnerConfig, defaultRunnerConfig } from "./runner-config";
 import type {
@@ -40,10 +40,10 @@ export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
   /**
    * Custom environment setup function.
    * Use this to configure a specific test scenario with custom
-   * mort directory contents, repository fixtures, or task configurations.
+   * anvil directory contents, repository fixtures, or task configurations.
    */
   setupEnvironment?: () => Promise<{
-    mortDir: TestMortDirectory;
+    anvilDir: TestAnvilDirectory;
     repo: TestRepository;
     task: TaskMetadata;
   }>;
@@ -52,11 +52,11 @@ export interface AgentTestHarnessOptions extends Partial<AgentTestOptions> {
 /**
  * Test harness for spawning agent subprocesses and capturing their output.
  *
- * The harness manages the lifecycle of test resources (mort directory, repository)
+ * The harness manages the lifecycle of test resources (anvil directory, repository)
  * and provides structured access to agent output for assertions.
  */
 export class AgentTestHarness {
-  private mortDir: TestMortDirectory | null = null;
+  private anvilDir: TestAnvilDirectory | null = null;
   private repo: TestRepository | null = null;
   private runnerConfig: RunnerConfig;
   private customSetup?: AgentTestHarnessOptions["setupEnvironment"];
@@ -71,7 +71,7 @@ export class AgentTestHarness {
    * Returns null if run() has not been called yet.
    */
   get tempDirPath(): string | null {
-    return this.mortDir?.path ?? null;
+    return this.anvilDir?.path ?? null;
   }
 
   /**
@@ -85,7 +85,7 @@ export class AgentTestHarness {
   /**
    * Run an agent and capture all stdout output.
    *
-   * Creates temporary test resources (mort directory, repository, task),
+   * Creates temporary test resources (anvil directory, repository, task),
    * spawns the agent subprocess, and collects all JSON output lines.
    *
    * @param overrides - Options to override the constructor defaults for this run
@@ -99,14 +99,14 @@ export class AgentTestHarness {
 
     if (this.customSetup) {
       const setup = await this.customSetup();
-      this.mortDir = setup.mortDir;
+      this.anvilDir = setup.anvilDir;
       this.repo = setup.repo;
       task = setup.task;
     } else {
-      this.mortDir = new TestMortDirectory().init();
+      this.anvilDir = new TestAnvilDirectory().init();
       this.repo = new TestRepository({ fixture: "minimal" }).init();
-      this.mortDir.registerRepository(this.repo);
-      task = this.mortDir.createTask({
+      this.anvilDir.registerRepository(this.repo);
+      task = this.anvilDir.createTask({
         repositoryName: this.repo.name,
         slug: opts.taskSlug,
       });
@@ -123,7 +123,7 @@ export class AgentTestHarness {
    */
   cleanup(preserveOnFailure = false): void {
     this.repo?.cleanup(preserveOnFailure);
-    this.mortDir?.cleanup(preserveOnFailure);
+    this.anvilDir?.cleanup(preserveOnFailure);
   }
 
   /**
@@ -133,7 +133,7 @@ export class AgentTestHarness {
     const currentDir = dirname(fileURLToPath(import.meta.url));
     const runnerPath = join(currentDir, "..", this.runnerConfig.runnerPath);
     const repoCwd = opts.cwd ?? this.repo?.path ?? process.cwd();
-    const cliArgs = this.runnerConfig.buildArgs(opts, task, this.mortDir!.path, repoCwd);
+    const cliArgs = this.runnerConfig.buildArgs(opts, task, this.anvilDir!.path, repoCwd);
     const args = [runnerPath, ...cliArgs];
 
     const logs: AgentLogMessage[] = [];

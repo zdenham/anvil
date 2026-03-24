@@ -60,8 +60,8 @@ export interface AgentTestOptions {
   agent: "research" | "execution" | "merge" | "simple";
   /** The prompt/instruction to send to the agent */
   prompt: string;
-  /** Path to the mort directory (defaults to temp directory if not provided) */
-  mortDir?: string;
+  /** Path to the anvil directory (defaults to temp directory if not provided) */
+  anvilDir?: string;
   /** Task slug for task-based agents (research, execution, merge) */
   taskSlug?: string;
   /** Repository name for context */

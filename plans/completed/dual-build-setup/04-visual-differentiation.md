@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make it instantly obvious which instance of Mort you're using to prevent confusion.
+Make it instantly obvious which instance of Anvil you're using to prevent confusion.
 
 ## Design: Build-Time Suffix
 
@@ -10,9 +10,9 @@ The `APP_SUFFIX` is baked at build time (see 01-build-configuration.md) and driv
 
 | Suffix | Display Name | Icon | Spotlight Color |
 |--------|--------------|------|-----------------|
-| _(none)_ | Mort | Standard | Dark gray |
-| `dev` | Mort Dev | Purple-tinted | Purple tint |
-| `canary` | Mort Canary | Orange-tinted | Orange tint |
+| _(none)_ | Anvil | Standard | Dark gray |
+| `dev` | Anvil Dev | Purple-tinted | Purple tint |
+| `canary` | Anvil Canary | Orange-tinted | Orange tint |
 
 ## Differentiation Points
 
@@ -62,11 +62,11 @@ Set in Tauri config overlay per instance:
 **`src-tauri/tauri.conf.dev.json`**:
 ```json
 {
-  "productName": "Mort Dev",
+  "productName": "Anvil Dev",
   "app": {
     "windows": [
       {
-        "title": "Mort Dev"
+        "title": "Anvil Dev"
       }
     ]
   }
@@ -239,7 +239,7 @@ Tauri supports dock badge text:
 ```rust
 #[cfg(target_os = "macos")]
 fn set_dock_badge(app: &AppHandle) {
-    if let Ok(suffix) = std::env::var("MORT_APP_SUFFIX") {
+    if let Ok(suffix) = std::env::var("ANVIL_APP_SUFFIX") {
         if !suffix.is_empty() {
             // Tauri 2.0 API for dock badge
             // app.set_badge_label(Some(suffix.to_uppercase()));
@@ -257,10 +257,10 @@ The app name in menu bar comes from `productName` in Tauri config, set at build 
 | Element | Production | With Suffix |
 |---------|------------|-------------|
 | App Icon | Standard | Tinted/badged |
-| Dock Name | Mort | Mort {Suffix} |
+| Dock Name | Anvil | Anvil {Suffix} |
 | Window Titles | "Spotlight" | "Spotlight ({Suffix})" |
 | **Spotlight Background** | Dark gray | Purple/colored tint |
-| Menu Bar | Mort | Mort {Suffix} |
+| Menu Bar | Anvil | Anvil {Suffix} |
 | In-app Badge | None | "{SUFFIX}" indicator |
 | Accent Color | Default | Purple tint |
 

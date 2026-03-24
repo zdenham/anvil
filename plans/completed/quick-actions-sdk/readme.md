@@ -2,7 +2,7 @@
 
 ## Overview
 
-Transform the hardcoded quick actions system into a user-extensible SDK that allows end users to write custom TypeScript quick actions with access to Mort internals.
+Transform the hardcoded quick actions system into a user-extensible SDK that allows end users to write custom TypeScript quick actions with access to Anvil internals.
 
 ### Goals
 1. Users can write TypeScript functions that execute as quick actions
@@ -39,12 +39,12 @@ Quick actions are organized into **user-managed projects** rather than individua
 │                    Node.js Runtime (vanilla JS)                  │
 ├──────────────────────────────────────────────────────────────────┤
 │  User's Pre-built Quick Action (dist/actions/*.js)               │
-│  - Receives: QuickActionContext, MortSDK                         │
+│  - Receives: QuickActionContext, AnvilSDK                         │
 │  - Can call SDK methods (git, threads, plans, input)             │
 │  - Returns: void or result object                                │
 │                              │                                   │
 │                              ▼                                   │
-│  MortSDK (bundled with user's project or injected at runtime)    │
+│  AnvilSDK (bundled with user's project or injected at runtime)    │
 │  - GitService (via shell commands)                               │
 │  - ThreadService (via filesystem)                                │
 │  - PlanService (via filesystem)                                  │
@@ -54,10 +54,10 @@ Quick actions are organized into **user-managed projects** rather than individua
 
 ### Default Quick Actions Project Structure
 
-Mort initializes a single default project at `~/.mort/quick-actions/` on first launch:
+Anvil initializes a single default project at `~/.anvil/quick-actions/` on first launch:
 
 ```
-~/.mort/quick-actions/                 # Default project (auto-initialized)
+~/.anvil/quick-actions/                 # Default project (auto-initialized)
 ├── package.json                       # Pre-configured, ready to use
 ├── tsconfig.json                      # TypeScript config with SDK paths
 ├── build.ts                           # Build script that generates manifest
@@ -73,7 +73,7 @@ Mort initializes a single default project at `~/.mort/quick-actions/` on first l
 │       ├── archive-and-next.js
 │       └── start-fresh.js
 ├── node_modules/
-│   └── @mort/sdk/                     # SDK types (copied during init)
+│   └── @anvil/sdk/                     # SDK types (copied during init)
 └── README.md                          # Documentation for writing actions
 ```
 
@@ -197,7 +197,7 @@ See [design-decisions.md](./design-decisions.md) for the full list of architectu
 ## Storage Structure
 
 ```
-~/.mort/
+~/.anvil/
 ├── quick-actions/                   # Default project (auto-initialized)
 │   ├── package.json
 │   ├── tsconfig.json
@@ -211,6 +211,6 @@ See [design-decisions.md](./design-decisions.md) for the full list of architectu
 │   │   └── actions/
 │   │       ├── example.js
 │   │       └── my-action.js
-│   └── node_modules/@mort/sdk/      # SDK types
+│   └── node_modules/@anvil/sdk/      # SDK types
 └── quick-actions-registry.json      # User overrides (hotkeys, order)
 ```

@@ -8,7 +8,7 @@
 
 Add pipeline stage stamping and sequence gap detection to the Rust AgentHub. The hub is a "dumb pipe" — it doesn't interpret message semantics — but it does add two pipeline stamps (`hub:received`, `hub:emitted`) and tracks per-agent sequence numbers to detect gaps.
 
-Diagnostic logging controlled by `MORT_DIAGNOSTIC_LOGGING` env var (same JSON as the agent side), parsed at init.
+Diagnostic logging controlled by `ANVIL_DIAGNOSTIC_LOGGING` env var (same JSON as the agent side), parsed at init.
 
 ## Phases
 
@@ -27,7 +27,7 @@ Diagnostic logging controlled by `MORT_DIAGNOSTIC_LOGGING` env var (same JSON as
 
 ### Diagnostic Config in Rust
 
-Parse `MORT_DIAGNOSTIC_LOGGING` env var at AgentHub initialization:
+Parse `ANVIL_DIAGNOSTIC_LOGGING` env var at AgentHub initialization:
 
 ```rust
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -40,7 +40,7 @@ struct DiagnosticLoggingConfig {
 
 impl DiagnosticLoggingConfig {
     fn from_env() -> Self {
-        std::env::var("MORT_DIAGNOSTIC_LOGGING")
+        std::env::var("ANVIL_DIAGNOSTIC_LOGGING")
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default()

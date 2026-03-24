@@ -1,18 +1,18 @@
-# Claude Code Skills & Commands Integration for Mort
+# Claude Code Skills & Commands Integration for Anvil
 
 ## Overview
 
-This document outlines how to integrate **both Claude Code skills AND legacy commands** into mort, enabling users to define custom capabilities that extend agent functionality.
+This document outlines how to integrate **both Claude Code skills AND legacy commands** into anvil, enabling users to define custom capabilities that extend agent functionality.
 
-**Important**: Mort will support BOTH formats:
+**Important**: Anvil will support BOTH formats:
 - **Skills** (modern) - Directory-based with `SKILL.md` and bundled files
 - **Commands** (legacy) - Single `.md` files, simpler but less powerful
 
 ## Design Decision: System Prompt Injection (Not SDK-Native)
 
-Rather than using the SDK's `settingSources` approach (which injects skill metadata into the system prompt for all conversations), Mort uses a **system prompt append** strategy:
+Rather than using the SDK's `settingSources` approach (which injects skill metadata into the system prompt for all conversations), Anvil uses a **system prompt append** strategy:
 
-1. **Custom Discovery** - TypeScript service scans skill directories (including `~/.mort/skills/`)
+1. **Custom Discovery** - TypeScript service scans skill directories (including `~/.anvil/skills/`)
 2. **Discovery Timing** - Skills are discovered at app startup, then refreshed when user types `/`
 3. **On-Demand Injection** - Skill content is appended to the system prompt only when explicitly invoked with `/skill-name`
 4. **Display Message Preserved** - The original `/skill-name args` message is stored and displayed in UI
@@ -24,21 +24,21 @@ Rather than using the SDK's `settingSources` approach (which injects skill metad
 |--------|------------------------------|----------------------|
 | Token cost | Metadata always in system prompt | Zero cost when skills unused |
 | Auto-invocation | Claude can auto-invoke skills | Explicit `/` invocation only |
-| Custom paths | Limited to SDK's paths | Full control (`~/.mort/skills/`) |
+| Custom paths | Limited to SDK's paths | Full control (`~/.anvil/skills/`) |
 | Thread persistence | N/A | Display message stored, skill injected per-run only |
 | Complexity | Simple (1-line config) | More implementation work |
 
-Since Mort users explicitly invoke skills via `/` and we need custom paths, system prompt append is the better fit.
+Since Anvil users explicitly invoke skills via `/` and we need custom paths, system prompt append is the better fit.
 
 ## Skill & Command Sources Summary
 
-**Mort will discover and load from ALL of the following locations:**
+**Anvil will discover and load from ALL of the following locations:**
 
 ### Skills (Modern Format)
 | Priority | Location | Path | Description |
 |----------|----------|------|-------------|
 | 1 | Repo-level Skills | `<repo>/.claude/skills/<name>/SKILL.md` | Project-specific, shared with team |
-| 2 | Mort Personal Skills | `~/.mort/skills/<name>/SKILL.md` | **Mort-specific** personal skills |
+| 2 | Anvil Personal Skills | `~/.anvil/skills/<name>/SKILL.md` | **Anvil-specific** personal skills |
 | 3 | Claude Personal Skills | `~/.claude/skills/<name>/SKILL.md` | Standard Claude Code personal skills |
 
 ### Commands (Legacy Format)
@@ -50,7 +50,7 @@ Since Mort users explicitly invoke skills via `/` and we need custom paths, syst
 This means users can:
 - Use standard Claude Code skills they've already created
 - Use existing legacy commands without migration
-- Create mort-specific skills in `~/.mort/skills/` for workflows unique to mort
+- Create anvil-specific skills in `~/.anvil/skills/` for workflows unique to anvil
 - Share project skills/commands via the repo's `.claude/` directory
 
 ---
@@ -76,7 +76,7 @@ Skills are modular, filesystem-based resources that extend Claude's capabilities
 | Format | YAML frontmatter + Markdown | YAML frontmatter + Markdown |
 | Invocation | `/skill-name` | `/command-name` |
 
-**Both formats create slash commands** (e.g., `/review`). Skills are the modern, recommended approach, but **mort will fully support both** to ensure backwards compatibility and ease of migration.
+**Both formats create slash commands** (e.g., `/review`). Skills are the modern, recommended approach, but **anvil will fully support both** to ensure backwards compatibility and ease of migration.
 
 #### Command Format Example
 
@@ -112,18 +112,18 @@ Review the specified code for issues, best practices, and potential bugs.
 | 3 | Project | `.claude/skills/<skill-name>/SKILL.md` | Single project |
 | 4 | Plugin | `<plugin>/skills/<skill-name>/SKILL.md` | Where plugin enabled |
 
-### Mort-Specific Skill Locations
+### Anvil-Specific Skill Locations
 
-In addition to the standard Claude Code locations, **mort will also support its own skills directory**:
+In addition to the standard Claude Code locations, **anvil will also support its own skills directory**:
 
 | Priority | Location | Path | Scope |
 |----------|----------|------|-------|
-| 1 | Mort Personal | `~/.mort/skills/<skill-name>/SKILL.md` | All mort projects |
+| 1 | Anvil Personal | `~/.anvil/skills/<skill-name>/SKILL.md` | All anvil projects |
 | 2 | Repo | `<repo>/.claude/skills/<skill-name>/SKILL.md` | Single repository |
 
 **Why both?**
 - `~/.claude/skills/` - Standard Claude Code skills that work across all Claude tools
-- `~/.mort/skills/` - Mort-specific skills (e.g., UI automation, mort-specific workflows)
+- `~/.anvil/skills/` - Anvil-specific skills (e.g., UI automation, anvil-specific workflows)
 
 ### Command Locations
 
@@ -183,7 +183,7 @@ Instructions for Claude to follow when this skill is invoked.
 
 ---
 
-## Integration Strategy for Mort
+## Integration Strategy for Anvil
 
 ### Architecture Overview
 
@@ -200,7 +200,7 @@ App starts
 │ Scans:                           │
 │  • <repo>/.claude/skills/*/...   │
 │  • <repo>/.claude/commands/*.md  │
-│  • ~/.mort/skills/*/SKILL.md     │
+│  • ~/.anvil/skills/*/SKILL.md     │
 │  • ~/.claude/skills/*/SKILL.md   │
 │  • ~/.claude/commands/*.md       │
 └───────────────┬───────────────────┘
@@ -338,7 +338,7 @@ export interface SkillMetadata {
 export type SkillSource =
   | 'project'           // <repo>/.claude/skills/
   | 'project_command'   // <repo>/.claude/commands/
-  | 'mort'              // ~/.mort/skills/
+  | 'anvil'              // ~/.anvil/skills/
   | 'personal'          // ~/.claude/skills/
   | 'personal_command'; // ~/.claude/commands/
 
@@ -394,7 +394,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
     const order: Record<SkillSource, number> = {
       project: 0,
       project_command: 1,
-      mort: 2,
+      anvil: 2,
       personal: 3,
       personal_command: 4,
     };
@@ -444,7 +444,7 @@ interface SkillLocation {
 }
 
 const SKILL_LOCATIONS: SkillLocation[] = [
-  // Priority order: project > mort > personal
+  // Priority order: project > anvil > personal
   {
     getPath: (repo) => `${repo}/.claude/skills`,
     source: 'project',
@@ -456,8 +456,8 @@ const SKILL_LOCATIONS: SkillLocation[] = [
     isLegacy: true,
   },
   {
-    getPath: (_, home) => `${home}/.mort/skills`,
-    source: 'mort',
+    getPath: (_, home) => `${home}/.anvil/skills`,
+    source: 'anvil',
     isLegacy: false,
   },
   {
@@ -690,7 +690,7 @@ class SkillTriggerHandler implements TriggerHandler {
 
   private getIconForSource(source: SkillSource): string {
     switch (source) {
-      case "mort": return "mort";
+      case "anvil": return "anvil";
       case "personal": return "user";
       case "project": return "folder";
       case "personal_command": return "terminal";
@@ -701,7 +701,7 @@ class SkillTriggerHandler implements TriggerHandler {
 
   private getSourceLabel(source: SkillSource): string {
     switch (source) {
-      case "mort": return "Mort";
+      case "anvil": return "Anvil";
       case "personal": return "Personal";
       case "project": return "Project";
       case "personal_command": return "Personal";
@@ -922,10 +922,10 @@ interface SkillLocation {
 }
 
 const SKILL_LOCATIONS: SkillLocation[] = [
-  // Priority order: project > mort > personal
+  // Priority order: project > anvil > personal
   { getPath: (repo) => `${repo}/.claude/skills`, source: 'project', isLegacy: false },
   { getPath: (repo) => `${repo}/.claude/commands`, source: 'project_command', isLegacy: true },
-  { getPath: (_, home) => `${home}/.mort/skills`, source: 'mort', isLegacy: false },
+  { getPath: (_, home) => `${home}/.anvil/skills`, source: 'anvil', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/skills`, source: 'personal', isLegacy: false },
   { getPath: (_, home) => `${home}/.claude/commands`, source: 'personal_command', isLegacy: true },
 ];
@@ -1044,7 +1044,7 @@ export class SkillsService {
     const order: Record<SkillSource, number> = {
       project: 0,
       project_command: 1,
-      mort: 2,
+      anvil: 2,
       personal: 3,
       personal_command: 4,
     };
@@ -1383,7 +1383,7 @@ function SkillChip({ slug, args }: {
   const source = skill?.source;
 
   const sourceIcon = {
-    mort: "🔮",
+    anvil: "🔮",
     personal: "👤",
     project: "📁",
     personal_command: "💻",
@@ -1445,7 +1445,7 @@ function SkillsSettings() {
   return (
     <SettingsSection title="Skills">
       <p className="settings-description">
-        Skills extend agent capabilities. Create skills in ~/.mort/skills/ or ~/.claude/skills/
+        Skills extend agent capabilities. Create skills in ~/.anvil/skills/ or ~/.claude/skills/
       </p>
 
       {skills.length === 0 ? (
@@ -1477,7 +1477,7 @@ function SkillListItem({ skill }: { skill: SkillMetadata }) {
 
 ### Phase 6: Future Enhancements
 
-1. **Built-in skills**: Ship default skills with mort (e.g., `/mort-commit`, `/mort-review`)
+1. **Built-in skills**: Ship default skills with anvil (e.g., `/anvil-commit`, `/anvil-review`)
 2. **Skill templates**: Provide starter templates for common workflows
 3. **Skill enable/disable**: Toggle individual skills on/off from settings
 
@@ -1644,7 +1644,7 @@ skillsService.discover(repoPath)
         │  Scans directories:
         │  - <repo>/.claude/skills/*/SKILL.md  (project)
         │  - <repo>/.claude/commands/*.md      (project_command)
-        │  - ~/.mort/skills/*/SKILL.md         (mort)
+        │  - ~/.anvil/skills/*/SKILL.md         (anvil)
         │  - ~/.claude/skills/*/SKILL.md       (personal)
         │  - ~/.claude/commands/*.md           (personal_command)
         ▼
@@ -1757,7 +1757,7 @@ parseSkillFromDisplayMessage(storedMessage)
 ### Phase 1: Skill Discovery
 
 1. **Create test skills**
-   - `~/.mort/skills/test-mort/SKILL.md`
+   - `~/.anvil/skills/test-anvil/SKILL.md`
    - `~/.claude/skills/test-personal/SKILL.md`
    - `<repo>/.claude/skills/test-project/SKILL.md`
    - `~/.claude/commands/test-command.md`
@@ -1765,7 +1765,7 @@ parseSkillFromDisplayMessage(storedMessage)
 2. **Test discovery**
    - Call `skillsService.discover()` with repo path
    - Verify all skills returned with correct `source` values
-   - Verify priority ordering (project > mort > personal)
+   - Verify priority ordering (project > anvil > personal)
 
 3. **Test malformed skills**
    - Create skill with invalid YAML frontmatter
@@ -1854,7 +1854,7 @@ parseSkillFromDisplayMessage(storedMessage)
 2. **Test skill sources**
    - Project skills show "Project" badge
    - Personal skills show "Personal" badge
-   - Mort skills show "Mort" badge
+   - Anvil skills show "Anvil" badge
 
 ---
 

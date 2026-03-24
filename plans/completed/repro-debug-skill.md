@@ -27,11 +27,11 @@ allowed-tools: Bash, Read, Write, Glob, Grep, Edit
 Sections to write:
 
 #### Log Operations
-- **Log location**: `~/.config/mortician-dev/logs/structured.jsonl`
-- **Clear logs**: `rm -f ~/.config/mortician-dev/logs/structured.jsonl` (just delete the file; Rust backend recreates it on next write)
-- **Read recent logs**: `tail -n 100 ~/.config/mortician-dev/logs/structured.jsonl | jq .`
-- **Search by level**: `cat ~/.config/mortician-dev/logs/structured.jsonl | jq 'select(.level == "ERROR")'`
-- **Search by message pattern**: `grep "pattern" ~/.config/mortician-dev/logs/structured.jsonl | jq .`
+- **Log location**: `~/.config/anvil-dev/logs/structured.jsonl`
+- **Clear logs**: `rm -f ~/.config/anvil-dev/logs/structured.jsonl` (just delete the file; Rust backend recreates it on next write)
+- **Read recent logs**: `tail -n 100 ~/.config/anvil-dev/logs/structured.jsonl | jq .`
+- **Search by level**: `cat ~/.config/anvil-dev/logs/structured.jsonl | jq 'select(.level == "ERROR")'`
+- **Search by message pattern**: `grep "pattern" ~/.config/anvil-dev/logs/structured.jsonl | jq .`
 - **Search by component/target**: `cat ... | jq 'select(.target | test("hub"))'`
 - **Time-windowed search**: explain the timestamp field format, show jq filter for "last N minutes"
 - **Workflow tip**: Clear logs → reproduce the bug → read logs. This isolates the relevant entries.

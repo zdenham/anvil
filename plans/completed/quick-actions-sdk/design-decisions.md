@@ -4,7 +4,7 @@ This document captures all architectural decisions for the Quick Actions SDK imp
 
 ## 1. Default Project, Batteries Included
 
-Mort ships with a pre-configured quick actions project at `~/.mort/quick-actions/`. Users can immediately add actions without any setup. This reduces friction while still allowing full customization.
+Anvil ships with a pre-configured quick actions project at `~/.anvil/quick-actions/`. Users can immediately add actions without any setup. This reduces friction while still allowing full customization.
 
 ## 2. Project-Based Architecture
 
@@ -12,15 +12,15 @@ Quick actions are organized into projects rather than individual scripts. This g
 
 ## 3. Build-Time Validation
 
-Projects must be built before use. Mort validates the `dist/manifest.json` and entry points exist. Type checking happens at the user's build step, not at runtime.
+Projects must be built before use. Anvil validates the `dist/manifest.json` and entry points exist. Type checking happens at the user's build step, not at runtime.
 
 ## 4. SDK Distribution
 
-Types are shipped as a static `.d.ts` file in the default project. The actual SDK implementation is injected at runtime by Mort's runner.
+Types are shipped as a static `.d.ts` file in the default project. The actual SDK implementation is injected at runtime by Anvil's runner.
 
 ## 5. Runtime Dependency
 
-Only Node.js required at runtime (not tsx). User projects build to vanilla JavaScript. **Mort does not bundle Node.js** - users must have Node.js installed on their system. Mort should detect if Node.js is missing and provide a helpful error message.
+Only Node.js required at runtime (not tsx). User projects build to vanilla JavaScript. **Anvil does not bundle Node.js** - users must have Node.js installed on their system. Anvil should detect if Node.js is missing and provide a helpful error message.
 
 ## 6. Sandboxing
 
@@ -36,11 +36,11 @@ App-local only (not system-wide global hotkeys). Only trigger when app window is
 
 ## 9. Manual Refresh
 
-Mort does **not** watch for manifest changes. Users manually trigger a refresh via the "Rebuild" button in settings. This keeps implementation simple.
+Anvil does **not** watch for manifest changes. Users manually trigger a refresh via the "Rebuild" button in settings. This keeps implementation simple.
 
 ## 10. SDK Communication
 
-Bidirectional IPC via stdin/stdout JSON messaging. The Node process can emit events to Mort (UI commands, logs), and Mort can respond if needed. However, **state reads/writes (threads, plans, git) should read directly from disk** using the adapter pattern - IPC round-trips should be rare and reserved for UI control operations.
+Bidirectional IPC via stdin/stdout JSON messaging. The Node process can emit events to Anvil (UI commands, logs), and Anvil can respond if needed. However, **state reads/writes (threads, plans, git) should read directly from disk** using the adapter pattern - IPC round-trips should be rare and reserved for UI control operations.
 
 ## 11. Execution UX
 
@@ -48,19 +48,19 @@ When a quick action is triggered, the UI shows a loading state but **does not bl
 
 ## 12. SDK Data Access
 
-The SDK receives the `.mort` directory path and reads directly from disk using the same storage format as Mort's Zustand stores. This enables code reuse via shared transformers (disk → usable format) following the existing adapter pattern. The SDK implementation should DRY with frontend adapters where possible.
+The SDK receives the `.anvil` directory path and reads directly from disk using the same storage format as Anvil's Zustand stores. This enables code reuse via shared transformers (disk → usable format) following the existing adapter pattern. The SDK implementation should DRY with frontend adapters where possible.
 
 ## 13. SDK Versioning
 
-The SDK includes a version number. Mort checks the SDK version in user projects and warns if out of date. Backwards compatibility is not guaranteed initially - users (or LLMs) can update their quick actions when SDK changes.
+The SDK includes a version number. Anvil checks the SDK version in user projects and warns if out of date. Backwards compatibility is not guaranteed initially - users (or LLMs) can update their quick actions when SDK changes.
 
 ## 14. Action IDs
 
-All actions (both user-defined and built-in) use UUID identifiers internally. Display names/titles can conflict freely. The manifest `id` field in user projects is a human-readable slug, but Mort assigns a UUID when registering the action.
+All actions (both user-defined and built-in) use UUID identifiers internally. Display names/titles can conflict freely. The manifest `id` field in user projects is a human-readable slug, but Anvil assigns a UUID when registering the action.
 
 ## 15. Logging
 
-SDK log calls (`sdk.log.info()`, etc.) route to Mort's main logger, appearing alongside other app logs.
+SDK log calls (`sdk.log.info()`, etc.) route to Anvil's main logger, appearing alongside other app logs.
 
 ## 16. Context Scope
 
@@ -88,19 +88,19 @@ The existing built-in actions (Archive, Mark Unread, Next Unread, etc.) should b
 
 ## 22. SDK Types Distribution
 
-Ship only a `types.d.ts` file for TypeScript support. The actual SDK implementation is injected at runtime by Mort's runner - user projects never import real SDK code, only type definitions.
+Ship only a `types.d.ts` file for TypeScript support. The actual SDK implementation is injected at runtime by Anvil's runner - user projects never import real SDK code, only type definitions.
 
 ## 23. No Manifest Watching
 
-Mort does **not** watch for manifest changes automatically. Users manually trigger a refresh via the "Rebuild" button in settings or a refresh action. This keeps the implementation simple and avoids file watcher complexity.
+Anvil does **not** watch for manifest changes automatically. Users manually trigger a refresh via the "Rebuild" button in settings or a refresh action. This keeps the implementation simple and avoids file watcher complexity.
 
 ## 24. State Sync via Events
 
-When the SDK performs write operations (e.g., `sdk.threads.archive()`), it emits events through stdout only - **Mort handles the actual disk write**. This ensures a single source of truth and avoids race conditions. The frontend listens for these events, performs the mutation, and updates Zustand stores.
+When the SDK performs write operations (e.g., `sdk.threads.archive()`), it emits events through stdout only - **Anvil handles the actual disk write**. This ensures a single source of truth and avoids race conditions. The frontend listens for these events, performs the mutation, and updates Zustand stores.
 
 ## 25. Action Timeout
 
-Quick actions have a **30-second timeout** using `Promise.race()`. If the Node process doesn't exit within 30 seconds, Mort kills it and shows a timeout error.
+Quick actions have a **30-second timeout** using `Promise.race()`. If the Node process doesn't exit within 30 seconds, Anvil kills it and shows a timeout error.
 
 ## 26. Error Detail Level
 
@@ -128,11 +128,11 @@ All actions (default and custom) share a single pool of Cmd+0-9 hotkeys. No rese
 
 ## 32. Draft Persistence
 
-Drafts are **persisted to disk** in their own store (e.g., `~/.mort/drafts.json`), keyed by thread/plan UUID. This keeps draft state separate from thread/plan entities and survives app restarts.
+Drafts are **persisted to disk** in their own store (e.g., `~/.anvil/drafts.json`), keyed by thread/plan UUID. This keeps draft state separate from thread/plan entities and survives app restarts.
 
 ## 33. SDK Write Operations
 
-The SDK **emits events only** for write operations - it does NOT write directly to disk. Mort handles all writes, ensuring a single source of truth. The event pattern (stdout JSON) notifies Mort to perform the actual mutation. This keeps the SDK simple and avoids race conditions.
+The SDK **emits events only** for write operations - it does NOT write directly to disk. Anvil handles all writes, ensuring a single source of truth. The event pattern (stdout JSON) notifies Anvil to perform the actual mutation. This keeps the SDK simple and avoids race conditions.
 
 ## 34. Empty State Actions
 

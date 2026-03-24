@@ -103,7 +103,7 @@ import type {
   ResolvedQuickAction,
 } from './types.js';
 import { QuickActionManifestSchema, QuickActionsRegistrySchema } from '@core/types/quick-actions.js';
-import { getMortDir } from '@/lib/paths.js';
+import { getAnvilDir } from '@/lib/paths.js';
 import * as fs from '@tauri-apps/plugin-fs';
 import * as path from 'path';
 
@@ -111,8 +111,8 @@ const REGISTRY_FILENAME = 'quick-actions-registry.json';
 const QUICK_ACTIONS_DIR = 'quick-actions';
 
 async function readRegistry(): Promise<QuickActionsRegistry> {
-  const mortDir = await getMortDir();
-  const registryPath = path.join(mortDir, REGISTRY_FILENAME);
+  const anvilDir = await getAnvilDir();
+  const registryPath = path.join(anvilDir, REGISTRY_FILENAME);
 
   try {
     const content = await fs.readTextFile(registryPath);
@@ -124,14 +124,14 @@ async function readRegistry(): Promise<QuickActionsRegistry> {
 }
 
 async function writeRegistry(registry: QuickActionsRegistry): Promise<void> {
-  const mortDir = await getMortDir();
-  const registryPath = path.join(mortDir, REGISTRY_FILENAME);
+  const anvilDir = await getAnvilDir();
+  const registryPath = path.join(anvilDir, REGISTRY_FILENAME);
   await fs.writeTextFile(registryPath, JSON.stringify(registry, null, 2));
 }
 
 async function readManifest(): Promise<QuickActionManifest | null> {
-  const mortDir = await getMortDir();
-  const manifestPath = path.join(mortDir, QUICK_ACTIONS_DIR, 'dist', 'manifest.json');
+  const anvilDir = await getAnvilDir();
+  const manifestPath = path.join(anvilDir, QUICK_ACTIONS_DIR, 'dist', 'manifest.json');
 
   try {
     const content = await fs.readTextFile(manifestPath);
@@ -147,8 +147,8 @@ export const quickActionService = {
    * Hydrate the store from disk (manifest + registry)
    */
   async hydrate(): Promise<void> {
-    const mortDir = await getMortDir();
-    const projectPath = path.join(mortDir, QUICK_ACTIONS_DIR);
+    const anvilDir = await getAnvilDir();
+    const projectPath = path.join(anvilDir, QUICK_ACTIONS_DIR);
 
     const manifest = await readManifest();
     if (!manifest) {
@@ -330,7 +330,7 @@ export function setupQuickActionListeners(): void {
   });
 
   // SDK write operation event handlers (DD #24, #33)
-  // The SDK emits events through stdout, Mort handles the actual disk write
+  // The SDK emits events through stdout, Anvil handles the actual disk write
   // These handlers perform the mutation and update Zustand stores
 
   eventBus.on('sdk:thread:archive', async (payload: { threadId: string }) => {
@@ -417,7 +417,7 @@ export async function hydrateEntities(): Promise<void> {
 - **#14 Action IDs**: Actions use UUID internally, manifest slug is human-readable
 - **#27 Action Ordering**: Lexicographic by title, customizable via registry
 - **#23 No Manifest Watching**: Manual refresh via service method
-- **#24 State Sync via Events**: SDK emits events through stdout, Mort handles disk writes
+- **#24 State Sync via Events**: SDK emits events through stdout, Anvil handles disk writes
 - **#33 SDK Write Operations**: SDK emits events only, does NOT write directly to disk
 - **#29 navigateToNextUnread() Empty Case**: Navigates to empty state if no unread items
 
@@ -452,7 +452,7 @@ export async function hydrateEntities(): Promise<void> {
 
 1. **Verify types compile without errors**:
    ```bash
-   cd /Users/zac/Documents/juice/mort/mortician && npx tsc --noEmit
+   cd /Users/zac/Documents/juice/anvil/anvil && npx tsc --noEmit
    ```
 
 2. **Verify type re-exports are valid**:
@@ -604,14 +604,14 @@ export async function hydrateEntities(): Promise<void> {
 8. **Verify registry persistence**:
    ```bash
    # After running the app and making changes:
-   cat ~/.mort/quick-actions-registry.json
+   cat ~/.anvil/quick-actions-registry.json
    # Expected: Valid JSON with actionOverrides and slugToId objects
    ```
 
 9. **Verify manifest reading**:
    ```bash
    # Ensure manifest exists and is valid:
-   cat ~/.mort/quick-actions/dist/manifest.json
+   cat ~/.anvil/quick-actions/dist/manifest.json
    # Expected: Valid JSON matching QuickActionManifestSchema
    ```
 

@@ -150,7 +150,7 @@ private initiateThreadNaming(threadId: string, prompt: string): void {
   generateThreadName(prompt, apiKey)
     .then(async (name) => {
       // Update thread metadata with name
-      const threadService = new ThreadService(this.mortDir);
+      const threadService = new ThreadService(this.anvilDir);
       await threadService.update(threadId, { name });
 
       // Broadcast event for UI
@@ -290,5 +290,5 @@ If tests fail after implementation:
 
 1. **Check logs** - The test outputs all events received
 2. **Verify API key** - Ensure `ANTHROPIC_API_KEY` is set
-3. **Check thread metadata** - Look at `~/.mort/threads/{id}/metadata.json`
+3. **Check thread metadata** - Look at `~/.anvil/threads/{id}/metadata.json`
 4. **Review event emission** - Ensure `threadNameGenerated()` helper is called

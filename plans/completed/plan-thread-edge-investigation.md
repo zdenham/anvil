@@ -9,7 +9,7 @@ The original implementation added event emissions for the frontend to create pla
 ### Why Direct Disk Write is Better
 
 1. **Simpler architecture** - No dependency on frontend being open or event bridge working
-2. **Agent already has full write access** - `NodePersistence` can write to `~/.mort/plan-thread-edges/`
+2. **Agent already has full write access** - `NodePersistence` can write to `~/.anvil/plan-thread-edges/`
 3. **More reliable** - No event timing issues or missed events
 4. **Consistent with existing pattern** - Agent already writes plan metadata directly via `persistence.ensurePlanExists()`
 
@@ -30,7 +30,7 @@ Additionally:
 
 ### Agent Capabilities
 
-The agent uses `NodePersistence` (`agents/src/lib/persistence-node.ts`) which has full read/write access to `~/.mort/`:
+The agent uses `NodePersistence` (`agents/src/lib/persistence-node.ts`) which has full read/write access to `~/.anvil/`:
 
 ```typescript
 // Agent can already:
@@ -40,7 +40,7 @@ await persistence.read("plan-thread-edges/{planId}-{threadId}.json");
 
 ### Relation File Format
 
-Relations are stored at `~/.mort/plan-thread-edges/{planId}-{threadId}.json`:
+Relations are stored at `~/.anvil/plan-thread-edges/{planId}-{threadId}.json`:
 
 ```typescript
 interface PlanThreadRelation {
@@ -278,7 +278,7 @@ async refreshByPlan(planId: string): Promise<void> {
 
 ## Success Criteria
 
-1. When an agent creates a plan file, a relation file appears at `~/.mort/plan-thread-edges/{planId}-{threadId}.json`
+1. When an agent creates a plan file, a relation file appears at `~/.anvil/plan-thread-edges/{planId}-{threadId}.json`
 2. When an agent modifies a plan file, the relation is created or upgraded
 3. When `threadService.refreshById()` is called, the thread's relations are also refreshed from disk
 4. Relation type precedence is respected (created > modified > mentioned)

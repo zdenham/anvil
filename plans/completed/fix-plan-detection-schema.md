@@ -74,7 +74,7 @@ return {
 };
 ```
 
-### Step 3: Update MortPersistence interface
+### Step 3: Update AnvilPersistence interface
 
 **File:** `agents/src/core/persistence.ts`
 

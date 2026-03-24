@@ -53,12 +53,12 @@ class BranchService {
 }
 
 class MergeBaseService {
-  constructor(mortDir: string, git: GitAdapter)
+  constructor(anvilDir: string, git: GitAdapter)
   compute(repoPath: string, branch: string): string
 }
 
 class RepositorySettingsService {
-  constructor(mortDir: string, fs: FileSystemAdapter)
+  constructor(anvilDir: string, fs: FileSystemAdapter)
   load(repoName: string): RepositorySettings
   save(repoName: string, settings: RepositorySettings): void
 }
@@ -179,7 +179,7 @@ Spotlight (optimistic UI)
     ├── 1. crypto.randomUUID() → generate taskId + threadId
     ├── 2. taskService.createDraft() → write task metadata to disk
     ├── 3. openTask() → show window immediately (no thread yet)
-    ├── 4. spawn Node process with (taskId, threadId, prompt, mortDir)
+    ├── 4. spawn Node process with (taskId, threadId, prompt, anvilDir)
     └── 5. Forward events to UI → create/update thread entity
 
 Node Process (orchestration)
@@ -229,7 +229,7 @@ Each service class has ONE responsibility. See "Single Responsibility Breakdown"
 
 export class WorktreeAllocationService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private settingsService: RepositorySettingsService,
     private mergeBaseService: MergeBaseService,
     private git: GitAdapter,
@@ -237,7 +237,7 @@ export class WorktreeAllocationService {
   ) {}
 
   allocate(repoName: string, threadId: string): WorktreeAllocation {
-    const lockPath = `${this.mortDir}/repositories/${repoName}/.lock`;
+    const lockPath = `${this.anvilDir}/repositories/${repoName}/.lock`;
     return this.withLock(lockPath, () => {
       const settings = this.settingsService.load(repoName);
 
@@ -263,7 +263,7 @@ export class WorktreeAllocationService {
   }
 
   release(repoName: string, threadId: string): void {
-    const lockPath = `${this.mortDir}/repositories/${repoName}/.lock`;
+    const lockPath = `${this.anvilDir}/repositories/${repoName}/.lock`;
     this.withLock(lockPath, () => {
       const settings = this.settingsService.load(repoName);
       const worktree = settings.worktrees.find(w => w.claim?.threadId === threadId);
@@ -292,14 +292,14 @@ export class WorktreeAllocationService {
 
 Current runner args:
 ```
---agent, --cwd, --prompt, --thread-id, --task-id, --mort-dir, --merge-base
+--agent, --cwd, --prompt, --thread-id, --task-id, --anvil-dir, --merge-base
 ```
 
 New runner args (simplified):
 ```
 --agent         Agent type (planning, execution, etc.)
 --prompt        User's query
---mort-dir      Data directory (~/.mort)
+--anvil-dir      Data directory (~/.anvil)
 --task-id       UUID - task must exist on disk (frontend creates draft before spawning)
 --thread-id     UUID - Node will create the thread entity
 ```
@@ -317,10 +317,10 @@ New runner args (simplified):
 **Resolution logic:**
 ```typescript
 // Both IDs are required (frontend generates and passes them)
-const { taskId, threadId, prompt, mortDir } = args;
+const { taskId, threadId, prompt, anvilDir } = args;
 
 // Read task metadata from disk - frontend already created draft
-const taskMetadataService = new TaskMetadataService(mortDir, fs);
+const taskMetadataService = new TaskMetadataService(anvilDir, fs);
 const taskMeta = taskMetadataService.get(taskId);
 const repoName = taskMeta.repositoryName;
 
@@ -328,7 +328,7 @@ const repoName = taskMeta.repositoryName;
 const allocation = allocationService.allocate(repoName, threadId);
 
 // Create thread entity on disk
-const threadService = new ThreadService(mortDir, fs);
+const threadService = new ThreadService(anvilDir, fs);
 threadService.create({
   id: threadId,
   taskId,
@@ -345,7 +345,7 @@ emitEvent({ type: 'thread:created', thread: { id: threadId, ... } });
 **Usage example:**
 ```bash
 # Frontend creates task draft, then spawns Node with IDs
-node runner.js --agent planning --task-id abc --thread-id def --prompt "..." --mort-dir ~/.mort
+node runner.js --agent planning --task-id abc --thread-id def --prompt "..." --anvil-dir ~/.anvil
 ```
 
 ---
@@ -482,12 +482,12 @@ core/services/
      const pathLock = new NodePathLock();
 
      // Create services (single responsibility, composed via DI)
-     const settingsService = new RepositorySettingsService(args.mortDir, fs);
-     const mergeBaseService = new MergeBaseService(args.mortDir, git);
-     const taskMetadataService = new TaskMetadataService(args.mortDir, fs);
-     const threadService = new ThreadService(args.mortDir, fs);
+     const settingsService = new RepositorySettingsService(args.anvilDir, fs);
+     const mergeBaseService = new MergeBaseService(args.anvilDir, git);
+     const taskMetadataService = new TaskMetadataService(args.anvilDir, fs);
+     const threadService = new ThreadService(args.anvilDir, fs);
      const allocationService = new WorktreeAllocationService(
-       args.mortDir,
+       args.anvilDir,
        settingsService,
        mergeBaseService,
        git,
@@ -574,7 +574,7 @@ Create Tauri adapters only when there's a concrete need in the frontend. Don't s
 1. Remove worktree allocation from spotlight (Node does this now)
 2. Keep draft creation in spotlight (frontend creates task, Node creates thread)
 3. Simplify `prepareAgent()` - only pass minimal args:
-   - `--agent`, `--prompt`, `--thread-id`, `--task-id`, `--mort-dir`
+   - `--agent`, `--prompt`, `--thread-id`, `--task-id`, `--anvil-dir`
    - Remove `--cwd`, `--merge-base` (Node computes these)
 4. Add event handlers for new Node events:
    - `thread:created` → Create thread entity in store
@@ -587,7 +587,7 @@ Create Tauri adapters only when there's a concrete need in the frontend. Don't s
 ### Phase 7: Cleanup
 
 **Files:**
-- `src-tauri/src/mort_commands.rs`
+- `src-tauri/src/anvil_commands.rs`
 - `src-tauri/src/git_commands.rs`
 - `src/lib/workspace-service.ts` (rename to worktree-service or delete)
 
@@ -742,7 +742,7 @@ Frontend handles these in the stdout handler alongside `ThreadState`.
 
 ## Success Criteria
 
-- [ ] Runner accepts: `node runner.js --agent planning --task-id xxx --thread-id yyy --prompt "..." --mort-dir ~/.mort`
+- [ ] Runner accepts: `node runner.js --agent planning --task-id xxx --thread-id yyy --prompt "..." --anvil-dir ~/.anvil`
 - [ ] Node reads task metadata from disk to get repositoryName
 - [ ] Node allocates worktree without any frontend involvement
 - [ ] Node creates thread entity on disk and emits `thread:created` event

@@ -144,7 +144,7 @@ async rename(repoName: string, oldName: string, newName: string): Promise<void> 
 
 Lines 131-170: Rust implementation of `worktree_rename`:
 - Validates new name format (alphanumeric, dashes, underscores)
-- Loads settings from `~/.mort/repositories/{slugified-repo-name}/settings.json`
+- Loads settings from `~/.anvil/repositories/{slugified-repo-name}/settings.json`
 - Checks new name doesn't already exist
 - Finds worktree by old name in worktrees array
 - Updates the name field

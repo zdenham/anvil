@@ -52,7 +52,7 @@ Phase 3 (Sequential - after Phase 2):
 | 1 | 00-types | `core/types/tasks.ts` | None |
 | 2 | 01a-validation-context | `agents/src/validators/types.ts` | 00 |
 | 2 | 01b-persistence | `agents/src/core/persistence.ts` | 00 |
-| 2 | 01c-cli | `agents/src/cli/mort.ts` | 00 |
+| 2 | 01c-cli | `agents/src/cli/anvil.ts` | 00 |
 | 2 | 01d-action-panel | `src/components/workspace/action-panel.tsx` | 00 |
 | 2 | 01e-task-service | `src/entities/tasks/service.ts` | 00 |
 | 3 | 02-human-review-validator | `agents/src/validators/human-review.ts` | 00, 01a |

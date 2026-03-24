@@ -50,7 +50,7 @@ export interface QuickActionExecutionContext {
 // SDK Services available to quick actions
 // ═══════════════════════════════════════════════════════════════════
 
-export interface MortSDK {
+export interface AnvilSDK {
   /** Git operations */
   git: GitService;
 
@@ -198,7 +198,7 @@ export interface LogService {
 
 export type QuickActionFn = (
   context: QuickActionExecutionContext,
-  sdk: MortSDK
+  sdk: AnvilSDK
 ) => Promise<void> | void;
 
 export interface QuickActionDefinition {
@@ -228,7 +228,7 @@ export function defineAction(def: QuickActionDefinition): QuickActionDefinition 
 
 - **#10 SDK Communication**: Bidirectional IPC via stdin/stdout JSON messaging
 - **#12 SDK Data Access**: SDK reads directly from disk using shared transformers
-- **#15 Logging**: SDK log calls route to Mort's main logger
+- **#15 Logging**: SDK log calls route to Anvil's main logger
 - **#16 Context Scope**: The 'all' context means thread, plan, and empty views
 - **#29 navigateToNextUnread() Empty Case**: Navigates to empty state if no unread items
 
@@ -244,10 +244,10 @@ export function defineAction(def: QuickActionDefinition): QuickActionDefinition 
 **Verified Compliance:**
 - #10 SDK Communication: Types define IPC-based services correctly
 - #12 SDK Data Access: Types support read operations from disk
-- #15 Logging: LogService interface routes to Mort's logger
+- #15 Logging: LogService interface routes to Anvil's logger
 - #16 Context Scope: 'all' in contexts array expands to thread/plan/empty
 - #22 SDK Types Distribution: This file ships as `types.d.ts`
-- #24/#33 SDK Write Operations: Write methods (`archive`, `markRead`, `markUnread`) return `Promise<void>` - the implementation must emit events to Mort rather than writing directly to disk
+- #24/#33 SDK Write Operations: Write methods (`archive`, `markRead`, `markUnread`) return `Promise<void>` - the implementation must emit events to Anvil rather than writing directly to disk
 
 **Implementation Reminders:**
 - Per #24 and #33: Write operations (archive, markRead, markUnread) must emit stdout events, not write to disk directly
@@ -271,7 +271,7 @@ Create a test file to verify types compile without errors:
 cat > /tmp/sdk-type-check.ts << 'EOF'
 import type {
   QuickActionExecutionContext,
-  MortSDK,
+  AnvilSDK,
   GitService,
   ThreadService,
   ThreadInfo,
@@ -375,7 +375,7 @@ import {
   QuickActionExecutionContext,
 
   // SDK main interface
-  MortSDK,
+  AnvilSDK,
 
   // Services
   GitService,
@@ -508,7 +508,7 @@ After implementation, verify types integrate with the default quick actions proj
 
 ```bash
 # Navigate to default project and build
-cd ~/.mort/quick-actions
+cd ~/.anvil/quick-actions
 npm run build
 
 # Verify the build succeeds and manifest is valid

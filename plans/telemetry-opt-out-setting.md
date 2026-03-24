@@ -2,14 +2,14 @@
 
 ## Summary
 
-Add a user-facing `telemetryEnabled` setting (default: `true`) that controls whether logs are sent to the mort server (ClickHouse). When disabled, the `LogServerLayer` is not created, so no data leaves the device. Local logging (console, JSON file, in-memory buffer, SQLite drains) is unaffected.
+Add a user-facing `telemetryEnabled` setting (default: `true`) that controls whether logs are sent to the anvil server (ClickHouse). When disabled, the `LogServerLayer` is not created, so no data leaves the device. Local logging (console, JSON file, in-memory buffer, SQLite drains) is unaffected.
 
 ## Current State
 
 - **Log server is always on** — `LogServerConfig::from_env()` returns `Some` unless `LOG_SERVER_DISABLED=true` env var is set (dev escape hatch, not user-facing).
-- **Default URL is baked in** at compile time: `https://mort-server.fly.dev/logs`
+- **Default URL is baked in** at compile time: `https://anvil-server.fly.dev/logs`
 - **Logging initializes before settings** — `logging::initialize()` runs in Rust before the JS settings store is available. The Rust side reads env vars and config, not workspace settings.
-- **Settings live in JS** — `~/.mort/settings/workspace.json` managed by `SettingsStoreClient`. Rust has no direct reader for this.
+- **Settings live in JS** — `~/.anvil/settings/workspace.json` managed by `SettingsStoreClient`. Rust has no direct reader for this.
 - **No identity/consent flow** — the `/identity` endpoint exists server-side but there's no user consent for telemetry.
 
 ## Key Design Decision
@@ -17,7 +17,7 @@ Add a user-facing `telemetryEnabled` setting (default: `true`) that controls whe
 The core challenge: **logging initializes before the Tauri app and JS settings store are ready**. Two approaches:
 
 ### Option A: Read settings JSON directly from Rust (recommended)
-At `logging::initialize()` time, read `~/.mort/settings/workspace.json` directly from disk in Rust (simple JSON parse — no Tauri/JS dependency). This is the same pattern used for `get_device_id()` in `config.rs`. The setting file path is deterministic (`$HOME/.mort/settings/workspace.json`).
+At `logging::initialize()` time, read `~/.anvil/settings/workspace.json` directly from disk in Rust (simple JSON parse — no Tauri/JS dependency). This is the same pattern used for `get_device_id()` in `config.rs`. The setting file path is deterministic (`$HOME/.anvil/settings/workspace.json`).
 
 ### Option B: Start log server lazily, enable/disable via reload handle
 Initialize logging without the log server layer, then activate it once settings are loaded. Uses `tracing_subscriber::reload::Layer` (already used for chrome trace). More complex but allows runtime toggling without restart.
@@ -42,7 +42,7 @@ Initialize logging without the log server layer, then activate it once settings 
 
 **Changes:**
 - Add `telemetryEnabled: z.boolean().optional()` to `WorkspaceSettingsSchema`
-- Document: "Whether to send anonymous usage logs to the mort server. Optional — defaults to true (enabled)."
+- Document: "Whether to send anonymous usage logs to the anvil server. Optional — defaults to true (enabled)."
 - Do NOT add it to `DEFAULT_WORKSPACE_SETTINGS` (optional field, absence = enabled)
 
 ## Phase 2: Read setting from Rust at logging init time
@@ -54,11 +54,11 @@ Initialize logging without the log server layer, then activate it once settings 
 **Changes in `config.rs`:**
 - Add `fn is_telemetry_enabled() -> bool` that:
   1. Checks `LOG_SERVER_DISABLED` env var (existing behavior, keeps working)
-  2. Reads `~/.mort/settings/workspace.json` from disk
+  2. Reads `~/.anvil/settings/workspace.json` from disk
   3. Parses JSON, checks `telemetryEnabled` field
   4. Returns `true` if field is absent or `true`, `false` if explicitly `false`
   5. Returns `true` on any read/parse error (fail-open: don't break telemetry if file is missing or malformed)
-- Use the same `MORT_CONFIG_DIR` / `dirs::home_dir()` path logic already in the codebase
+- Use the same `ANVIL_CONFIG_DIR` / `dirs::home_dir()` path logic already in the codebase
 - Update `LogServerConfig::from_env()` to call `is_telemetry_enabled()` and return `None` when disabled
 
 **Changes in `mod.rs`:**
@@ -72,7 +72,7 @@ Initialize logging without the log server layer, then activate it once settings 
 
 **Changes:**
 - Add a toggle bound to `telemetryEnabled` workspace setting
-- Label: "Send anonymous usage data" with sublabel: "Helps improve Mort. No code or conversation content is sent."
+- Label: "Send anonymous usage data" with sublabel: "Helps improve Anvil. No code or conversation content is sent."
 - Place it in a "Privacy" section or near the bottom of general settings
 - On change: write to settings store. Show a note that restart is required for the change to take effect (until Phase 4 is done).
 

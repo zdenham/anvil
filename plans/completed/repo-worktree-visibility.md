@@ -1,6 +1,6 @@
 # Repo & Worktree Visibility + Repo Removal
 
-Bring back the ability to hide worktrees, add the ability to hide repos, and add a "Remove from Mort" action for repos (leaves source on disk).
+Bring back the ability to hide worktrees, add the ability to hide repos, and add a "Remove from Anvil" action for repos (leaves source on disk).
 
 ## Context
 
@@ -16,7 +16,7 @@ Bring back the ability to hide worktrees, add the ability to hide repos, and add
 
 1. **Hide worktree** — right-click context menu action. Hidden worktrees disappear from the tree until "Show all" is clicked.
 2. **Hide repo** — right-click context menu on repo header. Hides the entire repo and all its worktrees.
-3. **Remove repo** — right-click context menu on repo header. Calls `repoService.remove()` (deletes `~/.mort/repositories/{slug}` only, source code untouched). Needs confirmation dialog.
+3. **Remove repo** — right-click context menu on repo header. Calls `repoService.remove()` (deletes `~/.anvil/repositories/{slug}` only, source code untouched). Needs confirmation dialog.
 
 ## Phases
 
@@ -65,7 +65,7 @@ Bring back the ability to hide worktrees, add the ability to hide repos, and add
 - Context menu items:
   - **Hide project** (EyeOff icon) — calls `onHideRepo(repoId)`
   - Separator
-  - **Remove from Mort** (Trash2 icon, red text) — calls `onRemoveRepo(repoId, repoName)`
+  - **Remove from Anvil** (Trash2 icon, red text) — calls `onRemoveRepo(repoId, repoName)`
 
 `src/components/tree-menu/repo-item.tsx` (updated props)
 
@@ -120,7 +120,7 @@ Bring back the ability to hide worktrees, add the ability to hide repos, and add
 ## Phase 5: Manual smoke test checklist
 
 - Right-click repo header → "Hide project" → repo and its worktrees disappear
-- Right-click repo header → "Remove from Mort" → confirmation dialog → repo gone, source on disk untouched
+- Right-click repo header → "Remove from Anvil" → confirmation dialog → repo gone, source on disk untouched
 - Right-click worktree → "Hide workspace" → worktree disappears, repo header stays if other worktrees visible
 - "Show all workspaces" in menu dropdown → all hidden items reappear
 - Pin + hide combo: pin a worktree, then unhide all → both pin cleared and hidden items restored

@@ -29,7 +29,7 @@ The system currently has a **two-phase review/merge flow** implemented as part o
 ### Key Files (Current)
 - `src/lib/agent-state-machine.ts` - State transitions, `determineResponseAction()`
 - `src/components/workspace/action-panel.tsx` - Review UI, phase handling
-- `agents/src/cli/mort.ts` - `request-review` command
+- `agents/src/cli/anvil.ts` - `request-review` command
 - `agents/src/agent-types/merge.ts` - Merge agent with `buildMergeAgentPrompt()`
 - `agents/src/agent-types/index.ts` - Agent registry with `listAgentTypes()`
 - `src/entities/tasks/types.ts` - `PendingReview`, `reviewApproved` in TaskMetadata
@@ -47,13 +47,13 @@ interface PendingReview {
 
 ## Desired State
 
-1. **Agents suggest their own next agents** via `mort request-review`:
+1. **Agents suggest their own next agents** via `anvil request-review`:
    - Happy path: "If user approves, spawn X agent"
    - Changes path: "If user requests changes, spawn Y agent"
 
 2. **User can override** the suggested agent via a dropdown (showing all agent types)
 
-3. **Task stage updates are agent-controlled** via `mort` CLI, not automatic
+3. **Task stage updates are agent-controlled** via `anvil` CLI, not automatic
 
 4. **Simplify state machine** - remove rigid status→agent mapping, keep validation helpers
 
@@ -88,7 +88,7 @@ interface PendingReview {
 ### Phase 2: CLI Updates
 
 #### 2.1 Update `request-review` command
-**File:** `agents/src/cli/mort.ts`
+**File:** `agents/src/cli/anvil.ts`
 
 Add required flags:
 - `--on-approve <agentType>` - Agent to spawn when user approves (presses Enter)
@@ -141,7 +141,7 @@ Update the `HUMAN_REVIEW_TOOL` section:
 
 Request review using:
 \`\`\`bash
-mort request-review --task={{taskId}} \\
+anvil request-review --task={{taskId}} \\
   --markdown "## Your review content" \\
   --default "Proceed" \\
   --on-approve <agentType> \\
@@ -201,7 +201,7 @@ If after implementation we find `reviewApproved` is truly unused:
 | File | Action |
 |------|--------|
 | `src/entities/tasks/types.ts` | Add `onApprove`/`onFeedback` to PendingReview |
-| `agents/src/cli/mort.ts` | Add `--on-approve`/`--on-feedback` flags |
+| `agents/src/cli/anvil.ts` | Add `--on-approve`/`--on-feedback` flags |
 | `src/components/workspace/action-panel.tsx` | Add agent dropdown, use suggestions |
 | `src/lib/agent-state-machine.ts` | Remove getAgentTypeForStatus, determineResponseAction |
 | `agents/src/agent-types/shared-prompts.ts` | Update HUMAN_REVIEW_TOOL with agent descriptions |

@@ -8,7 +8,7 @@ Add UI for creating, renaming, deleting folders, and picking Lucide icons. Folde
 
 ## Dependencies
 
-- **02b-folder-entity** — `useFolderStore` (at `src/entities/folders/store.ts`), folder service (at `src/entities/folders/service.ts`) exist with CRUD + disk persistence at `~/.mort/folders/{id}/metadata.json`
+- **02b-folder-entity** — `useFolderStore` (at `src/entities/folders/store.ts`), folder service (at `src/entities/folders/service.ts`) exist with CRUD + disk persistence at `~/.anvil/folders/{id}/metadata.json`
 - **04a-rendering-components** — `FolderItem` component exists at `src/components/tree-menu/folder-item.tsx`, tree renders folders via type dispatch in `TreeMenu`
 - **04b-cascade-archive** — cascade archive logic exists (used when deleting non-empty folders)
 
@@ -59,7 +59,7 @@ _applySetRenaming: (nodeId: string | null): Rollback => {
 },
 ```
 
-Note: `renamingNodeId` is **not persisted** to `~/.mort/ui/tree-menu.json` — it is ephemeral UI state. Do not add it to `TreeMenuPersistedState` or `TreeMenuPersistedStateSchema`.
+Note: `renamingNodeId` is **not persisted** to `~/.anvil/ui/tree-menu.json` — it is ephemeral UI state. Do not add it to `TreeMenuPersistedState` or `TreeMenuPersistedStateSchema`.
 
 ### 2. Tree Menu Rename Service Methods (`src/stores/tree-menu/service.ts`)
 
@@ -369,7 +369,7 @@ When deleting a folder that has children:
 1. Show confirmation in context menu (two-click pattern)
 2. On confirm, call `folderService.delete(id)` which:
    - Cascade-archives all visual descendants first (uses cascade archive from 04b)
-   - Then removes the folder metadata from `~/.mort/folders/{id}/metadata.json`
+   - Then removes the folder metadata from `~/.anvil/folders/{id}/metadata.json`
 
 The `folderService.delete()` method in `src/entities/folders/service.ts` (from 02b) should call the cascade archive function before removing the folder. The exact wiring depends on 04b's API. If 04b exports a `cascadeArchive(nodeId: string)` function, the folder service `delete` calls it. Otherwise, the folder service walks the tree builder's children map to find descendants and archives each through their respective services.
 
@@ -484,7 +484,7 @@ If it exceeds 250 lines, extract the context menu JSX into a `FolderContextMenu`
 
 These methods are defined in 02b (`src/entities/folders/service.ts`). This plan does **not** modify them but lists them for reference:
 
-- `folderService.create(input: CreateFolderInput): Promise<FolderMetadata>` — generates `crypto.randomUUID()`, writes `~/.mort/folders/{id}/metadata.json`, upserts into `useFolderStore`
+- `folderService.create(input: CreateFolderInput): Promise<FolderMetadata>` — generates `crypto.randomUUID()`, writes `~/.anvil/folders/{id}/metadata.json`, upserts into `useFolderStore`
 - `folderService.rename(id: string, name: string): Promise<void>` — read-patch-write on metadata.json, updates store
 - `folderService.updateIcon(id: string, icon: string): Promise<void>` — read-patch-write on metadata.json, updates store
 - `folderService.delete(id: string): Promise<void>` — removes from store and disk, cascade-archives children via 04b

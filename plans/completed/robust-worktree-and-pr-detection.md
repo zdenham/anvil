@@ -8,7 +8,7 @@ When an agent runs `git worktree add` or `gh pr create` via Bash, the sidebar do
 
 1. `WORKTREE_SYNCED` **listener never calls** `worktree_sync` — The listener at `src/entities/worktrees/listeners.ts:24` only calls `useRepoWorktreeLookupStore.getState().hydrate()`, which re-reads settings.json from disk. But nobody updated settings.json! The `worktree_sync` Tauri command (which runs `git worktree list --porcelain` and merges results into settings.json) is never invoked. So the new worktree is invisible.
 
-2. `is_external: true` **for all discovered worktrees** — `worktree_commands.rs:370` sets `is_external: !is_source` for every newly-discovered worktree. Since agent-created worktrees aren't the source path, they always appear as "external" even though they were created intentionally by an agent within Mort.
+2. `is_external: true` **for all discovered worktrees** — `worktree_commands.rs:370` sets `is_external: !is_source` for every newly-discovered worktree. Since agent-created worktrees aren't the source path, they always appear as "external" even though they were created intentionally by an agent within Anvil.
 
 3. **Event payload only has** `repoId`**, not** `repoName` — `worktreeService.sync()` requires `repoName`, but `WORKTREE_SYNCED` only carries `repoId`. The listener can't call sync without resolving this.
 
@@ -74,7 +74,7 @@ eventBus.on(EventName.WORKTREE_SYNCED, async ({ repoId }) => {
 
 **Problem**: `worktree_commands.rs:370` marks all discovered worktrees as `is_external: !is_source`.
 
-**Approach**: The `WORKTREE_SYNCED` event is emitted by Mort's agent system, so worktrees discovered during that sync were created intentionally. We have two options:
+**Approach**: The `WORKTREE_SYNCED` event is emitted by Anvil's agent system, so worktrees discovered during that sync were created intentionally. We have two options:
 
 **Option A: Add a parameter to** `worktree_sync` — Add an `is_agent_triggered: bool` parameter. When true, newly discovered worktrees get `is_external: false`. This is the cleanest approach because the Tauri command knows the intent.
 

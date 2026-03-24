@@ -520,18 +520,18 @@ export { BashToolBlock, ExitPlanModeToolBlock };
 
 ## Related Files
 
-- **Main plan:** `/Users/zac/Documents/juice/mort/mortician/plans/tool-result-rendering-overhaul.md`
-- **BashToolBlock reference:** `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/bash-tool-block.tsx`
-- **Reusable UI components:** `/Users/zac/Documents/juice/mort/mortician/src/components/ui/`
+- **Main plan:** `/Users/zac/Documents/juice/anvil/anvil/plans/tool-result-rendering-overhaul.md`
+- **BashToolBlock reference:** `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/bash-tool-block.tsx`
+- **Reusable UI components:** `/Users/zac/Documents/juice/anvil/anvil/src/components/ui/`
   - `shimmer-text.tsx` - Loading animation
   - `expand-chevron.tsx` - Animated expand/collapse chevron
   - `status-icon.tsx` - Success/failure indicator
   - `collapsible-output-block.tsx` - Container for long content
   - `copy-button.tsx` - Copy-to-clipboard
-- **Expand store:** `/Users/zac/Documents/juice/mort/mortician/src/stores/tool-expand-store.ts`
+- **Expand store:** `/Users/zac/Documents/juice/anvil/anvil/src/stores/tool-expand-store.ts`
 - **Type definitions:**
-  - `ToolBlockProps` - `/Users/zac/Documents/juice/mort/mortician/src/components/thread/tool-blocks/index.ts`
-  - `ToolExecutionState` - `/Users/zac/Documents/juice/mort/mortician/core/types/events.ts`
+  - `ToolBlockProps` - `/Users/zac/Documents/juice/anvil/anvil/src/components/thread/tool-blocks/index.ts`
+  - `ToolExecutionState` - `/Users/zac/Documents/juice/anvil/anvil/core/types/events.ts`
   - Anthropic types - `@anthropic-ai/sdk/resources/messages` (ContentBlock, ToolUseBlock)
 
 ---

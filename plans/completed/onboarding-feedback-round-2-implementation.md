@@ -4,7 +4,7 @@
 
 1. I'd like the onboarding to be left justified not center
 2. The action buttons should be fixed in the bottom right so the user can click the same location to continue
-3. The mort logo looks off, I believe there is a component to render the mort logo, are we using it? Also its too big
+3. The anvil logo looks off, I believe there is a component to render the anvil logo, are we using it? Also its too big
 4. the copy on the first page should have some question, ready to start? Etc...
 5. the design system looks wrong for the onboarding. I'd like the background color to be our darker color
 6. The default main window should be smaller during onboarding
@@ -52,14 +52,14 @@
 - **Files**: `src/components/onboarding/OnboardingFlow.tsx:149`
 
 #### B2: Logo Positioning & Size (Feedback #3, #8)
-- **Current Issue**: Mort logo size and positioning may be incorrect
+- **Current Issue**: Anvil logo size and positioning may be incorrect
 - **Action**:
-  - Verify MortLogo component usage in `WelcomeStep.tsx`
+  - Verify AnvilLogo component usage in `WelcomeStep.tsx`
   - Adjust size from current 48px to smaller value (24-32px)
   - Position logo above heading text as requested
   - Ensure proper spacing and alignment
 - **Files**: `src/components/onboarding/steps/WelcomeStep.tsx:9`
-- **Reference**: `src/components/ui/mort-logo.tsx` (component exists and is ready)
+- **Reference**: `src/components/ui/anvil-logo.tsx` (component exists and is ready)
 
 ### Task Group C: Content & Copy Updates (Medium Priority)
 **Files: Individual step components**
@@ -111,7 +111,7 @@
 ## Technical Notes
 
 ### Available Resources:
-- ✅ `MortLogo` component exists at `src/components/ui/mort-logo.tsx`
+- ✅ `AnvilLogo` component exists at `src/components/ui/anvil-logo.tsx`
 - ✅ Light button variant already implemented in `Button.tsx`
 - ✅ Design system colors defined in `tailwind.config.js`
 - ✅ Card component system available at `src/components/reusable/Card.tsx`
@@ -131,7 +131,7 @@
 
 1. ✅ Content is left-justified instead of centered
 2. ✅ Action buttons are fixed in bottom-right corner for consistent clicking
-3. ✅ Mort logo is properly sized and positioned above heading text
+3. ✅ Anvil logo is properly sized and positioned above heading text
 4. ✅ Welcome page has engaging copy with question
 5. ✅ Background uses darker color from design system
 6. ✅ Window is smaller during onboarding process

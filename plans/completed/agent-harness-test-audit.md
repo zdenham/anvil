@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-After implementing the thread-plan-architecture refactor (which removed the `Task` entity), **26 tests are now failing** due to the `TestMortDirectory.createTask()` method being removed. The test harness still references this method but it no longer exists.
+After implementing the thread-plan-architecture refactor (which removed the `Task` entity), **26 tests are now failing** due to the `TestAnvilDirectory.createTask()` method being removed. The test harness still references this method but it no longer exists.
 
 **Pass/Fail Summary:**
 - **Passing:** 108 tests
@@ -42,7 +42,7 @@ These live tests verify:
 
 ### Failing Tests (26 total)
 
-All failures stem from the same root cause: **`this.mortDir.createTask is not a function`**
+All failures stem from the same root cause: **`this.anvilDir.createTask is not a function`**
 
 | File | Tests | Failure Reason |
 |------|-------|----------------|
@@ -60,22 +60,22 @@ All failures stem from the same root cause: **`this.mortDir.createTask is not a 
 The `AgentTestHarness.run()` method (line 90 in `agent-harness.ts`) calls:
 
 ```typescript
-task = this.mortDir.createTask({
+task = this.anvilDir.createTask({
   repositoryName: this.repo.name,
   slug: opts.taskSlug,
 });
 ```
 
-But `TestMortDirectory.createTask()` was removed as part of the task cleanup in plan `03-delete-tasks.md`.
+But `TestAnvilDirectory.createTask()` was removed as part of the task cleanup in plan `03-delete-tasks.md`.
 
 ### Files Affected
 
 1. **`agents/src/testing/agent-harness.ts`** (line 16, 29, 90-93, 115)
    - Imports `TaskMetadata` from deleted `@core/types/tasks.js`
    - Uses `task` parameter throughout
-   - Calls `this.mortDir.createTask()`
+   - Calls `this.anvilDir.createTask()`
 
-2. **`agents/src/testing/services/test-mort-directory.ts`**
+2. **`agents/src/testing/services/test-anvil-directory.ts`**
    - Missing `createTask()` method
    - Missing `tasks/` directory creation (line 48 assertion fails)
 
@@ -105,7 +105,7 @@ The agent runner should only accept a `threadId` - no task concept at all. Updat
    - Update `spawnAgent()` to accept only `threadId`
    - The harness should create a thread via `createThread()` and pass only the thread ID to the agent
 
-2. **Update `TestMortDirectory`:**
+2. **Update `TestAnvilDirectory`:**
    - Ensure `createThread()` method exists and works
    - Remove any `tasks/` directory creation
 
@@ -185,6 +185,6 @@ The test failures are **expected and isolated** to a single breaking change: rem
 
 **Error signature for all 26 failures:**
 ```
-TypeError: this.mortDir.createTask is not a function
+TypeError: this.anvilDir.createTask is not a function
   ❯ AgentTestHarness.run src/testing/agent-harness.ts:90:27
 ```

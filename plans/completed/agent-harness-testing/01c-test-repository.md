@@ -10,7 +10,7 @@ Create `TestRepository` service for initializing isolated local git repositories
 
 ## Parallel With
 
-- `01b-test-mort-directory.md` (no shared dependencies)
+- `01b-test-anvil-directory.md` (no shared dependencies)
 
 ## Files to Create
 
@@ -24,7 +24,7 @@ import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 
 export interface TestRepositoryOptions {
-  /** Repository name (used when registering with TestMortDirectory) */
+  /** Repository name (used when registering with TestAnvilDirectory) */
   name?: string;
   /** Keep directory after cleanup for debugging */
   keepOnCleanup?: boolean;
@@ -202,28 +202,28 @@ repo.addFile("src/utils.ts", "export const add = (a: number, b: number) => a + b
 repo.commit("Add utils module");
 
 // Use repo.path as cwd for simple agents
-// Or register with TestMortDirectory for task-based agents:
-mortDir.registerRepository({ name: repo.name, path: repo.path });
+// Or register with TestAnvilDirectory for task-based agents:
+anvilDir.registerRepository({ name: repo.name, path: repo.path });
 
 // Always clean up after tests
 repo.cleanup();
 ```
 
-## Integration with TestMortDirectory
+## Integration with TestAnvilDirectory
 
-The `TestRepository` can be registered with `TestMortDirectory` to test agents that require the full orchestration setup:
+The `TestRepository` can be registered with `TestAnvilDirectory` to test agents that require the full orchestration setup:
 
 ```typescript
-const mortDir = new TestMortDirectory().init();
+const anvilDir = new TestAnvilDirectory().init();
 const repo = new TestRepository({ name: "my-project", fixture: "typescript" }).init();
 
-mortDir.registerRepository({ name: repo.name, path: repo.path });
-const task = mortDir.createTask({ repositoryName: repo.name });
+anvilDir.registerRepository({ name: repo.name, path: repo.path });
+const task = anvilDir.createTask({ repositoryName: repo.name });
 
 // Run agent with full context
 await runAgent({
   agent: "execution",
-  mortDir: mortDir.path,
+  anvilDir: anvilDir.path,
   taskSlug: task.slug,
   prompt: "Add a new function",
 });

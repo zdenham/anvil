@@ -12,7 +12,7 @@ Worktrees are missing their required `id` field after creation/sync. Example fro
       "currentBranch": "main",
       "lastAccessedAt": 1769059085343,
       "name": "main",
-      "path": "/Users/zac/Documents/juice/mort/mortician"
+      "path": "/Users/zac/Documents/juice/anvil/anvil"
       // Missing "id" field!
     }
   ]
@@ -47,7 +47,7 @@ The TypeScript side has the correct type (with required `id: z.string().uuid()`)
 
 - The frontend `src/entities/repositories/service.ts` correctly generates UUIDs when creating repos
 - The core TypeScript types in `core/types/repositories.ts` correctly require `id`
-- There is no migration script issue - this is a fresh .mort problem
+- There is no migration script issue - this is a fresh .anvil problem
 
 ## Solution
 
@@ -118,7 +118,7 @@ uuid = { version = "1", features = ["v4"] }
 **File:** `core/services/repository/settings-service.ts`
 
 Remove the `migrateWorktreeState` function entirely since:
-1. All users start from fresh .mort
+1. All users start from fresh .anvil
 2. The migration was for deprecated fields (`claim`, `version`, `lastTaskId`) that no longer exist
 3. With the Rust fix, new worktrees will always have IDs
 
@@ -179,7 +179,7 @@ The repository `id` field is already working correctly - the frontend service ge
 After implementation:
 1. Run `cargo build` to verify Rust compiles
 2. Run `pnpm test` to ensure all tests pass
-3. Delete `~/.mort` and start fresh
+3. Delete `~/.anvil` and start fresh
 4. Import a repository via onboarding
 5. Verify settings.json has `id` field on all worktrees
 6. Create a new worktree via UI and verify it has an ID

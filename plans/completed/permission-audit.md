@@ -21,7 +21,7 @@ Audit of all SDK tools against each permission mode, identifying gaps and incons
 | --- | --- | --- | --- |
 | `^Bash$` | \`rm\\s+(-rf | \--force).\*.git\` | **deny** |
 | \`^(Write | Edit)$\` | path matches `\.env` | **deny** |
-| `^EnterWorktree$` | any | **deny** | Worktree creation managed by Mort |
+| `^EnterWorktree$` | any | **deny** | Worktree creation managed by Anvil |
 
 ---
 

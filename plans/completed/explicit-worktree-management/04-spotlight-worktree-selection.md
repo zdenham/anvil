@@ -109,7 +109,7 @@ function getTaskResultDisplay(result: TaskResult, availableWorktrees: WorktreeSt
   const selectedWorktree = availableWorktrees[selectedIndex];
 
   return {
-    icon: <MortLogo size={7} />,
+    icon: <AnvilLogo size={7} />,
     title: "Create task",
     subtitle: selectedWorktree
       ? `Worktree: ${selectedWorktree.name} (← → to change)`

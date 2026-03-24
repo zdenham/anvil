@@ -17,7 +17,7 @@ Read these files before starting:
 - `agents/src/testing/agent-harness.ts` — `AgentTestHarness` spawns subprocess, captures via `MockHubServer` socket
 - `agents/src/testing/mock-hub-server.ts` — `MockHubServer` with `waitForMessage()` and `getMessages()`
 - `agents/src/testing/types.ts` — `AgentTestOptions` (has `env` field for passing env vars)
-- `agents/src/runner.ts:365-376` — interceptor init block (checks `MORT_NETWORK_DEBUG=1`, sends via hub)
+- `agents/src/runner.ts:365-376` — interceptor init block (checks `ANVIL_NETWORK_DEBUG=1`, sends via hub)
 - `agents/src/lib/network-interceptor.ts` — the `NetworkInterceptor` class under test
 - `agents/src/experimental/__tests__/fast-mode-spike.integration.test.ts` — reference for live-API test gating pattern
 
@@ -49,7 +49,7 @@ describeWithApi("NetworkInterceptor — live integration", () => {
       prompt: "Say hello in one sentence.",
       timeout: 90_000,
       env: {
-        MORT_NETWORK_DEBUG: "1",
+        ANVIL_NETWORK_DEBUG: "1",
       },
     });
 
@@ -128,9 +128,9 @@ describeWithApi("NetworkInterceptor — live integration", () => {
 
 ### Key design decisions
 
-1. **Uses `AgentTestHarness`** — not a custom spawn. This runs the real runner.ts with a real MockHubServer, so we test the full pipeline including the `MORT_NETWORK_DEBUG` env check and dynamic import.
+1. **Uses `AgentTestHarness`** — not a custom spawn. This runs the real runner.ts with a real MockHubServer, so we test the full pipeline including the `ANVIL_NETWORK_DEBUG` env check and dynamic import.
 
-2. **Passes `MORT_NETWORK_DEBUG: "1"` via the `env` option** — the harness merges this into the subprocess env (see `agent-harness.ts:149`), which triggers the interceptor init at `runner.ts:365`.
+2. **Passes `ANVIL_NETWORK_DEBUG: "1"` via the `env` option** — the harness merges this into the subprocess env (see `agent-harness.ts:149`), which triggers the interceptor init at `runner.ts:365`.
 
 3. **Simple prompt** — "Say hello in one sentence." keeps the API call cheap and fast. One query to the Anthropic API = at minimum one `request-start` + `response-headers` + `response-end` (or `response-chunk` + `response-end` for streaming).
 
@@ -166,7 +166,7 @@ logger.debug(`[network-interceptor] Intercepting ${method} ${url}`);
 Add a confirmation log when the interceptor is initialized:
 
 ```ts
-if (process.env.MORT_NETWORK_DEBUG === "1") {
+if (process.env.ANVIL_NETWORK_DEBUG === "1") {
   logger.info("[runner] Network debug enabled, initializing interceptor");
   // ... existing code ...
   interceptor.enable();

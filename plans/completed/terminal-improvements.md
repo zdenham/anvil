@@ -1,6 +1,6 @@
 # Terminal Improvements Plan
 
-Make the Mort terminal render TUIs properly (claude code, vim, htop, etc.), eliminate font aliasing issues, and reduce input lag — approaching VS Code terminal quality.
+Make the Anvil terminal render TUIs properly (claude code, vim, htop, etc.), eliminate font aliasing issues, and reduce input lag — approaching VS Code terminal quality.
 
 ## Current State
 
@@ -211,7 +211,7 @@ const terminal = new Terminal({
   fontSize: 13,
   lineHeight: 1.2,
   letterSpacing: 0,
-  theme: MORT_TERMINAL_THEME,
+  theme: ANVIL_TERMINAL_THEME,
   allowProposedApi: true,
   scrollback: 5000,                    // NEW — up from default 1000
   rescaleOverlappingGlyphs: true,      // NEW — fix powerline/box-drawing overlap

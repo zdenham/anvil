@@ -11,7 +11,7 @@ Two features for plan drag-and-drop in the sidebar tree:
 - `canCrossWorktreeBoundary()` in `dnd-validation.ts` returns `false` for all types, with a comment: "Future: return type === 'plan' to allow plans to cross worktree boundaries"
 - Plan metadata tracks: `repoId`, `worktreeId`, `relativePath` (e.g., `plans/auth/login.md`)
 - Plan files live at `{worktreePath}/{relativePath}` — resolved by `resolvePlanPath()` in `src/entities/plans/utils.ts`
-- `planService` has `create()`, `delete()`, `update()`, and `ensurePlanExists()` — all handle metadata in `~/.mort/plans/{id}/metadata.json`
+- `planService` has `create()`, `delete()`, `update()`, and `ensurePlanExists()` — all handle metadata in `~/.anvil/plans/{id}/metadata.json`
 - `FilesystemClient.move()` exists for file operations
 - `detectParentPlan()` derives domain parent from file path structure ([readme.md](http://readme.md) convention)
 - No `git_mv` Tauri command exists currently; `git_rm` does exist
@@ -52,7 +52,7 @@ When a plan is dragged from worktree A to worktree B:
    - Read the plan file content from source worktree
    - Write the file to `{destWorktreePath}/plans/{filename}`
    - Delete the file from source worktree
-   - Delete the old plan metadata from `~/.mort/plans/{oldId}/`
+   - Delete the old plan metadata from `~/.anvil/plans/{oldId}/`
    - Create new plan metadata with new `worktreeId`, `relativePath: plans/{filename}`, `visualSettings.parentId` set to destination worktree ID
    - If the plan had descendants, move them all (each lands at plans root too)
 

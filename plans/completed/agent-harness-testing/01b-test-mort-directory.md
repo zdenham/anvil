@@ -1,8 +1,8 @@
-# Phase 1b: TestMortDirectory Service
+# Phase 1b: TestAnvilDirectory Service
 
 ## Overview
 
-Create `TestMortDirectory` service for isolated mort directory creation with full orchestration support. This service creates a temporary directory structure that mirrors the real `~/.mort` layout, enabling integration tests to run against realistic file-based state without affecting real data.
+Create `TestAnvilDirectory` service for isolated anvil directory creation with full orchestration support. This service creates a temporary directory structure that mirrors the real `~/.anvil` layout, enabling integration tests to run against realistic file-based state without affecting real data.
 
 ## Dependencies
 
@@ -14,7 +14,7 @@ Create `TestMortDirectory` service for isolated mort directory creation with ful
 
 ## Files to Create
 
-### `agents/src/testing/services/test-mort-directory.ts`
+### `agents/src/testing/services/test-anvil-directory.ts`
 
 ```typescript
 import { mkdirSync, rmSync, writeFileSync, existsSync } from "fs";
@@ -26,7 +26,7 @@ import type { RepositorySettings } from "@/entities/repositories/types";
 import { generateTaskId } from "@core/types/tasks";
 import { logger } from "@/lib/logger-client";
 
-export interface TestMortDirectoryOptions {
+export interface TestAnvilDirectoryOptions {
   /** Keep directory after cleanup for debugging */
   keepOnCleanup?: boolean;
 }
@@ -38,13 +38,13 @@ export interface TestRepository {
   defaultBranch?: string;
 }
 
-export class TestMortDirectory {
+export class TestAnvilDirectory {
   public readonly path: string;
   private cleaned = false;
   private registeredRepos: Map<string, TestRepository> = new Map();
 
-  constructor(private options: TestMortDirectoryOptions = {}) {
-    this.path = join(tmpdir(), `mort-test-${randomUUID()}`);
+  constructor(private options: TestAnvilDirectoryOptions = {}) {
+    this.path = join(tmpdir(), `anvil-test-${randomUUID()}`);
   }
 
   /**
@@ -162,7 +162,7 @@ export class TestMortDirectory {
 
     const shouldKeep = this.options.keepOnCleanup || process.env.KEEP_TEMP || failed;
     if (shouldKeep) {
-      logger.info(`Keeping test mort directory for debugging: ${this.path}`);
+      logger.info(`Keeping test anvil directory for debugging: ${this.path}`);
       return;
     }
 
@@ -176,25 +176,25 @@ export class TestMortDirectory {
 ## Usage Example
 
 ```typescript
-import { TestMortDirectory } from "@/testing/services/test-mort-directory";
+import { TestAnvilDirectory } from "@/testing/services/test-anvil-directory";
 
 describe("Agent Integration", () => {
-  let mortDir: TestMortDirectory;
+  let anvilDir: TestAnvilDirectory;
 
   beforeEach(() => {
-    mortDir = new TestMortDirectory().init();
-    mortDir.registerRepository({
+    anvilDir = new TestAnvilDirectory().init();
+    anvilDir.registerRepository({
       name: "test-repo",
       path: "/path/to/test/repo",
     });
   });
 
   afterEach(() => {
-    mortDir.cleanup();
+    anvilDir.cleanup();
   });
 
   it("creates task in correct location", () => {
-    const task = mortDir.createTask({
+    const task = anvilDir.createTask({
       repositoryName: "test-repo",
       title: "Fix bug",
     });
@@ -207,16 +207,16 @@ describe("Agent Integration", () => {
 
 ## Key Features
 
-1. **Isolated temp directory** - Each test gets its own mort-like directory in the system temp folder
+1. **Isolated temp directory** - Each test gets its own anvil-like directory in the system temp folder
 2. **Full orchestration setup** - Creates settings.json with all required RepositorySettings fields
 3. **Task creation** - Creates proper TaskMetadata matching the real schema from `@core/types/tasks`
 4. **Cleanup on failure** - Optionally preserves directories for debugging via `KEEP_TEMP` env var or `failed` flag
-5. **Fluent API** - Methods return `this` for chaining (e.g., `mortDir.init().registerRepository(...)`)
+5. **Fluent API** - Methods return `this` for chaining (e.g., `anvilDir.init().registerRepository(...)`)
 
 ## Directory Structure Created
 
 ```
-/tmp/mort-test-{uuid}/
+/tmp/anvil-test-{uuid}/
 ├── config.json
 ├── repositories/
 │   └── {repo-name}/

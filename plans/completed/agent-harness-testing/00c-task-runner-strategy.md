@@ -30,7 +30,7 @@ import { emitEvent } from "./shared";
 export class TaskRunnerStrategy implements RunnerStrategy {
   parseArgs(args: string[]): RunnerConfig {
     // 1. Parse CLI args using existing parseArgs utility
-    // 2. Validate required args: --task-slug, --thread-id, --mort-dir, --agent
+    // 2. Validate required args: --task-slug, --thread-id, --anvil-dir, --agent
     // 3. Validate agent type is one of: research, execution, merge
     // 4. Return normalized config with all required fields
     // 5. Throw descriptive error if validation fails
@@ -74,7 +74,7 @@ Extract and consolidate arg parsing for task-based agents:
 | `--agent` | Yes | One of: `research`, `execution`, `merge` |
 | `--task-slug` | Yes | Task identifier (e.g., `add-dark-mode`) |
 | `--thread-id` | Yes | UUID for the thread |
-| `--mort-dir` | Yes | Path to `.mort` directory |
+| `--anvil-dir` | Yes | Path to `.anvil` directory |
 | `--prompt` | No | Optional additional prompt text |
 
 ### Setup Sequence (from `orchestrate()`)
@@ -102,7 +102,7 @@ The cleanup phase ensures resources are properly released:
 | `TaskMetadataService` | Load/update task metadata from `tasks/{slug}/metadata.json` |
 | `ThreadService` | Create/update thread records in `threads/{agent}-{threadId}/` |
 | `WorktreeAllocationService` | Allocate/release worktrees from configured pool |
-| `RepositorySettingsService` | Load settings from `.mort/settings.json` |
+| `RepositorySettingsService` | Load settings from `.anvil/settings.json` |
 
 ### Key Differences from SimpleRunnerStrategy
 
@@ -112,7 +112,7 @@ The cleanup phase ensures resources are properly released:
 | Task metadata | `tasks/{slug}/metadata.json` | `simple-tasks/{threadId}/metadata.json` |
 | Worktrees | Optional (via settings) | Never used |
 | Thread folder | `threads/{agent}-{threadId}/` | N/A |
-| Required args | `--task-slug`, `--agent`, `--thread-id`, `--mort-dir` | `--cwd`, `--thread-id`, `--mort-dir`, `--prompt` |
+| Required args | `--task-slug`, `--agent`, `--thread-id`, `--anvil-dir` | `--cwd`, `--thread-id`, `--anvil-dir`, `--prompt` |
 
 ## Error Handling
 

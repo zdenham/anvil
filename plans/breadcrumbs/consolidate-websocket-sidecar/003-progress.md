@@ -13,7 +13,7 @@
 - All builds and type-checks pass
 
 ## Remaining
-- Phase C2: Update `agents/src/lib/hub/connection.ts` to support WebSocket transport via `MORT_AGENT_HUB_WS_URL` env var (dual-mode: WS or Unix socket)
+- Phase C2: Update `agents/src/lib/hub/connection.ts` to support WebSocket transport via `ANVIL_AGENT_HUB_WS_URL` env var (dual-mode: WS or Unix socket)
 - Phase C3: Integration test — full round-trip: frontend → sidecar → agent → sidecar → frontend
 - Phase D1: Delete `src-tauri/src/ws_server/` and remove WS startup from lib.rs
 - Phase D2: Update Tauri to delegate data commands to sidecar

@@ -27,9 +27,9 @@ This function converts `Command` to `CommandOrControl` before sending to Tauri. 
 ### Backend (`src-tauri/build.rs:7-12`)
 The defaults already use `Command` directly:
 ```rust
-let spotlight_hotkey = std::env::var("MORT_SPOTLIGHT_HOTKEY")
+let spotlight_hotkey = std::env::var("ANVIL_SPOTLIGHT_HOTKEY")
     .unwrap_or_else(|_| "Command+Space".to_string());
-let clipboard_hotkey = std::env::var("MORT_CLIPBOARD_HOTKEY")
+let clipboard_hotkey = std::env::var("ANVIL_CLIPBOARD_HOTKEY")
     .unwrap_or_else(|_| "Command+Option+C".to_string());
 ```
 

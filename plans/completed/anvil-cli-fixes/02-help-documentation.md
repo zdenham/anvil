@@ -1,11 +1,11 @@
 # Help Documentation
 
-**File:** `agents/src/cli/mort.ts`
+**File:** `agents/src/cli/anvil.ts`
 **Parallel:** Yes (no dependencies)
 
 ## Problem
 
-- `mort` (bare) errors instead of showing help
+- `anvil` (bare) errors instead of showing help
 - No `--help` flags supported
 - No help for subcommands
 
@@ -15,10 +15,10 @@
 
 ```typescript
 function showHelp(): void {
-  console.log(`mort - Task management CLI for Mort
+  console.log(`anvil - Task management CLI for Anvil
 
 USAGE:
-  mort <command> [subcommand] [options]
+  anvil <command> [subcommand] [options]
 
 COMMANDS:
   tasks list              List all tasks
@@ -29,7 +29,7 @@ COMMANDS:
   tasks associate         Associate a thread with a task
   tasks disassociate      Remove thread association
 
-Run 'mort tasks <subcommand> --help' for detailed help on each command.`);
+Run 'anvil tasks <subcommand> --help' for detailed help on each command.`);
 }
 ```
 
@@ -37,7 +37,7 @@ Run 'mort tasks <subcommand> --help' for detailed help on each command.`);
 
 ```typescript
 function showTasksHelp(): void {
-  console.log(`mort tasks - Task management commands
+  console.log(`anvil tasks - Task management commands
 
 SUBCOMMANDS:
   list          List all tasks (--json for JSON output)
@@ -58,26 +58,26 @@ OPTIONS:
 
 ```typescript
 const COMMAND_HELP: Record<string, string> = {
-  list: `mort tasks list - List all tasks
+  list: `anvil tasks list - List all tasks
 
 OPTIONS:
   --json    Output as JSON`,
 
-  get: `mort tasks get - Get task details
+  get: `anvil tasks get - Get task details
 
 OPTIONS:
   --id      Task ID
   --slug    Task slug (alternative to --id)
   --json    Output as JSON`,
 
-  rename: `mort tasks rename - Rename a task
+  rename: `anvil tasks rename - Rename a task
 
 OPTIONS:
   --id      Task ID (required)
   --title   New title (required)
   --json    Output as JSON`,
 
-  update: `mort tasks update - Update task properties
+  update: `anvil tasks update - Update task properties
 
 OPTIONS:
   --id          Task ID (required)
@@ -89,18 +89,18 @@ OPTIONS:
   --repo        Repository name
   --json        Output as JSON`,
 
-  delete: `mort tasks delete - Delete a task
+  delete: `anvil tasks delete - Delete a task
 
 OPTIONS:
   --id      Task ID (required)`,
 
-  associate: `mort tasks associate - Associate thread with task
+  associate: `anvil tasks associate - Associate thread with task
 
 OPTIONS:
   --task    Task slug (required)
   --thread  Thread ID (required)`,
 
-  disassociate: `mort tasks disassociate - Remove thread association
+  disassociate: `anvil tasks disassociate - Remove thread association
 
 OPTIONS:
   --task-id  Task ID (required)
@@ -137,10 +137,10 @@ if (args.includes("--help")) {
 ## Verification
 
 ```bash
-mort                     # Shows help, exits 0
-mort help                # Shows help, exits 0
-mort --help              # Shows help, exits 0
-mort tasks               # Shows tasks help, exits 0
-mort tasks --help        # Shows tasks help, exits 0
-mort tasks update --help # Shows update help, exits 0
+anvil                     # Shows help, exits 0
+anvil help                # Shows help, exits 0
+anvil --help              # Shows help, exits 0
+anvil tasks               # Shows tasks help, exits 0
+anvil tasks --help        # Shows tasks help, exits 0
+anvil tasks update --help # Shows update help, exits 0
 ```

@@ -222,6 +222,9 @@ pub fn initialize() {
     // Initialize shell path with static fallback
     SHELL_PATH.get_or_init(|| RwLock::new(capture_shell_path()));
 
+    // Migrate legacy ~/.mort → ~/.anvil if needed
+    migrate_legacy_data_dir();
+
     tracing::info!(
         data_dir = %data_dir().display(),
         config_dir = %config_dir().display(),
@@ -229,6 +232,79 @@ pub fn initialize() {
         app_suffix = %build_info::app_suffix(),
         "Paths initialized (shell init deferred)"
     );
+}
+
+/// Migrate legacy ~/.mort data directory to ~/.anvil on first launch.
+///
+/// Strategy:
+/// - If ~/.anvil already exists → do nothing (already migrated or fresh install)
+/// - If ~/.mort exists but ~/.anvil does not → recursively copy ~/.mort → ~/.anvil
+///   (leaves ~/.mort intact so users can roll back)
+/// - If neither exists → do nothing (fresh install, dirs created later by bootstrap)
+fn migrate_legacy_data_dir() {
+    let data = data_dir();
+
+    // If the target directory already exists, no migration needed
+    if data.exists() {
+        return;
+    }
+
+    // Derive the legacy directory name by replacing ".anvil" with ".mort"
+    let suffix = build_info::app_suffix();
+    let legacy_name = if suffix.is_empty() {
+        ".mort".to_string()
+    } else {
+        format!(".mort-{}", suffix)
+    };
+
+    let legacy_dir = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(legacy_name);
+
+    if !legacy_dir.exists() {
+        // Neither old nor new directory exists — fresh install
+        return;
+    }
+
+    tracing::info!(
+        from = %legacy_dir.display(),
+        to = %data.display(),
+        "Migrating legacy data directory"
+    );
+
+    match copy_dir_recursive(&legacy_dir, data) {
+        Ok(()) => {
+            tracing::info!(
+                from = %legacy_dir.display(),
+                to = %data.display(),
+                "Legacy data directory migrated successfully"
+            );
+        }
+        Err(e) => {
+            tracing::error!(
+                error = %e,
+                from = %legacy_dir.display(),
+                to = %data.display(),
+                "Failed to migrate legacy data directory"
+            );
+        }
+    }
+}
+
+/// Recursively copy a directory and all its contents.
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            std::fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
 }
 
 /// Base directory for repository data and threads

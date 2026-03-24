@@ -1,10 +1,10 @@
-# mort-repl: Live Agent Integration Test
+# anvil-repl: Live Agent Integration Test
 
-Validate that mort-repl works end-to-end with a real Anthropic API call using `AgentTestHarness`. The existing unit tests mock everything — this verifies the actual agent→hook→transpile→execute→result pipeline with a live LLM.
+Validate that anvil-repl works end-to-end with a real Anthropic API call using `AgentTestHarness`. The existing unit tests mock everything — this verifies the actual agent→hook→transpile→execute→result pipeline with a live LLM.
 
 ## Test Location
 
-`agents/src/experimental/__tests__/mort-repl.integration.test.ts`
+`agents/src/experimental/__tests__/anvil-repl.integration.test.ts`
 
 Follows the established pattern: `describeWithApi` guard, `AgentTestHarness`, `assertAgent()` fluent assertions.
 
@@ -12,9 +12,9 @@ Follows the established pattern: `describeWithApi` guard, `AgentTestHarness`, `a
 
 ### 1. Basic REPL execution — `return 42`
 
-Prompt the agent with explicit instructions to call `mort-repl` with a simple expression. The hook intercepts the Bash call, executes the code, and returns the result as a deny reason. The agent should see `mort-repl result: 42` and report it back.
+Prompt the agent with explicit instructions to call `anvil-repl` with a simple expression. The hook intercepts the Bash call, executes the code, and returns the result as a deny reason. The agent should see `anvil-repl result: 42` and report it back.
 
-**Prompt strategy**: Be very explicit — tell the agent "Call the Bash tool with command `mort-repl \"return 42\"` and report the result." Agents follow direct tool instructions reliably. Don't rely on the agent knowing what mort-repl is (the `/orchestrate` skill prompt isn't injected in test context).
+**Prompt strategy**: Be very explicit — tell the agent "Call the Bash tool with command `anvil-repl \"return 42\"` and report the result." Agents follow direct tool instructions reliably. Don't rely on the agent knowing what anvil-repl is (the `/orchestrate` skill prompt isn't injected in test context).
 
 **Assertions**:
 - `assertAgent(output).succeeded()`
@@ -26,13 +26,13 @@ Prompt the agent with explicit instructions to call `mort-repl` with a simple ex
 
 ### 2. TypeScript code with types stripped
 
-Prompt the agent to call mort-repl with TypeScript code including type annotations:
+Prompt the agent to call anvil-repl with TypeScript code including type annotations:
 ```
-mort-repl <<'MORT_REPL'
+anvil-repl <<'ANVIL_REPL'
 interface Result { value: number; label: string }
 const r: Result = { value: 99, label: "test" };
 return r;
-MORT_REPL
+ANVIL_REPL
 ```
 
 This validates that `ts.transpileModule()` strips types before `AsyncFunction` execution. If the transpiler fails, the agent sees an error instead of `{ value: 99, label: "test" }`.
@@ -43,14 +43,14 @@ This validates that `ts.transpileModule()` strips types before `AsyncFunction` e
 
 **Timeout**: 60s.
 
-### 3. mort.log() output appears in result
+### 3. anvil.log() output appears in result
 
 Prompt the agent to call:
 ```
-mort-repl <<'MORT_REPL'
-mort.log("hello from repl");
+anvil-repl <<'ANVIL_REPL'
+anvil.log("hello from repl");
 return "done";
-MORT_REPL
+ANVIL_REPL
 ```
 
 The formatted result should include the log line. Validates SDK log capture works end-to-end.
@@ -61,42 +61,42 @@ The formatted result should include the log line. Validates SDK log capture work
 
 **Timeout**: 60s.
 
-### 4. mort.spawn() — child agent execution (the big one)
+### 4. anvil.spawn() — child agent execution (the big one)
 
-Prompt the agent to call mort-repl with a `mort.spawn()` that creates a real child agent. The child prompt should be trivial so it finishes fast: `"Reply with exactly the word PINEAPPLE and nothing else."`
+Prompt the agent to call anvil-repl with a `anvil.spawn()` that creates a real child agent. The child prompt should be trivial so it finishes fast: `"Reply with exactly the word PINEAPPLE and nothing else."`
 
 ```
-mort-repl <<'MORT_REPL'
-const result = await mort.spawn({
+anvil-repl <<'ANVIL_REPL'
+const result = await anvil.spawn({
   prompt: 'Reply with exactly the word PINEAPPLE and nothing else.',
 });
 return result;
-MORT_REPL
+ANVIL_REPL
 ```
 
 This validates the full spawn flow: disk thread creation → `child_process.spawn` → child runs `runAgentLoop()` → child writes state → parent reads last assistant message → returns to REPL.
 
 **Important considerations**:
-- Child connects to hub independently — but in test, the hub socket path is `MORT_HUB_SOCKET_PATH` from the harness. The child inherits the parent's env, so it will try to connect to the same mock hub socket. This should work: MockHubServer accepts multiple connections and tracks messages by threadId.
+- Child connects to hub independently — but in test, the hub socket path is `ANVIL_HUB_SOCKET_PATH` from the harness. The child inherits the parent's env, so it will try to connect to the same mock hub socket. This should work: MockHubServer accepts multiple connections and tracks messages by threadId.
 - Child needs `ANTHROPIC_API_KEY` — inherited from parent env, which is inherited from test process.
-- Child creates its own thread dir on disk in the harness's temp mort directory.
+- Child creates its own thread dir on disk in the harness's temp anvil directory.
 
 **Assertions**:
 - Agent succeeded
-- Final text contains `PINEAPPLE` (the child's response, propagated through mort.spawn() → REPL result → agent text)
-- Child thread directory exists on disk: scan `mortDir/threads/` for a directory other than the parent threadId
+- Final text contains `PINEAPPLE` (the child's response, propagated through anvil.spawn() → REPL result → agent text)
+- Child thread directory exists on disk: scan `anvilDir/threads/` for a directory other than the parent threadId
 - `thread:created` event was emitted (via `assertAgent(output).hasEvent("thread:created")`)
 
 **Timeout**: 120s — two API calls (parent + child).
 
 ### 5. Error handling — syntax error in REPL code
 
-Prompt the agent to call mort-repl with invalid code:
+Prompt the agent to call anvil-repl with invalid code:
 ```
-mort-repl "const x: = 42;"
+anvil-repl "const x: = 42;"
 ```
 
-The transpiler or AsyncFunction should throw. The hook returns the error as a deny reason. The agent should see `mort-repl error:` and report it.
+The transpiler or AsyncFunction should throw. The hook returns the error as a deny reason. The agent should see `anvil-repl error:` and report it.
 
 **Assertions**:
 - Agent succeeded (the agent itself doesn't crash — it gets an error message from the hook and reports it)
@@ -112,13 +112,13 @@ The transpiler or AsyncFunction should throw. The hook returns the error as a de
 const harness = new AgentTestHarness({ timeout: 120_000 });
 ```
 
-No custom `setupEnvironment` needed — the default `TestMortDirectory` + `TestRepository` are sufficient. The repl hook is wired into the standard runner via `shared.ts`, so it fires automatically.
+No custom `setupEnvironment` needed — the default `TestAnvilDirectory` + `TestRepository` are sufficient. The repl hook is wired into the standard runner via `shared.ts`, so it fires automatically.
 
 ### Prompt engineering
 
-The agent doesn't have the `/orchestrate` skill prompt injected in test context, so it doesn't inherently know about mort-repl. Each test prompt must be explicit: "Call the Bash tool with this exact command." The Haiku-class models follow these instructions reliably.
+The agent doesn't have the `/orchestrate` skill prompt injected in test context, so it doesn't inherently know about anvil-repl. Each test prompt must be explicit: "Call the Bash tool with this exact command." The Haiku-class models follow these instructions reliably.
 
-For the spawn test specifically, include in the system prompt area (via the prompt itself) that mort-repl is a special Bash prefix that executes TypeScript code with a `mort` SDK object available.
+For the spawn test specifically, include in the system prompt area (via the prompt itself) that anvil-repl is a special Bash prefix that executes TypeScript code with a `anvil` SDK object available.
 
 ### Extracting agent final text
 
@@ -145,8 +145,8 @@ Each test makes 1-2 live API calls. The spawn test makes 2 (parent + child). Mar
 ```
  ✓ basic REPL execution — return 42                  (8939ms)
  ✓ TypeScript code with types stripped                (12880ms)
- ✓ mort.log() output appears in result                (9488ms)
- ✓ mort.spawn() — child agent execution               (15675ms)
+ ✓ anvil.log() output appears in result                (9488ms)
+ ✓ anvil.spawn() — child agent execution               (15675ms)
  ✓ error handling — runtime error in REPL code        (10889ms)
 
  Test Files  1 passed (1)
@@ -162,12 +162,12 @@ Each test makes 1-2 live API calls. The spawn test makes 2 (parent + child). Mar
 
 3. **Test 5 revised: syntax error → runtime error** — `ts.transpileModule()` is lenient: `const x: = 42;` is treated as a type annotation stripped to `const x = 42;`, producing `undefined` (valid JS). Changed to `throw new Error('kaboom')` which reliably triggers the error path.
 
-4. **ChildSpawner tsx fix (Open Question #2 resolved)** — `ChildSpawner` used `node runnerPath` where `runnerPath = import.meta.url` resolves to the `.ts` source file when running via tsx. Fixed in `child-spawner.ts`: detect `.ts` extension and use `tsx` as executable. All 5 tests now pass including `mort.spawn()`.
+4. **ChildSpawner tsx fix (Open Question #2 resolved)** — `ChildSpawner` used `node runnerPath` where `runnerPath = import.meta.url` resolves to the `.ts` source file when running via tsx. Fixed in `child-spawner.ts`: detect `.ts` extension and use `tsx` as executable. All 5 tests now pass including `anvil.spawn()`.
 
 ### Changes Made
 
-- `agents/src/experimental/__tests__/mort-repl.integration.test.ts` — New integration test file (5 tests, `.skip` for CI)
-- `agents/src/lib/mort-repl/child-spawner.ts` — Detect `.ts` runnerPath and use `tsx` executable
+- `agents/src/experimental/__tests__/anvil-repl.integration.test.ts` — New integration test file (5 tests, `.skip` for CI)
+- `agents/src/lib/anvil-repl/child-spawner.ts` — Detect `.ts` runnerPath and use `tsx` executable
 
 ---
 

@@ -187,7 +187,7 @@ command.stdout.on("data", (chunk: string) => {
     try {
       const state = JSON.parse(line) as ThreadState;
       callbacks.onState(state);
-      detectMortMutations(state);
+      detectAnvilMutations(state);
 
       // NEW: Detect tool completion and emit event
       const currentCount = countToolResults(state.messages);

@@ -44,7 +44,7 @@ Write research findings to the task's content.md:
 - Implementation approach
 - Acceptance criteria
 
-Use the Write tool to write to: `~/Documents/.mort/tasks/{slug}/content.md`
+Use the Write tool to write to: `~/Documents/.anvil/tasks/{slug}/content.md`
 ```
 
 **Replace with:**
@@ -77,7 +77,7 @@ Use the Write tool to write to: `~/Documents/.mort/tasks/{slug}/content.md`
 
 #### content.md Structure
 
-Write to: \`~/Documents/.mort/tasks/{slug}/content.md\`
+Write to: \`~/Documents/.anvil/tasks/{slug}/content.md\`
 
 \`\`\`markdown
 ## Problem
@@ -169,7 +169,7 @@ Request reviews are **checkpoints**, not reports. The user can read content.md f
 
 **Good pattern:**
 \`\`\`bash
-mort request-review --task={{taskId}} --default "Start implementation" --markdown "
+anvil request-review --task={{taskId}} --default "Start implementation" --markdown "
 ## Plan Ready
 
 Implementation plan in content.md.
@@ -193,7 +193,7 @@ The current examples (lines 234-281) are too verbose. Replace with:
 
 \`\`\`bash
 # Plan ready - brief checkpoint
-mort request-review --task={{taskId}} --default "Start implementation" --markdown "
+anvil request-review --task={{taskId}} --default "Start implementation" --markdown "
 ## Plan Ready
 
 See content.md. Modifying 3 files to add metrics endpoint.
@@ -202,7 +202,7 @@ Proceed?
 "
 
 # Need direction on approach
-mort request-review --task={{taskId}} --default "Option A" --markdown "
+anvil request-review --task={{taskId}} --default "Option A" --markdown "
 ## Two Approaches
 
 **A:** Extend existing middleware (simpler, coupled)
@@ -212,7 +212,7 @@ Preference?
 "
 
 # Work complete
-mort request-review --task={{taskId}} --default "Approve" --markdown "
+anvil request-review --task={{taskId}} --default "Approve" --markdown "
 ## Complete
 
 Tests passing. Details in content.md.

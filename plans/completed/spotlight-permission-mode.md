@@ -81,7 +81,7 @@ Drop backward worktree cycling entirely. Tab continues to cycle worktrees forwar
 - Accept `permissionMode` in the component props (add to `WorktreeInfo` or add a separate prop)
 - In the `getResultDisplay()` function for the `"thread"` result type, render the permission mode label next to "Create thread":
   ```
-  [MortLogo]  Create thread · Implement    [repo / worktree · Tab to change]
+  [AnvilLogo]  Create thread · Implement    [repo / worktree · Tab to change]
   ```
 - Reuse the color scheme from `thread-input-status-bar.tsx`:
   - Plan: `text-blue-400`
@@ -93,8 +93,8 @@ Drop backward worktree cycling entirely. Tab continues to cycle worktrees forwar
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ [MortLogo]  Create thread · Implement (⇧Tab)        │
-│             🔀 mortician / main · Tab to change      │
+│ [AnvilLogo]  Create thread · Implement (⇧Tab)        │
+│             🔀 anvil / main · Tab to change      │
 └─────────────────────────────────────────────────────┘
 ```
 

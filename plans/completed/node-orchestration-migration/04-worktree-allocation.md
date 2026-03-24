@@ -42,7 +42,7 @@ const DEFAULT_LOCK_OPTIONS: AcquireOptions = {
 
 export class WorktreeAllocationService {
   constructor(
-    private mortDir: string,
+    private anvilDir: string,
     private settingsService: RepositorySettingsService,
     private mergeBaseService: MergeBaseService,
     private git: GitAdapter,
@@ -149,7 +149,7 @@ export class WorktreeAllocationService {
   private createWorktree(repoName: string, settings: RepositorySettings): WorktreeState {
     const worktreeName = `worktree-${settings.worktrees.length + 1}`;
     const worktreePath = path.join(
-      this.mortDir,
+      this.anvilDir,
       'repositories',
       repoName,
       'worktrees',
@@ -172,7 +172,7 @@ export class WorktreeAllocationService {
   }
 
   private getLockPath(repoName: string): string {
-    return path.join(this.mortDir, 'repositories', repoName, '.lock');
+    return path.join(this.anvilDir, 'repositories', repoName, '.lock');
   }
 
   /**
@@ -272,7 +272,7 @@ The retry-enabled PathLock ensures:
 
 ## Locking Strategy
 
-- File-based lock at `~/.mort/repositories/{repoName}/.lock`
+- File-based lock at `~/.anvil/repositories/{repoName}/.lock`
 - 30-second stale TTL
 - **Retry with exponential backoff (5 attempts, 100ms base delay)**
 - Lock acquired for both allocate and release

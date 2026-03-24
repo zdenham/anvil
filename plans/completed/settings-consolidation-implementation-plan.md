@@ -2,35 +2,35 @@
 
 ## Overview
 
-This plan outlines the implementation steps to consolidate all settings storage into the `.mort/settings` directory, addressing the current split between `~/Library/Application Support/mortician/` and `~/.mort/`.
+This plan outlines the implementation steps to consolidate all settings storage into the `.anvil/settings` directory, addressing the current split between `~/Library/Application Support/anvil/` and `~/.anvil/`.
 
 ## Goals
 
-1. **Consolidate** all settings to `~/.mort/settings/` directory
-2. **Migrate** clipboard database to `~/.mort/databases/` directory
+1. **Consolidate** all settings to `~/.anvil/settings/` directory
+2. **Migrate** clipboard database to `~/.anvil/databases/` directory
 3. **Preserve** all existing user data during migration
 4. **Maintain** backward compatibility during transition
-5. **Fix** bootstrap timing to ensure `.mort` directory exists early
+5. **Fix** bootstrap timing to ensure `.anvil` directory exists early
 
 ## Implementation Phases
 
 ### Phase 1: Bootstrap Timing Fix (Critical Foundation)
 
-**Problem**: Currently `.mort` directory is bootstrapped asynchronously after app startup, but main config needs to be loaded synchronously during Tauri initialization.
+**Problem**: Currently `.anvil` directory is bootstrapped asynchronously after app startup, but main config needs to be loaded synchronously during Tauri initialization.
 
 #### 1.1 Update Tauri Main Process Bootstrap
 
 **File**: `src-tauri/src/main.rs`
 
 **Changes Required**:
-- Move `.mort` directory creation to **before** config initialization
+- Move `.anvil` directory creation to **before** config initialization
 - Ensure synchronous bootstrap of essential directories
-- Call new `ensure_mort_directories()` function
+- Call new `ensure_anvil_directories()` function
 
 **New function to add**:
 ```rust
-/// Ensures essential .mort directories exist synchronously
-fn ensure_mort_directories() -> Result<(), String> {
+/// Ensures essential .anvil directories exist synchronously
+fn ensure_anvil_directories() -> Result<(), String> {
     let data_dir = paths::data_dir();
     let settings_dir = data_dir.join("settings");
     let databases_dir = data_dir.join("databases");
@@ -50,22 +50,22 @@ fn ensure_mort_directories() -> Result<(), String> {
 
 **New functions to add**:
 ```rust
-/// Path to settings directory in .mort
+/// Path to settings directory in .anvil
 pub fn settings_dir() -> PathBuf {
     data_dir().join("settings")
 }
 
-/// Path to databases directory in .mort
+/// Path to databases directory in .anvil
 pub fn databases_dir() -> PathBuf {
     data_dir().join("databases")
 }
 
-/// Path to app config file in .mort/settings
+/// Path to app config file in .anvil/settings
 pub fn app_config_file() -> PathBuf {
     settings_dir().join("app-config.json")
 }
 
-/// Path to clipboard database in .mort/databases
+/// Path to clipboard database in .anvil/databases
 pub fn clipboard_database() -> PathBuf {
     databases_dir().join("clipboard.db")
 }
@@ -253,9 +253,9 @@ fn main() {
     // 1. Initialize paths
     paths::initialize();
 
-    // 2. Ensure .mort directories exist (NEW)
-    if let Err(e) = ensure_mort_directories() {
-        tracing::error!("Failed to ensure .mort directories: {}", e);
+    // 2. Ensure .anvil directories exist (NEW)
+    if let Err(e) = ensure_anvil_directories() {
+        tracing::error!("Failed to ensure .anvil directories: {}", e);
     }
 
     // 3. Perform one-time migration if needed (NEW)
@@ -312,8 +312,8 @@ fn main() {
 **File**: `src-tauri/build.rs`
 
 **Ensure environment variables are properly handled**:
-- Verify `MORT_DATA_DIR` override works
-- Verify `MORT_CONFIG_DIR` override works (though less relevant now)
+- Verify `ANVIL_DATA_DIR` override works
+- Verify `ANVIL_CONFIG_DIR` override works (though less relevant now)
 - Update any build-time path references
 
 #### 5.3 Documentation Updates
@@ -326,7 +326,7 @@ fn main() {
 ## Implementation Checklist
 
 ### Phase 1: Foundation ✓
-- [ ] Add `ensure_mort_directories()` to `src-tauri/src/main.rs`
+- [ ] Add `ensure_anvil_directories()` to `src-tauri/src/main.rs`
 - [ ] Add new path functions to `src-tauri/src/paths.rs`
 - [ ] Update Tauri initialization sequence
 
@@ -374,8 +374,8 @@ fn main() {
 
 ## Success Criteria
 
-- ✅ All settings consolidated to `~/.mort/settings/`
-- ✅ Clipboard database moved to `~/.mort/databases/`
+- ✅ All settings consolidated to `~/.anvil/settings/`
+- ✅ Clipboard database moved to `~/.anvil/databases/`
 - ✅ Existing user data preserved during migration
 - ✅ Bootstrap timing fixed for consistent initialization
 - ✅ No breaking changes for existing users
@@ -395,4 +395,4 @@ fn main() {
 ---
 
 *Implementation plan created on 2026-01-13*
-*For mortician settings consolidation project*
+*For anvil settings consolidation project*

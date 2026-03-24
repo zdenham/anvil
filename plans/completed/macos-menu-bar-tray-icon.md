@@ -3,7 +3,7 @@
 ## Overview
 
 Implement a persistent macOS menu bar icon (system tray) that:
-1. Displays the Mort logo in the menu bar
+1. Displays the Anvil logo in the menu bar
 2. Opens the spotlight panel when clicked
 3. Provides a right-click menu with quick actions
 
@@ -38,8 +38,8 @@ Create a dedicated menu bar icon:
 #### Available Source Icons
 
 Pre-extracted icon assets are available in the project root:
-- **`icon-black.png`** - Black Mort face on transparent background (for template icons)
-- **`icon-white.png`** - White Mort face on transparent background
+- **`icon-black.png`** - Black Anvil face on transparent background (for template icons)
+- **`icon-white.png`** - White Anvil face on transparent background
 
 The black version (`icon-black.png`) is already in the correct format for macOS template icons - black shapes on transparent background.
 
@@ -102,7 +102,7 @@ macOS template icons are special:
 
 | File | Size | Content |
 |------|------|---------|
-| `tray-icon.png` | 22x22 | Black Mort face silhouette on transparent |
+| `tray-icon.png` | 22x22 | Black Anvil face silhouette on transparent |
 | `tray-icon@2x.png` | 44x44 | Same, for Retina displays |
 
 ### 3. Create Tray Module
@@ -145,10 +145,10 @@ fn build_tray_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, Box<dyn st
     let open_spotlight = MenuItem::with_id(app, "open_spotlight", "Open Spotlight", true, None::<&str>)?;
     let open_clipboard = MenuItem::with_id(app, "open_clipboard", "Clipboard History", true, None::<&str>)?;
     let separator1 = tauri::menu::PredefinedMenuItem::separator(app)?;
-    let open_main = MenuItem::with_id(app, "open_main", "Open Mort", true, None::<&str>)?;
+    let open_main = MenuItem::with_id(app, "open_main", "Open Anvil", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
     let separator2 = tauri::menu::PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Mort", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Anvil", true, None::<&str>)?;
 
     let menu = Menu::with_items(
         app,
@@ -271,7 +271,7 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let _tray = TrayIconBuilder::new()
         .icon(icon)
         .icon_as_template(true) // IMPORTANT: Enables macOS template behavior
-        .tooltip("Mort") // Shows on hover
+        .tooltip("Anvil") // Shows on hover
         .menu(&menu)
         .menu_on_left_click(false) // Left click opens spotlight, not menu
         .on_menu_event(handle_menu_event)
@@ -316,7 +316,7 @@ No additional changes needed - the current `ActivationPolicy` management in `lib
 2. Run the generation script: `./scripts/generate-tray-icon.sh`
 3. Verify icons look correct in `src-tauri/icons/`
 
-**Source files**: The script uses `icon-black.png` (black Mort face on transparent background) from the project root. This file is already in the correct format for macOS template icons.
+**Source files**: The script uses `icon-black.png` (black Anvil face on transparent background) from the project root. This file is already in the correct format for macOS template icons.
 
 ## Behavior Summary
 
@@ -327,9 +327,9 @@ No additional changes needed - the current `ActivationPolicy` management in `lib
 | Right-click tray icon | Show context menu |
 | Menu: "Open Spotlight" | Show spotlight panel |
 | Menu: "Clipboard History" | Show clipboard panel |
-| Menu: "Open Mort" | Show main window |
+| Menu: "Open Anvil" | Show main window |
 | Menu: "Settings..." | Show main window, navigate to settings |
-| Menu: "Quit Mort" | Exit application |
+| Menu: "Quit Anvil" | Exit application |
 
 ## Testing Checklist
 

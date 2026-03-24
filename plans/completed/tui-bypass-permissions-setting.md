@@ -5,7 +5,7 @@
 Two issues with `--dangerously-skip-permissions` in TUI threads:
 
 1. **No toggle** — the flag is hardcoded in `claude-tui-args-builder.ts`. Users can't turn it off.
-2. **Annoying confirmation prompt** — Every time a TUI session spawns, Claude Code shows a fullscreen confirmation dialog requiring the user to arrow-down to "Yes, I accept" and press Enter. This is friction that adds no value in Mort's context since the user already opted in via settings.
+2. **Annoying confirmation prompt** — Every time a TUI session spawns, Claude Code shows a fullscreen confirmation dialog requiring the user to arrow-down to "Yes, I accept" and press Enter. This is friction that adds no value in Anvil's context since the user already opted in via settings.
 
 ## Design
 

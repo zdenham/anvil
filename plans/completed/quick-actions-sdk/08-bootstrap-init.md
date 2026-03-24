@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implement the first-launch initialization that creates the default quick actions project at `~/.mort/quick-actions/`. This follows the existing migrations pattern for idempotent setup.
+Implement the first-launch initialization that creates the default quick actions project at `~/.anvil/quick-actions/`. This follows the existing migrations pattern for idempotent setup.
 
 ## Files to Create
 
@@ -11,7 +11,7 @@ Implement the first-launch initialization that creates the default quick actions
 ```typescript
 import * as fs from '@tauri-apps/plugin-fs';
 import * as path from 'path';
-import { getMortDir, getQuickActionsTemplatePath, getSdkTypesPath } from '@/lib/paths.js';
+import { getAnvilDir, getQuickActionsTemplatePath, getSdkTypesPath } from '@/lib/paths.js';
 import { logger } from '@/lib/logger.js';
 import { Command } from '@tauri-apps/plugin-shell';
 
@@ -33,7 +33,7 @@ interface NodeCheckResult {
 
 /**
  * Check if Node.js is installed and accessible.
- * Per Design Decision #5, Mort should detect if Node.js is missing
+ * Per Design Decision #5, Anvil should detect if Node.js is missing
  * and provide a helpful error message.
  */
 export async function checkNodeAvailable(): Promise<NodeCheckResult> {
@@ -66,8 +66,8 @@ export async function checkNodeAvailable(): Promise<NodeCheckResult> {
  * even without Node.js, but actions won't be runnable.
  */
 export async function initializeQuickActionsProject(): Promise<InitResult> {
-  const mortDir = await getMortDir();
-  const projectPath = path.join(mortDir, QUICK_ACTIONS_DIR);
+  const anvilDir = await getAnvilDir();
+  const projectPath = path.join(anvilDir, QUICK_ACTIONS_DIR);
 
   // Check Node.js availability (DD #5)
   // We log a warning but still proceed with project creation
@@ -123,25 +123,25 @@ async function copyTemplate(projectPath: string): Promise<void> {
 
   // Create project directory structure
   await fs.mkdir(projectPath, { recursive: true });
-  await fs.mkdir(path.join(projectPath, 'node_modules', '@mort', 'sdk'), { recursive: true });
+  await fs.mkdir(path.join(projectPath, 'node_modules', '@anvil', 'sdk'), { recursive: true });
 
   // Copy template files (excluding node_modules - we only ship types.d.ts)
   await copyDirExcluding(templatePath, projectPath, ['node_modules']);
 
   // Copy only the types.d.ts file (DD #4 and #22)
   // User projects never import real SDK code, only type definitions
-  const typesDestPath = path.join(projectPath, 'node_modules', '@mort', 'sdk', TYPES_FILE);
+  const typesDestPath = path.join(projectPath, 'node_modules', '@anvil', 'sdk', TYPES_FILE);
   await fs.copyFile(sdkTypesPath, typesDestPath);
 
   // Create a minimal package.json for the SDK types
   const sdkPackageJson = {
-    name: '@mort/sdk',
+    name: '@anvil/sdk',
     version: SDK_VERSION,
     types: TYPES_FILE,
-    description: 'Type definitions for Mort Quick Actions SDK',
+    description: 'Type definitions for Anvil Quick Actions SDK',
   };
   await fs.writeTextFile(
-    path.join(projectPath, 'node_modules', '@mort', 'sdk', 'package.json'),
+    path.join(projectPath, 'node_modules', '@anvil', 'sdk', 'package.json'),
     JSON.stringify(sdkPackageJson, null, 2)
   );
 }
@@ -195,7 +195,7 @@ async function copyDirExcluding(
 async function readSdkVersion(projectPath: string): Promise<string | null> {
   try {
     // Read version from the minimal package.json we create for SDK types
-    const pkgPath = path.join(projectPath, 'node_modules', '@mort', 'sdk', 'package.json');
+    const pkgPath = path.join(projectPath, 'node_modules', '@anvil', 'sdk', 'package.json');
     const content = await fs.readTextFile(pkgPath);
     const pkg = JSON.parse(content);
     return pkg.version ?? null;
@@ -219,11 +219,11 @@ function needsUpdate(current: string, target: string): boolean {
 /**
  * Update only the SDK types.d.ts file (DD #4 and #22).
  * User's actions and other project files are preserved.
- * The actual SDK implementation is injected at runtime by Mort's runner.
+ * The actual SDK implementation is injected at runtime by Anvil's runner.
  */
 async function updateSdkTypes(projectPath: string): Promise<void> {
   const sdkTypesPath = await getSdkTypesPath();
-  const sdkDir = path.join(projectPath, 'node_modules', '@mort', 'sdk');
+  const sdkDir = path.join(projectPath, 'node_modules', '@anvil', 'sdk');
 
   // Ensure SDK directory exists
   await fs.mkdir(sdkDir, { recursive: true });
@@ -234,10 +234,10 @@ async function updateSdkTypes(projectPath: string): Promise<void> {
 
   // Update package.json with new version
   const sdkPackageJson = {
-    name: '@mort/sdk',
+    name: '@anvil/sdk',
     version: SDK_VERSION,
     types: TYPES_FILE,
-    description: 'Type definitions for Mort Quick Actions SDK',
+    description: 'Type definitions for Anvil Quick Actions SDK',
   };
   await fs.writeTextFile(
     path.join(sdkDir, 'package.json'),
@@ -283,8 +283,8 @@ export async function getQuickActionsTemplatePath(): Promise<string> {
 }
 
 export async function getQuickActionsProjectPath(): Promise<string> {
-  const mortDir = await getMortDir();
-  return path.join(mortDir, 'quick-actions');
+  const anvilDir = await getAnvilDir();
+  return path.join(anvilDir, 'quick-actions');
 }
 
 export async function getRunnerPath(): Promise<string> {
@@ -334,7 +334,7 @@ The template files need to be bundled with the app. Add to `tauri.conf.json`:
 
 ## Build Integration
 
-During Mort's build process:
+During Anvil's build process:
 
 1. Copy `core/sdk/template/` to build output as `quick-actions-template/` (excluding `node_modules/`)
 2. Build the template's actions (run `npm run build` in template) during development/testing only
@@ -396,7 +396,7 @@ async function copyDirExcluding(
 
 - **#1 Default Project, Batteries Included**: Created on first launch
 - **#4 SDK Distribution**: Types shipped as static `.d.ts` file, implementation injected at runtime
-- **#5 Runtime Dependency**: Node.js must be installed by user; Mort detects and provides helpful error
+- **#5 Runtime Dependency**: Node.js must be installed by user; Anvil detects and provides helpful error
 - **#13 SDK Versioning**: Version checked, SDK types updated through migrations
 - **#22 SDK Types Distribution**: Only `types.d.ts` shipped to user projects, never real SDK code
 - **#30 Bootstrap Initialization**: Idempotent, uses migrations pattern
@@ -517,9 +517,9 @@ describe('initializeQuickActionsProject', () => {
     expect(result.updated).toBe(true);
   });
 
-  it('only copies types.d.ts to node_modules/@mort/sdk (DD #4, #22)', async () => {
+  it('only copies types.d.ts to node_modules/@anvil/sdk (DD #4, #22)', async () => {
     // Verify that only types.d.ts and package.json are in the SDK directory
-    const sdkDir = path.join(projectPath, 'node_modules', '@mort', 'sdk');
+    const sdkDir = path.join(projectPath, 'node_modules', '@anvil', 'sdk');
     const entries = await fs.readDir(sdkDir);
     const fileNames = entries.map(e => e.name);
 
@@ -561,25 +561,25 @@ After running the app with the migration:
 
 ```bash
 # Verify project directory exists
-ls -la ~/.mort/quick-actions/
+ls -la ~/.anvil/quick-actions/
 
 # Verify expected structure - SDK should ONLY contain types.d.ts and package.json (DD #4, #22)
-ls -la ~/.mort/quick-actions/node_modules/@mort/sdk/
+ls -la ~/.anvil/quick-actions/node_modules/@anvil/sdk/
 # Expected output: only types.d.ts and package.json (no index.js, no other implementation files)
 
 # Verify types.d.ts exists (per Design Decision #22)
-cat ~/.mort/quick-actions/node_modules/@mort/sdk/types.d.ts
+cat ~/.anvil/quick-actions/node_modules/@anvil/sdk/types.d.ts
 
 # Verify package.json has correct structure
-cat ~/.mort/quick-actions/node_modules/@mort/sdk/package.json
-# Expected: {"name":"@mort/sdk","version":"1.0.0","types":"types.d.ts",...}
+cat ~/.anvil/quick-actions/node_modules/@anvil/sdk/package.json
+# Expected: {"name":"@anvil/sdk","version":"1.0.0","types":"types.d.ts",...}
 
 # Verify NO other node_modules were copied (template ships without node_modules)
-ls ~/.mort/quick-actions/node_modules/
-# Expected: only @mort directory
+ls ~/.anvil/quick-actions/node_modules/
+# Expected: only @anvil directory
 
 # Verify manifest.json exists after user runs build
-cat ~/.mort/quick-actions/dist/manifest.json
+cat ~/.anvil/quick-actions/dist/manifest.json
 ```
 
 ### 5. Tauri Bundle Verification
@@ -604,9 +604,9 @@ ls src-tauri/target/release/bundle/*/Contents/Resources/quick-actions-template/n
 import { getQuickActionsTemplatePath, getQuickActionsProjectPath, getRunnerPath } from '@/lib/paths';
 
 describe('path helpers', () => {
-  it('getQuickActionsProjectPath returns ~/.mort/quick-actions', async () => {
+  it('getQuickActionsProjectPath returns ~/.anvil/quick-actions', async () => {
     const path = await getQuickActionsProjectPath();
-    expect(path).toMatch(/\.mort\/quick-actions$/);
+    expect(path).toMatch(/\.anvil\/quick-actions$/);
   });
 
   it('getQuickActionsTemplatePath resolves to valid directory', async () => {
@@ -627,7 +627,7 @@ describe('path helpers', () => {
 
 | Scenario | Expected Result |
 |----------|-----------------|
-| Fresh install, first launch | Project created at `~/.mort/quick-actions/`, `created: true` |
+| Fresh install, first launch | Project created at `~/.anvil/quick-actions/`, `created: true` |
 | Second launch, no changes | No modifications, `created: false, updated: false` |
 | Launch after SDK version bump | SDK types.d.ts updated, user actions preserved, `updated: true` |
 | Template missing from bundle | Error logged, graceful failure with `error` in result |

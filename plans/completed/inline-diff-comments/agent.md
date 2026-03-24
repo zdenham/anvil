@@ -1,8 +1,8 @@
 # Agent: Comment Resolution via Hook-Intercepted CLI
 
-Agent-side comment resolution using a fake CLI command (`mort-resolve-comment`) intercepted at the PreToolUse hook level, invoked via the `/mort:address-comments` skill. Depends on `foundation.md` completing first. Runs in parallel with `frontend.md`.
+Agent-side comment resolution using a fake CLI command (`anvil-resolve-comment`) intercepted at the PreToolUse hook level, invoked via the `/anvil:address-comments` skill. Depends on `foundation.md` completing first. Runs in parallel with `frontend.md`.
 
-**Files in this plan are under `agents/` and `plugins/mort/` — no `src/` or `core/` modifications.**
+**Files in this plan are under `agents/` and `plugins/anvil/` — no `src/` or `core/` modifications.**
 
 ## Phases
 
@@ -18,9 +18,9 @@ Agent-side comment resolution using a fake CLI command (`mort-resolve-comment`) 
 
 Instead of parsing `[COMMENT_RESOLVED: id]` markers from agent text output, we give the agent a fake CLI command. The agent calls it via Bash, and we intercept it before execution:
 
-1. User (or frontend) invokes `/mort:address-comments` — skill prompt loaded with comment context and `mort-resolve-comment` instructions
-2. Agent addresses comments, then calls `Bash` with `command: "mort-resolve-comment id1,id2,id3"`
-3. PreToolUse hook matches Bash calls starting with `mort-resolve-comment`
+1. User (or frontend) invokes `/anvil:address-comments` — skill prompt loaded with comment context and `anvil-resolve-comment` instructions
+2. Agent addresses comments, then calls `Bash` with `command: "anvil-resolve-comment id1,id2,id3"`
+3. PreToolUse hook matches Bash calls starting with `anvil-resolve-comment`
 4. Hook parses comma-separated IDs from the command
 5. Hook emits `COMMENT_RESOLVED` events via hubClient for each ID
 6. Hook returns `allow` with `updatedInput: { command: "echo 'Resolved comments: id1, id2, id3'" }`
@@ -43,11 +43,11 @@ Instead of parsing `[COMMENT_RESOLVED: id]` markers from agent text output, we g
 ## Phase 1: `address-comments` Skill Definition
 
 **Files:**
-- `plugins/mort/skills/address-comments/SKILL.md` (new)
+- `plugins/anvil/skills/address-comments/SKILL.md` (new)
 
-The skill is invoked as `/mort:address-comments` and provides the agent with:
+The skill is invoked as `/anvil:address-comments` and provides the agent with:
 1. The list of unresolved comments (file, line, content, IDs)
-2. Instructions to use `mort-resolve-comment` after addressing each comment
+2. Instructions to use `anvil-resolve-comment` after addressing each comment
 
 ```markdown
 ---
@@ -68,14 +68,14 @@ $COMMENTS
 
 After you have addressed a comment, mark it as resolved by running:
 
-mort-resolve-comment "<comma-separated-comment-ids>"
+anvil-resolve-comment "<comma-separated-comment-ids>"
 
-Example: `mort-resolve-comment "abc-123,def-456"`
+Example: `anvil-resolve-comment "abc-123,def-456"`
 
 You may resolve comments individually or in batches. Only resolve a comment after you have actually made the requested changes.
 ```
 
-**Note:** `$COMMENTS` is a placeholder — the frontend injects the actual comment data when invoking the skill. This could be done by passing comments as skill arguments, or by having the skill read them from disk at `~/.mort/comments/{worktreeId}.json`. The exact injection mechanism depends on how the frontend triggers the skill (covered in `frontend.md`).
+**Note:** `$COMMENTS` is a placeholder — the frontend injects the actual comment data when invoking the skill. This could be done by passing comments as skill arguments, or by having the skill read them from disk at `~/.anvil/comments/{worktreeId}.json`. The exact injection mechanism depends on how the frontend triggers the skill (covered in `frontend.md`).
 
 ---
 
@@ -100,7 +100,7 @@ interface CommentHookDeps {
 }
 
 /**
- * Creates a PreToolUse hook that intercepts `mort-resolve-comment` Bash calls.
+ * Creates a PreToolUse hook that intercepts `anvil-resolve-comment` Bash calls.
  * Parses comment IDs, emits COMMENT_RESOLVED events, rewrites command to echo.
  */
 export function createCommentResolutionHook(deps: CommentHookDeps) {
@@ -108,21 +108,21 @@ export function createCommentResolutionHook(deps: CommentHookDeps) {
     const input = hookInput as PreToolUseHookInput;
     const command = (input.tool_input as Record<string, unknown>).command as string;
 
-    if (!command.trimStart().startsWith("mort-resolve-comment")) {
+    if (!command.trimStart().startsWith("anvil-resolve-comment")) {
       // Not our command — pass through to other hooks
       return { continue: true };
     }
 
-    // Parse: mort-resolve-comment "id1,id2,id3"
-    const argsMatch = command.match(/mort-resolve-comment\s+["']?([^"']+)["']?/);
+    // Parse: anvil-resolve-comment "id1,id2,id3"
+    const argsMatch = command.match(/anvil-resolve-comment\s+["']?([^"']+)["']?/);
     if (!argsMatch) {
       // Invalid usage — deny with reason (agent sees this as the tool error)
       return {
-        reason: "Usage: mort-resolve-comment \"<comma-separated-ids>\"",
+        reason: "Usage: anvil-resolve-comment \"<comma-separated-ids>\"",
         hookSpecificOutput: {
           hookEventName: "PreToolUse" as const,
           permissionDecision: "deny" as const,
-          permissionDecisionReason: "Invalid mort-resolve-comment usage — no IDs provided",
+          permissionDecisionReason: "Invalid anvil-resolve-comment usage — no IDs provided",
         },
       };
     }
@@ -191,7 +191,7 @@ import { createCommentResolutionHook } from "@/hooks/comment-resolution-hook";
 // [3] Task hook (existing, unchanged)
 ```
 
-**Why before the catch-all:** The SDK evaluates hooks in array order. The first hook that returns a non-`{ continue: true }` decision wins. If `mort-resolve-comment` is detected, the comment hook handles it and the permission hook is never consulted. For all other Bash commands, the comment hook returns `{ continue: true }` and the permission hook evaluates normally.
+**Why before the catch-all:** The SDK evaluates hooks in array order. The first hook that returns a non-`{ continue: true }` decision wins. If `anvil-resolve-comment` is detected, the comment hook handles it and the permission hook is never consulted. For all other Bash commands, the comment hook returns `{ continue: true }` and the permission hook evaluates normally.
 
 ### Key Details
 
@@ -224,10 +224,10 @@ Meanwhile: Bash executes rewritten echo → agent sees "Resolved 2 comment(s): a
 Test `createCommentResolutionHook()` directly — it's a pure function that takes deps and returns a hook function. No need to test through the full agent loop.
 
 **Parsing tests:**
-- Extracts single ID from `mort-resolve-comment "abc-123"`
-- Extracts multiple IDs from `mort-resolve-comment "abc-123,def-456,ghi-789"`
-- Handles no quotes: `mort-resolve-comment abc-123,def-456`
-- Returns deny with `reason` for bare `mort-resolve-comment` with no args
+- Extracts single ID from `anvil-resolve-comment "abc-123"`
+- Extracts multiple IDs from `anvil-resolve-comment "abc-123,def-456,ghi-789"`
+- Handles no quotes: `anvil-resolve-comment abc-123,def-456`
+- Returns deny with `reason` for bare `anvil-resolve-comment` with no args
 - Returns `{ continue: true }` for non-matching Bash commands (e.g. `ls -la`)
 - Handles whitespace in comma-separated list
 - Filters empty strings from splitting
@@ -259,9 +259,9 @@ Run tests with: `cd agents && pnpm test`
 ## Verification
 
 After completing all phases:
-1. `plugins/mort/skills/address-comments/SKILL.md` exists and is invocable as `/mort:address-comments`
+1. `plugins/anvil/skills/address-comments/SKILL.md` exists and is invocable as `/anvil:address-comments`
 2. `agents/src/hooks/comment-resolution-hook.ts` exists with exported `createCommentResolutionHook()`
 3. Hook is registered in `shared.ts` PreToolUse array **before** the catch-all permission hook
-4. `mort-resolve-comment` calls are intercepted, IDs parsed, events emitted
+4. `anvil-resolve-comment` calls are intercepted, IDs parsed, events emitted
 5. Non-matching Bash calls pass through unaffected (return `{ continue: true }`)
 6. All tests pass: `cd agents && pnpm test`

@@ -48,7 +48,7 @@ export type QuickActionManifest = z.infer<typeof QuickActionManifestSchema>;
 // ═══════════════════════════════════════════════════════════════════
 
 export const QuickActionMetadataSchema = z.object({
-  id: z.string().uuid(),                           // Internal UUID (assigned by Mort)
+  id: z.string().uuid(),                           // Internal UUID (assigned by Anvil)
   slug: z.string(),                                // Original slug from manifest
   title: z.string().min(1).max(50),
   description: z.string().max(200).optional(),
@@ -64,7 +64,7 @@ export const QuickActionMetadataSchema = z.object({
 export type QuickActionMetadata = z.infer<typeof QuickActionMetadataSchema>;
 
 // ═══════════════════════════════════════════════════════════════════
-// Registry (user overrides, stored at ~/.mort/quick-actions-registry.json)
+// Registry (user overrides, stored at ~/.anvil/quick-actions-registry.json)
 // ═══════════════════════════════════════════════════════════════════
 
 export const QuickActionOverrideSchema = z.object({
@@ -75,7 +75,7 @@ export const QuickActionOverrideSchema = z.object({
 export type QuickActionOverride = z.infer<typeof QuickActionOverrideSchema>;
 
 export const QuickActionsRegistrySchema = z.object({
-  // Key is the action's UUID (assigned by Mort on registration)
+  // Key is the action's UUID (assigned by Anvil on registration)
   actionOverrides: z.record(z.string(), QuickActionOverrideSchema),
   // Map from slug to UUID for stable identification across rebuilds
   slugToId: z.record(z.string(), z.string().uuid()),
@@ -116,7 +116,7 @@ Actions are sorted as follows:
 
 ## Design Decisions Referenced
 
-- **#14 Action IDs**: All actions use UUID identifiers internally. The manifest `slug` is human-readable, but Mort assigns a UUID when registering.
+- **#14 Action IDs**: All actions use UUID identifiers internally. The manifest `slug` is human-readable, but Anvil assigns a UUID when registering.
 - **#27 Action Ordering**: Actions are sorted lexicographically by title by default. Users can customize order in settings.
 
 ## Acceptance Criteria
@@ -202,7 +202,7 @@ describe('QuickActionMetadataSchema', () => {
       slug: 'archive',
       title: 'Archive',
       entryPoint: 'actions/archive.js',
-      projectPath: '/Users/test/.mort/quick-actions',
+      projectPath: '/Users/test/.anvil/quick-actions',
       contexts: ['thread'],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -381,7 +381,7 @@ import { QuickActionManifestSchema } from '../core/types/quick-actions';
 import fs from 'fs';
 
 // Test with a real manifest file (after build script is implemented)
-const manifestPath = '~/.mort/quick-actions/dist/manifest.json';
+const manifestPath = '~/.anvil/quick-actions/dist/manifest.json';
 const raw = fs.readFileSync(manifestPath, 'utf-8');
 const result = QuickActionManifestSchema.safeParse(JSON.parse(raw));
 

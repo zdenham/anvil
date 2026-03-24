@@ -14,7 +14,7 @@ See [../tauri-e2e-feasibility.md](../tauri-e2e-feasibility.md) for architecture,
 
 - [x] Rust WS server with proof-of-concept commands + file serving ([ws-server.md](./ws-server.md))
 - [x] Frontend transport wrappers + import migration ([frontend-transport.md](./frontend-transport.md))
-- [x] Full command coverage + Playwright E2E + mort-test cleanup ([full-coverage-e2e.md](./full-coverage-e2e.md))
+- [x] Full command coverage + Playwright E2E + anvil-test cleanup ([full-coverage-e2e.md](./full-coverage-e2e.md))
 
 <!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
 

@@ -14,7 +14,7 @@
 
 **Root cause:** GitHub's `gh pr view --json reviewDecision` returns an **empty string `""`** when no review decision exists (e.g., no reviewers assigned, no reviews submitted). The Zod schema only accepts `null` or the three valid enum values.
 
-**Proof:** Running the actual command against PR #5 (`zdenham/mortician`):
+**Proof:** Running the actual command against PR #5 (`zdenham/anvil`):
 
 ```
 $ gh pr view 5 --json reviewDecision

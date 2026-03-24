@@ -2,9 +2,9 @@
 
 ## Problem
 
-1. **No native macOS menu**: The Mort app currently has no custom native macOS menu bar. When the app is focused, users only see the default minimal menu without navigation options.
+1. **No native macOS menu**: The Anvil app currently has no custom native macOS menu bar. When the app is focused, users only see the default minimal menu without navigation options.
 
-2. **Missing Cmd+, shortcut**: macOS convention dictates that Cmd+, should open the application's settings/preferences. Mort doesn't implement this standard shortcut.
+2. **Missing Cmd+, shortcut**: macOS convention dictates that Cmd+, should open the application's settings/preferences. Anvil doesn't implement this standard shortcut.
 
 ## Goals
 
@@ -70,16 +70,16 @@ use tauri::{
 };
 
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let app_menu = SubmenuBuilder::new(app, "Mort")
-        .item(&PredefinedMenuItem::about(app, Some("About Mort"), None)?)
+    let app_menu = SubmenuBuilder::new(app, "Anvil")
+        .item(&PredefinedMenuItem::about(app, Some("About Anvil"), None)?)
         .separator()
         .item(&PredefinedMenuItem::services(app, Some("Services"))?)
         .separator()
-        .item(&PredefinedMenuItem::hide(app, Some("Hide Mort"))?)
+        .item(&PredefinedMenuItem::hide(app, Some("Hide Anvil"))?)
         .item(&PredefinedMenuItem::hide_others(app, Some("Hide Others"))?)
         .item(&PredefinedMenuItem::show_all(app, Some("Show All"))?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Quit Mort"))?)
+        .item(&PredefinedMenuItem::quit(app, Some("Quit Anvil"))?)
         .build()?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
@@ -228,11 +228,11 @@ Enhance the menu event handler:
 | Cmd+M | Minimize window |
 | Cmd+W | Close/hide window |
 | Cmd+Q | Quit application |
-| Cmd+H | Hide Mort |
+| Cmd+H | Hide Anvil |
 
 ## Testing
 
-1. **Menu appearance**: Launch app, verify "Mort", "View", and "Window" menus appear in menu bar
+1. **Menu appearance**: Launch app, verify "Anvil", "View", and "Window" menus appear in menu bar
 2. **Navigation items**: Click each View menu item, verify main window navigates to correct page
 3. **Cmd+, shortcut**: Press Cmd+, while app is focused, verify Settings page opens
 4. **Hidden window**: Hide main window, use menu item, verify window shows and navigates
@@ -241,9 +241,9 @@ Enhance the menu event handler:
 
 ## Edge Cases
 
-1. **Menu visible in Accessory mode**: When the main window is hidden and app is in Accessory mode, the menu bar won't show Mort's menu (since another app has focus). Menu navigation only works when Mort is the active app.
+1. **Menu visible in Accessory mode**: When the main window is hidden and app is in Accessory mode, the menu bar won't show Anvil's menu (since another app has focus). Menu navigation only works when Anvil is the active app.
 
-2. **Panel focus**: When spotlight or other panels have focus, menu bar should still show Mort menus. Navigation should affect the main window, not panels.
+2. **Panel focus**: When spotlight or other panels have focus, menu bar should still show Anvil menus. Navigation should affect the main window, not panels.
 
 3. **Onboarding state**: Menu items should work during onboarding. Navigating away from onboarding could be confusing - consider disabling navigation during onboarding or warning users.
 

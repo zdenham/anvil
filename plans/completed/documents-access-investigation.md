@@ -111,9 +111,9 @@ To fully fix this issue, the line at `src-tauri/src/lib.rs:948` should be remove
     // REMOVED: This was triggering Documents access before UI rendered
     // paths::run_login_shell_initialization();
 
-    // Ensure .mort directories exist (NEW)
-    if let Err(e) = ensure_mort_directories() {
-        tracing::error!("Failed to ensure .mort directories: {}", e);
+    // Ensure .anvil directories exist (NEW)
+    if let Err(e) = ensure_anvil_directories() {
+        tracing::error!("Failed to ensure .anvil directories: {}", e);
     }
     ...
 })
@@ -129,8 +129,8 @@ For completeness, these were also checked but do NOT access Documents:
 |-----------|----------|------------------|
 | App Search Indexing | `src-tauri/src/app-search.rs:45-53` | `/Applications`, `~/Applications` (background thread) |
 | Icon Extraction | `src-tauri/src/icons.rs:25-32` | `/Applications`, `~/Applications` (background thread) |
-| Clipboard Database | `src-tauri/src/clipboard.rs:73-93` | `~/.mort/databases/clipboard.db` |
-| Directory Creation | `src-tauri/src/lib.rs:950-953` | `~/.mort/settings`, `~/.mort/databases` |
+| Clipboard Database | `src-tauri/src/clipboard.rs:73-93` | `~/.anvil/databases/clipboard.db` |
+| Directory Creation | `src-tauri/src/lib.rs:950-953` | `~/.anvil/settings`, `~/.anvil/databases` |
 | Frontend Bootstrap | `src/App.tsx:57-74` | Protected behind permissions check, runs after window renders |
 
 ## Files Involved

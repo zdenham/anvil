@@ -62,7 +62,7 @@ Review `src-tauri/src/` for commands that are no longer needed:
 ## Verification Checklist
 
 ### Functionality
-- [ ] Runner accepts: `node runner.js --agent planning --task-id xxx --thread-id yyy --prompt "..." --mort-dir ~/.mort`
+- [ ] Runner accepts: `node runner.js --agent planning --task-id xxx --thread-id yyy --prompt "..." --anvil-dir ~/.anvil`
 - [ ] Node reads task metadata from disk to get repositoryName
 - [ ] Node allocates worktree without frontend involvement
 - [ ] Node creates thread entity and emits `thread:created` event

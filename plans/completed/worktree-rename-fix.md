@@ -44,7 +44,7 @@ private initiateWorktreeNaming(
   worktreeId: string,
   repoId: string,
   prompt: string,
-  mortDir: string  // Add mortDir parameter
+  anvilDir: string  // Add anvilDir parameter
 ): void {
   // ... existing API key check ...
 
@@ -52,7 +52,7 @@ private initiateWorktreeNaming(
     .then((name) => {
       // Write to disk FIRST (same pattern as thread naming)
       try {
-        this.updateWorktreeNameOnDisk(mortDir, repoId, worktreeId, name);
+        this.updateWorktreeNameOnDisk(anvilDir, repoId, worktreeId, name);
         emitLog("INFO", `[worktree_rename] Updated worktree name on disk: "${name}"`);
       } catch (err) {
         emitLog("ERROR", `[worktree_rename] Failed to write name to disk: ${err}`);
@@ -77,12 +77,12 @@ private initiateWorktreeNaming(
  * then updates the worktree's name and sets isRenamed=true.
  */
 private updateWorktreeNameOnDisk(
-  mortDir: string,
+  anvilDir: string,
   repoId: string,
   worktreeId: string,
   newName: string
 ): void {
-  const reposDir = join(mortDir, "repositories");
+  const reposDir = join(anvilDir, "repositories");
 
   // Find the repository settings file
   const repoDirs = readdirSync(reposDir).filter(name => {
@@ -124,14 +124,14 @@ private updateWorktreeNameOnDisk(
 
 #### 3. Update call site in `setup()`
 
-Pass `mortDir` to `initiateWorktreeNaming`:
+Pass `anvilDir` to `initiateWorktreeNaming`:
 
 ```typescript
 // Current:
 this.initiateWorktreeNaming(worktreeId, repoId, prompt);
 
 // Updated:
-this.initiateWorktreeNaming(worktreeId, repoId, prompt, mortDir);
+this.initiateWorktreeNaming(worktreeId, repoId, prompt, anvilDir);
 ```
 
 #### 4. Keep frontend listener as backup
@@ -154,7 +154,7 @@ The frontend handler should be idempotent - if the worktree is already renamed, 
 
 1. Create a new worktree
 2. Start a thread in the worktree
-3. Verify the worktree name is updated in `~/.mort/repositories/{repo}/settings.json`
+3. Verify the worktree name is updated in `~/.anvil/repositories/{repo}/settings.json`
 4. Verify `isRenamed: true` is set
 5. Verify UI reflects the new name
 6. Subsequent threads in the same worktree should NOT trigger renaming (isRenamed check)

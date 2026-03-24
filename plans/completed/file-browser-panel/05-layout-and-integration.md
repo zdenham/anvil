@@ -8,7 +8,7 @@ See [decisions.md](./decisions.md) for rationale on resizable right panel, toggl
 
 ## Existing infrastructure
 
-- `src/components/ui/resizable-panel.tsx` — `ResizablePanel` component with `position: "left" | "right"`, `minWidth`, `maxWidth?`, `defaultWidth`, `persistKey`, `closeThreshold?`, `onClose?`, `className?` props. Persists width to `~/.mort/ui/layout.json`.
+- `src/components/ui/resizable-panel.tsx` — `ResizablePanel` component with `position: "left" | "right"`, `minWidth`, `maxWidth?`, `defaultWidth`, `persistKey`, `closeThreshold?`, `onClose?`, `className?` props. Persists width to `~/.anvil/ui/layout.json`.
 - `src/components/tree-menu/repo-worktree-section.tsx:13` — `RepoWorktreeSectionProps` interface (add `onOpenFiles?` and `isFileBrowserOpen?` props here)
 - `src/stores/tree-menu/types.ts:28` — `RepoWorktreeSection` type has `repoId`, `worktreeId`, `worktreePath` fields needed for `onOpenFiles` callback
 - `src/components/tree-menu/tree-menu.tsx` — currently 249 lines (at limit — keep additions minimal)
@@ -166,7 +166,7 @@ Add the file browser panel **after** `ContentPaneContainer` and **before** `Buil
 
 - `ResizablePanel` (in `src/components/ui/resizable-panel.tsx`) supports `position: "left" | "right"`, `minWidth`, `maxWidth?`, `defaultWidth: number | "1/3"`, `persistKey`, `closeThreshold?`, `onClose?`, `className?`, and `children`. All props used above are valid against the current API.
 - `maxWidth` is evaluated at render time and won't dynamically update on window resize. This matches the existing left panel behavior (no dynamic max). Acceptable for v1.
-- Width persistence uses `ResizablePanel`'s built-in mechanism: it reads/writes `~/.mort/ui/layout.json` via `appData` using the `persistKey`. This is the same file used by `layoutService`, which is hydrated at startup in `MainWindowLayout`. No additional persistence wiring needed.
+- Width persistence uses `ResizablePanel`'s built-in mechanism: it reads/writes `~/.anvil/ui/layout.json` via `appData` using the `persistKey`. This is the same file used by `layoutService`, which is hydrated at startup in `MainWindowLayout`. No additional persistence wiring needed.
 - **`key={fileBrowserContext.worktreeId}`** on `FileBrowserPanel` ensures React unmounts/remounts when switching worktrees, giving each worktree a fresh component instance (tears down watchers, resets to root).
 
 Pass the file browser state to `TreeMenu`:
@@ -417,7 +417,7 @@ After implementation, verify:
 4. **Accent highlight** -- "Files" item in tree menu highlights in accent color when the panel is open for that worktree. Other worktrees' "Files" items remain unhighlighted.
 5. **Escape dismiss** -- With panel open, press Escape: panel closes.
 6. **Snap-to-close** -- Drag the panel's left edge past the close threshold: panel closes.
-7. **Width persistence** -- Resize the panel, close it, reopen it: width is restored from `~/.mort/ui/layout.json` under the key `file-browser-panel-width`.
+7. **Width persistence** -- Resize the panel, close it, reopen it: width is restored from `~/.anvil/ui/layout.json` under the key `file-browser-panel-width`.
 8. **File click** -- Click a file in the browser: content pane shows the file (or placeholder). Panel stays open.
 9. **Panel stays open** -- After clicking a file, the panel remains visible and navigable.
 10. **Pinned at top** -- "Files" appears above all threads/plans/terminals in each worktree section.

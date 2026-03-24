@@ -14,7 +14,7 @@ The `FileScope` component renders a split UI: `repoName / <select of worktrees>`
 
 ## Expected Behavior
 
-A **single dropdown** that lists every repo/worktree combination (e.g. `mortician / main`, `other-project / feature-branch`). Selecting any option switches the search scope to that worktree. When there's only one option total, show it as a plain label (no dropdown needed).
+A **single dropdown** that lists every repo/worktree combination (e.g. `anvil / main`, `other-project / feature-branch`). Selecting any option switches the search scope to that worktree. When there's only one option total, show it as a plain label (no dropdown needed).
 
 ## Root Cause
 
@@ -35,7 +35,7 @@ A **single dropdown** that lists every repo/worktree combination (e.g. `morticia
 
 **1. Single dropdown for all repo/worktree combos** (`search-controls.tsx`)
 
-- `useWorktreeOptions`: Always use `repo.name / wt.name` as the label format, even for single-worktree repos. This gives clear, consistent labels like `mortician / main`.
+- `useWorktreeOptions`: Always use `repo.name / wt.name` as the label format, even for single-worktree repos. This gives clear, consistent labels like `anvil / main`.
 - `FileScope`: Replace the `repoName` + `/` + `<select>` split rendering with a single `<select>` that shows `option.label` for every entry. Guard: show `<select>` when `worktreeOptions.length > 1`, otherwise show a plain `<span>` with the single option's label. Remove the `/`-splitting logic entirely.
 
 **2. Default to MRU worktree** (`search-panel.tsx`)

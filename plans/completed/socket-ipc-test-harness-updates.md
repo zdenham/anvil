@@ -8,7 +8,7 @@ The current test harness (`AgentTestHarness`) spawns agents as child processes a
 - **stdout**: Reads JSON lines (log/event/state messages)
 - **stdin**: Writes queued messages as JSON
 
-After the socket-ipc migration, agents will communicate via `~/.mort/agent-hub.sock` instead. Tests need to either:
+After the socket-ipc migration, agents will communicate via `~/.anvil/agent-hub.sock` instead. Tests need to either:
 1. Spin up a mock hub server, OR
 2. Use the real Rust hub with test isolation
 
@@ -141,7 +141,7 @@ class AgentTestHarness {
     const proc = spawn("tsx", args, {
       env: {
         ...process.env,
-        MORT_HUB_SOCKET_PATH: this.mockHub.getSocketPath(),
+        ANVIL_HUB_SOCKET_PATH: this.mockHub.getSocketPath(),
       },
       stdio: ['pipe', 'pipe', 'pipe'], // Keep stderr for debugging
     });
@@ -244,8 +244,8 @@ describe("MockHubServer", () => {
 ## Environment Variable
 
 Agents will check for socket path in this order:
-1. `MORT_HUB_SOCKET_PATH` env var (for tests)
-2. Default: `~/.mort/agent-hub.sock` (production)
+1. `ANVIL_HUB_SOCKET_PATH` env var (for tests)
+2. Default: `~/.anvil/agent-hub.sock` (production)
 
 This allows tests to use isolated mock hubs without affecting production socket.
 

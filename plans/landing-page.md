@@ -1,6 +1,6 @@
 # Landing Page
 
-Create a minimal, text-driven landing page for Anvil (née Mort). No images, no gradients, no hero illustrations — just big monospace text that alternates left/right justification to create visual rhythm. The tone is humorous and self-deprecating, telling the story of the pain of juggling worktrees and TUI agents before revealing what Anvil does.
+Create a minimal, text-driven landing page for Anvil (née Anvil). No images, no gradients, no hero illustrations — just big monospace text that alternates left/right justification to create visual rhythm. The tone is humorous and self-deprecating, telling the story of the pain of juggling worktrees and TUI agents before revealing what Anvil does.
 
 ## Design Principles
 

@@ -1,6 +1,6 @@
 # Replace ASCII Logo with SVG Anvil
 
-Replace the ASCII art mort logo in the top-left sidebar with the new high-contrast anvil SVG.
+Replace the ASCII art anvil logo in the top-left sidebar with the new high-contrast anvil SVG.
 
 ## Phases
 
@@ -13,7 +13,7 @@ Replace the ASCII art mort logo in the top-left sidebar with the new high-contra
 
 ## Phase 1: Replace logo component with SVG inline
 
-**File:** `src/components/ui/mort-logo.tsx`
+**File:** `src/components/ui/anvil-logo.tsx`
 
 Replace the `<pre>` ASCII art with an inline SVG. The SVG source is `/Users/zac/Downloads/high-contrast-anvil (1).svg`.
 
@@ -41,9 +41,9 @@ The SVG paths use `fill="white"` and default black fill. For the sidebar (dark b
 ## Phase 2: Verify usage sites
 
 **Files to check:**
-- `src/components/tree-menu/tree-panel-header.tsx` — uses `<MortLogo size={4} />`, update to `<AnvilLogo size={16} />` or similar appropriate size
+- `src/components/tree-menu/tree-panel-header.tsx` — uses `<AnvilLogo size={4} />`, update to `<AnvilLogo size={16} />` or similar appropriate size
 - `src/components/onboarding/steps/WelcomeStep.tsx` — uses `AnvilLogo`
 - `src/components/spotlight/results-tray.tsx` — uses logo
 - `src/components/ui/index.ts` — re-exports
 
-The export name is already `AnvilLogo` (renamed from `MortLogo` in the ongoing rename). Callers importing `MortLogo` (like `tree-panel-header.tsx` line 4) need their import updated, or the old name kept as an alias.
+The export name is already `AnvilLogo` (renamed from `AnvilLogo` in the ongoing rename). Callers importing `AnvilLogo` (like `tree-panel-header.tsx` line 4) need their import updated, or the old name kept as an alias.

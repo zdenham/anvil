@@ -2,16 +2,16 @@
 
 ## Context
 
-Quick actions live in `~/.mort/quick-actions/` — a Node.js project that must be built (`pnpm build` → `tsx build.ts`) to produce `dist/manifest.json`. Currently users must manually run `npm run build` in a terminal, then click "Reload Actions" in settings. We want to automate this so quick actions are always up to date.
+Quick actions live in `~/.anvil/quick-actions/` — a Node.js project that must be built (`pnpm build` → `tsx build.ts`) to produce `dist/manifest.json`. Currently users must manually run `npm run build` in a terminal, then click "Reload Actions" in settings. We want to automate this so quick actions are always up to date.
 
 ### Current Flow
 1. `quick-actions-init.ts` copies the template project (excluding `node_modules`) on first launch
-2. User manually runs `pnpm install` + `pnpm build` in `~/.mort/quick-actions/`
+2. User manually runs `pnpm install` + `pnpm build` in `~/.anvil/quick-actions/`
 3. On app startup, `quickActionService.hydrate()` reads `dist/manifest.json` into the store
 4. Settings has a "Reload Actions" button that just re-reads the manifest (does not build)
 
 ### Desired Flow
-1. On app startup (after hydration), kick off a background build of `~/.mort/quick-actions/`
+1. On app startup (after hydration), kick off a background build of `~/.anvil/quick-actions/`
 2. When complete, re-hydrate the manifest so new/changed actions appear
 3. The "Reload Actions" button in settings should also trigger a real build (not just re-read)
 4. None of this blocks the hot path
@@ -121,7 +121,7 @@ const handleRebuild = async () => {
 
 Also update the UI text:
 - Button: "Rebuild Actions" (instead of "Reload Actions")
-- Help text: Remove the manual `npm run build` instruction, replace with something like "Edit actions in `~/.mort/quick-actions/src/actions/`, then click Rebuild"
+- Help text: Remove the manual `npm run build` instruction, replace with something like "Edit actions in `~/.anvil/quick-actions/src/actions/`, then click Rebuild"
 
 ## Phase 4: Handle `pnpm install` when `node_modules` is missing
 

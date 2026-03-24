@@ -2,7 +2,7 @@
 
 ## Overview
 
-Integrate Claude Code skills and legacy commands into Mort, enabling users to define custom capabilities that extend agent functionality via `/skill-name` invocation.
+Integrate Claude Code skills and legacy commands into Anvil, enabling users to define custom capabilities that extend agent functionality via `/skill-name` invocation.
 
 ## Phases
 

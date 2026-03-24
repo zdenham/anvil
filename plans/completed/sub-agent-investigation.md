@@ -4,7 +4,7 @@
 
 Four issues were reported with sub-agent thread handling:
 1. **User message is populated incorrectly** - showing "Sub-agent: Explore" instead of the actual task prompt
-2. **No state is being added to the .mort-dev directory** - sub-agent state.json files not being created
+2. **No state is being added to the .anvil-dev directory** - sub-agent state.json files not being created
 3. **Tool uses are being populated to the PARENT thread, not the sub-agent thread** - Sub-agent tool calls appear in parent state instead of child state
 4. **Reference blocks not being rendered in parent thread** - The SubAgentReferenceBlock should replace TaskToolBlock but isn't showing
 
@@ -161,7 +161,7 @@ PreToolUse: [{
         toolUseIdToChildThreadId.set(toolUseId, childThreadId);
 
         // Write metadata to disk
-        const threadDir = join(config.mortDir, "threads", childThreadId);
+        const threadDir = join(config.anvilDir, "threads", childThreadId);
         mkdirSync(threadDir, { recursive: true });
         writeFileSync(join(threadDir, "metadata.json"), JSON.stringify(childMetadata, null, 2));
 
@@ -315,7 +315,7 @@ PostToolUse: [{
             const childThreadId = agentIdToChildThreadId.get(toolResult.agentId);
             if (childThreadId && toolResult.prompt) {
                 // Update the thread metadata with the actual prompt
-                const metadataPath = join(mortDir, "threads", childThreadId, "metadata.json");
+                const metadataPath = join(anvilDir, "threads", childThreadId, "metadata.json");
                 const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
                 metadata.turns[0].prompt = toolResult.prompt;
                 metadata.updatedAt = Date.now();
@@ -399,7 +399,7 @@ The message routing in `message-handler.ts:50-59` works correctly **IF** the map
 ```typescript
 async handle(message: SDKMessage): Promise<boolean> {
   const parentToolUseId = this.getParentToolUseId(message);
-  if (parentToolUseId && this.mortDir) {
+  if (parentToolUseId && this.anvilDir) {
     const childThreadId = getChildThreadId(parentToolUseId);
     if (childThreadId) {
       return this.handleForChildThread(childThreadId, message);  // ✅ Routes to child

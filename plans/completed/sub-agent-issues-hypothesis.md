@@ -12,7 +12,7 @@ When running the query "Can you spawn a general purpose sub agent that simply re
 
 ## Verified Findings from Thread Data
 
-**Test conducted**: `~/.mort-dev/threads/` on 2026-02-04
+**Test conducted**: `~/.anvil-dev/threads/` on 2026-02-04
 
 ### Thread Structure Created
 
@@ -114,7 +114,7 @@ The SDK message flow:
 **Code Location**: `message-handler.ts:50-59`
 ```typescript
 const parentToolUseId = this.getParentToolUseId(message);
-if (parentToolUseId && this.mortDir) {
+if (parentToolUseId && this.anvilDir) {
   const childThreadId = getChildThreadId(parentToolUseId);
   if (childThreadId) {
     return this.handleForChildThread(childThreadId, message);
@@ -169,7 +169,7 @@ private getChildThreadState(childThreadId: string): ThreadState {
   if (state) return state;
 
   // Load from disk if exists
-  const statePath = join(this.mortDir!, "threads", childThreadId, "state.json");
+  const statePath = join(this.anvilDir!, "threads", childThreadId, "state.json");
   if (existsSync(statePath)) {
     state = JSON.parse(readFileSync(statePath, "utf-8"));
     this.childThreadStates.set(childThreadId, state);
@@ -199,7 +199,7 @@ private pendingSubagentMessages = new Map<string, SDKMessage[]>();
 
 async handle(message: SDKMessage): Promise<boolean> {
   const parentToolUseId = this.getParentToolUseId(message);
-  if (parentToolUseId && this.mortDir) {
+  if (parentToolUseId && this.anvilDir) {
     const childThreadId = getChildThreadId(parentToolUseId);
     if (childThreadId) {
       return this.handleForChildThread(childThreadId, message);
@@ -237,7 +237,7 @@ As a fallback, when PostToolUse:Task fires with the result, extract the content 
 ```typescript
 // In PostToolUse:Task handler (shared.ts)
 if (taskResponse?.content && childThreadId) {
-  const statePath = join(config.mortDir, "threads", childThreadId, "state.json");
+  const statePath = join(config.anvilDir, "threads", childThreadId, "state.json");
   const state = existsSync(statePath)
     ? JSON.parse(readFileSync(statePath, "utf-8"))
     : { messages: [], fileChanges: [], workingDirectory: "", status: "running", timestamp: Date.now(), toolStates: {} };
@@ -277,7 +277,7 @@ The status in state.json stays "running". Need to update it when complete:
 
 ```typescript
 // In PostToolUse:Task or SubagentStop
-const statePath = join(config.mortDir, "threads", childThreadId, "state.json");
+const statePath = join(config.anvilDir, "threads", childThreadId, "state.json");
 if (existsSync(statePath)) {
   const state = JSON.parse(readFileSync(statePath, "utf-8"));
   state.status = "complete";
@@ -305,7 +305,7 @@ if (existsSync(statePath)) {
 ## Phases
 
 - [x] Investigate sub-agent creation and message routing
-- [x] Analyze actual thread data from `.mort-dev/threads/`
+- [x] Analyze actual thread data from `.anvil-dev/threads/`
 - [x] Identify root cause: race condition in message routing
 - [ ] Implement fix: add message buffering in MessageHandler
 - [ ] Implement fix: call flushPendingMessages() in SubagentStart
@@ -318,15 +318,15 @@ if (existsSync(statePath)) {
 1. **Add buffering**: Modify `MessageHandler` to buffer messages when mapping doesn't exist
 2. **Flush on SubagentStart**: After mapping is created, flush any buffered messages
 3. **Fallback in PostToolUse:Task**: Extract result content and write to child state
-4. **Test**: Clear `.mort-dev/threads/`, run "spawn hello sub-agent", verify messages appear
+4. **Test**: Clear `.anvil-dev/threads/`, run "spawn hello sub-agent", verify messages appear
 
 ## Testing Commands
 
 ```bash
 # Clear existing test threads
-rm -rf ~/.mort-dev/threads/*
+rm -rf ~/.anvil-dev/threads/*
 
-# Run the test in mortician dev mode
+# Run the test in anvil dev mode
 # Then check results:
-find ~/.mort-dev/threads -name "state.json" -exec cat {} \;
+find ~/.anvil-dev/threads -name "state.json" -exec cat {} \;
 ```

@@ -6,7 +6,7 @@ Create a barrel index file that re-exports all test services and their types fro
 
 ## Dependencies
 
-- `01b-test-mort-directory.md` - Provides `TestMortDirectory` and `TestMortDirectoryOptions`
+- `01b-test-anvil-directory.md` - Provides `TestAnvilDirectory` and `TestAnvilDirectoryOptions`
 - `01c-test-repository.md` - Provides `TestRepository`, `TestRepositoryOptions`, and `FileFixture`
 
 ## Parallel With
@@ -19,11 +19,11 @@ None. This is the final step for Phase 1 and requires all service files to exist
 
 ```typescript
 // Services
-export { TestMortDirectory } from "./test-mort-directory";
+export { TestAnvilDirectory } from "./test-anvil-directory";
 export { TestRepository } from "./test-repository";
 
 // Types
-export type { TestMortDirectoryOptions } from "./test-mort-directory";
+export type { TestAnvilDirectoryOptions } from "./test-anvil-directory";
 export type { TestRepositoryOptions, FileFixture } from "./test-repository";
 ```
 
@@ -33,32 +33,32 @@ After this phase completes, test files can import all services from a single pat
 
 ```typescript
 import {
-  TestMortDirectory,
+  TestAnvilDirectory,
   TestRepository,
   type TestRepositoryOptions,
 } from "@/testing/services";
 
 describe("Agent Integration", () => {
-  let mortDir: TestMortDirectory;
+  let anvilDir: TestAnvilDirectory;
   let repo: TestRepository;
 
   beforeEach(() => {
     // Create isolated test environment
-    mortDir = new TestMortDirectory().init();
+    anvilDir = new TestAnvilDirectory().init();
     repo = new TestRepository({ fixture: "typescript" }).init();
 
     // Wire them together for task-based agent tests
-    mortDir.registerRepository({ name: repo.name, path: repo.path });
+    anvilDir.registerRepository({ name: repo.name, path: repo.path });
   });
 
   afterEach(() => {
     // Always clean up in reverse order of creation
     repo.cleanup();
-    mortDir.cleanup();
+    anvilDir.cleanup();
   });
 
   it("creates task with correct metadata", () => {
-    const task = mortDir.createTask({
+    const task = anvilDir.createTask({
       repositoryName: repo.name,
       title: "Add new feature",
     });

@@ -1,12 +1,12 @@
 # Data Models
 
-This document describes the core data models in Mort. All persistent data is stored in the `~/.mort/` directory.
+This document describes the core data models in Anvil. All persistent data is stored in the `~/.anvil/` directory.
 
 ## Thread
 
 A user's interaction with an agent. Threads are the primary interaction model.
 
-**Storage**: `~/.mort/threads/{threadId}/metadata.json`
+**Storage**: `~/.anvil/threads/{threadId}/metadata.json`
 
 **Properties**:
 - `id`: UUID identifying the thread
@@ -47,9 +47,9 @@ A user's interaction with an agent. Threads are the primary interaction model.
 
 ## Plan
 
-A markdown file representing work to be done. Plans live in the repository and are tracked by Mort.
+A markdown file representing work to be done. Plans live in the repository and are tracked by Anvil.
 
-**Storage**: `~/.mort/plans/{planId}/metadata.json`
+**Storage**: `~/.anvil/plans/{planId}/metadata.json`
 
 **Properties**:
 - `id`: UUID identifying the plan
@@ -65,8 +65,8 @@ A markdown file representing work to be done. Plans live in the repository and a
 - `createdAt`, `updatedAt`: Timestamps (milliseconds)
 
 **Key characteristics**:
-- Plans are markdown files stored in the repository (not ~/.mort)
-- Mort tracks metadata about plans separately
+- Plans are markdown files stored in the repository (not ~/.anvil)
+- Anvil tracks metadata about plans separately
 - Supports nested plans (folder structure with parent/child relationships)
 
 **Implementation**: `core/types/plans.ts` (types), `src/entities/plans/` (service)
@@ -75,7 +75,7 @@ A markdown file representing work to be done. Plans live in the repository and a
 
 Tracks the relationship between plans and threads.
 
-**Storage**: `~/.mort/plan-thread-edges/{planId}-{threadId}.json`
+**Storage**: `~/.anvil/plan-thread-edges/{planId}-{threadId}.json`
 
 **Properties**:
 - `planId`: Plan UUID
@@ -95,7 +95,7 @@ Tracks the relationship between plans and threads.
 
 A code repository the user works in.
 
-**Storage**: `~/.mort/repositories/{repo-slug}/settings.json`
+**Storage**: `~/.anvil/repositories/{repo-slug}/settings.json`
 
 **RepositorySettings properties**:
 - `id`: UUID for repository identification
@@ -113,7 +113,7 @@ A code repository the user works in.
 - `lastUpdated`: Last modification timestamp
 
 **ThreadBranchInfo** (stored in `threadBranches`):
-- `branch`: Branch name (e.g., `"mort/thread-abc123"`)
+- `branch`: Branch name (e.g., `"anvil/thread-abc123"`)
 - `baseBranch`: Base branch it was created from (e.g., `"main"`)
 - `mergeBase`: Commit hash at branch creation (for accurate diffs)
 - `parentThreadId`: For child threads, the parent thread ID

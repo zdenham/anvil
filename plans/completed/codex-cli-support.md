@@ -60,7 +60,7 @@ const resumed = codex.resumeThread(savedThreadId);
 
 ### Feature Parity Matrix
 
-| Mort Feature | Claude SDK | Codex SDK | Gap |
+| Anvil Feature | Claude SDK | Codex SDK | Gap |
 | --- | --- | --- | --- |
 | Agent loop | `query()` async iterator | `runStreamed()` async generator | Minor — different shapes, same pattern |
 | Per-token streaming | `stream_event` deltas | `item.started/completed` | **Major** — Codex is item-level, not token-level |
@@ -82,12 +82,12 @@ const resumed = codex.resumeThread(savedThreadId);
 
 ### 1. No Programmable Hooks — Breaks 80% of agent features
 
-The entire Mort permission/interception layer is built on Claude SDK hooks:
+The entire Anvil permission/interception layer is built on Claude SDK hooks:
 
 - **AskUserQuestion** — two-phase async gate with 1-hour timeout
 - **Safe-git** — blocks destructive git operations
-- **Repl-hook** — intercepts mort-repl Bash calls
-- **Comment-resolution** — intercepts mort-resolve-comment calls
+- **Repl-hook** — intercepts anvil-repl Bash calls
+- **Comment-resolution** — intercepts anvil-resolve-comment calls
 - **Permission evaluator** — rules engine for tool allowance
 - **Sub-agent spawner** — creates child threads on Task/Agent tool use
 
@@ -112,7 +112,7 @@ Claude SDK emits per-content-block deltas (`TextDelta`, tool_use start). Codex S
 
 ### 3. Sub-Agent Architecture Breaks
 
-Mort's sub-agent system works by:
+Anvil's sub-agent system works by:
 
 1. PreToolUse hook intercepts Task/Agent tool calls
 2. Creates a child thread + spawns child process BEFORE the SDK executes the tool

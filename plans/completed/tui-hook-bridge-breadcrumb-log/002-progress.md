@@ -10,7 +10,7 @@
 - Phase 3: Dynamic hooks.json generation (`sidecar/src/hooks/hooks-writer.ts`)
   - Called from server.ts `listening` event, writes to `<DATA_DIR>/hooks/hooks.json`
   - 7 new tests all passing
-- Phase 4: Extended `buildSpawnConfig()` with `--plugin local:<mortDir>` and env vars (`MORT_THREAD_ID`, `MORT_DATA_DIR`)
+- Phase 4: Extended `buildSpawnConfig()` with `--plugin local:<anvilDir>` and env vars (`ANVIL_THREAD_ID`, `ANVIL_DATA_DIR`)
   - Updated `createTuiThread` caller in thread-creation-service.ts
 - Updated plan phases in both `claude-tui-hook-bridge.md` and `tui-runner-state-architecture.md`
 
@@ -24,4 +24,4 @@
 - TokenUsage field name mismatch: transcript uses `cacheCreationInputTokens`/`cacheReadInputTokens`, events uses `cacheCreationTokens`/`cacheReadTokens` — mapped in transcript-reader.ts
 - Pre-existing test failures in sidecar (agent-hub-roundtrip) and core (thread-reducer, socket) are unrelated
 - The `tui-thread-state` broadcast event is emitted but no frontend consumer exists yet (Phase 5)
-- hooks-writer writes to DATA_DIR not \~/.mort — this is correct since DATA_DIR is the mort dir path
+- hooks-writer writes to DATA_DIR not \~/.anvil — this is correct since DATA_DIR is the anvil dir path

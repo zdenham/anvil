@@ -1,6 +1,6 @@
 # External Worktree Badge & Visibility
 
-Differentiate worktrees created inside Mort ("internal") from those discovered via `git worktree list` during sync ("external"). External worktrees get a badge on their tree node and a global hide setting.
+Differentiate worktrees created inside Anvil ("internal") from those discovered via `git worktree list` during sync ("external"). External worktrees get a badge on their tree node and a global hide setting.
 
 ## Phases
 
@@ -33,7 +33,7 @@ The field defaults to `false` (internal). Existing worktrees on disk without thi
 
 - `src-tauri/src/worktree_commands.rs`
 
-`worktree_create` — Set `is_external: false` on the new `WorktreeState`. These are explicitly created by Mort.
+`worktree_create` — Set `is_external: false` on the new `WorktreeState`. These are explicitly created by Anvil.
 
 `worktree_sync` — When adding a new worktree discovered from git that doesn't exist in settings (the `!existing_paths.contains(&git_wt.path)` branch), set `is_external: true`. Existing entries keep their current `is_external` value.
 
@@ -97,7 +97,7 @@ In `WorktreeHeader`, after the worktree name span, render a small badge when `it
 {item.isExternal && (
   <span
     className="ml-1 px-1 py-0.5 text-[10px] leading-none rounded bg-surface-700 text-surface-400"
-    title="This worktree was not created by Mort"
+    title="This worktree was not created by Anvil"
   >
     external
   </span>
@@ -135,7 +135,7 @@ For the settings UI, add a toggle in the settings page (e.g., under a "Sidebar" 
 ```tsx
 <SettingToggle
   label="Hide external worktrees"
-  description="Hide worktrees not created by Mort from the sidebar"
+  description="Hide worktrees not created by Anvil from the sidebar"
   checked={hideExternalWorktrees}
   onChange={toggleHideExternalWorktrees}
 />

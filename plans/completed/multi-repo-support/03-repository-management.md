@@ -32,7 +32,7 @@ const handleRemoveRepository = async (repoId: string) => {
 ```typescript
 async remove(repoId: string): Promise<void> {
   // Remove from store
-  // Delete settings folder from ~/.mort/repositories/{slug}
+  // Delete settings folder from ~/.anvil/repositories/{slug}
   // Do NOT delete source files on disk
 }
 ```

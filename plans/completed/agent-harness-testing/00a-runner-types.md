@@ -35,8 +35,8 @@ export interface RunnerConfig {
   prompt: string;
   /** Unique thread identifier */
   threadId: string;
-  /** Centralized .mort data directory (e.g., ~/.mort or ~/.mort-dev) */
-  mortDir: string;
+  /** Centralized .anvil data directory (e.g., ~/.anvil or ~/.anvil-dev) */
+  anvilDir: string;
   /** Task slug - required for task-based agents (research, execution, merge) */
   taskSlug?: string;
   /** Working directory - required for simple agent */

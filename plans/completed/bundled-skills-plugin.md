@@ -1,25 +1,25 @@
 # Managed Skills Implementation Plan
 
-Write Mort-provided skills to the `~/.mort` directory at runtime, allowing easy updates while preserving user-defined skills.
+Write Anvil-provided skills to the `~/.anvil` directory at runtime, allowing easy updates while preserving user-defined skills.
 
 ## Background
 
 The Claude Agent SDK supports loading skills from various locations including plugins. This plan outlines a **managed skills** approach where:
 
-1. Mort-provided skills are stored in `plugins/mort/skills/` in the repo
-2. Skills are synced to `~/.mort/skills/` on **app startup** and via an explicit **re-sync button** in settings
-3. User-defined skills in `~/.mort/skills/` are preserved
-4. A plugin at `~/.mort/` is passed to the SDK via the `plugins` option
-5. Skills are invoked as `/mort:skill-name` (namespaced by plugin)
+1. Anvil-provided skills are stored in `plugins/anvil/skills/` in the repo
+2. Skills are synced to `~/.anvil/skills/` on **app startup** and via an explicit **re-sync button** in settings
+3. User-defined skills in `~/.anvil/skills/` are preserved
+4. A plugin at `~/.anvil/` is passed to the SDK via the `plugins` option
+5. Skills are invoked as `/anvil:skill-name` (namespaced by plugin)
 
 ## Phases
 
-- [x] Create Mort plugin structure at `plugins/mort/`
+- [x] Create Anvil plugin structure at `plugins/anvil/`
 - [x] Bundle plugin in Tauri resources and add path resolution
 - [x] Create skill sync service (frontend-side, uses Tauri FS)
 - [x] Wire sync into app startup (`hydrateEntities`) + settings re-sync button
 - [x] Pass plugin reference to SDK `query()` in agent runner
-- [x] Ensure `~/.mort/skills/` is detected for `/` invocation
+- [x] Ensure `~/.anvil/skills/` is detected for `/` invocation
 - [x] Create initial managed skills
 - [ ] Test skill sync and invocation
 
@@ -56,17 +56,17 @@ my-plugin/
 
 ```json
 {
-  "name": "mort",
-  "description": "Mort's built-in skills for code assistance",
+  "name": "anvil",
+  "description": "Anvil's built-in skills for code assistance",
   "version": "1.0.0",
   "author": {
-    "name": "Mort"
+    "name": "Anvil"
   }
 }
 ```
 
 **Fields:**
-- `name` (required): Unique identifier and skill namespace (skills invoked as `/mort:skill-name`)
+- `name` (required): Unique identifier and skill namespace (skills invoked as `/anvil:skill-name`)
 - `description` (required): Shown in plugin manager
 - `version` (required): Semantic versioning
 
@@ -119,12 +119,12 @@ Skill instructions in markdown...
 
 ## Implementation Details
 
-### Phase 1: Create Mort Plugin Structure
+### Phase 1: Create Anvil Plugin Structure
 
-Create the source plugin at `plugins/mort/`:
+Create the source plugin at `plugins/anvil/`:
 
 ```
-plugins/mort/
+plugins/anvil/
 ├── .claude-plugin/
 │   └── plugin.json
 └── skills/
@@ -136,19 +136,19 @@ plugins/mort/
         └── SKILL.md
 ```
 
-**plugins/mort/.claude-plugin/plugin.json:**
+**plugins/anvil/.claude-plugin/plugin.json:**
 ```json
 {
-  "name": "mort",
-  "description": "Mort's built-in skills for code assistance",
+  "name": "anvil",
+  "description": "Anvil's built-in skills for code assistance",
   "version": "1.0.0",
   "author": {
-    "name": "Mort"
+    "name": "Anvil"
   }
 }
 ```
 
-This is the "source of truth" that gets synced to `~/.mort/`.
+This is the "source of truth" that gets synced to `~/.anvil/`.
 
 ### Phase 2: Bundle Plugin in Tauri Resources + Path Resolution
 
@@ -158,29 +158,29 @@ The plugin source files must be available at runtime in both dev and production.
 ```json
 "resources": [
   // ... existing resources ...
-  "../plugins/mort/.claude-plugin/plugin.json",
-  "../plugins/mort/skills/**/*"
+  "../plugins/anvil/.claude-plugin/plugin.json",
+  "../plugins/anvil/skills/**/*"
 ]
 ```
 
 **Add to `src/lib/paths.ts`:**
 ```typescript
 /**
- * Gets the path to the bundled Mort plugin source directory.
- * In dev: points at the repo's plugins/mort/ directly.
+ * Gets the path to the bundled Anvil plugin source directory.
+ * In dev: points at the repo's plugins/anvil/ directly.
  * In production: resolves from Tauri's bundled resources.
  */
 export async function getBundledPluginPath(): Promise<string> {
   const isDev = import.meta.env.DEV;
 
   if (isDev) {
-    return `${__PROJECT_ROOT__}/plugins/mort`;
+    return `${__PROJECT_ROOT__}/plugins/anvil`;
   }
 
   // Production: resolve from bundled resources
   // resolveResource returns a path under the app's Resources directory.
   // The _up_ prefix navigates from src-tauri to the project root (Tauri convention).
-  const pluginJsonPath = await resolveResource('_up_/plugins/mort/.claude-plugin/plugin.json');
+  const pluginJsonPath = await resolveResource('_up_/plugins/anvil/.claude-plugin/plugin.json');
   // Walk up from .claude-plugin/plugin.json to get the plugin root
   return await dirname(await dirname(pluginJsonPath));
 }
@@ -195,14 +195,14 @@ The sync runs on the **frontend** (Tauri webview), not the agent process. This a
 **Location:** `src/lib/skill-sync.ts`
 
 ```typescript
-import { getBundledPluginPath, getMortDir } from './paths';
+import { getBundledPluginPath, getAnvilDir } from './paths';
 import { FilesystemClient } from './filesystem-client';
 import { logger } from './logger-client';
 
 const fs = new FilesystemClient();
 
 /**
- * Sync managed skills from the bundled plugin to ~/.mort.
+ * Sync managed skills from the bundled plugin to ~/.anvil.
  *
  * - Copies .claude-plugin/plugin.json (always overwrites)
  * - Copies skills/* (overwrites existing managed skills, preserves user-created)
@@ -210,17 +210,17 @@ const fs = new FilesystemClient();
  */
 export async function syncManagedSkills(): Promise<void> {
   const pluginSourcePath = await getBundledPluginPath();
-  const mortDir = await getMortDir();
+  const anvilDir = await getAnvilDir();
 
   // 1. Sync .claude-plugin/plugin.json
   const srcPluginJson = `${pluginSourcePath}/.claude-plugin/plugin.json`;
-  const dstPluginJson = `${mortDir}/.claude-plugin/plugin.json`;
-  await fs.ensureDir(`${mortDir}/.claude-plugin`);
+  const dstPluginJson = `${anvilDir}/.claude-plugin/plugin.json`;
+  await fs.ensureDir(`${anvilDir}/.claude-plugin`);
   await fs.copyFile(srcPluginJson, dstPluginJson);
 
   // 2. Sync skills directory
   const srcSkillsDir = `${pluginSourcePath}/skills`;
-  const dstSkillsDir = `${mortDir}/skills`;
+  const dstSkillsDir = `${anvilDir}/skills`;
   await fs.ensureDir(dstSkillsDir);
 
   // Read source skill directories and copy each one
@@ -234,7 +234,7 @@ export async function syncManagedSkills(): Promise<void> {
     }
   }
 
-  logger.log(`[skill-sync] Synced managed skills to ${mortDir}`);
+  logger.log(`[skill-sync] Synced managed skills to ${anvilDir}`);
 }
 
 async function copySkillDirectory(src: string, dst: string): Promise<void> {
@@ -265,7 +265,7 @@ import { syncManagedSkills } from '@/lib/skill-sync';
 export async function hydrateEntities(): Promise<void> {
   // ... existing hydration ...
 
-  // Sync managed skills from bundled plugin to ~/.mort
+  // Sync managed skills from bundled plugin to ~/.anvil
   // This only copies a handful of small .md files — fast and idempotent
   await syncManagedSkills();
   logger.log("[entities:hydrate] Managed skills synced");
@@ -307,7 +307,7 @@ const handleResync = async () => {
 
 ### Phase 5: Pass Plugin Reference to SDK `query()`
 
-Update `agents/src/runners/shared.ts` to pass the plugin. The agent runner already receives `config.mortDir` (`~/.mort`), which is the plugin root after sync.
+Update `agents/src/runners/shared.ts` to pass the plugin. The agent runner already receives `config.anvilDir` (`~/.anvil`), which is the plugin root after sync.
 
 ```typescript
 // In query() call — agents/src/runners/shared.ts
@@ -315,37 +315,37 @@ const result = query({
   prompt,
   options: {
     plugins: [
-      { type: "local", path: config.mortDir }  // ~/.mort is now a valid plugin root
+      { type: "local", path: config.anvilDir }  // ~/.anvil is now a valid plugin root
     ],
     cwd: context.workingDir,
-    additionalDirectories: [config.mortDir],
+    additionalDirectories: [config.anvilDir],
     // ... rest of options unchanged
   }
 });
 ```
 
-**No sync happens here.** The agent process trusts that the frontend already synced skills on startup. `config.mortDir` is already an absolute path passed from the Tauri process, so no path resolution needed.
+**No sync happens here.** The agent process trusts that the frontend already synced skills on startup. `config.anvilDir` is already an absolute path passed from the Tauri process, so no path resolution needed.
 
 ### Phase 6: Ensure Skill Detection on `/` Invocation
 
 The current `SkillsService` in `core/lib/skills/skills-service.ts` already discovers skills from:
 
 ```typescript
-{ getPath: (_, home) => `${home}/.mort/skills`, source: 'mort', isLegacy: false },
+{ getPath: (_, home) => `${home}/.anvil/skills`, source: 'anvil', isLegacy: false },
 ```
 
-This means skills in `~/.mort/skills/` are already detected for the UI skill picker. However, the SDK will also load them via the plugin mechanism.
+This means skills in `~/.anvil/skills/` are already detected for the UI skill picker. However, the SDK will also load them via the plugin mechanism.
 
 **Skill invocation paths:**
 1. **User invokes via UI (`/commit`)**: SkillsService finds skill, passes to SDK
-2. **SDK plugin invocation (`/mort:commit`)**: SDK loads from plugin directly
+2. **SDK plugin invocation (`/anvil:commit`)**: SDK loads from plugin directly
 3. **Model-initiated**: SDK uses skill descriptions to invoke appropriate skills
 
 Both paths should work. The SkillsService provides UI autocomplete, while the SDK plugin provides runtime execution.
 
 ### Phase 7: Create Initial Managed Skills
 
-**plugins/mort/skills/commit/SKILL.md:**
+**plugins/anvil/skills/commit/SKILL.md:**
 ```yaml
 ---
 name: commit
@@ -368,7 +368,7 @@ When creating commits:
 5. Always show the user the proposed commit before executing
 ```
 
-**plugins/mort/skills/review-pr/SKILL.md:**
+**plugins/anvil/skills/review-pr/SKILL.md:**
 ```yaml
 ---
 name: review-pr
@@ -388,7 +388,7 @@ When reviewing PRs:
 4. Summarize overall assessment (approve, request changes, or comment)
 ```
 
-**plugins/mort/skills/plan/SKILL.md:**
+**plugins/anvil/skills/plan/SKILL.md:**
 ```yaml
 ---
 name: plan
@@ -415,18 +415,18 @@ When creating plans:
 **Test scenarios:**
 
 1. **Fresh install**:
-   - Delete `~/.mort/skills/` and `~/.mort/.claude-plugin/`
+   - Delete `~/.anvil/skills/` and `~/.anvil/.claude-plugin/`
    - Start app
-   - Verify `~/.mort/.claude-plugin/plugin.json` exists
-   - Verify `~/.mort/skills/{commit,review-pr,plan}/SKILL.md` exist
+   - Verify `~/.anvil/.claude-plugin/plugin.json` exists
+   - Verify `~/.anvil/skills/{commit,review-pr,plan}/SKILL.md` exist
 
 2. **Update scenario**:
-   - Modify `plugins/mort/skills/commit/SKILL.md`
+   - Modify `plugins/anvil/skills/commit/SKILL.md`
    - Restart app
-   - Verify changes synced to `~/.mort/skills/commit/SKILL.md`
+   - Verify changes synced to `~/.anvil/skills/commit/SKILL.md`
 
 3. **User skill preservation**:
-   - Create `~/.mort/skills/my-custom/SKILL.md`
+   - Create `~/.anvil/skills/my-custom/SKILL.md`
    - Restart app
    - Verify custom skill still exists
 
@@ -437,7 +437,7 @@ When creating plans:
 
 5. **Production build**:
    - Build with `cargo tauri build`
-   - Verify `plugins/mort/` files are in the `.app` bundle resources
+   - Verify `plugins/anvil/` files are in the `.app` bundle resources
    - Verify `getBundledPluginPath()` resolves correctly
    - Verify sync works from bundled resources
 
@@ -454,7 +454,7 @@ This is the critical piece. The codebase has an established pattern for dev vs. 
 All paths point directly at the source tree via `__PROJECT_ROOT__` (injected by Vite as `process.cwd()` at build time):
 
 ```
-__PROJECT_ROOT__/plugins/mort/          ← getBundledPluginPath()
+__PROJECT_ROOT__/plugins/anvil/          ← getBundledPluginPath()
 __PROJECT_ROOT__/agents/dist/runner.js  ← getAgentPaths()  (existing)
 __PROJECT_ROOT__/core/sdk/template      ← getQuickActionsTemplatePath()  (existing)
 ```
@@ -468,10 +468,10 @@ Tauri bundles files listed in `tauri.conf.json` → `bundle.resources` into the 
 ```
 App.app/Contents/Resources/
 ├── _up_/
-│   ├── plugins/mort/.claude-plugin/plugin.json   ← NEW
-│   ├── plugins/mort/skills/commit/SKILL.md       ← NEW
-│   ├── plugins/mort/skills/review-pr/SKILL.md    ← NEW
-│   ├── plugins/mort/skills/plan/SKILL.md         ← NEW
+│   ├── plugins/anvil/.claude-plugin/plugin.json   ← NEW
+│   ├── plugins/anvil/skills/commit/SKILL.md       ← NEW
+│   ├── plugins/anvil/skills/review-pr/SKILL.md    ← NEW
+│   ├── plugins/anvil/skills/plan/SKILL.md         ← NEW
 │   ├── agents/dist/runner.js                     ← existing
 │   ├── agents/node_modules/...                   ← existing
 │   └── ...
@@ -479,13 +479,13 @@ App.app/Contents/Resources/
 
 ### Agent Process (No Path Resolution Needed)
 
-The agent process (`agents/`) receives `config.mortDir` as an absolute path from the Tauri process. It never needs to resolve bundled resource paths — it just passes `config.mortDir` to the SDK as a plugin path:
+The agent process (`agents/`) receives `config.anvilDir` as an absolute path from the Tauri process. It never needs to resolve bundled resource paths — it just passes `config.anvilDir` to the SDK as a plugin path:
 
 ```typescript
-plugins: [{ type: "local", path: config.mortDir }]  // e.g. /Users/zac/.mort
+plugins: [{ type: "local", path: config.anvilDir }]  // e.g. /Users/zac/.anvil
 ```
 
-This completely avoids the `__dirname` issue in the original plan. The agent process doesn't know or care where the skills came from — it just points the SDK at `~/.mort`.
+This completely avoids the `__dirname` issue in the original plan. The agent process doesn't know or care where the skills came from — it just points the SDK at `~/.anvil`.
 
 ---
 
@@ -493,15 +493,15 @@ This completely avoids the `__dirname` issue in the original plan. The agent pro
 
 | File | Change |
 |------|--------|
-| `plugins/mort/.claude-plugin/plugin.json` | New: Plugin manifest |
-| `plugins/mort/skills/*/SKILL.md` | New: Managed skill definitions |
+| `plugins/anvil/.claude-plugin/plugin.json` | New: Plugin manifest |
+| `plugins/anvil/skills/*/SKILL.md` | New: Managed skill definitions |
 | `src-tauri/tauri.conf.json` | Modify: Add plugin resources to bundle |
 | `src/lib/paths.ts` | Modify: Add `getBundledPluginPath()` |
 | `src/lib/skill-sync.ts` | New: Skill sync service (frontend) |
 | `src/entities/index.ts` | Modify: Call `syncManagedSkills()` in hydration |
 | `src/components/main-window/settings/skills-settings.tsx` | Modify: Add re-sync button |
 | `agents/src/runners/shared.ts` | Modify: Pass `plugins` to SDK `query()` |
-| `~/.mort/` | Runtime: Synced plugin with skills |
+| `~/.anvil/` | Runtime: Synced plugin with skills |
 
 ---
 
@@ -510,33 +510,33 @@ This completely avoids the `__dirname` issue in the original plan. The agent pro
 ```
 Source (repo)                    Bundle (prod)                      Destination (runtime)
 ─────────────                    ─────────────                      ────────────────────
-plugins/mort/                    App.app/Resources/_up_/            ~/.mort/
-├── .claude-plugin/       ──►    plugins/mort/.claude-plugin/ ──►   ├── .claude-plugin/
+plugins/anvil/                    App.app/Resources/_up_/            ~/.anvil/
+├── .claude-plugin/       ──►    plugins/anvil/.claude-plugin/ ──►   ├── .claude-plugin/
 │   └── plugin.json              │   └── plugin.json               │   └── plugin.json
-└── skills/               ──►    plugins/mort/skills/        ──►   └── skills/
+└── skills/               ──►    plugins/anvil/skills/        ──►   └── skills/
     ├── commit/                      ├── commit/                       ├── commit/
     ├── review-pr/                   ├── review-pr/                    ├── review-pr/
     ├── plan/                        ├── plan/                         ├── plan/
     └── ...                          └── ...                           └── <user skills preserved>
 
-         Dev: __PROJECT_ROOT__/plugins/mort
-         Prod: resolveResource('_up_/plugins/mort/...')
+         Dev: __PROJECT_ROOT__/plugins/anvil
+         Prod: resolveResource('_up_/plugins/anvil/...')
 ```
 
 **Sync trigger:** App startup (in `hydrateEntities()`) + manual re-sync button in settings.
 
 **SDK receives:**
 ```typescript
-plugins: [{ type: "local", path: "/Users/zac/.mort" }]
+plugins: [{ type: "local", path: "/Users/zac/.anvil" }]
 ```
 
 **SkillsService discovers from:**
 ```typescript
-`${home}/.mort/skills`  // source: 'mort'
+`${home}/.anvil/skills`  // source: 'anvil'
 ```
 
 Both mechanisms work together:
-- Plugin provides namespaced invocation (`/mort:commit`)
+- Plugin provides namespaced invocation (`/anvil:commit`)
 - SkillsService provides UI autocomplete and discovery
 
 ---

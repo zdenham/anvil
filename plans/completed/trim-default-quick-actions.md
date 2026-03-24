@@ -29,7 +29,7 @@ Archive and close are already accessible via the tree menu (hover archive button
 - `core/sdk/template/src/actions/archive.ts` — delete
 - `core/sdk/template/src/actions/next-unread.ts` — update contexts to `['thread', 'plan', 'empty']` so it appears everywhere as the sole default action
 
-No changes needed to the SDK runtime, executor, listeners, or store — those all work generically. The template is what gets copied to `~/.mort/quick-actions/` on first launch.
+No changes needed to the SDK runtime, executor, listeners, or store — those all work generically. The template is what gets copied to `~/.anvil/quick-actions/` on first launch.
 
 ## Phase 2: Add "Mark Unread" to thread and plan context menus
 

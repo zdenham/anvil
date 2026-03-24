@@ -41,7 +41,7 @@ Run these commands to confirm the new unified runner handles all cases:
 pnpm --filter agents build
 
 # Verify simple agent works through unified runner
-node agents/dist/runner.js --agent simple --cwd /tmp/test --thread-id test-123 --mort-dir /tmp/mort --prompt "test"
+node agents/dist/runner.js --agent simple --cwd /tmp/test --thread-id test-123 --anvil-dir /tmp/anvil --prompt "test"
 
 # Verify task-based agents still work
 node agents/dist/runner.js --agent execution --help

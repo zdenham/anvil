@@ -216,7 +216,7 @@ export class GatewayChannelService {
 }
 ```
 
-**Storage layout (within `~/.mort/`):**
+**Storage layout (within `~/.anvil/`):**
 ```
 gateway-channels/{channelId}/
   metadata.json          <- GatewayChannelMetadata (Zod-validated on read)
@@ -262,7 +262,7 @@ function disconnectIfIdle(): void {
 }
 ```
 
-**`GATEWAY_BASE_URL`:** Define as a constant at the top of the service file: `const GATEWAY_BASE_URL = "https://mort-server.fly.dev";`. This is the same server that hosts the `/gateway/` routes, `/logs`, and `/identity` endpoints. Check `src/lib/constants.ts` for existing constant patterns and consider placing it there.
+**`GATEWAY_BASE_URL`:** Define as a constant at the top of the service file: `const GATEWAY_BASE_URL = "https://anvil-server.fly.dev";`. This is the same server that hosts the `/gateway/` routes, `/logs`, and `/identity` endpoints. Check `src/lib/constants.ts` for existing constant patterns and consider placing it there.
 
 **Channel creation flow (`create` method):**
 
@@ -444,7 +444,7 @@ async function ensureGatewayChannelForRepo(repo: Repository): Promise<void> {
 }
 ```
 
-**`getDeviceId()` resolution:** The device identity is stored in `~/.mort/identity.json` (schema defined in `core/types/identity.ts`). The identity file is created on first launch by the Rust backend (`src-tauri/src/identity.rs`). To read it:
+**`getDeviceId()` resolution:** The device identity is stored in `~/.anvil/identity.json` (schema defined in `core/types/identity.ts`). The identity file is created on first launch by the Rust backend (`src-tauri/src/identity.rs`). To read it:
 
 ```typescript
 import { appData } from "@/lib/app-data-store";

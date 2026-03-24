@@ -5,7 +5,7 @@ This plan addresses user feedback on the onboarding flow, broken down into actio
 
 ## Issues Identified
 1. **Layout Issues**: Card doesn't fill window, causing white borders
-2. **Step 1 Content**: Missing Mort logo, incorrect welcome message and button styling
+2. **Step 1 Content**: Missing Anvil logo, incorrect welcome message and button styling
 3. **Step 2 Problems**: Screen overflow, verbose copy, color conflicts in hotkey picker
 4. **Repository Step**: Incorrect copy messaging
 
@@ -25,8 +25,8 @@ This plan addresses user feedback on the onboarding flow, broken down into actio
   - Update: `<Card className="w-full max-w-2xl">`
   - To: `<Card className="w-full h-screen">`
 
-#### Task A2: Add Mort Logo Asset - "The mort logo should be displayed at the top of the first welcome screen"
-- **Original Feedback**: Need Mort logo displayed on first welcome screen
+#### Task A2: Add Anvil Logo Asset - "The anvil logo should be displayed at the top of the first welcome screen"
+- **Original Feedback**: Need Anvil logo displayed on first welcome screen
 - **Files**:
   - Add logo file to `src/assets/` (need logo file from user)
   - Update any import statements needed
@@ -34,12 +34,12 @@ This plan addresses user feedback on the onboarding flow, broken down into actio
 
 ### Group B: Step 1 Welcome Screen (Can run in parallel with A)
 
-#### Task B1: Update Step 1 Content - "Step 1 should show the mort logo and say 'hi, I'm mort' I can help you orchestrate an army of parallel claude codes from your macOS spotlight"
-- **Original Feedback**: Replace current welcome content with specific Mort introduction
+#### Task B1: Update Step 1 Content - "Step 1 should show the anvil logo and say 'hi, I'm anvil' I can help you orchestrate an army of parallel claude codes from your macOS spotlight"
+- **Original Feedback**: Replace current welcome content with specific Anvil introduction
 - **File**: `src/components/onboarding/steps/WelcomeStep.tsx`
 - **Changes**:
-  - Add Mort logo at top of welcome screen
-  - Change heading from "Welcome to Mort" to "Hi, I'm Mort"
+  - Add Anvil logo at top of welcome screen
+  - Change heading from "Welcome to Anvil" to "Hi, I'm Anvil"
   - Update copy to exactly: "I can help you orchestrate an army of parallel Claude codes from your macOS spotlight."
   - Remove existing bullet points and secondary descriptive copy
   - Simplify layout structure to focus on the new message
@@ -77,11 +77,11 @@ This plan addresses user feedback on the onboarding flow, broken down into actio
 
 ### Group D: Step 4 Repository Screen (Can run in parallel with others)
 
-#### Task D1: Fix Repository Step Copy - "The repository page copy is off, it should say something like, this helps mort understand where to write code, we don't need the secondary copy at the bottom"
+#### Task D1: Fix Repository Step Copy - "The repository page copy is off, it should say something like, this helps anvil understand where to write code, we don't need the secondary copy at the bottom"
 - **Original Feedback**: Replace current copy with simpler, more focused message
 - **File**: `src/components/onboarding/steps/RepositoryStep.tsx`
 - **Changes**:
-  - Change main descriptive copy to: "This helps Mort understand where to write code"
+  - Change main descriptive copy to: "This helps Anvil understand where to write code"
   - Remove the secondary copy section at bottom (the "We'll look for:" bullet point section)
   - Keep the repository selection functionality unchanged
   - Maintain the title "Select Your First Repository"
@@ -112,7 +112,7 @@ This plan addresses user feedback on the onboarding flow, broken down into actio
 - Test button functionality and styling
 
 ### Dependencies
-- **Logo Asset**: Task A2 requires Mort logo file from user
+- **Logo Asset**: Task A2 requires Anvil logo file from user
 - **Button Variant**: Task B2 depends on Task E1 if light variant doesn't exist
 
 ### Files Modified
@@ -126,7 +126,7 @@ This plan addresses user feedback on the onboarding flow, broken down into actio
 
 ### Testing Checklist
 - [ ] Card fills entire window with no white borders
-- [ ] Step 1 shows Mort logo and correct welcome message
+- [ ] Step 1 shows Anvil logo and correct welcome message
 - [ ] "Begin" button has light styling on Step 1
 - [ ] Step 2 doesn't overflow window height
 - [ ] Hotkey picker active state uses different color than keys

@@ -46,13 +46,13 @@ Once decided, run the appropriate CLI command:
 
 \`\`\`bash
 # Associate with existing task
-mort tasks associate --task=<slug>
+anvil tasks associate --task=<slug>
 
 # Create new task
-mort tasks create --title="<title>" --type=work|investigate
+anvil tasks create --title="<title>" --type=work|investigate
 
 # Create subtask
-mort tasks create-subtask --parent=<slug> --title="<title>"
+anvil tasks create-subtask --parent=<slug> --title="<title>"
 \`\`\`
 
 ## After Routing

@@ -6,7 +6,7 @@ Move the logo, refresh button, and three-dots menu to sit inline with (to the ri
 
 - **Main window** uses native macOS decorations (`decorations` defaults to `true` in `tauri.conf.json`)
 - The macOS traffic lights (close/minimize/fullscreen) sit in the native titlebar area at the top-left
-- `TreePanelHeader` renders **below** the native titlebar: logo, "MORT" title, spacer, then refresh/terminal/menu buttons
+- `TreePanelHeader` renders **below** the native titlebar: logo, "ANVIL" title, spacer, then refresh/terminal/menu buttons
 - The header has `pl-3 pr-2 py-2` padding and a bottom border
 - In fullscreen mode, `pt-3` is added to the root layout to avoid the system menu bar
 - There is no `data-drag-region` on the main window header (only on control panel headers)
@@ -71,7 +71,7 @@ Updated layout concept:
 
 ```
 ┌──────────────────────────────────────────────────┐
-│ [●][●][●]  [Logo] MORT [DEV]  ──────  [↻] [⋯]  │
+│ [●][●][●]  [Logo] ANVIL [DEV]  ──────  [↻] [⋯]  │
 │  traffic    left-padded content        buttons   │
 │  lights     ~70px offset                         │
 └──────────────────────────────────────────────────┘
@@ -82,7 +82,7 @@ Changes to `tree-panel-header.tsx`:
 - Adjust vertical padding to align vertically with the traffic light center (~`py-1.5` or `h-[38px]` to match the standard macOS titlebar height of ~38px)
 - May need to use `items-center` with a fixed height to ensure vertical centering with the traffic lights
 
-**Platform consideration:** On non-macOS (if ever supported), the left padding should not be applied. Could use a CSS class or a platform check, but since Mort is macOS-only currently, this can be a simple static value. Add a comment noting it's for traffic light clearance.
+**Platform consideration:** On non-macOS (if ever supported), the left padding should not be applied. Could use a CSS class or a platform check, but since Anvil is macOS-only currently, this can be a simple static value. Add a comment noting it's for traffic light clearance.
 
 ## Phase 3: Add Window Drag Region
 

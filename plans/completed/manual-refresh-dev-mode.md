@@ -7,7 +7,7 @@ Add a Tauri dev mode that disables automatic hot reloading (HMR) and instead pro
 ## Current State
 
 - Vite HMR is configured in `vite.config.ts:51-61`
-- Dev server runs via `pnpm dev` → `./scripts/dev-mort.sh dev` → `pnpm dev:run`
+- Dev server runs via `pnpm dev` → `./scripts/dev-anvil.sh dev` → `pnpm dev:run`
 - Spotlight actions are added in `src/components/spotlight/spotlight.tsx` via `partialMatch()` in the `search()` method
 - Dev mode detection: `import.meta.env.DEV` (Vite provides this, true during `tauri dev`)
 - Window reload already works: `window.location.reload()` is used in `src/components/diff-viewer/diff-viewer.tsx`
@@ -21,7 +21,7 @@ Add a Tauri dev mode that disables automatic hot reloading (HMR) and instead pro
 Add HMR disable logic based on environment variable:
 
 ```typescript
-const disableHmr = process.env.MORT_DISABLE_HMR === "true";
+const disableHmr = process.env.ANVIL_DISABLE_HMR === "true";
 
 // In server config:
 server: {
@@ -47,12 +47,12 @@ Add a new script that sets the environment variable:
 
 ```json
 "scripts": {
-  "dev:no-hmr": "MORT_DISABLE_HMR=true pnpm dev",
+  "dev:no-hmr": "ANVIL_DISABLE_HMR=true pnpm dev",
   // ... existing scripts
 }
 ```
 
-Alternatively, add to `scripts/dev-mort.sh` to accept a `--no-hmr` flag.
+Alternatively, add to `scripts/dev-anvil.sh` to accept a `--no-hmr` flag.
 
 ### Step 3: Add Refresh Action Type
 
@@ -67,7 +67,7 @@ export interface RefreshResult {
 }
 
 /** Internal type - action result discriminated union */
-export type ActionResult = OpenRepoResult | OpenMortResult | OpenTasksResult | RefreshResult;
+export type ActionResult = OpenRepoResult | OpenAnvilResult | OpenTasksResult | RefreshResult;
 ```
 
 Note: The `SpotlightResult` type already uses `ActionResult`, so it will automatically include the new type.
@@ -82,7 +82,7 @@ First, add `RefreshResult` to the imports from `./types`:
 import {
   AppResultSchema,
   OpenRepoResult,
-  OpenMortResult,
+  OpenAnvilResult,
   OpenTasksResult,
   RefreshResult,  // Add this
   SpotlightResult,
@@ -132,7 +132,7 @@ In the `getResultDisplay` function, add handling for the refresh action before t
 
 ```typescript
 if (result.type === "action") {
-  if (result.data.action === "open-mort") {
+  if (result.data.action === "open-anvil") {
     // ... existing code ...
   }
   if (result.data.action === "open-tasks") {
@@ -155,10 +155,10 @@ if (result.type === "action") {
 
 To make it clear the user is in "no-HMR" mode, consider adding a visual indicator in the spotlight or main window when HMR is disabled. This could be done by:
 
-1. Exposing `MORT_DISABLE_HMR` via Vite's `define`:
+1. Exposing `ANVIL_DISABLE_HMR` via Vite's `define`:
    ```typescript
    define: {
-     __MORT_DISABLE_HMR__: JSON.stringify(process.env.MORT_DISABLE_HMR === "true"),
+     __ANVIL_DISABLE_HMR__: JSON.stringify(process.env.ANVIL_DISABLE_HMR === "true"),
    },
    ```
 
@@ -168,7 +168,7 @@ To make it clear the user is in "no-HMR" mode, consider adding a visual indicato
 
 | File | Change |
 |------|--------|
-| `vite.config.ts` | Add `MORT_DISABLE_HMR` env var check to disable HMR |
+| `vite.config.ts` | Add `ANVIL_DISABLE_HMR` env var check to disable HMR |
 | `package.json` | Add `dev:no-hmr` script |
 | `src/components/spotlight/types.ts` | Add `RefreshResult` type to `ActionResult` union |
 | `src/components/spotlight/spotlight.tsx` | Add "Refresh" action in search + handle in activateResult |

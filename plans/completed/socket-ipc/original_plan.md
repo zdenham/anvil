@@ -79,7 +79,7 @@ Move agent communication from frontend stdio pipes to a **Unix socket owned by t
 │  │ Tauri Main Process (Rust)                                            │   │
 │  │                                                                      │   │
 │  │  AgentHub (NEW)                                                      │   │
-│  │  ├─ Creates socket at ~/.mort/agent-hub.sock                        │   │
+│  │  ├─ Creates socket at ~/.anvil/agent-hub.sock                        │   │
 │  │  ├─ Accepts connections from ALL agents (root + sub-agents)         │   │
 │  │  ├─ Maintains: HashMap<threadId, SocketWriter>                      │   │
 │  │  ├─ Routes Tauri→Agent: send_to_agent(threadId, message)            │   │
@@ -104,7 +104,7 @@ Move agent communication from frontend stdio pipes to a **Unix socket owned by t
 │  │  ✅ No more stdio pipe management!                                   │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
-│  ~/.mort/agent-hub.sock  ◄── Unix socket (Rust listens)                    │
+│  ~/.anvil/agent-hub.sock  ◄── Unix socket (Rust listens)                    │
 │         ▲         ▲         ▲                                              │
 │         │         │         │  All agents connect as clients               │
 │         │         │         │                                              │
@@ -129,11 +129,11 @@ Move agent communication from frontend stdio pipes to a **Unix socket owned by t
 │                                                                             │
 │  macOS launchd                                                              │
 │       │                                                                     │
-│       └─► Mort.app (Tauri)                                                  │
+│       └─► Anvil.app (Tauri)                                                  │
 │               │                                                             │
 │               ├─► Rust Main Process (owns AgentHub socket)                  │
 │               │       • Created by Tauri framework on app launch            │
-│               │       • Creates ~/.mort/agent-hub.sock                      │
+│               │       • Creates ~/.anvil/agent-hub.sock                      │
 │               │       • Listens for agent connections                       │
 │               │                                                             │
 │               └─► Renderer Process (WebView/Frontend)                       │
@@ -373,20 +373,20 @@ Agents use **retry with backoff** when connecting to the hub socket:
 ### 4. Socket Location & Discovery
 
 ```
-~/.mort/agent-hub.sock
+~/.anvil/agent-hub.sock
 ```
 
-Built from the mort directory path, which is already available in agent context via `getMortDir()`.
+Built from the anvil directory path, which is already available in agent context via `getAnvilDir()`.
 
 **How bash-based sub-agents discover the socket:**
 
-The socket path is derived from the mort directory, which agents already know. When a bash-based sub-agent starts:
+The socket path is derived from the anvil directory, which agents already know. When a bash-based sub-agent starts:
 
 1. Agent reads `--thread-id` and `--parent-id` from command line args
-2. Agent calls `getMortDir()` to get `~/.mort`
-3. Agent connects to `~/.mort/agent-hub.sock`
+2. Agent calls `getAnvilDir()` to get `~/.anvil`
+3. Agent connects to `~/.anvil/agent-hub.sock`
 
-No environment variable needed - the socket path is deterministic from the mort directory.
+No environment variable needed - the socket path is deterministic from the anvil directory.
 
 **Command line for bash-based sub-agent spawn:**
 
@@ -452,7 +452,7 @@ interface SocketMessage {
 ## Phases
 
 - [ ] Implement Rust AgentHub (socket server, threadId routing)
-- [ ] Add socket path helper to core (build from mort dir)
+- [ ] Add socket path helper to core (build from anvil dir)
 - [ ] Implement Node.js HubClient class
 - [ ] Integrate client into agent runner (replace stdout for events)
 - [ ] Handle stale socket cleanup on app startup
@@ -598,14 +598,14 @@ impl AgentHub {
 // core/lib/socket.ts
 
 import { join } from "path";
-import { getMortDir } from "./mort-dir.js";
+import { getAnvilDir } from "./anvil-dir.js";
 
 /**
  * Get the path to the agent hub socket.
- * Built from the mort directory - no env vars needed.
+ * Built from the anvil directory - no env vars needed.
  */
 export function getHubSocketPath(): string {
-  return join(getMortDir(), "agent-hub.sock");
+  return join(getAnvilDir(), "agent-hub.sock");
 }
 ```
 
@@ -939,7 +939,7 @@ export type { RetryOptions } from "./retry.js";
 
 import { HubClient } from "./lib/hub-client.js";
 
-// Connect to hub (socket path built internally from mort dir)
+// Connect to hub (socket path built internally from anvil dir)
 const hub = new HubClient(threadId);
 await hub.connect();
 
@@ -977,7 +977,7 @@ process.on("SIGTERM", () => {
 
 | Event | Action |
 |-------|--------|
-| App starts | Tauri creates socket at `~/.mort/agent-hub.sock`, starts listening |
+| App starts | Tauri creates socket at `~/.anvil/agent-hub.sock`, starts listening |
 | Agent spawned | Agent connects to hub, sends `register` with threadId |
 | State update | Agent sends `state` message |
 | Permission needed | Agent sends `permission:request` event, Tauri routes response back by threadId |

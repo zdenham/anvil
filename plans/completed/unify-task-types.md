@@ -479,7 +479,7 @@ describe("SimpleRunnerStrategy", () => {
   describe("setup", () => {
     it("writes unified task metadata format", async () => {
       // ... setup test
-      const metadataPath = join(mortDir, "tasks", taskId, "metadata.json");
+      const metadataPath = join(anvilDir, "tasks", taskId, "metadata.json");
       const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
 
       expect(metadata.slug).toBe(taskId);
@@ -493,7 +493,7 @@ describe("SimpleRunnerStrategy", () => {
   describe("cleanup", () => {
     it("updates task status using unified schema", async () => {
       // ... setup and run cleanup
-      const metadataPath = join(mortDir, "tasks", taskId, "metadata.json");
+      const metadataPath = join(anvilDir, "tasks", taskId, "metadata.json");
       const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
 
       expect(metadata.status).toBe("done");

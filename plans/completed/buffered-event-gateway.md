@@ -1,10 +1,10 @@
 # Buffered Event Gateway
 
-Extends the existing `mort-server` Fastify service with gateway routes that accept webhooks, buffer events in Redis, and stream them to clients via SSE. The gateway is logically separated into its own route namespace and directory within the server.
+Extends the existing `anvil-server` Fastify service with gateway routes that accept webhooks, buffer events in Redis, and stream them to clients via SSE. The gateway is logically separated into its own route namespace and directory within the server.
 
 ## Problem
 
-Mort agents run locally on developer machines. External events (PR comments, webhook triggers) happen while machines may be asleep, offline, or otherwise unavailable. We need a persistent intermediary that:
+Anvil agents run locally on developer machines. External events (PR comments, webhook triggers) happen while machines may be asleep, offline, or otherwise unavailable. We need a persistent intermediary that:
 
 1. Receives webhooks (GitHub as first source, extensible to others)
 2. Buffers them reliably when the target device is offline
@@ -18,7 +18,7 @@ GitHub (or other source)
         │
         ▼
 ┌──────────────────────────┐
-│   mort-server (Fastify)   │  ← Fly.io (mort-server.fly.dev)
+│   anvil-server (Fastify)   │  ← Fly.io (anvil-server.fly.dev)
 │                           │
 │  Existing:                │
 │    POST /logs             │
@@ -91,10 +91,10 @@ Design is complete. Implementation is decomposed into four parallel workstreams 
 
 ### Identity — Already Done
 
-Device identity is handled by the existing `identities` table in ClickHouse and `~/.mort/settings/identity.json` locally. See [identity-table.md](./identity-table.md) for the full design.
+Device identity is handled by the existing `identities` table in ClickHouse and `~/.anvil/settings/identity.json` locally. See [identity-table.md](./identity-table.md) for the full design.
 
 Key facts:
-- `device_id` is a stable UUID v4 generated on first launch, persisted in `~/.mort/settings/app-config.json`
+- `device_id` is a stable UUID v4 generated on first launch, persisted in `~/.anvil/settings/app-config.json`
 - `identity.json` maps `device_id` → `github_handle`
 - The ClickHouse `identities` table stores this mapping server-side
 - The `POST /identity` endpoint already exists
@@ -137,7 +137,7 @@ Body:
 Response:
   {
     "channelId": "a1b2c3d4-...",
-    "webhookUrl": "https://mort-server.fly.dev/gateway/channels/a1b2c3d4-.../events"
+    "webhookUrl": "https://anvil-server.fly.dev/gateway/channels/a1b2c3d4-.../events"
   }
 ```
 
@@ -300,7 +300,7 @@ The client must work in both **browser** (Tauri webview) and **Node.js** (agent 
 
 ```typescript
 interface GatewayClientOptions {
-  /** Gateway base URL (e.g. "https://mort-server.fly.dev") */
+  /** Gateway base URL (e.g. "https://anvil-server.fly.dev") */
   baseUrl: string;
   /** Device ID for SSE stream */
   deviceId: string;
@@ -369,7 +369,7 @@ async connect(): Promise<void> {
 **Browser (Tauri webview)**:
 ```typescript
 const client = new GatewayClient({
-  baseUrl: "https://mort-server.fly.dev",
+  baseUrl: "https://anvil-server.fly.dev",
   deviceId,
 
   loadLastEventId: () => Promise.resolve(localStorage.getItem("gateway:lastEventId")),
@@ -383,10 +383,10 @@ const client = new GatewayClient({
 import { readFile, writeFile } from "fs/promises";
 import { join, homedir } from "path";
 
-const checkpointPath = join(homedir(), ".mort", "gateway-checkpoint.json");
+const checkpointPath = join(homedir(), ".anvil", "gateway-checkpoint.json");
 
 const client = new GatewayClient({
-  baseUrl: "https://mort-server.fly.dev",
+  baseUrl: "https://anvil-server.fly.dev",
   deviceId,
 
   loadLastEventId: async () => {
@@ -419,7 +419,7 @@ This is consumer-side code, not part of the core client library. The Tauri app a
 
 > This section is retained as a motivating example for gateway design decisions. It is **not** part of the implementation scope for this plan.
 
-The first concrete event handler would be a consumer of the gateway client that interprets GitHub `issue_comment` events and spawns local agents. A `github.issue_comment` or `github.pull_request_review_comment` event where the comment matches a trigger pattern (e.g. `@mort` or `/mort run`) would check out the PR branch in a worktree, spawn an agent, and report back via GitHub API. This use case drives design decisions around event typing (`github.${event_name}`), the `EventHandler` interface, and keeping the gateway payload-agnostic.
+The first concrete event handler would be a consumer of the gateway client that interprets GitHub `issue_comment` events and spawns local agents. A `github.issue_comment` or `github.pull_request_review_comment` event where the comment matches a trigger pattern (e.g. `@anvil` or `/anvil run`) would check out the PR branch in a worktree, spawn an agent, and report back via GitHub API. This use case drives design decisions around event typing (`github.${event_name}`), the `EventHandler` interface, and keeping the gateway payload-agnostic.
 
 ---
 
@@ -509,7 +509,7 @@ This keeps the client importable by both `src/` (Tauri frontend) and Node agent 
 
 ### Deployment Changes
 
-The existing `mort-server` Fly.io app gains gateway functionality. Changes to `fly.toml`:
+The existing `anvil-server` Fly.io app gains gateway functionality. Changes to `fly.toml`:
 
 ```toml
 # Must stay running for webhook reception
@@ -520,11 +520,11 @@ The logging server currently scales to 0 when idle. With the gateway, the server
 
 ### Redis Deployment (Self-Hosted on Fly.io)
 
-Redis runs as a **separate Fly app** (`mort-redis`) in the same region (`sjc`), accessible to `mort-server` over Fly's private network (`mort-redis.internal:6379`). No public internet exposure.
+Redis runs as a **separate Fly app** (`anvil-redis`) in the same region (`sjc`), accessible to `anvil-server` over Fly's private network (`anvil-redis.internal:6379`). No public internet exposure.
 
 **`redis/fly.toml`**:
 ```toml
-app = 'mort-redis'
+app = 'anvil-redis'
 primary_region = 'sjc'
 
 [build]
@@ -545,20 +545,20 @@ primary_region = 'sjc'
 
 **Setup commands**:
 ```bash
-fly apps create mort-redis
-fly volumes create redis_data --region sjc --size 1 --app mort-redis
-fly deploy --app mort-redis
+fly apps create anvil-redis
+fly volumes create redis_data --region sjc --size 1 --app anvil-redis
+fly deploy --app anvil-redis
 ```
 
 **Persistence**: Redis is configured with `appendonly yes` (AOF). The `/data` directory is backed by a Fly volume, so data survives restarts and redeployments. Standard Redis persistence on a real disk.
 
-**Networking**: Fly apps in the same org communicate over a private WireGuard mesh via `.internal` DNS. The server connects to `redis://mort-redis.internal:6379` — no authentication needed since it's not publicly routable.
+**Networking**: Fly apps in the same org communicate over a private WireGuard mesh via `.internal` DNS. The server connects to `redis://anvil-redis.internal:6379` — no authentication needed since it's not publicly routable.
 
 ### New Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `REDIS_URL` | Redis connection string (`redis://mort-redis.internal:6379`) |
+| `REDIS_URL` | Redis connection string (`redis://anvil-redis.internal:6379`) |
 
 No global secrets for client-facing auth — endpoints are keyed by `deviceId`. No webhook verification secrets for v1.
 
@@ -804,7 +804,7 @@ it("full pipeline: register → post event → receive via SSE", async () => {
   await new Promise((r) => setTimeout(r, 200));
 
   // 4. Fire a webhook
-  const payload = JSON.stringify({ action: "created", comment: { body: "@mort run tests" } });
+  const payload = JSON.stringify({ action: "created", comment: { body: "@anvil run tests" } });
   await fetch(`${baseUrl}/gateway/channels/${channel.channelId}/events`, {
     method: "POST",
     headers: {
