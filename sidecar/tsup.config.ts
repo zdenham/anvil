@@ -8,7 +8,7 @@ export default defineConfig({
   outDir: "dist",
   clean: true,
   sourcemap: true,
-  noExternal: ["express", "ws", "mime-types", "chokidar"],
+  noExternal: ["express", "ws", "mime-types", "chokidar", "@ai-sdk/anthropic", "ai"],
   external: ["node-pty"],
   banner: {
     js: `import { createRequire } from "module"; const require = createRequire(import.meta.url);`,

@@ -4,169 +4,221 @@
 
 When the Tauri app restarts, the sidecar (and all its child processes — PTYs and agents) die. Agent processes are spawned with `detached: true` so they *can* outlive the sidecar, but the sidecar's in-memory `Map` tracking them is lost, and PTY sessions are destroyed entirely.
 
-## Feasibility Assessment
+## Design: Detached PTY Holder Processes
 
-**Agents: Very feasible.** The groundwork is already laid:
-
-- Agents persist state to disk (`state.json`, `metadata.json`) before any socket emission
-- Hub client has reconnection logic with exponential backoff
-- Agents already survive hub disconnects — they keep running, write to disk only, and resync on reconnect
-- `sessionId` is persisted, enabling SDK conversation continuity across restarts
-
-**PTY sessions: Harder, but feasible.** node-pty doesn't support "adopting" an existing PTY fd. Two viable approaches:
-
-1. **Sidecar-as-daemon** — the sidecar outlives Tauri, PTYs survive because their owner survives
-2. **PTY multiplexer** — use `screen`/`tmux` underneath, reconnect to named sessions
-
-**Recommendation:** Option 1 (sidecar-as-daemon) is simpler and solves both agents AND PTYs in one move.
-
-## Design: Sidecar as Long-Lived Daemon
-
-### Core Idea
-
-Decouple the sidecar's lifecycle from Tauri's lifecycle. The sidecar becomes a standalone daemon that:
-
-- Starts on first Tauri launch (or first need)
-- Keeps running across Tauri restarts
-- Owns all PTY sessions and agent process references
-- Tauri connects/reconnects to it via the existing WebSocket protocol
-
-### Architecture Change
+Same pattern as agents: spawn a detached child process per PTY that owns the `node-pty` instance and exposes a WebSocket server. The sidecar connects as a client and relays data to/from the frontend. If the sidecar restarts, the PTY holder keeps running and the sidecar reconnects.
 
 ```
 Before:
-  Tauri → spawns → Sidecar → spawns → Agents/PTYs
-  (Tauri exit kills sidecar, kills PTYs, orphans agents)
+  Tauri → Sidecar → node-pty (in-process) → shell
+  (sidecar exit kills PTY)
 
 After:
-  Tauri → connects to → Sidecar (daemon) → spawns → Agents/PTYs
-  (Tauri exit ≠ sidecar exit; everything survives)
+  Tauri → Sidecar ←WS→ PTY Holder (detached) → node-pty → shell
+  (sidecar exit ≠ PTY exit; holder keeps running)
+```
+
+### PTY Holder Process
+
+A small Node script (`sidecar/src/pty-holder.ts`) that:
+
+1. **Spawns the PTY** using `node-pty` (same setup as current `TerminalManager.spawn()`)
+2. **Starts a WebSocket server** on a random port, writes the port to a well-known path (`~/.mort/pty/{id}.json`)
+3. **Relays bidirectionally** — PTY output → WS broadcast, WS messages → PTY stdin
+4. **Maintains a scrollback ring buffer** (\~5000 lines) so reconnecting clients can catch up
+5. **Exits when the shell exits** — self-cleaning, like agent runners
+6. **Self-terminates after idle timeout** if no WS client connects for 30 minutes
+
+The holder writes a manifest file on startup:
+
+```typescript
+// ~/.mort/pty/{id}.json
+{
+  id: number,
+  pid: number,
+  port: number,
+  cwd: string,
+  startedAt: string,
+}
+```
+
+### TerminalManager Changes
+
+`TerminalManager` changes from owning `IPty` directly to spawning holder processes and connecting to their WebSocket servers:
+
+```typescript
+// Current: in-process PTY
+const pty = getNodePty().spawn(bin, binArgs, { ... });
+pty.onData((data) => broadcaster.broadcast("terminal:output", { id, data }));
+
+// New: spawn detached holder, connect via WS
+const holder = spawn("node", [holderScript, ...args], {
+  detached: true,
+  stdio: "ignore",
+});
+holder.unref();
+
+// Read port from manifest, connect as WS client
+const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+ws.on("message", (data) => broadcaster.broadcast("terminal:output", { id, data }));
+```
+
+On sidecar startup, `TerminalManager` scans `~/.mort/pty/` for existing manifests, validates that each PID is still alive, and reconnects to surviving holders. Dead manifests are cleaned up.
+
+### Data Flow
+
+```
+User types → Frontend WS → Sidecar → Holder WS → PTY stdin
+PTY output → Holder WS → Sidecar → Frontend WS → xterm.js
+
+On sidecar restart:
+PTY output → Holder ring buffer (accumulates)
+...sidecar starts...
+Sidecar reads manifests → connects to holders → gets scrollback replay → resumes streaming
+```
+
+### WebSocket Protocol (Sidecar ↔ Holder)
+
+Simple JSON messages:
+
+```typescript
+// Holder → Sidecar
+{ type: "output", data: string }           // PTY stdout
+{ type: "exit", code: number | null }      // shell exited
+{ type: "scrollback", lines: string[] }    // sent on connect for replay
+
+// Sidecar → Holder
+{ type: "write", data: string }            // stdin
+{ type: "resize", cols: number, rows: number }
+{ type: "kill" }                           // graceful termination
 ```
 
 ## Phases
 
-- [ ] Phase 1: Sidecar daemonization
+- [ ] Phase 1: PTY holder process
 
-- [ ] Phase 2: PID registry and descendant labeling
+- [ ] Phase 2: TerminalManager refactor to WS client
 
-- [ ] Phase 3: Kill safeguards (`mort kill-all`)
+- [ ] Phase 3: Reconnection and scrollback replay
 
-- [ ] Phase 4: Tauri reconnection on restart
+- [ ] Phase 4: PID registry and process discovery
 
-- [ ] Phase 5: Stale process cleanup
+- [ ] Phase 5: Kill safeguards (`mort kill-all`)
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
-## Phase 1: Sidecar Daemonization
+## Phase 1: PTY Holder Process
 
-**Goal:** Sidecar outlives Tauri restarts.
+**Goal:** Standalone Node script that owns a PTY and exposes it over WebSocket.
 
-### Changes to `src-tauri/src/lib.rs` (`spawn_sidecar`)
+### New file: `sidecar/src/pty-holder.ts`
 
-The existing health-check-first pattern already handles this partially — if the sidecar is already running, it skips spawning. We need to:
+Accepts CLI args: `--id`, `--cols`, `--rows`, `--cwd`, `--shell`, `--data-dir`, optional `--command`, `--args`, `--env` (JSON).
 
-1. **Detach the sidecar from Tauri's process group.** Currently spawned as a direct child. On macOS, use `pre_exec` to call `setsid()` so the sidecar becomes its own session leader:
+1. Spawn PTY using `node-pty` (reuse existing `getNodePty()` + `buildPtyEnv()` logic)
+2. Start a WebSocket server on `127.0.0.1:0` (OS-assigned port)
+3. Write manifest to `{dataDir}/pty/{id}.json` with `{ id, pid, port, cwd, startedAt }`
+4. On WS connection:
+   - Send `scrollback` message with buffered lines
+   - Forward PTY output as `output` messages
+   - Handle `write`, `resize`, `kill` messages
+5. On PTY exit: broadcast `exit` message, clean up manifest file, `process.exit()`
+6. Idle timeout: if no WS client for 30 min and PTY still alive, self-terminate
+7. Set `process.title = "mort-pty:{id}"`
 
-```rust
-use std::os::unix::process::CommandExt;
+### Build integration
 
-let child = Command::new("node")
-    .arg(&server_path)
-    .env(...)
-    .stdout(Stdio::piped())  // still pipe for health-check startup
-    .stderr(Stdio::piped())
-    .pre_exec(|| { libc::setsid(); Ok(()) })  // new session
-    .spawn()?;
-```
+Add `pty-holder.ts` as an additional entry point in `sidecar/tsup.config.ts` so it gets bundled alongside the main sidecar.
 
-2. **Write the sidecar PID to disk** at `~/.mort/sidecar.pid` after successful health check. This is the anchor for all descendant tracking.
+## Phase 2: TerminalManager Refactor
 
-3. **Don't kill sidecar on Tauri exit.** Remove the `SidecarProcess` cleanup. Since the child is in its own session, Tauri exiting won't signal it.
+**Goal:** `TerminalManager` spawns holder processes instead of owning PTYs directly.
 
-4. **Sidecar writes its own PID file** on startup (`sidecar/src/server.ts`):
+### Changes to `sidecar/src/managers/terminal-manager.ts`
 
-```typescript
-import { writeFileSync } from "node:fs";
-writeFileSync(join(dataDir, "sidecar.pid"), String(process.pid));
-```
-
-5. **On startup, Tauri checks health first** (already does this), reconnects to the existing sidecar. No change needed here.
-
-### Changes to sidecar shutdown
-
-Currently the sidecar shuts down on SIGTERM/SIGINT. Keep this — but it should only happen on *explicit* kill, not on Tauri exit. Since we detach the process group, Tauri's exit won't send SIGTERM to the sidecar.
-
-## Phase 2: PID Registry and Descendant Labeling
-
-**Goal:** Track all mort-spawned processes so they can be discovered and killed.
-
-### Environment Variable Tagging
-
-Every process spawned by mort gets a `MORT_SESSION_ID` environment variable. This is the label that ties all descendants together.
+Replace `TerminalSession` interface:
 
 ```typescript
-// Generated once per sidecar lifetime, persisted to disk
+// Before
+interface TerminalSession {
+  id: number;
+  pty: IPty;
+  cwd: string;
+}
+
+// After
+interface TerminalSession {
+  id: number;
+  pid: number;        // holder process PID
+  port: number;       // holder WS port
+  ws: WebSocket;      // connection to holder
+  cwd: string;
+}
+```
+
+`spawn()` becomes:
+
+1. Spawn `pty-holder` as detached child (`detached: true`, `stdio: "ignore"`, `.unref()`)
+2. Poll for manifest file (holder writes it on startup)
+3. Connect to holder's WS server
+4. Wire up WS messages to `broadcaster.broadcast()`
+5. Return session ID
+
+`write()`, `resize()`, `kill()` send WS messages to the holder instead of calling `pty.write()` etc.
+
+`dispose()` sends `kill` to all holders (or just disconnects — holders self-terminate on idle).
+
+### Remove direct node-pty dependency from TerminalManager
+
+`getNodePty()` and `buildPtyEnv()` move to `pty-holder.ts` (the only place that needs them). TerminalManager no longer imports node-pty.
+
+## Phase 3: Reconnection and Scrollback Replay
+
+**Goal:** Sidecar reconnects to surviving PTY holders on restart.
+
+### Startup scan
+
+On `TerminalManager` construction (or a new `reconnect()` method called from server startup):
+
+1. Read all files in `~/.mort/pty/*.json`
+2. For each manifest, check if PID is alive (`process.kill(pid, 0)`)
+3. If alive, connect to the holder's WS port
+4. Holder sends `scrollback` message with buffered output
+5. Register as an active session in the `sessions` map
+6. If PID is dead, delete the stale manifest
+
+### Frontend hydration
+
+When a frontend WS client connects, sidecar sends an inventory that includes reconnected terminals. Frontend creates terminal sessions for them and feeds the scrollback into xterm.js.
+
+The existing `terminal:output` event path handles live data after reconnect — no changes needed on the frontend event listener side, just the initial hydration.
+
+### Scrollback buffer in holder
+
+Ring buffer of \~5000 lines. On new WS client connection, send the full buffer as a single `scrollback` message before streaming live output. This ensures no gap between what was on screen before restart and what appears after.
+
+## Phase 4: PID Registry and Process Discovery
+
+**Goal:** Track all mort-spawned processes for discovery and cleanup.
+
+### Environment variable tagging
+
+Every process spawned by mort gets `MORT_SESSION_ID`:
+
+```typescript
 const SESSION_ID = existingSessionId ?? nanoid();
 writeFileSync(join(dataDir, "session-id"), SESSION_ID);
 ```
 
-All spawned processes inherit it:
+Applied to:
 
-- **Agent processes** (`agent-process-manager.ts` line 32): add `MORT_SESSION_ID` to env
-- **PTY sessions** (`terminal-manager.ts` line 39): add `MORT_SESSION_ID` to env
-- **Child agents** (`child-spawner.ts`): already inherits parent env, so gets it automatically
+- Agent processes (`agent-process-manager.ts`): add to env
+- PTY holder processes: add to env
+- Child agents: already inherit parent env
 
-### Discovery via `ps`
-
-Any process with `MORT_SESSION_ID` in its environment can be found:
-
-```bash
-# macOS: find all mort processes
-ps -eo pid,ppid,command | while read pid ppid cmd; do
-  if [ -f /proc/$pid/environ ] 2>/dev/null || \
-     strings /proc/$pid/environ 2>/dev/null | grep -q MORT_SESSION_ID; then
-    echo "$pid $ppid $cmd"
-  fi
-done
-```
-
-On macOS (no `/proc`), we rely on the PID registry instead.
-
-### PID Registry on Disk
-
-File: `~/.mort/pids.json`
-
-```typescript
-interface PidRegistry {
-  sidecar: { pid: number; startedAt: string };
-  agents: Record<string, { pid: number; threadId: string; startedAt: string }>;
-  terminals: Record<number, { pid: number; sessionId: number; startedAt: string }>;
-}
-```
-
-**Writers:**
-
-- Sidecar writes its own entry on startup
-- `AgentProcessManager.spawn()` writes agent entries
-- `TerminalManager.spawn()` writes terminal entries (node-pty exposes `pty.pid`)
-- All writers use read-modify-write with the existing disk-as-truth pattern
-
-**Cleanup:**
-
-- On process exit/close events, remove the entry
-- On sidecar startup, validate all existing PIDs (check if process exists, remove stale entries)
-
-### Process Group Tracking
-
-Agent processes are already spawned with `detached: true`, making each one a process group leader. The PGID equals the PID. This means `kill(-pid, SIGTERM)` already kills the entire subtree (which the code already does).
-
-For PTY processes, `node-pty` spawns with its own process group internally — `pty.pid` gives the leader PID.
-
-### `process.title` Labeling
-
-Set `process.title` on all Node processes for easy `ps` identification:
+### `process.title` labeling
 
 ```typescript
 // sidecar/src/server.ts
@@ -174,197 +226,85 @@ process.title = "mort-sidecar";
 
 // agents/src/runner.ts
 process.title = `mort-agent:${threadId}`;
+
+// sidecar/src/pty-holder.ts
+process.title = `mort-pty:${id}`;
 ```
 
-This makes `ps aux | grep mort-` instantly show all mort processes with their roles.
+### PID registry on disk
 
-## Phase 3: Kill Safeguards
+File: `~/.mort/pids.json`
 
-**Goal:** User can always kill all mort processes manually, even if the UI is frozen/crashed.
+```typescript
+interface PidRegistry {
+  sidecar: { pid: number; startedAt: string };
+  agents: Record<string, { pid: number; threadId: string; startedAt: string }>;
+  terminals: Record<number, { pid: number; sessionId: number; port: number; startedAt: string }>;
+}
+```
 
-### CLI Command: `mort kill-all`
+Writers: sidecar on startup, `AgentProcessManager.spawn()`, `TerminalManager.spawn()`. Cleanup: on exit events remove entries, on sidecar startup validate all PIDs.
 
-Add a kill subcommand (or standalone script at `~/.mort/bin/mort-kill`):
+## Phase 5: Kill Safeguards
+
+**Goal:** User can always kill all mort processes, even if UI is broken.
+
+### CLI: `mort kill-all`
 
 ```bash
 #!/bin/bash
-# ~/.mort/bin/mort-kill
-# Kill all mort processes gracefully, with SIGKILL escalation
-
 MORT_DIR="${MORT_DATA_DIR:-$HOME/.mort}"
-PID_FILE="$MORT_DIR/pids.json"
 
 echo "Killing all mort processes..."
 
-# 1. Read PID registry
-if [ -f "$PID_FILE" ]; then
-  # Kill agents first (they're the most autonomous)
-  for pid in $(jq -r '.agents | to_entries[].value.pid' "$PID_FILE" 2>/dev/null); do
-    echo "  Killing agent process group -$pid"
-    kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
-  done
+# Kill agents (most autonomous)
+for pid in $(jq -r '.agents | to_entries[].value.pid' "$MORT_DIR/pids.json" 2>/dev/null); do
+  kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+done
 
-  # Kill terminal PTYs
-  for pid in $(jq -r '.terminals | to_entries[].value.pid' "$PID_FILE" 2>/dev/null); do
-    echo "  Killing terminal $pid"
-    kill -TERM "$pid" 2>/dev/null
-  done
+# Kill PTY holders
+for pid in $(jq -r '.terminals | to_entries[].value.pid' "$MORT_DIR/pids.json" 2>/dev/null); do
+  kill -TERM "$pid" 2>/dev/null
+done
 
-  # Wait 3s for graceful shutdown
-  sleep 3
+sleep 3
 
-  # Kill sidecar last
-  sidecar_pid=$(jq -r '.sidecar.pid' "$PID_FILE" 2>/dev/null)
-  if [ "$sidecar_pid" != "null" ] && [ -n "$sidecar_pid" ]; then
-    echo "  Killing sidecar $sidecar_pid"
-    kill -TERM "$sidecar_pid" 2>/dev/null
-  fi
-fi
+# Kill sidecar last
+sidecar_pid=$(jq -r '.sidecar.pid' "$MORT_DIR/pids.json" 2>/dev/null)
+[ "$sidecar_pid" != "null" ] && kill -TERM "$sidecar_pid" 2>/dev/null
 
-# 2. Fallback: kill by process title
+# Fallback: kill by process title
 sleep 2
 pkill -f "mort-agent:" 2>/dev/null
+pkill -f "mort-pty:" 2>/dev/null
 pkill -f "mort-sidecar" 2>/dev/null
 
-# 3. Nuclear option: SIGKILL anything remaining
-sleep 1
-pkill -9 -f "mort-agent:" 2>/dev/null
-pkill -9 -f "mort-sidecar" 2>/dev/null
-
-# 4. Clean up PID file
-rm -f "$PID_FILE"
+# Clean up
+rm -f "$MORT_DIR/pids.json"
+rm -f "$MORT_DIR/pty/"*.json
 echo "Done."
 ```
 
-### UI Kill Button
+### UI kill button
 
-Add a "Kill All Processes" button in the app settings/debug panel that:
-
-1. Sends a `kill-all` command to the sidecar via WebSocket
-2. Sidecar iterates `agentProcesses.list()` and `terminalManager.list()`, kills each
-3. Then kills itself
-
-### Watchdog / Heartbeat
-
-The sidecar should auto-exit if no Tauri frontend has connected for a configurable duration (e.g., 30 minutes). This prevents zombie sidecars:
-
-```typescript
-let lastFrontendHeartbeat = Date.now();
-const ZOMBIE_TIMEOUT_MS = 30 * 60 * 1000; // 30 min
-
-// Updated on every frontend WebSocket message
-wss.on("connection", () => { lastFrontendHeartbeat = Date.now(); });
-
-setInterval(() => {
-  if (Date.now() - lastFrontendHeartbeat > ZOMBIE_TIMEOUT_MS) {
-    if (agentProcesses.list().length === 0 && terminalManager.list().length === 0) {
-      logger.info("No frontend connection and no active processes — self-terminating");
-      shutdown("zombie-timeout");
-    }
-  }
-}, 60_000);
-```
-
-Important: only self-terminate if there are no active agents or terminals. If agents are running, the sidecar should stay alive regardless.
-
-## Phase 4: Tauri Reconnection on Restart
-
-**Goal:** When Tauri restarts, seamlessly reconnect to existing sidecar and restore UI state.
-
-### Frontend Reconnection
-
-The frontend WebSocket client (`src/lib/event-bridge.ts` or equivalent) needs:
-
-1. **Reconnect on open** — detect that the sidecar is already running (health check succeeds) and connect
-2. **Request full state hydration** — send a `hydrate` request to the sidecar
-3. **Sidecar responds with current state** — active agents (threadIds, statuses), active terminals (sessionIds)
-
-### Agent State Recovery
-
-Agents already handle this:
-
-- They persist state to disk continuously
-- On hub reconnect, they emit full state via `emitState()` → HYDRATE action
-- The frontend entity stores receive this and update
-
-The missing piece: agents that were running while Tauri was down need to be "re-discovered." The sidecar knows about them (it spawned them), so on frontend reconnect:
-
-```typescript
-// Sidecar handler for new frontend connections
-wss.on("connection", (socket) => {
-  // Send current process inventory
-  socket.send(JSON.stringify({
-    type: "inventory",
-    agents: agentProcesses.list(), // threadIds
-    terminals: terminalManager.list(), // sessionIds
-  }));
-});
-```
-
-### Terminal Session Recovery
-
-PTY sessions survive because the sidecar survives. Terminal output that occurred while Tauri was down is lost (scrollback not persisted). Options:
-
-1. **Accept lost scrollback** — simplest, the terminal is still alive and responsive
-2. **Ring buffer** — sidecar keeps last N lines per terminal in memory, sends on reconnect
-3. **Scrollback file** — write terminal output to a file, frontend replays on reconnect
-
-Recommend option 2 (ring buffer of \~5000 lines) as a good balance.
-
-## Phase 5: Stale Process Cleanup
-
-**Goal:** Handle crash scenarios where PID files reference dead processes.
-
-### On Sidecar Startup
-
-```typescript
-function cleanStalePids(registry: PidRegistry): PidRegistry {
-  // Check each registered PID
-  for (const [id, entry] of Object.entries(registry.agents)) {
-    if (!isProcessAlive(entry.pid)) {
-      delete registry.agents[id];
-      // Also update thread metadata.json to "error" status if still "running"
-    }
-  }
-  // Same for terminals
-  return registry;
-}
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0); // signal 0 = existence check
-    return true;
-  } catch {
-    return false;
-  }
-}
-```
-
-### PID Reuse Protection
-
-PIDs can be reused by the OS. To prevent killing an innocent process:
-
-1. Store `startedAt` timestamp in the PID registry
-2. Before killing, verify the process start time matches (on macOS: `ps -p $PID -o lstart=`)
-3. Alternatively, check that the process command line contains `mort` identifiers
+Settings/debug panel button that sends `kill-all` command to sidecar. Sidecar kills all agents, sends `kill` to all PTY holders, then exits.
 
 ## Summary of Changes by File
 
 | File | Change |
 | --- | --- |
-| `src-tauri/src/lib.rs` | Detach sidecar (setsid), remove cleanup-on-exit, write PID |
-| `sidecar/src/server.ts` | Write PID file, set `process.title`, add zombie timeout, ring buffer for terminal output |
-| `sidecar/src/state.ts` | Add PID registry to state, add session ID |
-| `sidecar/src/managers/agent-process-manager.ts` | Write PIDs to registry, set `MORT_SESSION_ID` env, remove entries on exit |
-| `sidecar/src/managers/terminal-manager.ts` | Write PIDs to registry, set `MORT_SESSION_ID` env, add scrollback ring buffer |
+| New: `sidecar/src/pty-holder.ts` | Standalone PTY holder process with WS server |
+| `sidecar/src/managers/terminal-manager.ts` | Refactor from in-process PTY to WS client connecting to holders |
+| `sidecar/src/managers/agent-process-manager.ts` | Add `MORT_SESSION_ID` env, write to PID registry |
+| `sidecar/tsup.config.ts` | Add `pty-holder` entry point |
+| `sidecar/src/server.ts` | Set `process.title`, startup reconnection scan |
 | `agents/src/runner.ts` | Set `process.title` |
-| New: `~/.mort/bin/mort-kill` | CLI kill-all script |
 | New: `sidecar/src/managers/pid-registry.ts` | PID registry read/write/clean logic |
-| Frontend reconnection logic | Request inventory on connect, replay terminal scrollback |
+| New: `~/.mort/bin/mort-kill` | CLI kill-all script |
+| Frontend reconnection | Hydrate terminal sessions from sidecar inventory on connect |
 
 ## Open Questions
 
-1. **Should the sidecar auto-start on macOS login?** (launchd plist) — probably not initially, just on first Tauri launch
-2. **Multiple Tauri windows connecting to same sidecar?** — already supported by the WebSocket architecture
-3. **Sidecar version mismatch after app update?** — need a version handshake; if mismatch, gracefully restart sidecar
-4. **Should** `mort kill-all` **be a Tauri command or a standalone script?** — both: UI button + standalone script for when UI is broken
+1. **Port discovery race:** Holder writes manifest after binding — sidecar needs to poll or holder could write port to stdout before detaching. Polling the manifest file with a short retry loop is simplest.
+2. **Multiple sidecar instances?** If two Tauri windows launch, both could try connecting to the same holder. The holder should accept multiple WS clients (broadcast to all). Or enforce single-client with handoff.
+3. **Sidecar version mismatch after app update?** Need a version field in the manifest. If mismatch, kill old holder and spawn new one (accepting session loss).

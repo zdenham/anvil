@@ -169,6 +169,7 @@ export async function initAgentMessageListener(): Promise<void> {
   // These arrive as "tui-thread-state" WS push events and contain the same
   // ThreadAction payloads that agent threads emit via socket.
   await initTuiThreadStateListener();
+  await initTuiThreadNamingListener();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -214,11 +215,42 @@ async function initTuiThreadStateListener(): Promise<void> {
   logger.info("[agent-service] TUI thread state listener initialized");
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TUI Thread Naming Listener
+// ═══════════════════════════════════════════════════════════════════════════
+
+let tuiNamingUnlisten: UnlistenFn | null = null;
+
+/**
+ * Listens for "tui-thread-named" WS push events from the sidecar naming module.
+ * Bridges to THREAD_NAME_GENERATED on the eventBus so the existing thread
+ * listener refreshes metadata from disk.
+ */
+async function initTuiThreadNamingListener(): Promise<void> {
+  if (tuiNamingUnlisten) return;
+
+  tuiNamingUnlisten = await listen<{ threadId: string; name: string; worktreeName: string }>(
+    "tui-thread-named",
+    (event) => {
+      const { threadId, name } = event.payload;
+      if (!threadId || !name) return;
+
+      eventBus.emit(EventName.THREAD_NAME_GENERATED, { threadId, name });
+    },
+  );
+
+  logger.info("[agent-service] TUI thread naming listener initialized");
+}
+
 /** Clean up TUI thread state listener. */
 export function cleanupTuiThreadStateListener(): void {
   if (tuiStateUnlisten) {
     tuiStateUnlisten();
     tuiStateUnlisten = null;
+  }
+  if (tuiNamingUnlisten) {
+    tuiNamingUnlisten();
+    tuiNamingUnlisten = null;
   }
 }
 

@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.38",
+    "ai": "^6.0.77",
     "chokidar": "^4.0.0",
     "express": "^5.1.0",
     "mime-types": "^2.1.35",

@@ -23,6 +23,7 @@ interface HookMatcher {
 }
 
 interface HooksConfig {
+  UserPromptSubmit: HookMatcher[];
   SessionStart: HookMatcher[];
   PreToolUse: HookMatcher[];
   PostToolUse: HookMatcher[];
@@ -42,6 +43,7 @@ function buildHook(baseUrl: string, path: string, statusMessage?: string): HttpH
 
 export function buildHooksConfig(baseUrl: string): HooksConfig {
   return {
+    UserPromptSubmit: [{ hooks: [buildHook(baseUrl, "user-prompt-submit", "Connecting to Mort...")] }],
     SessionStart: [{ hooks: [buildHook(baseUrl, "session-start", "Connecting to Mort...")] }],
     PreToolUse: [{ hooks: [buildHook(baseUrl, "pre-tool-use", "Checking with Mort...")] }],
     PostToolUse: [{ hooks: [buildHook(baseUrl, "post-tool-use")] }],

@@ -1,6 +1,7 @@
 # Progress 003
 
 ## Done
+
 - Phase 5: Frontend integration for TUI thread state display
   - `sidecar/src/hooks/thread-state-writer.ts` — broadcastUpdate now sends full ThreadAction payload (not just `{type}`)
   - `src/lib/agent-service.ts` — Added `initTuiThreadStateListener()` that listens for `tui-thread-state` WS events and routes them to `eventBus` as `THREAD_ACTION` events
@@ -15,8 +16,10 @@
 - Marked Phases 5 and 6 complete in `claude-tui-hook-bridge.md`
 
 ## Remaining
+
 - Nothing — all 6 phases of the TUI hook bridge plan are complete
 
 ## Context
+
 - Pre-existing `agent-hub-roundtrip` test failure is unrelated (noted in iteration 2)
 - The TUI listener uses the same `eventBus.emit(THREAD_ACTION)` path as agent threads, so all existing state machine / reducer infrastructure applies

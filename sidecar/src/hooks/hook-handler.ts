@@ -15,6 +15,7 @@ import { parseCommentResolution } from "@core/lib/hooks/comment-resolution.js";
 import { ThreadStateWriter } from "./thread-state-writer.js";
 import { TranscriptReader } from "./transcript-reader.js";
 import { EventWriter } from "./event-writer.js";
+import { initiateNaming } from "./naming.js";
 import type { EventBroadcaster } from "../push.js";
 import type { SidecarLogger } from "../logger.js";
 
@@ -53,6 +54,39 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
 
   const router = Router();
   router.use(json());
+
+  // ── POST /hooks/user-prompt-submit ────────────────────────────────
+
+  router.post("/user-prompt-submit", async (req, res) => {
+    const threadId = req.headers[THREAD_ID_HEADER] as string | undefined;
+    if (!threadId) {
+      res.json(continueResponse());
+      return;
+    }
+
+    const prompt: string = (req.body?.prompt as string) ?? "";
+    if (!prompt) {
+      res.json(continueResponse());
+      return;
+    }
+
+    log.info(`[hooks] user-prompt-submit for thread ${threadId} (${prompt.length} chars)`);
+
+    // Track user message in thread state
+    await stateWriter.dispatch(threadId, {
+      type: "APPEND_USER_MESSAGE",
+      payload: { content: prompt, id: crypto.randomUUID() },
+    });
+
+    // First user message → trigger naming (fire-and-forget)
+    const state = stateWriter.getState(threadId);
+    const userMessages = state?.messages.filter((m) => m.role === "user") ?? [];
+    if (userMessages.length <= 1) {
+      initiateNaming(threadId, prompt, { dataDir, broadcaster, log });
+    }
+
+    res.json(continueResponse());
+  });
 
   // ── POST /hooks/session-start ──────────────────────────────────────
 
