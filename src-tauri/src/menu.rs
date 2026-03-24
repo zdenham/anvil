@@ -3,25 +3,25 @@ use tauri::{
     AppHandle, Runtime,
 };
 
-/// Builds the native macOS menu bar for the Mort application.
+/// Builds the native macOS menu bar for the Anvil application.
 ///
 /// Menu structure:
-/// - Mort: About, Services, Hide/Show, Quit
+/// - Anvil: About, Services, Hide/Show, Quit
 /// - Edit: Undo, Redo, Cut, Copy, Paste, Select All
 /// - View: Settings (Cmd+,), Logs
 /// - Window: Minimize, Zoom, Close
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    // App menu (Mort)
-    let app_menu = SubmenuBuilder::new(app, "Mort")
-        .item(&PredefinedMenuItem::about(app, Some("About Mort"), None)?)
+    // App menu (Anvil)
+    let app_menu = SubmenuBuilder::new(app, "Anvil")
+        .item(&PredefinedMenuItem::about(app, Some("About Anvil"), None)?)
         .separator()
         .item(&PredefinedMenuItem::services(app, Some("Services"))?)
         .separator()
-        .item(&PredefinedMenuItem::hide(app, Some("Hide Mort"))?)
+        .item(&PredefinedMenuItem::hide(app, Some("Hide Anvil"))?)
         .item(&PredefinedMenuItem::hide_others(app, Some("Hide Others"))?)
         .item(&PredefinedMenuItem::show_all(app, Some("Show All"))?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Quit Mort"))?)
+        .item(&PredefinedMenuItem::quit(app, Some("Quit Anvil"))?)
         .build()?;
 
     // Edit menu with standard clipboard operations

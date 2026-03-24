@@ -25,7 +25,7 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let _tray = TrayIconBuilder::new()
         .icon(icon)
         .icon_as_template(true) // macOS: render as template (adapts to light/dark mode)
-        .tooltip("Mort")
+        .tooltip("Anvil")
         .menu(&menu)
         .show_menu_on_left_click(false) // Left click opens spotlight, not menu
         .on_menu_event(handle_menu_event)
@@ -44,10 +44,10 @@ fn build_tray_menu(
         .item(&MenuItemBuilder::with_id("open_spotlight", "Open Spotlight").build(app)?)
         .item(&MenuItemBuilder::with_id("open_clipboard", "Clipboard History").build(app)?)
         .item(&PredefinedMenuItem::separator(app)?)
-        .item(&MenuItemBuilder::with_id("open_main", "Open Mort").build(app)?)
+        .item(&MenuItemBuilder::with_id("open_main", "Open Anvil").build(app)?)
         .item(&MenuItemBuilder::with_id("settings", "Settings...").build(app)?)
         .item(&PredefinedMenuItem::separator(app)?)
-        .item(&MenuItemBuilder::with_id("quit", "Quit Mort").build(app)?)
+        .item(&MenuItemBuilder::with_id("quit", "Quit Anvil").build(app)?)
         .build()?;
 
     Ok(menu)

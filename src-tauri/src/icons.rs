@@ -62,7 +62,7 @@ fn get_or_create_cache_dir(app_handle: &tauri::AppHandle) -> PathBuf {
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
-        .unwrap_or_else(|_| PathBuf::from("/tmp/mortician"));
+        .unwrap_or_else(|_| PathBuf::from("/tmp/anvil"));
 
     let cache_dir = app_data_dir.join("icon-cache");
 

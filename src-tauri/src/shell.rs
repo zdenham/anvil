@@ -6,6 +6,7 @@ pub fn run_internal_update() -> Result<(), String> {
 
     tracing::info!("run_internal_update: Starting update process");
 
+    // TODO(anvil-rename): update URL when infra is migrated
     let script_url = "https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh";
     let shell_command = format!("curl -sL {} | bash &", script_url);
 

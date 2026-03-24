@@ -217,6 +217,7 @@ const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log", "h2"];
 /// These are checked as prefixes against the log message content.
 const EXCLUDED_MESSAGE_PREFIXES: &[&str] = &[
     // TLS/HTTP client noise (ureq, rustls)
+    // TODO(anvil-rename): update when infra is migrated
     "connecting to mort-server",
     "Resuming session",
     "Sending ClientHello",
@@ -383,7 +384,7 @@ mod tests {
     #[test]
     fn test_log_row_serialization_with_properties() {
         let mut props = HashMap::new();
-        props.insert("data_dir".to_string(), serde_json::Value::String("/home/user/.mort".to_string()));
+        props.insert("data_dir".to_string(), serde_json::Value::String("/home/user/.anvil".to_string()));
         props.insert("count".to_string(), serde_json::json!(42));
 
         let row = LogRow {
@@ -397,7 +398,7 @@ mod tests {
         let json = serde_json::to_string(&row).unwrap();
         assert!(json.contains("\"properties\""));
         assert!(json.contains("\"data_dir\""));
-        assert!(json.contains("\"/home/user/.mort\""));
+        assert!(json.contains("\"/home/user/.anvil\""));
         assert!(json.contains("\"count\":42"));
     }
 

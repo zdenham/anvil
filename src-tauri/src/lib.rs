@@ -147,9 +147,9 @@ fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
         .map_err(|e| format!("Cannot find node for migrations: {}", e))?;
     let output = Command::new(&node_path)
         .arg(&runner_path)
-        .env("MORT_DATA_DIR", data_dir)
-        .env("MORT_TEMPLATE_DIR", &template_dir)
-        .env("MORT_SDK_TYPES_PATH", &sdk_types_path)
+        .env("ANVIL_DATA_DIR", data_dir)
+        .env("ANVIL_TEMPLATE_DIR", &template_dir)
+        .env("ANVIL_SDK_TYPES_PATH", &sdk_types_path)
         .env("PATH", paths::shell_path())
         .output()
         .map_err(|e| format!("Failed to spawn migration runner: {}", e))?;
@@ -272,9 +272,9 @@ fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
         .map_err(|e| format!("Cannot find node for sidecar: {}", e))?;
     let child = Command::new(&node_path)
         .arg(&server_path)
-        .env("MORT_WS_PORT", build_info::ws_port())
-        .env("MORT_DATA_DIR", paths::data_dir().to_string_lossy().as_ref())
-        .env("MORT_APP_SUFFIX", build_info::app_suffix())
+        .env("ANVIL_WS_PORT", build_info::ws_port())
+        .env("ANVIL_DATA_DIR", paths::data_dir().to_string_lossy().as_ref())
+        .env("ANVIL_APP_SUFFIX", build_info::app_suffix())
         .env("PATH", paths::shell_path())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -309,8 +309,8 @@ fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
     Ok(SidecarSpawnResult { child: Some(child), actual_port: base_port })
 }
 
-/// Ensures essential .mort directories exist synchronously
-fn ensure_mort_directories() -> Result<(), String> {
+/// Ensures essential .anvil directories exist synchronously
+fn ensure_anvil_directories() -> Result<(), String> {
     let settings_dir = paths::settings_dir();
     let databases_dir = paths::databases_dir();
 
@@ -322,7 +322,7 @@ fn ensure_mort_directories() -> Result<(), String> {
     tracing::info!(
         settings_dir = %settings_dir.display(),
         databases_dir = %databases_dir.display(),
-        "Essential .mort directories ensured"
+        "Essential .anvil directories ensured"
     );
 
     Ok(())
@@ -476,7 +476,7 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
             MAIN_WINDOW_LABEL,
             tauri::WebviewUrl::App("index.html".into()),
         )
-        .title("Mort")
+        .title("Anvil")
         .inner_size(600.0, 500.0)
         .resizable(true)
         .on_navigation(move |url| panels::is_allowed_navigation(&url, &app_for_nav))
@@ -1046,10 +1046,10 @@ pub fn run() {
             // renders, which would bypass the normal permission grant flow.
 
             let t = std::time::Instant::now();
-            if let Err(e) = ensure_mort_directories() {
-                tracing::error!("Failed to ensure .mort directories: {}", e);
+            if let Err(e) = ensure_anvil_directories() {
+                tracing::error!("Failed to ensure .anvil directories: {}", e);
             }
-            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] ensure_mort_directories");
+            tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] ensure_anvil_directories");
 
             // Set up log buffer to emit events to frontend
             logging::set_app_handle(app.handle().clone());
@@ -1101,7 +1101,7 @@ pub fn run() {
                         tracing::error!(error = %e, searched_path = %paths::shell_path(), "Failed to spawn sidecar");
                         // Show a user-visible dialog so it's clear why the app isn't working
                         let msg = if e.contains("Cannot find node") {
-                            "Mort requires Node.js but couldn't find it.\n\n\
+                            "Anvil requires Node.js but couldn't find it.\n\n\
                              Install Node.js from https://nodejs.org or via a version \
                              manager (nvm, fnm, volta), then relaunch the app."
                         } else {
@@ -1110,7 +1110,7 @@ pub fn run() {
                         use tauri_plugin_dialog::DialogExt;
                         app.dialog()
                             .message(msg)
-                            .title("Mort — Startup Error")
+                            .title("Anvil — Startup Error")
                             .blocking_show();
                     }
                 }
@@ -1186,8 +1186,8 @@ pub fn run() {
             let onboarded = config::is_onboarded();
 
             // Check if we should skip showing the main window (useful for dev to prevent focus stealing on rebuild)
-            // Skip if MORT_SKIP_MAIN_WINDOW is set to a non-empty value (allows override with MORT_SKIP_MAIN_WINDOW= pnpm dev)
-            let skip_main_window = std::env::var("MORT_SKIP_MAIN_WINDOW")
+            // Skip if ANVIL_SKIP_MAIN_WINDOW is set to a non-empty value (allows override with ANVIL_SKIP_MAIN_WINDOW= pnpm dev)
+            let skip_main_window = std::env::var("ANVIL_SKIP_MAIN_WINDOW")
                 .map(|v| !v.is_empty())
                 .unwrap_or(false);
 

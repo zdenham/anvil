@@ -16,7 +16,53 @@ pub struct LogServerConfig {
 impl LogServerConfig {
     /// Default log server URL (baked in at compile time).
     /// Can be overridden via LOG_SERVER_URL environment variable.
+    // TODO(anvil-rename): update URL when infra is migrated
     const DEFAULT_LOG_SERVER_URL: &'static str = "https://mort-server.fly.dev/logs";
+
+    /// Checks whether telemetry is enabled by reading workspace settings from disk.
+    ///
+    /// This runs before paths::initialize() and the JS settings store are ready,
+    /// so it reads the JSON file directly (same pattern as get_logs_dir).
+    ///
+    /// Returns true (telemetry enabled) if:
+    /// - The file doesn't exist or can't be read
+    /// - The JSON can't be parsed
+    /// - The `telemetryEnabled` field is absent or true
+    ///
+    /// Returns false only when `telemetryEnabled` is explicitly `false`.
+    fn is_telemetry_enabled() -> bool {
+        let suffix = crate::build_info::app_suffix();
+        let dir_name = if suffix.is_empty() {
+            ".anvil".to_string()
+        } else {
+            format!(".anvil-{}", suffix)
+        };
+
+        let settings_path = std::env::var("ANVIL_DATA_DIR")
+            .map(|s| std::path::PathBuf::from(shellexpand::tilde(&s).into_owned()))
+            .unwrap_or_else(|_| {
+                dirs::home_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    .join(dir_name)
+            })
+            .join("settings")
+            .join("workspace.json");
+
+        let contents = match std::fs::read_to_string(&settings_path) {
+            Ok(c) => c,
+            Err(_) => return true, // file missing or unreadable → fail-open
+        };
+
+        let json: serde_json::Value = match serde_json::from_str(&contents) {
+            Ok(v) => v,
+            Err(_) => return true, // malformed JSON → fail-open
+        };
+
+        // Field absent → true; explicitly false → false; anything else → true
+        json.get("telemetryEnabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true)
+    }
 
     /// Attempts to load configuration from environment or uses the default.
     ///
@@ -24,13 +70,19 @@ impl LogServerConfig {
     /// 1. LOG_SERVER_URL environment variable (for local development/testing)
     /// 2. Built-in default URL
     ///
-    /// Returns None only if LOG_SERVER_DISABLED=true is set.
+    /// Returns None if LOG_SERVER_DISABLED=true or telemetryEnabled=false in workspace settings.
     pub fn from_env() -> Option<Self> {
         // Allow disabling via env var for local testing
         if std::env::var("LOG_SERVER_DISABLED")
             .map(|v| v == "true" || v == "1")
             .unwrap_or(false)
         {
+            return None;
+        }
+
+        // Check workspace settings for user opt-out
+        if !Self::is_telemetry_enabled() {
+            tracing::info!("Telemetry disabled by user setting");
             return None;
         }
 

@@ -248,6 +248,7 @@ const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log", "h2"];
 /// These are checked as prefixes against the log message content.
 const EXCLUDED_MESSAGE_PREFIXES: &[&str] = &[
     // TLS/HTTP client noise (ureq, rustls)
+    // TODO(anvil-rename): update when infra is migrated
     "connecting to mort-server",
     "Resuming session",
     "Sending ClientHello",
@@ -350,13 +351,13 @@ impl tracing::field::Visit for MessageVisitor<'_> {
 fn get_logs_dir() -> io::Result<PathBuf> {
     let suffix = build_info::app_suffix();
     let dir_name = if suffix.is_empty() {
-        "mortician".to_string()
+        "anvil".to_string()
     } else {
-        format!("mortician-{}", suffix)
+        format!("anvil-{}", suffix)
     };
 
     // Check for runtime env var override first (same as paths.rs)
-    let config_dir = std::env::var("MORT_CONFIG_DIR")
+    let config_dir = std::env::var("ANVIL_CONFIG_DIR")
         .map(|s| PathBuf::from(shellexpand::tilde(&s).into_owned()))
         .unwrap_or_else(|_| {
             dirs::config_dir()

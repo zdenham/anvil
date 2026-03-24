@@ -22,9 +22,9 @@ fn expand_path(path: &str) -> PathBuf {
 fn default_data_dir() -> PathBuf {
     let suffix = build_info::app_suffix();
     let dir_name = if suffix.is_empty() {
-        ".mort".to_string()
+        ".anvil".to_string()
     } else {
-        format!(".mort-{}", suffix)
+        format!(".anvil-{}", suffix)
     };
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -35,9 +35,9 @@ fn default_data_dir() -> PathBuf {
 fn default_config_dir() -> PathBuf {
     let suffix = build_info::app_suffix();
     let dir_name = if suffix.is_empty() {
-        "mortician".to_string()
+        "anvil".to_string()
     } else {
-        format!("mortician-{}", suffix)
+        format!("anvil-{}", suffix)
     };
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -207,14 +207,14 @@ pub fn resolve_node_binary() -> Result<PathBuf, String> {
 pub fn initialize() {
     // Data directory: env override or suffix-derived default
     DATA_DIR.get_or_init(|| {
-        env::var("MORT_DATA_DIR")
+        env::var("ANVIL_DATA_DIR")
             .map(|s| expand_path(&s))
             .unwrap_or_else(|_| default_data_dir())
     });
 
     // Config directory: env override or suffix-derived default
     CONFIG_DIR.get_or_init(|| {
-        env::var("MORT_CONFIG_DIR")
+        env::var("ANVIL_CONFIG_DIR")
             .map(|s| expand_path(&s))
             .unwrap_or_else(|_| default_config_dir())
     });
@@ -251,27 +251,27 @@ pub fn shell_path() -> String {
         .unwrap_or_default()
 }
 
-/// Path to settings directory in .mort
+/// Path to settings directory in .anvil
 pub fn settings_dir() -> PathBuf {
     data_dir().join("settings")
 }
 
-/// Path to databases directory in .mort
+/// Path to databases directory in .anvil
 pub fn databases_dir() -> PathBuf {
     data_dir().join("databases")
 }
 
-/// Path to app config file in .mort/settings
+/// Path to app config file in .anvil/settings
 pub fn app_config_file() -> PathBuf {
     settings_dir().join("app-config.json")
 }
 
-/// Path to clipboard database in .mort/databases
+/// Path to clipboard database in .anvil/databases
 pub fn clipboard_database() -> PathBuf {
     databases_dir().join("clipboard.db")
 }
 
-/// Path to drain analytics database in .mort/databases
+/// Path to drain analytics database in .anvil/databases
 pub fn drain_database() -> PathBuf {
     databases_dir().join("drain.db")
 }
