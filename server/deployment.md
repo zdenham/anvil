@@ -1,4 +1,6 @@
-# Mort Server Deployment
+# Anvil Server Deployment
+
+<!-- TODO(anvil-rename): update all mort-server references when infra is migrated -->
 
 The server is deployed to [Fly.io](https://fly.io) in the `fundamental-research-labs` organization.
 
