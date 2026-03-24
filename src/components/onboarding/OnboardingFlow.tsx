@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "../reusable/Button";
 import { saveHotkey } from "../../lib/hotkey-service";
 import { repoService } from "../../entities/repositories";
-import { bootstrapAnvilDirectory } from "../../lib/mort-bootstrap";
+import { bootstrapAnvilDirectory } from "../../lib/anvil-bootstrap";
 import { logger } from "../../lib/logger-client";
 import { WelcomeStep } from "./steps/WelcomeStep";
 import { RepositoryStep } from "./steps/RepositoryStep";

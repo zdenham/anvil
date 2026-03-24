@@ -30,13 +30,13 @@
  */
 
 import type { QuickActionExecutionContext } from '../../types.js';
-import { AnvilFixture, createAnvilFixture, MortFixture, createMortFixture } from './mort-fixture.js';
+import { AnvilFixture, createAnvilFixture } from './anvil-fixture.js';
 import { runQuickAction, getTemplateActionPath, type RunnerResult } from './runner-spawn.js';
 import { EventCollector } from './event-collector.js';
 
 // Re-export all harness components
-export { AnvilFixture, createAnvilFixture, MortFixture, createMortFixture } from './mort-fixture.js';
-export type { ThreadMetaFixture, PlanEntryFixture } from './mort-fixture.js';
+export { AnvilFixture, createAnvilFixture } from './anvil-fixture.js';
+export type { ThreadMetaFixture, PlanEntryFixture } from './anvil-fixture.js';
 
 export { runQuickAction, getTemplateActionPath } from './runner-spawn.js';
 export type { RunnerOptions, RunnerResult, QuickActionEvent } from './runner-spawn.js';

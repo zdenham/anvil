@@ -3,7 +3,7 @@ import { createInterface as createReadlineInterface } from "readline";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-import { TestAnvilDirectory } from "./services/test-mort-directory.js";
+import { TestAnvilDirectory } from "./services/test-anvil-directory.js";
 import { TestRepository } from "./services/test-repository.js";
 import { RunnerConfig, defaultRunnerConfig } from "./runner-config.js";
 import { MockHubServer } from "./mock-hub-server.js";

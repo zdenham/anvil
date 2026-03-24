@@ -87,18 +87,18 @@ export async function getAnvilDir(): Promise<string> {
 
 /**
  * Gets the path to the bundled Anvil plugin source directory.
- * In dev: points at the repo's plugins/mort/ directly.
+ * In dev: points at the repo's plugins/anvil/ directly.
  * In production: resolves from Tauri's bundled resources.
  */
 export async function getBundledPluginPath(): Promise<string> {
   const isDev = import.meta.env.DEV;
 
   if (isDev) {
-    return `${__PROJECT_ROOT__}/plugins/mort`;
+    return `${__PROJECT_ROOT__}/plugins/anvil`;
   }
 
   // Production: resolve from bundled resources
-  const pluginJsonPath = await resolveResource('_up_/plugins/mort/.claude-plugin/plugin.json');
+  const pluginJsonPath = await resolveResource('_up_/plugins/anvil/.claude-plugin/plugin.json');
   // Walk up from .claude-plugin/plugin.json to get the plugin root
   const claudePluginDir = pluginJsonPath.replace(/\/plugin\.json$/, '');
   return claudePluginDir.replace(/\/\.claude-plugin$/, '');

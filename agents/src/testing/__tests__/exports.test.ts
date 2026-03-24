@@ -11,7 +11,6 @@ import {
   AgentTestHarness,
   AgentAssertions,
   TestAnvilDirectory,
-  TestMortDirectory, // deprecated alias
   TestRepository,
   MockClaudeClient,
   // Functions
@@ -43,7 +42,6 @@ import type {
   AgentStateMessage,
   StdoutMessage,
   TestAnvilDirectoryOptions,
-  TestMortDirectoryOptions, // deprecated alias
   TestRepositoryOptions,
   FileFixture,
   // Mock LLM types
@@ -77,11 +75,6 @@ describe("testing module exports", () => {
     it("exports TestAnvilDirectory", () => {
       expect(TestAnvilDirectory).toBeDefined();
       expect(typeof TestAnvilDirectory).toBe("function");
-    });
-
-    it("exports TestMortDirectory (deprecated alias)", () => {
-      expect(TestMortDirectory).toBeDefined();
-      expect(typeof TestMortDirectory).toBe("function");
     });
 
     it("exports TestRepository", () => {

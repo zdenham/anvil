@@ -232,8 +232,3 @@ export async function createAnvilFixture(): Promise<AnvilFixture> {
   await fixture.init();
   return fixture;
 }
-
-/** @deprecated Use AnvilFixture instead */
-export const MortFixture = AnvilFixture;
-/** @deprecated Use createAnvilFixture instead */
-export const createMortFixture = createAnvilFixture;

@@ -467,7 +467,7 @@ export const repoService = {
 
     const slug = slugify(repoId);
 
-    // Remove the settings folder from ~/.mort/repositories/{slug}
+    // Remove the settings folder from ~/.anvil/repositories/{slug}
     // Do NOT delete source files on disk - they remain untouched
     await appData.removeDir(`${REPOS_DIR}/${slug}`);
     useRepoStore.getState()._applyDelete(repoId);

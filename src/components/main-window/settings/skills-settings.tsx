@@ -23,11 +23,11 @@ export function SkillsSettings() {
     setIsSyncing(true);
     try {
       await syncManagedSkills();
-      const [homeDir, mortDir] = await Promise.all([
+      const [homeDir, anvilDir] = await Promise.all([
         fsCommands.getHomeDir(),
         fsCommands.getDataDir(),
       ]);
-      const discoveredSkills = await skillsService.discover(repoPath, homeDir, mortDir);
+      const discoveredSkills = await skillsService.discover(repoPath, homeDir, anvilDir);
       const freshRecord: Record<string, typeof discoveredSkills[0]> = {};
       for (const skill of discoveredSkills) {
         freshRecord[skill.slug] = skill;
@@ -45,11 +45,11 @@ export function SkillsSettings() {
 
       setIsLoading(true);
       try {
-        const [homeDir, mortDir] = await Promise.all([
+        const [homeDir, anvilDir] = await Promise.all([
           fsCommands.getHomeDir(),
           fsCommands.getDataDir(),
         ]);
-        const discoveredSkills = await skillsService.discover(repoPath, homeDir, mortDir);
+        const discoveredSkills = await skillsService.discover(repoPath, homeDir, anvilDir);
 
         // Hydrate the store with discovered skills
         const skillsRecord: Record<string, typeof discoveredSkills[0]> = {};

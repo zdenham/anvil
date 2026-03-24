@@ -1,6 +1,6 @@
 import { readFileSync, watch, type FSWatcher } from "fs";
 import { join } from "path";
-import { getAnvilDir } from "@core/lib/mort-dir.js";
+import { getAnvilDir } from "@core/lib/anvil-dir.js";
 import { PaneLayoutPersistedStateSchema } from "@core/types/pane-layout.js";
 import { extractVisibleThreadIds } from "@core/lib/pane-layout.js";
 import { LIFECYCLE_EVENTS } from "@core/types/events.js";

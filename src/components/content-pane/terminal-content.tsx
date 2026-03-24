@@ -39,7 +39,7 @@ interface TerminalExitPayload {
 }
 
 /**
- * Mort's dark theme for xterm.js.
+ * Anvil's dark theme for xterm.js.
  * Matches the app's surface colors.
  */
 const ANVIL_TERMINAL_THEME = {

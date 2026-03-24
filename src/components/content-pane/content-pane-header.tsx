@@ -342,7 +342,7 @@ function ThreadHeader({
 
 /**
  * Simple header for settings and logs views.
- * Uses py-1.5 to match TreePanelHeader's visual height (which has a taller MortLogo).
+ * Uses py-1.5 to match TreePanelHeader's visual height (which has a taller AnvilLogo).
  */
 function SimpleHeader({
   title,

@@ -285,7 +285,7 @@ describe("GET /gateway/devices/:deviceId/events (SSE)", () => {
       },
       body: JSON.stringify({
         action: "created",
-        comment: { body: "@mort run tests" },
+        comment: { body: "@anvil run tests" },
       }),
     });
 
@@ -300,7 +300,7 @@ describe("GET /gateway/devices/:deviceId/events (SSE)", () => {
     };
     expect(data.channelId).toBe(channel.channelId);
     expect(data.payload.action).toBe("created");
-    expect(data.payload.comment.body).toBe("@mort run tests");
+    expect(data.payload.comment.body).toBe("@anvil run tests");
   });
 
   it("reconnect replays missed events", async ({ skip }) => {

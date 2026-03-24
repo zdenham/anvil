@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { TestAnvilDirectory } from '../services/test-mort-directory.js';
+import { TestAnvilDirectory } from '../services/test-anvil-directory.js';
 import { TestRepository } from '../services/test-repository.js';
 import { extractSkillMatches } from '@core/skills/index.js';
 import { parseFrontmatter } from '@core/skills/index.js';

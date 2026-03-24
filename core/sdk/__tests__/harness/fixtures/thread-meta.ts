@@ -1,4 +1,4 @@
-import type { ThreadMetaFixture } from '../mort-fixture.js';
+import type { ThreadMetaFixture } from '../anvil-fixture.js';
 
 /**
  * Build a default thread meta fixture.

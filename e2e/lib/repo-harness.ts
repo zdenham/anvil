@@ -13,7 +13,7 @@ export class RepoHarness {
   }
 
   static async create(): Promise<RepoHarness> {
-    const repoPath = mkdtempSync(join(tmpdir(), 'mort-e2e-'));
+    const repoPath = mkdtempSync(join(tmpdir(), 'anvil-e2e-'));
     execSync('git init', { cwd: repoPath });
     execSync('git config user.email "test@test.com"', { cwd: repoPath });
     execSync('git config user.name "Test"', { cwd: repoPath });

@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { AgentTestHarness } from '../agent-harness.js';
 import { assertAgent } from '../assertions.js';
 import { EventName } from '@core/types/events.js';
-import { TestAnvilDirectory } from '../services/test-mort-directory.js';
+import { TestAnvilDirectory } from '../services/test-anvil-directory.js';
 import { TestRepository } from '../services/test-repository.js';
 
 /**

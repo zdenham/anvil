@@ -8,6 +8,3 @@ import { homedir } from "os";
 export function getAnvilDir(): string {
   return process.env.ANVIL_DATA_DIR ?? join(homedir(), ".anvil");
 }
-
-/** @deprecated Use getAnvilDir() instead */
-export const getMortDir = getAnvilDir;

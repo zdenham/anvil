@@ -57,7 +57,7 @@ describe("Hook handler", () => {
   let server: Server;
 
   beforeEach(async () => {
-    dataDir = join(tmpdir(), `mort-hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    dataDir = join(tmpdir(), `anvil-hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(dataDir, { recursive: true });
     broadcaster = new EventBroadcaster();
 

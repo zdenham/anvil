@@ -1,8 +1,8 @@
 import type { PreToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
-import { AnvilReplRunner } from "../lib/mort-repl/repl-runner.js";
-import { ChildSpawner } from "../lib/mort-repl/child-spawner.js";
-import { AnvilReplSdk } from "../lib/mort-repl/mort-sdk.js";
-import type { ReplContext } from "../lib/mort-repl/types.js";
+import { AnvilReplRunner } from "../lib/anvil-repl/repl-runner.js";
+import { ChildSpawner } from "../lib/anvil-repl/child-spawner.js";
+import { AnvilReplSdk } from "../lib/anvil-repl/anvil-sdk.js";
+import type { ReplContext } from "../lib/anvil-repl/types.js";
 
 interface ReplHookDeps {
   context: ReplContext;

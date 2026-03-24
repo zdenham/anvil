@@ -104,9 +104,6 @@ export interface AnvilSDK {
   log: LogService;
 }
 
-/** @deprecated Use AnvilSDK instead */
-export type MortSDK = AnvilSDK;
-
 /**
  * Service for performing Git operations.
  * All operations are read-only and return information about the repository state.

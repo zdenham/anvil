@@ -5,7 +5,7 @@ import { MainWindowLayout } from "./components/main-window/main-window-layout";
 import { hydrateEntities, setupEntityListeners } from "./entities";
 import { isOnboarded, completeOnboarding } from "./lib/hotkey-service";
 import { initializeTriggers } from "./lib/triggers";
-import { bootstrapAnvilDirectory } from "./lib/mort-bootstrap";
+import { bootstrapAnvilDirectory } from "./lib/anvil-bootstrap";
 import { initAgentMessageListener, cleanupAgentMessageListener } from "./lib/agent-service";
 import { logger } from "./lib/logger-client";
 

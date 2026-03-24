@@ -1,4 +1,4 @@
-import type { PlanEntryFixture } from '../mort-fixture.js';
+import type { PlanEntryFixture } from '../anvil-fixture.js';
 
 /**
  * Build a default plan entry fixture.

@@ -1,4 +1,4 @@
-import { AnvilLogo } from "../../ui/mort-logo";
+import { AnvilLogo } from "../../ui/anvil-logo";
 
 interface WelcomeStepProps {}
 

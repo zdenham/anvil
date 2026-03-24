@@ -6,7 +6,7 @@ import { waitForAppReady, invokeWsCommand } from './wait-helpers';
 import { TEST_IDS } from './test-ids';
 
 /**
- * Top-level page object for the Mort app.
+ * Top-level page object for the Anvil app.
  * All sub-page objects are accessed through this class.
  */
 export class AppPage {

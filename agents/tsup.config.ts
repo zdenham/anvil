@@ -2,7 +2,7 @@ import { defineConfig } from "tsup";
 import { resolve } from "path";
 
 export default defineConfig({
-  entry: ["src/runner.ts", "src/cli/mort.ts"],
+  entry: ["src/runner.ts", "src/cli/anvil.ts"],
   format: ["esm"],
   target: "node22",
   outDir: "dist",

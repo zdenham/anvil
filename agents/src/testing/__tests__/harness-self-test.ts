@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { existsSync } from "fs";
 import { AgentTestHarness } from "../agent-harness.js";
 import { assertAgent } from "../assertions.js";
-import { TestAnvilDirectory } from "../services/test-mort-directory.js";
+import { TestAnvilDirectory } from "../services/test-anvil-directory.js";
 import { TestRepository } from "../services/test-repository.js";
 import type { AgentRunOutput, AgentEventMessage, AgentStateMessage } from "../types.js";
 

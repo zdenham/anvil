@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@/lib/invoke";
 import { RefreshCw, Terminal } from "lucide-react";
-import { AnvilLogo } from "@/components/ui/mort-logo";
+import { AnvilLogo } from "@/components/ui/anvil-logo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { MenuDropdown } from "./menu-dropdown";
 import { PathsInfoSchema } from "@/lib/types/paths";

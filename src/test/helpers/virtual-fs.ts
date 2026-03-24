@@ -31,7 +31,7 @@ export class VirtualFS {
    *
    * @example
    * VirtualFS.seed({
-   *   "/Users/test/.mort/settings.json": { theme: "dark" },
+   *   "/Users/test/.anvil/settings.json": { theme: "dark" },
    *   "/Users/test/code/my-repo/README.md": "# My Repo",
    * });
    */

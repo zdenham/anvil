@@ -4,7 +4,7 @@ import { SpotlightResult } from "./types";
 import { ResultItem } from "./result-item";
 import { AppIcon } from "./app-icon";
 import { CalculatorIcon } from "./calculator-icon";
-import { AnvilLogo } from "../ui/mort-logo";
+import { AnvilLogo } from "../ui/anvil-logo";
 import type { RepoWorktree } from "@core/types/repositories";
 import { BUILTIN_MODES, type PermissionModeId } from "@core/types/permissions";
 

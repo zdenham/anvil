@@ -359,19 +359,19 @@ describe("Thread History - End-to-End Resume Flow", () => {
 describe("Thread History - Path Construction", () => {
   /**
    * This test verifies that the history file path is constructed correctly.
-   * The path should be: {mortDir}/tasks/{taskId}/threads/simple-{threadId}/state.json
+   * The path should be: {anvilDir}/tasks/{taskId}/threads/simple-{threadId}/state.json
    */
   it("should construct correct history file path for simple agents", () => {
-    const mortDir = "/home/user/.mort";
+    const anvilDir = "/home/user/.anvil";
     const taskId = "abc123";
     const threadId = "def456";
 
     // This is how agent-service.ts constructs the path (line 710)
-    const expectedPath = `${mortDir}/tasks/${taskId}/threads/simple-${threadId}/state.json`;
+    const expectedPath = `${anvilDir}/tasks/${taskId}/threads/simple-${threadId}/state.json`;
 
     // Simulate the path construction
     const constructedPath = join(
-      mortDir,
+      anvilDir,
       "tasks",
       taskId,
       "threads",
@@ -386,15 +386,15 @@ describe("Thread History - Path Construction", () => {
    * This test verifies that the thread path in context matches where state.json is written.
    */
   it("context.threadPath should match state.json location", () => {
-    const mortDir = "/home/user/.mort";
+    const anvilDir = "/home/user/.anvil";
     const taskId = "abc123";
     const threadId = "def456";
 
     // SimpleRunnerStrategy creates threadPath as:
     // join(taskPath, "threads", `simple-${threadId}`)
-    // where taskPath = join(mortDir, "tasks", taskId)
+    // where taskPath = join(anvilDir, "tasks", taskId)
 
-    const taskPath = join(mortDir, "tasks", taskId);
+    const taskPath = join(anvilDir, "tasks", taskId);
     const threadPath = join(taskPath, "threads", `simple-${threadId}`);
 
     // State is written to join(threadPath, "state.json")
@@ -402,7 +402,7 @@ describe("Thread History - Path Construction", () => {
 
     // History file path from resumeSimpleAgent should match
     const historyFilePath = join(
-      mortDir,
+      anvilDir,
       "tasks",
       taskId,
       "threads",

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright configuration for Mort E2E tests.
+ * Playwright configuration for Anvil E2E tests.
  *
  * Tests run against the Vite dev server + Rust WS backend.
  * The Vite dev server is started automatically via `webServer`.

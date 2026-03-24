@@ -30,7 +30,7 @@ vi.mock("../../lib/anvil-repl/child-spawner.js", () => {
   return { ChildSpawner: MockSpawner };
 });
 
-vi.mock("../../lib/anvil-repl/mort-sdk.js", () => {
+vi.mock("../../lib/anvil-repl/anvil-sdk.js", () => {
   const MockSdk = vi.fn(function (this: Record<string, unknown>) {
     this.spawn = vi.fn();
     this.log = vi.fn();

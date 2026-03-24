@@ -50,7 +50,7 @@ import { createReplHook } from "../hooks/repl-hook.js";
 import { createSafeGitHook } from "../hooks/safe-git-hook.js";
 import { DISALLOWED_TOOLS } from "@core/lib/hooks/tool-deny.js";
 import { extractFileChange } from "@core/lib/hooks/file-changes.js";
-import { rollUpCostToParent } from "../lib/mort-repl/budget.js";
+import { rollUpCostToParent } from "../lib/anvil-repl/budget.js";
 
 // ============================================================================
 // Sub-agent Tracking

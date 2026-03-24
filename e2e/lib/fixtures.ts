@@ -3,7 +3,7 @@ import { AppPage } from './app-page';
 import { RepoHarness } from './repo-harness';
 
 /**
- * Custom Playwright fixtures for Mort E2E tests.
+ * Custom Playwright fixtures for Anvil E2E tests.
  *
  * - `app`: navigates to '/', waits for ready, provides page objects
  * - `repo`: creates a temporary git repo, registers it via WS, cleans up after
