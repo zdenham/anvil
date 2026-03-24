@@ -8,7 +8,7 @@ allowed-tools: Bash
 
 # Query ClickHouse Observability Logs
 
-Query mort production logs stored in ClickHouse via HTTP API using curl.
+Query anvil production logs stored in ClickHouse via HTTP API using curl.
 
 ## Connection
 

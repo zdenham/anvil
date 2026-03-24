@@ -1,5 +1,5 @@
 #!/bin/bash
-# Debug helper functions for Mort development
+# Debug helper functions for Anvil development
 # Source this file or copy individual functions as needed
 
 # Colors for output
@@ -14,21 +14,21 @@ NC='\033[0m' # No Color
 # ============================================
 
 # Start the dev server
-mort_dev_start() {
-    echo -e "${GREEN}Starting Mort dev server...${NC}"
+anvil_dev_start() {
+    echo -e "${GREEN}Starting Anvil dev server...${NC}"
     cd "$(git rev-parse --show-toplevel)" || return 1
     pnpm dev
 }
 
 # Start dev server headless (no main window)
-mort_dev_headless() {
-    echo -e "${GREEN}Starting Mort dev server (headless)...${NC}"
+anvil_dev_headless() {
+    echo -e "${GREEN}Starting Anvil dev server (headless)...${NC}"
     cd "$(git rev-parse --show-toplevel)" || return 1
     pnpm dev:headless
 }
 
 # Kill all dev server processes
-mort_dev_kill() {
+anvil_dev_kill() {
     echo -e "${YELLOW}Killing dev server processes...${NC}"
     pkill -f "tauri dev" 2>/dev/null && echo "  Killed tauri dev"
     pkill -f "vite" 2>/dev/null && echo "  Killed vite"
@@ -38,10 +38,10 @@ mort_dev_kill() {
 }
 
 # Restart dev server
-mort_dev_restart() {
-    mort_dev_kill
+anvil_dev_restart() {
+    anvil_dev_kill
     sleep 2
-    mort_dev_start
+    anvil_dev_start
 }
 
 # ============================================
@@ -49,14 +49,14 @@ mort_dev_restart() {
 # ============================================
 
 # View live logs
-mort_logs_live() {
+anvil_logs_live() {
     local root
     root="$(git rev-parse --show-toplevel)"
     tail -f "$root/logs/dev.log"
 }
 
 # Search logs for errors
-mort_logs_errors() {
+anvil_logs_errors() {
     local root count
     root="$(git rev-parse --show-toplevel)"
     count="${1:-50}"
@@ -64,7 +64,7 @@ mort_logs_errors() {
 }
 
 # Search logs for warnings
-mort_logs_warnings() {
+anvil_logs_warnings() {
     local root count
     root="$(git rev-parse --show-toplevel)"
     count="${1:-50}"
@@ -72,14 +72,14 @@ mort_logs_warnings() {
 }
 
 # Search logs for a pattern with context
-mort_logs_search() {
+anvil_logs_search() {
     local root pattern context
     root="$(git rev-parse --show-toplevel)"
     pattern="$1"
     context="${2:-5}"
 
     if [ -z "$pattern" ]; then
-        echo "Usage: mort_logs_search <pattern> [context_lines]"
+        echo "Usage: anvil_logs_search <pattern> [context_lines]"
         return 1
     fi
 
@@ -87,14 +87,14 @@ mort_logs_search() {
 }
 
 # Search logs by component
-mort_logs_component() {
+anvil_logs_component() {
     local root component count
     root="$(git rev-parse --show-toplevel)"
     component="$1"
     count="${2:-30}"
 
     if [ -z "$component" ]; then
-        echo "Usage: mort_logs_component <component> [count]"
+        echo "Usage: anvil_logs_component <component> [count]"
         echo "Common components: agent_hub, hub::client, runner, output"
         return 1
     fi
@@ -103,14 +103,14 @@ mort_logs_component() {
 }
 
 # Query structured JSON logs
-mort_logs_json() {
+anvil_logs_json() {
     local level
     level="${1:-ERROR}"
 
-    if [ -f ~/.mortician/logs/structured.jsonl ]; then
-        cat ~/.mortician/logs/structured.jsonl | jq "select(.level == \"$level\")" | tail -20
-    elif [ -f ~/.mortician-dev/logs/structured.jsonl ]; then
-        cat ~/.mortician-dev/logs/structured.jsonl | jq "select(.level == \"$level\")" | tail -20
+    if [ -f ~/.anvil/logs/structured.jsonl ]; then
+        cat ~/.anvil/logs/structured.jsonl | jq "select(.level == \"$level\")" | tail -20
+    elif [ -f ~/.anvil-dev/logs/structured.jsonl ]; then
+        cat ~/.anvil-dev/logs/structured.jsonl | jq "select(.level == \"$level\")" | tail -20
     else
         echo "No structured log file found"
         return 1
@@ -118,7 +118,7 @@ mort_logs_json() {
 }
 
 # Clear dev logs
-mort_logs_clear() {
+anvil_logs_clear() {
     local root
     root="$(git rev-parse --show-toplevel)"
     > "$root/logs/dev.log"
@@ -130,48 +130,48 @@ mort_logs_clear() {
 # ============================================
 
 # Run all tests
-mort_test_all() {
+anvil_test_all() {
     local root
     root="$(git rev-parse --show-toplevel)"
     cd "$root" && pnpm test
 }
 
 # Run UI tests
-mort_test_ui() {
+anvil_test_ui() {
     local root
     root="$(git rev-parse --show-toplevel)"
     cd "$root" && pnpm test:ui
 }
 
 # Run UI tests in watch mode
-mort_test_ui_watch() {
+anvil_test_ui_watch() {
     local root
     root="$(git rev-parse --show-toplevel)"
     cd "$root" && pnpm test:ui:watch
 }
 
 # Run agent tests
-mort_test_agents() {
+anvil_test_agents() {
     local root
     root="$(git rev-parse --show-toplevel)"
     cd "$root" && pnpm test:agents
 }
 
 # Run agent harness tests
-mort_test_harness() {
+anvil_test_harness() {
     local root
     root="$(git rev-parse --show-toplevel)"
     cd "$root" && pnpm test:harness
 }
 
 # Run a specific test file
-mort_test_file() {
+anvil_test_file() {
     local root file
     root="$(git rev-parse --show-toplevel)"
     file="$1"
 
     if [ -z "$file" ]; then
-        echo "Usage: mort_test_file <path/to/test.ts>"
+        echo "Usage: anvil_test_file <path/to/test.ts>"
         return 1
     fi
 
@@ -179,13 +179,13 @@ mort_test_file() {
 }
 
 # Run a specific test file in watch mode
-mort_test_watch() {
+anvil_test_watch() {
     local root file
     root="$(git rev-parse --show-toplevel)"
     file="$1"
 
     if [ -z "$file" ]; then
-        echo "Usage: mort_test_watch <path/to/test.ts>"
+        echo "Usage: anvil_test_watch <path/to/test.ts>"
         return 1
     fi
 
@@ -197,7 +197,7 @@ mort_test_watch() {
 # ============================================
 
 # Show status of dev server processes
-mort_status() {
+anvil_status() {
     echo -e "${BLUE}Dev Server Processes:${NC}"
     pgrep -fl "tauri dev" || echo "  No tauri dev process"
     pgrep -fl "vite" || echo "  No vite process"
@@ -205,11 +205,11 @@ mort_status() {
 
     echo ""
     echo -e "${BLUE}Recent Errors (last 5):${NC}"
-    mort_logs_errors 5 2>/dev/null || echo "  No log file found"
+    anvil_logs_errors 5 2>/dev/null || echo "  No log file found"
 }
 
 # Quick health check
-mort_health() {
+anvil_health() {
     local root
     root="$(git rev-parse --show-toplevel)"
 
@@ -238,35 +238,35 @@ mort_health() {
 }
 
 # Print help
-mort_debug_help() {
-    echo "Mort Debug Helpers"
+anvil_debug_help() {
+    echo "Anvil Debug Helpers"
     echo "=================="
     echo ""
     echo "Dev Server:"
-    echo "  mort_dev_start      - Start the dev server"
-    echo "  mort_dev_headless   - Start dev server without main window"
-    echo "  mort_dev_kill       - Kill all dev server processes"
-    echo "  mort_dev_restart    - Restart the dev server"
+    echo "  anvil_dev_start      - Start the dev server"
+    echo "  anvil_dev_headless   - Start dev server without main window"
+    echo "  anvil_dev_kill       - Kill all dev server processes"
+    echo "  anvil_dev_restart    - Restart the dev server"
     echo ""
     echo "Logs:"
-    echo "  mort_logs_live              - Tail live logs"
-    echo "  mort_logs_errors [count]    - Show recent errors"
-    echo "  mort_logs_warnings [count]  - Show recent warnings"
-    echo "  mort_logs_search <pattern>  - Search logs with context"
-    echo "  mort_logs_component <name>  - Filter by component"
-    echo "  mort_logs_json [level]      - Query structured JSON logs"
-    echo "  mort_logs_clear             - Clear dev logs"
+    echo "  anvil_logs_live              - Tail live logs"
+    echo "  anvil_logs_errors [count]    - Show recent errors"
+    echo "  anvil_logs_warnings [count]  - Show recent warnings"
+    echo "  anvil_logs_search <pattern>  - Search logs with context"
+    echo "  anvil_logs_component <name>  - Filter by component"
+    echo "  anvil_logs_json [level]      - Query structured JSON logs"
+    echo "  anvil_logs_clear             - Clear dev logs"
     echo ""
     echo "Tests:"
-    echo "  mort_test_all         - Run all tests"
-    echo "  mort_test_ui          - Run UI tests"
-    echo "  mort_test_ui_watch    - Run UI tests in watch mode"
-    echo "  mort_test_agents      - Run agent tests"
-    echo "  mort_test_harness     - Run harness E2E tests"
-    echo "  mort_test_file <path> - Run specific test file"
-    echo "  mort_test_watch <path>- Watch specific test file"
+    echo "  anvil_test_all         - Run all tests"
+    echo "  anvil_test_ui          - Run UI tests"
+    echo "  anvil_test_ui_watch    - Run UI tests in watch mode"
+    echo "  anvil_test_agents      - Run agent tests"
+    echo "  anvil_test_harness     - Run harness E2E tests"
+    echo "  anvil_test_file <path> - Run specific test file"
+    echo "  anvil_test_watch <path>- Watch specific test file"
     echo ""
     echo "Diagnostics:"
-    echo "  mort_status           - Show dev server status"
-    echo "  mort_health           - Run health checks"
+    echo "  anvil_status           - Show dev server status"
+    echo "  anvil_health           - Run health checks"
 }

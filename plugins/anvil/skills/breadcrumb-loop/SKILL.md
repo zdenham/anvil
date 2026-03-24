@@ -6,7 +6,7 @@ user-invocable: true
 
 # Breadcrumb Loop
 
-Run a long-running task that spans multiple agent contexts. Each agent picks up where the last left off via the `/mort:breadcrumb` skill.
+Run a long-running task that spans multiple agent contexts. Each agent picks up where the last left off via the `/anvil:breadcrumb` skill.
 
 ## Instructions
 
@@ -22,21 +22,21 @@ Given the user's goal in `$ARGUMENTS`:
 
 ## Important
 
-**Do NOT use `run_in_background: true`** when invoking `mort-repl`. The REPL manages long-running execution internally via child agent processes. Always run it in the foreground.
+**Do NOT use `run_in_background: true`** when invoking `anvil-repl`. The REPL manages long-running execution internally via child agent processes. Always run it in the foreground.
 
 ## Loop
 
 ```bash
-mort-repl <<'MORT_REPL'
+anvil-repl <<'ANVIL_REPL'
 const DIR = "plans/<task-slug>-breadcrumb-log";
 
 for (let i = 1; i <= 100; i++) {
-  mort.log(`Iteration ${i}`);
+  anvil.log(`Iteration ${i}`);
 
   // The slash command must lead the prompt — Claude Code only auto-expands
   // skills into <command-name> tags when /command is at the start of the message.
-  const result = await mort.spawn({
-    prompt: `/mort:breadcrumb ${DIR} ${i}`,
+  const result = await anvil.spawn({
+    prompt: `/anvil:breadcrumb ${DIR} ${i}`,
     contextShortCircuit: {
       limitPercent: 50,
       message: "Your context is running low. Stop new work and save your progress now.",
@@ -44,11 +44,11 @@ for (let i = 1; i <= 100; i++) {
   });
 
   if (/^BREADCRUMB_COMPLETE$/m.test(result)) {
-    mort.log("Task completed!");
+    anvil.log("Task completed!");
     break;
   }
 }
-MORT_REPL
+ANVIL_REPL
 ```
 
 ## After the Loop

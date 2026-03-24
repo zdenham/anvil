@@ -1,8 +1,8 @@
 {
-  "name": "mort",
-  "description": "Mort's built-in skills for code assistance",
+  "name": "anvil",
+  "description": "Anvil's built-in skills for code assistance",
   "version": "1.0.0",
   "author": {
-    "name": "Mort"
+    "name": "Anvil"
   }
 }

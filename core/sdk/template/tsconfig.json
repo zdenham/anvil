@@ -10,6 +10,6 @@
     "rootDir": "./src",
     "declaration": false
   },
-  "include": ["src/**/*", "mort-types/**/*"],
+  "include": ["src/**/*", "anvil-types/**/*"],
   "exclude": ["node_modules", "dist"]
 }

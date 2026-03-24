@@ -6,7 +6,7 @@ user-invocable: true
 
 # Recursive Decomposition
 
-Break a complex task into sub-plans with explicit dependencies, then execute them in topological waves using `mort-repl`. Every agent — root or child — runs this same algorithm.
+Break a complex task into sub-plans with explicit dependencies, then execute them in topological waves using `anvil-repl`. Every agent — root or child — runs this same algorithm.
 
 ## The Algorithm
 
@@ -84,18 +84,18 @@ A sub-plan is `blocked` when any dependency has not `completed`. When all depend
 Read the dependency table you just wrote. Determine which tasks can run in parallel by reasoning about the dependency graph:
 
 1. **Identify waves** — tasks with no unmet dependencies form the next wave. You can figure this out by reading the table; do NOT write graph-sorting code in the REPL.
-2. **Execute one wave at a time** — write a minimal `mort-repl` script that spawns the wave's tasks in parallel:
+2. **Execute one wave at a time** — write a minimal `anvil-repl` script that spawns the wave's tasks in parallel:
 
 > **The slash command must be the first thing in the prompt.** Claude Code only auto-expands skills into `<command-name>` tags when the `/command` appears at the start of the message. If buried mid-sentence, the agent must make an extra Skill tool call to load the skill content.
 
 ```bash
-mort-repl <<'MORT_REPL'
+anvil-repl <<'ANVIL_REPL'
 const results = await Promise.all([
-  mort.spawn({ prompt: "/mort:decompose plans/my-task/01-setup-database.md" }),
-  mort.spawn({ prompt: "/mort:decompose plans/my-task/02-auth-module.md" }),
+  anvil.spawn({ prompt: "/anvil:decompose plans/my-task/01-setup-database.md" }),
+  anvil.spawn({ prompt: "/anvil:decompose plans/my-task/02-auth-module.md" }),
 ]);
 return results.map((r, i) => `Task ${i + 1}: ${r.slice(0, 200)}`).join("\n");
-MORT_REPL
+ANVIL_REPL
 ```
 
 3. **Between waves**, use your normal tools (Read/Edit/Write) to:
@@ -106,7 +106,7 @@ MORT_REPL
 
 4. **Repeat** for each subsequent wave until all tasks are done or blocked by failures.
 
-**Important:** Do NOT write file-parsing, topological-sorting, or status-update code in the REPL. You can read and reason about the dependency table yourself. The REPL is only for `mort.spawn()` calls with `Promise.all`.
+**Important:** Do NOT write file-parsing, topological-sorting, or status-update code in the REPL. You can read and reason about the dependency table yourself. The REPL is only for `anvil.spawn()` calls with `Promise.all`.
 
 ### Step 5: Writing Results
 
@@ -117,7 +117,7 @@ The result file should include:
 - Key artifacts produced (files created/modified, APIs added, etc.)
 - Anything downstream tasks need to know
 
-**If implementing directly (base case):** write `<plan-dir>/<your-plan-name>.result.md` as a sibling to the sub-plan file that was assigned to you. The parent orchestrator handles writing this for children spawned via mort-repl, but if you are the root agent implementing directly, write it yourself.
+**If implementing directly (base case):** write `<plan-dir>/<your-plan-name>.result.md` as a sibling to the sub-plan file that was assigned to you. The parent orchestrator handles writing this for children spawned via anvil-repl, but if you are the root agent implementing directly, write it yourself.
 
 **If you decomposed:** your result is the summary of all sub-task results.
 

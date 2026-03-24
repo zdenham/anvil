@@ -16,8 +16,8 @@ $COMMENTS
 
 After you have addressed a comment, mark it as resolved by running:
 
-mort-resolve-comment "<comma-separated-comment-ids>"
+anvil-resolve-comment "<comma-separated-comment-ids>"
 
-Example: `mort-resolve-comment "abc-123,def-456"`
+Example: `anvil-resolve-comment "abc-123,def-456"`
 
 You may resolve comments individually or in batches. Only resolve a comment after you have actually made the requested changes.

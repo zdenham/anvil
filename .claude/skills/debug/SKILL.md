@@ -4,9 +4,9 @@ description: Debug issues using E2E tests, log analysis, and dev server manageme
 user-invocable: true
 ---
 
-# Debugging Mort
+# Debugging Anvil
 
-This skill provides guidance and helpers for debugging issues in the Mort codebase.
+This skill provides guidance and helpers for debugging issues in the Anvil codebase.
 
 ## Quick Reference
 
@@ -54,7 +54,7 @@ tail -f logs/dev.log
 grep -i "error" logs/dev.log | tail -50
 
 # Search structured JSON logs (LLM-friendly format)
-cat ~/.mortician/logs/structured.jsonl | jq 'select(.level == "ERROR")'
+cat ~/.anvil/logs/structured.jsonl | jq 'select(.level == "ERROR")'
 
 # View recent log entries with context
 tail -100 logs/dev.log | grep -A5 -B5 "pattern"
@@ -91,7 +91,7 @@ The agent harness (`agents/src/testing/agent-harness.ts`) provides sophisticated
 
 1. **Spawning real agent subprocesses** with controlled environments
 2. **Creating temporary test fixtures**:
-   - `TestMortDirectory` - Temp mort config
+   - `TestAnvilDirectory` - Temp anvil config
    - `TestRepository` - Git repo fixtures
    - `MockHubServer` - Agent communication mock
 3. **Capturing structured output** for assertions

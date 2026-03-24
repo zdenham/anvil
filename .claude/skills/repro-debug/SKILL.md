@@ -22,26 +22,26 @@ Don't stop at "it fails" — dig into *why*. Clear logs, repro, read logs, read 
 
 ## Log Operations
 
-Log file: `~/.config/mortician-dev/logs/structured.jsonl` (JSONL format, recreated by Rust backend on next write)
+Log file: `~/.config/anvil-dev/logs/structured.jsonl` (JSONL format, recreated by Rust backend on next write)
 
 ```bash
 # Clear logs (isolate relevant entries before reproducing)
-rm -f ~/.config/mortician-dev/logs/structured.jsonl
+rm -f ~/.config/anvil-dev/logs/structured.jsonl
 
 # Read recent logs
-tail -n 100 ~/.config/mortician-dev/logs/structured.jsonl | jq .
+tail -n 100 ~/.config/anvil-dev/logs/structured.jsonl | jq .
 
 # Search by level
-cat ~/.config/mortician-dev/logs/structured.jsonl | jq 'select(.level == "ERROR")'
+cat ~/.config/anvil-dev/logs/structured.jsonl | jq 'select(.level == "ERROR")'
 
 # Search by message pattern
-grep "pattern" ~/.config/mortician-dev/logs/structured.jsonl | jq .
+grep "pattern" ~/.config/anvil-dev/logs/structured.jsonl | jq .
 
 # Search by component/target
-cat ~/.config/mortician-dev/logs/structured.jsonl | jq 'select(.target | test("hub"))'
+cat ~/.config/anvil-dev/logs/structured.jsonl | jq 'select(.target | test("hub"))'
 
 # Time-windowed (timestamps are ISO 8601, e.g. 2026-03-03T12:00:00Z)
-cat ~/.config/mortician-dev/logs/structured.jsonl | jq 'select(.timestamp > "2026-03-03T12:00:00")'
+cat ~/.config/anvil-dev/logs/structured.jsonl | jq 'select(.timestamp > "2026-03-03T12:00:00")'
 ```
 
 ## Writing Repro Scripts
@@ -144,7 +144,7 @@ You may add temporary `logger.*` calls anywhere, including the render path, to t
 **Cleanup checklist** (do this before closing out any investigation):
 1. Remove all `logger.*` calls you added during the session
 2. Delete any ad-hoc repro scripts from `e2e/debug/` that are no longer needed
-3. Clear the structured log file: `rm -f ~/.config/mortician-dev/logs/structured.jsonl`
+3. Clear the structured log file: `rm -f ~/.config/anvil-dev/logs/structured.jsonl`
 4. Run `git diff` to verify no debug logging remains in staged changes
 
 ## Script Patterns
