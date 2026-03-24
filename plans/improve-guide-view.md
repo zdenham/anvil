@@ -62,11 +62,11 @@ The guide always renders the same content. When no repo is configured, the "Impo
 
 ## Phases
 
-- [ ] Add hero, core concepts, and plan-first content to `guide-content.tsx`
+- [x] Add hero, core concepts, and plan-first content to `guide-content.tsx`
 
-- [ ] Consolidate the two states in `empty-pane-content.tsx` into one unified guide
+- [x] Consolidate the two states in `empty-pane-content.tsx` into one unified guide
 
-- [ ] Verify both states render correctly (with repo and without repo)
+- [x] Verify both states render correctly (with repo and without repo)
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
