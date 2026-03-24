@@ -40,9 +40,9 @@ Exhaustive rename of all references from mort/Mort/mortician/Mortician to anvil/
 
 - [x] Phase 9: Scripts — [build-mort.sh](http://build-mort.sh), [dev-mort.sh](http://dev-mort.sh), env presets, [internal-build.sh](http://internal-build.sh)
 
-- [ ] Phase 10: Documentation — docs/\*.md, [README.md](http://README.md)
+- [x] Phase 10: Documentation — docs/\*.md, [README.md](http://README.md)
 
-- [ ] Phase 11: Plans and completed plans — rename references in plans/\*\*/\*.md
+- [x] Phase 11: Plans and completed plans — rename references in plans/\*\*/\*.md
 
 - [x] Phase 12: Test fixtures and mocks — test-mort-directory.ts, mock files, vitest config
 
@@ -54,9 +54,9 @@ Exhaustive rename of all references from mort/Mort/mortician/Mortician to anvil/
 
 - [x] Phase 16: Git branch convention — update mort/task-\* prefix references
 
-- [ ] Phase 17: Verify build — ensure cargo build, pnpm build, and tests pass
+- [x] Phase 17: Verify build — ensure cargo build, pnpm build, and tests pass
 
-- [ ] Phase 18: Update [CLAUDE.md](http://CLAUDE.md) and memory files
+- [x] Phase 18: Update [CLAUDE.md](http://CLAUDE.md) and memory files
 
 &lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
