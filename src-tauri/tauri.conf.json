@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Mort",
+  "productName": "Anvil",
   "version": "0.0.81",
-  "identifier": "com.mort.app",
+  "identifier": "com.anvil.app",
   "build": {
     "beforeDevCommand": "vite",
     "devUrl": "http://localhost:1420",
@@ -63,7 +63,7 @@
       "../core/sdk/template/build.ts",
       "../core/sdk/template/package.json",
       "../core/sdk/template/tsconfig.json",
-      "../core/sdk/template/mort-types/**/*",
+      "../core/sdk/template/anvil-types/**/*",
       "../core/sdk/template/src/**/*",
       "../migrations/package.json",
       "../migrations/dist/**/*",
@@ -72,8 +72,8 @@
       "../sidecar/node_modules/node-pty/**/*",
       "../sdk-runner.mjs",
       "../sdk-types.d.ts",
-      "../plugins/mort/.claude-plugin/plugin.json",
-      "../plugins/mort/skills/**/*"
+      "../plugins/anvil/.claude-plugin/plugin.json",
+      "../plugins/anvil/skills/**/*"
     ]
   }
 }

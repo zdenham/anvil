@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Mort Dev",
-  "identifier": "com.getmort.app.dev",
+  "productName": "Anvil Dev",
+  "identifier": "com.getanvil.app.dev",
   "build": {
     "devUrl": "http://localhost:1421"
   },
