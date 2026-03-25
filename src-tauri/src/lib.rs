@@ -492,12 +492,7 @@ fn complete_onboarding() -> Result<(), String> {
 /// Shows the main settings/onboarding window
 #[tauri::command]
 fn show_main_window(app: AppHandle) -> Result<(), String> {
-    use tauri::ActivationPolicy;
-
     tracing::info!("show_main_window called");
-
-    // Temporarily set activation policy to Regular so the app can come to front
-    let _ = app.set_activation_policy(ActivationPolicy::Regular);
 
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window.show().map_err(|e| {
@@ -555,12 +550,7 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
 /// Used for spotlight → main window navigation (Enter without Shift).
 #[tauri::command]
 fn show_main_window_with_view(app: AppHandle, view: serde_json::Value) -> Result<(), String> {
-    use tauri::ActivationPolicy;
-
     tracing::info!("[MainWindow] show_main_window_with_view called: {:?}", view);
-
-    // Temporarily set activation policy to Regular so the app can come to front
-    let _ = app.set_activation_policy(ActivationPolicy::Regular);
 
     // Get the main window
     let window = app.get_webview_window(MAIN_WINDOW_LABEL)
@@ -600,14 +590,9 @@ fn show_main_window_with_view(app: AppHandle, view: serde_json::Value) -> Result
 /// Hides the main settings/onboarding window
 #[tauri::command]
 fn hide_main_window(app: AppHandle) -> Result<(), String> {
-    use tauri::ActivationPolicy;
-
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window.hide().map_err(|e| e.to_string())?;
     }
-
-    // Revert to Accessory mode when main window is hidden
-    let _ = app.set_activation_policy(ActivationPolicy::Accessory);
 
     Ok(())
 }
@@ -961,10 +946,6 @@ pub fn run() {
                     if window.label() == MAIN_WINDOW_LABEL {
                         api.prevent_close();
                         let _ = window.hide();
-                        // Revert to Accessory mode when main window is hidden
-                        let _ = window
-                            .app_handle()
-                            .set_activation_policy(tauri::ActivationPolicy::Accessory);
                     }
                 }
                 _ => {}
@@ -1100,10 +1081,10 @@ pub fn run() {
             // Set up log buffer to emit events to frontend
             logging::set_app_handle(app.handle().clone());
 
-            // Set activation policy to Accessory for proper panel behavior
+            // Show app in dock by default
             let _ = app
                 .handle()
-                .set_activation_policy(ActivationPolicy::Accessory);
+                .set_activation_policy(ActivationPolicy::Regular);
 
             let t = std::time::Instant::now();
             config::initialize();
@@ -1263,7 +1244,6 @@ pub fn run() {
                 // Show main window with the new layout (unless skipped for dev)
                 if !skip_main_window {
                     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-                        let _ = app.handle().set_activation_policy(ActivationPolicy::Regular);
                         let _ = window.show();
                         let _ = window.set_focus();
                         #[cfg(target_os = "macos")]
@@ -1273,10 +1253,6 @@ pub fn run() {
             } else {
                 // User hasn't onboarded - show the main window for onboarding (unless skipped for dev)
                 if !skip_main_window {
-                    // During onboarding, show the dock icon so the app feels like a real app
-                    // This helps new users understand they're interacting with a persistent application
-                    let _ = app.handle().set_activation_policy(ActivationPolicy::Regular);
-
                     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                         let _ = window.show();
                         let _ = window.set_focus();

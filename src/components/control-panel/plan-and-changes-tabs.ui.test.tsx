@@ -84,13 +84,13 @@ vi.mock("@/lib/utils/thread-diff-generator", () => ({
   }),
 }));
 
-// Real test data matching a thread at /Users/zac/.anvil-dev/threads/
+// Real test data matching a thread at /Users/test/.anvil-dev/threads/
 const THREAD_ID = "5863f47e-8573-468c-9694-5b72479c50a8";
 const PLAN_ID = "f3a45523-4e7f-47a3-9895-fa8ca0a22d2f";
 
 const TEST_PLAN: PlanMetadata = {
   id: PLAN_ID,
-  absolutePath: "/Users/zac/Documents/juice/mort/mortician/plans/goodbye-world.md",
+  absolutePath: "/Users/test/project/plans/goodbye-world.md",
   isRead: false,
   createdAt: 1768975583077,
   updatedAt: 1768975583077,
@@ -132,7 +132,7 @@ const TEST_THREAD_STATE: ThreadState = {
           id: "toolu_01BcrgVm8hB6c6Pa8uwwpx7n",
           name: "Write",
           input: {
-            file_path: "/Users/zac/Documents/juice/mort/mortician/plans/goodbye-world.md",
+            file_path: "/Users/test/project/plans/goodbye-world.md",
             content: "# Goodbye World\n\n",
           },
         },
@@ -150,12 +150,12 @@ const TEST_THREAD_STATE: ThreadState = {
   ],
   fileChanges: [
     {
-      path: "/Users/zac/Documents/juice/mort/mortician/plans/goodbye-world.md",
+      path: "/Users/test/project/plans/goodbye-world.md",
       operation: "create",
       diff: "",
     },
   ],
-  workingDirectory: "/Users/zac/Documents/juice/mort/mortician",
+  workingDirectory: "/Users/test/project",
   status: "complete",
   timestamp: 1768975585558,
   toolStates: {
@@ -163,7 +163,7 @@ const TEST_THREAD_STATE: ThreadState = {
       status: "complete",
       result: JSON.stringify({
         type: "create",
-        filePath: "/Users/zac/Documents/juice/mort/mortician/plans/goodbye-world.md",
+        filePath: "/Users/test/project/plans/goodbye-world.md",
         content: "# Goodbye World\n\n",
         structuredPatch: [],
         originalFile: null,

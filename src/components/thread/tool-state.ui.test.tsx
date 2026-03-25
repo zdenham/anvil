@@ -52,7 +52,7 @@ describe("Tool State Rendering", () => {
       id: toolUseId,
       name: "Edit",
       input: {
-        file_path: "/Users/zac/Documents/README.md",
+        file_path: "/Users/test/Documents/README.md",
         old_string: "Hello World",
         new_string: "Hello World\n\nfibonacci",
       },
@@ -72,7 +72,7 @@ describe("Tool State Rendering", () => {
         {
           [toolUseId]: {
             status: "complete",
-            result: '{"filePath":"/Users/zac/Documents/README.md","success":true}',
+            result: '{"filePath":"/Users/test/Documents/README.md","success":true}',
             isError: false,
             toolName: "Edit",
           },

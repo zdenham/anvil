@@ -67,7 +67,6 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         }
         "open_main" => {
             if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-                let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
                 let _ = window.show();
                 let _ = window.set_focus();
             }
@@ -75,7 +74,6 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         "settings" => {
             // Open main window and navigate to settings
             if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-                let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
                 let _ = window.show();
                 let _ = window.set_focus();
                 // Emit navigate event to all windows
@@ -116,9 +114,6 @@ fn handle_tray_event(tray: &tauri::tray::TrayIcon, event: TrayIconEvent) {
             // Double-click: open main window
             tracing::debug!("[Tray] Double-click - opening main window");
             if let Some(window) = tray.app_handle().get_webview_window(MAIN_WINDOW_LABEL) {
-                let _ = tray
-                    .app_handle()
-                    .set_activation_policy(tauri::ActivationPolicy::Regular);
                 let _ = window.show();
                 let _ = window.set_focus();
             }

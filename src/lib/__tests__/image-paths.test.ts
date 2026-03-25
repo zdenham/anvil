@@ -37,8 +37,8 @@ describe("extractImagePaths", () => {
   });
 
   it("extracts image path with trailing text on same line", () => {
-    expect(extractImagePaths("/Users/zac/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png hey")).toEqual([
-      "/Users/zac/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png",
+    expect(extractImagePaths("/Users/test/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png hey")).toEqual([
+      "/Users/test/Desktop/Screenshot 2026-03-09 at 2.28.08 PM.png",
     ]);
   });
 

@@ -10,7 +10,7 @@ import {
 } from "@core/types/permissions.js";
 import type { PermissionConfig } from "@core/types/permissions.js";
 
-const WORKING_DIR = "/Users/zac/project";
+const WORKING_DIR = "/Users/test/project";
 
 function makeConfig(
   overrides: Partial<PermissionConfig> = {},
@@ -29,14 +29,14 @@ describe("PermissionEvaluator", () => {
   describe("rule matching", () => {
     it("Plan mode: Read tool -> allow", () => {
       const evaluator = new PermissionEvaluator(makeConfig());
-      const result = evaluator.evaluate("Read", { file_path: "/Users/zac/project/src/app.tsx" });
+      const result = evaluator.evaluate("Read", { file_path: "/Users/test/project/src/app.tsx" });
       expect(result.decision).toBe("allow");
     });
 
     it("Plan mode: Write to plans/readme.md -> allow", () => {
       const evaluator = new PermissionEvaluator(makeConfig());
       const result = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/plans/readme.md",
+        file_path: "/Users/test/project/plans/readme.md",
       });
       expect(result.decision).toBe("allow");
     });
@@ -44,7 +44,7 @@ describe("PermissionEvaluator", () => {
     it("Plan mode: Write to src/app.tsx -> deny with reason", () => {
       const evaluator = new PermissionEvaluator(makeConfig());
       const result = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/src/app.tsx",
+        file_path: "/Users/test/project/src/app.tsx",
       });
       expect(result.decision).toBe("deny");
       expect(result.reason).toContain("Plan mode");
@@ -55,7 +55,7 @@ describe("PermissionEvaluator", () => {
         makeConfig({ mode: IMPLEMENT_MODE }),
       );
       const result = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/src/app.tsx",
+        file_path: "/Users/test/project/src/app.tsx",
       });
       expect(result.decision).toBe("allow");
     });
@@ -65,7 +65,7 @@ describe("PermissionEvaluator", () => {
         makeConfig({ mode: APPROVE_MODE }),
       );
       const result = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/src/app.tsx",
+        file_path: "/Users/test/project/src/app.tsx",
       });
       expect(result.decision).toBe("ask");
     });
@@ -75,7 +75,7 @@ describe("PermissionEvaluator", () => {
         makeConfig({ mode: APPROVE_MODE }),
       );
       const result = evaluator.evaluate("Read", {
-        file_path: "/Users/zac/project/src/app.tsx",
+        file_path: "/Users/test/project/src/app.tsx",
       });
       expect(result.decision).toBe("allow");
     });
@@ -88,7 +88,7 @@ describe("PermissionEvaluator", () => {
       const evaluator = new PermissionEvaluator(makeConfig());
       // Write to plans/ should be allowed in plan mode — proves path was normalized
       const result = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/plans/foo.md",
+        file_path: "/Users/test/project/plans/foo.md",
       });
       expect(result.decision).toBe("allow");
     });
@@ -121,7 +121,7 @@ describe("PermissionEvaluator", () => {
         makeConfig({ mode: IMPLEMENT_MODE }),
       );
       const result = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/.env",
+        file_path: "/Users/test/project/.env",
       });
       expect(result.decision).toBe("deny");
       expect(result.reason).toContain(".env");
@@ -143,7 +143,7 @@ describe("PermissionEvaluator", () => {
         makeConfig({ mode: IMPLEMENT_MODE }),
       );
       const result = evaluator.evaluate("Edit", {
-        file_path: "/Users/zac/project/.env.local",
+        file_path: "/Users/test/project/.env.local",
       });
       expect(result.decision).toBe("deny");
     });
@@ -176,7 +176,7 @@ describe("PermissionEvaluator", () => {
 
       // Plan mode: Write to src/ denied
       const planResult = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/src/app.tsx",
+        file_path: "/Users/test/project/src/app.tsx",
       });
       expect(planResult.decision).toBe("deny");
 
@@ -184,7 +184,7 @@ describe("PermissionEvaluator", () => {
       evaluator.setMode(IMPLEMENT_MODE);
 
       const implResult = evaluator.evaluate("Write", {
-        file_path: "/Users/zac/project/src/app.tsx",
+        file_path: "/Users/test/project/src/app.tsx",
       });
       expect(implResult.decision).toBe("allow");
     });
@@ -240,7 +240,7 @@ describe("PermissionEvaluator", () => {
     it("Glob tool uses path field for file path extraction", () => {
       const evaluator = new PermissionEvaluator(makeConfig());
       const result = evaluator.evaluate("Glob", {
-        path: "/Users/zac/project/src",
+        path: "/Users/test/project/src",
       });
       expect(result.decision).toBe("allow");
     });

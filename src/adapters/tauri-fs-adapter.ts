@@ -5,7 +5,7 @@ import { FilesystemClient } from "@/lib/filesystem-client";
  * Tauri/frontend implementation of FSAdapter.
  * Uses FilesystemClient directly for absolute path operations.
  *
- * IMPORTANT: This adapter works with ABSOLUTE paths (e.g., /Users/zac/.claude/skills).
+ * IMPORTANT: This adapter works with ABSOLUTE paths (e.g., ~/.claude/skills).
  * It does NOT use the persistence module which prepends the data directory.
  */
 export class TauriFSAdapter implements FSAdapter {
