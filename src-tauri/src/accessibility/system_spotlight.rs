@@ -3,7 +3,6 @@
 //! Provides functions to check and disable the macOS SYSTEM Spotlight shortcut (Cmd+Space).
 //! This is distinct from our app's spotlight feature.
 //!
-//! Reference trees for the UI structure are in ./reference_trees/
 
 use crate::accessibility::system_settings::{SystemSettingsNavigator, SystemSettingsError};
 use std::thread;
