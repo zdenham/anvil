@@ -182,9 +182,9 @@ function ThreadModeHeader({
   );
 
   const handleCancel = async () => {
-    console.log(`[control-panel-header] Cancel button clicked for threadId=${threadId}`);
+    logger.debug(`[control-panel-header] Cancel button clicked for threadId=${threadId}`);
     const result = await cancelAgent(threadId);
-    console.log(`[control-panel-header] cancelAgent returned: ${result}`);
+    logger.debug(`[control-panel-header] cancelAgent returned: ${result}`);
   };
 
   const handleOpenInMainWindow = async () => {

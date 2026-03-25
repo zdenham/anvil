@@ -1,10 +1,8 @@
 # Anvil Server Deployment
 
-<!-- TODO(anvil-rename): update all mort-server references when infra is migrated -->
-
 The server is deployed to [Fly.io](https://fly.io) in the `fundamental-research-labs` organization.
 
-**Live URL:** https://mort-server.fly.dev/
+**Live URL:** https://anvil-server.fly.dev/
 
 ## Prerequisites
 
@@ -26,7 +24,7 @@ The following secrets must be set in Fly.io:
 Set secrets with:
 
 ```bash
-fly secrets set -a mort-server \
+fly secrets set -a anvil-server \
   CLICKHOUSE_URL="..." \
   CLICKHOUSE_USER="..." \
   CLICKHOUSE_PASSWORD="..." \
@@ -57,19 +55,19 @@ Key settings in `fly.toml`:
 
 ```bash
 # Check app status
-fly status -a mort-server
+fly status -a anvil-server
 
 # View live logs
-fly logs -a mort-server
+fly logs -a anvil-server
 
 # SSH into a machine
-fly ssh console -a mort-server
+fly ssh console -a anvil-server
 
 # View secrets (names only)
-fly secrets list -a mort-server
+fly secrets list -a anvil-server
 
 # Scale machines
-fly scale count 2 -a mort-server
+fly scale count 2 -a anvil-server
 ```
 
 ## Endpoints
@@ -82,13 +80,13 @@ fly scale count 2 -a mort-server
 ### Health Check
 
 ```bash
-curl https://mort-server.fly.dev/health
+curl https://anvil-server.fly.dev/health
 ```
 
 ### Send Logs
 
 ```bash
-curl -X POST https://mort-server.fly.dev/logs \
+curl -X POST https://anvil-server.fly.dev/logs \
   -H 'Content-Type: application/json' \
   --data-raw '{"logs":[{"timestamp":1737690000000,"level":"INFO","message":"test"}]}'
 ```

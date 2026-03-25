@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useEffect, useRef } from "react";
+import { GitPullRequest } from "lucide-react";
 import type { ChangesContentProps } from "@/components/content-pane/types";
 import type { FileStats } from "@/stores/changes-view-store";
 import { useChangesData } from "./use-changes-data";
@@ -14,11 +15,14 @@ import { MAX_DISPLAYED_FILES } from "./changes-diff-fetcher";
 import { useChangesViewStore } from "@/stores/changes-view-store";
 import { DiffCommentProvider } from "@/contexts/diff-comment-context";
 import { FloatingAddressButton } from "@/components/diff-viewer/floating-address-button";
+import { handleCreatePr } from "@/lib/pr-actions";
+import { usePullRequestStore } from "@/entities/pull-requests/store";
 
 function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: ChangesContentProps) {
   const data = useChangesData({ repoId, worktreeId, uncommittedOnly, commitHash });
   const diffContentRef = useRef<ChangesDiffContentRef>(null);
   const selectedFilePath = useChangesViewStore((s) => s.selectedFilePath);
+  const hasPr = usePullRequestStore((s) => s.getPrsByWorktree(worktreeId).length > 0);
 
   // Build per-file stats map from parsed diff files
   const fileStatsMap = useMemo(() => {
@@ -78,6 +82,12 @@ function ChangesView({ repoId, worktreeId, uncommittedOnly, commitHash }: Change
           branchName={data.branchName}
           uncommittedOnly={uncommittedOnly}
           commitHash={commitHash}
+          hasPr={hasPr}
+          onPrAction={
+            data.branchName && !uncommittedOnly && !commitHash && data.worktreePath
+              ? () => handleCreatePr(repoId, worktreeId, data.worktreePath!)
+              : undefined
+          }
         />
 
         <div className="flex-1 min-h-0">
@@ -146,6 +156,8 @@ interface SummaryHeaderProps {
   branchName: string | null;
   uncommittedOnly?: boolean;
   commitHash?: string;
+  hasPr?: boolean;
+  onPrAction?: () => void;
 }
 
 function SummaryHeader({
@@ -156,6 +168,8 @@ function SummaryHeader({
   branchName,
   uncommittedOnly,
   commitHash,
+  hasPr,
+  onPrAction,
 }: SummaryHeaderProps) {
   const { totalAdditions, totalDeletions } = useMemo(() => {
     let adds = 0;
@@ -185,6 +199,19 @@ function SummaryHeader({
           <div className="text-xs text-surface-500 mt-0.5">{subtext}</div>
         )}
       </div>
+      {onPrAction && (
+        <button
+          type="button"
+          onClick={onPrAction}
+          className={hasPr
+            ? "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md text-surface-300 hover:text-surface-100 hover:bg-surface-700 transition-colors"
+            : "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-500 hover:bg-accent-400 text-accent-800 transition-colors"
+          }
+        >
+          <GitPullRequest size={12} />
+          {hasPr ? "View pull request" : "Create pull request"}
+        </button>
+      )}
     </div>
   );
 }

@@ -168,7 +168,7 @@ export function propagateModeToChildren(
           type: "permission_mode_changed",
           payload: { modeId },
         });
-        logger.info(`[propagateModeToChildren] Relayed mode=${modeId} to child=${metadata.id}`);
+        logger.debug(`[propagateModeToChildren] Relayed mode=${modeId} to child=${metadata.id}`);
       }
 
       // Persist to disk so mode survives restarts
@@ -876,37 +876,34 @@ export async function runAgentLoop(
               }, "PreToolUse:subagent-spawn");
 
               // Fire-and-forget: generate thread name
-              const apiKey = process.env.ANTHROPIC_API_KEY;
-              if (apiKey) {
-                generateThreadName(taskPrompt, apiKey)
-                  .then(({ name: generatedName, usedFallback }) => {
-                    const metadataPath = join(childThreadPath, "metadata.json");
-                    if (existsSync(metadataPath)) {
-                      const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
-                      metadata.name = generatedName;
-                      metadata.updatedAt = Date.now();
-                      writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-                      emitEvent(EventName.THREAD_NAME_GENERATED, {
-                        threadId: childThreadId,
-                        name: generatedName,
-                      }, "runAgentLoop:name-generation");
-                      logger.info(`[PreToolUse:SubAgent] Generated name for thread ${childThreadId}: ${generatedName}${usedFallback ? " (fallback model)" : ""}`);
-                    }
-                    if (usedFallback) {
-                      emitEvent(EventName.API_DEGRADED, {
-                        service: "thread-naming",
-                        message: "Haiku unavailable, used Sonnet fallback for thread naming",
-                      }, "runAgentLoop:name-generation");
-                    }
-                  })
-                  .catch((err) => {
-                    logger.warn(`[PreToolUse:SubAgent] Failed to generate name: ${err}`);
+              generateThreadName(taskPrompt)
+                .then(({ name: generatedName, usedFallback }) => {
+                  const metadataPath = join(childThreadPath, "metadata.json");
+                  if (existsSync(metadataPath)) {
+                    const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
+                    metadata.name = generatedName;
+                    metadata.updatedAt = Date.now();
+                    writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+                    emitEvent(EventName.THREAD_NAME_GENERATED, {
+                      threadId: childThreadId,
+                      name: generatedName,
+                    }, "runAgentLoop:name-generation");
+                    logger.info(`[PreToolUse:SubAgent] Generated name for thread ${childThreadId}: ${generatedName}${usedFallback ? " (fallback model)" : ""}`);
+                  }
+                  if (usedFallback) {
                     emitEvent(EventName.API_DEGRADED, {
                       service: "thread-naming",
-                      message: "Thread naming failed — Anthropic API may be down",
+                      message: "Haiku unavailable, used Sonnet fallback for thread naming",
                     }, "runAgentLoop:name-generation");
-                  });
-              }
+                  }
+                })
+                .catch((err) => {
+                  logger.warn(`[PreToolUse:SubAgent] Failed to generate name: ${err}`);
+                  emitEvent(EventName.API_DEGRADED, {
+                    service: "thread-naming",
+                    message: "Thread naming failed — Anthropic API may be down",
+                  }, "runAgentLoop:name-generation");
+                });
             } catch (err) {
               logger.error(`[PreToolUse:SubAgent] Failed to create child thread: ${err}`);
             }
@@ -1499,7 +1496,7 @@ export async function runAgentLoop(
         logger.debug(`[runAgentLoop] Updated message stream session_id: ${sessionId}`);
       }
 
-      logger.debug(`[runner] Message: type=${message.type}`);
+      // Per-message logging removed — too noisy on the hot path
       const shouldContinue = await handler.handle(message);
       if (!shouldContinue) break;
     }

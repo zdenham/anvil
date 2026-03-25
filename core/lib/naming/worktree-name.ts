@@ -47,7 +47,6 @@ export function sanitizeWorktreeName(name: string): string {
  */
 export async function generateWorktreeName(
   prompt: string,
-  apiKey: string,
 ): Promise<WorktreeNameResult> {
   const trimmedPrompt = prompt.trim();
 
@@ -59,7 +58,6 @@ export async function generateWorktreeName(
   }
 
   const result = await generateWithFallback({
-    apiKey,
     system: SYSTEM_PROMPT,
     prompt: `Generate a worktree name for this task: "${prompt.slice(0, 200)}"`,
     maxOutputTokens: 20,

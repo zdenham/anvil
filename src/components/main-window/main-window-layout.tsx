@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { eventBus } from "@/entities/events";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
-import { BottomGutter } from "@/components/ui/bottom-gutter";
+// import { BottomGutter } from "@/components/ui/bottom-gutter";
 import { TreeMenu, TreePanelHeader } from "@/components/tree-menu";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 import { SplitLayoutContainer } from "@/components/split-layout";
@@ -48,7 +48,7 @@ import { useSettingsStore } from "@/entities/settings/store";
 import { loadSettings } from "@/lib/app-data-store";
 
 import { useTabSelectionSync } from "@/hooks/use-tab-selection-sync";
-import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
+// import { useQuickActionHotkeys } from "@/hooks/use-quick-action-hotkeys";
 import { useTreeData } from "@/hooks/use-tree-data";
 import { useRightPanel } from "@/hooks/use-right-panel";
 import { useActiveWorktreeContext } from "@/hooks/use-active-worktree-context";
@@ -56,7 +56,6 @@ import { RightPanelContainer } from "@/components/right-panel/right-panel-contai
 import { useTreeMenuStore } from "@/stores/tree-menu/store";
 import { planService } from "@/entities/plans";
 import { pullRequestService } from "@/entities/pull-requests";
-import { handleCreatePr } from "@/lib/pr-actions";
 import { GlobalToast } from "@/components/ui/global-toast";
 import { toast } from "@/lib/toast";
 import { WindowTitlebar } from "@/components/window-titlebar/window-titlebar";
@@ -76,7 +75,7 @@ export function MainWindowLayout() {
   // Sync sidebar tree selection when the active tab changes (tab clicks, not just navigation)
   useTabSelectionSync();
 
-  useQuickActionHotkeys();
+  // useQuickActionHotkeys();
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Right Panel (tabbed: search / files / changelog)
@@ -426,13 +425,6 @@ export function MainWindowLayout() {
     }
   }, []);
 
-  const handleCreatePrCallback = useCallback(
-    (repoId: string, worktreeId: string, worktreePath: string) => {
-      handleCreatePr(repoId, worktreeId, worktreePath);
-    },
-    [],
-  );
-
   const handleNewTerminal = useCallback(async (worktreeId: string, worktreePath: string) => {
     try {
       const session = await terminalSessionService.create(worktreeId, worktreePath);
@@ -678,11 +670,53 @@ export function MainWindowLayout() {
     if (!confirmed) return;
 
     try {
+      // Gather all worktrees for this repo
+      const lookupStore = useRepoWorktreeLookupStore.getState();
+      const repo = lookupStore.repos.get(repoId);
+      const worktreeIds = repo ? Array.from(repo.worktrees.keys()) : [];
+
+      // Gather all entities across all worktrees (must be before repo removal)
+      const allThreads = worktreeIds.flatMap(wtId => threadService.getByWorktree(wtId));
+      const allPlans = worktreeIds.flatMap(wtId => planService.getByWorktree(wtId));
+      const allTerminals = worktreeIds.flatMap(wtId => terminalSessionService.getByWorktree(wtId));
+
+      // ── Optimistic UI: close tabs first ──
+      for (const wtId of worktreeIds) {
+        const threads = threadService.getByWorktree(wtId);
+        const plans = planService.getByWorktree(wtId);
+        const terminals = terminalSessionService.getByWorktree(wtId);
+        await closeTabsByWorktree({
+          worktreeId: wtId,
+          threadIds: new Set(threads.map(t => t.id)),
+          planIds: new Set(plans.map(p => p.id)),
+          terminalIds: new Set(terminals.map(t => t.id)),
+        });
+      }
+
+      // ── Remove repo metadata (deletes ~/.anvil/repositories/{slug}) ──
       await repoService.remove(repoId);
+
+      // ── Background: archive all child entities ──
+      (async () => {
+        try {
+          await Promise.all([
+            ...worktreeIds.map(wtId => terminalSessionService.archiveByWorktree(wtId)),
+            ...allThreads.map(t => threadService.archive(t.id)),
+            ...allPlans.map(p => planService.archive(p.id)),
+            ...worktreeIds.map(wtId => pullRequestService.archiveByWorktree(wtId)),
+          ]);
+          // NOTE: Do NOT call worktreeService.delete() — leave worktree dirs on disk
+        } catch (error) {
+          logger.error(`[MainWindowLayout] Failed to archive entities for removed repo:`, error);
+        }
+      })();
+
+      // Hydrate stores to reflect removal
       await repoService.hydrate();
       await useRepoWorktreeLookupStore.getState().hydrate();
       await treeMenuService.hydrate();
-      logger.info(`[MainWindowLayout] Removed repo "${repoName}"`);
+
+      logger.info(`[MainWindowLayout] Removed repo "${repoName}" with ${allThreads.length} threads, ${allPlans.length} plans, ${allTerminals.length} terminals`);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to remove repo:`, err);
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
@@ -884,7 +918,6 @@ export function MainWindowLayout() {
               onItemSelect={handleItemSelect}
               onFilesClick={handleFilesClick}
               onNewThread={handleNewThread}
-              onCreatePr={handleCreatePrCallback}
               onNewTerminal={handleNewTerminal}
               onNewClaudeSession={handleNewClaudeSession}
               onNewManagedThread={handleNewManagedThread}
@@ -937,8 +970,8 @@ export function MainWindowLayout() {
           )}
         </div>
 
-        {/* Bottom gutter: status legend + quick actions */}
-        <BottomGutter />
+        {/* Bottom gutter: status legend + quick actions — disabled for now */}
+        {/* <BottomGutter /> */}
 
         {/* Debug Panel (Cmd+Shift+D) */}
         {debugPanelOpen && (

@@ -3,8 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-# TODO(anvil-rename): update app name when infra is migrated
-app = 'mort-server'
+app = 'anvil-server'
 primary_region = 'sjc'
 
 [build]

@@ -28,13 +28,7 @@ export function initiateNaming(
   prompt: string,
   deps: NamingDeps,
 ): void {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    deps.log.warn("[naming] ANTHROPIC_API_KEY not set, skipping naming");
-    return;
-  }
-
-  runNaming(threadId, prompt, apiKey, deps).catch((err) => {
+  runNaming(threadId, prompt, deps).catch((err) => {
     deps.log.warn(`[naming] Failed to name thread ${threadId}: ${err}`);
   });
 }
@@ -42,12 +36,11 @@ export function initiateNaming(
 async function runNaming(
   threadId: string,
   prompt: string,
-  apiKey: string,
   deps: NamingDeps,
 ): Promise<void> {
   const [threadResult, worktreeResult] = await Promise.all([
-    generateThreadName(prompt, apiKey),
-    generateWorktreeName(prompt, apiKey),
+    generateThreadName(prompt),
+    generateWorktreeName(prompt),
   ]);
 
   deps.log.info(

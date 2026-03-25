@@ -16,8 +16,7 @@ pub struct LogServerConfig {
 impl LogServerConfig {
     /// Default log server URL (baked in at compile time).
     /// Can be overridden via LOG_SERVER_URL environment variable.
-    // TODO(anvil-rename): update URL when infra is migrated
-    const DEFAULT_LOG_SERVER_URL: &'static str = "https://mort-server.fly.dev/logs";
+    const DEFAULT_LOG_SERVER_URL: &'static str = "https://anvil-server.fly.dev/logs";
 
     /// Checks whether telemetry is enabled by reading workspace settings from disk.
     ///
@@ -97,6 +96,20 @@ impl LogServerConfig {
             );
         }
 
+        Some(Self { url })
+    }
+
+    /// Returns config without checking the telemetry workspace setting.
+    /// Used when re-enabling telemetry at runtime (the user just toggled it on).
+    pub fn from_env_force() -> Option<Self> {
+        if std::env::var("LOG_SERVER_DISABLED")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false)
+        {
+            return None;
+        }
+        let url = std::env::var("LOG_SERVER_URL")
+            .unwrap_or_else(|_| Self::DEFAULT_LOG_SERVER_URL.to_string());
         Some(Self { url })
     }
 }

@@ -68,7 +68,7 @@ describe("hooks-writer", () => {
       expect(existsSync(hooksPath)).toBe(true);
 
       const content = JSON.parse(readFileSync(hooksPath, "utf-8"));
-      expect(content.PreToolUse[0].hooks[0].url).toBe("http://localhost:9603/hooks/pre-tool-use");
+      expect(content.hooks.PreToolUse[0].hooks[0].url).toBe("http://localhost:9603/hooks/pre-tool-use");
     });
 
     it("overwrites existing hooks.json on port change", () => {
@@ -77,7 +77,7 @@ describe("hooks-writer", () => {
 
       const hooksPath = join(anvilDir, "hooks", "hooks.json");
       const content = JSON.parse(readFileSync(hooksPath, "utf-8"));
-      expect(content.PreToolUse[0].hooks[0].url).toContain("9601");
+      expect(content.hooks.PreToolUse[0].hooks[0].url).toContain("9601");
     });
   });
 });

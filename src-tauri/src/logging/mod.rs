@@ -44,8 +44,28 @@ type ChromeReloadHandle = reload::Handle<
     tracing_subscriber::Registry,
 >;
 
+/// Trait to toggle the log server layer without naming the composed subscriber type.
+/// The reload::Handle's `modify` doesn't use the subscriber type parameter at runtime,
+/// so we erase it via this trait object.
+trait LogServerToggle: Send + Sync {
+    fn set_layer(&self, layer: Option<LogServerLayer>) -> Result<(), String>;
+}
+
+impl<S> LogServerToggle for reload::Handle<Option<LogServerLayer>, S>
+where
+    S: tracing::Subscriber,
+{
+    fn set_layer(&self, layer: Option<LogServerLayer>) -> Result<(), String> {
+        self.modify(|current| *current = layer)
+            .map_err(|e| format!("Failed to modify log server layer: {e}"))
+    }
+}
+
 /// Global handle to dynamically swap in/out the chrome trace layer.
 static CHROME_RELOAD_HANDLE: OnceLock<ChromeReloadHandle> = OnceLock::new();
+
+/// Global handle to dynamically enable/disable the log server layer at runtime.
+static LOG_SERVER_RELOAD_HANDLE: OnceLock<Box<dyn LogServerToggle>> = OnceLock::new();
 
 /// Returns the reload handle for the chrome trace layer.
 /// Used by `profiling::start_trace` to activate/deactivate tracing.
@@ -248,8 +268,7 @@ const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log", "h2"];
 /// These are checked as prefixes against the log message content.
 const EXCLUDED_MESSAGE_PREFIXES: &[&str] = &[
     // TLS/HTTP client noise (ureq, rustls)
-    // TODO(anvil-rename): update when infra is migrated
-    "connecting to mort-server",
+    "connecting to anvil-server",
     "Resuming session",
     "Sending ClientHello",
     "We got ServerHello",
@@ -400,11 +419,14 @@ pub fn initialize() {
     };
 
     // Optional log server layer - only enabled if configured
-    let log_server_layer = LogServerConfig::from_env().map(|config| {
+    // Wrapped in reload::Layer so it can be toggled at runtime without restart
+    let log_server_inner: Option<LogServerLayer> = LogServerConfig::from_env().map(|config| {
         let device_id = crate::config::get_device_id();
         tracing::warn!("Log server logging enabled: {} (device: {})", config.url, device_id);
         LogServerLayer::new(config, device_id)
     });
+    let (log_server_reload_layer, log_server_reload_handle) = reload::Layer::new(log_server_inner);
+    let _ = LOG_SERVER_RELOAD_HANDLE.set(Box::new(log_server_reload_handle));
 
     // Chrome trace layer — starts as None (inactive), swapped in on-demand via reload handle
     let chrome_layer: Option<tracing_chrome::ChromeLayer<tracing_subscriber::Registry>> = None;
@@ -420,11 +442,37 @@ pub fn initialize() {
         .with(console_layer)
         .with(json_layer)
         .with(BufferLayer)
-        .with(log_server_layer)
+        .with(log_server_reload_layer)
         .with(sqlite_drain_layer)
         .init();
 
     tracing::info!("Logging initialized");
+}
+
+/// Toggles the log server layer at runtime without requiring a restart.
+///
+/// When disabled, the `mpsc::Sender` inside `LogServerLayer` is dropped,
+/// causing the background worker to flush and exit cleanly.
+/// When re-enabled, a fresh layer + worker are created.
+#[tauri::command]
+pub fn set_telemetry_enabled(enabled: bool) -> Result<(), String> {
+    let handle = LOG_SERVER_RELOAD_HANDLE
+        .get()
+        .ok_or("Log server reload handle not initialized")?;
+
+    if enabled {
+        let config = LogServerConfig::from_env_force()
+            .ok_or("Cannot enable telemetry: no log server URL configured")?;
+        let device_id = crate::config::get_device_id();
+        let layer = LogServerLayer::new(config, device_id);
+        handle.set_layer(Some(layer))?;
+        tracing::info!("Telemetry enabled at runtime");
+    } else {
+        handle.set_layer(None)?;
+        tracing::info!("Telemetry disabled at runtime");
+    }
+
+    Ok(())
 }
 
 /// Sets up the JSON file layer for structured logging.

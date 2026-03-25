@@ -395,10 +395,10 @@ export async function checkAccessibilityWithPrompt(prompt: boolean): Promise<boo
 
 export const updateCommands = {
   /**
-   * Run the internal update script in the background.
+   * Run the update/install script in the background.
    * The script downloads a new version and restarts the app.
    */
-  runInternalUpdate: () => invoke<void>("run_internal_update"),
+  runUpdate: () => invoke<void>("run_update"),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

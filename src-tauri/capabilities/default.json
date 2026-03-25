@@ -103,7 +103,7 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://mort-server.fly.dev/*" }
+        { "url": "https://anvil-server.fly.dev/*" }
       ]
     }
   ]

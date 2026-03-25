@@ -4,11 +4,10 @@ A coding agent orchestrator built on Claude Code. Enables developers to run many
 
 Built with Tauri + React + TypeScript.
 
-## Internal Distribution
+## Installation
 
-<!-- TODO(anvil-rename): update when infra is migrated -->
 ```
-curl -sL https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh | bash
+curl -sL https://pub-3bbf8a6a4ba248d3aaa0453e7c25d57e.r2.dev/distribute/install.sh | bash
 ```
 
 ## Development

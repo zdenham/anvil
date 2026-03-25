@@ -508,7 +508,7 @@ export async function isAgentSocketConnected(threadId: string): Promise<boolean>
 async function getShellPath(): Promise<string> {
   if (cachedShellPath === null) {
     cachedShellPath = await invoke<string>("get_shell_path");
-    logger.info(`[agent] Captured shell PATH: ${cachedShellPath}`);
+    logger.debug("[agent] Captured shell PATH");
   }
   return cachedShellPath;
 }
@@ -908,7 +908,7 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   });
 
   const unlistenStderr = await listen<{ data: string }>(`agent_stderr:${options.threadId}`, (event) => {
-    logger.error("[simple-agent] stderr:", event.payload.data);
+    logger.error("[simple-agent] stderr:", event.payload.data?.slice(0, 500));
   });
 
   const unlistenClose = await listen<{ code: number | null; signal: number | null }>(
@@ -1088,7 +1088,7 @@ export async function resumeSimpleAgent(
   });
 
   const unlistenStderr = await listen<{ data: string }>(`agent_stderr:${threadId}`, (event) => {
-    logger.error("[simple-agent-resume] stderr:", event.payload.data);
+    logger.error("[simple-agent-resume] stderr:", event.payload.data?.slice(0, 500));
   });
 
   const unlistenClose = await listen<{ code: number | null; signal: number | null }>(

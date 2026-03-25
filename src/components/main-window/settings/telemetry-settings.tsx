@@ -1,6 +1,7 @@
 import { SettingsSection } from "../settings-section";
 import { useSettingsStore } from "@/entities/settings/store";
 import { settingsService } from "@/entities/settings/service";
+import { invoke } from "@/lib/invoke";
 
 export function TelemetrySettings() {
   const enabled = useSettingsStore(
@@ -19,15 +20,16 @@ export function TelemetrySettings() {
           </div>
           <div className="text-xs text-surface-500">
             Helps improve Anvil. No code or conversation content is sent.
-            Requires restart.
           </div>
         </div>
         <input
           type="checkbox"
           checked={enabled}
-          onChange={(e) =>
-            settingsService.set("telemetryEnabled", e.target.checked)
-          }
+          onChange={async (e) => {
+            const val = e.target.checked;
+            await settingsService.set("telemetryEnabled", val);
+            await invoke("set_telemetry_enabled", { enabled: val });
+          }}
           className="accent-accent-500"
         />
       </label>

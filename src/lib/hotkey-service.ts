@@ -53,6 +53,20 @@ export const getSavedClipboardHotkey = async (): Promise<string> => {
 
 
 /**
+ * Gets whether the global spotlight hotkey is enabled
+ */
+export const getSpotlightEnabled = async (): Promise<boolean> => {
+  return invoke<boolean>("get_spotlight_enabled");
+};
+
+/**
+ * Sets whether the global spotlight hotkey is enabled (also registers/unregisters)
+ */
+export const setSpotlightEnabled = async (enabled: boolean): Promise<void> => {
+  await invoke("set_spotlight_enabled", { enabled });
+};
+
+/**
  * Shows the spotlight window
  */
 export const showSpotlight = async (): Promise<void> => {

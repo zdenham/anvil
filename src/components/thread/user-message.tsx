@@ -90,7 +90,7 @@ export function UserMessage({ turn }: UserMessageProps) {
             )}
           >
             <p className={cn(
-              "whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+              "text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
               isPending && "italic",
             )}>{textContent}</p>
           </div>

@@ -73,9 +73,7 @@ export function LiveAskUserQuestion({
     const questions = parseAllQuestions(questionRequest.toolInput);
 
     if (!questions) {
-      logger.warn("[LiveAskUserQuestion] Invalid toolInput in question request", {
-        toolInput: questionRequest.toolInput,
-      });
+      logger.warn("[LiveAskUserQuestion] Invalid toolInput in question request");
       return (
         <ToolUseBlock
           id={blockId}
@@ -122,9 +120,7 @@ export function LiveAskUserQuestion({
   const parsed = parseAskUserQuestionInput(blockInput);
 
   if (!parsed) {
-    logger.warn("[LiveAskUserQuestion] Invalid AskUserQuestion input", {
-      input: blockInput,
-    });
+    logger.warn("[LiveAskUserQuestion] Invalid AskUserQuestion input");
     return (
       <ToolUseBlock
         id={blockId}

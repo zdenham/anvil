@@ -27,16 +27,16 @@ function App() {
 
       const tOnboarded = performance.now();
       const onboarded = await isOnboarded();
-      logger.info(`[startup] isOnboarded: ${(performance.now() - tOnboarded).toFixed(0)}ms`);
+      const isOnboardedMs = performance.now() - tOnboarded;
 
       if (!onboarded) {
         setAppState({ status: "onboarding" });
-        logger.info(`[startup] checkInitialState total: ${(performance.now() - t0).toFixed(0)}ms (→ onboarding)`);
+        logger.info(`[startup] checkInitialState: ${(performance.now() - t0).toFixed(0)}ms (→ onboarding)`, { isOnboardedMs: +isOnboardedMs.toFixed(0) });
         return;
       }
 
       setAppState({ status: "ready" });
-      logger.info(`[startup] checkInitialState total: ${(performance.now() - t0).toFixed(0)}ms (→ ready)`);
+      logger.info(`[startup] checkInitialState: ${(performance.now() - t0).toFixed(0)}ms (→ ready)`, { isOnboardedMs: +isOnboardedMs.toFixed(0) });
     }
 
     checkInitialState().catch((err) => logger.error("[startup] checkInitialState failed:", err));
@@ -51,29 +51,32 @@ function App() {
     async function bootstrap() {
       const t0 = performance.now();
 
+      const timings: Record<string, number> = {};
+
       let t = performance.now();
       const window = getCurrentWindow();
       await window.setSize(new LogicalSize(900, 600));
-      logger.info(`[startup] window.setSize: ${(performance.now() - t).toFixed(0)}ms`);
+      timings.setSize = +(performance.now() - t).toFixed(0);
 
       t = performance.now();
       await bootstrapAnvilDirectory();
-      logger.info(`[startup] bootstrapAnvilDirectory: ${(performance.now() - t).toFixed(0)}ms`);
+      timings.bootstrapAnvilDir = +(performance.now() - t).toFixed(0);
 
       t = performance.now();
       await hydrateEntities();
-      logger.info(`[startup] hydrateEntities: ${(performance.now() - t).toFixed(0)}ms`);
+      timings.hydrateEntities = +(performance.now() - t).toFixed(0);
 
       t = performance.now();
       cleanupEntityListeners = setupEntityListeners();
-      logger.info(`[startup] setupEntityListeners: ${(performance.now() - t).toFixed(0)}ms`);
+      timings.setupListeners = +(performance.now() - t).toFixed(0);
 
       t = performance.now();
       await initAgentMessageListener();
-      logger.info(`[startup] initAgentMessageListener: ${(performance.now() - t).toFixed(0)}ms`);
+      timings.initAgentListener = +(performance.now() - t).toFixed(0);
 
       setIsHydrated(true);
-      logger.info(`[startup] === BOOTSTRAP COMPLETE === total: ${(performance.now() - t0).toFixed(0)}ms`);
+      timings.total = +(performance.now() - t0).toFixed(0);
+      logger.info("[startup] Bootstrap complete", timings);
     }
 
     bootstrap();

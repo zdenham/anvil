@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractReplCode, stripReplPrefix } from "./bash-tool-block";
+import { extractReplCode, stripReplPrefix } from "./repl-tool-block";
 
 describe("extractReplCode", () => {
   it("returns null for non-repl commands", () => {

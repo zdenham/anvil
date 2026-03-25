@@ -560,13 +560,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
     prompt: string,
     threadPath: string
   ): void {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      emitLog("WARN", "[thread-naming] No API key available, skipping name generation");
-      return;
-    }
-
-    generateThreadName(prompt, apiKey)
+    generateThreadName(prompt)
       .then(async ({ name, usedFallback }) => {
         // Update thread metadata with name
         const threadMetadataPath = join(threadPath, "metadata.json");
@@ -616,14 +610,7 @@ export class SimpleRunnerStrategy implements RunnerStrategy {
   ): void {
     emitLog("INFO", `[worktree_rename] initiateWorktreeNaming called: worktreeId=${worktreeId}, repoId=${repoId}, prompt="${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      emitLog("WARN", "[worktree_rename] No API key available, skipping name generation");
-      return;
-    }
-    emitLog("INFO", "[worktree_rename] API key present, calling generateWorktreeName...");
-
-    generateWorktreeName(prompt, apiKey)
+    generateWorktreeName(prompt)
       .then(({ name, usedFallback }) => {
         emitLog("INFO", `[worktree_rename] generateWorktreeName resolved with name: "${name}"${usedFallback ? " (fallback model)" : ""}`);
 

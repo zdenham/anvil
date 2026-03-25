@@ -13,7 +13,7 @@ export interface ClaudeTuiSpawnConfig {
 /**
  * Build CLI args and env vars for a Claude TUI PTY session.
  *
- * Includes `--plugin local:<anvilDir>` to load the Anvil plugin
+ * Includes `--plugin-dir <anvilDir>` to load the Anvil plugin
  * (which provides hooks.json for HTTP hooks back to the sidecar)
  * and env vars for thread identification.
  */
@@ -34,7 +34,7 @@ export function buildSpawnConfig(options: {
     args.push("--permission-mode", "bypassPermissions");
   }
 
-  args.push("--plugin", `local:${options.anvilDir}`);
+  args.push("--plugin-dir", options.anvilDir);
   args.push("--model", model);
 
   if (options.sessionId) {

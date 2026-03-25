@@ -1,14 +1,13 @@
 # Fly Redis
 
-<!-- TODO(anvil-rename): update when infra is migrated -->
-The gateway uses a Redis instance hosted on Fly (`mort-redis` app, `sjc` region).
+The gateway uses a Redis instance hosted on Fly (`anvil-redis` app, `sjc` region).
 
 ## Proxying to Local
 
 We run Redis locally on the default port (6379), so the Fly proxy uses port **16380**.
 
 ```bash
-fly proxy 16380:6379 -a mort-redis
+fly proxy 16380:6379 -a anvil-redis
 ```
 
 This forwards `localhost:16380` to the Fly Redis instance via WireGuard.
@@ -41,6 +40,5 @@ redis-cli -p 16380
 If started in the foreground, `Ctrl+C`. If backgrounded:
 
 ```bash
-# TODO(anvil-rename): update when infra is migrated
-pkill -f "fly proxy.*mort-redis"
+pkill -f "fly proxy.*anvil-redis"
 ```

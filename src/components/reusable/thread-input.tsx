@@ -58,7 +58,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
     if (!items) return;
 
     const types = Array.from(items).map((i) => i.type);
-    logger.log("[image-paste] paste event", { itemCount: items.length, types });
+    logger.debug("[image-paste] paste event", { itemCount: items.length, types });
 
     for (const item of items) {
       if (!item.type.startsWith("image/")) continue;
@@ -67,7 +67,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       const blob = item.getAsFile();
       if (!blob) continue;
 
-      logger.log("[image-paste] image item", { type: blob.type, size: blob.size });
+      logger.debug("[image-paste] image item", { type: blob.type, size: blob.size });
 
       if (blob.size > MAX_IMAGE_SIZE_BYTES) {
         logger.warn("[image-paste] image too large", { size: blob.size });
@@ -77,7 +77,7 @@ export const ThreadInput = forwardRef<ThreadInputRef, ThreadInputProps>(function
       setIsPasting(true);
       writeImageToTempFile(blob)
         .then((path) => {
-          logger.log("[image-paste] saved", { path });
+          logger.debug("[image-paste] saved", { path });
           const prefix = content.trim() ? "\n" : "";
           appendContent(prefix + path);
         })

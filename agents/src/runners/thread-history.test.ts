@@ -240,21 +240,16 @@ describe("Thread History - End-to-End Resume Flow", () => {
 
     function loadPriorMessages(historyFile: string | undefined): MessageParam[] {
       if (!historyFile || !nodeExistsSync(historyFile)) {
-        console.log("[TEST] History file not found:", historyFile);
         return [];
       }
       try {
         const content = readFileSync(historyFile, "utf-8");
         const state = JSON.parse(content);
-        console.log("[TEST] Loaded state:", JSON.stringify(state, null, 2));
         if (Array.isArray(state.messages)) {
-          console.log("[TEST] Found messages:", state.messages.length);
           return state.messages;
         }
-        console.log("[TEST] state.messages is not an array");
         return [];
-      } catch (err) {
-        console.log("[TEST] Error loading history:", err);
+      } catch {
         return [];
       }
     }

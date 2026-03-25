@@ -78,8 +78,8 @@ export function TreePanelHeader({
   }, [isRefreshing]);
 
   return (
-    <div data-testid="tree-panel-header" className="pl-3 pr-2 py-2 border-b border-dashed border-surface-700 flex items-center gap-2.5">
-      <AnvilLogo size={16} />
+    <div data-testid="tree-panel-header" className="pl-3 pr-2 py-1.5 border-b border-dashed border-surface-700 flex items-center gap-2.5">
+      <AnvilLogo size={23} className="text-surface-100 mt-px" />
       <h1 className="font-semibold text-surface-100 font-mono text-sm">
         ANVIL{appSuffix ? ` ${appSuffix.toUpperCase()}` : ""}
       </h1>

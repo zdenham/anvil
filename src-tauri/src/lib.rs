@@ -410,9 +410,15 @@ fn save_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
 
     config::set_spotlight_hotkey(&hotkey)?;
 
-    let result = register_hotkey_internal(&app, &hotkey);
-    tracing::info!(success = result.is_ok(), "save_hotkey: completed");
-    result
+    // Only register if spotlight is enabled
+    if config::get_spotlight_enabled() {
+        let result = register_hotkey_internal(&app, &hotkey);
+        tracing::info!(success = result.is_ok(), "save_hotkey: completed");
+        result
+    } else {
+        tracing::info!("save_hotkey: spotlight disabled, saved but not registered");
+        Ok(())
+    }
 }
 
 /// Gets the saved spotlight hotkey from config
@@ -433,6 +439,42 @@ fn save_clipboard_hotkey(app: AppHandle, hotkey: String) -> Result<(), String> {
 #[tauri::command]
 fn get_saved_clipboard_hotkey() -> String {
     config::get_clipboard_hotkey()
+}
+
+/// Gets whether the global spotlight hotkey is enabled
+#[tauri::command]
+fn get_spotlight_enabled() -> bool {
+    config::get_spotlight_enabled()
+}
+
+/// Sets whether the global spotlight hotkey is enabled, and registers/unregisters accordingly
+#[tauri::command]
+fn set_spotlight_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
+    config::set_spotlight_enabled(enabled)?;
+    if enabled {
+        let hotkey = config::get_spotlight_hotkey();
+        register_hotkey_internal(&app, &hotkey)
+    } else {
+        register_clipboard_hotkey_only(&app)
+    }
+}
+
+/// Registers only the clipboard hotkey (unregisters spotlight)
+fn register_clipboard_hotkey_only(app: &AppHandle) -> Result<(), String> {
+    let _ = app.global_shortcut().unregister_all();
+    let clipboard_hotkey = config::get_clipboard_hotkey();
+    let clipboard_shortcut: Shortcut = clipboard_hotkey
+        .parse()
+        .map_err(|e| format!("Failed to parse clipboard hotkey: {:?}", e))?;
+    let app_handle = app.clone();
+    app.global_shortcut()
+        .on_shortcut(clipboard_shortcut, move |_app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                clipboard::toggle_clipboard_manager(&app_handle);
+            }
+        })
+        .map_err(|e| format!("Failed to register clipboard hotkey: {:?}", e))?;
+    Ok(())
 }
 
 /// Checks if the user has completed onboarding
@@ -972,6 +1014,8 @@ pub fn run() {
             get_saved_hotkey,
             save_clipboard_hotkey,
             get_saved_clipboard_hotkey,
+            get_spotlight_enabled,
+            set_spotlight_enabled,
             // Onboarding commands
             is_onboarded,
             complete_onboarding,
@@ -1011,7 +1055,7 @@ pub fn run() {
             clipboard::get_clipboard_history,
             clipboard::get_clipboard_content,
             // Shell commands
-            shell::run_internal_update,
+            shell::run_update,
             // Spotlight shortcut commands (macOS only)
             #[cfg(target_os = "macos")]
             disable_system_spotlight_shortcut,
@@ -1027,6 +1071,8 @@ pub fn run() {
             get_accessibility_status,
             #[cfg(target_os = "macos")]
             kill_system_settings,
+            // Telemetry commands
+            logging::set_telemetry_enabled,
             // Profiling commands (on-demand, zero overhead at runtime)
             #[cfg(unix)]
             profiling::capture_cpu_profile,
@@ -1202,10 +1248,17 @@ pub fn run() {
             }
 
             if onboarded {
-                // User has onboarded - register saved hotkey (this also registers clipboard hotkey)
-                let saved_hotkey = config::get_spotlight_hotkey();
-                if let Err(e) = register_hotkey_internal(app.handle(), &saved_hotkey) {
-                    tracing::error!(error = %e, "Failed to register saved hotkey");
+                // Register hotkeys based on spotlight_enabled setting
+                if config::get_spotlight_enabled() {
+                    let saved_hotkey = config::get_spotlight_hotkey();
+                    if let Err(e) = register_hotkey_internal(app.handle(), &saved_hotkey) {
+                        tracing::error!(error = %e, "Failed to register saved hotkey");
+                    }
+                } else {
+                    // Spotlight disabled - only register clipboard hotkey
+                    if let Err(e) = register_clipboard_hotkey_only(app.handle()) {
+                        tracing::error!(error = %e, "Failed to register clipboard hotkey");
+                    }
                 }
                 // Show main window with the new layout (unless skipped for dev)
                 if !skip_main_window {

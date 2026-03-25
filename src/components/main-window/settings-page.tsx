@@ -16,11 +16,11 @@ export function SettingsPage() {
       <div className="p-6 space-y-6 max-w-2xl">
         <AboutSettings />
         <RepositorySettings />
+        <TerminalInterfaceSettings />
         <HotkeySettings />
         <ClipboardHotkeySettings />
         <SpotlightSettings />
         <PermissionsSettings />
-        <TerminalInterfaceSettings />
         {/* Quick actions hidden for now - low usage
         <QuickActionsSettings />
         */}

@@ -1,5 +1,4 @@
-# TODO(anvil-rename): update app name when infra is migrated
-app = 'mort-redis'
+app = 'anvil-redis'
 primary_region = 'sjc'
 
 [build]

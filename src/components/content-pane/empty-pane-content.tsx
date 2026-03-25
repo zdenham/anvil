@@ -23,7 +23,7 @@ import { createNewProjectAndHydrate } from "@/lib/project-creation-service";
  *
  * Features:
  * - ThreadInput for submitting prompts
- * - QuickActionsPanel for quick actions
+ * - QuickActionsPanel for quick actions (currently disabled)
  * - Uses MRU worktree for thread creation
  */
 export function EmptyPaneContent() {

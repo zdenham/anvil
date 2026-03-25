@@ -1,6 +1,7 @@
-import { Info, Download, Loader2 } from "lucide-react";
+import { Info, Download, Loader2, MessageCircle, ExternalLink } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { getVersion } from "@/lib/browser-stubs";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { SettingsSection } from "../settings-section";
 import { updateCommands } from "@/lib/tauri-commands";
 import { logger } from "@/lib/logger-client";
@@ -18,9 +19,9 @@ export function AboutSettings() {
     logger.info(`handleUpdate: Current version is ${version}`);
     setIsUpdating(true);
     try {
-      logger.info("handleUpdate: Calling runInternalUpdate command");
-      await updateCommands.runInternalUpdate();
-      logger.info("handleUpdate: runInternalUpdate command returned successfully");
+      logger.info("handleUpdate: Calling runUpdate command");
+      await updateCommands.runUpdate();
+      logger.info("handleUpdate: runUpdate command returned successfully");
       logger.info("handleUpdate: Script runs in background - app should restart shortly");
       // Script runs in background and will restart the app
       // Keep the loading state since we expect the app to quit
@@ -53,6 +54,19 @@ export function AboutSettings() {
               <span>Update</span>
             </>
           )}
+        </button>
+      </div>
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-700/50">
+        <div className="flex items-center gap-2 text-surface-400">
+          <MessageCircle size={16} />
+          <span>Community</span>
+        </div>
+        <button
+          onClick={() => openUrl("https://discord.gg/tbkAetedSd")}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-surface-100 bg-surface-700 hover:bg-surface-600 rounded-md transition-colors"
+        >
+          <ExternalLink size={14} />
+          <span>Discord</span>
         </button>
       </div>
     </SettingsSection>

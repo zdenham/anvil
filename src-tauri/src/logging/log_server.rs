@@ -217,8 +217,7 @@ const EXCLUDED_TARGETS: &[&str] = &["ureq", "rustls", "log", "h2"];
 /// These are checked as prefixes against the log message content.
 const EXCLUDED_MESSAGE_PREFIXES: &[&str] = &[
     // TLS/HTTP client noise (ureq, rustls)
-    // TODO(anvil-rename): update when infra is migrated
-    "connecting to mort-server",
+    "connecting to anvil-server",
     "Resuming session",
     "Sending ClientHello",
     "We got ServerHello",

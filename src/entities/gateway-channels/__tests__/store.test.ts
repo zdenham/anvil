@@ -32,7 +32,7 @@ function createChannelMetadata(
     type: "github",
     label: "owner/repo",
     active: false,
-    webhookUrl: "https://mort-server.fly.dev/gateway/channels/test/events", // TODO(anvil-rename): update URL when infra is migrated
+    webhookUrl: "https://anvil-server.fly.dev/gateway/channels/test/events",
     repoId: crypto.randomUUID(),
     webhookId: null,
     createdAt: now,

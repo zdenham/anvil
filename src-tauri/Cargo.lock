@@ -123,6 +123,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "anvil"
+version = "0.0.81"
+dependencies = [
+ "arboard",
+ "chrono",
+ "clap",
+ "core-foundation 0.10.1",
+ "core-graphics",
+ "dirs 5.0.1",
+ "notify",
+ "objc2 0.6.3",
+ "objc2-app-kit",
+ "objc2-foundation 0.3.2",
+ "plist",
+ "pprof",
+ "raw-window-handle",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "tauri",
+ "tauri-build",
+ "tauri-nspanel",
+ "tauri-plugin-dialog",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-http",
+ "tauri-plugin-opener",
+ "tauri-plugin-shell",
+ "tiny_http",
+ "tracing",
+ "tracing-chrome",
+ "tracing-subscriber",
+ "ureq",
+ "uuid",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2648,43 +2685,6 @@ dependencies = [
  "log",
  "wasi 0.11.1+wasi-snapshot-preview1",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "mort"
-version = "0.0.81"
-dependencies = [
- "arboard",
- "chrono",
- "clap",
- "core-foundation 0.10.1",
- "core-graphics",
- "dirs 5.0.1",
- "notify",
- "objc2 0.6.3",
- "objc2-app-kit",
- "objc2-foundation 0.3.2",
- "plist",
- "pprof",
- "raw-window-handle",
- "rusqlite",
- "serde",
- "serde_json",
- "shellexpand",
- "tauri",
- "tauri-build",
- "tauri-nspanel",
- "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-http",
- "tauri-plugin-opener",
- "tauri-plugin-shell",
- "tiny_http",
- "tracing",
- "tracing-chrome",
- "tracing-subscriber",
- "ureq",
- "uuid",
 ]
 
 [[package]]

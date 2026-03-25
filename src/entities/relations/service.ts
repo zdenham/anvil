@@ -68,7 +68,6 @@ class RelationService {
     try {
       await appData.ensureDir(RELATIONS_DIR);
       await appData.writeJson(filePath, relation);
-      logger.debug(`[relationService:createOrUpgrade] Created relation: ${planId}-${threadId} (${type})`);
     } catch (error) {
       rollback();
       logger.error(`[relationService:createOrUpgrade] Failed to create relation:`, error);
@@ -134,7 +133,9 @@ class RelationService {
     for (const relation of relations) {
       await this.moveToArchive(relation);
     }
-    logger.debug(`[relationService:archiveByThread] Archived ${relations.length} relations for thread ${threadId}`);
+    if (relations.length > 0) {
+      logger.debug(`[relationService:archiveByThread] Archived ${relations.length} relations for thread ${threadId}`);
+    }
   }
 
   /**
@@ -148,7 +149,9 @@ class RelationService {
     for (const relation of relations) {
       await this.moveToArchive(relation);
     }
-    logger.debug(`[relationService:archiveByPlan] Archived ${relations.length} relations for plan ${planId}`);
+    if (relations.length > 0) {
+      logger.debug(`[relationService:archiveByPlan] Archived ${relations.length} relations for plan ${planId}`);
+    }
   }
 
   /**
@@ -228,7 +231,7 @@ class RelationService {
     }
 
     if (archived > 0 || deleted > 0) {
-      logger.log(`[relationService:cleanupOrphaned] Archived ${archived}, deleted ${deleted} orphaned relations`);
+      logger.info(`[relationService:cleanupOrphaned] Archived ${archived}, deleted ${deleted} orphaned relations`);
     }
   }
 
@@ -236,7 +239,7 @@ class RelationService {
    * Hydrate store from disk at app startup.
    */
   async hydrate(): Promise<void> {
-    logger.log("[relationService:hydrate] Starting relation hydration...");
+    logger.debug("[relationService:hydrate] Starting relation hydration...");
 
     await appData.ensureDir(RELATIONS_DIR);
     const files = await appData.listDir(RELATIONS_DIR);
@@ -259,7 +262,7 @@ class RelationService {
       }
     }
 
-    logger.log(`[relationService:hydrate] Complete. Loaded ${Object.keys(relations).length} relations`);
+    logger.debug(`[relationService:hydrate] Complete. Loaded ${Object.keys(relations).length} relations`);
     useRelationStore.getState().hydrate(relations);
   }
 
@@ -269,7 +272,7 @@ class RelationService {
    * Loads any new or updated relations from disk into the store.
    */
   async refreshByThread(threadId: string): Promise<void> {
-    logger.debug(`[relationService:refreshByThread] Refreshing relations for thread ${threadId}`);
+    // Per-thread refresh debug logging removed — fires on every THREAD_UPDATED event
 
     await appData.ensureDir(RELATIONS_DIR);
     const files = await appData.listDir(RELATIONS_DIR);
@@ -291,11 +294,11 @@ class RelationService {
           if (!existing) {
             // New relation from disk - add to store
             store._applyCreate(result.data);
-            logger.debug(`[relationService:refreshByThread] Added new relation: ${key}`);
+            // New relation discovered from disk
           } else if (result.data.updatedAt > existing.updatedAt) {
             // Disk version is newer - update store
             store._applyUpdate(result.data.planId, result.data.threadId, result.data);
-            logger.debug(`[relationService:refreshByThread] Updated relation: ${key}`);
+            // Disk version is newer — updated in store
           }
         }
       } catch (error) {
@@ -310,7 +313,7 @@ class RelationService {
    * Loads any new or updated relations from disk into the store.
    */
   async refreshByPlan(planId: string): Promise<void> {
-    logger.debug(`[relationService:refreshByPlan] Refreshing relations for plan ${planId}`);
+    // Per-plan refresh debug logging removed — fires on every PLAN_UPDATED event
 
     await appData.ensureDir(RELATIONS_DIR);
     const files = await appData.listDir(RELATIONS_DIR);
@@ -332,11 +335,11 @@ class RelationService {
           if (!existing) {
             // New relation from disk - add to store
             store._applyCreate(result.data);
-            logger.debug(`[relationService:refreshByPlan] Added new relation: ${key}`);
+            // New relation discovered from disk
           } else if (result.data.updatedAt > existing.updatedAt) {
             // Disk version is newer - update store
             store._applyUpdate(result.data.planId, result.data.threadId, result.data);
-            logger.debug(`[relationService:refreshByPlan] Updated relation: ${key}`);
+            // Disk version is newer — updated in store
           }
         }
       } catch (error) {

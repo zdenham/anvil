@@ -12,8 +12,9 @@ import { TreeDndOverlay } from "./tree-dnd-overlay";
 import { DropIndicator } from "./drop-indicator";
 import { MoveToDialog } from "./move-to-dialog";
 import { useContextMenu, ContextMenu, ContextMenuItem } from "@/components/ui/context-menu";
-import { FolderPlus } from "lucide-react";
+import { FolderPlus, GitBranch, Plus } from "lucide-react";
 import { createRootFolder } from "./folder-actions";
+import { getTreeIndentPx } from "@/lib/tree-indent";
 
 interface TreeMenuProps {
   onItemSelect: (itemId: string, itemType: EntityItemType, event?: React.MouseEvent) => void;
@@ -22,7 +23,6 @@ interface TreeMenuProps {
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onNewClaudeSession?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewManagedThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewWorktree?: (repoName: string) => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
   /** Set of worktree IDs currently being created */
@@ -42,7 +42,7 @@ interface TreeMenuProps {
  * to the correct component. Supports keyboard navigation.
  */
 export function TreeMenu({
-  onItemSelect, onFilesClick, onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread, onCreatePr,
+  onItemSelect, onFilesClick, onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread,
   onNewWorktree, onArchiveWorktree,
   creatingWorktreeIds, onPinToggle, pinnedWorktreeId,
   onHideRepo, onRemoveRepo, onHideWorktree, className,
@@ -89,6 +89,30 @@ export function TreeMenu({
       }
     }
     return counts;
+  }, [items]);
+
+  // Pre-compute the last visible item index for each expanded repo section.
+  // After that item, we render a "new workspace in [repo]" button.
+  const repoSectionEnds = useMemo(() => {
+    const ends = new Map<number, { repoName: string; depth: number }>();
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type !== "repo" || !items[i].isExpanded) continue;
+      const repoName = items[i].title;
+      const repoDepth = items[i].depth;
+      // Walk forward to find where this repo section ends
+      let lastInSection = i;
+      for (let j = i + 1; j < items.length; j++) {
+        if (items[j].type === "repo" && items[j].depth <= repoDepth) break;
+        lastInSection = j;
+      }
+      if (lastInSection > i) {
+        ends.set(lastInSection, { repoName, depth: repoDepth });
+      } else {
+        // Empty expanded repo — show button right after the repo header
+        ends.set(i, { repoName, depth: repoDepth });
+      }
+    }
+    return ends;
   }, [items]);
 
   // Changes navigation handler
@@ -195,6 +219,7 @@ export function TreeMenu({
           className={`flex-1 overflow-auto focus:outline-none pl-2 relative ${className ?? ""}`}
         >
           {items.map((item, index) => {
+            const sectionEnd = repoSectionEnds.get(index);
             return (
               <React.Fragment key={item.id}>
                 <TreeItemRenderer
@@ -210,8 +235,6 @@ export function TreeMenu({
                   onNewTerminal={onNewTerminal}
                   onNewClaudeSession={onNewClaudeSession}
                   onNewManagedThread={onNewManagedThread}
-                  onCreatePr={onCreatePr}
-                  onNewWorktree={onNewWorktree}
                   onArchiveWorktree={onArchiveWorktree}
                   onRefresh={handleRefreshTreeMenu}
                   isCreatingWorktree={item.type === "worktree" && (creatingWorktreeIds?.has(item.id) ?? false)}
@@ -221,6 +244,19 @@ export function TreeMenu({
                   onRemoveRepo={onRemoveRepo}
                   onHideWorktree={onHideWorktree}
                 />
+                {sectionEnd && onNewWorktree && (
+                  <div style={{ paddingLeft: `${getTreeIndentPx(sectionEnd.depth)}px` }} className="pr-2 py-2.5">
+                    <button
+                      type="button"
+                      className="flex items-center justify-center gap-1.5 py-1 w-full text-[11px] text-surface-500 hover:text-surface-300 border border-dashed border-surface-700 hover:border-surface-500 rounded transition-colors duration-75"
+                      onClick={() => onNewWorktree(sectionEnd.repoName)}
+                    >
+                      <GitBranch size={11} className="flex-shrink-0" />
+                      <span className="truncate">new workspace in {sectionEnd.repoName}</span>
+                      <Plus size={10} className="flex-shrink-0" />
+                    </button>
+                  </div>
+                )}
               </React.Fragment>
             );
           })}

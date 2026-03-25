@@ -44,6 +44,8 @@ const NATIVE_COMMANDS = new Set([
   "get_saved_hotkey",
   "save_clipboard_hotkey",
   "get_saved_clipboard_hotkey",
+  "get_spotlight_enabled",
+  "set_spotlight_enabled",
   "check_accessibility_permission",
   "request_accessibility_permission",
   "check_accessibility_permission_with_prompt",
@@ -64,7 +66,7 @@ const NATIVE_COMMANDS = new Set([
   "get_clipboard_content",
   "paste_clipboard_entry",
   "hide_clipboard_manager",
-  "run_internal_update",
+  "run_update",
   "get_ws_port",
 ]);
 
@@ -76,6 +78,7 @@ const NATIVE_DEFAULTS: Record<string, unknown> = {
   is_onboarded: true,
   get_saved_hotkey: null,
   get_saved_clipboard_hotkey: null,
+  get_spotlight_enabled: false,
   check_accessibility_permission: true,
   check_accessibility_permission_with_prompt: true,
   get_accessibility_status: {

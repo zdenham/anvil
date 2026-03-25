@@ -22,8 +22,6 @@ export interface WorktreeItemProps {
   onNewTerminal?: (worktreeId: string, worktreePath: string) => void;
   onNewClaudeSession?: (repoId: string, worktreeId: string, worktreePath: string) => void;
   onNewManagedThread?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  onCreatePr?: (repoId: string, worktreeId: string, worktreePath: string) => void;
-  onNewWorktree?: (repoName: string) => void;
   onArchiveWorktree?: (repoName: string, worktreeId: string, worktreeName: string) => void;
   onRefresh?: () => void;
   isCreatingWorktree?: boolean;
@@ -76,14 +74,9 @@ export function WorktreeItem(props: WorktreeItemProps) {
 /** Renders the worktree header row with menus and rename logic. */
 function WorktreeHeader({
   item, isSelected, isCreatingWorktree, isPinned,
-  onPinToggle, onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread, onCreatePr,
-  onNewWorktree, onArchiveWorktree, onRefresh, onHideWorktree,
+  onPinToggle, onNewThread, onNewTerminal, onNewClaudeSession, onNewManagedThread,
+  onArchiveWorktree, onRefresh, onHideWorktree,
 }: WorktreeItemProps) {
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ top: 0, left: 0 });
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -92,14 +85,6 @@ function WorktreeHeader({
   const [renameValue, setRenameValue] = useState(item.worktreeName ?? "");
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (showMenu && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setMenuPosition({ top: rect.top, left: rect.right + 4 });
-    }
-  }, [showMenu]);
-
-  useMenuOutsideClick(showMenu, menuRef, buttonRef, () => setShowMenu(false));
   useMenuOutsideClick(showContextMenu, contextMenuRef, null, () => setShowContextMenu(false));
 
   useEffect(() => {
@@ -128,7 +113,6 @@ function WorktreeHeader({
     e.preventDefault();
     e.stopPropagation();
     if (isCreatingWorktree) return;
-    setShowMenu(false);
     setContextMenuPosition({ top: e.clientY, left: e.clientX });
     setShowContextMenu(true);
   };
@@ -227,21 +211,18 @@ function WorktreeHeader({
         )}
 
         <PlusMenu
-          item={item} showMenu={showMenu} setShowMenu={setShowMenu}
-          menuPosition={menuPosition} buttonRef={buttonRef} menuRef={menuRef}
+          item={item}
           isCreatingWorktree={isCreatingWorktree}
-          onNewThread={onNewThread} onNewTerminal={onNewTerminal}
-          onNewClaudeSession={onNewClaudeSession} onNewManagedThread={onNewManagedThread}
-          onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
+          onNewThread={onNewThread}
+          onNewClaudeSession={onNewClaudeSession}
         />
       </div>
 
       <WorktreeContextMenu
         item={item} show={showContextMenu} position={contextMenuPosition}
         menuRef={contextMenuRef} isPinned={isPinned} onPinToggle={onPinToggle}
-        onNewThread={onNewThread} onNewTerminal={onNewTerminal}
-        onNewClaudeSession={onNewClaudeSession} onNewManagedThread={onNewManagedThread}
-        onCreatePr={onCreatePr} onNewWorktree={onNewWorktree}
+        onNewThread={onNewThread} onNewClaudeSession={onNewClaudeSession}
+        onNewManagedThread={onNewManagedThread} onNewTerminal={onNewTerminal}
         onArchiveWorktree={onArchiveWorktree}
         onHideWorktree={onHideWorktree}
         onClose={() => setShowContextMenu(false)}

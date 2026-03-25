@@ -18,7 +18,6 @@ export async function createGitHubWebhook(
   repoRootPath: string,
 ): Promise<GatewayChannelMetadata> {
   const tag = `[createGitHubWebhook channel=${metadata.id}]`;
-  logger.info(`${tag} Starting webhook setup (url=${metadata.webhookUrl}, cwd=${repoRootPath})`);
 
   try {
     const ghCli = new GhCli(repoRootPath);
@@ -30,7 +29,6 @@ export async function createGitHubWebhook(
 
     // Check if a webhook already exists for this URL
     const existing = await ghCli.listWebhooks();
-    logger.info(`${tag} Found ${existing.length} existing webhook(s)`);
 
     const match = existing.find(
       (wh) => wh.config.url === metadata.webhookUrl,
@@ -41,7 +39,6 @@ export async function createGitHubWebhook(
     }
 
     // Create a new webhook (secret is empty for gateway-proxied webhooks)
-    logger.info(`${tag} Creating new webhook...`);
     const result = await ghCli.createWebhook(metadata.webhookUrl, "");
     logger.info(`${tag} Created webhook id=${result.id}`);
     return { ...metadata, webhookId: result.id };

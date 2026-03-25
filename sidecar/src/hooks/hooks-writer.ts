@@ -64,6 +64,6 @@ export function writeHooksJson(anvilDir: string, port: number): void {
 
   writeFileSync(
     join(hooksDir, "hooks.json"),
-    JSON.stringify(config, null, 2) + "\n",
+    JSON.stringify({ hooks: config }, null, 2) + "\n",
   );
 }

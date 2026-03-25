@@ -62,7 +62,7 @@ async function runBuild(): Promise<{ success: boolean; error?: string }> {
 
   if (buildResult.code !== 0) {
     const error = buildResult.stderr || 'Build exited with code ' + buildResult.code;
-    logger.error('[quick-actions-build] Build failed', { stderr: buildResult.stderr, stdout: buildResult.stdout });
+    logger.error('[quick-actions-build] Build failed', { exitCode: buildResult.code, stderrLength: buildResult.stderr?.length ?? 0 });
     return { success: false, error };
   }
 

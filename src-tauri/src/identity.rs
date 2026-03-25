@@ -2,8 +2,7 @@ use crate::config;
 use crate::paths;
 use tracing::{info, warn};
 
-// TODO(anvil-rename): update URL when infra is migrated
-const IDENTITY_SERVER_URL: &str = "https://mort-server.fly.dev/identity";
+const IDENTITY_SERVER_URL: &str = "https://anvil-server.fly.dev/identity";
 
 /// Detect the GitHub handle via `gh` CLI and persist it.
 /// Returns the handle on success, or an error if `gh` is not authenticated.

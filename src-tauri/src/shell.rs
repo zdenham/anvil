@@ -1,24 +1,23 @@
-/// Runs the internal update script in the background.
+/// Runs the update/install script in the background.
 /// The script downloads a new version and restarts the app, so it must be detached.
 #[tauri::command]
-pub fn run_internal_update() -> Result<(), String> {
+pub fn run_update() -> Result<(), String> {
     use std::process::Stdio;
 
-    tracing::info!("run_internal_update: Starting update process");
+    tracing::info!("run_update: Starting update process");
 
-    // TODO(anvil-rename): update URL when infra is migrated
-    let script_url = "https://pub-484a71c5f2f240489aee02d684dbb550.r2.dev/mort-installation-scripts/distribute_internally.sh";
+    let script_url = "https://pub-3bbf8a6a4ba248d3aaa0453e7c25d57e.r2.dev/distribute/install.sh";
     let shell_command = format!("curl -sL {} | bash &", script_url);
 
     tracing::info!(
         script_url = %script_url,
         shell_command = %shell_command,
-        "run_internal_update: Preparing to execute update command"
+        "run_update: Preparing to execute update command"
     );
 
     // Use sh -c to run the pipeline, with & to background the entire operation
     // The script will quit and restart the app, so we don't wait for it
-    tracing::debug!("run_internal_update: Spawning sh process with backgrounded curl|bash pipeline");
+    tracing::debug!("run_update: Spawning sh process with backgrounded curl|bash pipeline");
 
     let spawn_result = std::process::Command::new("sh")
         .args(["-c", &shell_command])
@@ -31,16 +30,16 @@ pub fn run_internal_update() -> Result<(), String> {
         Ok(child) => {
             tracing::info!(
                 pid = %child.id(),
-                "run_internal_update: Successfully spawned update process"
+                "run_update: Successfully spawned update process"
             );
-            tracing::info!("run_internal_update: Update script started in background - app should restart shortly");
+            tracing::info!("run_update: Update script started in background - app should restart shortly");
             Ok(())
         }
         Err(e) => {
             tracing::error!(
                 error = %e,
                 error_kind = ?e.kind(),
-                "run_internal_update: Failed to spawn update process"
+                "run_update: Failed to spawn update process"
             );
             Err(format!("Failed to start update: {}", e))
         }

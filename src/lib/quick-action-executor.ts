@@ -190,7 +190,7 @@ export async function executeQuickAction(
   // Capture stderr for error reporting
   command.stderr.on('data', (line: string) => {
     errorOutput += line + '\n';
-    logger.error('[quick-action-executor] stderr:', line);
+    logger.debug('[quick-action-executor] stderr line received');
   });
 
   // Execute with timeout

@@ -5,9 +5,10 @@ import { repoService } from "../../entities/repositories";
 import { bootstrapAnvilDirectory } from "../../lib/anvil-bootstrap";
 import { logger } from "../../lib/logger-client";
 import { WelcomeStep } from "./steps/WelcomeStep";
+import { DiscordStep } from "./steps/DiscordStep";
 import { RepositoryStep } from "./steps/RepositoryStep";
 
-type OnboardingStepName = 'welcome' | 'repository';
+type OnboardingStepName = 'welcome' | 'discord' | 'repository';
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -69,6 +70,8 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
           switch (currentStep) {
             case 'welcome':
               return true;
+            case 'discord':
+              return true;
             case 'repository':
               return !!selectedRepository;
             default:
@@ -78,6 +81,8 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
         if (canProceedNow && !isRegistering) {
           if (currentStep === 'welcome') {
+            setCurrentStep('discord');
+          } else if (currentStep === 'discord') {
             setCurrentStep('repository');
           } else {
             completeSetup();
@@ -92,6 +97,10 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
   const handleNext = async () => {
     if (currentStep === 'welcome') {
+      setCurrentStep('discord');
+      return;
+    }
+    if (currentStep === 'discord') {
       setCurrentStep('repository');
       return;
     }
@@ -102,6 +111,8 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
   const handleBack = () => {
     if (currentStep === 'repository') {
+      setCurrentStep('discord');
+    } else if (currentStep === 'discord') {
       setCurrentStep('welcome');
     }
   };
@@ -109,6 +120,8 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const canProceed = () => {
     switch (currentStep) {
       case 'welcome':
+        return true;
+      case 'discord':
         return true;
       case 'repository':
         return !!selectedRepository;
@@ -118,15 +131,21 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   };
 
   const getStepProgress = () => {
-    const totalSteps = 2;
-    const currentStepNumber = currentStep === 'welcome' ? 1 : 2;
-    return { current: currentStepNumber, total: totalSteps };
+    const totalSteps = 3;
+    const stepNumbers: Record<OnboardingStepName, number> = {
+      welcome: 1,
+      discord: 2,
+      repository: 3,
+    };
+    return { current: stepNumbers[currentStep], total: totalSteps };
   };
 
   const renderStepContent = () => {
     switch (currentStep) {
       case 'welcome':
         return <WelcomeStep />;
+      case 'discord':
+        return <DiscordStep />;
       case 'repository':
         return (
           <RepositoryStep
@@ -146,6 +165,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     if (isRegistering) return "Completing Setup...";
     if (currentStep === 'repository') return "Complete Setup ↵";
     if (currentStep === 'welcome') return "Begin ↵";
+    if (currentStep === 'discord') return "Continue ↵";
     return "Continue ↵";
   };
 

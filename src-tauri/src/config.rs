@@ -25,6 +25,8 @@ pub struct AppConfig {
     pub github_handle: Option<String>,
     #[serde(default = "default_zoom_level")]
     pub zoom_level: f64,
+    #[serde(default)]
+    pub spotlight_enabled: bool,
 }
 
 fn generate_device_id() -> String {
@@ -41,6 +43,7 @@ impl Default for AppConfig {
             migration_version: 0,
             github_handle: None,
             zoom_level: default_zoom_level(),
+            spotlight_enabled: false,
         }
     }
 }
@@ -230,6 +233,18 @@ pub fn get_zoom_level() -> f64 {
 pub fn set_zoom_level(level: f64) -> Result<(), String> {
     let mut config = load_config();
     config.zoom_level = level;
+    save_config(&config)
+}
+
+/// Gets whether the global spotlight hotkey is enabled
+pub fn get_spotlight_enabled() -> bool {
+    load_config().spotlight_enabled
+}
+
+/// Saves the spotlight enabled setting to config
+pub fn set_spotlight_enabled(enabled: bool) -> Result<(), String> {
+    let mut config = load_config();
+    config.spotlight_enabled = enabled;
     save_config(&config)
 }
 

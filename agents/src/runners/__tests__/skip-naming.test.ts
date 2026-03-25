@@ -46,43 +46,27 @@ describe("SimpleRunnerStrategy --skip-naming", () => {
   const strategy = new SimpleRunnerStrategy();
   let tmpDir: string;
 
-  const baseArgs = [
-    "--repo-id", "550e8400-e29b-41d4-a716-446655440000",
-    "--worktree-id", "660e8400-e29b-41d4-a716-446655440000",
-    "--thread-id", "770e8400-e29b-41d4-a716-446655440000",
-    "--anvil-dir", "", // Will be set per test
-    "--prompt", "test prompt",
-    "--cwd", "", // Will be set per test
-  ];
-
   beforeEach(() => {
     tmpDir = join(tmpdir(), `anvil-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tmpDir, { recursive: true });
     // Create a threads subdir for setup to use
     mkdirSync(join(tmpDir, "threads"), { recursive: true });
     vi.clearAllMocks();
-    // Set ANTHROPIC_API_KEY so naming services can be called
-    process.env.ANTHROPIC_API_KEY = "test-key";
   });
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
-    delete process.env.ANTHROPIC_API_KEY;
   });
 
   describe("parseArgs", () => {
     it("sets skipNaming to true when --skip-naming is present", () => {
-      const args = [...baseArgs, "--skip-naming"];
-      args[args.indexOf("--anvil-dir") + 1] = tmpDir;
-      args[args.indexOf("--cwd") + 1] = tmpDir;
+      const args = buildArgs(["--skip-naming"]);
       const config = strategy.parseArgs(args);
       expect(config.skipNaming).toBe(true);
     });
 
     it("leaves skipNaming undefined when --skip-naming is absent", () => {
-      const args = [...baseArgs];
-      args[args.indexOf("--anvil-dir") + 1] = tmpDir;
-      args[args.indexOf("--cwd") + 1] = tmpDir;
+      const args = buildArgs();
       const config = strategy.parseArgs(args);
       expect(config.skipNaming).toBeUndefined();
     });
@@ -114,7 +98,7 @@ describe("SimpleRunnerStrategy --skip-naming", () => {
       );
 
       // Should still call thread naming
-      expect(generateThreadName).toHaveBeenCalledWith("test prompt", "test-key");
+      expect(generateThreadName).toHaveBeenCalledWith("test prompt");
 
       // Should NOT have called worktree naming
       expect(generateWorktreeName).not.toHaveBeenCalled();
@@ -126,7 +110,7 @@ describe("SimpleRunnerStrategy --skip-naming", () => {
       await strategy.setup(config);
 
       // Should have called thread naming (fire and forget, so it's called but may not complete)
-      expect(generateThreadName).toHaveBeenCalledWith("test prompt", "test-key");
+      expect(generateThreadName).toHaveBeenCalledWith("test prompt");
     });
   });
 });

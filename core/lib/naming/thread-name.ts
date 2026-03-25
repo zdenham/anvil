@@ -47,7 +47,6 @@ export interface ThreadNameResult {
  */
 export async function generateThreadName(
   prompt: string,
-  apiKey: string,
 ): Promise<ThreadNameResult> {
   const trimmedPrompt = prompt.trim();
   if (trimmedPrompt.length > 0 && trimmedPrompt.length <= SHORT_PROMPT_THRESHOLD) {
@@ -55,7 +54,6 @@ export async function generateThreadName(
   }
 
   const result = await generateWithFallback({
-    apiKey,
     system: SYSTEM_PROMPT,
     prompt: `Generate a thread name for this user message:\n\n${prompt}`,
     maxOutputTokens: 50,

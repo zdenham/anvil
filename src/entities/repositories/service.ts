@@ -206,13 +206,10 @@ export const repoService = {
     const now = Date.now();
     const slug = slugify(input.name);
     const repoDir = `${REPOS_DIR}/${slug}`;
-    const absoluteRepoDir = await appData.getAbsolutePath(repoDir);
 
-    logger.log(`[repo:create] Creating repo: "${input.name}" (slug: "${slug}")`);
-    logger.log(`[repo:create] Target directory (absolute): ${absoluteRepoDir}`);
+    logger.debug(`[repo:create] Creating repo: "${input.name}" (slug: "${slug}")`);
 
     const exists = await appData.exists(repoDir);
-    logger.log(`[repo:create] Directory exists: ${exists}`);
 
     if (exists) {
       const contents = await appData.listDir(repoDir);
@@ -269,24 +266,21 @@ export const repoService = {
    * Writes settings.json with the full RepositorySettings schema.
    */
   async createFromFolder(sourcePath: string): Promise<Repository> {
-    logger.log(`[repo:createFromFolder] Starting creation from: ${sourcePath}`);
+    logger.debug(`[repo:createFromFolder] Starting creation from folder`);
 
     if (!(await appData.absolutePathExists(sourcePath))) {
-      logger.error(`[repo:createFromFolder] Source path does not exist: ${sourcePath}`);
+      logger.error(`[repo:createFromFolder] Source path does not exist`);
       throw new Error(`Source path does not exist: ${sourcePath}`);
     }
 
     const folderName = extractFolderName(sourcePath);
     const slug = slugify(folderName);
     const repoDir = `${REPOS_DIR}/${slug}`;
-    const absoluteRepoDir = await appData.getAbsolutePath(repoDir);
 
-    logger.log(`[repo:createFromFolder] Folder name: "${folderName}", slug: "${slug}"`);
-    logger.log(`[repo:createFromFolder] Target directory (relative): ${repoDir}`);
-    logger.log(`[repo:createFromFolder] Target directory (absolute): ${absoluteRepoDir}`);
+    logger.debug(`[repo:createFromFolder] Folder name: "${folderName}", slug: "${slug}"`);
 
     const exists = await appData.exists(repoDir);
-    logger.log(`[repo:createFromFolder] Directory exists: ${exists}`);
+    logger.debug(`[repo:createFromFolder] Directory exists: ${exists}`);
 
     if (exists) {
       // Log what's in the directory to help debug zombie repos

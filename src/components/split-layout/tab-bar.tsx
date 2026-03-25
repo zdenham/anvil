@@ -5,7 +5,7 @@
  * reordering within and across groups. Includes a "+" button for new tabs.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { Plus } from "lucide-react";
@@ -16,6 +16,7 @@ import { useMRUWorktreeStore } from "@/stores/mru-worktree-store";
 import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { createTuiThread } from "@/lib/thread-creation-service";
 import { logger } from "@/lib/logger-client";
+import { useActiveWorktreeContext } from "@/hooks/use-active-worktree-context";
 import { TabItem } from "./tab-item";
 import type { TabItem as TabItemType } from "@core/types/pane-layout.js";
 
@@ -26,7 +27,29 @@ interface TabBarProps {
 }
 
 export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
-  const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs]);
+  const { worktreeId: activeWorktreeId } = useActiveWorktreeContext();
+
+  // Filter terminal tabs to only show those belonging to the active worktree.
+  // Non-terminal tabs are always shown.
+  const visibleTabs = useMemo(() => {
+    if (!activeWorktreeId) return tabs;
+    return tabs.filter((tab) => {
+      if (tab.view.type !== "terminal") return true;
+      const session = terminalSessionService.get(tab.view.terminalId);
+      return !session || session.worktreeId === activeWorktreeId;
+    });
+  }, [tabs, activeWorktreeId]);
+
+  // If the active tab was hidden by filtering, auto-select the first visible tab
+  useEffect(() => {
+    if (visibleTabs.length === 0) return;
+    const activeStillVisible = visibleTabs.some((t) => t.id === activeTabId);
+    if (!activeStillVisible) {
+      paneLayoutService.setActiveTab(groupId, visibleTabs[0].id);
+    }
+  }, [visibleTabs, activeTabId, groupId]);
+
+  const tabIds = useMemo(() => visibleTabs.map((t) => t.id), [visibleTabs]);
   // Make the tab bar itself a drop target so tabs can be dragged to empty areas
   const { setNodeRef: setDroppableRef } = useDroppable({
     id: `tab-bar-drop-${groupId}`,
@@ -91,7 +114,7 @@ export function TabBar({ groupId, tabs, activeTabId }: TabBarProps) {
       className="flex items-center bg-surface-900 overflow-x-auto scrollbar-none py-1 px-1 gap-0.5"
     >
       <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <TabItem
             key={tab.id}
             tab={tab}

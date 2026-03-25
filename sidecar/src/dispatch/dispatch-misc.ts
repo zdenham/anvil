@@ -130,7 +130,7 @@ async function dispatchMiscPart3(
       state.logBuffer.length = 0;
       return null;
 
-    case "run_internal_update":
+    case "run_update":
       // Placeholder — runs update script if available
       return null;
 
@@ -300,6 +300,7 @@ function initializeShellEnv(state: SidecarState): boolean {
 
     if (path) {
       state.shellPath = path;
+      process.env.PATH = path;
       state.shellInitialized = true;
       return true;
     }

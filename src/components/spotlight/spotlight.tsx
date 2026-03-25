@@ -156,9 +156,7 @@ export class SpotlightController {
     inputExpanded: boolean,
     compact: boolean = false
   ): Promise<void> {
-    console.log(
-      `[SPOTLIGHT-HEIGHT] resizeWindow called: resultCount=${resultCount}, inputExpanded=${inputExpanded}, compact=${compact}`
-    );
+    logger.debug(`[spotlight] resizeWindow: resultCount=${resultCount}, inputExpanded=${inputExpanded}, compact=${compact}`);
     await invoke("resize_spotlight", { resultCount, inputExpanded, compact });
   }
 

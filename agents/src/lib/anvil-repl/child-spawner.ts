@@ -257,7 +257,7 @@ export class ChildSpawner {
     child: ReturnType<typeof spawnProcess>,
     childThreadId: string,
     childThreadPath: string,
-    timeoutMs: number = 600_000,
+    timeoutMs: number = 3_600_000,
   ): Promise<string> {
     const startTime = Date.now();
 

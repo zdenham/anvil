@@ -195,14 +195,14 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 // ── Process-level error handlers ─────────────────────────────────────
 
 process.on("uncaughtException", (err) => {
-  log.error(`[fatal] uncaughtException: ${err.stack ?? err.message}`);
+  log.error(`[fatal] uncaughtException: ${err.message}`);
   // Process is in undefined state — exit after logging
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
   const msg =
-    reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+    reason instanceof Error ? reason.message : String(reason);
   log.error(`[fatal] unhandledRejection: ${msg}`);
   // Don't exit — rejection may be non-critical (e.g. dropped socket write)
 });

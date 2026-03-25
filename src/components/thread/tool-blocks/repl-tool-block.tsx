@@ -32,11 +32,17 @@ export function stripReplPrefix(result: string | undefined): {
   isReplError: boolean;
 } {
   if (!result) return { text: "", isReplError: false };
-  if (result.startsWith("anvil-repl error:\n")) {
-    return { text: result.slice("anvil-repl error:\n".length), isReplError: true };
+  // Strip system instruction prefix if present (e.g., "[System: ...]\n\n")
+  let text = result;
+  const sysMatch = text.match(/^\[System:[^\]]*\]\n\n/);
+  if (sysMatch) {
+    text = text.slice(sysMatch[0].length);
   }
-  if (result.startsWith("anvil-repl result:\n")) {
-    return { text: result.slice("anvil-repl result:\n".length), isReplError: false };
+  if (text.startsWith("anvil-repl error:\n")) {
+    return { text: text.slice("anvil-repl error:\n".length), isReplError: true };
+  }
+  if (text.startsWith("anvil-repl result:\n")) {
+    return { text: text.slice("anvil-repl result:\n".length), isReplError: false };
   }
   return { text: result, isReplError: false };
 }
