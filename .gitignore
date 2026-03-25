@@ -42,3 +42,6 @@ public/material-icons/
 
 # Ad-hoc debug/repro scripts
 e2e/debug/
+
+# Claude local settings (may contain API keys in allow-lists)
+.claude/settings.local.json

@@ -30,7 +30,7 @@ security find-identity -v -p codesigning
 
 Expected output:
 ```
-1) 064F8C0FB28A5B2A8A5AC891BCCF931DFD3965FB "Developer ID Application: Altera.al Inc. (J6UGKXJCTQ)"
+1) <HASH> "Developer ID Application: Your Company (TEAM_ID)"
    1 valid identities found
 ```
 
@@ -45,7 +45,7 @@ Should contain:
 export APPLE_ID="..."
 export APPLE_PASSWORD="..."  # App-specific password
 export APPLE_TEAM_ID="..."
-export APPLE_SIGNING_IDENTITY="Developer ID Application: Altera.al Inc. (J6UGKXJCTQ)"
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Company (TEAM_ID)"
 ```
 
 ## Troubleshooting

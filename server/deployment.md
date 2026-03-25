@@ -1,6 +1,6 @@
 # Anvil Server Deployment
 
-The server is deployed to [Fly.io](https://fly.io) in the `fundamental-research-labs` organization.
+The server is deployed to [Fly.io](https://fly.io).
 
 **Live URL:** https://anvil-server.fly.dev/
 
