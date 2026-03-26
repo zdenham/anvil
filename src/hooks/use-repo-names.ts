@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { loadSettings } from "@/lib/app-data-store";
 import { useRepoStore } from "@/entities/repositories";
-import { logger } from "@/lib/logger-client";
 
 /**
  * Slugifies a repository name for use in paths.
@@ -53,7 +52,7 @@ export function useRepoNames(): {
           mapping[settings.id] = settings.name;
         } catch (err) {
           // Skip repos that fail to load
-          logger.debug(`[useRepoNames] Failed to load settings for ${name}:`, err);
+          // Skip repos that fail to load
         }
       }
 

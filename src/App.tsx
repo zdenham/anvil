@@ -8,6 +8,7 @@ import { initializeTriggers } from "./lib/triggers";
 import { bootstrapAnvilDirectory } from "./lib/anvil-bootstrap";
 import { initAgentMessageListener, cleanupAgentMessageListener } from "./lib/agent-service";
 import { logger } from "./lib/logger-client";
+import { AnvilAnimation } from "./components/ui/anvil-animation";
 
 // Initialize trigger system for @ file mentions
 initializeTriggers();
@@ -111,7 +112,7 @@ function App() {
 function LoadingScreen() {
   return (
     <div className="h-full flex items-center justify-center bg-surface-900">
-      <div className="text-surface-500">Loading...</div>
+      <AnvilAnimation />
     </div>
   );
 }

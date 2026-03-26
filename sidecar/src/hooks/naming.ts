@@ -8,6 +8,7 @@
 
 import { generateThreadName } from "@core/lib/naming/thread-name.js";
 import { generateWorktreeName } from "@core/lib/naming/worktree-name.js";
+import { anthropicLlmCaller } from "./sdk-caller.js";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { EventBroadcaster } from "../push.js";
@@ -39,8 +40,8 @@ async function runNaming(
   deps: NamingDeps,
 ): Promise<void> {
   const [threadResult, worktreeResult] = await Promise.all([
-    generateThreadName(prompt),
-    generateWorktreeName(prompt),
+    generateThreadName(prompt, anthropicLlmCaller),
+    generateWorktreeName(prompt, anthropicLlmCaller),
   ]);
 
   deps.log.info(

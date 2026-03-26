@@ -240,7 +240,6 @@ function ControlPanelWindowContent({
   // Set this thread as active so THREAD_ACTION events update the store
   // Also refresh thread from disk if not in store (handles cross-window sync)
   useEffect(() => {
-    logger.debug(`[ControlPanelWindow] useEffect FIRED for threadId: ${threadId}`);
     logger.info(`[ControlPanelWindow] useEffect: Setting active thread: ${threadId}`);
 
     const initThread = async () => {
@@ -385,7 +384,6 @@ function ControlPanelWindowContent({
         try {
           await invoke("pin_control_panel");
           hasPinned = true;
-          logger.debug("[ControlPanelWindow] Panel pinned due to resize (will stay pinned until closed)");
         } catch (err) {
           logger.error("[ControlPanelWindow] Failed to pin panel for resize:", err);
         }
@@ -485,7 +483,6 @@ function ControlPanelWindowContent({
       // This is necessary because something may steal window focus during the async gap
       try {
         await invoke("focus_control_panel");
-        logger.debug(`[ControlPanelWindow] Native panel focus restored via invoke`);
       } catch (e) {
         logger.warn(`[ControlPanelWindow] Failed to invoke focus_control_panel`, { error: e });
       }

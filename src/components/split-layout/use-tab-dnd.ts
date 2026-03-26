@@ -18,7 +18,6 @@ import {
   type DragMoveEvent,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { logger } from "@/lib/logger-client";
 import {
   paneLayoutService,
   usePaneLayoutStore,
@@ -245,10 +244,6 @@ export function useTabDnd(options: UseTabDndOptions = {}) {
       const direction =
         zone === "left" || zone === "right" ? "horizontal" : "vertical";
 
-      logger.debug(
-        `[useTabDnd] Edge drop: tab ${drag.tabId} on ${zone} of group ${targetGroupId}`,
-      );
-
       await splitAndMoveForScope(scope, targetGroupId, direction, drag.sourceGroupId, drag.tabId);
       return;
     }
@@ -304,10 +299,6 @@ export function useTabDnd(options: UseTabDndOptions = {}) {
       const { tabId, sourceGroupId } = drag;
       const direction =
         zone === "left" || zone === "right" ? "horizontal" : "vertical";
-
-      logger.debug(
-        `[useTabDnd] Edge drop: tab ${tabId} on ${zone} of group ${targetGroupId}`,
-      );
 
       await splitAndMoveForScope(scope, targetGroupId, direction, sourceGroupId, tabId);
 

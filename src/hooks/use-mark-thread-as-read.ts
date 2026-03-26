@@ -102,7 +102,7 @@ export function useMarkThreadAsRead(
         logger.info(`[useMarkThreadAsRead] Marking thread ${threadId} as read (manual)`);
         store.markThreadAsRead(threadId);
       } else if (!stillActive) {
-        logger.debug(`[useMarkThreadAsRead] Skipping manual mark as read - thread not active:`, threadId);
+        // Thread not active, skip
       } else {
         logger.warn(`[useMarkThreadAsRead] Cannot mark thread as read - thread not found in store:`, threadId);
       }

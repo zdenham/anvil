@@ -3,7 +3,7 @@
  * Importable by both agents/ (SDK threads) and sidecar/ (TUI threads).
  */
 
-import { generateWithFallback } from "./llm-fallback.js";
+import { generateWithFallback, type LlmCaller } from "./llm-fallback.js";
 
 const SYSTEM_PROMPT = `You are a thread naming assistant. Generate a short name for a conversation thread based on the user's initial message.
 
@@ -44,9 +44,13 @@ export interface ThreadNameResult {
  * Generate a thread name with automatic model fallback.
  * Tries Haiku first, falls back to Sonnet if Haiku fails.
  * For short prompts (<= 25 characters), uses the prompt directly to save API costs.
+ *
+ * @param prompt - The user's initial message.
+ * @param caller - LLM caller function provided by the consumer.
  */
 export async function generateThreadName(
   prompt: string,
+  caller: LlmCaller,
 ): Promise<ThreadNameResult> {
   const trimmedPrompt = prompt.trim();
   if (trimmedPrompt.length > 0 && trimmedPrompt.length <= SHORT_PROMPT_THRESHOLD) {
@@ -57,7 +61,7 @@ export async function generateThreadName(
     system: SYSTEM_PROMPT,
     prompt: `Generate a thread name for this user message:\n\n${prompt}`,
     maxOutputTokens: 50,
-  });
+  }, caller);
 
   return { name: result.text.trim(), usedFallback: result.usedFallback };
 }

@@ -119,17 +119,9 @@ export function TerminalContent({
         fitAddon.fit();
         // Only resize if PTY is registered (alive)
         if (ptyService.getPtyIdOrUndefined(terminalId) === undefined) return;
-        ptyService.resize(terminalId, terminal.cols, terminal.rows).catch((err) => {
-          logger.debug("[TerminalContent] Failed to resize terminal", {
-            terminalId,
-            error: err,
-          });
-        });
-      } catch (err) {
-        logger.debug("[TerminalContent] Fit failed (container may not be visible)", {
-          terminalId,
-          error: err,
-        });
+        ptyService.resize(terminalId, terminal.cols, terminal.rows).catch(() => {});
+      } catch {
+        // Fit may fail if container is not visible
       }
     },
     [terminalId]

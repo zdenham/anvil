@@ -17,8 +17,8 @@ import { EventName } from '@core/types/events.js';
  * IMPORTANT: Requires ANTHROPIC_API_KEY environment variable.
  */
 // Requires live LLM API calls and working agent harness.
-// Skip until agent harness state collection is fixed (test-audit.md issue #7).
-describe.skip('Thread Naming - Live LLM', () => {
+// Thread naming uses events (not states), so state collection issue #7 doesn't apply here.
+describe('Thread Naming - Live LLM', () => {
   let harness: AgentTestHarness;
 
   beforeEach(() => {
@@ -42,7 +42,6 @@ describe.skip('Thread Naming - Live LLM', () => {
 
     // Run the agent with a specific prompt that should generate a clear thread name
     const result = await harness.run({
-      agent: 'simple',
       prompt: 'Create a React component for a login form with email and password fields',
       timeout: 90000, // 90 second timeout for live LLM
     });
@@ -124,7 +123,7 @@ describe.skip('Thread Naming - Live LLM', () => {
 
     // Test with a database-related prompt
     const result = await harness.run({
-      agent: 'simple',
+
       prompt: 'Write a SQL migration to add a users table with id, email, and created_at columns',
       timeout: 90000,
     });
@@ -156,7 +155,7 @@ describe.skip('Thread Naming - Live LLM', () => {
     console.log('[LIVE TEST] Running short prompt naming test...');
 
     const result = await harness.run({
-      agent: 'simple',
+
       prompt: 'Fix the bug',
       timeout: 90000,
     });
@@ -201,7 +200,7 @@ describe.skip('Thread Naming - Live LLM', () => {
     `.trim();
 
     const result = await harness.run({
-      agent: 'simple',
+
       prompt: longPrompt,
       timeout: 180000, // 3 minutes - long prompts may take longer
     });
@@ -221,7 +220,7 @@ describe.skip('Thread Naming - Live LLM', () => {
     // Name should exist (LLM is prompted to keep it concise)
     expect(name.length).toBeGreaterThan(0);
 
-  }, 120000);
+  }, 240000); // 4 minute vitest timeout to accommodate the 3 minute harness timeout
 
   it('naming does not block main agent execution', async () => {
     const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.VITE_ANTHROPIC_API_KEY;
@@ -233,7 +232,7 @@ describe.skip('Thread Naming - Live LLM', () => {
     console.log('[LIVE TEST] Running parallel execution test...');
 
     const result = await harness.run({
-      agent: 'simple',
+
       prompt: 'Create a simple hello.txt file with the text "Hello, World!"',
       timeout: 90000,
     });
@@ -268,7 +267,7 @@ describe.skip('Thread Naming - Live LLM', () => {
     console.log('[LIVE TEST] Running disk persistence test...');
 
     const result = await harness.run({
-      agent: 'simple',
+
       prompt: 'Add unit tests for the user service',
       timeout: 180000, // 3 minutes - allow ample time for agent completion
     });

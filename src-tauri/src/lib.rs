@@ -1077,6 +1077,7 @@ pub fn run() {
             kill_system_settings,
             // Telemetry commands
             logging::set_telemetry_enabled,
+            logging::post_telemetry_event,
             // Profiling commands (on-demand, zero overhead at runtime)
             #[cfg(unix)]
             profiling::capture_cpu_profile,

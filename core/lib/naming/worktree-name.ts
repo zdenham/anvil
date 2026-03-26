@@ -3,7 +3,7 @@
  * Importable by both agents/ (SDK threads) and sidecar/ (TUI threads).
  */
 
-import { generateWithFallback } from "./llm-fallback.js";
+import { generateWithFallback, type LlmCaller } from "./llm-fallback.js";
 
 const SYSTEM_PROMPT = `You are a worktree naming assistant. Generate a short name for a git worktree based on the task description.
 
@@ -44,9 +44,13 @@ export function sanitizeWorktreeName(name: string): string {
  * Generate a worktree name with automatic model fallback.
  * Tries Haiku first, falls back to Sonnet if Haiku fails.
  * For short prompts (<= 20 characters), sanitizes and uses directly.
+ *
+ * @param prompt - The user's initial message.
+ * @param caller - LLM caller function provided by the consumer.
  */
 export async function generateWorktreeName(
   prompt: string,
+  caller: LlmCaller,
 ): Promise<WorktreeNameResult> {
   const trimmedPrompt = prompt.trim();
 
@@ -61,7 +65,7 @@ export async function generateWorktreeName(
     system: SYSTEM_PROMPT,
     prompt: `Generate a worktree name for this task: "${prompt.slice(0, 200)}"`,
     maxOutputTokens: 20,
-  });
+  }, caller);
 
   return { name: sanitizeWorktreeName(result.text), usedFallback: result.usedFallback };
 }

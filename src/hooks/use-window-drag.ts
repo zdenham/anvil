@@ -84,7 +84,6 @@ export function useWindowDrag(options: UseWindowDragOptions = {}): UseWindowDrag
       if (pinCommand) {
         try {
           await invoke(pinCommand);
-          logger.debug(`[useWindowDrag] Panel pinned via ${pinCommand}`);
         } catch (err) {
           logger.error(`[useWindowDrag] Failed to pin panel:`, err);
         }

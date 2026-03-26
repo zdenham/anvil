@@ -9,7 +9,7 @@ const features = [
     icon: "[]",
     title: "Native spec support",
     description:
-      "Write specs, track phases, and keep agents on track — plans are first class in Anvil.",
+      "Write specs, track phases, and keep agents on track — planning is core to the IDE.",
   },
   {
     icon: "<>",

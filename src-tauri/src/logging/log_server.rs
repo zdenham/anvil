@@ -208,6 +208,47 @@ fn flush_batch(url: &str, buffer: &mut Vec<LogRow>) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
+/// Posts a single event directly to the log server, bypassing the LogServerLayer.
+/// Used for essential events (e.g., thread:created) that should always be sent
+/// regardless of the user's telemetry setting.
+///
+/// Respects `LOG_SERVER_DISABLED` for local dev but ignores the telemetry toggle.
+/// Fire-and-forget on a spawned thread — caller is never blocked.
+pub fn post_event(event_type: &str, properties: HashMap<String, serde_json::Value>) {
+    use super::config::LogServerConfig;
+
+    // Respect LOG_SERVER_DISABLED for local dev
+    if std::env::var("LOG_SERVER_DISABLED")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false)
+    {
+        return;
+    }
+
+    let url = std::env::var("LOG_SERVER_URL")
+        .unwrap_or_else(|_| LogServerConfig::DEFAULT_LOG_SERVER_URL.to_string());
+
+    let device_id = crate::config::get_device_id();
+    let row = LogRow {
+        timestamp: chrono::Utc::now().timestamp_millis(),
+        device_id,
+        level: "INFO".into(),
+        message: event_type.to_string(),
+        properties: if properties.is_empty() {
+            None
+        } else {
+            Some(properties)
+        },
+    };
+
+    std::thread::spawn(move || {
+        let batch = LogBatch { logs: vec![row] };
+        let _ = ureq::post(&url)
+            .set("Content-Type", "application/json")
+            .send_json(&batch);
+    });
+}
+
 /// Modules/targets to exclude from log uploads (HTTP client internals used for uploading logs)
 /// These are checked against both module_path() and target() since logs from the `log` crate
 /// compatibility layer may have the crate name in target rather than module_path.

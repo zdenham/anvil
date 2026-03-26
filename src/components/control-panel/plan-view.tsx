@@ -110,7 +110,6 @@ export function PlanView({ planId, isStandaloneWindow = false, instanceId }: Pla
           }
         } catch (err) {
           // Skip repos that fail to load
-          logger.debug(`[PlanView] Failed to load settings for ${name}:`, err);
           continue;
         }
       }

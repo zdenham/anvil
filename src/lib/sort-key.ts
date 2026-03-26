@@ -1,5 +1,4 @@
 import { generateKeyBetween } from "fractional-indexing";
-import { logger } from "@/lib/logger-client";
 import type { TreeItemNode } from "@/stores/tree-menu/types";
 
 /**
@@ -34,12 +33,5 @@ export function computeSortKeyForInsertion(
     ? siblings[insertionIndex].sortKey ?? null
     : null;
   const result = generateKeyBetween(before, after);
-  logger.debug("[dnd:sortKey] computeSortKeyForInsertion", {
-    siblingCount: siblings.length,
-    insertionIndex,
-    beforeKey: before,
-    afterKey: after,
-    generatedKey: result,
-  });
   return result;
 }

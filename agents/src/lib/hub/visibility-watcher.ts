@@ -1,11 +1,15 @@
-import { readFileSync, watch, type FSWatcher } from "fs";
+import { readFileSync, watch, existsSync, type FSWatcher } from "fs";
 import { join } from "path";
 import { getAnvilDir } from "@core/lib/anvil-dir.js";
 import { PaneLayoutPersistedStateSchema } from "@core/types/pane-layout.js";
 import { extractVisibleThreadIds } from "@core/lib/pane-layout.js";
 import { LIFECYCLE_EVENTS } from "@core/types/events.js";
 
-const PANE_LAYOUT_PATH = join(getAnvilDir(), "ui", "pane-layout.json");
+/** Lazy accessor — evaluated at call time so ANVIL_DATA_DIR is respected. */
+function getDefaultLayoutPath(): string {
+  return join(getAnvilDir(), "ui", "pane-layout.json");
+}
+
 const RETRY_DELAY_MS = 50;
 
 /**
@@ -16,9 +20,11 @@ export class VisibilityWatcher {
   private visibleThreadIds: Set<string> = new Set();
   private watcher: FSWatcher | null = null;
   private layoutPath: string;
+  /** When true, all events are allowed (no visibility gating). */
+  private passthrough = false;
 
   constructor(layoutPath?: string) {
-    this.layoutPath = layoutPath ?? PANE_LAYOUT_PATH;
+    this.layoutPath = layoutPath ?? getDefaultLayoutPath();
   }
 
   /** Read and parse the layout file, updating the visible set. Throws on failure. */
@@ -34,6 +40,11 @@ export class VisibilityWatcher {
 
   /** Initial read — populate the visible set before any events are sent. */
   start(): void {
+    if (!existsSync(this.layoutPath)) {
+      // No pane layout on disk (e.g. agent harness / headless run) — allow all events
+      this.passthrough = true;
+      return;
+    }
     this.refresh();
     this.watcher = watch(this.layoutPath, () => {
       try {
@@ -54,6 +65,7 @@ export class VisibilityWatcher {
 
   /** Check if a given event should be sent based on visibility. */
   shouldSendEvent(eventName: string, threadId: string): boolean {
+    if (this.passthrough) return true;
     if (LIFECYCLE_EVENTS.has(eventName)) return true;
     return this.visibleThreadIds.has(threadId);
   }

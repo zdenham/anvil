@@ -5,7 +5,7 @@ import { invoke } from "@/lib/invoke";
 
 export function TelemetrySettings() {
   const enabled = useSettingsStore(
-    (s) => s.workspace.telemetryEnabled ?? true,
+    (s) => s.workspace.telemetryEnabled ?? false,
   );
 
   return (
@@ -19,7 +19,7 @@ export function TelemetrySettings() {
             Send anonymous usage data
           </div>
           <div className="text-xs text-surface-500">
-            Helps improve Anvil. No code or conversation content is sent.
+            Helps the team debug your issues. Retained for 30 days.
           </div>
         </div>
         <input

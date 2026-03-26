@@ -2,7 +2,6 @@
  * Executes a drop operation by computing new parentId + sortKey and persisting
  * via updateVisualSettings. Extracted from use-tree-dnd to keep files under 250 lines.
  */
-import { logger } from "@/lib/logger-client";
 import { updateVisualSettings } from "@/lib/visual-settings";
 import { computeSortKeyForInsertion } from "@/lib/sort-key";
 import { buildTreeMaps, findWorktreeAncestor } from "@/lib/dnd-validation";
@@ -26,23 +25,10 @@ export async function executeDrop(
   const insertionIndex = computeInsertionIndex(siblings, targetItem, position);
   const sortKey = computeSortKeyForInsertion(siblings, insertionIndex);
 
-  logger.debug("[dnd:drop] executeDrop", {
-    dragged: { id: draggedItem.id, type: draggedItem.type, title: draggedItem.title, sortKey: draggedItem.sortKey },
-    target: { id: targetItem.id, type: targetItem.type, title: targetItem.title, sortKey: targetItem.sortKey },
-    position,
-    newParentId,
-    siblings: siblings.map(s => ({ id: s.id, type: s.type, title: s.title, sortKey: s.sortKey })),
-    insertionIndex,
-    newSortKey: sortKey,
-  });
-
   // Plans may need a file move when dropped onto a worktree or plan parent
   if (draggedItem.type === "plan") {
     const moved = await maybeMovePlanFile(draggedItem, newParentId, sortKey, allItems);
     if (moved) {
-      logger.debug(
-        `[useTreeDnd] Moved plan "${draggedItem.title}" ${position} "${targetItem.title}"`,
-      );
       return;
     }
   }
@@ -54,10 +40,6 @@ export async function executeDrop(
   });
 
   await maybeUpdateFolderWorktree(draggedItem, newParentId, allItems);
-
-  logger.debug(
-    `[useTreeDnd] Dropped ${draggedItem.type} "${draggedItem.title}" ${position} "${targetItem.title}"`,
-  );
 }
 
 /** Determine new parentId based on drop position. */

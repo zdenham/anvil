@@ -475,6 +475,17 @@ pub fn set_telemetry_enabled(enabled: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Posts an essential telemetry event directly to the log server,
+/// bypassing the telemetry toggle. Used for events like thread:created
+/// that should always be tracked.
+#[tauri::command]
+pub fn post_telemetry_event(
+    event_type: String,
+    properties: std::collections::HashMap<String, serde_json::Value>,
+) {
+    log_server::post_event(&event_type, properties);
+}
+
 /// Sets up the JSON file layer for structured logging.
 fn setup_json_layer<S>() -> io::Result<impl Layer<S>>
 where

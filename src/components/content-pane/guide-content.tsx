@@ -17,7 +17,7 @@ export function GuideContent({
   onCreateProject?: () => void;
 }) {
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="px-4 py-8 max-w-[900px] mx-auto w-full">
         {/* Shortcuts */}
         <section className="mb-6">

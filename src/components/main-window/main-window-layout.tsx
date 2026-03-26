@@ -302,7 +302,6 @@ export function MainWindowLayout() {
           layoutService.hydrate(),
           debugPanelService.hydrate(),
         ]);
-        logger.debug("[MainWindowLayout] Stores initialized");
       } catch (err) {
         logger.error("[MainWindowLayout] Failed to initialize stores:", err);
       }
@@ -348,7 +347,6 @@ export function MainWindowLayout() {
         } else if (target === "logs") {
           await navigationService.navigateToView({ type: "logs" });
         }
-        logger.debug(`[MainWindowLayout] Navigated to ${target}`);
       }
     };
     eventBus.on("navigate", handler);

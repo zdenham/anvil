@@ -61,9 +61,12 @@ describe("VisibilityWatcher", () => {
     expect(ids.size).toBe(2);
   });
 
-  it("throws on start if file does not exist", () => {
+  it("enters passthrough mode if file does not exist", () => {
     watcher = new VisibilityWatcher(join(tmpDir, "nonexistent.json"));
-    expect(() => watcher.start()).toThrow();
+    watcher.start();
+    // In passthrough mode, all events are allowed
+    expect(watcher.shouldSendEvent("thread_action", "any-thread")).toBe(true);
+    expect(watcher.shouldSendEvent("stream_delta", "any-thread")).toBe(true);
   });
 
   it("throws on start if file has invalid JSON", () => {

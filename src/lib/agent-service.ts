@@ -333,6 +333,17 @@ function routeAgentEvent(threadId: string, eventName: string, payload: unknown):
       break;
 
     case EventName.THREAD_CREATED:
+      // Post thread:created to log server regardless of telemetry setting
+      invoke("post_telemetry_event", {
+        eventType: "thread:created",
+        properties: {
+          threadId: (payload as Record<string, unknown>).threadId ?? null,
+          repoId: (payload as Record<string, unknown>).repoId ?? null,
+        },
+      }).catch(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      eventBus.emit(eventName as any, payload as any);
+      break;
     case EventName.THREAD_UPDATED:
     case EventName.THREAD_STATUS_CHANGED:
     case EventName.WORKTREE_ALLOCATED:

@@ -20,7 +20,7 @@ vi.mock("../../../runner.js", () => ({
 }));
 
 vi.mock("../../../services/thread-naming-service.js", () => ({
-  generateThreadName: vi.fn(),
+  generateThreadName: vi.fn().mockResolvedValue({ name: "mock-name", usedFallback: false }),
 }));
 
 vi.mock("../../logger.js", () => ({

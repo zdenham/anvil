@@ -104,10 +104,6 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
           }
         } catch (err) {
           // Skip repos that fail to load
-          logger.debug(
-            `[PlanContent] Failed to load settings for ${name}:`,
-            err
-          );
           continue;
         }
       }

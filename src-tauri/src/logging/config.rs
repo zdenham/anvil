@@ -16,19 +16,18 @@ pub struct LogServerConfig {
 impl LogServerConfig {
     /// Default log server URL (baked in at compile time).
     /// Can be overridden via LOG_SERVER_URL environment variable.
-    const DEFAULT_LOG_SERVER_URL: &'static str = "https://anvil-server.fly.dev/logs";
+    pub(crate) const DEFAULT_LOG_SERVER_URL: &'static str = "https://anvil-server.fly.dev/logs";
 
     /// Checks whether telemetry is enabled by reading workspace settings from disk.
     ///
     /// This runs before paths::initialize() and the JS settings store are ready,
     /// so it reads the JSON file directly (same pattern as get_logs_dir).
     ///
-    /// Returns true (telemetry enabled) if:
+    /// Returns true only when `telemetryEnabled` is explicitly `true`.
+    /// Returns false (telemetry disabled) if:
     /// - The file doesn't exist or can't be read
     /// - The JSON can't be parsed
-    /// - The `telemetryEnabled` field is absent or true
-    ///
-    /// Returns false only when `telemetryEnabled` is explicitly `false`.
+    /// - The `telemetryEnabled` field is absent or false
     fn is_telemetry_enabled() -> bool {
         let suffix = crate::build_info::app_suffix();
         let dir_name = if suffix.is_empty() {
@@ -49,18 +48,18 @@ impl LogServerConfig {
 
         let contents = match std::fs::read_to_string(&settings_path) {
             Ok(c) => c,
-            Err(_) => return true, // file missing or unreadable → fail-open
+            Err(_) => return false, // file missing or unreadable → fail-closed
         };
 
         let json: serde_json::Value = match serde_json::from_str(&contents) {
             Ok(v) => v,
-            Err(_) => return true, // malformed JSON → fail-open
+            Err(_) => return false, // malformed JSON → fail-closed
         };
 
-        // Field absent → true; explicitly false → false; anything else → true
+        // Field absent → false; explicitly true → true; anything else → false
         json.get("telemetryEnabled")
             .and_then(|v| v.as_bool())
-            .unwrap_or(true)
+            .unwrap_or(false)
     }
 
     /// Attempts to load configuration from environment or uses the default.
@@ -125,9 +124,18 @@ mod tests {
     }
 
     #[test]
-    fn test_config_uses_default_when_no_env() {
+    fn test_config_disabled_by_default_when_no_setting() {
         clear_env_vars();
+        // With no workspace settings file, telemetry defaults to off (fail-closed)
         let config = LogServerConfig::from_env();
+        assert!(config.is_none());
+    }
+
+    #[test]
+    fn test_config_force_uses_default_when_no_env() {
+        clear_env_vars();
+        // from_env_force skips the telemetry check
+        let config = LogServerConfig::from_env_force();
         assert!(config.is_some());
         let config = config.unwrap();
         assert_eq!(config.url, LogServerConfig::DEFAULT_LOG_SERVER_URL);

@@ -193,10 +193,7 @@ export class ChildSpawner {
     childThreadPath: string,
     prompt: string,
   ): void {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return;
-
-    generateThreadName(prompt, apiKey)
+    generateThreadName(prompt)
       .then(({ name }) => {
         const metadataPath = join(childThreadPath, "metadata.json");
         if (!existsSync(metadataPath)) return;

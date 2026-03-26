@@ -132,7 +132,6 @@ export function RepositorySettings() {
       const trimmed = setupPromptValue.trim();
       settings.worktreeSetupPrompt = trimmed.length > 0 ? trimmed : null;
       await saveSettings(slug, settings);
-      logger.debug(`[RepositorySettings] Saved setup prompt for ${repoName}`);
     } catch (err) {
       logger.error(`[RepositorySettings] Failed to save setup prompt for ${repoName}:`, err);
     }

@@ -50,8 +50,6 @@ export function PlanTab({ planId }: PlanTabProps) {
     if (refreshAttempted) return; // Already tried refresh
 
     const currentPlanId = planId; // Capture for closure (TypeScript needs this)
-    logger.debug(`[PlanTab] Plan ${currentPlanId} not in store, attempting refresh from disk`);
-
     async function refreshPlan() {
       setLoading(true);
       setRefreshAttempted(true);
@@ -60,7 +58,6 @@ export function PlanTab({ planId }: PlanTabProps) {
         // Check if plan is now in store
         const refreshedPlan = usePlanStore.getState().getPlan(currentPlanId);
         if (!refreshedPlan) {
-          logger.debug(`[PlanTab] Plan ${currentPlanId} not found after refresh`);
           setPlanNotFound(true);
         }
       } catch (err) {

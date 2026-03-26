@@ -150,6 +150,7 @@ export class AgentTestHarness {
           ...this.runnerConfig.env,
           ...opts.env,
           ANVIL_AGENT_HUB_WS_URL: this.mockHub!.getEndpoint(),
+          ANVIL_DATA_DIR: this.anvilDir!.path,
           // Strip CLAUDECODE to prevent "nested session" error on SDK v0.2.59+
           CLAUDECODE: undefined,
         },

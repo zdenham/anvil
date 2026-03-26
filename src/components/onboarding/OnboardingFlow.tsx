@@ -46,7 +46,6 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     setIsRegistering(true);
     setError(null);
     try {
-      logger.debug("[OnboardingFlow] Completing setup...");
       await saveHotkey(hotkey);
       if (selectedRepository && !existingRepoName) {
         await repoService.createFromFolder(selectedRepository);
@@ -173,7 +172,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const isFirstStep = currentStep === 'welcome';
 
   return (
-    <div data-testid="onboarding-flow" className="min-h-screen w-full bg-surface-900 p-6">
+    <div data-testid="onboarding-flow" className="h-screen w-full overflow-y-auto bg-surface-900 p-6 pt-[54px]">
       {/* Draggable title bar region for window movement */}
       <div
         data-tauri-drag-region
@@ -200,7 +199,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       </div>
 
       {/* Main content area */}
-      <div className="pb-24">
+      <div className="pb-32">
         {renderStepContent()}
         {error && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-700 rounded-md">

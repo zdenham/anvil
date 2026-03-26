@@ -156,7 +156,6 @@ export class SpotlightController {
     inputExpanded: boolean,
     compact: boolean = false
   ): Promise<void> {
-    logger.debug(`[spotlight] resizeWindow: resultCount=${resultCount}, inputExpanded=${inputExpanded}, compact=${compact}`);
     await invoke("resize_spotlight", { resultCount, inputExpanded, compact });
   }
 
@@ -978,7 +977,6 @@ export const Spotlight = () => {
     // Save draft if input is non-empty (saveDraftToHistory already checks for duplicates)
     if (trimmedQuery !== "") {
       await saveDraftToHistory(trimmedQuery);
-      logger.debug("[Spotlight] Draft saved on focus loss:", { query: trimmedQuery });
     }
 
     // Existing reset logic

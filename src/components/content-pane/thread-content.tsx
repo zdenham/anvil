@@ -138,8 +138,6 @@ export function ThreadContent({
   // Set this thread as active so THREAD_ACTION events update the store
   // Also refresh thread from disk if not in store (handles cross-window sync)
   useEffect(() => {
-    logger.debug(`[ThreadContent] useEffect FIRED for threadId: ${threadId}`);
-
     const initThread = async () => {
       // If thread is not in store, refresh from disk first
       const threadExists = !!useThreadStore.getState().threads[threadId];

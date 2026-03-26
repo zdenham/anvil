@@ -185,16 +185,6 @@ type BroadcastPayload<T = unknown> = T & { _source?: string };
 // ============================================================================
 
 /**
- * Debug logging toggle for high-volume events.
- * Enable via localStorage.setItem('debug:events', 'true')
- */
-function shouldDebugEvents(): boolean {
-  return import.meta.env.DEV &&
-         typeof localStorage !== 'undefined' &&
-         localStorage.getItem('debug:events') === 'true';
-}
-
-/**
  * Register a Tauri event listener that forwards to mitt eventBus.
  */
 async function registerTauriToMitt(
@@ -208,8 +198,6 @@ async function registerTauriToMitt(
         logger.info(`[event-bridge] 🔦 Received spotlight-shown event, forwarding to mitt`);
       } else if (tauriEvent === "open-control-panel") {
         logger.info(`[event-bridge] 📋 Received open-control-panel event, forwarding to mitt:`, event.payload);
-      } else if (shouldDebugEvents()) {
-        logger.debug(`[event-bridge] ${tauriEvent} → mitt ${mittEvent}`);
       }
       // Use type assertion since we're bridging between Tauri and mitt types
       eventBus.emit(mittEvent as keyof AppEvents, event.payload as AppEvents[keyof AppEvents]);
@@ -234,9 +222,6 @@ async function registerWindowEvents(): Promise<UnlistenFn[]> {
 
   try {
     const unlisten = await getCurrentWindow().onFocusChanged((event) => {
-      if (shouldDebugEvents()) {
-        logger.debug(`[event-bridge] window focus changed: ${event.payload}`);
-      }
       eventBus.emit("window:focus-changed", { focused: event.payload });
     });
     unlisteners.push(unlisten);
@@ -269,9 +254,6 @@ export function setupOutgoingBridge(): void {
       // and we should not re-broadcast it
       const payloadWithSource = payload as BroadcastPayload;
       if (payloadWithSource._source) {
-        if (shouldDebugEvents()) {
-          logger.debug(`[event-bridge] Skipping re-broadcast of ${eventName} (source: ${payloadWithSource._source})`);
-        }
         return;
       }
 
@@ -361,9 +343,7 @@ export async function setupIncomingBridge(options: IncomingBridgeOptions = {}): 
         fn();
       } catch (e) {
         // Log cleanup errors in dev mode to help diagnose issues
-        if (import.meta.env.DEV) {
-          logger.debug("[event-bridge] HMR cleanup error (non-fatal):", e);
-        }
+        // Ignore cleanup errors
       }
     });
     previousCleanup = [];
@@ -399,9 +379,6 @@ export async function setupIncomingBridge(options: IncomingBridgeOptions = {}): 
 
             // ECHO PREVENTION: Skip events that originated from this window
             if (payload._source === currentLabel) {
-              if (import.meta.env.DEV && shouldDebugEvents()) {
-                logger.debug(`[event-bridge] 🔇 Skipping echo: ${eventName} (source: ${payload._source})`);
-              }
               return;
             }
 
@@ -424,8 +401,6 @@ export async function setupIncomingBridge(options: IncomingBridgeOptions = {}): 
                 planId: payload?.planId,
                 source: sourceLabel,
               });
-            } else if (shouldDebugEvents()) {
-              logger.debug(`[event-bridge] INCOMING: Tauri "${tauriEventName}" → mitt "${eventName}" (source: ${sourceLabel})`);
             }
             // Keep _source so outgoing bridge can detect and skip re-broadcast
             eventBus.emit(eventName, payload as AppEvents[BroadcastEvent]);

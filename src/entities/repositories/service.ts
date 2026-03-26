@@ -1,5 +1,6 @@
 import { appData, loadSettings, saveSettings } from "@/lib/app-data-store";
 import { useRepoStore } from "./store";
+import { useRepoWorktreeLookupStore } from "@/stores/repo-worktree-lookup-store";
 import { logger } from "@/lib/logger-client";
 import { eventBus } from "../events";
 import { EventName } from "@core/types/events.js";
@@ -456,16 +457,28 @@ export const repoService = {
    * Removes the ~/.anvil/repositories/{slug} folder but leaves source code untouched.
    */
   async remove(repoId: string): Promise<void> {
+    // repoId may be a UUID (from tree item) or a name (legacy callers).
+    // The store is keyed by name, so resolve UUID → name first.
+    let repoName = repoId;
     const existing = useRepoStore.getState().repositories[repoId];
-    if (!existing) return;
+    if (!existing) {
+      // Try resolving UUID via the lookup store
+      const lookup = useRepoWorktreeLookupStore.getState().repos.get(repoId);
+      if (lookup) {
+        repoName = lookup.name;
+      } else {
+        // Not found by either key
+        return;
+      }
+    }
 
-    const slug = slugify(repoId);
+    const slug = slugify(repoName);
 
     // Remove the settings folder from ~/.anvil/repositories/{slug}
     // Do NOT delete source files on disk - they remain untouched
     await appData.removeDir(`${REPOS_DIR}/${slug}`);
-    useRepoStore.getState()._applyDelete(repoId);
-    eventBus.emit(EventName.REPOSITORY_DELETED, { name: repoId });
+    useRepoStore.getState()._applyDelete(repoName);
+    eventBus.emit(EventName.REPOSITORY_DELETED, { name: repoName });
   },
 
   /**
