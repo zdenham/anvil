@@ -7,10 +7,12 @@ Add a new **"WebSocket"** tab to the debug panel that shows the sidecar WebSocke
 ## Phases
 
 - [x] Add tab definition and routing
+
 - [x] Create WebSocket status store
+
 - [x] Build the WebSocket debugger UI
 
-<!-- IMPORTANT: Mark phases complete with [x] as you finish them. Update this file immediately after completing each phase - do not batch updates. -->
+&lt;!-- IMPORTANT: Mark phases complete with \[x\] as you finish them. Update this file immediately after completing each phase - do not batch updates. --&gt;
 
 ---
 
@@ -25,9 +27,7 @@ This is the minimal wiring to make the tab appear (rendering a placeholder until
 
 ## Phase 2 — Create WebSocket status store
 
-**New file:** `src/stores/websocket-debugger/store.ts`
-**New file:** `src/stores/websocket-debugger/types.ts`
-**New file:** `src/stores/websocket-debugger/index.ts`
+**New file:** `src/stores/websocket-debugger/store.ts`**New file:** `src/stores/websocket-debugger/types.ts`**New file:** `src/stores/websocket-debugger/index.ts`
 
 The store tracks:
 
