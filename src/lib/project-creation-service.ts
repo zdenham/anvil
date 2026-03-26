@@ -35,15 +35,17 @@ export async function createNewProject(): Promise<string | null> {
     await repoService.createProject(parentDir, name);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    let userMessage: string;
     if (message.includes("already exists")) {
-      toast.error(`A folder named "${name}" already exists there`);
+      userMessage = `A folder named "${name}" already exists there`;
     } else if (message.includes("already registered")) {
-      toast.error(`A project named "${name}" is already registered`);
+      userMessage = `A project named "${name}" is already registered`;
     } else {
-      toast.error("Failed to create project");
+      userMessage = "Failed to create project";
     }
+    toast.error(userMessage);
     logger.error(`[project-creation] Failed to create project: ${message}`);
-    return null;
+    throw new Error(userMessage);
   }
 
   logger.info(`[project-creation] Created new project at ${projectPath}`);
