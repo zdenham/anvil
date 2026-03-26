@@ -225,6 +225,39 @@ export function getWsReadyState(): number {
   return ws?.readyState ?? WebSocket.CLOSED;
 }
 
+const WS_WAIT_TIMEOUT_MS = 15_000;
+
+/**
+ * Returns a promise that resolves once the WebSocket is open.
+ * Waits through multiple reconnect cycles if needed (e.g. during startup
+ * when the sidecar token isn't available yet).
+ */
+function waitForWs(): Promise<void> {
+  if (ws?.readyState === WebSocket.OPEN) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for WebSocket connection"));
+    }, WS_WAIT_TIMEOUT_MS);
+
+    function check() {
+      if (ws?.readyState === WebSocket.OPEN) {
+        cleanup();
+        resolve();
+      }
+    }
+
+    function cleanup() {
+      clearTimeout(timeout);
+      clearInterval(poll);
+    }
+
+    // Poll periodically — connectWs/scheduleReconnect drive the actual connection.
+    const poll = setInterval(check, 100);
+  });
+}
+
 /**
  * Establishes the WebSocket connection.
  * Call early in app init (main.tsx) but do NOT block rendering on it.
@@ -248,6 +281,7 @@ export function connectWs(): Promise<void> {
       socket.onopen = () => {
         ws = socket;
         reconnectAttempt = 0;
+        console.info(`[WS] Connected to sidecar (port ${lastResolvedPort})`);
         resolve();
       };
 
@@ -336,13 +370,7 @@ export async function invoke<T>(
     return wsInvoke<T>(cmd, args);
   }
 
-  // Wait for in-progress WS connection before giving up
-  if (connectingPromise) {
-    await connectingPromise;
-    if (ws?.readyState === WebSocket.OPEN) {
-      return wsInvoke<T>(cmd, args);
-    }
-  }
-
-  throw new Error(`WebSocket not connected for data command: ${cmd}`);
+  // Wait for WS to connect (may take multiple reconnect attempts during startup)
+  await waitForWs();
+  return wsInvoke<T>(cmd, args);
 }

@@ -11,7 +11,10 @@ export default defineConfig({
   noExternal: ["express", "ws", "mime-types", "chokidar", "@ai-sdk/anthropic", "ai"],
   external: ["node-pty"],
   banner: {
-    js: `import { createRequire } from "module"; const require = createRequire(import.meta.url);`,
+    // IMPORTANT: Must alias as __createRequire to avoid collision with createRequire
+    // imports inside bundled dependencies. Using `createRequire` directly causes
+    // "Identifier 'createRequire' has already been declared" at runtime.
+    js: `import { createRequire as __createRequire } from "module"; const require = __createRequire(import.meta.url);`,
   },
   esbuildOptions(options) {
     options.alias = {
