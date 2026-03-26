@@ -1,7 +1,7 @@
 {
   "name": "anvil",
   "private": true,
-  "version": "v0.0.6",
+  "version": "v0.0.7",
   "license": "MIT",
   "type": "module",
   "scripts": {
