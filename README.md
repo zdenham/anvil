@@ -9,13 +9,12 @@
 </p>
 
 <p align="center">
-  A desktop IDE for running coding agents in parallel.<br/>
-  No terminal juggling. No alt-tabbing. One window, all your agents.
+  A desktop IDE for parallel agent work.<br/>
 </p>
 
 <p align="center">
   <a href="https://discord.gg/tbkAetedSd">Discord</a> ·
-  <a href="https://github.com/zdenham/anvil/releases">Download</a>
+  <a href="https://www.anvil.fm">Download</a>
 </p>
 
 ---
