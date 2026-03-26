@@ -38,6 +38,9 @@ struct SidecarProcess(Mutex<Option<std::process::Child>>);
 /// The actual port the sidecar is listening on (may differ from build-time default).
 struct SidecarPort(Mutex<u16>);
 
+/// Per-session auth token read from the sidecar port file.
+struct SidecarToken(Mutex<String>);
+
 const MAIN_WINDOW_LABEL: &str = "main";
 
 
@@ -172,6 +175,7 @@ fn run_ts_migrations(app: &tauri::App) -> Result<(), String> {
 struct SidecarSpawnResult {
     child: Option<std::process::Child>,
     actual_port: u16,
+    token: String,
 }
 
 /// Check a single port's health endpoint and verify appSuffix matches.
@@ -198,14 +202,21 @@ fn check_health_with_suffix(port: u16) -> Option<u16> {
     }
 }
 
+/// Port file contents: port + optional token.
+struct PortFileInfo {
+    port: u16,
+    token: String,
+}
+
 /// Try to discover the actual sidecar port by reading the port file.
-fn read_port_file() -> Option<u16> {
+fn read_port_file() -> Option<PortFileInfo> {
     let suffix = if build_info::app_suffix().is_empty() { "default" } else { build_info::app_suffix() };
     let port_file = paths::data_dir().join(format!("sidecar-{}.port", suffix));
     let contents = std::fs::read_to_string(&port_file).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&contents).ok()?;
 
     let port = parsed.get("port").and_then(|v| v.as_u64())? as u16;
+    let token = parsed.get("token").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let pid = parsed.get("pid").and_then(|v| v.as_u64());
 
     // Verify the PID is still alive before trusting the port file
@@ -222,7 +233,7 @@ fn read_port_file() -> Option<u16> {
         }
     }
 
-    Some(port)
+    Some(PortFileInfo { port, token })
 }
 
 fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
@@ -233,15 +244,16 @@ fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
 
     // Check if a sidecar with matching appSuffix is already running on the preferred port
     if let Some(port) = check_health_with_suffix(base_port) {
+        let token = read_port_file().map(|i| i.token).unwrap_or_default();
         tracing::info!(port = port, "Sidecar already running with matching appSuffix — skipping spawn");
-        return Ok(SidecarSpawnResult { child: None, actual_port: port });
+        return Ok(SidecarSpawnResult { child: None, actual_port: port, token });
     }
 
     // Also check the port file in case a previous sidecar moved to a different port
-    if let Some(port) = read_port_file() {
-        if let Some(port) = check_health_with_suffix(port) {
+    if let Some(info) = read_port_file() {
+        if let Some(port) = check_health_with_suffix(info.port) {
             tracing::info!(port = port, "Found running sidecar via port file — skipping spawn");
-            return Ok(SidecarSpawnResult { child: None, actual_port: port });
+            return Ok(SidecarSpawnResult { child: None, actual_port: port, token: info.token });
         }
     }
 
@@ -289,16 +301,17 @@ fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
         for offset in 0..MAX_PORT_RETRIES {
             let port = base_port + offset;
             if let Some(port) = check_health_with_suffix(port) {
+                let token = read_port_file().map(|i| i.token).unwrap_or_default();
                 tracing::info!(port = port, "Sidecar is healthy");
-                return Ok(SidecarSpawnResult { child: Some(child), actual_port: port });
+                return Ok(SidecarSpawnResult { child: Some(child), actual_port: port, token });
             }
         }
 
         // Second try: check the port file (written by sidecar after listen succeeds)
-        if let Some(port) = read_port_file() {
-            if let Some(port) = check_health_with_suffix(port) {
+        if let Some(info) = read_port_file() {
+            if let Some(port) = check_health_with_suffix(info.port) {
                 tracing::info!(port = port, "Sidecar is healthy (discovered via port file)");
-                return Ok(SidecarSpawnResult { child: Some(child), actual_port: port });
+                return Ok(SidecarSpawnResult { child: Some(child), actual_port: port, token: info.token });
             }
         }
 
@@ -306,7 +319,8 @@ fn spawn_sidecar(app: &tauri::App) -> Result<SidecarSpawnResult, String> {
     }
 
     tracing::warn!("Sidecar health check timed out — using base port {}", base_port);
-    Ok(SidecarSpawnResult { child: Some(child), actual_port: base_port })
+    let token = read_port_file().map(|i| i.token).unwrap_or_default();
+    Ok(SidecarSpawnResult { child: Some(child), actual_port: base_port, token })
 }
 
 /// Ensures essential .anvil directories exist synchronously
@@ -754,6 +768,12 @@ fn get_ws_port(state: tauri::State<SidecarPort>) -> u16 {
     *state.0.lock().unwrap()
 }
 
+/// Returns the per-session auth token for the sidecar.
+#[tauri::command]
+fn get_ws_token(state: tauri::State<SidecarToken>) -> String {
+    state.0.lock().unwrap().clone()
+}
+
 /// Restarts the application (dev mode only - for manual refresh)
 #[tauri::command]
 fn restart_app(app: AppHandle) {
@@ -906,6 +926,7 @@ pub fn run() {
     let sidecar_process = SidecarProcess(Mutex::new(None));
     let base_port: u16 = build_info::ws_port().parse().unwrap_or(9600);
     let sidecar_port = SidecarPort(Mutex::new(base_port));
+    let sidecar_token = SidecarToken(Mutex::new(String::new()));
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -916,7 +937,8 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .manage(profiling::ProfilingState(std::sync::Mutex::new(false)))
         .manage(sidecar_process)
-        .manage(sidecar_port);
+        .manage(sidecar_port)
+        .manage(sidecar_token);
 
     builder
         .on_window_event(|window, event| {
@@ -1026,6 +1048,7 @@ pub fn run() {
             get_zoom_level,
             restart_app,
             get_ws_port,
+            get_ws_token,
             // App search commands
             app_search::search_applications,
             app_search::open_application,
@@ -1115,9 +1138,11 @@ pub fn run() {
                 match spawn_sidecar(app) {
                     Ok(result) => {
                         let port = result.actual_port;
-                        // Store actual port for IPC queries
+                        // Store actual port and token for IPC queries
                         let port_state = app.state::<SidecarPort>();
                         *port_state.0.lock().unwrap() = port;
+                        let token_state = app.state::<SidecarToken>();
+                        *token_state.0.lock().unwrap() = result.token;
                         tracing::info!(actual_port = port, "[startup] sidecar port resolved");
 
                         if let Some(child) = result.child {

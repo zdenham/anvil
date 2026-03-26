@@ -1,5 +1,5 @@
 # Anvil IDE
 
-**More agents, less pain.**
+**The open source IDE for parallel agent work.**
 
-A desktop IDE for running coding agents in parallel. No terminal juggling. No alt-tabbing. One window, all your agents.
+Move faster with a fleet of Claude Codes cooking in isolation. Instantly understand their progress and what needs your attention. More agents, less pain.

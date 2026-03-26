@@ -30,24 +30,28 @@ interface HooksConfig {
   Stop: HookMatcher[];
 }
 
-function buildHook(baseUrl: string, path: string, statusMessage?: string): HttpHook {
+function buildHook(baseUrl: string, path: string, authHeader: string | null, statusMessage?: string): HttpHook {
+  const headers: Record<string, string> = { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" };
+  if (authHeader) {
+    headers["Authorization"] = authHeader;
+  }
   return {
     type: "http",
     url: `${baseUrl}/hooks/${path}`,
-    headers: { "X-Anvil-Thread-Id": "$ANVIL_THREAD_ID" },
+    headers,
     allowedEnvVars: ["ANVIL_THREAD_ID"],
     timeout: 10,
     ...(statusMessage ? { statusMessage } : {}),
   };
 }
 
-export function buildHooksConfig(baseUrl: string): HooksConfig {
+export function buildHooksConfig(baseUrl: string, authHeader: string | null = null): HooksConfig {
   return {
-    UserPromptSubmit: [{ hooks: [buildHook(baseUrl, "user-prompt-submit", "Connecting to Anvil...")] }],
-    SessionStart: [{ hooks: [buildHook(baseUrl, "session-start", "Connecting to Anvil...")] }],
-    PreToolUse: [{ hooks: [buildHook(baseUrl, "pre-tool-use", "Checking with Anvil...")] }],
-    PostToolUse: [{ hooks: [buildHook(baseUrl, "post-tool-use")] }],
-    Stop: [{ hooks: [buildHook(baseUrl, "stop")] }],
+    UserPromptSubmit: [{ hooks: [buildHook(baseUrl, "user-prompt-submit", authHeader, "Connecting to Anvil...")] }],
+    SessionStart: [{ hooks: [buildHook(baseUrl, "session-start", authHeader, "Connecting to Anvil...")] }],
+    PreToolUse: [{ hooks: [buildHook(baseUrl, "pre-tool-use", authHeader, "Checking with Anvil...")] }],
+    PostToolUse: [{ hooks: [buildHook(baseUrl, "post-tool-use", authHeader)] }],
+    Stop: [{ hooks: [buildHook(baseUrl, "stop", authHeader)] }],
   };
 }
 
@@ -55,12 +59,13 @@ export function buildHooksConfig(baseUrl: string): HooksConfig {
  * Write hooks.json to the Anvil plugin directory.
  * Called after the sidecar binds its port.
  */
-export function writeHooksJson(anvilDir: string, port: number): void {
+export function writeHooksJson(anvilDir: string, port: number, token?: string): void {
   const hooksDir = join(anvilDir, "hooks");
   mkdirSync(hooksDir, { recursive: true });
 
   const baseUrl = `http://localhost:${port}`;
-  const config = buildHooksConfig(baseUrl);
+  const authHeader = token ? `Bearer ${token}` : null;
+  const config = buildHooksConfig(baseUrl, authHeader);
 
   writeFileSync(
     join(hooksDir, "hooks.json"),

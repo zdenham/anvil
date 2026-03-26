@@ -18,6 +18,9 @@ const REQUEST_TIMEOUT_MS = 30_000;
 /** Resolved WS URL — set once at connection time via IPC or fallback to baked port. */
 let resolvedWsUrl: string | null = null;
 
+/** Per-session auth token for sidecar requests. */
+let resolvedToken: string | null = null;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Native Commands (Tauri IPC only, no-op in browser)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -68,6 +71,7 @@ const NATIVE_COMMANDS = new Set([
   "hide_clipboard_manager",
   "run_update",
   "get_ws_port",
+  "get_ws_token",
 ]);
 
 /** Sensible defaults when native commands are called from browser */
@@ -188,7 +192,9 @@ async function resolveWsUrl(): Promise<string> {
     try {
       const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
       const port = await tauriInvoke<number>("get_ws_port");
-      resolvedWsUrl = `ws://localhost:${port}/ws`;
+      const token = await tauriInvoke<string>("get_ws_token");
+      resolvedToken = token;
+      resolvedWsUrl = `ws://localhost:${port}/ws?token=${token}`;
       return resolvedWsUrl;
     } catch {
       // Fall through to default
@@ -207,6 +213,14 @@ export function getWsPort(): number {
   if (!resolvedWsUrl) return DEFAULT_WS_PORT;
   const match = resolvedWsUrl.match(/:(\d+)\//);
   return match ? parseInt(match[1], 10) : DEFAULT_WS_PORT;
+}
+
+/**
+ * Returns the per-session auth token for the sidecar.
+ * Call after connectWs() has resolved for a reliable value.
+ */
+export function getWsToken(): string | null {
+  return resolvedToken;
 }
 
 /**

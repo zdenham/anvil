@@ -8,7 +8,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-surface-950 flex flex-col items-center">
       {/* Hero: ASCII animation */}
-      <section className="w-full flex justify-center pt-12 pb-8">
+      <section className="w-full flex justify-center pt-8 pb-4">
         <AnvilAnimation />
       </section>
 
@@ -18,7 +18,7 @@ export function App() {
       </section>
 
       {/* Download + GitHub */}
-      <section className="w-full max-w-2xl px-6 pb-8 flex justify-center items-center gap-3">
+      <section className="w-full max-w-2xl px-6 pb-8 flex items-center gap-3">
         <DownloadButton />
         <a
           href="https://github.com/zdenham/anvil"
@@ -34,12 +34,12 @@ export function App() {
       </section>
 
       {/* Features */}
-      <section className="w-full max-w-3xl px-6 pb-20">
+      <section className="w-full max-w-2xl px-6 pb-20">
         <FeatureGrid />
       </section>
 
       {/* Footer */}
-      <footer className="w-full max-w-3xl px-6 pb-12 pt-4 border-t border-surface-800">
+      <footer className="w-full max-w-2xl px-6 pb-12 pt-4 border-t border-surface-800">
         <div className="flex items-center justify-center gap-6 text-sm text-surface-500">
           <a
             href="https://discord.gg/tbkAetedSd"

@@ -5,7 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Tests run against the Vite dev server + Rust WS backend.
  * The Vite dev server is started automatically via `webServer`.
- * The Rust WS server must already be running (start with `cargo run`).
+ * The sidecar WS server must already be running.
+ * Start it with `ANVIL_SIDECAR_NO_AUTH=1` to bypass per-session token auth.
  *
  * Projects are tiered: critical → core → comprehensive.
  * Each tier depends on the previous, so failures in earlier

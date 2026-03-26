@@ -7,6 +7,7 @@
 
 import express from "express";
 import { createServer } from "node:http";
+import { randomBytes } from "node:crypto";
 import { WebSocketServer } from "ws";
 import { lookup } from "mime-types";
 import { readFile, stat, writeFile, unlink, mkdir } from "node:fs/promises";
@@ -21,8 +22,10 @@ const BASE_PORT = parseInt(process.env.ANVIL_WS_PORT ?? "9600", 10);
 const MAX_PORT_RETRIES = 10;
 const APP_SUFFIX = process.env.ANVIL_APP_SUFFIX ?? "";
 const DATA_DIR = process.env.ANVIL_DATA_DIR ?? "";
+const NO_AUTH = process.env.ANVIL_SIDECAR_NO_AUTH === "1";
 
 let actualPort = BASE_PORT;
+const authToken = randomBytes(32).toString("hex");
 
 const app = express();
 const server = createServer(app);
@@ -31,15 +34,35 @@ const log = createLogger(state);
 
 // ── CORS ────────────────────────────────────────────────────────────────
 
-app.use((_req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+const ALLOWED_ORIGINS = new Set(["tauri://localhost", "http://tauri.localhost"]);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin ?? "";
+  // Allow tauri:// origins and any http://localhost:<port>
+  const allowed = ALLOWED_ORIGINS.has(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin);
+  if (allowed) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type, X-Anvil-Thread-Id",
+    "Content-Type, X-Anvil-Thread-Id, Authorization",
   );
   next();
 });
+
+// ── Auth middleware (skip /health) ────────────────────────────────────
+
+if (!NO_AUTH) {
+  app.use((req, res, next) => {
+    if (req.path === "/health") return next();
+
+    const header = req.headers.authorization;
+    if (header === `Bearer ${authToken}`) return next();
+
+    res.status(401).json({ error: "Unauthorized" });
+  });
+}
 
 // ── Hook endpoints (Claude CLI HTTP hooks) ───────────────────────────
 
@@ -90,7 +113,17 @@ wss.on("connection", (socket) => handleConnection(socket, state));
 wssAgent.on("connection", (socket) => state.agentHub.handleConnection(socket));
 
 server.on("upgrade", (request, socket, head) => {
-  const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+  const url = new URL(request.url ?? "/", "http://localhost");
+  const pathname = url.pathname;
+
+  // Validate token on WebSocket upgrade
+  if (!NO_AUTH) {
+    const token = url.searchParams.get("token");
+    if (token !== authToken) {
+      socket.destroy();
+      return;
+    }
+  }
 
   if (pathname === "/ws") {
     wss.handleUpgrade(request, socket, head, (ws) => {
@@ -120,7 +153,7 @@ async function writePortFile(): Promise<void> {
     await mkdir(DATA_DIR, { recursive: true });
     await writeFile(
       path,
-      JSON.stringify({ port: actualPort, appSuffix: APP_SUFFIX, pid: process.pid }),
+      JSON.stringify({ port: actualPort, appSuffix: APP_SUFFIX, pid: process.pid, token: authToken }),
     );
   } catch (err) {
     log.error(`Failed to write port file: ${err}`);
@@ -169,7 +202,7 @@ server.on("listening", () => {
   // Write hooks.json with resolved port for Claude CLI plugin
   if (DATA_DIR) {
     try {
-      writeHooksJson(DATA_DIR, actualPort);
+      writeHooksJson(DATA_DIR, actualPort, NO_AUTH ? undefined : authToken);
       log.info(`wrote hooks.json to ${DATA_DIR}/hooks/hooks.json`);
     } catch (err) {
       log.warn(`failed to write hooks.json: ${err}`);

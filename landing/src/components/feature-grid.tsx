@@ -3,13 +3,13 @@ const features = [
     icon: ">>",
     title: "Workspace management",
     description:
-      "More agents, more progress. Isolated worktrees let you parallelize without merge conflicts.",
+      "One-click worktrees with scriptable setup. Parallelize without agents bumping into each other.",
   },
   {
     icon: "[]",
-    title: "First-class spec support",
+    title: "Native spec support",
     description:
-      "The best UX for plan-driven development. Refine and execute plans in one click.",
+      "Write specs, track phases, and keep agents on track — plans are first class in Anvil.",
   },
   {
     icon: "<>",
@@ -21,19 +21,19 @@ const features = [
     icon: "::",
     title: "REPL & orchestration",
     description:
-      "Scriptable agent composition. Flexible building blocks, not rigid workflows.",
+      "Let Claude call other Claudes programmatically. Flexible building blocks, not rigid workflows.",
+  },
+  {
+    icon: "##",
+    title: "Flexible layouts",
+    description:
+      "Arrange your agents in up to a 4×3 grid of panels. Your workspace, your layout.",
   },
   {
     icon: "@@",
     title: "Sub-agent visibility",
     description:
       "No more black boxes. See what child and grandchild agents are actually doing.",
-  },
-  {
-    icon: "##",
-    title: "Visual arrangement",
-    description:
-      "Up to a 4×3 grid of agent panels. Your workspace, your layout.",
   },
 ];
 
@@ -53,7 +53,7 @@ export function FeatureGrid() {
               {feature.title}
             </h3>
           </div>
-          <p className="text-surface-400 text-sm leading-relaxed m-0 pl-8">
+          <p className="text-surface-400 text-sm leading-relaxed m-0 pl-8 font-sans">
             {feature.description}
           </p>
         </div>

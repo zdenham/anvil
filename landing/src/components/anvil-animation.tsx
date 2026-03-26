@@ -25,8 +25,8 @@ export function AnvilAnimation() {
     <pre
       className="text-surface-300 leading-none select-none overflow-hidden"
       style={{
-        fontSize: "clamp(3px, 0.75vw, 8px)",
-        lineHeight: "clamp(3.5px, 0.85vw, 9px)",
+        fontSize: "clamp(2px, 0.55vw, 6px)",
+        lineHeight: "clamp(2.5px, 0.65vw, 7px)",
         letterSpacing: "0.5px",
       }}
     >

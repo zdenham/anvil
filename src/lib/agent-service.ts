@@ -1,5 +1,5 @@
 import { join, resolveResource, dirname } from "@/lib/browser-stubs";
-import { invoke, getWsPort } from "@/lib/invoke";
+import { invoke, getWsPort, getWsToken } from "@/lib/invoke";
 import { listen, type UnlistenFn } from "@/lib/events";
 import { z } from "zod";
 import { FilesystemClient } from "./filesystem-client";
@@ -884,7 +884,10 @@ export async function spawnSimpleAgent(options: SpawnSimpleAgentOptions): Promis
   ];
 
   // Add hub WebSocket URL
-  envVars.ANVIL_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
+  const token = getWsToken();
+  envVars.ANVIL_AGENT_HUB_WS_URL = token
+    ? `ws://127.0.0.1:${getWsPort()}/ws/agent?token=${token}`
+    : `ws://127.0.0.1:${getWsPort()}/ws/agent`;
 
   // Build diagnostic logging env var from current settings
   const diagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
@@ -1068,7 +1071,10 @@ export async function resumeSimpleAgent(
   ];
 
   // Add hub WebSocket URL
-  resumeEnvVars.ANVIL_AGENT_HUB_WS_URL = `ws://127.0.0.1:${getWsPort()}/ws/agent`;
+  const resumeToken = getWsToken();
+  resumeEnvVars.ANVIL_AGENT_HUB_WS_URL = resumeToken
+    ? `ws://127.0.0.1:${getWsPort()}/ws/agent?token=${resumeToken}`
+    : `ws://127.0.0.1:${getWsPort()}/ws/agent`;
 
   // Build diagnostic logging env var from current settings
   const resumeDiagnosticConfig = useSettingsStore.getState().workspace.diagnosticLogging;
