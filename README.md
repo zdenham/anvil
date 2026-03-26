@@ -28,10 +28,6 @@
 - **Visual flexibility** — Arrange your agents in up to a 4×3 grid of panels. Your workspace, your layout.
 - **Sub-agent visibility** — No more black boxes. See what child and grandchild agents are actually doing.
 
-## Install
-
-Download the latest release for macOS from [Releases](https://github.com/zdenham/anvil/releases).
-
 ## License
 
 [MIT](LICENSE)
