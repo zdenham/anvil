@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    font-family: "Atkinson Hyperlegible Mono", monospace;
+  }
+
+  .card {
+    width: 1400px;
+    height: 900px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .card-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  /* Each card gets a unique subtle gradient */
+  .card-1 .card-bg {
+    background: radial-gradient(ellipse 80% 60% at 50% 40%, #1a2a1a 0%, #0b0c0b 70%);
+  }
+  .card-2 .card-bg {
+    background: radial-gradient(ellipse 80% 60% at 50% 40%, #1a1a2a 0%, #0b0c0b 70%);
+  }
+  .card-3 .card-bg {
+    background: radial-gradient(ellipse 80% 60% at 50% 40%, #2a1a2a 0%, #0b0c0b 70%);
+  }
+  .card-4 .card-bg {
+    background: radial-gradient(ellipse 80% 60% at 50% 40%, #2a2a1a 0%, #0b0c0b 70%);
+  }
+
+  /* Subtle grid pattern overlay */
+  .card-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .label {
+    position: relative;
+    z-index: 1;
+    color: #f7f8f7;
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 40px;
+    text-align: center;
+  }
+
+  .label .icon {
+    color: #505250;
+    margin-right: 12px;
+  }
+
+  .screenshot-wrapper {
+    position: relative;
+    z-index: 1;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 6px rgba(0,0,0,0.3),
+      0 20px 60px rgba(0,0,0,0.5),
+      0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  .screenshot-wrapper img {
+    display: block;
+    width: 1100px;
+    height: auto;
+  }
+</style>
+</head>
+<body>
+
+<!-- 1: Full IDE -->
+<div class="card card-1" id="card-1">
+  <div class="card-bg"></div>
+  <div class="label"><span class="icon">&lt;&gt;</span>Full IDE</div>
+  <div class="screenshot-wrapper">
+    <img src="file:///Users/zac/Desktop/Screenshot%202026-03-25%20at%2011.57.07%E2%80%AFPM.png" />
+  </div>
+</div>
+
+<!-- 2: Native spec support -->
+<div class="card card-2" id="card-2">
+  <div class="card-bg"></div>
+  <div class="label"><span class="icon">[]</span>Native spec support</div>
+  <div class="screenshot-wrapper">
+    <img src="file:///Users/zac/Desktop/Screenshot%202026-03-25%20at%2011.56.16%E2%80%AFPM.png" />
+  </div>
+</div>
+
+<!-- 3: Sub-agent visibility -->
+<div class="card card-3" id="card-3">
+  <div class="card-bg"></div>
+  <div class="label"><span class="icon">@@</span>Sub-agent visibility</div>
+  <div class="screenshot-wrapper">
+    <img src="file:///Users/zac/Desktop/Screenshot%202026-03-25%20at%2011.52.15%E2%80%AFPM.png" />
+  </div>
+</div>
+
+<!-- 4: REPL & orchestration -->
+<div class="card card-4" id="card-4">
+  <div class="card-bg"></div>
+  <div class="label"><span class="icon">::</span>REPL &amp; orchestration</div>
+  <div class="screenshot-wrapper">
+    <img src="file:///Users/zac/Desktop/Screenshot%202026-03-25%20at%2011.54.39%E2%80%AFPM.png" />
+  </div>
+</div>
+
+</body>
+</html>
