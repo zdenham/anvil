@@ -221,12 +221,15 @@ export async function createTuiThread(
 
   // Build CLI args
   const anvilDir = await getAnvilDir();
-  const bypassPermissions = useSettingsStore.getState().workspace.tuiBypassPermissions ?? true;
+  const workspace = useSettingsStore.getState().workspace;
+  const bypassPermissions = workspace.tuiBypassPermissions ?? true;
+  const authMethod = workspace.authMethod ?? "claude-login";
   const spawnConfig = buildSpawnConfig({
     anvilDir,
     threadId,
     prompt: options.prompt,
     bypassPermissions,
+    anthropicApiKey: authMethod === "api-key" ? (workspace.anthropicApiKey ?? undefined) : undefined,
   });
 
   // Spawn PTY directly via PtyService — no TerminalSession entity created

@@ -11,6 +11,7 @@ export interface WorktreeLookupInfo {
   visualSettings?: VisualSettings;
   isExternal: boolean;
   lastAccessedAt: number | null;
+  createdAt: number | null;
 }
 
 interface RepoInfo {
@@ -91,6 +92,7 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
                 visualSettings: wt.visualSettings ?? undefined,
                 isExternal: wt.isExternal ?? false,
                 lastAccessedAt: wt.lastAccessedAt ?? null,
+                createdAt: wt.createdAt ?? null,
               });
             }
 
@@ -156,7 +158,7 @@ export const useRepoWorktreeLookupStore = create<RepoWorktreeLookupState>((set, 
     if (!repo) return;
 
     const worktrees = new Map(repo.worktrees);
-    worktrees.set(tempWorktreeId, { name, path: "", currentBranch: null, isExternal: false, lastAccessedAt: null });
+    worktrees.set(tempWorktreeId, { name, path: "", currentBranch: null, isExternal: false, lastAccessedAt: null, createdAt: Date.now() });
     repos.set(repoId, { ...repo, worktrees });
     set({ repos });
   },

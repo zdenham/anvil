@@ -24,6 +24,8 @@ export function buildSpawnConfig(options: {
   model?: string;
   prompt?: string;
   bypassPermissions?: boolean;
+  /** Anthropic API key from settings — injected into the PTY environment. */
+  anthropicApiKey?: string;
 }): ClaudeTuiSpawnConfig {
   const model = options.model ?? "claude-sonnet-4-6";
   const bypass = options.bypassPermissions ?? true;
@@ -49,6 +51,10 @@ export function buildSpawnConfig(options: {
     ANVIL_THREAD_ID: options.threadId,
     ANVIL_DATA_DIR: options.anvilDir,
   };
+
+  if (options.anthropicApiKey) {
+    env.ANTHROPIC_API_KEY = options.anthropicApiKey;
+  }
 
   return { args, env };
 }

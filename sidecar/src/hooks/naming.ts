@@ -8,9 +8,10 @@
 
 import { generateThreadName } from "@core/lib/naming/thread-name.js";
 import { generateWorktreeName } from "@core/lib/naming/worktree-name.js";
-import { anthropicLlmCaller } from "./sdk-caller.js";
+import { createAnthropicLlmCaller } from "./sdk-caller.js";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { dataDirPath } from "../dispatch/paths.js";
 import type { EventBroadcaster } from "../push.js";
 import type { SidecarLogger } from "../logger.js";
 
@@ -18,6 +19,23 @@ interface NamingDeps {
   dataDir: string;
   broadcaster: EventBroadcaster;
   log: SidecarLogger;
+}
+
+/**
+ * Reads the Anthropic API key from the workspace settings file on disk.
+ * Returns undefined if not configured or auth method is not "api-key".
+ */
+function readApiKeyFromSettings(): string | undefined {
+  try {
+    const settingsPath = join(dataDirPath(), "settings.json");
+    const raw = JSON.parse(readFileSync(settingsPath, "utf-8"));
+    if (raw.authMethod === "api-key" && typeof raw.anthropicApiKey === "string") {
+      return raw.anthropicApiKey;
+    }
+  } catch {
+    // Settings file missing or unreadable — fall through to env
+  }
+  return undefined;
 }
 
 /**
@@ -39,9 +57,12 @@ async function runNaming(
   prompt: string,
   deps: NamingDeps,
 ): Promise<void> {
+  const apiKey = readApiKeyFromSettings();
+  const llmCaller = createAnthropicLlmCaller(apiKey);
+
   const [threadResult, worktreeResult] = await Promise.all([
-    generateThreadName(prompt, anthropicLlmCaller),
-    generateWorktreeName(prompt, anthropicLlmCaller),
+    generateThreadName(prompt, llmCaller),
+    generateWorktreeName(prompt, llmCaller),
   ]);
 
   deps.log.info(

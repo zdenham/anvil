@@ -273,7 +273,7 @@ async function worktreeSync(
   }
 
   filtered.sort(
-    (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
+    (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0),
   );
 
   settings.worktrees = filtered;

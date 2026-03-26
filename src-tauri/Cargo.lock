@@ -124,7 +124,7 @@ dependencies = [
 
 [[package]]
 name = "anvil"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "arboard",
  "chrono",
