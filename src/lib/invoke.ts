@@ -15,10 +15,10 @@ import { isTauri } from "./runtime";
 const DEFAULT_WS_PORT = __ANVIL_WS_PORT__;
 const REQUEST_TIMEOUT_MS = 30_000;
 
-/** Resolved WS URL — set once at connection time via IPC or fallback to baked port. */
-let resolvedWsUrl: string | null = null;
+/** Last-resolved port for getWsPort() consumers (agent-service, debugger). */
+let lastResolvedPort: number = DEFAULT_WS_PORT;
 
-/** Per-session auth token for sidecar requests. */
+/** Last-resolved auth token for getWsToken() consumers (agent-service, debugger). */
 let resolvedToken: string | null = null;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -182,27 +182,24 @@ function scheduleReconnect(): void {
 }
 
 /**
- * Resolves the WebSocket URL — queries Tauri IPC for the actual port,
- * falls back to the build-time baked port in web mode.
+ * Resolves the WebSocket URL — always queries Tauri IPC for the current port
+ * and token. Never cached, because the sidecar may restart with a new token
+ * and the Rust setup() may not have populated the state yet on first call.
  */
 async function resolveWsUrl(): Promise<string> {
-  if (resolvedWsUrl) return resolvedWsUrl;
-
   if (isTauri()) {
-    try {
-      const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
-      const port = await tauriInvoke<number>("get_ws_port");
-      const token = await tauriInvoke<string>("get_ws_token");
-      resolvedToken = token;
-      resolvedWsUrl = `ws://localhost:${port}/ws?token=${token}`;
-      return resolvedWsUrl;
-    } catch {
-      // Fall through to default
+    const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
+    const port = await tauriInvoke<number>("get_ws_port");
+    const token = await tauriInvoke<string>("get_ws_token");
+    if (!token) {
+      throw new Error("Sidecar token not yet available");
     }
+    lastResolvedPort = port;
+    resolvedToken = token;
+    return `ws://localhost:${port}/ws?token=${token}`;
   }
 
-  resolvedWsUrl = `ws://localhost:${DEFAULT_WS_PORT}/ws`;
-  return resolvedWsUrl;
+  return `ws://localhost:${DEFAULT_WS_PORT}/ws`;
 }
 
 /**
@@ -210,9 +207,7 @@ async function resolveWsUrl(): Promise<string> {
  * Call after connectWs() has resolved for a reliable value.
  */
 export function getWsPort(): number {
-  if (!resolvedWsUrl) return DEFAULT_WS_PORT;
-  const match = resolvedWsUrl.match(/:(\d+)\//);
-  return match ? parseInt(match[1], 10) : DEFAULT_WS_PORT;
+  return lastResolvedPort;
 }
 
 /**

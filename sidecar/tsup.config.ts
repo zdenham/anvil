@@ -11,7 +11,7 @@ export default defineConfig({
   noExternal: ["express", "ws", "mime-types", "chokidar", "@ai-sdk/anthropic", "ai"],
   external: ["node-pty"],
   banner: {
-    js: `import { createRequire as __createRequire } from "module"; const require = __createRequire(import.meta.url);`,
+    js: `import { createRequire } from "module"; const require = createRequire(import.meta.url);`,
   },
   esbuildOptions(options) {
     options.alias = {
