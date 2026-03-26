@@ -5,7 +5,7 @@ import { z } from "zod";
 // Location: ~/.anvil/ui/debug-panel.json
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const DebugPanelTabSchema = z.enum(["logs", "diagnostics", "events", "network"]);
+export const DebugPanelTabSchema = z.enum(["logs", "diagnostics", "events", "network", "websocket"]);
 export type DebugPanelTab = z.infer<typeof DebugPanelTabSchema>;
 
 export const DebugPanelPersistedStateSchema = z.object({

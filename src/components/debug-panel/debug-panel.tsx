@@ -1,10 +1,11 @@
 import { useCallback } from "react";
-import { X, ScrollText, Activity, Radio, Wifi } from "lucide-react";
+import { X, ScrollText, Activity, Radio, Wifi, Cable } from "lucide-react";
 import { useDebugPanelStore, debugPanelService, type DebugPanelTab } from "@/stores/debug-panel";
 import { LogsPage } from "@/components/main-window/logs-page";
 import { FpsSection } from "@/components/diagnostics/fps-section";
 import { EventDebugger } from "@/components/debug-panel/event-debugger";
 import { NetworkDebugger } from "@/components/debug-panel/network-debugger";
+import { WebSocketPage } from "@/components/debug-panel/websocket-page";
 import { cn } from "@/lib/utils";
 
 const TABS: { id: DebugPanelTab; label: string; icon: typeof ScrollText }[] = [
@@ -12,6 +13,7 @@ const TABS: { id: DebugPanelTab; label: string; icon: typeof ScrollText }[] = [
   { id: "diagnostics", label: "Frame Rate", icon: Activity },
   { id: "events", label: "Agent Events", icon: Radio },
   { id: "network", label: "Network", icon: Wifi },
+  { id: "websocket", label: "WebSocket", icon: Cable },
 ];
 
 export function DebugPanel() {
@@ -70,6 +72,7 @@ export function DebugPanel() {
         )}
         {activeTab === "events" && <EventDebugger />}
         {activeTab === "network" && <NetworkDebugger />}
+        {activeTab === "websocket" && <WebSocketPage />}
       </div>
     </div>
   );

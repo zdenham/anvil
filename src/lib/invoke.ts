@@ -224,6 +224,13 @@ export function getWsToken(): string | null {
 }
 
 /**
+ * Returns the current WebSocket readyState, or CLOSED if no socket exists.
+ */
+export function getWsReadyState(): number {
+  return ws?.readyState ?? WebSocket.CLOSED;
+}
+
+/**
  * Establishes the WebSocket connection.
  * Call early in app init (main.tsx) but do NOT block rendering on it.
  */
