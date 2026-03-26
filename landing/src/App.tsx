@@ -17,13 +17,9 @@ export function App() {
         <MarkdownContent content={content} />
       </section>
 
-      {/* Download */}
-      <section className="w-full max-w-2xl px-6 pb-8 flex justify-center">
+      {/* Download + GitHub */}
+      <section className="w-full max-w-2xl px-6 pb-8 flex justify-center items-center gap-3">
         <DownloadButton />
-      </section>
-
-      {/* GitHub CTA */}
-      <section className="w-full max-w-2xl px-6 pb-8 flex justify-center">
         <a
           href="https://github.com/zdenham/anvil"
           target="_blank"

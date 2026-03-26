@@ -265,7 +265,7 @@ rm "$VERSION_FILE"
 
 echo "Version file updated to ${NEW_VERSION}"
 
-# --- 8. Upload Install Script ---
+# --- 8. Upload Install Script + Animation ---
 echo "Uploading install script..."
 
 npx wrangler r2 object put "anvil-builds/distribute/install.sh" \
@@ -274,6 +274,15 @@ npx wrangler r2 object put "anvil-builds/distribute/install.sh" \
   --remote
 
 echo "Install script uploaded."
+
+echo "Uploading animation script..."
+
+npx wrangler r2 object put "anvil-builds/distribute/anvil-animation.sh" \
+  --file="scripts/installation/anvil-animation.sh" \
+  --content-type="text/plain" \
+  --remote
+
+echo "Animation script uploaded."
 
 # --- Done ---
 echo ""

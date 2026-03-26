@@ -37,7 +37,10 @@
     "sidecar:dev": "cd sidecar && pnpm dev",
     "web:build": "vite build --config vite.config.web.ts",
     "web:dev": "vite --config vite.config.web.ts",
-    "verify:web": "./scripts/verify-web-build.sh"
+    "verify:web": "./scripts/verify-web-build.sh",
+    "landing:dev": "cd landing && npm run dev",
+    "landing:build": "cd landing && npm install && npm run build",
+    "landing:deploy": "cd landing && npm install && npm run build && cd .. && wrangler pages deploy landing/dist --project-name anvil"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

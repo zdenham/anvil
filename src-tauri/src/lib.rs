@@ -1081,10 +1081,14 @@ pub fn run() {
             // Set up log buffer to emit events to frontend
             logging::set_app_handle(app.handle().clone());
 
-            // Show app in dock by default
+            // Start in Accessory mode during panel creation. PanelBuilder's
+            // no_activate option toggles the policy to Prohibited and back for each
+            // panel. If we start in Regular mode, each toggle back to Regular causes
+            // macOS to re-register the dock tile, creating duplicate dock icons.
+            // We switch to Regular once after all panels are created.
             let _ = app
                 .handle()
-                .set_activation_policy(ActivationPolicy::Regular);
+                .set_activation_policy(ActivationPolicy::Accessory);
 
             let t = std::time::Instant::now();
             config::initialize();
@@ -1171,6 +1175,13 @@ pub fn run() {
                 tracing::error!(error = %e, "Failed to create control panel");
             }
             tracing::info!(elapsed_ms = %t.elapsed().as_millis(), "[startup] create_control_panel");
+
+            // Now that all panels are created, switch to Regular mode so the app
+            // appears in the dock. This single transition avoids the duplicate dock
+            // icons caused by repeated policy toggling during panel creation.
+            let _ = app
+                .handle()
+                .set_activation_policy(ActivationPolicy::Regular);
 
             #[cfg(target_os = "macos")]
             {
