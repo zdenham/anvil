@@ -8,7 +8,18 @@ export default defineConfig({
   outDir: "dist",
   clean: true,
   sourcemap: true,
-  noExternal: ["express", "ws", "mime-types", "chokidar", "@ai-sdk/anthropic", "ai"],
+  // IMPORTANT: Every npm package the sidecar imports MUST be listed here so it
+  // gets bundled into server.js.  The production .app has no node_modules —
+  // any package left external will cause ERR_MODULE_NOT_FOUND at runtime.
+  noExternal: [
+    "express",
+    "ws",
+    "mime-types",
+    "chokidar",
+    "@ai-sdk/anthropic",
+    "@anthropic-ai/sdk",
+    "ai",
+  ],
   external: ["node-pty"],
   banner: {
     // IMPORTANT: Must alias as __createRequire to avoid collision with createRequire

@@ -763,15 +763,46 @@ fn get_zoom_level() -> f64 {
 
 /// Returns the actual WebSocket port the sidecar is listening on.
 /// May differ from the build-time default if the preferred port was taken.
+///
+/// If the token is still empty (health check timed out during setup), we
+/// re-read the sidecar port file — the sidecar may have started after the
+/// deadline.  This keeps the frontend retry loop eventually self-healing.
 #[tauri::command]
-fn get_ws_port(state: tauri::State<SidecarPort>) -> u16 {
-    *state.0.lock().unwrap()
+fn get_ws_port(
+    port_state: tauri::State<SidecarPort>,
+    token_state: tauri::State<SidecarToken>,
+) -> u16 {
+    let token = token_state.0.lock().unwrap();
+    if token.is_empty() {
+        drop(token);
+        if let Some(info) = read_port_file() {
+            *token_state.0.lock().unwrap() = info.token;
+            let mut port = port_state.0.lock().unwrap();
+            *port = info.port;
+            return *port;
+        }
+    }
+    *port_state.0.lock().unwrap()
 }
 
 /// Returns the per-session auth token for the sidecar.
+///
+/// If the token is still empty (health check timed out during setup), we
+/// re-read the sidecar port file — the sidecar may have started after the
+/// deadline.  This keeps the frontend retry loop eventually self-healing.
 #[tauri::command]
-fn get_ws_token(state: tauri::State<SidecarToken>) -> String {
-    state.0.lock().unwrap().clone()
+fn get_ws_token(
+    port_state: tauri::State<SidecarPort>,
+    token_state: tauri::State<SidecarToken>,
+) -> String {
+    let mut token = token_state.0.lock().unwrap();
+    if token.is_empty() {
+        if let Some(info) = read_port_file() {
+            *port_state.0.lock().unwrap() = info.port;
+            *token = info.token;
+        }
+    }
+    token.clone()
 }
 
 /// Restarts the application (dev mode only - for manual refresh)
