@@ -35,7 +35,7 @@ describe.skipIf(!canRun)("Hook lifecycle integration", () => {
     await harness.teardown();
   });
 
-  it("single-turn prompt produces state.json with complete status", async () => {
+  it("single-turn prompt produces state.json with complete status and user message", async () => {
     const { threadId, result } = await harness.runCli("Say exactly: hello world");
 
     expect(result.exitCode).toBe(0);
@@ -44,6 +44,11 @@ describe.skipIf(!canRun)("Hook lifecycle integration", () => {
     const state = harness.readState(threadId);
     expect(state).not.toBeNull();
     expect(state!.status).toBe("complete");
+
+    // Verify user message was recorded via APPEND_USER_MESSAGE
+    const userMessages = state!.messages.filter((m) => m.role === "user");
+    expect(userMessages.length).toBeGreaterThanOrEqual(1);
+    expect(userMessages[0].content).toContain("hello world");
 
     // Verify events.jsonl has SESSION_ENDED from the Stop hook
     const events = harness.readEvents(threadId);
@@ -63,22 +68,31 @@ describe.skipIf(!canRun)("Hook lifecycle integration", () => {
     expect(state!.status).toBe("complete");
     expect(Object.keys(state!.toolStates).length).toBeGreaterThan(0);
 
-    // At least one tool should be marked complete
+    // At least one tool should be marked complete with a tool name
     const toolEntries = Object.values(state!.toolStates);
     const completedTools = toolEntries.filter((t) => t.status === "complete");
     expect(completedTools.length).toBeGreaterThan(0);
+    expect(completedTools[0].toolName).toBeTruthy();
 
-    // Verify events.jsonl has tool lifecycle events
+    // Verify events.jsonl has full lifecycle: TOOL_STARTED → TOOL_COMPLETED → SESSION_ENDED
     const events = harness.readEvents(threadId);
     const types = events.map((e) => e.type);
 
     expect(types).toContain("TOOL_STARTED");
     expect(types).toContain("TOOL_COMPLETED");
+    expect(types).toContain("SESSION_ENDED");
 
-    // TOOL_STARTED should come before TOOL_COMPLETED
+    // TOOL_STARTED should come before TOOL_COMPLETED, which comes before SESSION_ENDED
     const toolStartIdx = types.indexOf("TOOL_STARTED");
     const toolEndIdx = types.indexOf("TOOL_COMPLETED");
+    const sessionEndIdx = types.indexOf("SESSION_ENDED");
     expect(toolStartIdx).toBeLessThan(toolEndIdx);
+    expect(toolEndIdx).toBeLessThan(sessionEndIdx);
+
+    // Tool events should have toolName in payload
+    const toolStartEvent = events.find((e) => e.type === "TOOL_STARTED");
+    expect(toolStartEvent!.payload.toolName).toBeTruthy();
+    expect(toolStartEvent!.payload.toolUseId).toBeTruthy();
   }, 120_000);
 
   it("events.jsonl entries have required fields", async () => {
