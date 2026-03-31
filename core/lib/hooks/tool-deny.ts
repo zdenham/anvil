@@ -5,13 +5,6 @@
 
 export const DISALLOWED_TOOLS = [
   "EnterWorktree",
-  "Mcp",
-  "ListMcpResources",
-  "ReadMcpResource",
-  "SubscribeMcpResource",
-  "UnsubscribeMcpResource",
-  "SubscribePolling",
-  "UnsubscribePolling",
 ] as const;
 
 export type DenyResult =
