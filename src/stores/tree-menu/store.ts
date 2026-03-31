@@ -23,6 +23,9 @@ interface TreeMenuActions {
   /** Hydration (called by service after disk read + validation) */
   hydrate: (state: TreeMenuPersistedState) => void;
 
+  /** Refresh tree data from disk without overwriting selectedItemId */
+  refreshTree: (state: TreeMenuPersistedState) => void;
+
   /** Optimistic apply methods - called by service after disk write */
   _applySetExpanded: (nodeId: string, expanded: boolean) => Rollback;
   _applySetSelectedItem: (itemId: string | null) => Rollback;
@@ -55,6 +58,16 @@ export const useTreeMenuStore = create<TreeMenuState & TreeMenuActions>((set, ge
       hiddenWorktreeIds: state.hiddenWorktreeIds ?? [],
       hiddenRepoIds: state.hiddenRepoIds ?? [],
       _hydrated: true,
+    });
+  },
+
+  refreshTree: (state: TreeMenuPersistedState) => {
+    set({
+      expandedSections: state.expandedSections,
+      pinnedWorktreeId: state.pinnedWorktreeId ?? null,
+      hiddenWorktreeIds: state.hiddenWorktreeIds ?? [],
+      hiddenRepoIds: state.hiddenRepoIds ?? [],
+      // selectedItemId intentionally NOT overwritten
     });
   },
 

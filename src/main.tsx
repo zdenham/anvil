@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { invoke, connectWs } from "@/lib/invoke";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./index.css";
+import "katex/dist/katex.min.css";
 import App from "./App";
 import { WorkspaceSettingsProvider, GlobalErrorProvider } from "./contexts";
 import { logger, setLogSource } from "./lib/logger-client";

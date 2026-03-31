@@ -182,9 +182,11 @@ export function setupThreadListeners(): () => void {
     }
   };
 
-  const handleStatusChanged = async ({ threadId }: EventPayloads[typeof EventName.THREAD_STATUS_CHANGED]) => {
+  const handleStatusChanged = async ({ threadId, status }: EventPayloads[typeof EventName.THREAD_STATUS_CHANGED]) => {
     try {
-      await threadService.refreshById(threadId);
+      // Write status to metadata.json so it persists (especially for TUI threads
+      // where the sidecar only updates state.json, not metadata.json).
+      await threadService.setStatus(threadId, status);
 
       const thread = threadService.get(threadId);
 

@@ -186,7 +186,9 @@ let tuiStateUnlisten: UnlistenFn | null = null;
 async function initTuiThreadStateListener(): Promise<void> {
   if (tuiStateUnlisten) return;
 
-  const STATUS_ACTIONS = new Set(["COMPLETE", "ERROR", "CANCELLED"]);
+  const TURN_START_ACTIONS = new Set(["APPEND_USER_MESSAGE", "INIT"]);
+  const TURN_END_ACTIONS = new Set(["COMPLETE"]);
+  const TERMINAL_ACTIONS = new Set(["ERROR", "CANCELLED"]);
 
   tuiStateUnlisten = await listen<{ threadId: string; action: ThreadAction }>(
     "tui-thread-state",
@@ -196,18 +198,23 @@ async function initTuiThreadStateListener(): Promise<void> {
 
       eventBus.emit(EventName.THREAD_ACTION, { threadId, action });
 
-      // Terminal status transitions need to trigger a metadata refresh so
-      // the sidebar status dot and thread list update correctly.
-      if (STATUS_ACTIONS.has(action.type)) {
-        const statusMap: Record<string, string> = {
-          COMPLETE: "completed",
+      // Map hook-driven actions to status transitions so the sidebar dot
+      // reflects idle vs active state between turns.
+      let status: import("@core/types/threads.js").ThreadStatus | null = null;
+      if (TURN_START_ACTIONS.has(action.type)) {
+        status = "running";
+      } else if (TURN_END_ACTIONS.has(action.type)) {
+        status = "idle";
+      } else if (TERMINAL_ACTIONS.has(action.type)) {
+        const terminalMap: Record<string, import("@core/types/threads.js").ThreadStatus> = {
           ERROR: "error",
           CANCELLED: "cancelled",
         };
-        eventBus.emit(EventName.THREAD_STATUS_CHANGED, {
-          threadId,
-          status: (statusMap[action.type] ?? "completed") as import("@core/types/threads.js").ThreadStatus,
-        });
+        status = terminalMap[action.type] ?? "error";
+      }
+
+      if (status) {
+        eventBus.emit(EventName.THREAD_STATUS_CHANGED, { threadId, status });
       }
     },
   );

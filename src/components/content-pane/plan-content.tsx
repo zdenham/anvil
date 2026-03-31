@@ -18,8 +18,7 @@
 
 import { useRef, useCallback, useEffect, useState } from "react";
 import { planService, usePlanStore } from "@/entities/plans";
-import { TiptapEditor } from "@/components/content-pane/tiptap-editor";
-import { FilesystemClient } from "@/lib/filesystem-client";
+import { MarkdownRenderer } from "@/components/thread/markdown-renderer";
 import { StalePlanView } from "@/components/control-panel/stale-plan-view";
 import { type ThreadInputRef } from "@/components/reusable/thread-input";
 import { ThreadInputSection } from "@/components/reusable/thread-input-section";
@@ -158,21 +157,6 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
     refreshPlan();
   }, [planId, plan, refreshResult]);
 
-  // Handle saving plan content to disk
-  const handlePlanSave = useCallback(
-    async (markdown: string) => {
-      if (!workingDirectory || !plan) return;
-      const fullPath = `${workingDirectory}/${plan.relativePath}`;
-      try {
-        const fs = new FilesystemClient();
-        await fs.writeFile(fullPath, markdown);
-      } catch (err) {
-        logger.error("[PlanContent] Failed to save plan:", err);
-      }
-    },
-    [workingDirectory, plan]
-  );
-
   // Handle message submission from ThreadInput - creates a new thread with plan context
   const handleMessageSubmit = useCallback(
     async (userMessage: string) => {
@@ -247,12 +231,14 @@ export function PlanContent({ planId, onPopOut: _onPopOut }: PlanContentProps) {
           </div>
         </div>
       ) : (
-        <TiptapEditor
-          key={planId}
-          initialContent={content}
-          onSave={handlePlanSave}
-          onChange={handlePlanSave}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto w-full pt-8">
+          <div className="w-full max-w-[900px] mx-auto p-4">
+            <MarkdownRenderer
+              content={content}
+              workingDirectory={workingDirectory}
+            />
+          </div>
+        </div>
       )}
 
       {/* Quick actions and input */}

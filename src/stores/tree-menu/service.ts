@@ -170,11 +170,22 @@ export const treeMenuService = {
   },
 
   /**
-   * Refreshes the store from disk.
-   * Used when cross-window sync events arrive.
+   * Refreshes the store from disk without overwriting selectedItemId.
+   * Selection is UI-local state — only the initial hydrate() restores it from disk.
    */
   async refreshFromDisk(): Promise<void> {
-    await this.hydrate();
+    try {
+      const raw = await appData.readJson(UI_STATE_PATH);
+      if (raw) {
+        const result = TreeMenuPersistedStateSchema.safeParse(raw);
+        if (result.success) {
+          useTreeMenuStore.getState().refreshTree(result.data);
+          return;
+        }
+      }
+    } catch (err) {
+      logger.error("[treeMenuService] Failed to refresh from disk:", err);
+    }
   },
 
   /**

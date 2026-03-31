@@ -241,10 +241,6 @@ export function createHookRouter(deps: HookHandlerDeps): Router {
 
       eventWriter.sessionEnded(threadId);
       log.info(`[hooks] stop for thread ${threadId}`);
-
-      // Clean up in-memory state
-      transcriptReader.reset(threadId);
-      stateWriter.evict(threadId);
     }
 
     res.json(continueResponse());

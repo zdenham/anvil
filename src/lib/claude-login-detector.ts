@@ -14,19 +14,22 @@ export interface ClaudeLoginStatus {
  * The actual auth happens inside the Claude Code CLI subprocess.
  */
 export async function detectClaudeLogin(): Promise<ClaudeLoginStatus> {
-  // macOS Keychain probe
-  try {
-    const cmd = Command.create("security", [
-      "find-generic-password",
-      "-s", "Claude Code",
-      "-w",
-    ]);
-    const output = await cmd.execute();
-    if (output.code === 0 && output.stdout.trim().length > 0) {
-      return { detected: true, source: "keychain" };
+  // macOS Keychain probe — service name changed across Claude versions
+  const keychainServices = ["Claude Code-credentials", "Claude Code"];
+  for (const service of keychainServices) {
+    try {
+      const cmd = Command.create("security", [
+        "find-generic-password",
+        "-s", service,
+        "-w",
+      ]);
+      const output = await cmd.execute();
+      if (output.code === 0 && output.stdout.trim().length > 0) {
+        return { detected: true, source: "keychain" };
+      }
+    } catch {
+      // Keychain entry not found or access denied — try next
     }
-  } catch {
-    // Keychain entry not found or access denied — fall through
   }
 
   // Fallback: check ~/.claude/.credentials.json existence

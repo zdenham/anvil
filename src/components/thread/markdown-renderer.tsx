@@ -1,8 +1,10 @@
 import { memo, useMemo, useRef, type MutableRefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import remarkAlert from "remark-github-blockquote-alert";
 import rehypeRaw from "rehype-raw";
+import rehypeKatex from "rehype-katex";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
@@ -238,8 +240,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   return (
     <div className={cn("prose prose-invert prose-sm prose-p:leading-relaxed max-w-none", className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkAlert]}
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+        remarkPlugins={[remarkMath, remarkGfm, remarkAlert]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex]}
         components={components}
       >
         {processedContent}

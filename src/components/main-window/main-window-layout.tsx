@@ -435,6 +435,7 @@ export function MainWindowLayout() {
   const handleNewClaudeSession = useCallback(async (repoId: string, worktreeId: string, worktreePath: string) => {
     try {
       const result = await createTuiThread({ repoId, worktreeId, worktreePath });
+      await treeMenuService.hydrate();
       await navigationService.navigateToThread(result.threadId);
     } catch (err) {
       logger.error(`[MainWindowLayout] Failed to create Claude session:`, err);
@@ -445,7 +446,7 @@ export function MainWindowLayout() {
   // Priority: 1) Selected thread/plan's worktree, 2) Most recent worktree
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "t") {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "t") {
         e.preventDefault();
 
         let worktreeId: string | undefined;
@@ -495,6 +496,70 @@ export function MainWindowLayout() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleNewTerminal]);
+
+  // Listen for Command+Shift+T / Ctrl+Shift+T to create new Claude Code (TUI) session
+  // Priority: 1) Selected thread/plan's worktree, 2) Most recent worktree
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "T") {
+        e.preventDefault();
+
+        let repoId: string | undefined;
+        let worktreeId: string | undefined;
+        let worktreePath: string | undefined;
+
+        // 1. Check if a thread or plan is currently selected
+        const selectedItemId = useTreeMenuStore.getState().selectedItemId;
+        if (selectedItemId) {
+          const selectedThread = threadService.get(selectedItemId);
+          if (selectedThread) {
+            repoId = selectedThread.repoId;
+            const worktreeNode = treeItemsRef.current.find(
+              i => i.type === "worktree" && i.repoId === selectedThread.repoId && (i.worktreeId === selectedThread.worktreeId || i.id === selectedThread.worktreeId)
+            );
+            if (worktreeNode) {
+              worktreeId = worktreeNode.worktreeId ?? worktreeNode.id;
+              worktreePath = worktreeNode.worktreePath;
+            }
+          } else {
+            const selectedPlan = planService.get(selectedItemId);
+            if (selectedPlan) {
+              repoId = selectedPlan.repoId;
+              const worktreeNode = treeItemsRef.current.find(
+                i => i.type === "worktree" && i.repoId === selectedPlan.repoId && (i.worktreeId === selectedPlan.worktreeId || i.id === selectedPlan.worktreeId)
+              );
+              if (worktreeNode) {
+                worktreeId = worktreeNode.worktreeId ?? worktreeNode.id;
+                worktreePath = worktreeNode.worktreePath;
+              }
+            }
+          }
+        }
+
+        // 2. Fallback to most recently used worktree (from MRU store)
+        if (!repoId || !worktreeId || !worktreePath) {
+          const mru = useMRUWorktreeStore.getState().getMRUWorktree();
+          if (!mru) {
+            logger.warn("[MainWindowLayout] Command+Shift+T: No worktrees available");
+            return;
+          }
+          repoId = mru.repoId;
+          worktreeId = mru.worktreeId;
+          worktreePath = useRepoWorktreeLookupStore.getState().getWorktreePath(mru.repoId, mru.worktreeId);
+        }
+
+        if (!worktreePath) {
+          logger.warn("[MainWindowLayout] Command+Shift+T: Could not resolve worktree path");
+          return;
+        }
+
+        await handleNewClaudeSession(repoId, worktreeId, worktreePath);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleNewClaudeSession]);
 
   const handleNewWorktree = useCallback(async (repoName: string) => {
     logger.info(`[MainWindowLayout] New worktree requested for repo ${repoName}`);
