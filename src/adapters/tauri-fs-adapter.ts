@@ -2,6 +2,44 @@ import type { FSAdapter, DirEntry } from "../../core/services/fs-adapter";
 import { FilesystemClient } from "@/lib/filesystem-client";
 
 /**
+ * Convert a simple glob pattern to a RegExp.
+ *
+ * Supports:
+ *   - `*`  → match anything except path separators
+ *   - `**` → match anything including path separators (recursive)
+ *   - `?`  → match a single character
+ *
+ * This intentionally does NOT cover brace expansion or advanced glob
+ * features — just the patterns needed for file discovery.
+ */
+function globToRegExp(pattern: string): RegExp {
+  let re = "";
+  let i = 0;
+  while (i < pattern.length) {
+    const ch = pattern[i];
+    if (ch === "*" && pattern[i + 1] === "*") {
+      // `**/` or trailing `**`
+      re += ".*";
+      i += 2;
+      if (pattern[i] === "/") i++; // consume trailing slash
+    } else if (ch === "*") {
+      re += "[^/]*";
+      i++;
+    } else if (ch === "?") {
+      re += "[^/]";
+      i++;
+    } else if (ch === ".") {
+      re += "\\.";
+      i++;
+    } else {
+      re += ch;
+      i++;
+    }
+  }
+  return new RegExp(`^${re}$`);
+}
+
+/**
  * Tauri/frontend implementation of FSAdapter.
  * Uses FilesystemClient directly for absolute path operations.
  *
@@ -28,10 +66,25 @@ export class TauriFSAdapter implements FSAdapter {
     return entries.map((entry) => entry.name);
   }
 
-  async glob(_pattern: string, _cwd: string): Promise<string[]> {
-    // TODO: Implement glob using Tauri fs if needed
-    // For now, skill discovery doesn't use glob
-    throw new Error("glob not implemented in TauriFSAdapter");
+  async glob(pattern: string, cwd: string): Promise<string[]> {
+    const regex = globToRegExp(pattern);
+    const results: string[] = [];
+
+    const walk = async (dir: string, prefix: string): Promise<void> => {
+      const entries = await this.fsClient.listDir(dir);
+      for (const entry of entries) {
+        const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.isFile && regex.test(relative)) {
+          results.push(relative);
+        }
+        if (entry.isDirectory) {
+          await walk(this.fsClient.joinPath(dir, entry.name), relative);
+        }
+      }
+    };
+
+    await walk(cwd, "");
+    return results;
   }
 
   async mkdir(path: string, _recursive?: boolean): Promise<void> {
