@@ -48,6 +48,8 @@ anvil/
   src-tauri/        # Tauri backend (Rust)
   core/             # Shared types, adapters, SDK, services
   agents/           # Agent workspace package
+  server/           # Backend server (gateway, routes, migrations)
+  api/              # Fastify API server
   sidecar/          # Sidecar process
   migrations/       # Database migrations
   landing/          # Marketing site
@@ -92,7 +94,7 @@ pnpm lint:fix    # Auto-fix
 - TypeScript strict mode is enforced
 - Use Vitest for unit and integration tests
 - Prefer named exports over default exports
-- Keep files focused and under 400 lines when practical
+- Keep files focused and under 250 lines (see `docs/agents.md`); break larger files into submodules
 
 ## Reporting Issues
 
