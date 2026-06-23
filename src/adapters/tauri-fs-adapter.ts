@@ -11,8 +11,13 @@ import { FilesystemClient } from "@/lib/filesystem-client";
  *
  * This intentionally does NOT cover brace expansion or advanced glob
  * features — just the patterns needed for file discovery.
+ *
+ * All non-wildcard characters are treated literally: any regex
+ * metacharacter (e.g. `.`, `+`, `(`, `)`, `[`, `]`, `{`, `}`, `^`, `$`,
+ * `|`, `\`) is escaped so patterns like `a+b/*.ts` or `(x).js` are matched
+ * as literal text instead of producing an invalid or unintended RegExp.
  */
-function globToRegExp(pattern: string): RegExp {
+export function globToRegExp(pattern: string): RegExp {
   let re = "";
   let i = 0;
   while (i < pattern.length) {
@@ -28,11 +33,15 @@ function globToRegExp(pattern: string): RegExp {
     } else if (ch === "?") {
       re += "[^/]";
       i++;
-    } else if (ch === ".") {
-      re += "\\.";
-      i++;
     } else {
-      re += ch;
+      // Escape every regex metacharacter so the glob segment is matched
+      // literally. `/` is not special in a RegExp body but is harmless to
+      // leave unescaped; everything in this class needs a backslash.
+      if (/[.+^${}()|[\]\\]/.test(ch)) {
+        re += "\\" + ch;
+      } else {
+        re += ch;
+      }
       i++;
     }
   }
