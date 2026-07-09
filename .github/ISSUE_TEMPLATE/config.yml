@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord Community
+    url: https://discord.gg/tbkAetedSd
+    about: Ask questions, get help, and discuss Anvil with the community.
+  - name: Anvil Website
+    url: https://www.anvil.fm
+    about: Download Anvil and learn more about the project.
